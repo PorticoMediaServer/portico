@@ -1,5 +1,5 @@
 import React, {createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {runOnJS, useSharedValue} from 'react-native-reanimated';
 import type {QueuePlaybackView} from '../../../../../../packages/client-core/src/queue-controller';
@@ -17,7 +17,9 @@ import {AmbientArt, Artwork} from '../../../kit/artwork';
 import {Layer} from '../../../kit/shell/Layer';
 import {Button, Focusable} from '../../../kit/controls';
 import {GestureCommitScope} from '../../../kit/controls/gesture-commit';
-import {Icon} from '../../../kit/Icon';
+import {Icon, type IconName} from '../../../kit/Icon';
+import {AudioPlayerFrame, audioPlayerFramePaintTypes, type AudioControl, type AudioOption, type AudioPlayerFrameProps} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {useTheme} from '../../../kit/theme';
 import {ListeningSeekPaint, useListeningScrubberPublication, ListeningGroup, useListeningCoverSlot, useListeningPageOwner, useListeningPageActive, useListeningPageHeight, useListeningPagePresent, useListeningPaintPermit, useListeningPageStyle} from '../../../kit/dock/ListeningCoverBridge';
 import {alpha, browseType} from '../../../kit/browse/presentation';
@@ -42,7 +44,6 @@ import {NowPlayingLyrics, type NowPlayingLyricsProps} from './NowPlayingLyrics';
 import {ListeningQueuePaint, ListeningLyricsPaint} from './ListeningPanePaint';
 import {useTVPanelPresence} from '../../../kit/overlays/TVPanelMotion';
 import {registerBack} from '../../../kit/navigation/back';
-import {TVRow} from '../../../kit/layout/TVRow';
 
 const t = defaultI18n.t;
 const equalizerCopy = (): NativeEqualizerCopy => ({title: t('next.media.eq.title'), back: t('action.back'), thisDevice: t('device.thisDevice'),
@@ -103,10 +104,8 @@ export type NowPlayingScreenProps = Readonly<{
   testID?: string;
 }>;
 
-const QUEUE_WIDTH = 366;
-const SIDE_BY_SIDE = 700;
 const ListeningChromeGate = createContext(false);
-const listeningPaintTypes = [ListeningSurface, ListeningSwipeArea, ListeningColumn, ListeningSidePanel, ListeningPageBackground, ListeningGroup, ListeningSeekPaint, ListeningQueuePaint, ListeningLyricsPaint, MusicFocusRegion, MusicSignalLine, MusicSignalSheet, ListeningFavoritePaint, View, Text, ScrollView, Artwork, AmbientArt, Button, Focusable, Icon, React.Fragment];
+const listeningPaintTypes = [...audioPlayerFramePaintTypes, ListeningSurface, ListeningSwipeArea, ListeningFrameCover, ListeningSidePanel, ListeningPageBackground, ListeningGroup, ListeningSeekPaint, ListeningQueuePaint, ListeningLyricsPaint, MusicFocusRegion, MusicSignalLine, MusicSignalSheet, ListeningFavoritePaint, View, Text, ScrollView, Artwork, AmbientArt, Button, Focusable, Icon, React.Fragment];
 const listeningPaintOmissions = [GestureDetector, NowPlayingQueue, NowPlayingLyrics, ListeningSongActions, NativeWatchEqualizer];
 
 export function NowPlayingScreen(props: NowPlayingScreenProps) {
@@ -129,8 +128,10 @@ function sleepLabel(choice: NativeSleepChoice): string {
   return choice === 'item' ? t('player.opt.sleepEndOfTitle') : choice === 'chapter' ? t('player.opt.sleepEndOfChapter') : choice === 'book' ? t('player.opt.sleepEndOfBook')
     : choice === null ? t('player.opt.off') : t('player.opt.minutes', {count: choice});
 }
-function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInset = 0, bottomInset = 0, backgroundHosted = false, onAction, onQueuePlay, queuePolicy, policyLifetime, retry, playOn, queueEdit, song, onClose, signal, notice, reportError = () => {}, testID = 'now-playing', lyrics, audiobook, sleepAtMs = null, sleepEnd}: NowPlayingScreenProps) {
+function TouchNowPlayingScreen({occupant, queue, artwork, width, height, backgroundHosted = false, onAction, onQueuePlay, queuePolicy, policyLifetime, retry, playOn, queueEdit, song, onClose, signal, notice, reportError = () => {}, testID = 'now-playing', lyrics, audiobook, sleepAtMs = null, sleepEnd}: NowPlayingScreenProps) {
   const theme = useTheme(), {presentation: p, playback} = occupant, book = occupant.mode === 'audiobook';
+  // The frame's forms decide the layout: one column on a phone, the column beside the panel from the medium form.
+  const wide = useFrameMetrics().form !== 'phone';
   const playOnButton = useRef<View>(null);
   const paintPermit = useListeningPaintPermit(playback.fence), paintActive = useListeningPageActive(playback.fence);
   // Repeat and shuffle are the queue's own facts, and the answer to a change is the server's
@@ -156,7 +157,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   };
   const focus = useId();
   const paneOwner = useMemo(() => Object.freeze({}), []);
-  const [sheet, setSheet] = useState<'queue' | 'lyrics' | 'chapters' | null>(() => width < SIDE_BY_SIDE ? null : book ? 'chapters' : queue ? 'queue' : lyrics ? 'lyrics' : null);
+  const [sheet, setSheet] = useState<'queue' | 'lyrics' | 'chapters' | null>(() => !wide ? null : book ? 'chapters' : queue ? 'queue' : lyrics ? 'lyrics' : null);
   const [panel, setPanel] = useState<'signal' | 'eq' | 'speed' | 'sleep' | 'more' | null>(null);
   const moreRef = useRef<View | null>(null);
   const {reader: bookReader, snapshot: bookSnapshot} = useAudiobookRead(book && paintActive ? audiobook?.read : undefined, playback.fence, reportError);
@@ -166,8 +167,8 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   useEffect(() => {chapterRead.current = undefined; setChapterBusy(false); setBrowsingChapters(false);}, [bookReader]);
   useEffect(() => {
     setPanel(null);
-    setSheet(open => book ? open && open !== 'chapters' ? width >= SIDE_BY_SIDE ? 'chapters' : null : open
-      : open === 'chapters' ? width >= SIDE_BY_SIDE ? queue ? 'queue' : lyrics ? 'lyrics' : null : null : open);
+    setSheet(open => book ? open && open !== 'chapters' ? wide ? 'chapters' : null : open
+      : open === 'chapters' ? wide ? queue ? 'queue' : lyrics ? 'lyrics' : null : null : open);
     // Only a change of listening mode replaces a pane, not every queue update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book]);
@@ -186,7 +187,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     return () => {releaseBack(); release();};
   }, [panel, closePanel, theme.isTV]);
   const equalizer = useSyncExternalStore(nativeEqualizer.subscribe, nativeEqualizer.getSnapshot);
-  const wide = width >= SIDE_BY_SIDE, side = wide && sheet !== null, position = playbackPosition(occupant);
+  const side = wide && sheet !== null, position = playbackPosition(occupant);
   const bookFacts = bookSnapshot.phase === 'current' ? bookSnapshot : undefined;
   const chapterData = bookFacts?.chapters.data;
   // MU-2: the whole book's chapters when known (every part, numbered through the book); the
@@ -301,15 +302,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   const hostedScrubber = useListeningScrubberPublication(scrubber);
   const favoritePaint = song ? listeningSongFavorite(song.token, song.pending) : undefined;
   const facts = p.identity.subtitle.filter(part => part.text), album = (p.album ?? []).filter(part => part.text);
-  const panelWidth = width >= 1024 ? 380 : QUEUE_WIDTH;
-  const cover = book ? Math.min(wide ? 250 : 290, width - 48) : wide ? Math.max(160, Math.min(410, width - (side ? panelWidth + 40 : 0) - 56)) : width - 48;
-  const smallTransport = wide ? 52 : 48, playSize = wide ? 74 : 76;
-  const outerTransport = {width: smallTransport, height: smallTransport, flexShrink: 0};
   const bookRemaining = book && !wide && fullBounds ? durationText(Math.max(0, fullBounds.end - position), t) : undefined;
-  const bookOption = {flex: 1, height: 54, alignItems: 'center', justifyContent: 'center', gap: 2, borderRadius: 12,
-    overflow: 'hidden', backgroundColor: alpha(theme.colors.text, .12)} as const;
-  const bookOptionActive = {backgroundColor: alpha(theme.colors.accent, .22), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .5)};
-  const bookGlass = glassRecipe().nativeBlur ? <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={16} reducedTransparencyFallbackColor={theme.colors.raisedHigh}/> : null;
   const chapterPane = <View testID={`${testID}-chapters`} style={{flex: 1, minHeight: 0}}>
     {wholeBook ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 12, paddingBottom: 16}}>
       {wholeBook.chapters.map((value, index) => <Focusable key={value.id} accessibilityRole="button" accessibilityState={{selected: index === wholeBook.current}}
@@ -349,183 +342,87 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     </View> : null}
     </>}
   </View>;
-  const header = !wide ? <View style={{width: '100%', minHeight: 48, marginHorizontal: -10, flexDirection: 'row', alignItems: 'center', marginBottom: 22}}>
-    <Button variant="text" iconOnly icon="i-down" iconColor={theme.colors.text} iconSize={26} style={{width: 48, height: 48}} accessibilityLabel={t('player.minimize')} onPress={onClose}/>
-    <View style={{flex: 1, alignItems: 'center', gap: 2}}>
-      <Text style={[browseType(theme, 12, 600), {color: theme.colors.textSecondary}]}>{playingFrom ? t('next.music.playingFrom', {source: ''}).trim() : t('player.queueNowPlaying')}</Text>
-      {playingFrom ? <Text numberOfLines={1} style={[browseType(theme, 14.5, 700), {color: theme.colors.text}]}>{playingFrom}</Text> : null}
-    </View>
-    <Button ref={moreRef} variant="text" iconOnly icon="i-more" iconColor={theme.colors.text} iconSize={22} style={{width: 48, height: 48}}
-      accessibilityLabel={t('card.more', {title: p.identity.title})} onPress={() => setPanel('more')}/>
-  </View> : undefined;
-  const bookHorizontal = book && wide && width - (side ? panelWidth + 40 : 0) - 56 >= 560;
-  const identity = <View style={{width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: bookHorizontal ? 0 : 26}}>
-      <View style={{flex: 1, minWidth: 0}}>
-        <Text numberOfLines={2} accessibilityRole="header" style={[browseType(theme, bookHorizontal ? 38 : wide ? 34 : 23, 800, wide ? -0.03 : -0.025), {textAlign: wide && !bookHorizontal ? 'center' : 'left', color: theme.colors.text}]}>{p.identity.title}</Text>
-        {facts.length ? <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: wide && !bookHorizontal ? 'center' : 'flex-start', columnGap: 10, rowGap: 4, marginTop: wide ? 8 : 2}}>
-          {facts.map((part, index) => <Text key={`${part.id}-${index}`} style={[browseType(theme, wide ? 15 : 16, wide ? 500 : 600), {color: theme.colors.textSecondary}]}>{part.text}</Text>)}
-        </View> : null}
-        {wide && album.length ? <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 4}}>
-          {album.map((part, index) => <Text key={`${part.id}-${index}`} style={[browseType(theme, 13, 500), {color: theme.colors.textTertiary}]}>{part.text}</Text>)}
-        </View> : null}
-      </View>
-      {favoritePaint ? <Button variant="text" iconOnly icon={favoritePaint.favorite ? 'i-heart-f' : 'i-heart'} iconColor={theme.colors.text} iconSize={24}
-        style={{width: 48, height: 48, flexShrink: 0}} disabled={favoritePaint.pending} accessibilityState={{checked: favoritePaint.favorite}}
-        accessibilityLabel={t(favoritePaint.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}
-        onPress={() => {if (song?.token) song.favorite(song.token, !favoritePaint.favorite);}}/> : null}
-    </View>;
-  const column = <ListeningColumn testID={`${testID}-column`} fence={playback.fence} source={p.artwork} playingFrom={wide ? playingFrom : undefined} header={header} cover={cover} wide={wide} height={height} horizontal={bookHorizontal}
-    identity={bookHorizontal ? <ListeningGroup fence={playback.fence} index={0} height={height} style={{width: undefined, flex: 1, minWidth: 0, marginBottom: 6}}>{identity}</ListeningGroup> : undefined}>
-    <ListeningSwipeArea fence={playback.fence}><ListeningGroup fence={playback.fence} index={0} height={height}>
-    {!bookHorizontal ? identity : null}
-    {signal ? <MusicFocusRegion id={`${focus}.signal`} entry="music-signal-line" edges={{down: `${focus}.progress`}} style={{alignSelf: 'center', marginTop: 12}}><MusicSignalLine view={signal} onPress={() => setPanel('signal')}/></MusicFocusRegion> : null}
-    {retry?.enabled ? <View style={{marginTop: 16}}><Button testID={`${testID}-retry`} variant="primary" icon="i-retry"
-      onPress={() => retry.run(playback.fence)}>{t('next.states.tryAgain')}</Button></View> : null}
-    {book && chapter ? <View testID={`${testID}-chapter-line`} style={{width: '100%', maxWidth: 600, marginTop: wide ? 26 : 18, flexDirection: 'row', alignItems: 'center', gap: wide ? 8 : 6}}>
-      <Icon name="i-list" size={18} color={theme.colors.textSecondary}/>
-      <Text style={[browseType(theme, wide ? 14 : 13.5, 700), {flexShrink: 1, color: wide ? theme.colors.text : theme.colors.textSecondary}]}>{chapter.title}</Text>
-      <Text style={[browseType(theme, wide ? 13 : 13.5, wide ? 500 : 600), {marginLeft: wide ? undefined : 'auto', color: wide ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{/* tablet-play: "12:04 of 31:40"; phone-app 15: "of 19" (nothing until the count is known). */}
-        {wide ? t('player.clockOf', {position: clockText(Math.max(0, position - chapter.startSeconds)), duration: clockText(chapter.endSeconds - chapter.startSeconds)})
-          : chapterTotal !== undefined ? t('player.chapterTotal', {total: chapterTotal}) : ''}</Text>
-    </View> : null}
-    </ListeningGroup></ListeningSwipeArea>
-    <ListeningGroup fence={playback.fence} index={1} height={height}>
-    <View style={{width: '100%', maxWidth: book ? 600 : 520, marginTop: book ? wide ? 8 : 12 : 20}}>
-      <View>
-      <ListeningSeekPaint fence={playback.fence} fraction={fraction} span={span} seconds={position - (bounds?.start ?? 0)}
+  // The frame (AudioPlayerFrame) places every region for the form; this screen fills them with its listening parts and
+  // keeps its behaviour. The open motion's three groups are the screen's (ListeningGroup reads the dock's morph).
+  const group = (index: 0 | 1 | 2, children: React.ReactNode) => index === 0
+    ? <ListeningSwipeArea fence={playback.fence}><ListeningGroup fence={playback.fence} index={0} height={height} style={{alignItems: 'stretch'}}>{children}</ListeningGroup></ListeningSwipeArea>
+    : <ListeningGroup fence={playback.fence} index={index} height={height} style={{alignItems: 'stretch'}}>{children}</ListeningGroup>;
+  const control = (icon: IconName, label: string, onPress: () => void, extra: Partial<AudioControl> = {}): AudioControl => ({icon, label, onPress, ...extra});
+  const rate = bookFacts?.rate.effective ?? bookFacts?.rate.selected;
+  const ifCurrent = (run: () => void) => () => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) run();};
+  const toggle = control(playback.playing ? 'i-pause' : 'i-play', t(playback.playing ? 'action.pause' : 'action.play'), () => act(playback.playing ? 'pause' : 'play'),
+    {disabled: playback.playing ? !p.capabilities.pause : !p.capabilities.play, testID: `${testID}-toggle`});
+  const transport: AudioPlayerFrameProps['transport'] = book ? [
+    control('i-prev', t(byChapter ? 'next.dock.previousChapter' : 'player.previous'), () => act('previous'), {disabled: !p.capabilities.previous, testID: `${testID}-previous-chapter`}),
+    control('i-rew', t('player.skipBackSeconds', {seconds: skipBack}), () => seekBook(position - skipBack), {skip: skipBack, disabled: !p.capabilities.seek || !bookReader, testID: `${testID}-skip-back`}),
+    toggle,
+    control('i-ffw', t('player.skipForwardSeconds', {seconds: skipForward}), () => seekBook(position + skipForward), {skip: skipForward, disabled: !p.capabilities.seek || !bookReader, testID: `${testID}-skip-forward`}),
+    control('i-next', t(byChapter ? 'next.dock.nextChapter' : 'player.next'), () => act('next'), {disabled: !p.capabilities.next, testID: `${testID}-next-chapter`}),
+  ] : [
+    // Radio has no shuffle, and a queue whose policy can't change keeps shuffle and repeat in their places, disabled.
+    control('i-shuffle', t('next.dock.shuffle'), () => changePolicy({action: 'shuffle', shuffled: !shuffled}), {active: shuffled, disabled: !policyReady || !!drawnQueue?.radio, testID: `${testID}-shuffle`}),
+    control('i-prev', t('player.previous'), () => act('previous'), {disabled: !p.capabilities.previous, testID: `${testID}-previous`}),
+    toggle,
+    control('i-next', t('player.next'), () => act('next'), {disabled: !p.capabilities.next, testID: `${testID}-next`}),
+    control('i-repeat', t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne'),
+      () => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'}), {active: repeat !== 'off', disabled: !policyReady, testID: `${testID}-repeat`}),
+  ];
+  const speed: AudioOption | undefined = book ? {label: t('player.opt.speed'), value: `${rate ?? 1}×`, disabled: !bookFacts?.rate.supported?.length, onPress: () => setPanel('speed'), testID: `${testID}-speed`,
+    choices: (bookFacts?.rate.supported ?? []).map(value => ({label: `${value}×`, selected: rate === value, onPress: ifCurrent(() => audiobook?.setRate(playback.fence, value))}))} : undefined;
+  const sleep: AudioOption | undefined = book ? {label: t('player.opt.sleepTimer'), icon: 'i-moon', value: sleepMinutes === null ? undefined : t('player.opt.minutes', {count: sleepMinutes}),
+    help: sleepEnd || sleepMinutes !== null ? sleepLabel(sleepEnd ?? sleepMinutes) : undefined, active: sleepMinutes !== null, disabled: !bookReader || !audiobook?.setSleepTimer, onPress: () => setPanel('sleep'), testID: `${testID}-sleep`,
+    choices: bookSleepChoices.map(choice => ({label: sleepLabel(choice), selected: sleepSelected(choice), onPress: ifCurrent(() => void audiobook?.setSleepTimer?.(playback.fence, choice).catch(reportBookError))}))} : undefined;
+  const chapters: AudioOption | undefined = book ? {label: t('player.opt.chapters'), icon: 'i-list', value: chapterData?.totalCount !== undefined ? String(chapterData.totalCount) : undefined,
+    active: sheet === 'chapters', disabled: !bookReader, onPress: () => setSheet(open => open === 'chapters' ? null : 'chapters'), testID: `${testID}-chapters-toggle`} : undefined;
+  const elapsed = Math.max(0, position - (bounds?.start ?? 0));
+  const tabs = side ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14}}>
+    {book && queue ? <>
+      <Button testID={`${testID}-tab-chapters`} variant={sheet === 'chapters' ? 'primary' : 'glass'} size="small" icon="i-list" onPress={() => setSheet('chapters')}>{t('player.opt.chapters')}</Button>
+      <Button testID={`${testID}-tab-queue`} variant={sheet === 'queue' ? 'primary' : 'glass'} size="small" icon="i-queue" onPress={() => setSheet('queue')}>{t('player.queue')}</Button>
+    </> : !book && queue && lyrics ? <>
+      <Button testID={`${testID}-tab-queue`} variant={sheet === 'queue' ? 'primary' : 'glass'} size="small" icon="i-queue" onPress={() => setSheet('queue')}>{t('player.queue')}</Button>
+      <Button testID={`${testID}-tab-lyrics`} variant={sheet === 'lyrics' ? 'primary' : 'glass'} size="small" icon="i-lyrics" onPress={() => setSheet('lyrics')}>{t('player.lyrics')}</Button>
+    </> : <Text style={[browseType(theme, 20, 800, -0.02), {color: theme.colors.text}]}>{t(sheet === 'chapters' ? 'player.opt.chapters' : sheet === 'lyrics' ? 'player.lyrics' : 'player.queue')}</Text>}
+  </View> : null;
+  const frame = <AudioPlayerFrame testID={`${testID}-column`} group={group}
+    close={control('i-down', t('player.minimize'), onClose, {testID: `${testID}-close`})}
+    context={playingFrom ? t('next.music.playingFrom', {source: ''}).trim() : wide ? undefined : t('player.queueNowPlaying')} source={playingFrom}
+    device={playOn?.enabled ? control('i-cast', t('device.thisDevice'), () => playOn.open(playback.fence, playOnButton), {testID: `${testID}-play-on`, anchorRef: view => {playOnButton.current = view;}}) : undefined}
+    more={control('i-more', t('card.more', {title: p.identity.title}), () => setPanel('more'), {testID: `${testID}-more`, anchorRef: view => {moreRef.current = view;}})}
+    notice={notice ? <View accessibilityLiveRegion="polite" accessibilityRole="alert" testID={`${testID}-notice`} style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: 'rgba(7,16,24,.5)'}}>
+      <Icon name="i-pause" size={14} color={theme.colors.accentStrong}/><Text style={[browseType(theme, 13, 600), {color: theme.colors.textSecondary}]}>{t(notice)}</Text>
+    </View> : undefined}
+    artwork={p.artwork} icon={book ? 'i-book' : 'i-music'} cover={p.artwork ? <ListeningFrameCover fence={playback.fence} source={p.artwork}/> : undefined}
+    title={p.identity.title} byline={[facts.map(part => part.text).join('  '), album.map(part => part.text).join('  ')].filter(Boolean)}
+    favourite={favoritePaint ? control(favoritePaint.favorite ? 'i-heart-f' : 'i-heart', t(favoritePaint.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites'),
+      () => {if (song?.token) song.favorite(song.token, !favoritePaint.favorite);}, {active: favoritePaint.favorite, disabled: favoritePaint.pending, testID: `${testID}-favorite`}) : undefined}
+    chapter={book && chapter ? {label: chapter.title, of: wide ? t('player.clockOf', {position: clockText(Math.max(0, position - chapter.startSeconds)), duration: clockText(chapter.endSeconds - chapter.startSeconds)})
+      : chapterTotal !== undefined ? t('player.chapterTotal', {total: chapterTotal}) : ''} : undefined}
+    signal={signal ? <MusicFocusRegion id={`${focus}.signal`} entry="music-signal-line" edges={{down: `${focus}.progress`}}><MusicSignalLine view={signal} onPress={() => setPanel('signal')}/></MusicFocusRegion> : undefined}
+    action={retry?.enabled ? <Button testID={`${testID}-retry`} variant="primary" icon="i-retry" onPress={() => retry.run(playback.fence)}>{t('next.states.tryAgain')}</Button> : undefined}
+    scrubber={<View>
+      <ListeningSeekPaint fence={playback.fence} fraction={fraction} span={span} seconds={elapsed}
         label={t('player.position')} testID={`${testID}-scrubber`} fallbackGesture={hostedScrubber ? undefined : scrub} fallbackAdjust={hostedScrubber || !inputActive ? undefined : adjustSeek}/>
       {book && wide && bounds && span > 0 ? <View testID={`${testID}-chapter-ticks`} pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 12, height: 4}}>
         {(wholeBook ? wholeBook.chapters.filter(value => value.itemId === wholeBook.itemId) : chapterData?.chapters ?? []).filter(value => value.startSeconds > bounds.start && value.startSeconds < bounds.end).map(value => <View key={value.id}
           style={{position: 'absolute', top: 0, bottom: 0, width: 2, marginLeft: -1, left: `${(value.startSeconds - bounds.start) / span * 100}%`, backgroundColor: alpha(theme.colors.ink, .75)}}/>)}
       </View> : null}
-      </View>
-      <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 2}}>
-        <Text style={[browseType(theme, 12.5, 600), {color: theme.colors.textSecondary, fontVariant: ['tabular-nums']}]}>{clockText(Math.max(0, position - (bounds?.start ?? 0)))}</Text>
-        <Text style={[browseType(theme, 12.5, 600), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{!wide || book ? `-${clockText(Math.max(0, (span || p.durationSeconds || 0) - Math.max(0, position - (bounds?.start ?? 0))))}` : clockText(span || p.durationSeconds)}</Text>
-      </View>
-      {bookRemaining ? <Text testID={`${testID}-book-remaining`} style={[browseType(theme, 12, 600), {textAlign: 'center', color: theme.colors.textSecondary, marginTop: -14}]}>{t('next.kit.remaining', {time: bookRemaining})}</Text> : null}
-    </View>
-    <MusicFocusRegion id={`${focus}.transport`} entry="toggle" orientation="horizontal" style={{width: '100%', maxWidth: book ? 600 : 520, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: book ? 14 : 18}}>
-      {book ? <Button testID={`${testID}-previous-chapter`} variant="text" iconOnly icon="i-prev" iconColor={theme.colors.text} iconSize={28} style={outerTransport}
-        accessibilityLabel={t(byChapter ? 'next.dock.previousChapter' : 'player.previous')} disabled={!p.capabilities.previous} onPress={() => act('previous')}/>
-        : policyReady && !drawnQueue?.radio ? <Button testID={`${testID}-shuffle`} variant="text" iconOnly icon="i-shuffle" iconColor={shuffled ? theme.colors.accentStrong : theme.colors.textSecondary} iconSize={22} style={outerTransport}
-          accessibilityLabel={t('next.dock.shuffle')} accessibilityState={{selected: shuffled}} onPress={() => changePolicy({action: 'shuffle', shuffled: !shuffled})}/> : null}
-      {book ? <Focusable testID={`${testID}-skip-back`} accessibilityRole="button" accessibilityLabel={t('player.skipBackSeconds', {seconds: skipBack})} disabled={!p.capabilities.seek || !bookReader}
-        onPress={() => seekBook(position - skipBack)} style={[outerTransport, {alignItems: 'center', justifyContent: 'center'}]}>
-        <Icon name="i-rew" size={38} color={theme.colors.text}/><Text style={[browseType(theme, 10.5, 800), {position: 'absolute', color: theme.colors.text}]}>{skipBack}</Text>
-      </Focusable> : <Button testID={`${testID}-previous`} variant="text" iconOnly icon="i-prev" iconColor={theme.colors.text} iconSize={wide ? 26 : 34} style={outerTransport}
-        accessibilityLabel={t('player.previous')} disabled={!p.capabilities.previous} onPress={() => act('previous')}/>}
-      <Button testID={`${testID}-toggle`} variant="primary" iconOnly icon={playback.playing ? 'i-pause' : 'i-play'} iconSize={wide ? 30 : 34}
-        style={{height: playSize, width: playSize, borderRadius: playSize / 2, flexShrink: 0}} accessibilityLabel={t(playback.playing ? 'action.pause' : 'action.play')}
-        disabled={playback.playing ? !p.capabilities.pause : !p.capabilities.play} onPress={() => act(playback.playing ? 'pause' : 'play')}/>
-      {book ? <Focusable testID={`${testID}-skip-forward`} accessibilityRole="button" accessibilityLabel={t('player.skipForwardSeconds', {seconds: skipForward})} disabled={!p.capabilities.seek || !bookReader}
-        onPress={() => seekBook(position + skipForward)} style={[outerTransport, {alignItems: 'center', justifyContent: 'center'}]}>
-        <Icon name="i-ffw" size={38} color={theme.colors.text}/><Text style={[browseType(theme, 10.5, 800), {position: 'absolute', color: theme.colors.text}]}>{skipForward}</Text>
-      </Focusable> : <Button testID={`${testID}-next`} variant="text" iconOnly icon="i-next" iconColor={theme.colors.text} iconSize={wide ? 26 : 34} style={outerTransport}
-        accessibilityLabel={t('player.next')} disabled={!p.capabilities.next} onPress={() => act('next')}/>}
-      {book ? <Button testID={`${testID}-next-chapter`} variant="text" iconOnly icon="i-next" iconColor={theme.colors.text} iconSize={28} style={outerTransport}
-        accessibilityLabel={t(byChapter ? 'next.dock.nextChapter' : 'player.next')} disabled={!p.capabilities.next} onPress={() => act('next')}/>
-        : policyReady ? <Button testID={`${testID}-repeat`} variant="text" iconOnly icon="i-repeat" iconColor={repeat === 'off' ? theme.colors.textSecondary : theme.colors.accentStrong} iconSize={22} style={outerTransport}
-          accessibilityLabel={t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne')}
-          accessibilityState={{selected: repeat !== 'off'}} onPress={() => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})}/> : null}
-    </MusicFocusRegion>
-    </ListeningGroup>
-    <ListeningGroup fence={playback.fence} index={2} height={height}>
-    {notice ? <View accessibilityLiveRegion="polite" accessibilityRole="alert" testID={`${testID}-notice`} style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: 'rgba(7,16,24,.5)'}}>
-      <Icon name="i-pause" size={14} color={theme.colors.accentStrong}/><Text style={[browseType(theme, 13, 600), {color: theme.colors.textSecondary}]}>{t(notice)}</Text>
-    </View> : null}
-    {book && wide ? <View style={{width: '100%', maxWidth: 600, gap: 8, marginTop: 18}}>
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-        <Text style={[browseType(theme, 14, 700), {width: 124, color: theme.colors.text}]}>{t('player.opt.speed')}</Text>
-        <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex: 1, minWidth: 0, borderRadius: 12, backgroundColor: 'rgba(237,245,250,.08)'}} contentContainerStyle={{padding: 3, gap: 2}}>
-          {(bookFacts?.rate.supported ?? []).map(rate => <Focusable key={rate} accessibilityRole="radio" accessibilityLabel={`${rate}×`}
-            accessibilityState={{checked: (bookFacts?.rate.effective ?? bookFacts?.rate.selected) === rate}}
-            onPress={() => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) audiobook?.setRate(playback.fence, rate);}}
-            style={{minWidth: 44, height: 44, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderRadius: 9,
-              backgroundColor: (bookFacts?.rate.effective ?? bookFacts?.rate.selected) === rate ? 'rgba(64,159,212,.24)' : 'transparent'}}>
-            <Text style={[browseType(theme, 13.5, 700), {color: theme.colors.text}]}>{rate}×</Text>
-          </Focusable>)}
-        </ScrollView></TVRow>
-      </View>
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-        <View style={{width: 124}}><Text style={[browseType(theme, 14, 700), {color: theme.colors.text}]}>{t('player.opt.sleepTimer')}</Text>
-          {sleepEnd || sleepMinutes !== null ? <Text style={[browseType(theme, 12, 600), {color: theme.colors.textTertiary, marginTop: 2}]}>{sleepLabel(sleepEnd ?? sleepMinutes)}</Text> : null}
-        </View>
-        <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex: 1, minWidth: 0, borderRadius: 12, backgroundColor: 'rgba(237,245,250,.08)'}} contentContainerStyle={{padding: 3, gap: 2}}>
-          {bookSleepChoices.map(choice => <Focusable key={choice ?? 'off'} disabled={!bookReader || !audiobook?.setSleepTimer}
-            accessibilityRole="radio" accessibilityState={{checked: sleepSelected(choice)}}
-            onPress={() => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) void audiobook?.setSleepTimer?.(playback.fence, choice).catch(reportBookError);}}
-            style={{minWidth: 44, height: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 9,
-              backgroundColor: sleepSelected(choice) ? 'rgba(64,159,212,.24)' : 'transparent'}}>
-            <Text style={[browseType(theme, 13.5, 700), {color: theme.colors.text}]}>{sleepLabel(choice)}</Text>
-          </Focusable>)}
-        </ScrollView></TVRow>
-      </View>
-    </View> : null}
-    <View style={{width: book && !wide ? '100%' : undefined, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: book && !wide ? 8 : 10, marginTop: book ? 18 : 26, marginBottom: 24}}>
-      {book ? <>
-        {!wide ? <>
-          <Focusable testID={`${testID}-speed`} accessibilityRole="button" disabled={!bookFacts?.rate.supported?.length} onPress={() => setPanel('speed')}
-            style={bookOption}>{bookGlass}
-            <Text style={[browseType(theme, 15, 800), {color: theme.colors.text}]}>{bookFacts?.rate.effective ?? bookFacts?.rate.selected ?? 1}×</Text>
-            <Text style={[browseType(theme, 11.5, 700), {color: theme.colors.textSecondary}]}>{t('player.opt.speed')}</Text>
-          </Focusable>
-          <Focusable testID={`${testID}-sleep`} accessibilityRole="button" disabled={!bookReader || !audiobook?.setSleepTimer} onPress={() => setPanel('sleep')}
-            style={[bookOption, sleepMinutes !== null && bookOptionActive]}>{bookGlass}
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}><Icon name="i-moon" size={15} color={sleepMinutes === null ? theme.colors.text : theme.colors.accentStrong}/>
-              {sleepMinutes === null ? null : <Text style={[browseType(theme, 15, 800), {color: theme.colors.text}]}>{t('player.opt.minutes', {count: sleepMinutes})}</Text>}
-            </View>
-            <Text style={[browseType(theme, 11.5, 700), {color: theme.colors.textSecondary}]}>{t('player.opt.sleepTimer')}</Text>
-          </Focusable>
-          <Focusable testID={`${testID}-chapters-toggle`} accessibilityRole="button" disabled={!bookReader} accessibilityState={{expanded: sheet === 'chapters'}}
-            onPress={() => setSheet(open => open === 'chapters' ? null : 'chapters')} style={[bookOption, sheet === 'chapters' && bookOptionActive]}>{bookGlass}
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}><Icon name="i-list" size={16} color={theme.colors.text}/>
-              <Text style={[browseType(theme, 15, 800), {color: theme.colors.text}]}>{chapterData?.totalCount}</Text>
-            </View>
-            <Text style={[browseType(theme, 11.5, 700), {color: theme.colors.textSecondary}]}>{t('player.opt.chapters')}</Text>
-          </Focusable>
-        </> : <Button testID={`${testID}-chapters-toggle`} variant={sheet === 'chapters' ? 'glass' : 'text'} size="small" icon="i-list" disabled={!bookReader}
-          accessibilityState={{expanded: sheet === 'chapters'}} onPress={() => setSheet(open => open === 'chapters' ? null : 'chapters')}>{t('player.opt.chapters')}</Button>}
-      </> : <>
-        {queue ? <Button testID={`${testID}-queue-toggle`} variant={sheet === 'queue' ? 'primary' : 'glass'} size="small" icon="i-queue"
-          accessibilityState={{expanded: sheet === 'queue'}} onPress={() => setSheet(open => open === 'queue' ? null : 'queue')}>{t('player.queue')}</Button> : null}
-        {lyrics ? <Button testID={`${testID}-lyrics-toggle`} variant={sheet === 'lyrics' ? 'primary' : 'glass'} size="small" icon="i-cc"
-          accessibilityState={{expanded: sheet === 'lyrics'}} onPress={() => setSheet(open => open === 'lyrics' ? null : 'lyrics')}>{t('player.lyrics')}</Button> : null}
-      </>}
-      {playOn?.enabled && book && !wide ? <Focusable ref={playOnButton} accessibilityRole="button" accessibilityLabel={t('player.playOn')} onPress={() => playOn.open(playback.fence, playOnButton)}
-        style={bookOption}>{bookGlass}<Icon name="i-cast" size={17} color={theme.colors.text}/>
-        <Text style={[browseType(theme, 11.5, 700), {color: theme.colors.textSecondary}]}>{t('device.thisDevice')}</Text></Focusable> : playOn?.enabled ? <Button ref={playOnButton} testID={`${testID}-play-on`} variant="glass" size="small" icon="i-cast" accessibilityLabel={t('player.playOn')}
-        onPress={() => playOn.open(playback.fence, playOnButton)}>{t('device.thisDevice')}</Button> : null}
-      {wide && equalizer.supported ? <Button testID={`${testID}-equalizer`} variant="glass" size="small" icon="i-gauge" accessibilityLabel={t('next.media.eq.title')} onPress={() => setPanel('eq')}>{t('next.media.eq.title')}</Button> : null}
-      {wide ? <Button testID={`${testID}-close`} variant="glass" size="small" icon="i-down" accessibilityLabel={t('player.minimize')} onPress={onClose}>{t('action.close')}</Button> : null}
-    </View>
-    </ListeningGroup>
-  </ListeningColumn>;
+    </View>}
+    times={{position: clockText(elapsed) ?? '', end: !wide || book ? `-${clockText(Math.max(0, (span || p.durationSeconds || 0) - elapsed))}` : clockText(span || p.durationSeconds) ?? '',
+      middle: bookRemaining ? t('next.kit.remaining', {time: bookRemaining}) : undefined}}
+    transport={transport}
+    lyrics={!book && lyrics ? control('i-lyrics', t('player.lyrics'), () => setSheet(open => open === 'lyrics' ? null : 'lyrics'), {active: sheet === 'lyrics', testID: `${testID}-lyrics-toggle`}) : undefined}
+    queue={!book && queue ? control('i-queue', t('player.queue'), () => setSheet(open => open === 'queue' ? null : 'queue'), {active: sheet === 'queue', testID: `${testID}-queue-toggle`}) : undefined}
+    speed={speed} sleep={sleep} chapters={chapters}
+    panel={side ? <ListeningSidePanel>{tabs}{sheet === 'chapters' ? chapterPane : showingLyrics ? lyricPaint : queuePaint}</ListeningSidePanel> : undefined}/>;
   return <>
     {paintActive && showingQueue && queue && <NowPlayingQueue paintOwner={paneOwner} paintScope={fenceKey} testID={`${testID}-queue`} view={queue} onPlay={onQueuePlay} artwork={artwork} queueEdit={queueEditPort}/>}
     {paintActive && showingLyrics && knownLyrics && React.cloneElement(knownLyrics, {paintOwner: paneOwner, paintScope: fenceKey})}
     <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={listeningPaintTypes} omitTypes={listeningPaintOmissions}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !wide && !!sheet}>
       {!backgroundHosted && <ListeningPageBackground fence={playback.fence} height={height} ambient={p.ambient}/>}
-      <View style={{flex: 1, paddingTop: topInset, paddingBottom: bottomInset}}>
-        {panel === 'signal' && signal ? <View style={{position: 'absolute', inset: 0, zIndex: 30}}><MusicSignalSheet view={signal} onClose={closePanel} contextTitle={p.identity.title} returnFocusRef={signalRef}/></View> : null}
-        {panel === 'eq' ? <View style={{position: 'absolute', inset: 0, zIndex: 30, backgroundColor: theme.colors.ink}}><NativeWatchEqualizer onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></View> : null}
-        <View style={{flex: 1, flexDirection: 'row'}}>
-          {column}
-          {side ? <View style={{width: panelWidth + 40}}/> : null}
-        </View>
-        {side ? <ListeningSidePanel width={panelWidth}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14}}>
-            {book && queue ? <>
-              <Button testID={`${testID}-tab-chapters`} variant={sheet === 'chapters' ? 'primary' : 'glass'} size="small" icon="i-list" onPress={() => setSheet('chapters')}>{t('player.opt.chapters')}</Button>
-              <Button testID={`${testID}-tab-queue`} variant={sheet === 'queue' ? 'primary' : 'glass'} size="small" icon="i-queue" onPress={() => setSheet('queue')}>{t('player.queue')}</Button>
-            </> : !book && queue && lyrics ? <>
-              <Button testID={`${testID}-tab-queue`} variant={sheet === 'queue' ? 'primary' : 'glass'} size="small" icon="i-queue" onPress={() => setSheet('queue')}>{t('player.queue')}</Button>
-              <Button testID={`${testID}-tab-lyrics`} variant={sheet === 'lyrics' ? 'primary' : 'glass'} size="small" icon="i-cc" onPress={() => setSheet('lyrics')}>{t('player.lyrics')}</Button>
-            </> : <Text style={[browseType(theme, 20, 800, -0.02), {color: theme.colors.text}]}>{t(sheet === 'chapters' ? 'player.opt.chapters' : sheet === 'lyrics' ? 'player.lyrics' : 'player.queue')}</Text>}
-          </View>
-          {sheet === 'chapters' ? chapterPane : showingLyrics ? lyricPaint : queuePaint}
-        </ListeningSidePanel> : null}
-      </View>
+      {panel === 'signal' && signal ? <View style={{position: 'absolute', inset: 0, zIndex: 30}}><MusicSignalSheet view={signal} onClose={closePanel} contextTitle={p.identity.title} returnFocusRef={signalRef}/></View> : null}
+      {panel === 'eq' ? <View style={{position: 'absolute', inset: 0, zIndex: 30, backgroundColor: theme.colors.ink}}><NativeWatchEqualizer onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></View> : null}
+      {frame}
     </ListeningSurface></RetainedOverlay></TVMusicFocus>
     <BottomSheet open={paintActive && !wide && !!sheet} onOpenChange={open => {if (!open) setSheet(null);}}
       title={t(sheet === 'chapters' ? 'player.opt.chapters' : sheet === 'lyrics' ? 'player.lyrics' : 'player.queue')} scrollable={false}
@@ -550,35 +447,22 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
 }
 
 
-function ListeningColumn({fence, source, playingFrom, header, identity, horizontal = false, cover, wide, height, measureOnly = false, testID, children}: {
-  fence: PlaybackFence; source: DockOccupant['presentation']['artwork']; playingFrom?: string; cover: number; wide: boolean; height: number;
-  header?: React.ReactNode; identity?: React.ReactNode; horizontal?: boolean; measureOnly?: boolean; testID?: string; children?: React.ReactNode;
-}) {
-  const theme = useTheme(), coverSlot = useRef<View>(null);
-  const gesture = useListeningChromeGesture(fence, measureOnly);
-  const present = useListeningPagePresent(fence);
-  const sharedCover = useListeningCoverSlot(fence, 'full', coverSlot, !measureOnly || !present);
-  return <ScrollView onScroll={sharedCover.measure} scrollEventThrottle={16} pointerEvents={measureOnly ? 'none' : 'auto'}
-    contentContainerStyle={{flexGrow: 1, ...(wide ? {justifyContent: 'center' as const} : {})}}
-    style={{flex: 1, minWidth: 0, ...(measureOnly ? {opacity: 0} : {})}} showsVerticalScrollIndicator={false}>
-    <View testID={testID} style={{flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: wide ? 28 : 24, paddingTop: wide ? 36 : 0}}>
-      {header}
-      {playingFrom ? <ListeningGroup fence={fence} index={0} height={height}><Text numberOfLines={1} style={[browseType(theme, 13, 600), {marginBottom: 14, textAlign: 'center', color: theme.colors.textSecondary}]}>{t('next.music.playingFrom', {source: playingFrom})}</Text></ListeningGroup> : null}
-      <View style={horizontal ? {width: '100%', maxWidth: 600, flexDirection: 'row', alignItems: 'flex-end', gap: 26} : undefined}>
-      {source ? <ListeningCoverTarget gesture={gesture} slot={coverSlot} onLayout={sharedCover.measure} size={cover}>
-        {!measureOnly && <Animated.View style={sharedCover.style}><Artwork source={source} width={cover} height={cover} style={{borderRadius: 14}}/></Animated.View>}
-      </ListeningCoverTarget> : null}
-        {identity}
-      </View>
-      {children}
-    </View>
-  </ScrollView>;
+/** The listening cover in the frame's artwork box: the slot the dock's morph measures and paints into, and the physical
+ * swipe target (queue / lyrics scrolling and the scrubber keep their own recognisers). */
+function ListeningFrameCover({fence, source, measureOnly = false}: {fence: PlaybackFence; source: DockOccupant['presentation']['artwork']; measureOnly?: boolean}) {
+  const theme = useTheme(), slot = useRef<View>(null), [size, setSize] = useState(0);
+  const gesture = useListeningChromeGesture(fence, measureOnly), present = useListeningPagePresent(fence);
+  const sharedCover = useListeningCoverSlot(fence, 'full', slot, !measureOnly || !present);
+  const view = <View ref={slot} collapsable={false} onLayout={event => {setSize(event.nativeEvent.layout.width); sharedCover.measure();}} style={{width: '100%', height: '100%'}}>
+    {!measureOnly && size > 0 && <Animated.View style={sharedCover.style}><Artwork source={source} width={size} height={size} style={{borderRadius: theme.radii.artwork}}/></Animated.View>}
+  </View>;
+  return gesture ? <GestureDetector gesture={gesture}>{view}</GestureDetector> : view;
 }
-/** A pure inset glass surface; its contents never feed Android's own blur. */
-function ListeningSidePanel({width, children}: {width: number; children: React.ReactNode}) {
+/** A pure inset glass surface in the frame's panel place; its contents never feed Android's own blur. */
+function ListeningSidePanel({children}: {children: React.ReactNode}) {
   const theme = useTheme(), material = glassRecipe();
   const body = <View style={{flex: 1, backgroundColor: material.nativeBlur ? 'rgba(7,16,24,.44)' : theme.colors.ink}}>{children}</View>;
-  return <View style={{position: 'absolute', right: 20, top: 100, bottom: 28, width, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(237,245,250,.08)'}}>
+  return <View style={{flex: 1, marginBottom: 28, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(237,245,250,.08)'}}>
     {material.nativeBlur ? <BlurView style={{flex: 1}} blurType="dark" blurAmount={30} reducedTransparencyFallbackColor={theme.colors.ink}>{body}</BlurView> : body}
   </View>;
 }
@@ -590,20 +474,24 @@ export function ListeningPageBackground({fence, height, ambient, fallbackVisible
 }
 /** Paint only from the admitted mini descriptor. No full screen, queue/lyrics,
  * song read, guarded callback, controller or output is created by this preview. */
-export function ListeningPagePreview({occupant, queue, sidePane = false, width, height, topInset, bottomInset}: {
+export function ListeningPagePreview({occupant, queue, sidePane = false}: {
   occupant: DockOccupant; queue?: QueuePlaybackView; sidePane?: boolean; width: number; height: number; topInset: number; bottomInset: number;
 }) {
-  const present = useListeningPagePresent(occupant.playback.fence);
-  const wide = width >= SIDE_BY_SIDE, side = wide && sidePane;
+  const present = useListeningPagePresent(occupant.playback.fence), wide = useFrameMetrics().form !== 'phone', side = wide && sidePane;
   const window = queue ? nowPlayingQueueWindow(queue) : undefined;
   const current = queue?.queue?.currentEntryId ? nowPlayingQueueEntry(window, queue.queue.currentEntryId) : undefined;
   const segment = current?.available === true ? window?.segments.find(value => value.id === current.segmentId && value.label)?.label : undefined;
-  const book = occupant.mode === 'audiobook', panelWidth = width >= 1024 ? 380 : QUEUE_WIDTH;
-  const cover = book ? Math.min(wide ? 250 : 290, width - 48) : wide ? Math.max(160, Math.min(410, width - (side ? panelWidth + 40 : 0) - 56)) : width - 48;
+  const book = occupant.mode === 'audiobook', p = occupant.presentation, none = () => {};
+  // Never seen (measure only); each keeps a distinct label, which the frame keys its controls by.
+  const blank = (icon: IconName, skip?: number): AudioControl => ({icon, label: icon, onPress: none, skip});
+  // The page's own geometry, measured only: the frame with the same regions the page draws, its cover the measured slot.
   return <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{position: 'absolute', inset: 0, opacity: present ? 0 : 1}}>
-    <View style={{flex: 1, paddingTop: topInset, paddingBottom: bottomInset, flexDirection: side ? 'row' : 'column'}}>
-      <ListeningColumn fence={occupant.playback.fence} source={occupant.presentation.artwork} playingFrom={wide ? segment : undefined} header={!wide ? <View style={{height: 70}}/> : undefined} cover={cover} wide={wide} height={height} horizontal={book && wide && width - (side ? panelWidth + 40 : 0) - 56 >= 560} measureOnly/>
-      {side && <View style={{width: panelWidth + 40}}/>}
+    <View style={{flex: 1, opacity: 0}}>
+      <AudioPlayerFrame close={blank('i-down')} context={segment ? t('next.music.playingFrom', {source: ''}).trim() : wide ? undefined : t('player.queueNowPlaying')} source={segment}
+        artwork={p.artwork} icon={book ? 'i-book' : 'i-music'} cover={p.artwork ? <ListeningFrameCover fence={occupant.playback.fence} source={p.artwork} measureOnly/> : undefined}
+        title={p.identity.title} byline={p.identity.subtitle.map(part => part.text).filter(Boolean)} chapter={book ? {label: '', of: ''} : undefined}
+        scrubber={<View/>} times={{position: '', end: ''}} transport={book ? [blank('i-prev'), blank('i-rew', 10), blank('i-play'), blank('i-ffw', 30), blank('i-next')] : [blank('i-shuffle'), blank('i-prev'), blank('i-play'), blank('i-next'), blank('i-repeat')]}
+        panel={side ? <View style={{flex: 1}}/> : undefined}/>
     </View>
   </View>;
 }
@@ -618,14 +506,6 @@ function ListeningSurface({fence, testID, children, blocked = false}: {fence: Pl
   return <ListeningChromeGate.Provider value={blocked}><View testID={testID} pointerEvents={mode.interactive ? 'box-none' : 'none'} accessible={false}
     accessibilityElementsHidden={!mode.interactive} importantForAccessibility={mode.interactive ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', inset: 0, zIndex: theme.layers.player}}>{children}</View></ListeningChromeGate.Provider>;
-}
-
-
-/** The cover is the physical swipe target, leaving queue/lyrics scrolling and
- * the scrubber to their original recognisers. Every target has its own handler. */
-function ListeningCoverTarget({gesture, slot, onLayout, size, children}: {gesture?: ReturnType<NonNullable<ReturnType<typeof usePublishedPlayerMorph>>['chromeGesture']>; slot: React.RefObject<View | null>; onLayout: () => void; size: number; children: React.ReactNode}) {
-  const view = <View ref={slot} collapsable={false} onLayout={onLayout} style={{width: size, height: size}}>{children}</View>;
-  return gesture ? <GestureDetector gesture={gesture}>{view}</GestureDetector> : view;
 }
 
 

@@ -8,7 +8,9 @@ import {durationText} from '../../../packages/client-core/src/presentation/kit-m
 import {GestureCommitScope} from '../src-next/kit/controls/gesture-commit.ts';
 import {defaultI18n as realI18n} from '../../../packages/i18n/src/index.ts';
 
-const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
+// The page is AudioPlayerFrame (a string in this harness): its regions are its props, and its controls are data.
+const regions = (value: any) => value.type === 'AudioPlayerFrame' ? ['cover', 'signal', 'action', 'scrubber', 'notice', 'panel'].map(key => value.props[key]) : value.props.children;
+const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(regions(value))] : [];
 const text = (value: any): string => Array.isArray(value) ? value.map(text).join('') : value?.props ? text(value.props.children) : value == null || typeof value === 'boolean' ? '' : String(value);
 async function fixture(book = false, width = 390) {
   const ui = hooks();
@@ -52,6 +54,7 @@ async function fixture(book = false, width = 390) {
     '../../../kit/dock/PlayerMorphBridge': {usePublishedPlayerMorph: () => undefined}, '../../../kit/overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({visible: true, interactive: true})},
     './NowPlayingLyrics': {NowPlayingLyrics: 'LyricsPublisher'}, './ListeningPanePaint': {ListeningQueuePaint: 'QueuePaint', ListeningLyricsPaint: 'LyricsPaint'},
     '../../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})},
+    '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerFrame', audioPlayerFramePaintTypes: []}, '../../../kit/frames/metrics': {useFrameMetrics: () => ({form: width < 600 ? 'phone' : 'expanded'})},
   });
   const fence = {kind: 'queue', sessionId: 'session', generation: 1, sourceId: 'source', itemId: 'item'};
   const props: any = {occupant: {mode: book ? 'audiobook' : 'music', playback: {fence, positionSeconds: 70, playing: true},
@@ -65,27 +68,26 @@ async function fixture(book = false, width = 390) {
   const render = () => tree = ui.render(() => root.type(props)); render();
   return {render, props, commands, rates, sleeps, retire: () => {active = false;}, nodes: () => nodes(tree), tree: () => tree,
     button: (id: string) => nodes(tree).find(node => node.props.testID === `now-playing-${id}`),
-    column: () => nodes(tree).find(node => node.type?.name === 'ListeningColumn')};
+    frame: () => nodes(tree).find(node => node.type === 'AudioPlayerFrame'),
+    // A control the frame draws, by its test id: the frame's own controls are data in its props.
+    control: (id: string) => {const page = nodes(tree).find(node => node.type === 'AudioPlayerFrame')?.props; if (!page) return undefined;
+      return [page.close, page.device, page.more, page.favourite, page.lyrics, page.queue, page.speed, page.sleep, page.chapters, ...page.transport].find((item: any) => item?.testID === `now-playing-${id}`);}};
 }
 
-test('phone music uses full 24-point-gutter cover, prominent transport and remaining time', async () => {
-  const f = await fixture();
-  assert.equal(f.column().props.cover, 342);
-  const header = nodes(f.column().props.header);
-  assert.equal(header.filter(node => node.type === 'Button').length, 2);
-  assert.equal(header.find(node => node.props.icon === 'i-down').props.style.height, 48);
-  assert.equal(f.button('toggle').props.style.width, 76);
-  assert.equal(f.button('previous').props.variant, 'text');
-  assert.equal(f.button('previous').props.style.width, 48);
-  assert.equal(f.button('close'), undefined);
-  assert.ok(f.nodes().some(node => node.type === 'Text' && text(node) === '-1:50'));
+test('phone music fills the frame: Minimise, the music transport with its ends, and the time left', async () => {
+  const f = await fixture(), page = f.frame().props;
+  assert.equal(page.close.icon, 'i-down'); assert.equal(page.icon, 'i-music');
+  assert.deepEqual(page.transport.map((item: any) => item.testID), ['shuffle', 'previous', 'toggle', 'next', 'repeat'].map(id => `now-playing-${id}`));
+  assert.equal(page.times.end, '-1:50'); assert.equal(page.panel, undefined, 'a phone has no panel: the queue is the sheet');
+  assert.equal(page.context, 'next.music.playingFrom'); assert.equal(page.source, 'An album');
+  page.transport[2].onPress(); assert.deepEqual(f.commands.map(command => command.type), ['pause']);
 });
 
 test('phone queue lives in a dismissible BottomSheet while the player stays mounted', async () => {
   const f = await fixture();
-  f.button('queue-toggle').props.onPress(); f.render();
+  f.control('queue-toggle').onPress(); f.render();
   const sheet = f.nodes().find(node => node.type === 'BottomSheet');
-  assert.equal(sheet.props.open, true); assert.ok(f.column());
+  assert.equal(sheet.props.open, true); assert.ok(f.frame());
   // Detents are heights in points: fractions (.5, .94) made the sheet rise 1 point, a sliver under a dimmed screen.
   assert.deepEqual(sheet.props.detents, [422, 793]);
   assert.ok(nodes(sheet).some(node => node.type === 'QueuePaint'));
@@ -93,33 +95,30 @@ test('phone queue lives in a dismissible BottomSheet while the player stays moun
   assert.equal(f.nodes().find(node => node.type === 'BottomSheet').props.open, false);
 });
 
-test('tablet queue toggles closed and restores the centred column with the specified glass panel', async () => {
+test("tablet queue sits in the frame's panel place in the glass panel, and toggles closed", async () => {
   const f = await fixture(false, 1180);
-  const side = f.nodes().find(node => node.type?.name === 'ListeningSidePanel'); assert.equal(side.props.width, 380);
+  const side = nodes(f.frame().props.panel).find(node => node.type?.name === 'ListeningSidePanel'); assert.ok(side);
   const rendered = side.type(side.props);
-  assert.equal(rendered.props.style.top, 100); assert.equal(rendered.props.style.right, 20);
-  assert.equal(rendered.props.style.bottom, 28); assert.equal(rendered.props.style.borderRadius, 20);
+  assert.equal(rendered.props.style.flex, 1); assert.equal(rendered.props.style.borderRadius, 20);
   assert.equal(nodes(rendered).find(node => node.type === 'BlurView').props.blurAmount, 30);
-  assert.equal(f.button('toggle').props.style.width, 74);
-  assert.equal(f.button('previous').props.style.width, 52);
-  f.button('queue-toggle').props.onPress(); f.render();
-  assert.equal(f.nodes().some(node => node.type?.name === 'ListeningSidePanel'), false);
-  assert.equal(f.column().props.cover, 410);
+  f.control('queue-toggle').onPress(); f.render();
+  assert.equal(f.frame().props.panel, undefined, 'the column takes the room back');
 });
 
 test('audiobook controls use configured skips and canonical chapter/rate/sleep ports', async () => {
   const f = await fixture(true);
-  assert.equal(f.button('shuffle'), undefined); assert.equal(f.button('repeat'), undefined);
-  f.button('skip-back').props.onPress(); f.button('skip-forward').props.onPress();
+  assert.equal(f.control('shuffle'), undefined); assert.equal(f.control('repeat'), undefined);
+  assert.deepEqual([f.control('skip-back').skip, f.control('skip-forward').skip], [15, 30]);
+  f.control('skip-back').onPress(); f.control('skip-forward').onPress();
   assert.deepEqual(f.commands.map(command => command.seconds), [55, 100]);
   // MU-7: the chapter arrows are the runtime's Previous/Next, which move by book chapter across parts.
-  f.button('next-chapter').props.onPress(); f.button('previous-chapter').props.onPress();
+  f.control('next-chapter').onPress(); f.control('previous-chapter').onPress();
   assert.deepEqual(f.commands.slice(-2).map(command => command.type), ['next', 'previous']);
-  f.button('speed').props.onPress(); f.render();
+  f.control('speed').onPress(); f.render();
   const speed = f.button('speed-menu'); assert.equal(speed.props.open, true);
   speed.props.items.find((item: any) => item.id === '1.5').onSelect(); assert.deepEqual(f.rates, [1.5]);
   speed.props.onOpenChange(false); f.render();
-  f.button('sleep').props.onPress(); f.render();
+  f.control('sleep').onPress(); f.render();
   f.button('sleep-menu').props.items.find((item: any) => item.id === '30').onSelect(); await Promise.resolve();
   assert.deepEqual(f.sleeps, [30]);
   f.retire(); speed.props.items[0].onSelect(); assert.deepEqual(f.rates, [1.5]);
@@ -127,7 +126,7 @@ test('audiobook controls use configured skips and canonical chapter/rate/sleep p
 
 test('the chapter arrows say Previous/Next chapter only when the book\'s list covers the part; else they move parts, as for a track', async () => {
   const f = await fixture(true);
-  const labels = () => [f.button('previous-chapter').props.accessibilityLabel, f.button('next-chapter').props.accessibilityLabel];
+  const labels = () => [f.control('previous-chapter').label, f.control('next-chapter').label];
   assert.deepEqual(labels(), ['player.previous', 'player.next'], 'no book list: Previous and Next move the queue by part');
   for (const phase of ['loading', 'error'] as const) {
     f.props.audiobook = {...f.props.audiobook, bookChapters: () => ({bookId: 'book', itemId: 'item', phase, chapters: [], current: -1})}; f.render();
@@ -138,11 +137,11 @@ test('the chapter arrows say Previous/Next chapter only when the book\'s list co
   assert.deepEqual(labels(), ['next.dock.previousChapter', 'next.dock.nextChapter']);
 });
 
-test('landscape audiobook uses its horizontal cover/identity composition and a Chapters panel', async () => {
-  const f = await fixture(true, 1180);
-  assert.equal(f.column().props.cover, 250); assert.equal(f.column().props.horizontal, true);
-  assert.ok(f.column().props.identity);
-  assert.ok(f.button('chapters')); assert.ok(f.button('tab-chapters'));
+test("landscape audiobook is the frame's book form with a Chapters panel", async () => {
+  const f = await fixture(true, 1180), page = f.frame().props;
+  assert.equal(page.icon, 'i-book'); assert.ok(page.chapter, 'the chapter line makes it the book form');
+  assert.ok(page.speed.choices.length); assert.ok(page.sleep.choices.length, 'the wide form draws Speed and Sleep timer as rows');
+  assert.ok(f.button('tab-chapters'));
   assert.equal(f.nodes().find(node => node.type === 'BottomSheet').props.open, false);
 });
 
@@ -160,9 +159,9 @@ test('MU-2: with the whole book known, the Chapters pane lists every part\'s cha
   assert.ok(nodes(rows[2]).some(node => node.type === 'Text' && text(node) === '3'), 'numbers count through the book');
   rows[0].props.onPress(); await Promise.resolve();
   assert.deepEqual(played, ['part-a:1'], 'a chapter in another part is played through the runtime');
-  assert.ok(f.nodes().some(node => node.props.testID === 'now-playing-chapter-line' && text(node).includes('Three')));
+  assert.equal(f.frame().props.chapter.label, 'Three');
   // tablet-play: the chapter's own clock in words.
-  assert.match(text(f.nodes().find(node => node.props.testID === 'now-playing-chapter-line')), /\d+:\d\d of 1:00$/);
+  assert.match(f.frame().props.chapter.of, /\d+:\d\d of 1:00$/);
 });
 
 test('phone-app 15: on a phone the chapter line ends with the book\'s chapter count, "of N", never a bare or unknown total', async () => {
@@ -170,25 +169,17 @@ test('phone-app 15: on a phone the chapter line ends with the book\'s chapter co
   f.props.audiobook = {...f.props.audiobook, bookChapters: () => ({bookId: 'book', itemId: 'item', phase: 'ready', current: 2,
     chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('item:1', 'item', 3, 'Three', 0, 7200)]}), playBookChapter: async () => {}};
   f.render();
-  const line = text(f.nodes().find(node => node.props.testID === 'now-playing-chapter-line'));
+  const chapter = f.frame().props.chapter, line = `${chapter.label} ${chapter.of}`;
   assert.ok(line.includes('Three')); assert.ok(line.endsWith('of 3'), line);
   assert.doesNotMatch(line, /\d+\/\d+|undefined/);
 });
 
-test('phone audiobook options use 54pt glass faces with the active ring and whole-book remaining line', async () => {
-  const f = await fixture(true);
-  const style = (node: any) => Object.assign({}, ...[node.props.style].flat().filter(Boolean));
-  for (const id of ['speed', 'sleep', 'chapters-toggle']) {
-    const option = f.button(id);
-    assert.equal(style(option).height, 54);
-    assert.equal(style(option).backgroundColor, '#edf5fa:0.12');
-    assert.equal(nodes(option).find(node => node.type === 'BlurView').props.blurAmount, 16);
-  }
-  assert.ok(f.button('book-remaining'));
-  f.button('chapters-toggle').props.onPress(); f.render();
-  assert.equal(style(f.button('chapters-toggle')).backgroundColor, '#409fd4:0.22');
-  assert.equal(style(f.button('chapters-toggle')).borderWidth, 1);
-  assert.equal(style(f.button('chapters-toggle')).borderColor, '#5cb3e2:0.5');
+test("phone audiobook options are the frame's tiles: Speed, Sleep timer and Chapters with their values, and the book's time left", async () => {
+  const f = await fixture(true), page = f.frame().props;
+  assert.equal(page.speed.value, '1.25×'); assert.equal(page.chapters.value, '3'); assert.equal(page.chapters.active, false);
+  assert.equal(page.times.middle, 'next.kit.remaining');
+  f.control('chapters-toggle').onPress(); f.render();
+  assert.equal(f.control('chapters-toggle').active, true);
 });
 
 test('tablet audiobook ticks mark actual chapter boundaries within the full-book seek range', async () => {

@@ -16,8 +16,10 @@ import type {DockCommand, DockOccupant} from '../src-next/kit/dock/types.ts';
 import type {ListeningScrubber} from '../src-next/kit/dock/ListeningCoverBridge.tsx';
 import type {NowPlayingScreenProps} from '../src-next/screens/destinations/music/NowPlayingScreen.tsx';
 
+// The page is AudioPlayerFrame (a string here): its regions are its props.
+const regions = (node: any) => node.type === 'AudioPlayerFrame' ? ['cover', 'signal', 'action', 'scrubber', 'notice', 'panel'].map(key => node.props[key]) : node.props.children;
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes)
-  : React.isValidElement<any>(node) ? [node, ...nodes(node.props.children)] : [];
+  : React.isValidElement<any>(node) ? [node, ...nodes(regions(node))] : [];
 type PanFixture = {callbacks: Record<string, (...args: any[]) => void>; config: Record<string, unknown>};
 
 async function fixture(hosted = true) {
@@ -53,6 +55,7 @@ async function fixture(hosted = true) {
     '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
     '../../../kit/controls': {Button: 'Button'}, '../../../kit/controls/gesture-commit': {GestureCommitScope},
     '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerFrame', audioPlayerFramePaintTypes: []}, '../../../kit/frames/metrics': {useFrameMetrics: () => ({form: 'phone'})},
     '../../../kit/dock/ListeningCoverBridge': {...listeningCoverFixture,
       useListeningPaintPermit: () => permit, useListeningPageActive: () => pageActive,
       useListeningScrubberPublication: (value: ListeningScrubber | undefined) => {scrubber = value; return hosted;}},
