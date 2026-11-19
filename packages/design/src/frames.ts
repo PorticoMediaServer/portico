@@ -64,6 +64,9 @@ export const frame = {
     },
     title: {
       height: {...forms(330, 420, 420, 628), web: 560, mobileWeb: 290},
+      /** TV, a page whose first row shows whole under the head on arrival (tv-detail frame 11, a collection: its buttons end
+       * about 110 higher than a film's, so the head ends there). */
+      tvShortHeight: 518,
       lockup: {...forms(40, 52, 52, 100), web: 72},
       // R5 interim (family C): TV's action row ends about 72 above the art box's edge, and its tabs start a double header gap under it (detail-tv-2).
       copyBottom: {...forms(0, 36, 36, 72), web: 64},

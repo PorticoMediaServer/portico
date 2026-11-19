@@ -100,6 +100,8 @@ export type TitleFrameProps = Readonly<{
   /** The bar that replaces the hero (desktop-detail f3, phone-detail d1 frame 2, detail-tv-4). The frame sets it itself:
    * on touch from the scroll, on TV when focus moves into the panel. A screen sets it only to hold it (a tab opened directly). */
   collapsed?: boolean;
+  /** TV: a shorter head, for a page whose first row must show whole on arrival (a collection, tv-detail frame 11). */
+  shortHead?: boolean;
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
   /** The page's own scroller, in place of the frame's on every form (an album's and artist's song list windows its rows and
    * pages the server near the end: `MusicScrollView`). The frame hands it what to scroll, the content style to put on it
@@ -129,7 +131,7 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 const titlePrimaryId = 'title-primary';
 /** How far the folded head's words fade: almost away, never to zero (tvOS will not focus a transparent view). */
 const tvFoldedCopy = .03;
-function TitlePage({art, cover, back, topAction, kicker, byline, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
@@ -199,7 +201,7 @@ function TitlePage({art, cover, back, topAction, kicker, byline, title, metadata
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
     <PageStateFrame {...failure}/>
   </View>;
-  const height = split ? spec.height.phone : spec.height[form], lockup = cover ? spec.coverLockup[split ? 'phone' : form] : split ? spec.lockup.phone : spec.lockup[form];
+  const height = split ? spec.height.phone : tv && shortHead ? spec.tvShortHeight : spec.height[form], lockup = cover ? spec.coverLockup[split ? 'phone' : form] : split ? spec.lockup.phone : spec.lockup[form];
   const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
 
