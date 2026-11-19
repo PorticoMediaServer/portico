@@ -6,7 +6,7 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, EpisodeList, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {KeyHints} from '../../../kit/controls';
@@ -118,29 +118,22 @@ const tlouEpisodes: readonly Episode[] = [
 ];
 /** The episode rows (tablet f8, phone-detail d2, foldable f2): the kit's row, its synopsis beside the picture on a tablet. */
 function EpisodeRows({episodes, opened}: {episodes: readonly Episode[]; opened?: string}) {
-  const theme = useTheme(), frame = useFrameMetrics(), width = frame.width - frame.gutter - frame.rightGutter, wide = frame.form !== 'phone';
-  return <View style={{gap: theme.space.sm}}>{episodes.map(episode => <View key={episode.id} style={{gap: theme.space.sm}}>
-    <EpisodeTile layout="row" width={width} artWidth={wide ? 210 : undefined} title={episode.title} label={[{id: 'episode', text: episode.label, role: 'context'}]} status={episode.status} length={episode.length} synopsis={episode.synopsis}
-      artwork={asset(episode.art)} watched={episode.watched} progress={episode.progress} open={episode.id === opened} onNavigate={none} onDownload={theme.isTV ? undefined : none}/>
-    {episode.id === opened && <OpenedEpisode/>}
-  </View>)}</View>;
+  const {isTV} = useTheme();
+  return <EpisodeList items={episodes.map(episode => ({key: episode.id, title: episode.title, label: [{id: 'episode', text: episode.label, role: 'context'}], status: episode.status,
+    length: episode.length, synopsis: episode.synopsis, artwork: asset(episode.art), watched: episode.watched, progress: episode.progress, onNavigate: none, onDownload: isTV ? undefined : none}))}
+    opened={opened ? {key: opened, ...openedPlate()} : undefined}/>;
 }
-/** The episode opened in place under its row (phone-detail d2 frame 4; desktop-detail f5): its still, code and facts, synopsis, Play row, credits and neighbours. */
-function OpenedEpisode() {
-  const theme = useTheme(), frame = useFrameMetrics();
-  return <View style={{gap: theme.space.sm, padding: frame.cardPadding, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
-    <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{f('ep3Code')}</Text>
-    <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{f('ep3')}</Text>
-    <Meta text={`${f('ep3Date')} · ${f('ep3Length')}`} tags={[f('ep3Rating')]}/>
-    <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f('ep3Synopsis')}</Text>
-    <View style={{flexDirection: 'row', gap: theme.space.controlGap}}><Button icon="i-play" style={{flex: 1}} onPress={none}>{f('play')}</Button>
-      {(['i-plus', 'i-dl', 'i-more'] as const).map(icon => <Button key={icon} variant="glass" iconOnly icon={icon} accessibilityLabel={icon} onPress={none}/>)}</View>
-    <AboutTable rows={[{label: f('guestStars'), values: [link(`${f('guest1')} as ${f('guestRole1')}`), link(`${f('guest2')} as ${f('guestRole2')}`)]}, {label: f('directedBy'), values: [link(f('ep3Director'))]}, {label: f('writtenBy'), values: [link(f('ep3Writer'))]}]}/>
-    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm}}>
-      <View style={{flex: 1, minWidth: 220}}><EpisodeNeighbour direction="previous" label={f('previousEpisode')} title={f('ep2')} detail={f('ep2Label')} artwork={asset('bd-tlou.jpg')} onPress={none}/></View>
-      <View style={{flex: 1, minWidth: 220}}><EpisodeNeighbour direction="next" label={f('nextEpisode')} title={f('ep4')} detail={f('ep4Label')} artwork={asset('bd-tlou.jpg')} onPress={none}/></View>
-    </View>
-  </View>;
+/** The episode opened in place under its row (phone-detail d2 frame 4; desktop-detail f5): its code and facts, synopsis, Play row, credits and neighbours. */
+function openedPlate(): EpisodePlateProps {
+  return {still: asset('bd-tlou.jpg'), length: f('ep3Length'), code: f('ep3Code'), title: f('ep3'),
+    facts: [{id: 'date', text: f('ep3Date'), role: 'identity'}, {id: 'content-rating', text: f('ep3Rating'), role: 'context'}],
+    synopsis: f('ep3Synopsis'), primary: {icon: 'i-play', label: f('play'), onPress: none},
+    actions: [{icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}],
+    credits: [{label: f('guestStars'), people: [{name: f('guest1'), role: `as ${f('guestRole1')}`, onPress: none}, {name: f('guest2'), role: `as ${f('guestRole2')}`, onPress: none}]},
+      {label: f('directedBy'), people: [{name: f('ep3Director')}]}],
+    showAll: count => defaultI18n.t('shelf.seeAllCount', {count}),
+    previous: {label: f('previousEpisode'), title: f('ep2'), detail: f('ep2Label'), artwork: asset('bd-tlou.jpg'), onPress: none},
+    next: {label: f('nextEpisode'), title: f('ep4'), detail: f('ep4Label'), artwork: asset('bd-tlou.jpg'), onPress: none}, close: {label: f('back'), onPress: none}};
 }
 /** TV, the Episodes tab's season column and episodes (detail-tv-5a): the seasons with the current one marked, Hold OK
  * under them; beside them the season's episodes as a row of stills and the band describing the season. */
@@ -181,8 +174,8 @@ function Show({opened, seasons = false}: {opened?: string; seasons?: boolean}) {
     actions={[{icon: 'i-plus', label: f('myList'), labelled: true, pinned: true, onPress: none}, {icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     synopsis={f(simpsons ? 'simpsonsSynopsis' : 'tlouSynopsis')} credits={[{label: f('createdBy'), names: [link('Craig Mazin'), link('Neil Druckmann')]}]}
     cast={<><PanelHeading title={f('cast')}/><CastRow groups={[showCast]}/></>} tabs={tabs(tab, setTab, true)}>
-    {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <PanelBlock><SeasonBar label={f(simpsons ? 'season3' : 'season1')} count={f(simpsons ? 'season3Count' : 'episodeCount')} onSeasons={() => setOpen(true)} hideWatched={hide} onHideWatched={setHide}/>
-      <View style={{height: 12}}/><EpisodeRows episodes={tlouEpisodes} opened={opened}/></PanelBlock>}
+    {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <><PanelBlock><SeasonBar label={f(simpsons ? 'season3' : 'season1')} count={f(simpsons ? 'season3Count' : 'episodeCount')} onSeasons={() => setOpen(true)} hideWatched={hide} onHideWatched={setHide}/></PanelBlock>
+      <EpisodeRows episodes={tlouEpisodes} opened={opened}/></>}
     {simpsons && !isTV && <SeasonSheet open={open} onOpenChange={setOpen} total={36} selectedId={selected} onSelect={setSelected} hideWatched={hide} onHideWatched={setHide} rows={[
       {id: 's1', number: 1, label: f('season1'), count: f('count13'), progress: f('watched'), complete: true}, {id: 's2', number: 2, label: f('season2'), count: f('count22'), progress: f('watched'), complete: true},
       {id: 's3', number: 3, label: f('season3'), count: f('season3Count'), progress: f('season3Progress'), fraction: 4 / 24}, {id: 's4', number: 4, label: f('season4'), count: f('count22')},
@@ -195,7 +188,7 @@ function Season() {
   return <Page destination={{kind: 'library', libraryId: 'show'}}><TitleFrame testID="frames-title-season" back={back} topAction={playOn} {...tv} art={<AmbientArt treatment="title" foreground={asset('bd-tlou.jpg')}/>} kicker={{icon: 'i-tv', label: f('seasonKicker'), onPress: none}} title={f('season1')}
     metadata={<Meta text={f('seasonFacts')}/>} primary={{icon: 'i-play', label: f('resumeEpisode'), progress: .67, remaining: f('ep1Left'), onPress: none}}
     actions={[{icon: 'i-check', label: f('watched'), wide: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]} synopsis={f('seasonSynopsis')} tabs={tabs(tab, setTab, true)}>
-    {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <PanelBlock><SeasonBar label={f('season1')} count={f('episodeCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/><View style={{height: 12}}/><EpisodeRows episodes={tlouEpisodes}/></PanelBlock>}
+    {isTV ? <Posters title={f('moreLikeThis')} items={moreLikeShows}/> : <><PanelBlock><SeasonBar label={f('season1')} count={f('episodeCount')} onSeasons={none} hideWatched={hide} onHideWatched={setHide}/></PanelBlock><EpisodeRows episodes={tlouEpisodes}/></>}
   </TitleFrame></Page>;
 }
 function EpisodePage() {

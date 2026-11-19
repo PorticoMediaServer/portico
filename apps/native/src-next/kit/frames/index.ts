@@ -4,6 +4,7 @@ export {HomeHero, type HomeHeroEntry, type HomeHeroProps} from './HomeHero';
 export {TitleFrame, TitleSection, type TitleFrameProps, type TitleCollapse, type TitleAction, type TitlePrimary, type TitleCredit, type TitleKicker, type TitleCover} from './TitleFrame';
 export {PanelBlock, PanelHeading, AboutTable, CastRow, TrackPicker, NumberedRow, OwnerCard, EpisodeNeighbour, SeasonListRow, VersionRows, EpisodeDisplay, TitleDetails, PeopleSheet, type PeopleSheetProps, type AboutValue, type CastPerson, type TitleCreditLine, type TitleDetailsProps} from './title-parts';
 export {SettingsListFrame, SettingsPageFrame, type SettingsListFrameProps, type SettingsPageFrameProps} from './SettingsFrame';
+export {EpisodeList, EpisodePlate, type EpisodeListProps, type EpisodeListItem, type EpisodePlateProps, type EpisodeNeighbourItem, type EpisodeCreditPerson} from './EpisodeList';
 export {SheetFrame, type SheetFrameProps, type SheetBarProps} from './SheetFrame';
 export {SignInFrame, type SignInFrameProps} from './SignInFrame';
 export {PlayerChromeFrame, type PlayerChromeFrameProps, type PlayerReadouts, type PlayerForm} from './PlayerChromeFrame';

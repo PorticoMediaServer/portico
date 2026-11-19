@@ -240,6 +240,8 @@ const handheldType = {
   rowLabel: type(15.5, 20, 600), rowHelp: type(12.5, 17.5, 500), intro: type(14.5, 21.75, 500),
   // A title's About table and its cast circles on a phone (phone-detail d1 frame 2: `.kv`, `.pp b`, `.pp small`).
   about: type(14, 19.6, 600), castName: type(12.5, 'normal', 700), castRole: type(11.5, 'normal', 500),
+  // The opened episode's plate on a phone (phone-detail d2 frame 4: `.epo .code`, `.epo h3`).
+  episodeCode: type(13, 'normal', 700), episodePlateTitle: type(22, 'normal', 800, -.025),
   // The players' own roles (desktop-player, phone-player, tv-player): title block, time read-outs, pills, the skip
   // numeral inside a transport button, the time under a scrub preview, and the Skip intro prompt.
   playerTitle: type(16.5, 'normal', 800, -.015), playerSubtitle: type(13, 'normal', 600), playerTime: type(12, 'normal', 700), playerPill: type(13.5, 'normal', 700),
