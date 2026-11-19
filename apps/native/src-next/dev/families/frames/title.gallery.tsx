@@ -1,16 +1,14 @@
 import React, {useRef, useState, type ReactNode} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures';
 import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../kit/artwork/index';
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, EpisodeList, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SeasonListRow, SheetFrame, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, EpisodeList, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
-import {KeyHints} from '../../../kit/controls';
-import {TVRow} from '../../../kit/layout/TVRow';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {HeroMetadata, PosterRow, SeasonBar} from '../../../kit/layout';
@@ -141,21 +139,21 @@ function openedPlate(pictured: boolean): EpisodePlateProps {
 type SeasonRowData = Readonly<{id: string; label: Name; detail: Name; progress?: number}>;
 function tvSeasons(rows: readonly SeasonRowData[], current: string, band: {title: Name; count: Name; synopsis: Name}) {
   const t = defaultI18n.t;
-  return {column: <View style={{gap: 6}}>{rows.map(row => <SeasonListRow key={row.id} focusId={`title-season-${row.id}`} label={f(row.label)} detail={f(row.detail)} progress={row.progress} current={row.id === current} onPress={none}/>)}
-      <View style={{marginTop: 16, marginLeft: 24}}><KeyHints hints={[{key: t('next.layout.holdOk'), label: t('next.watch.seasonOptions')}]}/></View></View>,
+  return {column: <TVSeasonList hint={{key: t('next.layout.holdOk'), label: t('next.watch.seasonOptions')}}
+      items={rows.map(row => ({id: `title-season-${row.id}`, label: f(row.label), detail: f(row.detail), progress: row.progress, current: row.id === current, onFocus: none, onLongPress: none}))}/>,
     episodes: <TVEpisodes band={band}/>};
 }
+/** The episodes and the band as the TV page draws them: the band follows focus, a season's summary or the focused episode. */
 function TVEpisodes({band}: {band: {title: Name; count: Name; synopsis: Name}}) {
-  const theme = useTheme(), width = 384; // R5 interim: detail-tv-5a's 384 stills
-  return <View style={{gap: theme.space.lg}}>
-    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 28}}>
-      {tlouEpisodes.map((episode, index) => <EpisodeTile key={episode.id} width={width} focusId={`title-episode-${episode.id}`} title={episode.title} label={[{id: 'episode', text: f(`ep${index + 1}Label` as Name), role: 'context'}]}
-        length={episode.length} status={episode.status} watched={episode.watched} progress={episode.progress} artwork={asset(episode.art)} onNavigate={none}/>)}
-    </ScrollView></TVRow>
-    {/* The band is one line of facts over the synopsis, not a heading (detail-tv-5a: "Season 2  2009  13 episodes"). */}
-    <View style={{gap: theme.space.xs}}><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{f(band.title)}<Text style={{color: theme.colors.textSecondary}}>{'   '}{f(band.count)}</Text></Text>
-      <Text numberOfLines={2} style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{f(band.synopsis)}</Text></View>
-  </View>;
+  const t = defaultI18n.t, [focused, setFocused] = useState<Episode | undefined>(undefined);
+  const items = tlouEpisodes.map((episode, index): TVEpisodeItem => ({key: `title-episode-${episode.id}`, title: episode.title, label: [{id: 'episode', text: f(`ep${index + 1}Label` as Name), role: 'context'}],
+    length: episode.length, status: episode.status, watched: episode.watched, progress: episode.progress, artwork: asset(episode.art), onFocus: () => setFocused(episode), onPlay: none}));
+  const data: EpisodeBandData = focused ? {kind: 'episode', title: focused.title, facts: [{id: 'code', text: f('ep1Code'), role: 'identity'}, {id: 'length', text: focused.length, role: 'value'}, {id: 'content-rating', text: f('tlouRating'), role: 'supplement'}],
+      synopsis: focused.synopsis, ...(focused.progress !== undefined ? {state: {label: `${t('entry.resume')}, ${f('ep1Left')}`, progress: focused.progress}} : {}),
+      guests: {label: t('next.watch.guestStars'), people: [{name: 'Nick Offerman', role: 'Bill'}, {name: 'Murray Bartlett', role: 'Frank'}]}, lines: [{label: f('directedBy'), names: 'Peter Hoar'}, {label: f('writtenBy'), names: 'Craig Mazin'}],
+      hint: {key: t('next.layout.holdOk'), label: t('next.watch.episodeOptions')}}
+    : {kind: 'season', title: f(band.title), facts: [f(band.count)], overview: f(band.synopsis)};
+  return <TVEpisodeShelf items={items} entry={items[0]?.key} band={data}/>;
 }
 const moreLikeShows = [['pool/tv/severance.jpg', 'Severance', '2022'], ['pool/tv/silo.jpg', 'Silo', '2023'], ['pool/tv/stranger-things.jpg', 'Stranger Things', '2016'], ['pool/tv/the-walking-dead.jpg', 'The Walking Dead', '2010'],
   ['pool/tv/slow-horses.jpg', 'Slow Horses', '2022'], ['pool/tv/the-mandalorian.jpg', 'The Mandalorian', '2019'], ['pool/tv/breaking-bad.jpg', 'Breaking Bad', '2008']] as const;
