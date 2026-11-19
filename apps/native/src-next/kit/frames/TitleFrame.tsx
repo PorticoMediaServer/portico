@@ -42,7 +42,8 @@ export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean)
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
   art?: ReactNode;
-  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right). Given both,
+  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right; on TV a circle is
+   * at the left too, level with the top of the words, as tv-detail frame 10 draws a person). Given both,
    * `art` is the glow behind a cover's head on touch (phone-detail d3 frame 7: a person's films behind the circle). */
   cover?: TitleCover;
   /** A glass disc over the art. Not drawn on TV, where the remote's Back leaves the page. */
@@ -134,9 +135,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // the section that holds focus rises to just under them; focus back on the buttons unfolds it. The head stays laid out
   // (it scrolls under the band, its words faded), so Up from the first row finds the buttons again. `where` is the head or a section's index; focus
   // leaving the page (the rail, an overlay) keeps it. A page with its own scroller (an album's songs) scrolls itself and
-  // does not fold.
+  // does not fold. Nor does a cover page (a person, tv-detail frame 10): its head is short, so the page moves only as far as
+  // the control in focus needs and the head stays above the first row.
   const motion = useMotion(), [where, setWhere] = useState<'head' | number>('head');
-  const folded = tv && !scroller && (collapsed ?? where !== 'head');
+  const folded = tv && !scroller && !cover && (collapsed ?? where !== 'head');
   const restored = useRef(false), scroll = useRef<ScrollView>(null), ys = useRef({content: 0, column: 0, sections: [] as number[]}), [bandHeight, setBandHeight] = useState(0);
   const fold = useSharedValue(0);
   // tvOS moves focus only to what is on screen, and folded, the buttons are scrolled away above: a guide over the first
@@ -155,7 +157,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   // art's faded edge and leave a hard line where the art box ends).
   const scrimStyle = useAnimatedStyle(() => ({opacity: fold.value * (1 - frameSpec.hero.title.tvCollapsedArt)}));
   const align = () => {
-    if (!tv || scroller) return;
+    if (!tv || scroller || cover) return;
     const y = where === 'head' ? 0 : ys.current.content + ys.current.column + (ys.current.sections[where] ?? 0) - bandHeight;
     scroll.current?.scrollTo({y: Math.max(0, y), animated: !motion.reduce});
   };
@@ -178,8 +180,8 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     const node = host as View | null, page = pageView.current;
     if (!node || !page || scroller) return;
     requestAnimationFrame(() => node.measureLayout(page, (_x, y, _w, h) => {
-      const room = theme.space.xl, top = y - room, bottom = y + h + room;
-      const target = bottom > scrollY.current + window.height ? bottom - window.height : top < scrollY.current + bandHeight ? top - bandHeight : undefined;
+      const room = theme.space.xl, top = y - room, bottom = y + h + room, band = folded ? bandHeight : 0;
+      const target = bottom > scrollY.current + window.height ? bottom - window.height : top < scrollY.current + band ? top - band : undefined;
       if (target !== undefined) scroll.current?.scrollTo({y: Math.max(0, target), animated: !motion.reduce});
     }, () => {}));
   };
@@ -269,7 +271,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View>
       {/* A cover page with no buttons and no words (a person without a biography) ends at its name: no empty gap. */}
       {(primary || actions.length > 0 || words || picker) && <View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View>}</View>
-    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
+    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && !tv ? 'row-reverse' : 'row', alignItems: cover.shape === 'circle' && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
       {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
@@ -309,8 +311,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       {tv && !scroller && !loading && <TVFocusGuideView ref={upGuide} focusable={folded} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
       {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={(focused, host) => {
         if (!focused) return;
-        // A move within the section keeps the control on screen; entering a section aligns the section itself.
-        if (whereNow.current === index) reveal(host); else setWhere(index);
+        // A move within the section keeps the control on screen; entering a section aligns the section itself (a cover page
+        // only keeps the control on screen).
+        if (whereNow.current === index || cover) reveal(host);
+        if (whereNow.current !== index) setWhere(index);
       }}>
         <View style={{gap: frame.sectionGap}} onLayout={event => {ys.current.sections[index] = event.nativeEvent.layout.y; if (where === index) align();}}>{section.node}</View></FocusWithin>)
         : panel}</View>
@@ -363,7 +367,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   </View>;
   const strip = tabs && !held && <View onLayout={event => {setTabsY(event.nativeEvent.layout.y); tabsHeight.current = event.nativeEvent.layout.height;}}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>;
   const page = tv ? <View ref={pageView} collapsable={false}>
-    <FocusWithin onChange={focused => {if (focused) setWhere('head');}}><Animated.View ref={headView} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
+    <FocusWithin onChange={focused => {if (!focused) return; setWhere('head'); if (tv && cover) scroll.current?.scrollTo({y: 0, animated: !motion.reduce});}}><Animated.View ref={headView} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
     {content}
   </View> : <>
     {!held && (cover && art ? <View>
