@@ -69,7 +69,10 @@ export type CollectionCardProps = CardProps & ArtCollection & {backdrop?: Artwor
 function Collection({banner = false, ...props}: CollectionCardProps & {banner?: boolean}) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 800 : 350), height = props.height ?? (banner ? t.isTV ? 360 : 236 : width * 9 / 16);
   const pad = t.isTV ? 32 : banner ? 24 : 22;
-  return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
+  // A banner is as wide as the page: grown like a card it would reach into the rail and the screen's edge, so it grows like a row.
+  // A banner says its count once: in its body when it has one (the caption is for the link card, which has no body).
+  const caption = banner && props.body !== undefined ? undefined : props.caption;
+  return <CardFrame {...props} caption={caption} width={width} focusScale={banner ? t.spec.focus.scale.row.tv : undefined} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
     {s => <ArtFrame height={height} radius={banner ? 16 : 14} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1.025} selected={props.selection?.selected}>
       <AmbientArt source={props.ambient} foreground={props.backdrop} palette={props.palette} treatment="library" visible={props.visible} priority={props.priority} />
       <Scrim start={0} opacity={0.78} />
@@ -77,7 +80,7 @@ function Collection({banner = false, ...props}: CollectionCardProps & {banner?: 
         {!!props.covers.length && <View style={{flexDirection: 'row', gap: 6, marginBottom: 14}}>{props.covers.slice(0, 4).map((source, index) => <Artwork key={source.cacheKey} source={source} width={banner ? 42 : 34} height={banner ? 63 : 51} visible={props.visible} priority={props.priority} style={{borderRadius: 5}} fallback={props.renderCoverFallback?.(index)} />)}</View>}
         {props.kindLabel && <Text style={[t.type.cardSubtitle, {color: t.colors.accentStrong, marginBottom: 8}]}>{props.kindLabel}</Text>}
         <Text numberOfLines={2} style={[titleStyle(t, t.isTV ? 44 : banner ? 36 : 32, 800, -0.035), {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
-        <View style={{marginTop: 8}}><Parts parts={props.caption} style={{color: t.colors.textSecondary}} /></View>
+        {caption?.length ? <View style={{marginTop: 8}}><Parts parts={caption} style={{color: t.colors.textSecondary}} /></View> : null}
         <Parts parts={props.detail} />
         {props.body && <Text numberOfLines={2} style={[t.type.body, {color: t.colors.textSecondary, marginTop: 10}]}>{props.body}</Text>}
       </View>
