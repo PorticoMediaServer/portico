@@ -1,12 +1,17 @@
-import React, {type ReactNode} from 'react';
+import React, {useId, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {Artwork, type ArtworkSource} from '../artwork';
-import {CircleCard, CollectionBanner, CollectionTile, type CollectionCardProps} from '../cards';
-import {Button, Focusable, Segmented} from '../controls';
+import {CircleCard, CollectionBanner, CollectionTile, EpisodeTile, type CollectionCardProps, type EpisodeTileProps} from '../cards';
+import {cardCaptionHeight} from '../cards/caption-metrics';
+import {Button, Focusable, KeyHints, Segmented} from '../controls';
+import {FocusRegion, FocusWithin} from '../focus';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
 import {TVRow} from '../layout/TVRow';
-import {SeeAllLink} from '../layout/Row';
+import {Row, SeeAllLink} from '../layout/Row';
+import {HeroMetadata} from '../layout/Hero';
+import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {ListEdgeFade, useListEdges} from '../layout/ListEdgeFade';
 import {fontFamilies, useTheme} from '../theme';
 import {frameSpec, tvFocusRoom} from '@portico/design';
 import {useFrameMetrics} from './metrics';
@@ -187,7 +192,9 @@ export function SeasonListRow({label, detail, progress, current, focusId, testID
 }
 /** R5 interim: detail-tv-5a's season rows, 84 high and 6 apart; the column is 330 wide, 70 from the episodes. */
 const rowHeight = 84;
-export const seasonColumn = {width: 330, gap: 70, rowGap: 6} as const;
+/** `window`: rows shown before the list scrolls (six and half the seventh, detail-tv-5e); `fade`: its edge fades; `tile`: the
+ * episode still's width (detail-tv-5a, 384); the band's words and credits share the row 640 : 516, its bar is 220. */
+export const seasonColumn = {width: 330, gap: 70, rowGap: 6, window: 6.5, fade: 70, fadeOpacity: .9, tile: 384, bandWords: 640, bandCredits: 516, bandBar: 220} as const;
 
 /** "Play a different version" (detail-phone 9b, desktop-detail 9b, detail-tv-8b): one row of two lines per version, in
  * File info's order: the edition or the picture summary, then the rest. The whole row is the button and plays that
@@ -312,4 +319,103 @@ function TVTitleDetails({about, people, collection}: TitleDetailsProps) {
       <PanelBlock><CastRow groups={people.groups} onEnd={people.more}/></PanelBlock></View> : null}
     {collection ? <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
   </>;
+}
+
+/** One season (or an owner's episode group) in the TV season column (detail-tv-5a). Focus on it selects it at once; Hold
+ * OK opens its options. */
+export type TVSeasonItem = Readonly<{id: string; label: string; detail?: string; progress?: number; current: boolean; onFocus: () => void; onLongPress?: () => void}>;
+/** detail-tv-5a and 5e: the show's seasons as a side list in its own window of six rows and half the seventh, the next row
+ * peeking in when there are more; an edge fades only where the list goes on; the Hold OK hint under it while a season
+ * holds focus. `onEnd` reads more seasons as focus nears the end. */
+export function TVSeasonList({items, hint, onEnd}: Readonly<{items: readonly TVSeasonItem[]; hint?: Readonly<{key: string; label: string}>; onEnd?: () => void}>) {
+  const theme = useTheme(), {edges, scroll} = useListEdges(seasonColumn.fade), [focused, setFocused] = useState(false);
+  const current = items.find(item => item.current)?.id ?? items[0]?.id;
+  return <FocusWithin onChange={setFocused}><FocusRegion id={`tv-seasons.${useId()}`} orientation="vertical" order={items.map(item => item.id)} entry={current}>
+    <View style={{maxHeight: seasonColumn.window * (rowHeight + seasonColumn.rowGap)}}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{gap: seasonColumn.rowGap}} {...scroll}>
+        {items.map((item, index) => <SeasonListRow key={item.id} focusId={item.id} testID={`tv-season-${item.id}`} label={item.label} detail={item.detail} progress={item.progress} current={item.current}
+          onFocus={() => {item.onFocus(); if (onEnd && index >= items.length - 3) onEnd();}} onPress={item.onFocus} onLongPress={item.onLongPress}/>)}
+      </ScrollView>
+      {edges.top && <ListEdgeFade testID="tv-seasons-fade-top" edge="top" length={seasonColumn.fade} opacity={seasonColumn.fadeOpacity}/>}
+      {edges.bottom && <ListEdgeFade testID="tv-seasons-fade-bottom" edge="bottom" length={seasonColumn.fade} opacity={seasonColumn.fadeOpacity}/>}
+    </View>
+    {hint && focused && <View style={{marginTop: theme.space.md, marginLeft: theme.space.md}}><KeyHints hints={[hint]}/></View>}
+  </FocusRegion></FocusWithin>;
+}
+
+/** One episode tile on TV (detail-tv-5b): the still (the show's backdrop when it has none), its length, watched mark,
+ * Up next and progress, the title and one muted label. OK plays it; Hold OK opens its menu. */
+export type TVEpisodeItem = Readonly<{key: string; title: string; label: EpisodeTileProps['label']; length?: string; status?: string; watched?: boolean; progress?: number;
+  artwork?: ArtworkSource; backdropFallback?: boolean; onFocus: () => void; onPlay: () => void; onMore?: (anchor: React.RefObject<View | null>) => void}>;
+/** What the band under the tiles describes: the season in focus, or the episode in focus (detail-tv-5a, 5b). Words only;
+ * the band sets them. */
+export type EpisodeBandData =
+  | Readonly<{kind: 'season'; title: string; facts: readonly string[]; overview?: string}>
+  | Readonly<{kind: 'episode'; title: string; facts: readonly FactPart[]; synopsis?: string; state?: Readonly<{label: string; progress?: number}>;
+      guests?: Readonly<{label: string; people: readonly Readonly<{name: string; role?: string}>[]; more?: string}>; lines?: readonly Readonly<{label: string; names: string}>[]; hint?: Readonly<{key: string; label: string}>;
+      error?: ReactNode}>;
+/** detail-tv-5a and 5b: the season's episodes as one row of tiles (focus enters on the next-up episode), then the band
+ * that describes whatever holds focus. `onEnd` reads the season's next page as the row nears its end. */
+export function TVEpisodeShelf({items, entry, band, empty, onEnd}: Readonly<{items: readonly TVEpisodeItem[]; entry?: string; band?: EpisodeBandData; empty?: string; onEnd?: () => void}>) {
+  const theme = useTheme(), width = seasonColumn.tile, region = `tv-episodes.${useId()}`, caption = cardCaptionHeight(theme, 2);
+  // R1: a focused tile grows and draws its ring outside itself; the row keeps that room inside its scroller and the shelf
+  // gives it back by the same amount, so the tiles stay on the column and the first one's ring and caption are never cut.
+  const room = tvFocusRoom(width, width * 9 / 16 + caption, 'card').side;
+  const onRange = (_first: number, last: number) => {if (onEnd && last >= items.length - 10) onEnd();};
+  return <View style={{gap: theme.space.lg}}>
+    {items.length === 0 && empty !== undefined && <Text testID="tv-episodes-empty" accessibilityRole="header" style={[theme.type.groupLabel, {color: theme.colors.textSecondary}]}>{empty}</Text>}
+    {items.length > 0 && <View style={{marginHorizontal: -room}}><Row showHeading={false} title="" items={items} getKey={item => item.key} itemWidth={width} itemHeight={width * 9 / 16 + caption} captionHeight={caption}
+      gutter={room} rightGutter={room} selection={resting} focus={{id: region, entry}} onVisibleRange={onRange}
+      renderItem={(item, context) => <EpisodeItem item={item} focusId={context.focusId} testID={context.testID} onFocus={() => {context.onFocus?.(); item.onFocus();}} onBlur={context.onBlur} width={width}/>}/></View>}
+    {band && <EpisodeBand band={band}/>}
+  </View>;
+}
+const resting = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}};
+function EpisodeItem({item, width, ...focus}: Readonly<{item: TVEpisodeItem; width: number; focusId?: string; testID?: string; onFocus: () => void; onBlur?: () => void}>) {
+  const anchor = useRef<View>(null), more = item.onMore;
+  return <EpisodeTile {...focus} width={width} title={item.title} label={item.label} length={item.length} status={item.status} watched={item.watched} progress={item.progress}
+    artwork={item.artwork} backdropFallback={item.backdropFallback} primaryAction="play" onPlay={item.onPlay} menuAnchorRef={anchor} onMore={more ? () => more(anchor) : undefined}/>;
+}
+
+/** The band under the episode row (detail-tv-5a: a season's facts over its overview; 5b: an episode's title, facts and
+ * synopsis, its watch state, and beside them its guest stars and credits with the Hold OK hint). Every line wraps. */
+export function EpisodeBand({band}: Readonly<{band: EpisodeBandData}>) {
+  const theme = useTheme();
+  if (band.kind === 'season') return <View testID="tv-episode-band" style={{gap: theme.space.xs}}>
+    <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: theme.space.md, rowGap: theme.space.xs}}>
+      <Text accessibilityRole="header" style={[theme.type.rowLabel, {color: theme.colors.text}]}>{band.title}</Text>
+      {band.facts.map(fact => <Text key={fact} style={[theme.type.meta, {color: theme.colors.textTertiary}]}>{fact}</Text>)}
+    </View>
+    {band.overview !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{band.overview}</Text>}
+  </View>;
+  const track = theme.spec.card.progress.height[theme.column];
+  return <View testID="tv-episode-band" style={{flexDirection: 'row', gap: theme.space.md}}>
+    <View style={{flex: seasonColumn.bandWords, minWidth: 0, gap: theme.space.sm}}>
+      <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{band.title}</Text>
+      {/* The hero's facts line: the rating is its outlined chip (content-rating). */}
+      <HeroMetadata facts={band.facts}/>
+      {band.synopsis !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{band.synopsis}</Text>}
+      {band.state && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+        {band.state.progress !== undefined && <View style={{width: seasonColumn.bandBar, height: track, borderRadius: track, backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
+          <View style={{height: track, width: `${Math.min(1, band.state.progress) * 100}%`, borderRadius: track, backgroundColor: theme.colors.accentStrong}}/></View>}
+        <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{band.state.label}</Text>
+      </View>}
+      {band.error}
+    </View>
+    <View style={{flex: seasonColumn.bandCredits, minWidth: 0, gap: theme.space.sm}}>
+      {/* Each credit is a label and its names in two columns (detail-tv-5b: Guest stars, Directed by, Written by). */}
+      {band.guests && band.guests.people.length > 0 && <View style={{flexDirection: 'row', gap: theme.space.sm}}>
+        <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: sizes.aboutLabel[theme.form]}]}>{band.guests.label}</Text>
+        <View style={{flex: 1, minWidth: 0, gap: theme.space.tight}}>
+          {band.guests.people.map(person => <Text key={person.name} style={[theme.type.rowLabel, {color: theme.colors.text}]}>{person.name}
+            {person.role !== undefined && <Text style={{color: theme.colors.textTertiary}}>{'  '}{person.role}</Text>}</Text>)}
+          {band.guests.more !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{band.guests.more}</Text>}
+        </View>
+      </View>}
+      {band.lines?.map(line => <View key={line.label} style={{flexDirection: 'row', gap: theme.space.sm}}>
+        <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: sizes.aboutLabel[theme.form]}]}>{line.label}</Text>
+        <Text style={[theme.type.rowLabel, {flex: 1, minWidth: 0, color: theme.colors.text}]}>{line.names}</Text></View>)}
+      {band.hint && <View style={{marginTop: theme.space.sm}}><KeyHints hints={[band.hint]}/></View>}
+    </View>
+  </View>;
 }
