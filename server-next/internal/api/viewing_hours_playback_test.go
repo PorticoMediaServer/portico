@@ -13,8 +13,14 @@ import (
 // once its reports stop. Inside the hours the same report is taken.
 func TestViewingHoursEndPlaybackAtTheNextReport(t *testing.T) {
 	th := newTheatre(t)
+	// Noon, so the window below stays inside one day: the last noon, never a later one, because
+	// moving the clock forward past the owner's sign-in would end it (before noon UTC this failed).
 	day := th.clock.Now().UTC()
-	th.clock.Set(time.Date(day.Year(), day.Month(), day.Day(), 12, 0, 0, 0, time.UTC)) // noon: the window below stays inside one day
+	noon := time.Date(day.Year(), day.Month(), day.Day(), 12, 0, 0, 0, time.UTC)
+	if noon.After(day) {
+		noon = noon.AddDate(0, 0, -1)
+	}
+	th.clock.Set(noon)
 	max := addMember(t, th.s, th.owner.AccessToken, "max", "member")
 	viewer := signInAs(t, th.s, "max", testPassword, 5)
 	code, session := th.start(viewer.AccessToken, "", PlaybackStart{ItemID: th.film})
