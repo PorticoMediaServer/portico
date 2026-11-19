@@ -42,7 +42,8 @@ export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean)
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
   art?: ReactNode;
-  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right). Given both,
+  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right; on TV a circle is
+   * at the left too, level with the top of the words, as tv-detail frame 10 draws a person). Given both,
    * `art` is the glow behind a cover's head on touch (phone-detail d3 frame 7: a person's films behind the circle). */
   cover?: TitleCover;
   /** A glass disc over the art. Not drawn on TV, where the remote's Back leaves the page. */
@@ -264,7 +265,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View>
       {/* A cover page with no buttons and no words (a person without a biography) ends at its name: no empty gap. */}
       {(primary || actions.length > 0 || words || picker) && <View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View>}</View>
-    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
+    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && !tv ? 'row-reverse' : 'row', alignItems: cover.shape === 'circle' && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
       {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).

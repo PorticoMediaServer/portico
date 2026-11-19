@@ -1,17 +1,20 @@
-import React, {useCallback, useRef, type ReactNode} from 'react';
+import React, {useCallback, useId, useRef, type ReactNode} from 'react';
 import type {View, ViewStyle} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {WindowedCollection} from '../../../../../packages/client-core/src/collections/windowed';
 import type {ArtworkSource} from '../artwork';
 import {PosterCard} from '../cards';
+import {FocusRegion} from '../focus';
 import {cardCaptionHeight} from '../cards/caption-metrics';
 import {WindowedGrid} from '../layout/WindowedGrid';
+import {WindowedRow} from '../layout/WindowedRow';
 import type {CardSelection, LayoutItemContext} from '../layout/types';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {useTheme} from '../theme';
 import {browseGridCard} from './BrowseFrame';
 import {useFrameMetrics} from './metrics';
 import type {TitleCollapse} from './TitleFrame';
+import {PanelBlock, PanelHeading} from './title-parts';
 
 /** One poster in a page's grid: what the page knows about the title, never how big it is (as `PosterRowItem`). */
 export type PosterGridItem = Readonly<{title: string; caption?: string; artwork?: ArtworkSource; watched?: boolean; progress?: number;
@@ -52,6 +55,23 @@ function PosterGridScroller<T>({collection, getKey, item, testID, content, style
     onScrollOffset={onOffset}
     renderPlaceholder={() => <SkeletonBlock width={width} height={width * 1.5} radius={theme.radii.artwork}/>}
     renderItem={(value, context) => <GridPoster item={item(value)} context={context} width={width}/>}/>;
+}
+
+/** TV (tv-detail frame 10): a person's credits as a row per department, not a grid. A heading with its count (and, on the
+ * first row, the page's Filters), then the titles read a window at a time as the row moves, at the form's poster width.
+ * The row is a focus region of its own, so it keeps its card when focus leaves it and comes back (tv-focus 3). */
+export function PosterWindowRow<T>({title, count, tools, collection, getKey, item, testID}: PosterGridScrollerProps<T> & Readonly<{title: string; count?: string; tools?: ReactNode}>) {
+  const theme = useTheme(), frame = useFrameMetrics(), width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
+  const region = `poster-window-row.${useId()}`;
+  return <>
+    <PanelBlock><PanelHeading title={title} count={count} trailing={tools}/></PanelBlock>
+    <FocusRegion id={region} orientation="horizontal">
+      <WindowedRow testID={testID} collection={collection} getKey={getKey} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption}
+        gutter={frame.gutter} rightGutter={frame.rightGutter}
+        renderPlaceholder={() => <SkeletonBlock width={width} height={width * 1.5} radius={theme.radii.artwork}/>}
+        renderItem={(value, context) => <GridPoster item={item(value)} context={{...context, focusId: context.id, testID: testID && `${testID}-${context.index}`}} width={width}/>}/>
+    </FocusRegion>
+  </>;
 }
 
 function GridPoster({item, context, width}: Readonly<{item: PosterGridItem; context: LayoutItemContext; width: number}>) {
