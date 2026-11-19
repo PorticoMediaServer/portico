@@ -29,7 +29,7 @@ export type BrowseHeaderProps = PageHeaderProps & Readonly<{
    * the kit `Tabs` from the gutter, its rule across the page. */
   tabs?: Readonly<{items: readonly TabItem[]; value: string; onValueChange: (value: string) => void}>;
   /** A pushed list's one line saying why these titles are here (desktop-browse seeall, collections-46). */
-  intro?: string;
+  intro?: ReactNode;
   /** Labelled buttons under the intro: Play and Shuffle on See all. */
   actions?: ReactNode;
 }>;

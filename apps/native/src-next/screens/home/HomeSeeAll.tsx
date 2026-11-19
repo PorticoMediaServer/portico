@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
-import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -8,7 +8,8 @@ import {homeRowReasonParts} from '../../../../../packages/client-core/src/presen
 import {homeEntryCapabilities} from '../../../../../packages/client-core/src/home-selection';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {Button, Chip, Focusable} from '../../kit/controls';
-import {FiltersButton, QuickToggle, SortMenu, ViewToggle} from '../../kit/browse';
+import {BrowseToolbar, FiltersButton, QuickToggle, SortMenu, type BrowseLabels} from '../../kit/browse';
+import {BrowseFrame} from '../../kit/frames';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {MediaArt} from '../../kit/artwork';
 import {browseType} from '../../kit/browse/presentation';
@@ -28,8 +29,6 @@ import {homeSeeAllCardWidth, homeSeeAllQuickOrder} from './see-all-model';
 import {homeCardText} from './model';
 import {NativeHomeRowController} from './row-controller';
 import {hasHomeRowQueue} from '../../../../../packages/client-core/src/home-row-browse';
-import {TVRow} from '../../kit/layout/TVRow';
-import {TopBar, BarSurface} from '../../kit/layout/TopBar';
 
 export {homeBrowseLabel};
 
@@ -89,9 +88,8 @@ function HomeSeeAllSkeleton({runtime, surface}: {runtime: NativeShellRuntime; su
 }
 
 function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, onPlayEntry, onMenu, onFilters, onReshuffle, kindLabel, selection, surface}: HomeSeeAllProps & {surface: number}) {
-  // A pushed page starts under the status bar: the header and the sticky toolbar clear it.
-  const theme = useTheme(), registry = useFocusRegistry(), t = runtime.text.t, labels = {t, has: defaultI18n.has}, top = useSafeAreaInsets().top;
-  const [view, setView] = useState<'grid' | 'list'>('grid'), [collapsed, setCollapsed] = useState(false), [headerHeight, setHeaderHeight] = useState(0),
+  const theme = useTheme(), registry = useFocusRegistry(), t = runtime.text.t, labels = {t, has: defaultI18n.has};
+  const [view, setView] = useState<'grid' | 'list'>('grid'),
     list = !theme.isTV && view === 'list';
   const visible = useRef(active); visible.current = active;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -116,18 +114,18 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   const tv = theme.isTV, phone = !tv && theme.platform === 'phone', gutter = tv ? 200 : theme.gutter, cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100,
     width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.column], cardScale, phone);
   const playable = hasHomeRowQueue(row.id);
-  const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, paddingTop: tv ? 64 : top, paddingBottom: tv ? 24 : 16}}>
-        {tv ? <Focusable focusId="back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{height: tv ? 32 : 28, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
-          <Icon name="i-left" size={tv ? 22 : 16} color={theme.colors.textTertiary}/><Text style={[nativeType({size: tv ? 22 : 14, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.home.shell.home')}</Text>
-        </Focusable>
-          : <View style={{marginHorizontal: -gutter, marginBottom: 6}}><TopBar safeArea={false} back={{label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-back'}}/></View>}
-        <Text accessibilityRole="header" style={[nativeType({size: tv ? 62 : phone ? 34 : 30, weight: 800, tracking: -.04, lineHeight: tv ? 62 : phone ? 35.7 : 30}, theme.textScale), {color: theme.colors.text, marginBottom: phone ? 8 : 12}]}>{title}</Text>
-        {reason && <Text style={[nativeType({size: tv ? 24 : phone ? 14 : 15, weight: 400, tracking: 0, lineHeight: tv ? 34.8 : phone ? 21 : 22}, theme.textScale), {maxWidth: tv ? 1100 : undefined, color: theme.colors.textSecondary, marginBottom: 24}]}>{reasonParts
-          ? reasonParts.map((part, index) => part.titleId ? <Text key={index} style={{color: theme.colors.text, fontWeight: '700'}}>{part.text}</Text> : part.text)
-          : serverTextLabel(labels, reason)}</Text>}
-        {playable && <View style={{flexDirection: 'row', gap: tv ? 16 : 10}}><Button focusId="play" icon="i-play" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(false)}>{t('entry.play')}</Button>
-          <Button focusId="shuffle" variant="glass" icon="i-shuffle" size={tv ? 'hero' : undefined} style={phone ? {flex: 1} : undefined} onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></View>}
-      </View>;
+  const intro = reason ? reasonParts ? reasonParts.map((part, index) => part.titleId ? <Text key={index} style={{color: theme.colors.text, fontWeight: '700'}}>{part.text}</Text> : part.text)
+    : serverTextLabel(labels, reason) : undefined;
+  // TV's own header: Back, the 62 pt title, the reason and the hero-size Play and Shuffle.
+  const header = <View style={{paddingLeft: gutter, paddingRight: 96, paddingTop: 64, paddingBottom: 24}}>
+    <Focusable focusId="back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{height: 32, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
+      <Icon name="i-left" size={22} color={theme.colors.textTertiary}/><Text style={[nativeType({size: 22, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.home.shell.home')}</Text>
+    </Focusable>
+    <Text accessibilityRole="header" style={[nativeType({size: 62, weight: 800, tracking: -.04, lineHeight: 62}, theme.textScale), {color: theme.colors.text, marginBottom: 12}]}>{title}</Text>
+    {intro && <Text style={[nativeType({size: 24, weight: 400, tracking: 0, lineHeight: 34.8}, theme.textScale), {maxWidth: 1100, color: theme.colors.textSecondary, marginBottom: 24}]}>{intro}</Text>}
+    {playable && <View style={{flexDirection: 'row', gap: 16}}><Button focusId="play" icon="i-play" size="hero" onPress={() => onPlay(false)}>{t('entry.play')}</Button>
+      <Button focusId="shuffle" variant="glass" icon="i-shuffle" size="hero" onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></View>}
+  </View>;
   const sortControl = model.sorts.length > 0 && <FocusItem focusId="sort"><SortMenu scope={gridId} sorts={model.sorts} value={model.sort} label={value => homeBrowseLabel(value, labels)} onValueChange={controller.setSort} onReshuffle={onReshuffle}/></FocusItem>;
   const filterControl = model.groups.length > 0 && <FocusItem focusId="filters"><FiltersButton count={state.filters.length} onPress={onFilters}/></FocusItem>;
   const kindControls = controller.kinds.length > 0 && <>
@@ -138,61 +136,68 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
     const remaining = state.filters.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query)); controller.setFilters(checked ? [...remaining, quick.query] : remaining);
   }}>{quick.label?.text ?? homeBrowseLabel(quick, labels)}</QuickToggle></FocusItem>);
   const countLabel = total && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('count.titles', {count: total.total})}</Text>;
-  const toolbar = <View>
-    {!tv && collapsed && <BarSurface/>}
-    {!tv && collapsed && <TopBar back={{label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-toolbar-back'}} leadingTitle={title}/>}
-    {phone ? <>
-      <TVRow><ScrollView horizontal testID="home-see-all-kind-row" showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: gutter, gap: 8, alignItems: 'center'}}>
-        {filterControl}{kindControls}
-      </ScrollView></TVRow>
-      <TVRow><ScrollView horizontal testID="home-see-all-quick-row" showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: gutter, paddingTop: 8, gap: 8, alignItems: 'center'}}>
-        {quickControls}
-      </ScrollView></TVRow>
-      <View testID="home-see-all-count-row" style={{paddingHorizontal: gutter, paddingTop: 14, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 8}}>
-        {countLabel}<View style={{flex: 1}}/>{sortControl}<ViewToggle itemProps={value => ({focusId: `view:${value}`})} value={view} onValueChange={setView}/>
-      </View>
-    </> : <View style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, flexDirection: 'row', alignItems: 'center', gap: tv ? 14 : 8, paddingBottom: tv ? 34 : 16, flexWrap: tv ? undefined : 'wrap'}}>
-      {sortControl}{filterControl}
-      <View style={{width: 1, height: tv ? 40 : 24, backgroundColor: theme.colors.line, marginHorizontal: 6}}/>
-      {kindControls}
-      <View style={{width: 1, height: tv ? 40 : 24, backgroundColor: theme.colors.line, marginHorizontal: 6}}/>
-      {quickControls}
-      {!tv && <View style={{marginLeft: 'auto'}}><ViewToggle itemProps={value => ({focusId: `view:${value}`})} value={view} onValueChange={setView}/></View>}
-      <View style={{marginLeft: tv ? 'auto' : 8}}>{countLabel}</View>
-    </View>}
+  // TV's own page (the frame does not carry its focus regions yet): the sort, filters, kinds and quick filters in one row.
+  const toolbar = <View style={{paddingLeft: gutter, paddingRight: 96, flexDirection: 'row', alignItems: 'center', gap: 14, paddingBottom: 34}}>
+    {sortControl}{filterControl}
+    <View style={{width: 1, height: 40, backgroundColor: theme.colors.line, marginHorizontal: 6}}/>
+    {kindControls}
+    <View style={{width: 1, height: 40, backgroundColor: theme.colors.line, marginHorizontal: 6}}/>
+    {quickControls}
+    <View style={{marginLeft: 'auto'}}>{countLabel}</View>
   </View>;
+  const wash = artwork && <View pointerEvents="none" style={{position: 'absolute', inset: 0, opacity: .26}}><AmbientArt source={runtime.ambient(artwork.backdropUrl ?? artwork.posterUrl)} treatment="hero" visible={active}/></View>;
+  const grid = () => data.error ? <StateView {...runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home')} variant="centered"/> :
+    <WindowedGrid collection={controller.collection} getKey={item => item.membershipId} selection={selection}
+      itemWidth={list ? surface - 32 : width} itemHeight={list ? 70 : width * 1.5 + (tv ? 74 : 48 + cardTitleLine(theme))} captionHeight={list ? 70 : tv ? 74 : 48 + cardTitleLine(theme)}
+      gap={list ? 0 : tv ? 32 : phone ? 10 : 12} rowGap={list ? 0 : tv ? 40 : 22} gutter={list ? 16 : gutter} rightGutter={list ? 16 : tv ? 96 : theme.gutter}
+      paddingBottom={40} style={{flex: 1}} testID={list ? 'home-see-all-list' : 'home-see-all-grid'}
+      renderPlaceholder={index => {
+        const placeholderWidth = list ? surface - 32 : width, placeholderHeight = list ? 70 : width * 1.5;
+        return <LoadingPaint key={index} ready={false} skeleton={<SkeletonBlock width={placeholderWidth} height={placeholderHeight}/>}
+          style={{width: placeholderWidth, height: placeholderHeight}}/>;
+      }}
+      renderItem={(item, cell) => <FocusItem focusId={item.membershipId}>{list
+        ? <HomeListRow entry={item.entry} runtime={runtime} width={surface - 32} onFocus={cell.onFocus} onBlur={cell.onBlur}
+            onOpen={() => {if (controller.isCurrentItem(item, cell.index)) onOpen(item.entry, () => visible.current && controller.isCurrentItem(item, cell.index));}}
+            onPlay={item.entry.playback ? () => {
+              const current = () => visible.current && controller.isCurrentItem(item, cell.index);
+              if (current()) onPlayEntry(item.entry, current);
+            } : undefined}
+            onMenu={onMenu ? anchor => {if (controller.isCurrentItem(item, cell.index)) onMenu(item.entry, anchor);} : undefined}/>
+        : <HomeRowCard entry={item.entry} runtime={runtime} width={width} onFocus={cell.onFocus} onBlur={cell.onBlur}
+            onOpen={() => {if (controller.isCurrentItem(item, cell.index)) onOpen(item.entry, () => visible.current && controller.isCurrentItem(item, cell.index));}}
+            onPlay={() => {
+              const current = () => visible.current && controller.isCurrentItem(item, cell.index);
+              if (current()) onPlayEntry(item.entry, current);
+            }}
+            onMenu={onMenu ? anchor => {if (controller.isCurrentItem(item, cell.index)) onMenu(item.entry, anchor);} : undefined}/>}
+      </FocusItem>}/>;
+  if (!tv) {
+    // Phone and tablet: the library frame (`BrowseFrame`) draws See all as web's does: Back, the row's title, its reason, Play and
+    // Shuffle; then the frame's one toolbar row (Filters, then Sort, then the kind chips and quick filters scrolling in one
+    // line, the view toggle); then the grid. The frame keeps the header and toolbar while the grid scrolls under them.
+    const browseLabels: BrowseLabels = {field: value => homeBrowseLabel(value, labels), sort: value => homeBrowseLabel(value, labels), quick: value => homeBrowseLabel(value, labels)};
+    const toolbarModel = {...model, quick: model.quick.filter(quick => homeSeeAllQuickOrder(quick.id, false))};
+    // Touch moves no focus between controls, so the page has no focus region here (as the library's touch page has none).
+    return <View testID="home-see-all" style={{flex: 1}}>{wash}
+        <BrowseFrame testID="home-see-all-frame" header={{title, back: {label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-back'}, intro,
+          actions: playable ? <><Button focusId="play" icon="i-play" style={phone ? {flex: 1} : undefined} onPress={() => onPlay(false)}>{t('entry.play')}</Button>
+            <Button focusId="shuffle" variant="glass" icon="i-shuffle" style={phone ? {flex: 1} : undefined} onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></> : undefined}}
+          toolbar={<BrowseToolbar testID="home-see-all-toolbar" model={toolbarModel} labels={browseLabels} resultCount={total && t('count.titles', {count: total.total})} resultTotal={total?.total}
+            onFilters={onFilters} onSortChange={controller.setSort} onReshuffle={onReshuffle} view={{value: view, onValueChange: setView}}
+            onQuickChange={(id, checked) => {
+              const quick = toolbarModel.quick.find(value => value.id === id);
+              if (!quick) return;
+              const remaining = state.filters.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query)); controller.setFilters(checked ? [...remaining, quick.query] : remaining);
+            }}>{kindControls}</BrowseToolbar>}
+          grid={grid()}/>
+    </View>;
+  }
   return <View testID="home-see-all" style={{flex: 1}}>
-    {artwork && <View pointerEvents="none" style={{position: 'absolute', inset: 0, opacity: .26}}><AmbientArt source={runtime.ambient(artwork.backdropUrl ?? artwork.posterUrl)} treatment="hero" visible={active}/></View>}
+    {wash}
     <FocusRegion id={gridId} entry={playable ? 'play' : 'back'} enabled={active} style={{flex: 1}}>
-      {(tv || !!data.error) && <>{header}{toolbar}</>}
-      {data.error ? <StateView {...runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home')} variant="centered"/> :
-        <WindowedGrid header={tv ? undefined : header} stickyHeader={tv ? undefined : toolbar}
-          onScrollOffset={tv ? undefined : offset => setCollapsed(headerHeight > 0 && offset >= headerHeight)} collection={controller.collection} getKey={item => item.membershipId} selection={selection}
-          itemWidth={list ? surface - 32 : width} itemHeight={list ? 70 : width * 1.5 + (tv ? 74 : 48 + cardTitleLine(theme))} captionHeight={list ? 70 : tv ? 74 : 48 + cardTitleLine(theme)}
-          gap={list ? 0 : tv ? 32 : phone ? 10 : 12} rowGap={list ? 0 : tv ? 40 : 22} gutter={list ? 16 : gutter} rightGutter={list ? 16 : tv ? 96 : theme.gutter}
-          paddingBottom={40} style={{flex: 1}} testID={list ? 'home-see-all-list' : 'home-see-all-grid'}
-          renderPlaceholder={index => {
-            const placeholderWidth = list ? surface - 32 : width, placeholderHeight = list ? 70 : width * 1.5;
-            return <LoadingPaint key={index} ready={false} skeleton={<SkeletonBlock width={placeholderWidth} height={placeholderHeight}/>}
-              style={{width: placeholderWidth, height: placeholderHeight}}/>;
-          }}
-          renderItem={(item, cell) => <FocusItem focusId={item.membershipId}>{list
-            ? <HomeListRow entry={item.entry} runtime={runtime} width={surface - 32} onFocus={cell.onFocus} onBlur={cell.onBlur}
-                onOpen={() => {if (controller.isCurrentItem(item, cell.index)) onOpen(item.entry, () => visible.current && controller.isCurrentItem(item, cell.index));}}
-                onPlay={item.entry.playback ? () => {
-                  const current = () => visible.current && controller.isCurrentItem(item, cell.index);
-                  if (current()) onPlayEntry(item.entry, current);
-                } : undefined}
-                onMenu={onMenu ? anchor => {if (controller.isCurrentItem(item, cell.index)) onMenu(item.entry, anchor);} : undefined}/>
-            : <HomeRowCard entry={item.entry} runtime={runtime} width={width} onFocus={cell.onFocus} onBlur={cell.onBlur}
-                onOpen={() => {if (controller.isCurrentItem(item, cell.index)) onOpen(item.entry, () => visible.current && controller.isCurrentItem(item, cell.index));}}
-                onPlay={() => {
-                  const current = () => visible.current && controller.isCurrentItem(item, cell.index);
-                  if (current()) onPlayEntry(item.entry, current);
-                }}
-                onMenu={onMenu ? anchor => {if (controller.isCurrentItem(item, cell.index)) onMenu(item.entry, anchor);} : undefined}/>}
-          </FocusItem>}/>
-      }
+      {header}{toolbar}
+      {grid()}
     </FocusRegion>
   </View>;
 }
