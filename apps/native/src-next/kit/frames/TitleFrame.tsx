@@ -54,6 +54,9 @@ export type TitleFrameProps = Readonly<{
   artRef?: React.RefObject<View | null>;
   /** Where the page was scrolled: the frame scrolls back there once the page is long enough, and reports each new place. */
   scrollMemory?: Readonly<{offset: number; onOffset: (y: number) => void}>;
+  /** Called while the page is scrolled within one screen of its end: the page loads its panel's next page (a long
+   * season's further episodes), as the old title screen did. It may be called again before that page arrives. */
+  onEnd?: () => void;
   /** The page's selection bar while titles in its panel are selected (Select in a card's menu), at the top of the panel. */
   selectionBar?: ReactNode;
   kicker?: TitleKicker;
@@ -118,7 +121,7 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 const titlePrimaryId = 'title-primary';
 /** How far the folded head's words fade: almost away, never to zero (tvOS will not focus a transparent view). */
 const tvFoldedCopy = .03;
-function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
@@ -367,7 +370,11 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
           if (restored.current || offset <= 0 || contentHeight < offset + window.height) return;
           restored.current = true; scroll.current?.scrollTo({y: offset, animated: false});
         }}
-        onScroll={tv ? event => {scrollY.current = event.nativeEvent.contentOffset.y;} : event => {const y = event.nativeEvent.contentOffset.y; setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}}>{page}</ScrollView>}
+        onScroll={event => {
+          const {contentOffset: {y}, contentSize, layoutMeasurement} = event.nativeEvent;
+          if (tv) scrollY.current = y; else {setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}
+          if (onEnd && contentSize.height - y - layoutMeasurement.height < layoutMeasurement.height) onEnd();
+        }}>{page}</ScrollView>}
     {band}
     {/* Back and the top action stay put over the page while the hero scrolls (phone-detail d1); the bar takes their place once it has gone. */}
     {!shown && !split && discs}
