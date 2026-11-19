@@ -7,7 +7,7 @@ import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
 import {TVRow} from '../layout/TVRow';
 import {SeeAllLink} from '../layout/Row';
-import {useTheme} from '../theme';
+import {fontFamilies, useTheme} from '../theme';
 import {frameSpec, tvFocusRoom} from '@portico/design';
 import {useFrameMetrics} from './metrics';
 import {SheetFrame} from './SheetFrame';
@@ -139,7 +139,17 @@ export function OwnerCard({title, mark, body, actions = []}: Readonly<{title: st
 
 /** Previous or Next episode beside an episode opened in place (desktop-detail f5, phone-detail d2 frame 4). */
 export function EpisodeNeighbour({direction, label, title, detail, artwork, onPress}: Readonly<{direction: 'previous' | 'next'; label: string; title: string; detail?: string; artwork?: ArtworkSource; onPress: () => void}>) {
-  const theme = useTheme();
+  const theme = useTheme(), next = direction === 'next', card = sizes.neighbour;
+  // Without a still (phone-detail d2 frame 4): a small raised card, its chevron at the outer side, Next set to the right.
+  // The frame cuts a long title; here it wraps and the card grows, its neighbour growing with it (titles are never cut).
+  if (!artwork) return <Focusable focusKind="row" focusRadius={card.radius} accessibilityRole="button" accessibilityLabel={`${label}: ${title}`} onPress={onPress}
+    style={{flexGrow: 1, minHeight: card.height, paddingVertical: theme.space.tight, borderRadius: card.radius, backgroundColor: theme.colors.raisedHigh, flexDirection: next ? 'row-reverse' : 'row', alignItems: 'center', gap: card.gap, paddingLeft: next ? theme.space.controlGap : theme.space.tight, paddingRight: next ? theme.space.tight : theme.space.controlGap}}>
+    <Icon name={next ? 'i-right' : 'i-left'} size={card.chevron} color={theme.colors.textTertiary}/>
+    <View style={{flex: 1, minWidth: 0, alignItems: next ? 'flex-end' : 'flex-start'}}>
+      <Text style={[theme.type.badge, {color: theme.colors.textTertiary}]}>{label}</Text>
+      <Text style={[theme.type.cardTitle, {fontFamily: fontFamilies[700], color: theme.colors.text, textAlign: next ? 'right' : 'left'}]}>{title}</Text>
+    </View>
+  </Focusable>;
   return <Focusable focusKind="row" accessibilityRole="button" accessibilityLabel={`${label}: ${title}`} onPress={onPress} style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, padding: 8, borderRadius: 12}}>
     <View style={{width: sizes.neighbourArt, height: sizes.neighbourArt * 9 / 16, borderRadius: 8, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={artwork} width={sizes.neighbourArt} height={sizes.neighbourArt * 9 / 16}/></View>
     <View style={{flex: 1, minWidth: 0, gap: 2}}>
