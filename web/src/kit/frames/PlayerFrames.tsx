@@ -113,6 +113,8 @@ export type AudioPlayerFrameProps = Readonly<{
   /** A note over the top bar ("Went back 30 s, since it's been a while."), from 600. */
   notice?: string;
   artwork?: ArtworkSource | null; icon: IconName;
+  /** The screen's own view in the artwork's box (the shared element the dock's morph paints into); drawn instead of `artwork`. */
+  cover?: ReactNode;
   title: string;
   /** "Unabridged", after the title, from 600. */
   badge?: string;
@@ -121,6 +123,8 @@ export type AudioPlayerFrameProps = Readonly<{
   /** The heart at the end of the title row, and from 600 More beside it. */
   favourite?: AudioControl; titleMore?: AudioControl;
   chapter?: Readonly<{label: string; of: string}>;
+  /** The music signal line (what the sound passes through), under the title and byline. */
+  signal?: ReactNode;
   /** The scrubber line; the frame places `times` under its ends at phone width and at its ends from 600. */
   scrubber: ReactNode; times: AudioTimes;
   transport: readonly [AudioControl, AudioControl, AudioControl, AudioControl, AudioControl];
@@ -139,7 +143,7 @@ export type AudioPlayerFrameProps = Readonly<{
  * frame 8): one column with the bottom row. From 600 (desktop-listen "now" and "book-player"): the bar with Close, the
  * context, the device and More; a column as wide as the cover with the title, the heart and More, the scrubber with its
  * times at its ends, a compact transport and the volume; and the raised queue panel beside it. Every region keeps its box. */
-export function AudioPlayerFrame({close, context, source, device, more, notice, artwork, icon, title, badge, byline = [], favourite, titleMore, chapter, scrubber, times, transport, volume, next, lyrics, queue, speed, sleep, chapters, panel, loading = false}: AudioPlayerFrameProps) {
+export function AudioPlayerFrame({close, context, source, device, more, notice, artwork, cover, icon, title, badge, byline = [], favourite, titleMore, chapter, signal, scrubber, times, transport, volume, next, lyrics, queue, speed, sleep, chapters, panel, loading = false}: AudioPlayerFrameProps) {
   const book = chapter !== undefined, glyph = (item: AudioControl, className?: string) => <Button key={item.label} variant="icon" size="small" icon={item.icon} className={className} aria-label={item.label} aria-pressed={item.active} disabled={item.disabled || loading} onClick={item.onPress} />;
   const slot = (item: AudioControl | AudioOption, kind: 'slot' | 'device' | 'tile') => <Button key={item.label} variant="text" className={styles.audioSlot} data-kind={kind} aria-pressed={item.active} disabled={item.disabled || loading} onClick={item.onPress}>
     {'value' in item && item.value !== undefined ? <b>{item.icon && <Icon name={item.icon} />}{item.value}</b> : item.icon && <Icon name={item.icon} />}<small>{item.label}</small></Button>;
@@ -153,8 +157,9 @@ export function AudioPlayerFrame({close, context, source, device, more, notice, 
       <Button variant="glass" size="small" iconOnly icon={more.icon} className={styles.audioSquare} aria-label={more.label} disabled={more.disabled || loading} onClick={more.onPress} />
     </header>
     <div className={styles.audioColumn}>
-      <div className={styles.audioArt}>{loading ? <Skeleton width="100%" height="100%" sheen /> : <ArtBox kind="square" source={artwork} icon={icon} alt={title} />}</div>
-      <div className={styles.audioWords}>
+      <div className={styles.audioArt}>{loading ? <Skeleton width="100%" height="100%" sheen /> : cover ?? <ArtBox kind="square" source={artwork} icon={icon} alt={title} />}</div>
+      {/* `data-group`: the three groups the open motion fades in turn (words; scrubber, transport and volume; the panel). */}
+      <div className={styles.audioWords} data-group="0">
         <div>{loading ? <><Skeleton line width="64%" /><Skeleton line small width="40%" /></> : <>
           {/* The title takes the lines it needs: it is never cut. */}
           <h1>{title}{badge !== undefined && <span className={styles.audioBadge}>{badge}</span>}</h1>
@@ -162,16 +167,17 @@ export function AudioPlayerFrame({close, context, source, device, more, notice, 
         </>}</div>
         {!loading && !book && <span className={styles.audioMarks}>{favourite && glyph(favourite, styles.audioMark)}{titleMore && glyph(titleMore, `${styles.audioMark} ${styles.audioTitleMore}`)}</span>}
       </div>
+      {signal !== undefined && !loading && <div className={styles.audioSignal}>{signal}</div>}
       {chapter && <p className={styles.audioChapter}><Icon name="i-list" /><b>{loading ? '' : chapter.label}</b><span>{loading ? '' : chapter.of}</span></p>}
-      <div className={styles.audioSeek}><span>{loading ? '' : times.position}</span><div>{scrubber}</div>{times.middle !== undefined && <span className={styles.audioMiddle}>{loading ? '' : times.middle}</span>}<span>{loading ? '' : times.end}</span></div>
-      <div className={styles.audioTransport}>{transport.map((item, index) => <PlayerControl key={item.label} audio icon={item.icon} label={item.label} primary={index === 2} skip={item.skip} active={item.active}
+      <div className={styles.audioSeek} data-group="1"><span>{loading ? '' : times.position}</span><div>{scrubber}</div>{times.middle !== undefined && <span className={styles.audioMiddle}>{loading ? '' : times.middle}</span>}<span>{loading ? '' : times.end}</span></div>
+      <div className={styles.audioTransport} data-group="1">{transport.map((item, index) => <PlayerControl key={item.label} audio icon={item.icon} label={item.label} primary={index === 2} skip={item.skip} active={item.active}
         tone={!book && (index === 0 || index === 4) ? 'secondary' : undefined} disabled={item.disabled || loading} onPress={item.onPress} />)}</div>
       {rows.length > 0 && <div className={styles.audioRows}>{rows.map(item => <AudioChoiceRow key={item.label} label={item.label} help={item.help} choices={item.choices!} />)}</div>}
-      {volume !== undefined && <div className={styles.audioVolume}>{volume}</div>}
+      {volume !== undefined && <div className={styles.audioVolume} data-group="1">{volume}</div>}
       <p className={styles.audioNext}>{next && !loading && <>{next.label}  <b>{next.title}</b></>}</p>
       <div className={styles.audioOptions} data-tiles={book || undefined}>{book ? [speed, sleep, chapters, device].filter((item): item is AudioOption => item !== undefined).map(item => slot(item, 'tile'))
         : <>{lyrics && slot(lyrics, 'slot')}{device && slot(device, 'device')}{queue && slot(queue, 'slot')}</>}</div>
     </div>
-    {panel !== undefined && <aside className={styles.audioPanel}>{panel}</aside>}
+    {panel !== undefined && <aside className={styles.audioPanel} data-group="2">{panel}</aside>}
   </div>;
 }

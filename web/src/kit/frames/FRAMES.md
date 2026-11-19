@@ -464,6 +464,11 @@ Rules this round (frames.ts `player` and `audio` blocks):
   safe edge, titles never cut: a title takes its second line). **The frame draws no backdrop**: the audio player's
   layer is the glow from the artwork (`Layer kind="audio"`; the gallery stands in for that host).
 
+Audio frame inputs for the screen move (lead, 19 Nov): `cover` (the screen's own view in the artwork's box, the shared
+element the dock's morph paints into), `signal` (the music signal line under the words), and `data-group` 0/1/2 on the words,
+the scrubber + transport + volume, and the panel, the three groups the open motion fades in turn. The favourite's failure
+banner and the equaliser are `panel` content.
+
 Parts added: `AudioPanel` (tabs, list, footer; TV: heading and count), `QueueGroup`, `QueueRow` (playing / handle /
 done / number lead, two-line title, a chapter's progress, touch More or pointer actions), `AudioChoiceRow`
 (Speed, Sleep timer), `PlayerPrompt note` (Skipped the intro + Undo). Moved into the kit (one copy, the screen imports
