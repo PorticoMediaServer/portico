@@ -8,6 +8,7 @@ import {Button} from '../../../kit/controls';
 import {Banner, BottomSheet, Dialog, Menu, MenuRow, OverlaysProvider, Popover, SidePanel, ToastHost, type MenuEntry, type ToastMessage} from '../../../kit/overlays';
 import {ThemeProvider, useTheme} from '../../../kit/theme';
 import {Artwork} from '../../../kit/artwork/Artwork';
+import {referenceOrigin} from '../../reference-art';
 
 const t = defaultI18n.t;
 // Reference data belongs only to this development module, never to a shipped surface.
@@ -121,7 +122,7 @@ function ToastCase({artwork = false, withAction = false, player = false}: {artwo
   const [toast, setToast] = useState<ToastMessage | null>({id: 'added', message: t('next.overlays.native.addedToMyList'), durationMs: 60_000, ...(withAction ? {action: {label: t('action.undo'), onPress: () => setToast(null)}} : {})});
   const [saved, setSaved] = useState(true);
   const update = () => {setSaved(value => !value); setToast({id: `saved-${Date.now()}`, message: t(saved ? 'entry.removeFromWatchlist' : 'next.overlays.native.addedToMyList'), action: {label: t('action.undo'), onPress: () => setSaved(saved)}});};
-  return <Scene><View testID={`overlays-toast-art-status-${artStatus}`}/><Button testID="overlays-button-5" variant="glass" onPress={update}>{t(saved ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist')}</Button><ToastHost toast={toast ? {...toast, leading: artwork ? <Artwork source={{uri: 'http://100.120.50.24:8787/assets/pool/movies/dune-part-two.jpg', cacheKey: 'reference:dune-part-two:sharp'}} sized width={28} height={42} style={{borderRadius: 5}} onLoad={() => setArtStatus('ready')} onError={() => setArtStatus('error')} testID="overlays-toast-artwork"/> : undefined} : null} onDismiss={() => setToast(null)} placement={player ? 'player' : undefined} testID="overlays-toast"/></Scene>;
+  return <Scene><View testID={`overlays-toast-art-status-${artStatus}`}/><Button testID="overlays-button-5" variant="glass" onPress={update}>{t(saved ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist')}</Button><ToastHost toast={toast ? {...toast, leading: artwork ? <Artwork source={{uri: `${referenceOrigin}/assets/pool/movies/dune-part-two.jpg`, cacheKey: 'reference:dune-part-two:sharp'}} sized width={28} height={42} style={{borderRadius: 5}} onLoad={() => setArtStatus('ready')} onError={() => setArtStatus('error')} testID="overlays-toast-artwork"/> : undefined} : null} onDismiss={() => setToast(null)} placement={player ? 'player' : undefined} testID="overlays-toast"/></Scene>;
 }
 function BannerCase() {
   const [visible, setVisible] = useState(true);

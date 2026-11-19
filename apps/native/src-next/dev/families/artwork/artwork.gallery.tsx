@@ -7,11 +7,12 @@ import {Artwork, AmbientArt, ArtistCircle, ChannelMark, CoverFan, CoverMosaic, G
 import {Button, Focusable} from '../../../kit/controls/index';
 import {Layer} from '../../../kit/shell/Layer';
 import {useTheme} from '../../../kit/theme';
+import {referenceOrigin} from '../../reference-art';
 
 const t = defaultI18n.t;
 const fixture = (key: keyof typeof artworkNativeFixtureMessages) => artworkNativeFixtureMessages[key];
 // Reference-only static assets. Production components never import this module or these URLs.
-const reference = (name: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${name}`, cacheKey: `approved-reference:${name}`});
+const reference = (name: string): ArtworkSource => ({uri: `${referenceOrigin}/assets/${name}`, cacheKey: `approved-reference:${name}`});
 const albums = [reference('sq-afterhours.jpg'), reference('sq-1989.jpg'), reference('sq-wall.jpg'), reference('sq-thriller.jpg')];
 const posters = [reference('p-tlou.jpg'), reference('p-sev.jpg'), reference('p-jjk.jpg')];
 const backdrop = reference('bd-sev.jpg');

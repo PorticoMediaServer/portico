@@ -17,6 +17,7 @@ import {SelectionBar, SelectionPhoneActionBar, BulkEditor, PlaylistPicker, Colle
 import {SelectionText} from '../../../kit/selection/surface';
 import {useTheme} from '../../../kit/theme';
 import {referenceFields, referenceSingleItemFields} from './reference-fields';
+import {referenceOrigin} from '../../reference-art';
 
 // Static reference observations are DEV-only. Mutations require genuine supplied evidence.
 type SelectionGallerySnapshot = Readonly<{picker?: DestinationPickerProps; editor?: BulkEditorProps; deletion?: DeleteMediaDialogProps}>;
@@ -35,7 +36,7 @@ function requireSelectionEvidence(): never {
   traceSelection({kind: 'mutation-attempt'});
   throw new Error('Selection gallery mutations require complete props from the actual fenced controller evidence adapter.');
 }
-const reference = `${globalThis.__PORTICO_NATIVE_FAMILY_ASSET_BASE__ ?? 'http://100.120.50.24:8787/assets/'}pool/movies/`;
+const reference = `${globalThis.__PORTICO_NATIVE_FAMILY_ASSET_BASE__ ?? `${referenceOrigin}/assets/`}pool/movies/`;
 const art = (index: number): ArtworkSource => ({uri: `${reference}${['toy-story.jpg', 'toy-story-2.jpg', 'toy-story-3.jpg', 'toy-story-5.jpg'][index]}`, cacheKey: `selection-reference-${index}`});
 const schemas: readonly RepairFieldSpec[] = [
   {field: 'contentRating', label: fixture.fields.contentRating, group: 'general', type: 'text', bulk: true},
