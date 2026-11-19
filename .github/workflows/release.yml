@@ -386,7 +386,9 @@ jobs:
             echo "$disc: ${out:0:160}"
           done
           # Music analysis: the Sonic helper finds every library it needs inside the image.
-          if docker exec portico-proof ldd /opt/portico/third_party/ffmpeg/bin/portico-sonic | grep 'not found'; then exit 1; fi
+          sonic="$(docker exec portico-proof ldd /opt/portico/third_party/ffmpeg/bin/portico-sonic)"
+          echo "$sonic"
+          if grep 'not found' <<< "$sonic"; then exit 1; fi
           docker top portico-proof -o pid,uid,args
           docker logs portico-proof 2>&1 | tail -20
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
