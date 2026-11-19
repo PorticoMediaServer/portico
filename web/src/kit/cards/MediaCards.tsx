@@ -7,19 +7,24 @@ import {CardBadges, CardCaption, CardFrame, Facts, Progress, cx} from './CardFra
 import type {MediaCardProps} from './types';
 import styles from './cards.module.css';
 
-export function CardArtwork({artwork, fallback, position, visible, arrivalDurationMs, onReady}: Pick<MediaCardProps, 'artwork' | 'fallback' | 'position' | 'visible' | 'arrivalDurationMs'> & {onReady?: (source: ArtworkSource) => void}) {
+export function CardArtwork({artwork, fallback, position, visible, arrivalDurationMs, onReady, fit}: Pick<MediaCardProps, 'artwork' | 'fallback' | 'position' | 'visible' | 'arrivalDurationMs'> & {onReady?: (source: ArtworkSource) => void; fit?: 'cover' | 'contain'}) {
   const [read, setRead] = useState<{key?: string; status: ArtworkStatus}>({status: artwork ? 'loading' : 'empty'});
   const key = artwork?.key;
   const onStatusChange = useCallback((status: ArtworkStatus) => setRead(previous => previous.key === key && previous.status === status ? previous : {key, status}), [key]);
   // J-25: while an image loads or waits for its retry, a card with placeholder art (the generated cover)
   // shows it instead of a blank tile; only a card without one draws the loading surface.
   const loading = !!artwork && (read.key !== key || read.status === 'loading');
-  return <Artwork source={artwork} visible={visible} arrivalDurationMs={arrivalDurationMs} alt="" position={position} onStatusChange={onStatusChange} onReady={onReady} fallback={loading && fallback == null ? <span className={styles.loadingArt} /> : fallback} />;
+  return <Artwork source={artwork} visible={visible} arrivalDurationMs={arrivalDurationMs} alt="" fit={fit} position={position} onStatusChange={onStatusChange} onReady={onReady} fallback={loading && fallback == null ? <span className={styles.loadingArt} /> : fallback} />;
 }
 
+/** Art within this share of the 2:3 slot's shape is a poster and fills it as before. */
+const posterShape = 2 / 3, sameShape = .08;
 export function PosterCard({titleLines, progressPlacement = 'edge', ...props}: MediaCardProps & {titleLines?: 1 | 2; progressPlacement?: 'edge' | 'inset'}) {
-  const artworkRef = useRef<HTMLSpanElement>(null);
-  return <CardFrame {...props} artworkRef={artworkRef} playIconSize={20} className={cx(progressPlacement === 'inset' && styles.insetProgress, props.className)} kind="poster"><span ref={artworkRef} className={styles.art}><CardArtwork {...props} /><CardBadges watched={props.watched} isNew={props.isNew} progress={props.model.progress} /></span><CardCaption model={props.model} extraCaption={props.extraCaption} textPresentation={props.textPresentation} titleLines={titleLines} /></CardFrame>;
+  const artworkRef = useRef<HTMLSpanElement>(null), cover = useCoverAspect(props.artwork, artworkRef);
+  // Real art is never cut (owner): art of another shape than the slot (an audiobook's square cover in a mixed row) is drawn
+  // whole and centred over its own blurred wash: the server's ambient for the item when the card has it, else the art itself.
+  const whole = cover.aspect !== undefined && Math.abs(cover.aspect / posterShape - 1) > sameShape;
+  return <CardFrame {...props} artworkRef={artworkRef} playIconSize={20} className={cx(progressPlacement === 'inset' && styles.insetProgress, props.className)} kind="poster"><span ref={artworkRef} className={styles.art}><CardArtwork {...props} fit={whole ? 'contain' : 'cover'} onReady={cover.onReady} />{whole && <span className={styles.artWash} aria-hidden="true"><Artwork source={props.ambient ?? props.artwork} alt="" /></span>}<CardBadges watched={props.watched} isNew={props.isNew} progress={props.model.progress} /></span><CardCaption model={props.model} extraCaption={props.extraCaption} textPresentation={props.textPresentation} titleLines={titleLines} /></CardFrame>;
 }
 
 export function WideCard(props: MediaCardProps) {

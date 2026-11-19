@@ -3,7 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Text as SvgText} from 'react-native-svg';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
-import {MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, missingArt, useWholeBox, type MissingArtShape, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
+import {Artwork, MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, missingArt, useWholeBox, type MissingArtShape, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
 import {Focusable} from '../controls/Focusable';
 import {SelectionCircle} from '../selection/index';
 import {useTheme} from '../theme';
@@ -68,12 +68,18 @@ function Portrait({kind = 'poster', next, titleLines: suppliedLines, ...props}: 
   // A phone poster's title wraps to a second line before it is cut; a TV poster keeps its one line unless asked.
   const titleLines = suppliedLines ?? 2; // Rule 10 and the owner's no-cut rule: a poster title takes two lines on every form, TV too.
   const [clearance, setBadgeBottom] = useBadgeClearance(props.isNew);
+  // Real art is never cut (owner): a poster slot's art of another shape (an audiobook's square cover in a mixed row) is drawn
+  // whole and centred over its own blurred wash. Art within 8% of 2:3 fills the slot as before.
+  const art = props.artwork, [natural, setNatural] = useState<Readonly<{key: string; aspect: number}>>();
+  const aspect = art && natural?.key === art.cacheKey ? natural.aspect : undefined;
+  const whole = kind === 'poster' && aspect !== undefined && Math.abs(aspect / (2 / 3) - 1) > .08;
   const Frame = props.frame ?? CardFrame;
   return <Frame {...props} width={width} overlay={state => <Overlays props={props} hovered={state.hovered} holding={state.holding} height={height} />}>
     {state => <>
       <ArtFrame height={height} focused={state.focused} hovered={state.hovered} holding={state.holding} selected={props.selection?.selected || next}>
+        {whole && <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, {borderRadius: t.radii.artwork, overflow: 'hidden'}]}><Artwork source={art} alt="" blurRadius={18} brightness={.72} style={StyleSheet.absoluteFillObject}/></View>}
         <GeneratedCoverClearance.Provider value={clearance}>
-          <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={fallbackFor(props, kind, width, height)} kind={kind} width={width} height={height} />
+          <MediaArt {...props.artworkProps} fit={whole ? 'contain' : props.artworkProps?.fit} style={whole ? {backgroundColor: 'transparent'} : undefined} onSize={art ? size => setNatural({key: art.cacheKey, aspect: size.width / size.height}) : undefined} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} source={props.artwork} fallback={fallbackFor(props, kind, width, height)} kind={kind} width={width} height={height} />
         </GeneratedCoverClearance.Provider>
         <Marks {...props} onNewBadge={setBadgeBottom} insetProgress />
       </ArtFrame>

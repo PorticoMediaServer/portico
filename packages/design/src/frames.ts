@@ -24,6 +24,8 @@ export function frameForm(width: number, isTV = false, height?: number): FrameFo
 export const frame = {
   /** Rule 4: on a phone a grouped card sits 16 from the edge and its text 14 inside it. On wider forms a card starts at the gutter. */
   card: {phoneInset: 16, padding: forms(14, 14, 24, 28), radius: forms(14, 14, 14, 20)},
+  /* Card art rule (owner, 18 Nov): real art is never cut. A card slot draws art of another shape whole (contain), centred over
+     its own blurred wash; art of the slot's own shape (within 8%) fills it as before (kit PosterCard, both apps). */
   /** Rule 5 and R5. The frame is the one owner of the space between sections: a kit `Row`, `Shelf`, `Section` or
    * `SectionCard` adds no margin or padding of its own, and a screen types none.
    * `section` and `headingGap` are for a block that is not a row of cards (a grouped list, a paragraph, a grid): the
