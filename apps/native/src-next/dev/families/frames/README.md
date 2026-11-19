@@ -2,7 +2,8 @@
 
 `frames.gallery.tsx` draws every frame and its states from the app's own components, with reference text
 (`packages/i18n/.../dev/frames-fixtures.ts`, shared with the web) and the reference artwork served by the capture
-run at `http://100.120.50.24:8787/assets/`. Development builds only (`App.tsx` loads the Kit behind `__DEV__`).
+run at `http://100.120.50.24:8787/assets/` (`dev/reference-art.ts`). Android asks `127.0.0.1:8787`: each Android
+device needs `adb reverse tcp:8787 tcp:8787` and the art server listening on 127.0.0.1 too. Development builds only (`App.tsx` loads the Kit behind `__DEV__`).
 
 Open one section full-window, with no catalogue around it:
 

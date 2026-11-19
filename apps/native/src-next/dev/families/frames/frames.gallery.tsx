@@ -21,13 +21,14 @@ import {PhoneTabBar} from '../../../shell/PhoneTabBar';
 import {mediumRailMetrics, phoneBarHeight, type ShellDestination} from '../../../shell/model';
 import {NativePageInsetProvider} from '../../../kit/layout/page-inset';
 import type {Gallery} from '../../gallery-registry';
+import {referenceOrigin} from '../../reference-art';
 
 /** The screen frames, each drawn whole from the app's own components with reference text and artwork. One section
  * per frame and state; README.md beside this file lists them and how to open each. Development builds only. */
 type FixtureName = keyof typeof framesFixtureMessages extends `next.frames.fixture.${infer Name}` ? Name : never;
 export const f = (name: FixtureName) => formatMessage(framesFixtureMessages[`next.frames.fixture.${name}`]);
 /** The reference artwork the capture run serves (the same files the mock-ups use). */
-export const asset = (path: string): ArtworkSource => ({uri: `http://100.120.50.24:8787/assets/${path}`, cacheKey: `frames-reference:${path}`});
+export const asset = (path: string): ArtworkSource => ({uri: `${referenceOrigin}/assets/${path}`, cacheKey: `frames-reference:${path}`});
 export const none = () => {};
 /** A stand-in signed-in scope for the shell's TV rail, which names its focus stops by it. */
 const galleryAuthority = {serverId: 'gallery', userId: 'gallery', profileId: 'gallery', epoch: '1', viewerFence: '1'} as never;
