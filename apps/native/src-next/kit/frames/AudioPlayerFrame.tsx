@@ -1,5 +1,5 @@
 import React, {useState, type ReactNode} from 'react';
-import {ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import type {ArtworkSource} from '../artwork/types';
@@ -174,10 +174,15 @@ function Slot({item, loading, tile = false, inline = false}: {item: AudioControl
 
 function PhoneAudio({close, more, context, source, device, notice, artwork, cover, icon, title, byline, favourite, chapter, signal, action, scrubber, times, transport, next: upcoming, lyrics, queue, speed, sleep, chapters, panel, loading = false, group, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = 'phone' as const, inset = spec.inset[form];
+  // The phone's own measured box, not the window: after a turn the window's size reaches JavaScript late (seconds, or not
+  // until something else draws), while the frame's box is laid out at once; the shape and the cover follow the box.
+  const [box, setBox] = useState<Readonly<{width: number; height: number}>>();
+  const area = box ?? window;
+  const measure = (event: LayoutChangeEvent) => {const {width, height} = event.nativeEvent.layout; setBox(now => now && now.width === width && now.height === height ? now : {width, height});};
   const book = chapter !== undefined, tiles = [speed, sleep, chapters, device].filter((item): item is AudioOption => item !== undefined);
   // The artwork is the spec's size where the window has room; a short window gets the largest square that leaves every fixed region its place.
   const fixed = (book ? frame.rowTwoLine / 2 : 0) + spec.topBar[form] + spec.gap[form] + theme.space.sm + spec.titleSlot[form] + spec.scrubber[form] + spec.transport[form] + spec.nextLine[form] + spec.bottomRow[form] + insets.top + Math.max(insets.bottom, frameSpec.sheet.footerClear);
-  const column = Math.max(0, Math.min(spec.artwork[form], frame.width - 2 * inset, window.height - fixed));
+  const column = Math.max(0, Math.min(spec.artwork[form], area.width - 2 * inset, area.height - fixed));
   const words = <View style={{height: spec.titleSlot[form], flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.xs}}>
     <View style={{flex: 1, minWidth: 0, gap: theme.space.tight}}>{loading ? <><SkeletonBlock width="64%" height={theme.type.title.fontSize}/><SkeletonBlock width="40%" height={theme.type.intro.fontSize}/></> : <>
       {/* The title takes the lines it needs; the slot keeps two, and a longer title runs into the room under it rather than being cut. */}
@@ -192,11 +197,40 @@ function PhoneAudio({close, more, context, source, device, notice, artwork, cove
     {book ? tiles.map(item => <Slot key={item.label} item={item} loading={loading} tile/>)
       : <>{lyrics && <Slot item={lyrics} loading={loading}/>}{device && <View style={{flex: 1.6, height: '100%'}}><Slot item={device} loading={loading} inline/></View>}{queue && <Slot item={queue} loading={loading}/>}</>}
   </View>;
-  return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
-    <View style={{flex: 1, paddingHorizontal: inset}}>
-      <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/>
+  const topBar = <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/>
         {/* With no More its place stays, so the context stays centred. */}
-        {more ? <Glyph item={more} loading={loading}/> : <View style={{width: theme.targets.touch}}/>}</View>
+        {more ? <Glyph item={more} loading={loading}/> : <View style={{width: theme.targets.touch}}/>}</View>;
+  if (area.width > area.height) {
+    // A phone on its side (lead, 19 Nov ~03:30): the cover beside the words, every region in view; a panel is still the
+    // phone's sheet. The cover is the largest square the height leaves under the bar, and never more than ~40% of the width.
+    const bottomInset = Math.max(insets.bottom, theme.space.sm), room = area.height - insets.top - bottomInset - spec.topBar[form] - theme.space.sm;
+    const across = area.width - Math.max(insets.left, inset) - Math.max(insets.right, inset);
+    const art = Math.max(0, Math.min(room, across * .4));
+    return <View testID={testID} onLayout={measure} style={{flex: 1, paddingTop: insets.top, paddingBottom: bottomInset, paddingLeft: Math.max(insets.left, inset), paddingRight: Math.max(insets.right, inset)}}>
+      {topBar}
+      <View style={{flex: 1, flexDirection: 'row', alignItems: 'center', gap: spec.gap[form]}}>
+        <Art artwork={artwork} cover={cover} icon={icon} title={title} size={book ? art * spec.bookArtShare : art} loading={loading}/>
+        <View style={{flex: 1, minWidth: 0, justifyContent: 'center'}}>
+          {grouped(group, 0, <>
+            {words}
+            {signal !== undefined && !loading && <View style={{marginTop: theme.space.xs}}>{signal}</View>}
+            {action !== undefined && !loading && <View style={{marginTop: theme.space.xs, alignItems: 'flex-start'}}>{action}</View>}
+            {chapter && <ChapterLine chapter={chapter} loading={loading} wide={false}/>}
+          </>)}
+          {grouped(group, 1, <>
+            <View style={{height: spec.scrubber[form], justifyContent: 'center', gap: frameSpec.player.timesGap[form]}}>{scrubber}<Times times={times} loading={loading}/></View>
+            <View style={{height: spec.transport[form], justifyContent: 'center'}}><Transport transport={transport} loading={loading}/></View>
+          </>)}
+          {grouped(group, 2, bottom)}
+        </View>
+      </View>
+    {notice !== undefined && !loading && <View pointerEvents="box-none" style={{position: 'absolute', top: insets.top + spec.topBar[form], left: 0, right: 0, alignItems: 'center'}}>{drawnNotice(notice)}</View>}
+    {panel !== undefined && <View style={[StyleSheet.absoluteFill, {top: frameSpec.sheet.fullTop + insets.top, borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}]}>{panel}</View>}
+    </View>;
+  }
+  return <View testID={testID} onLayout={measure} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
+    <View style={{flex: 1, paddingHorizontal: inset}}>
+      {topBar}
       <View style={{marginTop: spec.gap[form], alignItems: 'center'}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={book ? column * spec.bookArtShare : column} loading={loading}/></View>
       {grouped(group, 0, <>
         <View style={{marginTop: theme.space.sm}}>{words}</View>
