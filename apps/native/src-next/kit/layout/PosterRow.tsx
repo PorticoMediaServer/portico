@@ -2,6 +2,7 @@ import React, {useRef} from 'react';
 import type {View} from 'react-native';
 import type {ArtworkSource} from '../artwork';
 import {PosterCard} from '../cards';
+import {cardCaptionHeight} from '../cards/caption-metrics';
 import {useTheme} from '../theme';
 import {Row} from './Row';
 import type {RowPage} from './row-state';
@@ -21,8 +22,9 @@ const resting: LayoutSelection = {active: false, isSelected: () => false, onTogg
  * this on a title page (phone-detail d1, tablet f6), and any other row of titles a page shows. The kit `Row` places and
  * spaces it on the frame; the page passes titles, never sizes. */
 export function PosterRow({title, items, paging, testID}: PosterRowProps) {
-  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column];
-  return <Row testID={testID} title={title} items={items} getKey={item => item.key} itemWidth={width} itemHeight={width * 1.5} selection={resting} paging={paging}
+  // The row reserves the captions' two lines, so a title's year never runs into the next section.
+  const theme = useTheme(), width = theme.spec.card.width.poster[theme.column], caption = cardCaptionHeight(theme, 2);
+  return <Row testID={testID} title={title} items={items} getKey={item => item.key} itemWidth={width} itemHeight={width * 1.5 + caption} captionHeight={caption} selection={resting} paging={paging}
     renderItem={(item, context) => <PosterItem item={item} context={context} width={width}/>}/>;
 }
 

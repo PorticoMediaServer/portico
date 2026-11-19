@@ -1,7 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {Artwork, type ArtworkSource} from '../artwork';
-import {CircleCard, CollectionBanner, type CollectionCardProps} from '../cards';
+import {CircleCard, CollectionBanner, CollectionTile, type CollectionCardProps} from '../cards';
 import {Button, Focusable, Segmented} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
@@ -40,11 +40,12 @@ export type AboutValue = Readonly<{text: string; onPress?: () => void}>;
 /** The About facts (desktop-detail f3, f8; phone-detail d1 frame 2; detail-tv-4; desktop-listen): a label and a value per
  * row. On a phone the table sits on a raised card with hairlines, as drawn. */
 export function AboutTable({rows}: Readonly<{rows: readonly Readonly<{label: string; values: readonly AboutValue[]}>[]}>) {
-  const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone';
-  return <View style={phone ? {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, paddingHorizontal: theme.space.sm} : {gap: rowPad}}>
-    {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', gap: theme.space.sm, paddingVertical: phone ? rowPad : 0, borderTopWidth: phone && index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>
-      <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: sizes.aboutLabel[frame.form]}]}>{row.label}</Text>
-      <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.text, fontFamily: phone ? theme.type.rowLabel.fontFamily : undefined}]}>{row.values.map((value, position) => <Text key={position}>{position > 0 ? ', ' : ''}
+  const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone', text = phone ? theme.type.about : theme.type.rowHelp;
+  // A phone's card sits at the card inset (16), not the page gutter its block starts at, with its text at the card's padding.
+  return <View style={phone ? {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, marginHorizontal: frame.cardInset - frame.gutter, paddingHorizontal: frame.cardPadding} : {gap: rowPad}}>
+    {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', gap: phone ? sizes.aboutPhone.gap : theme.space.sm, paddingVertical: phone ? sizes.aboutPhone.pad : 0, borderTopWidth: phone && index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>
+      <Text style={[text, {color: theme.colors.textTertiary, width: phone ? sizes.aboutPhone.label : sizes.aboutLabel[frame.form]}]}>{row.label}</Text>
+      <Text style={[text, {flex: 1, color: theme.colors.text}]}>{row.values.map((value, position) => <Text key={position}>{position > 0 ? ', ' : ''}
         {/* TV: plain words, as detail-tv-4 draws them; a link inside a line of text cannot take the remote's focus. */}
         {value.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={value.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .4), color: phone ? theme.colors.accentStrong : theme.colors.text}}>{value.text}</Text> : value.text}</Text>)}</Text>
     </View>)}
@@ -63,15 +64,18 @@ export function CastRow({groups}: Readonly<{groups: readonly (readonly CastPerso
   const size = sizes.castCircle[frame.form], width = size + (frame.form === 'tv' ? 50 : frame.form === 'phone' ? 14 : 24);
   // The kit's person card: the ring wraps only the circle and the whole person grows on focus (detail-tv-4); the name and
   // role take the column's width under the circle.
-  const person = (entry: CastPerson) => <CircleCard key={entry.id} focusId={`cast-${entry.id}`} person width={width} circle={size} title={entry.name} titleLines={2} captionLines={2}
+  // A phone sets the name and the role small, as drawn (phone-detail d1 frame 2 `.pp`).
+  const phone = frame.form === 'phone', names = phone ? {titleTextStyle: theme.type.castName, captionTextStyle: theme.type.castRole} : {};
+  const person = (entry: CastPerson) => <CircleCard key={entry.id} {...names} focusId={`cast-${entry.id}`} person width={width} circle={size} title={entry.name} titleLines={2} captionLines={2}
     caption={entry.role !== undefined ? [{id: 'role', text: entry.role, role: 'context'}] : []} art={{initials: initials(entry.name), source: entry.portrait, covers: []}}
     onNavigate={entry.onPress ?? noPage} disabled={!entry.onPress}/>;
   const lists = groups.filter(group => group.length > 0);
   // R1, TV: the scroller gives a focused person its growth, ring and glow (`tvFocusRoom`) and takes it back, so the row
   // does not move. Height: the circle; the glow's room covers the name's share of the growth.
   const room = frame.form === 'tv' ? tvFocusRoom(width, size, 'card') : undefined;
-  if (scroll) return <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={room && {marginTop: -room.top, marginBottom: -room.bottom, marginHorizontal: -room.side}}
-    contentContainerStyle={[{gap: rowPad, alignItems: 'flex-start'}, room && {paddingTop: room.top, paddingBottom: room.bottom, paddingHorizontal: room.side}]}>{lists.flat().map(person)}</ScrollView></TVRow>;
+  // A phone's row runs to the screen's edges, out of its block's gutter, so the last person shown is cut by the screen (phone-detail d1).
+  if (scroll) return <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={[room && {marginTop: -room.top, marginBottom: -room.bottom, marginHorizontal: -room.side}, phone && {marginLeft: -frame.gutter, marginRight: -frame.rightGutter}]}
+    contentContainerStyle={[{gap: rowPad, alignItems: 'flex-start'}, room && {paddingTop: room.top, paddingBottom: room.bottom, paddingHorizontal: room.side}, phone && {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}]}>{lists.flat().map(person)}</ScrollView></TVRow>;
   return <View style={{gap: theme.space.md}}>{lists.map((group, index) => <View key={index} style={{flexDirection: 'row', flexWrap: 'wrap', rowGap: theme.space.md, columnGap: theme.space.sm,
     paddingTop: index > 0 ? theme.space.md : 0, borderTopWidth: index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>{group.map(person)}</View>)}</View>;
 }
@@ -238,6 +242,9 @@ export function TitleDetails({about, people, collection}: TitleDetailsProps) {
       {about && about.rows.length > 0 && <View style={{flex: stacked ? undefined : 1, minWidth: 0}}><PanelHeading title={about.title}/><AboutTable rows={about.rows}/></View>}
       {cast}
     </View></PanelBlock> : null}
-    {collection ? <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
+    {/* A phone draws the collection as its short link card at the card inset (phone-detail d1 `.colc`); wider forms as the banner (desktop-detail f3). */}
+    {collection ? frame.form === 'phone'
+      ? <View style={{marginHorizontal: frame.cardInset}}><CollectionTile {...collection} layout="link" width={frame.width - 2 * frame.cardInset}/></View>
+      : <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
   </>;
 }
