@@ -27,12 +27,15 @@ export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () =
   pinned?: boolean;
   /** Drawn only on a tablet on its side and TV. On a phone and an upright tablet it is in More, so the primary keeps the
    * room for its label (phone-detail d1: Play, My List, Download, More; Watched is in More). */
-  wide?: boolean}>;
+  wide?: boolean;
+  /** Called with the drawn button, so a menu or sheet it opens (More) anchors on it. A callback, not a ref object: a
+   * retained exit paint drops it (a frozen page holds no live view). */
+  anchorRef?: (view: View | null) => void}>;
 /** The one flexible button. With `progress` it is Resume. On a tablet on its side and TV the time left is beside its
  * label, the played part runs along its lower edge and Start over is the button after it (detail-desktop 2, detail-tv 2).
  * On a phone, an upright tablet and a cover page the played part, the time left and Start over are one line under the
  * action row (detail-phone 3, desktop-listen book). */
-export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned' | 'wide'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
+export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned' | 'wide' | 'anchorRef'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
 /** One part of the credits line: "Directed by" and the names; a name with `onPress` opens its page. */
 export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
@@ -151,8 +154,8 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
 
   // Round on a phone and an upright tablet; labelled on a tablet on its side and TV (tablet f6, detail-tv-2).
   const side = (action: TitleAction) => action.labelled && !stacked
-    ? <Button key={action.label} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
-    : <Button key={action.label} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
+    ? <Button key={action.label} ref={action.anchorRef} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
+    : <Button key={action.label} ref={action.anchorRef} focusId={action.testID ?? `title-action-${action.label}`} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .55)}]}/>;
   // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);

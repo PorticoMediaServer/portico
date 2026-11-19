@@ -64,11 +64,14 @@ function filmFrame(tab: string, setTab: (value: string) => void, tv = false): Om
     picker: <TrackPicker audio={f('audioChoice')} subtitles={f('subtitlesChoice')} label={f('picker')} onPress={none}/>, tabs: tabs(tab, setTab)};
 }
 function Film({more = false}: {more?: boolean}) {
-  const [tab, setTab] = useState('more'), [open, setOpen] = useState(more), {isTV} = useTheme();
-  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film" {...filmFrame(tab, setTab, isTV)}>
+  const [tab, setTab] = useState('more'), [open, setOpen] = useState(more), {isTV} = useTheme(), anchor = useRef<View | null>(null);
+  // More hands its drawn button to the menu, which anchors on it (a popover beside it on a tablet, the sheet on a phone).
+  const film = filmFrame(tab, setTab, isTV);
+  const actions = film.actions?.map(action => action.icon === 'i-more' ? {...action, onPress: () => setOpen(true), anchorRef: (view: View | null) => {anchor.current = view;}} : action);
+  return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-film" {...film} actions={actions}>
     <Posters title={f('moreLikeDune')} items={moreLikeDune}/>
   </TitleFrame>
-  {more && <Menu open={open} onOpenChange={setOpen} title={f('dune2')} items={[
+  {more && <Menu open={open} onOpenChange={setOpen} anchorRef={anchor} title={f('dune2')} items={[
     {id: 'fav', icon: 'i-heart', label: f('menuFavourite'), onSelect: none}, {id: 'rate', icon: 'i-star', label: f('menuRate'), onSelect: none}, {id: 'playlist', icon: 'i-listadd', label: f('menuPlaylist'), onSelect: none},
     {id: 'sep', separator: true}, {id: 'version', icon: 'i-film', label: f('menuVersion'), onSelect: none}, {id: 'info', icon: 'i-info', label: f('menuFileInfo'), onSelect: none},
     {id: 'owner', section: true, label: f('ownerOnly'), tone: 'owner'}, {id: 'edit', icon: 'i-edit', label: f('menuEdit'), onSelect: none}, {id: 'refresh', icon: 'i-refresh', label: f('menuRefresh'), onSelect: none}]}/>}</Page>;
