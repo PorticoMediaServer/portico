@@ -27,6 +27,8 @@ import {useTVPageBack} from '../destinations/useTVPageBack';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
 import {createInitialRegionEntry} from '../../kit/focus/initial-entry';
 import {authorityKey} from '../../shell/model';
+import {PlayOnButton} from '../../shell/PlayOnButton';
+import {roundBarSize} from '../../kit/layout/TopBar';
 import {tvFocusIds, tvHomeRegionMap} from '../../shell/tv-focus';
 import {NativeHomePaging} from '../../shell/home-paging';
 import {tvHomeRows} from './tv-presentation';
@@ -75,6 +77,7 @@ export function homeHeroBlock(theme: Theme, heroHeight: number, preview: boolean
 
 /** With no spotlight Home draws no hero: rows start under the phone header where the shell draws one (its own
  * `shellLayout` kind, so a sideways phone agrees with the header), or under the safe area. */
+const tabletPlayOnTop = (topInset: number) => Math.max(topInset, 24) + 20;
 export function homeTopWithoutHero(layout: ShellLayout['kind'], topInset: number): number {
   return layout === 'phone' ? phoneHeaderGeometry(topInset, false).height : Math.max(topInset, 20);
 }
@@ -141,8 +144,10 @@ function TVHomeRowShift({heroDelta, style, onLayout, children}: {heroDelta: numb
 }
 
 /** Server-authored Home only. No whole-library reads, local ranking or metadata inference. */
-export function HomeScreen({runtime, authority, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
-  runtime: NativeShellRuntime; authority: ShellAuthority; active?: boolean; heroObscured?: boolean; railExpanded?: boolean; bottomInset?: number; onScrolledChange?: (scrolled: boolean) => void;
+export function HomeScreen({runtime, authority, playOnHidden = false, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
+  runtime: NativeShellRuntime; authority: ShellAuthority;
+  /** The shell hides Play on while Home is selecting or its chrome is hidden. */
+  playOnHidden?: boolean; active?: boolean; heroObscured?: boolean; railExpanded?: boolean; bottomInset?: number; onScrolledChange?: (scrolled: boolean) => void;
   holdRailDim?: (lease: Readonly<{retired: boolean}>) => void; releaseRailDim?: (lease: Readonly<{retired: boolean}>) => void;
 }) {
   const registry = useFocusRegistry();
@@ -528,11 +533,16 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
         : <Text style={[nativeType({size: 13, weight: 400, tracking: 0, lineHeight: 19.5}, theme.textScale), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.home.customizeDescription')}</Text>}
     </View></HomeRegion>
   </>;
+  // tablet 2: Play on is the round glass button at the hero's top right, drawn in the page so it scrolls away with the hero
+  // and never covers a row; with nothing featured it is the hero, a bar the rows start under. Hidden while the shell hides it.
+  const tablet = !theme.isTV && shellLayout(windowWidth, windowHeight, false).kind === 'tablet';
+  const tabletPlayOn = !playOnHidden && <View pointerEvents="box-none" style={{position: 'absolute', top: tabletPlayOnTop(insets.top), right: 20}}><PlayOnButton playOn={runtime.playOn} variant="round"/></View>;
   // Phone and tablet: the library frame (`BrowseFrame`) draws Home with its hero. The frame places the hero, the rows, the
   // gaps between them and the bottom clearance; Home keeps its own scroller, whose handler drives the row window, the
   // scrolled header and pull to refresh, and measures its rows from where the frame starts them.
   if (!theme.isTV) return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>
-    <BrowseFrame testID="home-frame" hero={noHero ? null : <View style={{height: heroBlock(false)}}>{spotlight}</View>}
+    <BrowseFrame testID="home-frame" hero={tablet ? <View style={{height: noHero ? tabletPlayOnTop(insets.top) + roundBarSize : heroBlock(false)}}>{noHero ? null : spotlight}{tabletPlayOn}</View>
+      : noHero ? null : <View style={{height: heroBlock(false)}}>{spotlight}</View>}
       onRowsLayout={event => setRowsTop(event.nativeEvent.layout.y)}
       scroller={(content, style) => scroll(content, {paddingBottom: Number(style.paddingBottom ?? 0) + bottomInset})}>{rowsContent}</BrowseFrame>
   </LoadingPaint>;
