@@ -64,6 +64,8 @@ export function EpisodePlate({still, length, code, title, facts, synopsis, prima
   const theme = useTheme(), frame = useFrameMetrics(), [all, setAll] = useState(false);
   // The plate sits `inset` from the page's edges, wider than the list's gutter; its words sit a little inside its own padding (`.epo` 6).
   const stillWidth = frame.width - 2 * plateSpec.inset - 2 * plateSpec.padding, words = {marginHorizontal: theme.space.tight};
+  // Neighbours with a still keep a width each (desktop-detail f5); the phone's small cards share the row (frame 4).
+  const pictured = !!(previous?.artwork || next?.artwork);
   return <View testID={testID} style={{marginHorizontal: plateSpec.inset - frame.gutter, padding: plateSpec.padding, paddingBottom: plateSpec.foot, gap: theme.space.sm,
     borderRadius: plateSpec.radius, backgroundColor: alpha(theme.colors.text, plateSpec.fill), borderWidth: 1, borderColor: alpha(theme.colors.text, plateSpec.edge)}}>
     <View style={{width: stillWidth, height: stillWidth * 9 / 16, borderRadius: plateSpec.stillRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
@@ -92,8 +94,8 @@ export function EpisodePlate({still, length, code, title, facts, synopsis, prima
       </View>;
     })}</View>}
     {(previous || next) && <View style={[words, {flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm}]}>
-      {previous && <View style={{flex: 1, minWidth: sizes.neighbourMin}}><EpisodeNeighbour direction="previous" {...previous}/></View>}
-      {next && <View style={{flex: 1, minWidth: sizes.neighbourMin}}><EpisodeNeighbour direction="next" {...next}/></View>}
+      {previous && <View style={{flex: 1, minWidth: pictured ? sizes.neighbourMin : 0}}><EpisodeNeighbour direction="previous" {...previous}/></View>}
+      {next && <View style={{flex: 1, minWidth: pictured ? sizes.neighbourMin : 0}}><EpisodeNeighbour direction="next" {...next}/></View>}
     </View>}
   </View>;
 }
