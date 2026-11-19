@@ -1,4 +1,4 @@
-import React, {type ReactNode} from 'react';
+import React, {type ReactNode, type Ref} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme} from '../theme';
@@ -26,16 +26,22 @@ export type SearchFrameProps = Readonly<{
   /** The one flexible region: before typing, Recent searches and browsing; while typing, the Top result and the
    * results by kind; after `none`, Browse instead. Kit `Section`s and `Row`s; the frame spaces them. */
   children?: ReactNode;
+  /** In place of `children`, a list that scrolls itself: one kind's grid that pages as it nears the end (a FlatList cannot
+   * sit inside the frame's scroller). The frame gives it the room under the head. */
+  list?: ReactNode;
+  /** The results' scroller, so a new search starts at the top. */
+  scrollRef?: Ref<ScrollView>;
   testID?: string;
 }>;
 
 /** Search (desktop-search, phone-app 7 and 8, tablet 10, final3-tv-09). Fixed: the title (phone, before typing), the
  * field with Cancel, the scope chips; on TV the field and its keyboard in a column on the left. Flexible: what is
  * under them. The field and chips stay where they are while the results scroll. */
-export function SearchFrame({title, field, cancel, keyboard, scopes, notice, none, children, testID}: SearchFrameProps) {
+export function SearchFrame({title, field, cancel, keyboard, scopes, notice, none, children, list, scrollRef, testID}: SearchFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), inset = usePageInset(), tv = frame.form === 'tv';
   const top = Math.max(frame.titleTop, insets.top + frame.headerGap), edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
-  const results = <ScrollView style={{flex: 1}} contentContainerStyle={{paddingTop: tv ? frame.headingGap : frame.sectionGap / 2, paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
+  // Dragging the results puts the keyboard away; a tap on a result still lands while it is up.
+  const results = list ?? <ScrollView ref={scrollRef} style={{flex: 1}} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingTop: tv ? frame.headingGap : frame.sectionGap / 2, paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
     {notice && <View style={edge}>{notice}</View>}
     {none && <View style={[edge, {gap: frame.headingGap}]}>
       <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{none.title}</Text>
