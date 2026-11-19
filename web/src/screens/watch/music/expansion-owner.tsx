@@ -76,7 +76,7 @@ function OwnedMusicCover({scope, motion}: {scope: Scope; motion: MusicExpansion}
       const frame = motion.frame.current;
       original.update({surface: element, dock, bar: motion.bar.current, frame, cover: motion.cover.current,
         copies: [...(motion.bar.current?.querySelectorAll<HTMLElement>('[data-dock-expansion-copy]') ?? [])],
-        groups: [...(frame?.querySelectorAll<HTMLElement>('[data-music-content-group]') ?? [])]}, motion.open,
+        groups: [...(frame?.querySelectorAll<HTMLElement>('[data-group]') ?? [])]}, motion.open,
         reduced || window.matchMedia('(prefers-reduced-motion: reduce)').matches || !!element.closest('[data-reduce-motion="true"]')
         || document.documentElement.dataset.reduceMotion === 'true' || document.body.dataset.reduceMotion === 'true');
       // The original bar owns its entry/hold/swipe animations. Sample only its actual

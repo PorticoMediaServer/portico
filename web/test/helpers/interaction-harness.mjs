@@ -64,10 +64,11 @@ export function createRenderer(options = {}) {
     }
     if (node.props?.ref && typeof node.props.ref === 'object' && 'current' in node.props.ref) node.props.ref.current = fakeElement();
     if (!node.props) return node;
-    // Children and a control the row was given both render.
+    // Children, a control the row was given and a frame's panel all render.
     const children = 'children' in node.props ? walk(node.props.children, `${key}/c`) : node.props.children;
     const control = node.props.control !== undefined ? walk(node.props.control, `${key}/k`) : node.props.control;
-    return {...node, props: {...node.props, children, control}};
+    const panel = node.props.panel !== undefined ? walk(node.props.panel, `${key}/p`) : node.props.panel;
+    return {...node, props: {...node.props, children, control, panel}};
   };
   const render = run => {
     pending = [];
@@ -123,6 +124,7 @@ export function tree(node, out = []) {
     if (node.props.secondaryAction) tree(node.props.secondaryAction, out);
     if (node.props.trigger) tree(node.props.trigger, out);
     if (node.props.control) tree(node.props.control, out);
+    if (node.props.panel) tree(node.props.panel, out);
     if (node.props.secondary) tree(node.props.secondary, out);
   }
   return out;

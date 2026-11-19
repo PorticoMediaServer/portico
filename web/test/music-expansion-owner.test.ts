@@ -26,7 +26,7 @@ class Node {
   ownerDocument = document;
   style = {opacity: '', transform: '', width: '', height: '', visibility: '', borderRadius: '', boxShadow: ''};
   paint = {opacity: '1', transform: 'none', borderRadius: '8px'};
-  dataset: {musicContentGroup?: string} = {};
+  dataset: {group?: string} = {};
   attributes = new Set<string>();
   children: Node[] = [];
   parentElement: Node | null = null;
@@ -57,7 +57,7 @@ function fixture(t: TestContext) {
   const surface = new Node({...dock.box}), frame = new Node({left: 0, top: 0, width: 1440, height: 900});
   const cover = new Node({left: 260, top: 100, width: 480, height: 480});cover.paint.borderRadius = '14px';frame.children = [cover];
   const copy = new Node({...dock.box});copy.attributes.add('data-dock-identity');
-  const groups = [0,1,2].map(index => {const node = new Node({...cover.box});node.dataset.musicContentGroup = String(index);return node;});
+  const groups = [0,1,2].map(index => {const node = new Node({...cover.box});node.dataset.group = String(index);return node;});
   const nodes: MusicPaintNodes = {dock: dom(dock), surface: dom(surface), frame: dom(frame), cover: dom(cover), copies: [dom(copy)], groups: groups.map(dom)};
   const owner = new MusicExpansionPaint(() => live, () => {collapsed++;});t.after(() => owner.dispose());
   const closed = () => owner.update({...nodes, frame: undefined, cover: undefined, groups: []}, false, false);
@@ -121,7 +121,7 @@ test('retirement and successor ownership block old queued finish and cleanup', t
 });
 test('actual replaced frame nodes release old group jobs without replaying a new opening delay', t => {
   const f = fixture(t);f.closed();f.owner.update(f.nodes, true, false);const oldGroupJob = f.groups[0].jobs.at(-1)!;
-  const frame = new Node({...f.frame.box}), cover = new Node({...f.cover.box}), group = new Node({...f.cover.box});group.dataset.musicContentGroup = '0';frame.children = [cover];
+  const frame = new Node({...f.frame.box}), cover = new Node({...f.cover.box}), group = new Node({...f.cover.box});group.dataset.group = '0';frame.children = [cover];
   f.owner.update({...f.nodes, frame: dom(frame), cover: dom(cover), groups: [dom(group)]}, true, false);
   assert.ok(oldGroupJob.canceled > 0);assert.equal(group.jobs.at(-1)!.options.delay, 0);
 });

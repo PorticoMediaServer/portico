@@ -155,7 +155,7 @@ async function nowPlaying() {
     react: h.react, '@i18n': {defaultI18n: {t: (key: string) => key}},
     '@core/presentation/kit-model/index.ts': {playbackIdentity: () => ({title: 'Song', subtitle: [{text: 'Artist'}]})},
     '../../../kit/artwork': {AmbientArt: 'AmbientArt', Artwork: 'Artwork'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/controls': {Slider: 'Slider'},
-    '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/media': media,
+    '../../../kit/overlays': {Menu: 'Menu', Dialog: 'Dialog', Banner: 'Banner'}, '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerFrame'}, '../../../kit/player': {PlayerVolume: 'PlayerVolume'}, '../../../kit/media': media,
     '../model': {dispatchWatch: async () => {}, watchClock: () => '0:00', watchSeek: () => null, watchSeekBounds: () => null},
     '../queue-neighbours': {watchQueueNeighbours: () => ({})}, './signal': {watchMusicSignal: () => undefined},
     './audio-facts': {readWatchMusicAudioFacts: () => ({})}, '../../../shell/playback-model': {fenceKey},
@@ -173,7 +173,8 @@ async function nowPlaying() {
 }
 
 const panelHost = (v: any[]) => all(v, 'DeviceEqualizer')[0];
-const moreButton = (v: any[]) => all(v, 'button').find((node: ReturnType<typeof tree>[number]) => node.props['aria-label'] === 'player.more');
+// More is the audio frame's `more` control (AudioPlayerFrame); its press hands over the button.
+const moreButton = (v: any[]) => {const more = one(v, 'AudioPlayerFrame').props.more; return more && {props: {onClick: () => more.onPress({})}};};
 const menu = (v: any[]) => one(v, 'Menu').props;
 const openMenu = (show: any) => {let v = show(); moreButton(v)!.props.onClick(); return show();};
 const selectEq = (show: any) => {let v = openMenu(show); menu(v).items[0].onSelect(); return show();};

@@ -423,7 +423,7 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
     {binding && snapshot?.startTimedOut && <WatchStartTimedOut timedOut={snapshot.startTimedOut} reportError={binding.reportError}/>}
     {binding && snapshot?.startFailure && <WatchStartFailure failure={snapshot.startFailure} authority={snapshot.authority} context={context} reportError={binding.reportError}/>}
     <MusicExpansionSurface motion={musicMotion}/>
-    {binding && snapshot && <WatchMusicNowPlaying context={context} playOn={listeningPlayOn} listening={listening} motion={musicMotion} isCurrent={dockPanelsCurrent} binding={binding} snapshot={snapshot} expanded={expanded && !remotePlaying} onCollapse={collapse} phone={phone} />}
+    {binding && snapshot && <WatchMusicNowPlaying context={context} playOn={listeningPlayOn} listening={listening} motion={musicMotion} isCurrent={dockPanelsCurrent} binding={binding} snapshot={snapshot} expanded={expanded && !remotePlaying} onCollapse={collapse} phone={phone} narrow={width < 600} />}
     {binding&&snapshot?.presentation?.kind==='audiobook'&&<AudiobookHost binding={binding} snapshot={snapshot} host={listening} expanded={expanded&&!remotePlaying} phone={phone} playOn={listeningPlayOn?()=>listeningPlayOn():undefined}/>}
     {binding && snapshot && <WatchScreen videoGesture={videoGesture} binding={binding} snapshot={snapshot} expanded={expanded && !remotePlaying} onCollapse={collapse} surfaceSlotRef={expandedSlot} onControlsVisibleChange={setControlsVisible}
       publishDockPanels={publishDockPanels} dockPanelsCurrent={dockPanelsCurrent} subscribeDockPanels={subscribeDockPanels}

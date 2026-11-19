@@ -170,7 +170,7 @@ export class MusicExpansionPaint {
       frames[0] = {...frames[0], opacity};this.animate(node, frames, duration, morph ? 'linear' : reduced || policyChange ? reducedMotion.easing : easings.out);
     }
     for (const node of nodes.groups) {
-      const index = Number(node.dataset.musicContentGroup), step = contentStep(index);
+      const index = Number(node.dataset.group), step = contentStep(index);
       if (!step) continue;
       const opacity = entry ? 0 : Number(painted.get(node)!.opacity);
       this.animate(node, [{opacity, transform: 'none'}, {opacity: open ? 1 : 0, transform: 'none'}], reduced || policyChange ? 160 : open ? step.durationMs : 120,

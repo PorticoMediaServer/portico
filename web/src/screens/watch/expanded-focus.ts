@@ -61,7 +61,8 @@ export class ExpandedPlaybackFocus {
     if (!this.entered || active === this.document.body || !available(active)) {
       const validFocus = available(active);
       if (!(validFocus && surface.contains(active)) && !(validFocus && active.closest(overlays) && !route?.contains(active))) {
-        const primary = surface.querySelector<HTMLElement>('[data-playback-primary]:not(:disabled)');
+        // Music Now Playing's Play is the audio frame's primary control (AudioPlayerFrame).
+        const primary = surface.querySelector<HTMLElement>('[data-playback-primary]:not(:disabled), [data-watch-music] button[data-kind="primary"]:not(:disabled)');
         const target = available(primary) ? primary : surface;
         target.focus({preventScroll: true});
       }
