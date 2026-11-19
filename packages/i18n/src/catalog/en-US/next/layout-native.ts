@@ -1,6 +1,7 @@
 export const layoutNativeMessages = {
   'next.layout.native.galleryTitle': 'Layout',
   'next.layout.native.lockupTitle': 'Title lockups',
+  'next.layout.native.typeTitle': 'Type roles',
   'next.layout.native.heroTitle': 'Home spotlight',
   'next.layout.native.previewTitle': 'Focus preview',
   'next.layout.native.rowsTitle': 'Rows',
