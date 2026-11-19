@@ -10,7 +10,7 @@ import {ArtBox, BrowseFrame, PageStateFrame, Section, SectionCard, SettingsListF
 import {frameSpec} from '@portico/design';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Row, type LayoutItemContext, type LayoutSelection} from '../../../kit/layout';
-import {SettingsNav, SettingsRow, ShortcutTiles} from '../../../kit/shell';
+import {SettingsNav, SettingsRow, SettingsSheet, ShortcutTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {MediumRail} from '../../../shell/MediumRail';
@@ -44,6 +44,11 @@ const posters = ['spirited-away', 'inside-out', 'alien', 'blade-runner', 'dune',
 export const wides = [{id: 'tlou', title: f('tlou'), art: asset('bd-tlou.jpg')}, {id: 'inside-out', title: f('insideOut'), art: asset('bd-insideout.jpg')}, {id: 'spirited', title: f('spirited'), art: asset('bd-spirited.jpg')}];
 
 /** One whole window for a frame: frames keep their own safe areas and gutters, so the Kit page's gutter is undone. */
+/** Settings' list frame on the surface the real Settings gives it: on a phone its own sheet (`SettingsSheet`), wider none. */
+export function SettingsSurface(props: React.ComponentProps<typeof SettingsListFrame>) {
+  const {isTV, platform} = useTheme(), list = <SettingsListFrame {...props}/>;
+  return platform === 'phone' && !isTV ? <SettingsSheet open onOpenChange={none} profile={null} shortcuts={null} scrollable={false} headerContent={null}>{list}</SettingsSheet> : list;
+}
 export function Window({children}: {children: ReactNode}) {
   const theme = useTheme(), window = useWindowDimensions();
   return <View style={{height: window.height, marginHorizontal: -theme.gutter}}>{children}</View>;
@@ -113,7 +118,7 @@ function SettingsList() {
   const list = <View>{form === 'phone' && <ShortcutTiles testID="frames-settings-tiles" actions={tiles}/>}
     <SettingsNav testID="frames-settings-nav" accountPages={settingsPages.account} serverPages={settingsPages.server} viewerRole="owner" serverName={f('serverName')} selectedId={form === 'tv' ? 'playback' : page ?? (wide ? 'playback' : '')} onNavigate={form === 'tv' ? none : setPage} mode={form === 'tv' ? 'account' : 'combined'}/></View>;
   const hints = <KeyHints hints={[{key: [f('keyUp'), f('keyDown')], label: f('hintChoosePage')}, {key: f('keyRight'), label: f('hintEditRows')}, {key: f('keyLeft'), label: f('hintPages')}]}/>;
-  return <Page destination={{kind: 'settings'}}><SettingsListFrame testID="frames-settings-list" startFocus={focusTestID('frames-settings-nav', JSON.stringify(['account', 'playback']))} hints={hints} open onOpenChange={none} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
+  return <Page destination={{kind: 'settings'}}><SettingsSurface testID="frames-settings-list" startFocus={focusTestID('frames-settings-nav', JSON.stringify(['account', 'playback']))} hints={hints} bar={{title: f('settings'), action: {label: f('done'), onPress: none}}} list={list}
     page={page || wide ? <SettingsPageFrame title={f('playback')} back={{label: f('settings'), onPress: () => setPage(undefined)}} intro={f('playbackIntro')}><PlaybackSections/></SettingsPageFrame> : undefined}/></Page>;
 }
 const SettingsPage = () => <Page destination={{kind: 'settings'}}><SettingsPageFrame testID="frames-settings-page" startFocus="frames-settings-source1" title={f('liveTv')} back={{label: f('settings'), onPress: none}} intro={f('liveTvIntro')}><StateSections/></SettingsPageFrame></Page>;
@@ -180,7 +185,7 @@ const RegionsTitle = () => <Window><TitleFrame back={own.back} topAction={{icon:
 function RegionsSettings() {
   const {form} = useFrameMetrics();
   const page = <SettingsPageFrame title={f('ownTitle')} back={own.back} action={own.action} intro={f('ownIntro')}><Block name="regionSections" flexible/><Block name="regionSections" flexible/></SettingsPageFrame>;
-  return <Window><SettingsListFrame open onOpenChange={none} bar={{title: f('ownBarTitle'), action: own.action}} list={<Block name="regionList" flexible rows={5}/>} page={form === 'phone' ? undefined : page}/></Window>;
+  return <Window><SettingsSurface bar={{title: f('ownBarTitle'), action: own.action}} list={<Block name="regionList" flexible rows={5}/>} page={form === 'phone' ? undefined : page}/></Window>;
 }
 const RegionsSheet = () => <Window><SheetFrame kind="task" task="task" open onOpenChange={none} title={f('ownBarTitle')} foot={<Region name="regionFooter" height={frameSpec.sheet.footerClear}/>}><Block name="regionSheetRows" flexible/></SheetFrame></Window>;
 const RegionsSignIn = () => <Window><SignInFrame back={own.back} title={f('ownTitle')} lede={f('ownLede')} terms={<Text style={{color: 'transparent'}}>{f('terms')}</Text>}><Region name="regionForm" flexible height={frameSpec.signIn.column.medium}/></SignInFrame></Window>;
