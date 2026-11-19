@@ -63,14 +63,16 @@ const initials = (name: string) => name.split(/\s+/u).filter(Boolean).slice(0, 2
 /** A person with no page of their own: the card is drawn disabled and its navigate does nothing. */
 const noPage = () => {};
 /** `wrap`: everyone in wrapping rows on every form (the full list in `PeopleSheet`), never one sideways row. */
-export function CastRow({groups, wrap = false}: Readonly<{groups: readonly (readonly CastPerson[])[]; wrap?: boolean}>) {
+/** `onEnd`: a TV row that pages, as the old TV title screen's did: called when its last person takes focus, to read the next page. */
+export function CastRow({groups, wrap = false, onEnd}: Readonly<{groups: readonly (readonly CastPerson[])[]; wrap?: boolean; onEnd?: () => void}>) {
   const theme = useTheme(), frame = useFrameMetrics(), scroll = !wrap && (frame.form === 'phone' || frame.form === 'tv');
   const size = sizes.castCircle[frame.form], width = size + (frame.form === 'tv' ? 50 : frame.form === 'phone' ? 14 : 24);
   // The kit's person card: the ring wraps only the circle and the whole person grows on focus (detail-tv-4); the name and
   // role take the column's width under the circle.
   // A phone sets the name and the role small, as drawn (phone-detail d1 frame 2 `.pp`).
   const phone = frame.form === 'phone', names = phone ? {titleTextStyle: theme.type.castName, captionTextStyle: theme.type.castRole} : {};
-  const person = (entry: CastPerson) => <CircleCard key={entry.id} {...names} focusId={`cast-${entry.id}`} person width={width} circle={size} title={entry.name} titleLines={2} captionLines={2}
+  const lastId = groups.flat().at(-1)?.id;
+  const person = (entry: CastPerson) => <CircleCard key={entry.id} {...names} focusId={`cast-${entry.id}`} onFocus={onEnd && entry.id === lastId ? onEnd : undefined} person width={width} circle={size} title={entry.name} titleLines={2} captionLines={2}
     caption={entry.role !== undefined ? [{id: 'role', text: entry.role, role: 'context'}] : []} art={{initials: initials(entry.name), source: entry.portrait, covers: []}}
     onNavigate={entry.onPress ?? noPage} disabled={!entry.onPress}/>;
   const lists = groups.filter(group => group.length > 0);
@@ -239,7 +241,9 @@ export type TitleDetailsProps = Readonly<{
   about?: Readonly<{title: string; rows: readonly Readonly<{label: string; values: readonly AboutValue[]}>[]; body?: string; note?: string}>;
   people?: Readonly<{title: string; groups: readonly (readonly CastPerson[])[]; seeAll?: Readonly<{label: string; onPress: () => void}>; lines?: readonly TitleCreditLine[];
     /** The grey note beside the heading ("Cast, then crew", detail-tv-4). */
-    note?: string}>;
+    note?: string;
+    /** TV: the row pages in place of See all (detail-tv-4 draws none); this reads the next page. */
+    more?: () => void}>;
   /** The collection the title belongs to: the kit `CollectionBanner`, drawn at the panel's width (any width given is replaced). */
   collection?: CollectionCardProps;
 }>;
@@ -305,7 +309,7 @@ function TVTitleDetails({about, people, collection}: TitleDetailsProps) {
     </View></PanelBlock> : null}
     {people && people.groups.some(group => group.length > 0) ? <View><PanelBlock><PanelHeading title={people.title} note={people.note}
       trailing={people.seeAll && <Button variant="text" size="small" trailingIcon="i-right" onPress={people.seeAll.onPress}>{people.seeAll.label}</Button>}/></PanelBlock>
-      <PanelBlock><CastRow groups={people.groups}/></PanelBlock></View> : null}
+      <PanelBlock><CastRow groups={people.groups} onEnd={people.more}/></PanelBlock></View> : null}
     {collection ? <PanelBlock><CollectionBanner {...collection} width={frame.width - frame.gutter - frame.rightGutter}/></PanelBlock> : null}
   </>;
 }
