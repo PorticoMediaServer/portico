@@ -1,5 +1,7 @@
 export {Button, ResumeButton} from './Button';
 export {ActionRow} from './ActionRow';
+export {SeeAllLink} from './SeeAllLink';
+export type {SeeAllLinkProps} from './SeeAllLink';
 export type {ActionRowProps, RowAction, RowPrimary} from './ActionRow';
 export type {ButtonProps, ResumeButtonProps} from './Button';
 export {Chip} from './Chip';
