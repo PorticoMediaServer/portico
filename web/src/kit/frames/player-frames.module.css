@@ -14,6 +14,8 @@
 .playerShade, .playerTop, .playerBar { transition: opacity var(--motion-standard) var(--ease-out); }
 .player[data-chrome='false'] :is(.playerShade, .playerTop, .playerBar) { opacity: 0; pointer-events: none; }
 .player[data-covered='bar'] .playerBar { opacity: 0; pointer-events: none; }
+/* A card takes the bar's place. The wide form keeps Close and the tools over it, not the title (desktop-player f4, f4b). */
+.player[data-covered='card'] :is(.playerBar, .playerTitle) { visibility: hidden; }
 .playerTop { position: absolute; inset: 0 0 auto; display: flex; align-items: flex-start; gap: var(--frame-player-title-gap); padding: var(--frame-player-top) var(--frame-player-edge); }
 .playerTitle { flex: 1; min-width: 0; align-self: center; }
 .playerTools { display: flex; gap: var(--space-control-gap); flex: none; }
@@ -70,6 +72,8 @@
 .player[data-form='upright'] .playerCentre > * { pointer-events: auto; }
 .player[data-form='upright'] .playerBody { display: block; flex: 1; background: var(--color-ink); }
 
+/* A phone's forms draw a card alone, with no top bar (phone-player 6, 6d). */
+.player[data-covered='card']:is([data-form='upright'], [data-form='sideways']) .playerTop { visibility: hidden; }
 /* A phone on its side: the finger is on the scrubber, so the transport in the middle of the picture makes way for the preview (phone-player 1b). */
 .player[data-form='sideways'][data-scrubbing='true'] .playerCentre { opacity: 0; pointer-events: none; }
 

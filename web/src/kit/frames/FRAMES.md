@@ -449,6 +449,8 @@ Rules this round (frames.ts `player` and `audio` blocks):
 - **The screen may choose the form** (`PlayerChromeFrame form`: `upright`, `sideways` or `wide`; a `data-form` attribute the
   forms' CSS reads). Left out, it is the window's, as above. The watch screen passes it because a phone's Full screen makes
   an upright phone the full-window player.
+- **A card keeps Minimise and Close on the wide form** (Up next, Still watching, the end card; desktop-player f4, f4b): the card
+  takes the bar's place, the top keeps `close` and `tools` but not the title. A phone's forms draw the card alone (phone-player 6, 6d).
 - **SC-10: beside an open panel the bar drops its spare parts** (`PlayerBeside`; a `PlayerPill` or `PlayerControl`
   marked `spare`, the speed pill on a tablet), so nothing overlaps.
 - **The button whose panel is open shows it** (`open`): a raised disc with a dot (a control), the raised fill (a pill).
