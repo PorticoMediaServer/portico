@@ -9,6 +9,9 @@
 .card:not(.circle) > .primary:has(> .artShadow):focus-visible::before { content:''; position:absolute; z-index:5; inset:-7px; border:3px solid var(--color-focus); border-radius:17px; pointer-events:none; }
 .primary, .artAligned { transition:transform 160ms var(--ease-out); }
 .art { display:block; position:relative; width:100%; aspect-ratio:2/3; border-radius:10px; overflow:hidden; background:var(--color-raised); transform:scale(var(--cards-art-scale)); transition:transform 260ms var(--ease-out); }
+/* Art of another shape drawn whole in the slot sits over its own blurred wash (behind it, under the badges). */
+.artWash { position:absolute; inset:0; z-index:-1; }
+.artWash img { filter:blur(18px) saturate(1.2) brightness(.72); transform:scale(1.25); }
 .art::before { content:''; position:absolute; z-index:1; inset:0 0 auto; height:42%; background:linear-gradient(180deg,rgba(7,16,24,.62),transparent); opacity:0; transition:opacity 200ms var(--ease-out); pointer-events:none; }
 .loadingArt { position:absolute; inset:0; background:linear-gradient(160deg,var(--color-raised-high),var(--color-raised)); }
 /* The hover shadow is painted once on its own layer and only its opacity fades,
