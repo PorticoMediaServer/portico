@@ -31,8 +31,8 @@ const none = () => {};
 const asset = (path: string): ArtworkSource => ({uri: `${referenceOrigin}/assets/${path}`, cacheKey: `frames-reference:${path}`});
 /** Facts as the server sends them: the first is the identity; a rating and a season count are outlined, a runtime on a title page is not (phone-detail d1). */
 function Meta({text, tags = []}: {text: string; tags?: string[]}) {
-  const {form} = useFrameMetrics(), stacked = form === 'phone' || form === 'medium';
-  return <HeroMetadata centered={stacked} facts={[...text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' as const : 'context' as const})),
+  // The frame centres the facts on a stacked head (HeroFactsCentred): the gallery, like a page, passes facts only.
+  return <HeroMetadata facts={[...text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' as const : 'context' as const})),
     ...tags.map(tag => ({id: / seasons?$/.test(tag) ? 'season-count' : 'content-rating', text: tag, role: 'context' as const}))]}/>;
 }
 const back = {label: f('back'), onPress: none}, playOn = {icon: 'i-cast' as const, label: f('playOn'), onPress: none};
