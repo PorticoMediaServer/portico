@@ -37,6 +37,12 @@ export const titleLine = (size: number): number => Math.ceil(size * measuredLine
  * about 1.37) clears on both. One number for both systems, every form and every weight: the largest measured. */
 export const measuredLineFloor = 1.36;
 
+/** The height one line of a role draws at: its own line box, else the measured floor of its size (a part that must hold
+ * N lines of a role, a list row's stride, reads it here). */
+export function textLine(style: TextStyle): number {
+  return typeof style.lineHeight === 'number' ? style.lineHeight : Math.ceil((style.fontSize ?? 0) * measuredLineFloor);
+}
+
 /** Native fonts supply their own normal line metrics. Tracking is specified in em. A text with a set line box is never
  * drawn tighter than `lineFloor` of its size: every caller gets `measuredLineFloor` (the theme's roles and the kit's own
  * lockups, sheet titles and states alike). */

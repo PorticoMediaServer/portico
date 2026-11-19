@@ -246,6 +246,7 @@ export const titleFixtureMessages = {
   'next.title.fixture.byRelease': 'By release date',
   'next.title.fixture.collectionOrder': 'Collection order',
   'next.title.fixture.fellowship': 'The Fellowship of the Ring',
+  'next.title.fixture.fellowshipFull': 'The Lord of the Rings: The Fellowship of the Ring',
   'next.title.fixture.fellowshipFacts': '2001 · 2 h 58 min',
   'next.title.fixture.fellowshipSynopsis': 'Young hobbit Frodo Baggins, after inheriting a mysterious ring from his uncle Bilbo, must leave his home in order to keep it from falling into the hands of its evil creator.',
   'next.title.fixture.towers': 'The Two Towers',
