@@ -59,15 +59,16 @@ test('a word wider than the line takes the next size down instead of breaking in
 test('a wide tablet title is never cut and keeps the word rule; a frame-sized title steps by the scale with its line height', async () => {
   const wide = await lockup(false, 1180);
   const title = wide.draw({title: sixty, size: 64, lineRatio: 1, tracking: -.045});
-  assert.deepEqual([flat(title.props.style).fontSize, flat(title.props.style).lineHeight, title.props.numberOfLines], [64, 64, undefined]);
+  // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
+  assert.deepEqual([flat(title.props.style).fontSize, flat(title.props.style).lineHeight, title.props.numberOfLines], [64, Math.ceil(64 * 1.36), undefined]);
   assert.equal(typeof title.props.onTextLayout, 'function', 'the word rule runs in the desktop column too');
   title.props.onTextLayout({nativeEvent: {lines: [{text: 'The Night the Ferry Did Not Co'}, {text: 'me Back to the Northern Island'}]}});
   const stepped = flat(wide.draw({title: sixty, size: 64, lineRatio: 1, tracking: -.045}).props.style);
   const next = wide.module.smallerStep(64, 'desktop');
   assert.ok(next < 64 && next >= 26, `64 steps to the desktop scale's next title size (${next}), not to 46 by default`);
-  assert.deepEqual([stepped.fontSize, stepped.lineHeight], [next, next], 'the line height keeps the frame\'s ratio at the new size');
+  assert.deepEqual([stepped.fontSize, stepped.lineHeight], [next, Math.ceil(64 * 1.36) * next / 64], 'the line height keeps its ratio (the measured floor) at the new size');
   const album = wide.draw({title: 'Album', size: 80, lineRatio: 78.4 / 80, tracking: -.045});
-  assert.deepEqual([flat(album.props.style).fontSize, flat(album.props.style).lineHeight, flat(album.props.style).letterSpacing], [80, 78.4, -.045 * 80]);
+  assert.deepEqual([flat(album.props.style).fontSize, flat(album.props.style).lineHeight, flat(album.props.style).letterSpacing], [80, Math.ceil(80 * 1.36), -.045 * 80]);
   const home = wide.draw({title: sixty});
   assert.equal(flat(home.props.style).fontSize, design.typeScale.desktop.lockup.size, 'no phone length steps on a wide tablet');
 });

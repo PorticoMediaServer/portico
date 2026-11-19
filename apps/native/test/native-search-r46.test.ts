@@ -87,7 +87,8 @@ test('phone Search draws the frame 7 empty state: 32pt title, bare 44px recent r
   const headingStyle = flatten(heading.props.style);
   assert.equal(heading.props.accessibilityRole, 'header');
   assert.equal(headingStyle.fontSize, 32);
-  assert.equal(headingStyle.lineHeight, 36.8);
+  // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
+  assert.equal(headingStyle.lineHeight, Math.ceil(32 * 1.36));
   assert.equal(typeof headingStyle.letterSpacing, 'number');
   assert.equal(Number(Number(headingStyle.letterSpacing).toFixed(2)), -1.12);
   assert.equal(headingStyle.marginBottom, 12);

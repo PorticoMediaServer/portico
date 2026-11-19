@@ -80,7 +80,8 @@ test('the medium window draws the two foldable hero compositions at their author
   assert.equal(home.mediumBackdropFraction(880, 840), 0.66);
   const sideways = home.mediumLockupStyle(tabletTheme, 880, 840), upright = home.mediumLockupStyle(tabletTheme, 840, 880);
   assert.equal(sideways.fontSize, 50, 'frame 3f draws the sideways lockup at 50');
-  assert.ok(Math.abs(sideways.lineHeight - 50 * (43.24 / 46)) < 1e-9, 'the line box keeps the handheld lockup ratio');
+  // G2: a set line box is never tighter than the measured floor (1.36), so the lockup's ink is not cut on either system.
+  assert.ok(sideways.lineHeight >= 50 * 1.36, 'the line box is never under the measured floor');
   assert.ok(Math.abs(sideways.letterSpacing - -0.045 * 50) < 1e-9, 'the tracking keeps the handheld lockup ratio');
   assert.equal(upright.fontSize, 42, 'frame 7 draws the upright lockup at 42');
   assert.equal(home.mediumCardWidth(false), 140);

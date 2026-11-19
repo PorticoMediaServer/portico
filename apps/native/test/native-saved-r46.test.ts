@@ -84,7 +84,8 @@ test('Saved phone body keeps the drawn large title, shelf and track rhythm', asy
     const titleStyle = flat(title.props.style);
     assert.equal(titleStyle.fontSize, drawn.largeTitle, '.lt h1 is 32');
     assert.equal(titleStyle.letterSpacing, -.035 * drawn.largeTitle);
-    assert.equal(titleStyle.lineHeight, drawn.largeTitleLine, '.lt h1 line-height 1.15');
+    // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
+    assert.equal(titleStyle.lineHeight, Math.max(drawn.largeTitleLine, Math.ceil(drawn.largeTitle * 1.36)), '.lt h1 line-height, at the measured floor');
     const titleBlock = elements(tree).find(node => node.type === 'View' && childrenOf(node).some(child => child === title))!;
     assert.deepEqual({paddingHorizontal: flat(titleBlock.props.style).paddingHorizontal, paddingBottom: flat(titleBlock.props.style).paddingBottom}, {paddingHorizontal: 20, paddingBottom: 12});
 

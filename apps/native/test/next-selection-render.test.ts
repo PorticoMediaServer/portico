@@ -1252,7 +1252,9 @@ test('phone Search uses the pinned heading and helper line boxes without changin
         const [title, body] = ofType(view.tree, 'Text'), phone = state.theme.platform === 'phone', tv = state.theme.isTV, scale = state.theme.textScale;
         const heading = flattenStyle(title!.props.style), helper = flattenStyle(body!.props.style);
         assert.equal(heading.fontSize, (phone ? 24 : tv ? 44 : 22) * scale);
-        assert.ok(Math.abs(heading.lineHeight - (phone ? 27.6 : tv ? 47.52 : 26.4) * scale) < .0001);
+        // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
+        const floored = (size: number, line: number) => Math.max(line, Math.ceil(size * 1.36));
+        assert.ok(Math.abs(heading.lineHeight - (phone ? floored(24, 27.6) : tv ? floored(44, 47.52) : floored(22, 26.4)) * scale) < .0001);
         assert.equal(helper.fontSize, (phone ? 14.5 : tv ? 24 : 14) * scale);
         if (phone) {
           assert.equal(helper.lineHeight, 21.75 * scale); assert.equal(helper.marginBottom, 0);
