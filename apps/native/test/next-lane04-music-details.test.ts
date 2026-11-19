@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {expandWindows, musicWindowStub} from './helpers/music-window-stub.ts';
 import {audiobookAuthorInitials} from '../src-next/screens/destinations/audiobooks/presentation.ts';
-const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
+// The album page draws on TitleFrame: the walk reads its `metadata` and `aside` regions with its children.
+const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...(value.type === 'TitleFrame' ? nodes([value.props.metadata, value.props.aside]) : []), ...nodes(value.props.children)] : [];
 const content = (node: any): string => [node?.props?.children].flat(Infinity).filter(value => typeof value === 'string' || typeof value === 'number').join('');
 const style = (node: any) => Object.assign({}, ...[node?.props?.style].flat(Infinity).filter(Boolean));
 const colors = {ink: '#071018', text: '#edf5fa', textSecondary: '#aaa', textTertiary: '#777', accentStrong: '#5cb3e2', line: '#3b5668', raised: '#112631', shadow: '#000'};
@@ -29,6 +30,7 @@ async function music(platform = 'tablet') {
     '../../../../../../packages/client-core/src/presentation/library-tabs': {artistReleaseGroups: () => []}, './MusicErrorView': {MusicErrorView: 'Error'},
     './MusicFormatBadges': {MusicFormatBadges: 'Badges'}, './use-playing-item': {usePlayingItem: () => 'song'},
     './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow', MusicShelf: 'MusicShelf'}, '../../../kit/selection': {SelectionCircle: 'SelectionCircle'},
+    '../../../kit/frames': {TitleFrame: 'TitleFrame', PanelHeading: 'PanelHeading', AboutTable: 'AboutTable'},
   });
   const song = {id: 'song', kind: 'song', title: 'Song', libraryId: 'music', duration: 180}, artist = {id: 'artist', kind: 'artist', libraryId: 'music', title: 'Artist'};
   const entry = {id: 'album', kind: 'album', libraryId: 'music', title: 'Album', artist: {id: 'artist', name: 'Artist'}};
@@ -44,11 +46,12 @@ async function music(platform = 'tablet') {
   return {tree, song, artist, controller, selection, renderChild, enter, toggle, menus, opened, counts: () => ({plays, favorites, starts, selected}), ui, module};
 }
 
-test('tablet album matches hero/table metrics and exposes the canonical artist link and Select toolbar', async () => {
+test('tablet album hands TitleFrame its square cover and title, and keeps the canonical artist link, Select toolbar and song table', async () => {
   const f = await music();
   const all = nodes(f.tree);
-  const cover = all.find(node => node.type === 'Artwork'); assert.equal(cover.props.width, 260);
-  const title = all.find(node => node.type === 'Lockup' && node.props.title === 'Album'); assert.equal(title.props.size, 80, 'the tablet album keeps its frame size through the one page title');
+  const frame = all.find(node => node.type === 'TitleFrame');
+  assert.equal(frame.props.title, 'Album'); assert.equal(frame.props.cover.shape, 'square');
+  assert.equal(frame.props.cover.node(260).props.width, 260, 'the frame sizes the cover for its form');
   const link = all.find(node => node.type === 'Focusable' && node.props.accessibilityRole === 'link');
   assert.equal(link.props.style.minHeight, 44); link.props.onPress(); assert.deepEqual(f.opened, [f.artist]);
   const select = all.find(node => node.type === 'Chip'); select.props.onPress(); assert.equal(f.counts().starts, 1);
@@ -73,13 +76,16 @@ test('phone song long press opens its anchored menu with Select; selected taps t
   assert.equal(f.counts().selected, true); assert.equal(f.counts().plays, 0);
 });
 
-test('the phone album wash is the kit page wash with nothing over it; the tablet keeps its own fade to ink', async () => {
-  const phone = await music('phone'), phoneTree = phone.renderChild(nodes(phone.tree).find(node => node.type?.name === 'Wash'));
-  assert.deepEqual([phoneTree.type, phoneTree.props.treatment], ['AmbientArt', 'page'], 'W2: no private ink layer greys the cover\'s colour');
-  const tablet = await music('tablet'), tree = tablet.renderChild(nodes(tablet.tree).find(node => node.type?.name === 'Wash')), all = nodes(tree);
-  assert.equal(tree.props.style.height, 700);
-  assert.ok(all.some(node => node.type === 'AmbientArt'));
-  assert.deepEqual(all.filter(node => node.type === 'Stop').map(node => [node.props.offset, node.props.stopOpacity]), [['0.25', 0], ['1', 1]]);
+test('the album draws no wash or bar of its own: TitleFrame owns the head over the window\'s backdrop, and the page keeps its scroller', async () => {
+  for (const platform of ['phone', 'tablet']) {
+    const f = await music(platform), all = nodes(f.tree), frame = all.find(node => node.type === 'TitleFrame');
+    assert.equal(all.some(node => node.type?.name === 'Wash' || node.type?.name === 'PhoneHeader'), false, platform);
+    const collapse = {at: 300, onChange() {}};
+    const scroller = frame.props.scroller('page', {paddingBottom: 90}, collapse);
+    assert.deepEqual([scroller.type, scroller.props.collapseAt, scroller.props.onCollapse, [scroller.props.children].flat()[0]], ['MusicScrollView', 300, collapse.onChange, 'page'],
+      'the song window and paging stay in MusicScrollView; the frame says where its bar shows');
+    assert.equal(typeof scroller.props.onNearEnd, 'function');
+  }
 });
 
 async function audiobook(kind: 'book' | 'author') {
@@ -135,20 +141,16 @@ test('author header, book rows and grouped details retain their specified hierar
 });
 
 // Owner's standing complaint (deferred row 247): upright beside the cover, the tablet album's Shuffle was cut to "S".
-// The album and artist pages share one action row that wraps: the round buttons move to a second line, no label is cut.
-test('the tablet album\'s action row wraps rather than cut Shuffle, and plays and shuffles', async () => {
+// On TitleFrame the frame lays the buttons out and wraps the round ones; no label is cut.
+test('the tablet album hands TitleFrame Play and its buttons (Shuffle labelled, Favorite, More): the frame wraps them, no label cut', async () => {
   const f = await music();
-  const element = nodes(f.tree).find(node => node.type?.name === 'TabletMusicActions');
-  assert.ok(element, 'the album draws the shared tablet action row');
-  const row = f.renderChild(element);
-  assert.deepEqual([row.props.style.flexDirection, row.props.style.flexWrap], ['row', 'wrap']);
-  const buttons = nodes(row).filter(node => node.type === 'Button');
-  const shuffle = buttons.find(node => node.props.icon === 'i-shuffle');
-  assert.deepEqual([shuffle.props.children].flat(), [i18n.t('title.shuffle')]); assert.equal(shuffle.props.style.flex, undefined, 'its own width, never a squeezed share');
-  assert.deepEqual(buttons.map(node => node.props.icon), ['i-play', 'i-shuffle', 'i-heart', 'i-more'], 'Play, Shuffle, Favorite and the page\'s own anchored More');
-  buttons[0].props.onPress(); shuffle.props.onPress(); await new Promise(resolve => setImmediate(resolve));
+  const frame = nodes(f.tree).find(node => node.type === 'TitleFrame');
+  assert.equal(frame.props.primary.icon, 'i-play');
+  assert.deepEqual(frame.props.actions.map((action: any) => action.icon), ['i-shuffle', 'i-heart', 'i-more'], 'Shuffle, Favorite and More');
+  assert.equal(frame.props.actions[0].labelled, true, 'Shuffle keeps its label');
+  frame.props.primary.onPress(); frame.props.actions[0].onPress(); await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.counts().plays, 2);
-  assert.equal(nodes(f.tree).filter(node => node.type?.name === 'TabletMusicActions').length, 1);
+  frame.props.actions[2].onPress(); assert.equal(f.menus.length, 1, 'More opens the album\'s menu');
 });
 
 // 13 Nov iPad walk: in iPad mini portrait the tablet album's track titles were cut to "A L…" beside fixed Plays and Duration

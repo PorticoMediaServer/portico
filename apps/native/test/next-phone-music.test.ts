@@ -11,6 +11,8 @@ const musicImports = {
   './use-playing-item': {usePlayingItem: (runtime: any) => runtime.playback?.getSnapshot().playback.itemId},
   './MusicWindow': {MusicScrollView: 'ScrollView', MusicWindow: 'MusicWindow', MusicShelf: 'ScrollView'},
   '../../../kit/selection': {SelectionCircle: 'SelectionCircle'},
+  // The album page draws on TitleFrame (the artist page has not moved yet).
+  '../../../kit/frames': {TitleFrame: 'TitleFrame', PanelHeading: 'PanelHeading', AboutTable: 'AboutTable'},
 };
 
 const stubs = {
@@ -105,7 +107,9 @@ for (const kind of ['album', 'artist'] as const) {
   for (const phase of ['loading', 'error', 'ready'] as const)
   test(`tablet ${kind} keeps one route Back while ${phase} and only ${phase === 'error' ? 'fails' : 'does not fail'} into the recovery view`, async () => {
     const view = await tabletMusic(kind, phase);
-    const backs = backButtons(view.tree);
+    // The album's Back is TitleFrame's (its round disc over the head); the artist page still draws its own.
+    const frame = typed(view.tree, 'TitleFrame')[0];
+    const backs = kind === 'album' ? [{props: {...frame.props.back, icon: 'i-left', accessibilityLabel: frame.props.back.label}}] : backButtons(view.tree);
     assert.equal(backs.length, 1, 'exactly one accessible tablet Back');
     assert.equal(backs[0].props.testID, kind === 'album' ? 'native-tablet-album-back' : 'native-tablet-artist-back');
     assert.equal(backs[0].props.icon, 'i-left');
@@ -122,9 +126,8 @@ for (const kind of ['album', 'artist'] as const) {
   });
 }
 
-test('phone keeps its single header Back and no tablet floating control', async () => {
+test('the phone album hands TitleFrame its one Back, no tablet control, and its own scroller with the frame\'s collapse point', async () => {
   const view = await tabletMusic('album', 'error');
-  // The phone body is a separate projection; render it with the phone platform.
   const {PhoneAlbumScreen} = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
     ...musicImports,
     react: {...React, default: React},
@@ -143,43 +146,27 @@ test('phone keeps its single header Back and no tablet floating control', async 
   '../../../../../../packages/client-core/src/presentation/library-tabs':{artistReleaseGroups},
   './MusicErrorView': {MusicErrorView: 'MusicErrorView'},
     './MusicFormatBadges': {MusicFormatBadges: 'MusicFormatBadges'},
+    '../../../kit/frames': {TitleFrame: 'TitleFrame', PanelHeading: 'PanelHeading', AboutTable: 'AboutTable'},
   });
   let backs = 0, tree: unknown;
-  const controller = {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {phase: 'ready', songs: [], albums: [], similar: [], favorite: false, error: undefined,songPage:{phase:'ready',items:[],offset:0,nextCursor:'',canNext:false,canPrevious:false},releases:{phase:'ready',items:[],offset:0,nextCursor:'',canNext:false,canPrevious:false}}; return () => snapshot;})(),
-    load: () => Promise.resolve(), play: async () => {}, toggleFavorite: async () => {}};
+  const snapshot = {phase: 'ready', songs: [], albums: [], similar: [], favorite: false, error: undefined, songPage: {phase: 'ready', items: [], offset: 0, nextCursor: '', canNext: false, canPrevious: false}, releases: {phase: 'ready', items: [], offset: 0, nextCursor: '', canNext: false, canPrevious: false}};
+  const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, load: () => Promise.resolve(), play: async () => {}, toggleFavorite: async () => {}, nextSongs: async () => {}};
   const host = createFabricHookHost(() => {tree = PhoneAlbumScreen({controller, entry: {id: 'a', libraryId: 'music', kind: 'album', title: 'Album'},
     runtime: {artwork: () => undefined, ambient: () => undefined, text: {locale: 'en-US'}, reportError() {}}, actions: {menu() {}}, openEntry() {},
     onBack: () => {backs++;}});});
   await host.mount();
-  // PhoneHeader is a real child component, so the shallow element walk cannot
-  // see its Button leaf; mount that actual child with the same supported hooks.
-  let headerHost: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
   try {
-    const header = [...elementNodes(tree)].find(node => typeof node.type === 'function' && (node.type as Function).name === 'PhoneHeader');
-    assert.ok(header, 'the phone body returns the real PhoneHeader');
-    let headerTree: unknown;
-    headerHost = createFabricHookHost(() => {headerTree = (header!.type as Function)(header!.props);});
-    await headerHost.mount();
-    const bars = typed(headerTree, 'TopBar');
-    assert.equal(bars.length, 1, 'the phone header owns the only Back: the shared top bar over the art');
-    assert.equal(bars[0].props.back.label, 'Back'); assert.equal(bars[0].props.overArtwork, true);
-    assert.equal(typed(tree, 'Button').some(node => String(node.props.testID ?? '').startsWith('native-tablet-')), false);
-    bars[0].props.back.onPress();
-    assert.equal(backs, 1);
-    // ".cross" under Back: at rest the bar is clear over the art; once the page title has scrolled under it, the bar takes the
-    // shared surface and the title, as the title page's does.
-    assert.deepEqual([bars[0].props.surface, bars[0].props.title], [false, undefined]);
-    const scroll = [...elementNodes(tree)].find(node => typeof node.props?.onCollapse === 'function');
-    assert.ok(scroll && scroll.props.collapseAt > 0, 'the page reports when its title passes under the bar');
-    let collapsedTree: unknown;
-    const collapsedHost = createFabricHookHost(() => {collapsedTree = (header!.type as Function)({...header!.props, collapsed: true});});
-    await collapsedHost.mount();
-    const collapsedBar = typed(collapsedTree, 'TopBar')[0];
-    assert.deepEqual([collapsedBar.props.surface, collapsedBar.props.title], [true, 'Album']);
-    await collapsedHost.unmount();
+    const frames = typed(tree, 'TitleFrame');
+    assert.equal(frames.length, 1, 'the album is one TitleFrame page');
+    const frame = frames[0];
+    assert.equal(frame.props.back.label, 'Back'); frame.props.back.onPress(); assert.equal(backs, 1, 'the frame\'s one Back is the route\'s');
+    assert.equal(typed(tree, 'Button').some(node => String(node.props.testID ?? '').startsWith('native-tablet-')), false, 'no tablet floating control');
+    assert.equal([...elementNodes(tree)].some(node => typeof node.type === 'function' && (node.type as Function).name === 'PhoneHeader'), false, 'no bar of its own');
+    // The title page's bar: the frame says where the title passes under it; the page's MusicScrollView reports it.
+    const changes: boolean[] = [];
+    const scroller: any = frame.props.scroller('page', {}, {at: 240, onChange: (value: boolean) => changes.push(value)});
+    assert.equal(scroller.props.collapseAt, 240); scroller.props.onCollapse(true); assert.deepEqual(changes, [true]);
   } finally {
-    // Release both hosts even when an assertion above fails.
-    await headerHost?.unmount();
     await host.unmount();
     await view.host.unmount();
   }
