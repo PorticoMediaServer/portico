@@ -16,8 +16,8 @@ import {createNativeSelection, type NativeSelection} from '../selection/native-s
 import {createNativeEntryActions} from '../destinations/entry-actions';
 import {createNativePersonController, personDepartments, type NativePersonController, type NativePersonSnapshot} from './controller';
 import {createNativePersonCreditWindow, type NativePersonCreditWindow} from './credit-window';
-import {PersonScreen} from './PersonScreen';
 import {PersonPage} from '../../pages/touch/person/PersonPage';
+import {PersonPage as TVPersonPage} from '../../pages/tv/person/PersonPage';
 import {Artwork} from '../../kit/artwork';
 import {authorityKey} from '../../shell/model';
 import {usePageWidth} from '../../kit/layout/page-inset';
@@ -102,7 +102,7 @@ export function createNativePersonRenderer(context: NativeShellBootstrapContext)
 }
 
 function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellRuntime; back: () => void}) {
-  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
+  const theme = useTheme(), Page = theme.isTV ? TVPersonPage : PersonPage, dimensions = useWindowDimensions(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
   const place = useNativeStackPlacement(entry.route), stacked = useNativeStackHosted();
   const state = useSyncExternalStore(entry.source.subscribe, entry.source.getSnapshot);
   const active = useSyncExternalStore(entry.source.activation.subscribe, entry.source.activation.getSnapshot);
@@ -116,10 +116,9 @@ function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellR
   }, [state.phase]);
   return place(<View pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible} importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}>
-    {state.phase === 'ready' && state.page && entry.window && entry.actions && 'role' in state.group ? theme.isTV ? <PersonScreen focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
-      runtime={runtime} actions={entry.actions} selection={entry.selection} groups={entry.groupWindows?.map(group => ({id: group.id, department: group.department, total: group.total, collection: group.window.collection}))} onRole={role => {void entry.source.select({role});}} onBack={back}/>
-      // Phones and tablets: the rebuilt page (pages/touch/person), its selection bar drawn here as the old screen drew it.
-      : <><PersonPage total={entry.allTotal} focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
+    {state.phase === 'ready' && state.page && entry.window && entry.actions && 'role' in state.group ? // The rebuilt page: phones and tablets (pages/touch/person), TV (pages/tv/person); the selection bar drawn here as the old
+      // screen drew it.
+      <><Page total={entry.allTotal} focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
       runtime={runtime} actions={entry.actions} selection={entry.selection} groups={entry.groupWindows?.map(group => ({id: group.id, department: group.department, total: group.total, collection: group.window.collection}))} onRole={role => {void entry.source.select({role});}} onBack={back}/>{entry.selection?.render(path => <Artwork source={runtime.artwork(path)} width={40} height={40}/>)}</>
       // W-2 sweep: the full-page state, below Back and the status bar, as a title that couldn't load.
       : state.phase === 'error' ? <ScreenErrorPage {...runtime.error(state.error, () => {void entry.source.load();})}/>
