@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.headerContent)] : [];
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.headerContent), ...nodes(tree.props?.search), ...nodes(tree.props?.list), ...nodes(tree.props?.page)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 // Settings search seams: the matches, the Covered flag, TV, and every destination entry ask the screen makes.
 const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[]};
@@ -28,7 +28,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
   const page = (id: string) => ({id, title: id, icon: 'settings', sections: []});
   const structure = {headings: [{id: 'account', pages: ['profile', 'playback', 'region'].map(page)}, {id: 'server', pages: ['dashboard', 'history', 'metadata', 'people', 'remote-sources'].map(page)}]};
   const theme: any = {isTV: search.tv, width: initialWidth, platform: initialWidth < 600 ? 'phone' : 'tablet', colors: new Proxy({}, {get: (_t, key) => String(key)})};
-  const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
+  const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../kit/frames': {SettingsListFrame: 'SettingsListFrame', SettingsPageFrame: 'SettingsPageFrame'}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: host.react,
     'react-native': {AppState: {}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})}, 'react-native-qrcode-svg': {default: 'QRCode'},

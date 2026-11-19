@@ -1,8 +1,9 @@
-import React, {createContext, useContext, type ReactNode} from 'react';
+import React, {createContext, useContext, type ReactNode, type Ref} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {TopBarBack} from '../layout/TopBar';
 import {StartFocusScope} from '../focus';
+import {FormScrollView} from '../../platform/keyboard';
 import {useTheme} from '../theme';
 import {FrameColumn, useFrameMetrics} from './metrics';
 import {PageHeader} from './PageHeader';
@@ -85,6 +86,9 @@ export type SettingsPageFrameProps = Readonly<{
   testID?: string;
   /** TV: the control the page starts on (R1), by its `focusId` or `testID`. Never in the rail. */
   startFocus?: string;
+  /** The page's scroll, for a screen that brings a found row into view (Settings search), and its height once laid out. */
+  scrollRef?: Ref<ScrollView>;
+  onScrollLayout?: (height: number) => void;
 }>;
 
 /** Frame 4, one settings or owner page, or a form: its header, an intro, then sections of rows. Which header it
@@ -93,7 +97,7 @@ export type SettingsPageFrameProps = Readonly<{
 export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps) {
   return <StartFocusScope id={startFocus}><SettingsPageBody {...props}/></StartFocusScope>;
 }
-function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, state, testID}: Omit<SettingsPageFrameProps, 'startFocus'>) {
+function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, state, testID, scrollRef, onScrollLayout}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), inSheet = useInSheet(), beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
@@ -121,9 +125,10 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     {beside && strip}
     {header}
     {!beside && strip}
-    {state ? <PageStateFrame {...state}/> : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
+    {state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
+      style={{flex: 1}} contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
       {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. */}
       {beside ? <FrameColumn.Provider value>{body}</FrameColumn.Provider> : body}
-    </ScrollView>}
+    </FormScrollView>}
   </View>;
 }

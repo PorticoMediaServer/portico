@@ -20,7 +20,7 @@ import {createTheme} from '../src-next/kit/theme';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.search), ...nodes(node.props.list), ...nodes(node.props.page)] : [];
 
 async function fixture(isTV = false, owner = false, io?: {effects: (() => unknown)[]; api: unknown; lifetime?: unknown}) {
   const host = hooks(), bodyHost = hooks();
@@ -36,7 +36,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
   const safeMode = await screenModule(new URL('../src-next/screens/settings-live/NativeSafeModeRow.tsx', import.meta.url), {
     react, 'react-native': {View: 'View'}, '../../kit/controls': {Select: 'Select'}, '../../kit/states': {StateView: 'StateView'},
   });
-  const module = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},
+  const module = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../kit/frames': {SettingsListFrame: 'SettingsListFrame', SettingsPageFrame: 'SettingsPageFrame'}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},
     './use-tv-voice-search': {useTVVoiceSearch: () => ({start: undefined, busy: false})},
     './tv-settings-focus': tvSettingsFocus,
     './NativeSafeModeRow': safeMode,
