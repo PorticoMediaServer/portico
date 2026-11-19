@@ -3,7 +3,8 @@ import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle}
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
-import {Button, ResumeButton} from '../controls/Button';
+import {Button} from '../controls/Button';
+import {ActionRow, type RowAction, type RowPrimary} from '../controls/ActionRow';
 import {Tabs, type TabItem} from '../controls/Tabs';
 import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
@@ -17,21 +18,14 @@ import {useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 import {seasonColumn, type AboutValue} from './title-parts';
 
-export type TitleAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; testID?: string;
-  /** Shown with its label where there is room (a tablet on its side and TV): Start over, My List, Shuffle. Round elsewhere. */
-  labelled?: boolean;
-  /** On (in My List, watched, a favourite): tinted in the accent (phone-detail d1 frame 3). */
-  active?: boolean;
-  /** Also on the collapsed bar, after the primary (desktop-detail f3: Play and +). */
-  pinned?: boolean;
-  /** Drawn only on a tablet on its side and TV. On a phone and an upright tablet it is in More, so the primary keeps the
-   * room for its label (phone-detail d1: Play, My List, Download, More; Watched is in More). */
-  wide?: boolean}>;
+/** A title page's buttons: the kit `ActionRow`'s (round on a phone and an upright tablet, labelled where `labelled` says
+ * so on a tablet on its side and TV). */
+export type TitleAction = RowAction;
 /** The one flexible button. With `progress` it is Resume. On a tablet on its side and TV the time left is beside its
  * label, the played part runs along its lower edge and Start over is the button after it (detail-desktop 2, detail-tv 2).
  * On a phone, an upright tablet and a cover page the played part, the time left and Start over are one line under the
  * action row (detail-phone 3, desktop-listen book). */
-export type TitlePrimary = Omit<TitleAction, 'labelled' | 'pinned' | 'wide'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>}>;
+export type TitlePrimary = Omit<RowPrimary, 'focusId'>;
 /** One part of the credits line: "Directed by" and the names; a name with `onPress` opens its page. */
 export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
@@ -113,7 +107,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
     <PageStateFrame {...failure}/>
   </View>;
-  const height = split ? spec.height.phone : spec.height[form], lockup = split ? spec.lockup.phone : spec.lockup[form], actionHeight = theme.spec.button.hero.height[theme.column];
+  const height = split ? spec.height.phone : spec.height[form], lockup = split ? spec.lockup.phone : spec.lockup[form];
   const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
   const tvCollapsed = tv && !!collapsed;
@@ -145,19 +139,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
       {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{names(credit.names)}</Text></Text>)}</Text>}
   </View> : null;
 
-  // Round on a phone and an upright tablet; labelled on a tablet on its side and TV (tablet f6, detail-tv-2).
-  const side = (action: TitleAction) => action.labelled && !stacked
-    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
-    : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
-      style={[{width: actionHeight, height: actionHeight}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .55)}]}/>;
-  // While loading the row keeps its buttons but says nothing it does not know yet (the time left).
+  // The played part and the time left are in the button on a tablet on its side and TV; under the row elsewhere, with Start over.
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);
-  const lead = primary && {icon: primary.icon, disabled: primary.disabled || loading, onPress: primary.onPress, testID: primary.testID, focusId: primary.testID ?? titlePrimaryId, focusableWhenDisabled: loading, align: stacked ? 'stretch' as const : 'start' as const, style: stacked ? {flex: 1, maxWidth: form === 'medium' ? 300 : undefined} : undefined};
-  const row = (primary || actions.length > 0) && <View style={{minHeight: actionHeight, alignSelf: stacked ? 'stretch' : undefined, flexDirection: 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.spec.hero.actions.gap[theme.column]}}>
-    {lead && (resume && !lineUnder ? <ResumeButton {...lead} size="hero" progress={primary!.progress!} remaining={primary!.remaining}>{primary!.label}</ResumeButton> : <Button {...lead} variant="primary" size="hero">{primary!.label}</Button>)}
-    {primary?.startOver && !stacked && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
-    {actions.filter(action => !action.wide || !stacked).map(side)}
-  </View>;
+  const row = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
+    progress: lineUnder ? undefined : primary.progress, startOver: stacked ? undefined : primary.startOver}}/>;
   const track = theme.spec.card.progress.height[theme.column];
   const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? spec.coverResumeWidth : undefined}}>
     <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>

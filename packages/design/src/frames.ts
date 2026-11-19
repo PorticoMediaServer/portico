@@ -95,6 +95,10 @@ export const frame = {
     /** A lockup's line box. The mock-ups' one-line lockups are set at .94; at that a title that wraps has its descenders in the next line's capitals, so the frames use 1.04. */
     lockupLine: 1.04, lockupTracking: -.045,
   },
+  /** A row of buttons, primary first (kit `ActionRow`): phone-detail `.tact` and tablet `.tact` and `.t-hero .actions` draw
+   * 10 between buttons, TV 18 (tv-detail 2). An upright tablet's primary is 300 wide (tablet `.tact .btn.play`); a phone's
+   * takes the room the round buttons leave; elsewhere it is as wide as its label. An action that is on has an accent edge at `activeEdge`. */
+  actionRow: {gap: forms(10, 10, 10, 18), primaryWidth: forms<number | undefined>(undefined, 300, undefined, undefined), activeEdge: .55},
   /** Settings list and page (frames 3 and 4). */
   settings: {listWidth: forms(0, 280, 280, 480), webListWidth: 296, gap: forms(0, 28, 32, 80), webGap: 64, pageMax: 952, paragraphMax: 720},
   /** Rule 2: a full-height sheet starts 62 from the top with corners of 16; a sheet's last row clears the home indicator by 34.
