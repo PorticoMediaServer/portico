@@ -6,6 +6,7 @@ import {Button, Focusable, Segmented} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {alpha} from '../shell/visual';
 import {TVRow} from '../layout/TVRow';
+import {SeeAllLink} from '../layout/Row';
 import {useTheme} from '../theme';
 import {frameSpec, tvFocusRoom} from '@portico/design';
 import {useFrameMetrics} from './metrics';
@@ -240,7 +241,7 @@ export function TitleDetails({about, people, collection}: TitleDetailsProps) {
   const theme = useTheme(), frame = useFrameMetrics(), stacked = frame.form === 'phone' || frame.form === 'medium';
   if (frame.form === 'tv') return <TVTitleDetails about={about} people={people} collection={collection}/>;
   const cast = people && (people.groups.some(group => group.length > 0) || people.lines?.length) ? <View style={{flex: stacked ? undefined : sizes.detailsCastShare, minWidth: 0}}>
-    <PanelHeading title={people.title} trailing={people.seeAll && <Button variant="text" size="small" trailingIcon="i-right" onPress={people.seeAll.onPress}>{people.seeAll.label}</Button>}/>
+    <PanelHeading title={people.title} trailing={people.seeAll && <SeeAllLink label={people.seeAll.label} onPress={people.seeAll.onPress}/>}/>
     <CastRow groups={people.groups}/>
     {people.lines?.length ? <View style={{marginTop: theme.space.sm, gap: theme.space.tight}}>{people.lines.map(line => <Text key={line.label} style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
       {line.label} <Text style={{color: theme.colors.text}}>{line.names}</Text></Text>)}</View> : null}
