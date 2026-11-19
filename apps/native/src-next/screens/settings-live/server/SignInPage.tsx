@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {Linking, ScrollView, Text, View} from 'react-native';
+import {Linking, Text, View} from 'react-native';
 import {OwnerSignInSettingsClient, type OwnerSignInSettings} from '../../../../../../packages/client-core/src/account-move';
 import {serverSignInSettingsURL} from '../../../../../../packages/client-core/src/sign-in';
 import QRCode from 'react-native-qrcode-svg';
@@ -11,17 +11,20 @@ import {StateView} from '../../../kit/states';
 import {BottomSheet} from '../../../kit/overlays';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useTheme} from '../../../kit/theme';
+import {SettingsPageFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import type {NativeSettingsLivePorts} from '../ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 
 /** Native's existing sign-in contract is deliberately read-only. Ownership and
  * sign-in moves continue in this server's authenticated web settings. */
-export function NativeServerSignIn({ports, runtime, compactHeader = false, onOpenPage}: {
-  ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean; onOpenPage: (page: 'people' | 'remote') => void;
+export function NativeServerSignIn({ports, runtime, title, back, notice, onOpenPage}: {
+  ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; onOpenPage: (page: 'people' | 'remote') => void;
+  /** On the Settings page frame: the page's title and Back from the screen, and the screen's own error shown first. */
+  title: string; back?: Readonly<{label: string; onPress: () => void}>; notice?: React.ReactNode;
 }) {
-  const theme = useTheme(), t = runtime.text.t, context = ports.context;
+  const theme = useTheme(), frame = useFrameMetrics(), t = runtime.text.t, context = ports.context;
   const {api, lifetime, authority} = useSettingsRequestScope(context);
   const [answer, setAnswer] = useState<Readonly<{api: typeof api; value?: OwnerSignInSettings; error?: unknown}>>(), [revision, setRevision] = useState(0);
   const current = useCallback(() => lifetime.current() && context.account.capabilities.manageSignIn && context.account.account.role === 'owner'
@@ -55,9 +58,9 @@ export function NativeServerSignIn({ports, runtime, compactHeader = false, onOpe
     // added, and visiting a local server never opens Portico Services.
     void Linking.openURL(serverSignInSettingsURL(context.api.baseUrl)).catch(error => {if (current()) setAnswer({api, value, error});});
   };
-  return <ScrollView testID="server-signin" contentContainerStyle={{...settingsPageInset(theme, compactHeader), gap: 14}}>
-    <ServerHeader serverName={context.serverName} viewerRole="owner" audience="owner" variant="phone"/>
-    {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('next.settingsSpec.server.signin.title')}</Text>}
+  return <SettingsPageFrame title={title} back={back}
+    server={<ServerHeader serverName={context.serverName} viewerRole="owner" audience="owner" variant={frame.form === 'phone' ? 'phone' : 'page'}/>}>
+    {notice}<View testID="server-signin" style={{gap: 14}}>
     {error !== undefined && <StateView variant="inline" {...runtime.error(error, refresh, 'server-console')}/>}
     {!value && error === undefined && <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{t('next.settings.loading')}</Text>}
     {value && <>
@@ -95,5 +98,5 @@ export function NativeServerSignIn({ports, runtime, compactHeader = false, onOpe
       <Button testID="server-signin-open-web" variant="glass" onPress={openWeb}>{t('accounts.settings.changeOnWeb')}</Button>
       <Button size="compact" variant="text" icon="i-refresh" onPress={refresh}>{t('action.refresh')}</Button>
     </>}
-  </ScrollView>;
+  </View></SettingsPageFrame>;
 }

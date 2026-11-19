@@ -24,10 +24,10 @@ async function fixture(authorized = true, isTV = false) {
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => `date:${value}`}},
     '../../../../../../packages/client-core/src/sign-in': {serverSignInSettingsURL: (origin: string) => {assert.equal(origin, api.baseUrl); return new URL('/settings?scope=server&section=signin', origin).href;}},
     '../../../kit/controls': {Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
-    './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => ({colors: {}, isTV})},
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'}, '../../../kit/frames/metrics': {useFrameMetrics: () => ({form: 'phone'})}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => ({colors: {}, isTV})},
     '../use-settings-request-scope': {useSettingsRequestScope: () => scope},
   });
-  const props = {ports: {context}, runtime: {text: {t: (id: string) => id}, error: () => ({title: 'failure'})}, onOpenPage: (id: string) => pages.push(id)};
+  const props = {title: 'next.settingsSpec.server.signin.title', ports: {context}, runtime: {text: {t: (id: string) => id}, error: () => ({title: 'failure'})}, onOpenPage: (id: string) => pages.push(id)};
   const render = () => {let tree = host.render(() => NativeServerSignIn(props)); if (effects.length) {effects.splice(0).forEach(run => run()); tree = host.render(() => NativeServerSignIn(props));} return tree;};
   return {render, visits, pages, options, reads: () => reads, finishes: () => finishes, disposed: () => disposed, end: () => {alive = false;}, unmount: () => {cleanups.forEach(fn => fn());},
     reply: async (move: unknown = null) => {resolve({signIn: 'local', owner: {username: 'Owner'}, move}); await Promise.resolve(); await Promise.resolve();}};

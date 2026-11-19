@@ -56,8 +56,9 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
   const render = () => {tree = host.render(() => NativeSettingsScreen(props)); for (const effect of pending.splice(0)) effect(); return tree;};
   render();
   return {render, tree: () => tree, find: (id: string) => find(tree, id), nodes: () => nodes(tree), backs: () => backs, opens, shortcutCalls,
-    // A pushed phone page's header: an owner page's own PhoneHeader, or a plain page's frame bar (title and Back).
-    header: () => nodes(tree).find(node => node.type === 'PhoneHeader') ?? (() => {const frame = theme.width < 600 && !theme.isTV ? nodes(tree).find(node => node.type === 'SettingsPageFrame') : undefined;
+    // A pushed phone page's header: an owner page's own PhoneHeader, or the frame bar (title and Back) of a plain page or
+    // of an owner page on the frame (its title and Back are its props).
+    header: () => nodes(tree).find(node => node.type === 'PhoneHeader') ?? (() => {const frame = theme.width < 600 && !theme.isTV ? nodes(tree).find(node => node.type === 'SettingsPageFrame' || node.props?.back && typeof node.props.title === 'string') : undefined;
       return frame && {type: 'PhoneHeader', props: {title: frame.props.title, onBack: frame.props.back?.onPress}};})(),
     routeAway: () => {navigation = {revision: navigation.revision + 1, route: {kind: 'together'}};},
     replace: () => {navigation = {...navigation, revision: navigation.revision + 1, route: {kind: 'shell', destination: {kind: 'settings'}}};},
