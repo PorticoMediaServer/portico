@@ -229,7 +229,10 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
   // The column is as wide as the cover, which is the spec's size or the largest that leaves the column's fixed rows their room.
   const rows = spec.titleSlot[form] + wideSpec.scrubberGap[form] + spec.scrubber[form] + wideSpec.transportGap[form] + icons.primary[form] + wideSpec.belowGap[form] + theme.targets.touch;
   const room = window.height - insets.top - insets.bottom - spec.topBar[form] - wideSpec.titleGap[form] - rows - theme.space.lg;
-  const column = book ? wideSpec.bookColumn[form] : Math.max(0, Math.min(spec.artwork[form], frame.width - panelWidth - 3 * edge, room));
+  // A short window (a phone on its side) leaves little height: the column never gets narrower than its transport, and the
+  // scroll view takes what does not fit.
+  const across = frame.width - panelWidth - 3 * edge, transportWidth = icons.primary[form] + 4 * icons.control[form] + 4 * wideSpec.transportSpacing[form];
+  const column = book ? wideSpec.bookColumn[form] : Math.max(0, Math.min(across, Math.max(transportWidth, Math.min(spec.artwork[form], across, room))));
   // R2: the title is the form scale's `audioTitle`, a song's and an audiobook's alike.
   const titleSize = theme.type.audioTitle.fontSize;
   const words = (size: 'title' | 'pageTitle') => <View style={{flex: 1, minWidth: 0, gap: theme.space.xs}}>{loading ? <><SkeletonBlock width="64%" height={titleSize}/><SkeletonBlock width="40%" height={theme.type.intro.fontSize}/></> : <>
