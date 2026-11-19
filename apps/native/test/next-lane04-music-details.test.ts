@@ -150,7 +150,9 @@ test('the tablet album hands TitleFrame Play and its buttons (Shuffle labelled, 
   assert.equal(frame.props.actions[0].labelled, true, 'Shuffle keeps its label');
   frame.props.primary.onPress(); frame.props.actions[0].onPress(); await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.counts().plays, 2);
+  const drawn = {name: 'drawn More'}; frame.props.actions[2].anchorRef(drawn);
   frame.props.actions[2].onPress(); assert.equal(f.menus.length, 1, 'More opens the album\'s menu');
+  assert.equal(f.menus[0][1].current, drawn, 'anchored on the button the frame drew');
 });
 
 // 13 Nov iPad walk: in iPad mini portrait the tablet album's track titles were cut to "A L…" beside fixed Plays and Duration

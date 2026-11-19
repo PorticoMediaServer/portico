@@ -174,7 +174,9 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
     : <Text numberOfLines={1} style={[browseType(theme, phoneMusicGeometry.albumArtist, 700), {color: theme.colors.accentStrong}]}>{entry.artist.name}</Text> : null;
   // Each form keeps its own buttons: a phone Shuffle, Download (where offered) and More; a tablet Shuffle, Favorite, Add to
   // playlist and More. The frame lays them out (labels never cut: it wraps the round ones).
-  const more = {icon: 'i-more' as const, label: t('card.more', {title}), onPress: () => actions.menu(entry)};
+  // More opens the album's menu anchored on the drawn button the frame hands over.
+  const moreButton = useRef<NativeView | null>(null);
+  const more = {icon: 'i-more' as const, label: t('card.more', {title}), anchorRef: (view: NativeView | null) => {moreButton.current = view;}, onPress: () => actions.menu(entry, moreButton)};
   const buttons: TitleAction[] = tablet ? [
     {icon: 'i-shuffle', label: t('title.shuffle'), labelled: true, onPress: () => run(controller.play(undefined, true))},
     {icon: snapshot.favorite ? 'i-heart-f' : 'i-heart', label: t(snapshot.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite'), active: !!snapshot.favorite, onPress: () => run(controller.toggleFavorite())},
@@ -272,11 +274,13 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
   const run = (work: Promise<unknown>) => {void work.catch(runtime.reportError);};
   const years = entry.activeBeginYear || entry.activeEndYear ? `${entry.activeBeginYear ?? ''}–${entry.activeEndYear ?? ''}` : undefined;
   const details = tablet ? [[t('title.genres'), entry.genres?.join(', ')], [t('title.country'), entry.country], [t('title.year'), years]].filter(([, value]) => !!value) as [string, string][] : [];
-  // Each form keeps its own buttons: a phone Shuffle and More; a tablet Shuffle, Favorite and More.
+  // Each form keeps its own buttons: a phone Shuffle and More; a tablet Shuffle, Favorite and More. More's menu anchors on
+  // the drawn button the frame hands over.
+  const moreButton = useRef<NativeView | null>(null);
   const buttons: TitleAction[] = [
     {icon: 'i-shuffle', label: t('title.shuffle'), labelled: true, onPress: () => run(controller.play(undefined, true))},
     ...(tablet ? [{icon: snapshot.favorite ? 'i-heart-f' as const : 'i-heart' as const, label: t(snapshot.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite'), active: !!snapshot.favorite, onPress: () => run(controller.toggleFavorite())}] : []),
-    {icon: 'i-more', label: t('card.more', {title: entry.title}), onPress: () => actions.menu(entry)},
+    {icon: 'i-more', label: t('card.more', {title: entry.title}), anchorRef: view => {moreButton.current = view;}, onPress: () => actions.menu(entry, moreButton)},
   ];
   return <TitleFrame testID={tablet ? 'native-tablet-artist' : 'native-phone-artist'} back={{label: t('action.back'), onPress: onBack, testID: tablet ? 'native-tablet-artist-back' : 'native-phone-artist-back'}}
     scroller={(content, style, collapse) => <MusicScrollView style={{flex: 1}} contentContainerStyle={style} showsVerticalScrollIndicator={false} collapseAt={collapse.at} onCollapse={collapse.onChange}>{content}</MusicScrollView>}
