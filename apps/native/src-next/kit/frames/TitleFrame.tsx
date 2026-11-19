@@ -41,7 +41,8 @@ export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean)
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
   art?: ReactNode;
-  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right). */
+  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right). Given both,
+   * `art` is the glow behind a cover's head on touch (phone-detail d3 frame 7: a person's films behind the circle). */
   cover?: TitleCover;
   /** A glass disc over the art. Not drawn on TV, where the remote's Back leaves the page. */
   back: TopBarBack;
@@ -220,9 +221,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
   </View> : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{gap: spec.creditsGap, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
     {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
-    {synopsis !== undefined && <Text numberOfLines={readMore ? spec.readMoreLines : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
+    {synopsis !== undefined && <Text numberOfLines={readMore ? spec.readMoreLines[form] : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
-      <Button variant="text" size="xs" trailingIcon="i-chdown" onPress={readMore.onPress}>{readMore.label}</Button>
+      {/* A phone's is a plain bold link under the paragraph (frame 7); wider forms keep the chevron. */}
+      <Button variant={form === 'phone' ? 'link' : 'text'} size="xs" trailingIcon={form === 'phone' ? undefined : 'i-chdown'} textStyle={form === 'phone' ? {color: theme.colors.text} : undefined} onPress={readMore.onPress}>{readMore.label}</Button>
       {readMore.note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{readMore.note}</Text>}
     </View>}
     {!stacked && credits && credits.length > 0 && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
@@ -252,8 +254,10 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
   const coverSize = spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
-    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
-    : <View style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
+    // A cover page reports where its name ends (the head is the page's first part, so that is a page offset): the compact bar
+    // takes over once the name has gone under it, before the words below would run under Back.
+    ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{alignSelf: 'stretch'}}>{identity}</View><View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View></View>
+    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' ? 'row-reverse' : 'row', alignItems: 'center', gap: spec.coverGap}}>
       {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
@@ -350,7 +354,8 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     <FocusWithin onChange={focused => {if (focused) setWhere('head');}}><Animated.View ref={headView} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
     {content}
   </View> : <>
-    {!held && head}
+    {!held && (cover && art ? <View>
+      <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: spec.coverGlow, overflow: 'hidden'}}>{art}</View>{head}</View> : head)}
     {strip}
     {content}
   </>;

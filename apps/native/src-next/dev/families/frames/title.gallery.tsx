@@ -204,19 +204,24 @@ function EpisodePage() {
   </TitleFrame></Page>;
 }
 
+/** A person (phone-detail d3 frame 7): their initials over a glow from their films, the name with their department and
+ * birth, the biography, Known for, then every credit on this server as posters, filtered by All, Cast or Crew. */
 function Person() {
-  const theme = useTheme(), [filter, setFilter] = useState('all'), width = theme.spec.card.width.poster[theme.column];
-  const poster = (key: string, title: string, role: string) => <PosterCard key={key} title={title} caption={[{id: 'role', text: role, role: 'context'}]} artwork={asset(key)} width={width} onNavigate={none}/>;
+  const theme = useTheme(), frame = useFrameMetrics(), [filter, setFilter] = useState('all'), t = defaultI18n.t;
+  const width = Math.floor((frame.width - frame.gutter - frame.rightGutter - 2 * theme.space.xs) / 3);
+  const poster = (key: string, title: string, caption: string) => <PosterCard key={key} title={title} caption={[{id: 'role', text: caption, role: 'context'}]} artwork={asset(key)} width={width} onNavigate={none}/>;
   return <Page destination={{kind: 'library', libraryId: 'movie'}}><TitleFrame testID="frames-title-person" back={{label: f('dune2'), onPress: none}}
-    cover={{shape: 'circle', node: size => <PersonCircle size={size} initials="RF" covers={[asset('pool/movies/dune-part-two.jpg'), asset('pool/movies/dune.jpg'), asset('pool/tv/silo.jpg')]} alt=""/>}}
-    kicker={{label: f('personKicker')}} title={f('person')} metadata={<Meta text={f('personFacts')}/>} synopsis={f('personBio')} readMore={{label: f('readMore'), note: f('bioSource'), onPress: none}}>
+    topAction={{icon: 'i-more', label: f('more'), onPress: none}}
+    // The served ambient image is not available to the gallery (artwork.gallery.tsx); its palette stands in for the glow.
+    art={<AmbientArt treatment="library" palette={{first: '#a8692a', second: '#1d3848'}} height={560}/>}
+    cover={{shape: 'circle', node: size => <PersonCircle size={size} initials="RF" alt=""/>}}
+    title={f('person')} metadata={<Meta text={f('personRoleBorn')}/>} synopsis={f('personBio')} readMore={{label: f('readMore'), onPress: none}}>
+    <Posters title={t('web.person.knownFor')} items={[['pool/movies/dune-part-two.jpg', f('dune2'), '2024'], ['pool/movies/dune.jpg', f('dune'), '2021'], ['pool/tv/silo.jpg', f('silo'), '2023']]}/>
     <PanelBlock>
-      <PanelHeading title={f('onThisServer')} count={f('onThisServerCount')} trailing={<>{(['all', 'cast', 'crew'] as const).map(id => <Chip key={id} variant="facet" selected={filter === id} onPress={() => setFilter(id)}>{f(id)}</Chip>)}
-        <Chip variant="pill">{`${f('yearSort')} · ${f('newestFirst')}`}</Chip><Chip variant="pill">{f('filters')}</Chip></>}/>
-      <PanelHeading title={f('moviesGroup')} count="2"/><View style={{flexDirection: 'row', gap: theme.space.sm}}>{poster('pool/movies/dune-part-two.jpg', f('dune2'), f('asJessica'))}{poster('pool/movies/dune.jpg', f('dune'), f('asJessica'))}</View>
-      <View style={{height: theme.space.md}}/>
-      <PanelHeading title={f('showsGroup')} count="1"/><View style={{flexDirection: 'row', gap: theme.space.sm}}>{poster('pool/tv/silo.jpg', f('silo'), f('asJuliette'))}</View>
-      <Text style={[theme.type.rowHelp, {marginTop: theme.space.md, color: theme.colors.textTertiary}]}>{f('onlyOnServer')}</Text>
+      <PanelHeading title={t('web.person.credits')} trailing={t('web.person.titlesOnServer', {count: 3})}/>
+      <View style={{flexDirection: 'row', gap: theme.space.xs, marginBottom: theme.space.sm}}>{([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([id, label]) =>
+        <Chip key={id} selected={filter === id} onPress={() => setFilter(id)}>{t(label)}</Chip>)}</View>
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>{poster('pool/movies/dune-part-two.jpg', f('dune2'), f('asJessica'))}{poster('pool/movies/dune.jpg', f('dune'), f('asJessica'))}{poster('pool/tv/silo.jpg', f('silo'), f('asJuliette'))}</View>
     </PanelBlock>
   </TitleFrame></Page>;
 }

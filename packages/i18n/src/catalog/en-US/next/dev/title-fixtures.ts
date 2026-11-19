@@ -215,6 +215,7 @@ export const titleFixtureMessages = {
 
   'next.title.fixture.person': 'Rebecca Ferguson',
   'next.title.fixture.personKicker': 'Acting',
+  'next.title.fixture.personRoleBorn': 'Acting · Born October 19, 1983',
   'next.title.fixture.personFacts': 'Born October 19, 1983 · Stockholm, Sweden · 3 titles on this server',
   'next.title.fixture.personBio': 'Rebecca Louisa Ferguson Sundström is a Swedish actress. After starting out in Swedish television, she came to wider attention as Elizabeth Woodville in The White Queen (2013), which earned her a Golden Globe nomination. She went on to play Ilsa Faust in three Mission: Impossible films, Lady Jessica in Dune and its sequel, and Juliette Nichols in Silo.',
   'next.title.fixture.readMore': 'Read more',

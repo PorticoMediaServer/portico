@@ -76,7 +76,8 @@ export const frame = {
       /** The fixed action row: 18 under the art box on a phone, under the synopsis inside it elsewhere. Its height is the hero button's. */
       actionGap: forms(18, 24, 24, 26),
       /** R5 interim (family C): a biography with Read more shows this many lines (desktop-detail f7, phone-detail d3). */
-      readMoreLines: 4,
+      /** A cover page's paragraph before Read more: two on a phone (phone-detail d3 frame 7), four from a tablet up. */
+      readMoreLines: forms(2, 4, 4, 4),
       /** TV with focus in the panel (detail-tv-4, 5a): the art stays behind the title and tabs, dimmed to this. R5 interim. */
       tvCollapsedArt: .4,
       /** TV with focus in the panel (detail-tv-3): the folded title at the TV display size (it measures 62 on the frame), and
@@ -87,6 +88,8 @@ export const frame = {
       cover: {square: {...forms(220, 280, 300, 400), web: 340}, poster: {...forms(180, 220, 260, 340), web: 340}, circle: {...forms(104, 160, 300, 280), web: 340}},
       /** Between a cover and its words, side by side (desktop-listen 56), and the played line's width under them. R5 interim. */
       coverGap: 56, coverResumeWidth: 320,
+      /** A cover page's glow (phone-detail d3 frame 7: a person's films behind the circle): drawn this tall from the top. */
+      coverGlow: 560,
       /** The side column beside the panel (desktop-listen 360). R5 interim. */
       side: 360,
       /** The panel's parts (kit `title-parts`), R5 interim: About's label column (desktop-detail f3 140,

@@ -34,12 +34,14 @@ export function PanelBlock({children, inset = true}: Readonly<{children: ReactNo
 }
 
 /** A block's heading (rule 6 row heading), its count and grey note, and its control at the end. */
+/** `trailing` sits at the row's end: controls, or words drawn muted (phone-detail d3 frame 7's "6 titles on this server"). */
 export function PanelHeading({title, count, note, trailing}: Readonly<{title: string; count?: string; note?: string; trailing?: ReactNode}>) {
   const theme = useTheme(), frame = useFrameMetrics();
   return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: theme.space.sm, rowGap: theme.space.controlGap, marginBottom: frame.headingGap}}>
     <Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}{count !== undefined ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{'  '}{count}</Text> : null}</Text>
     {note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{note}</Text>}
-    {trailing && <View style={{marginLeft: 'auto', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.controlGap}}>{trailing}</View>}
+    {trailing && <View style={{marginLeft: 'auto', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.controlGap}}>
+      {typeof trailing === 'string' ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{trailing}</Text> : trailing}</View>}
   </View>;
 }
 
