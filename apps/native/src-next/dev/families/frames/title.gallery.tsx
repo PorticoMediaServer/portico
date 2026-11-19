@@ -251,7 +251,7 @@ function PhoneCollection() {
     note={t('next.collection.automaticDescription')}
     scroller={titleRowsScroller({collection, getKey: film => film.id, testID: 'frames-title-collection-films', item: film => ({title: f(film.title), facts: f(film.facts).split(' · '),
       watched: film.watched, progress: film.progress, remaining: film.left ? f(film.left) : undefined, artwork: asset(film.art), onNavigate: none, onMore: none})})}>
-    <PanelBlock><PanelHeading title={t('next.browse.filmCount', {count: 3})} trailing={<Chip trailingIcon="i-chdown" onPress={none}>{f('byRelease')}</Chip>}/></PanelBlock>
+    <PanelBlock><PanelHeading quiet title={t('next.browse.filmCount', {count: 3})} trailing={<Chip variant="pill" trailingIcon="i-chdown" onPress={none}>{f('byRelease')}</Chip>}/></PanelBlock>
   </TitleFrame></Page>;
 }
 function Collection() {

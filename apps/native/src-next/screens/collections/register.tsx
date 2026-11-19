@@ -11,6 +11,8 @@ import {catalogueSelectionSource, createNativeSelection} from '../selection/nati
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {NativeCollectionController} from './controller';
 import {NativeCollectionScreen} from './CollectionScreen';
+import {CollectionPage} from '../../pages/touch/collection/CollectionPage';
+import {Platform, type View} from 'react-native';
 
 type CollectionRoute = Extract<NativeShellRoute, {kind: 'collection'}>;
 
@@ -101,7 +103,11 @@ function CollectionHost({route, active, context, runtime}: {route: CollectionRou
     void port.playSegments([{source: {container: {kind: 'collection', id: route.collectionId}}, ...(shuffle ? {order: {mode: 'shuffle' as const}} : {})}],
       {signal: operation.signal, isCurrent}).catch(runtime.reportError);
   };
-  return <NativeCollectionScreen focusScope={`collection:${authorityKey(authority)}:${route.libraryId}:${route.collectionId}`} state={state} runtime={runtime} actions={actions} selection={selection}
+  // Phones and tablets: the rebuilt page (pages/touch/collection); TV keeps this screen until its page lands.
+  const Screen = Platform.isTV ? NativeCollectionScreen : CollectionPage;
+  // Play on in the top bar, as on a title page: only while this page is the one on screen.
+  const onPlayOn = runtime.playOn ? (anchor?: React.RefObject<View | null>) => {if (current() && context.navigation.getSnapshot().route === route) runtime.playOn?.open(anchor);} : undefined;
+  return <Screen playOn={runtime.playOn} onPlayOn={onPlayOn} focusScope={`collection:${authorityKey(authority)}:${route.libraryId}:${route.collectionId}`} state={state} runtime={runtime} actions={actions} selection={selection}
     active={active} onPlay={() => play(false)} onShuffle={() => play(true)}
     onSort={(sort, direction) => {void controller.sort(sort, direction).catch(runtime.reportError);}}
     onOpen={actions.open}
