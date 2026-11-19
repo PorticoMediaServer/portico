@@ -60,7 +60,9 @@
 /* The list column's group labels are the rule's smaller list label. */
 .settingsMaster h3 { font-size: var(--type-list-label-size); letter-spacing: var(--type-list-label-tracking); color: var(--type-list-label-color); }
 .settingsBar, .pageBar { margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
-.page { display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
+.page { --body-inset: var(--card); display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
+/* The page's flexible region: one column at the card inset; the parts in it start at its edges. */
+.pageBody { display: flex; flex-direction: column; gap: var(--frame-section-gap); margin: 0 var(--body-inset); --g: 0px; --card: 0px; }
 .page > .intro { margin: 0 var(--g); }
 .pageHead { display: none; }
 .sheetBar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-xs); height: var(--frame-header-bar); padding: 0 var(--space-control-gap); }
