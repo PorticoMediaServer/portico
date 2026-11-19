@@ -34,7 +34,9 @@ function Resume({read = false, kind = 'book', ...props}: ReadResumeCardProps & {
         <View style={{flex: 1, minWidth: 0, paddingTop: 6}}>
           <Text numberOfLines={2} style={[titleStyle(t, t.isTV ? 26 : 16, 800, -0.01), {lineHeight: (t.isTV ? 31.2 : 19.2) * t.textScale, color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
           <View style={{marginTop: 3}}><Parts parts={props.caption} style={{color: t.colors.textSecondary}} /></View>
-          <View style={{marginTop: 'auto', flexDirection: 'row', gap: 10, justifyContent: 'space-between'}}>{props.detail?.map(part => <View key={part.id} style={{flexShrink: part.id === 'remaining' ? 0 : 1, minWidth: 0}}><Parts parts={[part]} strong style={titleStyle(t, t.isTV ? 20 : 12.5, part.id === 'remaining' ? 600 : 700)} /></View>)}</View>
+          {/* The facts share one line when they fit; when they do not, the second takes a line of its own, so neither is cut
+            ("Chapter 3" over "3 h 34 min left" on a narrow card). The no-cut rule. */}
+          <View style={{marginTop: 'auto', flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2, justifyContent: 'space-between'}}>{props.detail?.map(part => <View key={part.id} style={{flexShrink: part.id === 'remaining' ? 0 : 1, minWidth: 0}}><Parts parts={[part]} strong style={titleStyle(t, t.isTV ? 20 : 12.5, part.id === 'remaining' ? 600 : 700)} /></View>)}</View>
           <Progress value={props.progress} height={t.isTV ? 6 : 4} style={{marginTop: 7, marginBottom: 4}} />
         </View>
       </View>
