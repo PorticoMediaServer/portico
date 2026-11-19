@@ -342,7 +342,7 @@ function TitlePage({art, cover, back, topAction, kicker, title, metadata, picker
     {tv && art && !cover && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height}}>{art}</View>}
     {tv && !scroller && <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: theme.colors.ink}, scrimStyle]}/>}
     {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: barAt, onChange: value => {setPassed(value); setTabsPinned(value);}})}</View>
-      : <ScrollView ref={scroll} style={{flex: 1}} contentContainerStyle={{paddingBottom: tv ? Math.max(frame.bottomClear, window.height - bandHeight) : frame.bottomClear}} scrollEventThrottle={32}
+      : <ScrollView ref={scroll} style={{flex: 1}} scrollEnabled={!tv} contentContainerStyle={{paddingBottom: tv ? Math.max(frame.bottomClear, window.height - bandHeight) : frame.bottomClear}} scrollEventThrottle={32}
         onContentSizeChange={tv ? undefined : (_, contentHeight) => {
           // Back to where the page was, once it is long enough to hold that place (its panel arrives after the head).
           const offset = scrollMemory?.offset ?? 0;
