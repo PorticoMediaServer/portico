@@ -22,7 +22,9 @@ test('Done returns to the page Settings was opened from, remembered by the route
   const bootstrap = readFileSync(new URL('../src/shell/bootstrap.ts', import.meta.url), 'utf8');
   assert.match(bootstrap, /settingsReturnAuthority\(viewer && JSON\.stringify\(\[viewer\.serverId, viewer\.authority, viewer\.accountId, viewer\.profileId\]\), next\.phase === 'signed-out'\);/);
   const settings = readFileSync(new URL('../src/screens/settings/Settings.tsx', import.meta.url), 'utf8');
-  assert.match(settings, /onDone=\{\(\) => \{void router\.navigate\(\{href: settingsReturnHref\(\)\}\);\}\}/);
+  // Done (the list's bar and a page's bar, on a phone) is the frame's bar action.
+  assert.match(settings, /const done = \(\) => \{void router\.navigate\(\{href: settingsReturnHref\(\)\}\);\};/);
+  assert.match(settings, /<SettingsListFrame bar=\{\{title: t\('next\.shell\.settings'\), action: \{label: t\('next\.settings\.done'\), onPress: done\}\}\}/);
   // The bar names the page on a phone; the heading stays for assistive technology.
   const css = readFileSync(new URL('../src/kit/settings/settings.module.css', import.meta.url), 'utf8');
   assert.match(css, /\.pageHeading h1 \{ position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset\(50%\);/);

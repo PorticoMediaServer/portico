@@ -63,6 +63,7 @@
 .page { display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
 .page > .intro { margin: 0 var(--g); }
 .pageHead { display: none; }
+.pageHeading { padding: 0 var(--g); margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
 .sheetBar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-xs); height: var(--frame-header-bar); padding: 0 var(--space-control-gap); }
 .sheetBar > :first-child { justify-self: start; } .sheetBar > :last-child { justify-self: end; }
 /* Rule 3: Back and the title share the bar's centre line. */
@@ -87,6 +88,7 @@
   .settingsMaster, .settingsDetail .page { --g: 0px; --card: 0px; }
   .settingsDetail { flex: 1; min-width: 0; max-width: var(--frame-settings-page-max); }
   .settingsBar, .pageBar { display: none; }
+  .pageHeading { padding-top: var(--frame-title-top); }
   .pageHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm); padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
   /* A page shown alone (an owner page opened on its own, a form): Back above its title and the page's column limit. */
   .page:not(.settingsDetail .page) { max-width: calc(var(--frame-settings-page-max) + 2 * var(--g)); }

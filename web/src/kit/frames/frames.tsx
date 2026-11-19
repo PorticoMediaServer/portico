@@ -149,20 +149,23 @@ export type SettingsPageFrameProps = Readonly<{
   children?: ReactNode;
   /** The whole page can't load. One section failing is a `StateRow` in that section's card instead. */
   state?: PageStateProps;
+  /** An editor page's own head in place of the title line, on every width (a library's name with its artwork and ⋯
+   * menu); the phone's bar still names the page by `title`. */
+  heading?: ReactNode;
 }>;
 /** Frame 4, one settings or owner page, or a form. At phone width its header is the compact bar ("‹ Settings · title ·
  * action"); from 600 the page title in the column beside the list, with the intro at most 720 wide. A page shown alone
  * (not beside the list) keeps Back above its title, the gutter and the page's column limit (tablets SC-8). */
-export function SettingsPageFrame({title, back, action, status, actions, server, intro, tabs, children, state}: SettingsPageFrameProps) {
+export function SettingsPageFrame({title, back, action, status, actions, server, intro, tabs, children, state, heading}: SettingsPageFrameProps) {
   const t = defaultI18n.t;
   return <div className={`${styles.frame} ${styles.page}`}>
     <div className={styles.pageBar}><SheetBar title={title} back={back} action={action} /></div>
     {/* The server strip leads an owner page, over its title (final3-desktop-09; phone-app 19's card under the bar). */}
     {back && <div className={styles.pageBack}><Back back={back} /></div>}
     {server && !state && <div className={styles.pageServer}>{server}</div>}
-    <header className={styles.pageHead}><h1 className={styles.pageTitle}>{title}</h1>
+    {heading ? <div className={styles.pageHeading}>{heading}</div> : <header className={styles.pageHead}><h1 className={styles.pageTitle}>{title}</h1>
       <span role="status" className={styles.pageStatus}>{status === 'saving' ? t('next.settings.saving') : status === 'saved' ? <><Icon name="i-check" size={16} />{t('next.settings.saved')}</> : null}</span>
-      {actions && <span className={styles.pageActions}>{actions}</span>}</header>
+      {actions && <span className={styles.pageActions}>{actions}</span>}</header>}
     {state ? <PageStateFrame {...state} /> : <>{intro !== undefined && <p className={styles.intro}>{intro}</p>}{tabs && <div className={styles.pageTabs}>{tabs}</div>}{children}</>}
   </div>;
 }
