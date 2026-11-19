@@ -1,5 +1,5 @@
-/* desktop-player f4/f4s; the actual policy owns the count and progress. */
-.card { --up-next-label-size: 13px; --up-next-title-size: 18px; --up-next-fact-size: 13.5px; --up-next-action-size: 15px; --up-next-weight: 700; --up-next-title-weight: 800; --up-next-title-tracking: -.015em; --up-next-ease: var(--ease-out); position: absolute; z-index: 1; right: 40px; bottom: 40px; transform: translateY(calc(var(--prompt-lift, 0px) * -1)); width: 440px; padding: 16px 16px 14px; border-radius: 18px; background: color-mix(in srgb, var(--color-player-notice) 86%, transparent); backdrop-filter: blur(28px) saturate(1.3); box-shadow: 0 34px 64px -22px color-mix(in srgb, var(--color-shadow) 90%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent); color: var(--color-text); line-height: normal; }
+/* desktop-player f4/f4s; the actual policy owns the count and progress. The frame places the card (PlayerChromeFrame `card`). */
+.card { --up-next-label-size: 13px; --up-next-title-size: 18px; --up-next-fact-size: 13.5px; --up-next-action-size: 15px; --up-next-weight: 700; --up-next-title-weight: 800; --up-next-title-tracking: -.015em; --up-next-ease: var(--ease-out); width: 440px; padding: 16px 16px 14px; border-radius: 18px; background: color-mix(in srgb, var(--color-player-notice) 86%, transparent); backdrop-filter: blur(28px) saturate(1.3); box-shadow: 0 34px 64px -22px color-mix(in srgb, var(--color-shadow) 90%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent); color: var(--color-text); line-height: normal; }
 .card[data-scene-after='true'] { width: 476px; }
 .row { display: flex; gap: 16px; align-items: center; }
 .still { position: relative; width: 150px; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; flex: none; background: var(--color-raised); }
@@ -23,7 +23,7 @@
 .meter { height: 3px; border-radius: 2px; margin-top: 12px; background: color-mix(in srgb, var(--color-text) 14%, transparent); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--color-accent-strong); }
 /* phone-player f6: the same card in the corner, at the phone's own proportions. */
-.card[data-layout='phone'] { right: 60px; bottom: 20px; width: min(360px, calc(100% - 74px)); padding: 14px; border-radius: 16px;
+.card[data-layout='phone'] { width: min(360px, calc(100% - 74px)); padding: 14px; border-radius: 16px;
   --up-next-label-size: 12.5px; --up-next-title-size: 16.5px; --up-next-fact-size: 12.5px; --up-next-action-size: 14.5px; }
 .card[data-layout='phone'] .still { width: 112px; border-radius: 8px; }
 .card[data-layout='phone'][data-scene-after='true'] { width: min(424px, calc(100% - 74px)); }
@@ -36,4 +36,3 @@
 
 /* phone-player f6c: with the controls up the card rises above them; the scene
    variant's 424 px width stays bounded by the authored right inset. */
-.card[data-layout='phone'][data-controls-visible='true'] { --prompt-lift: 80px; }

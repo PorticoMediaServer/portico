@@ -56,8 +56,8 @@
 .watch[data-live-guide-open] { --watch-notice-right: calc(40px + 440px + 16px); }
 @media (max-width: 1023px) { .watch[data-live-guide-open] { --watch-notice-right: calc(24px + 440px + 12px); } }
 @media (max-width: 899px) { .watch[data-live-guide-open] { --watch-notice-right: 24px; } }
-.prompts { position: absolute; inset: 0; pointer-events: none; }
-.prompts > * { pointer-events: auto; }
+/* The prompts ride in the frame's prompt corner (PlayerChromeFrame `prompts`); Up next is the frame's card. */
+.prompts { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-xs); }
 /* Keep only the outgoing paint through its fade. The original groups become
    inert in the same commit; no retained tree or new input/timer owner is made. */
 .watch[data-controls-exit='tap'] { --watch-controls-exit: var(--motion-standard); }

@@ -271,7 +271,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
       else if (key === 'i' && windowPort?.pictureInPicture) { event.preventDefault(); effect(windowPort.pictureInPicture.toggle); reveal(); return; }
       else if (key === 'z' && windowPort?.fit) { event.preventDefault(); effect(windowPort.fit.toggle); reveal(); return; }
       else if (key === '?') { event.preventDefault(); setShortcuts(true); reveal(); return; }
-      else if (key === 'escape') { event.preventDefault(); if (fullWindow) setFullWindow(false); else if (windowPort?.fullscreen?.active) effect(windowPort.fullscreen.toggle); else onCollapse(); return; }
+      else if (key === 'escape') { event.preventDefault(); if (surfaces?.upNext) surfaces.upNext.dismiss(); else if (fullWindow) setFullWindow(false); else if (windowPort?.fullscreen?.active) effect(windowPort.fullscreen.toggle); else onCollapse(); return; }
       if (intent) { event.preventDefault(); send(intent); reveal(); }
     };
     window.addEventListener('keydown', keydown);
@@ -538,14 +538,13 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
           {!mobile && windowPort?.pictureInPicture && <PlayerControl tool icon="i-pip" label={t('player.pictureInPicture')} active={windowPort.pictureInPicture.active} onPress={() => effect(windowPort.pictureInPicture!.toggle)} />}
           {!touchTablet && (portrait || !windowPort?.fullscreen || !mobile) && <PlayerControl tool icon="i-full" label={t('next.states.shortcut.fullscreen')} active={fullWindow || windowPort?.fullscreen?.active} onPress={toggleFullscreen} />}
         </>}
-        card={endCard && !liveChrome ? <WatchEndCardView card={endCard} canReplay={can('replay')} onReplay={() => send({kind: 'replay'})} onClose={() => send({kind: 'stop'})} layout={mobile ? 'phone' : 'desktop'} reportError={binding.reportError}
-          artwork={url => binding.artwork.foreground(url, 512, 16 / 9, {group: 'playback', priority: 'high'})} /> : undefined}
+        prompts={<div className={styles.prompts} inert={videoGesture?.active || undefined}><WatchPromptFocus.Provider value={open ? promptHost : undefined}>{open && surfaces?.prompts}</WatchPromptFocus.Provider></div>}
+        card={liveChrome ? undefined : !endCard ? open ? surfaces?.upNext?.card : undefined : <WatchEndCardView card={endCard} canReplay={can('replay')} onReplay={() => send({kind: 'replay'})} onClose={() => send({kind: 'stop'})} layout={mobile ? 'phone' : 'desktop'} reportError={binding.reportError}
+          artwork={url => binding.artwork.foreground(url, 512, 16 / 9, {group: 'playback', priority: 'high'})} />}
         body={page} />
     </div>
     {open && surfaces?.loss && <LossNotice notice={surfaces.loss.notice} enabled={surfaces.loss.enabled} layout={mobile ? 'phone' : 'desktop'} />}
     <div className={styles.notices}>{open && surfaces?.notices}</div>
-    {/* The prompts keep their own layer for now; they move into the frame's prompt corner as their own piece. */}
-    <div className={styles.prompts} inert={videoGesture?.active || undefined}><WatchPromptFocus.Provider value={open ? promptHost : undefined}>{open && surfaces?.prompts}</WatchPromptFocus.Provider></div>
     {panelPresence.shown === 'chapters' ? <PanelPresence leaving={panelPresence.leaving}><WatchChaptersDrawer chapters={chapters} onSeek={seconds => send({kind: 'seek', seconds})} onClose={() => setPanel(null)} /></PanelPresence>
       : surfaces && panelPresence.shown && <PanelPresence leaving={panelPresence.leaving}>{surfaces.render({panel: panelPresence.shown, snapshot, available: surfaces.available, reportProblem: surfaces.more?.find(action => action.id === 'report-problem'), layout: width < 1024 ? 'phone' : 'desktop', landscape: width < 1024 && width > height, phoneTop: portrait ? geometry?.picture ? geometry.picture.top + geometry.picture.height : width * 9 / 16 + (window.visualViewport?.offsetTop ?? 0) : 0, close: () => setPanel(null), show: next => showPanel(next), returnFocusRef: panelAnchor})}</PanelPresence>}
     <Menu className={styles.playerMenu} open={more} onOpenChange={setMore} title={t('player.more')} anchorRef={moreAnchor} returnFocusRef={moreAnchor} presentation="anchored" width={300} items={menuItems} />

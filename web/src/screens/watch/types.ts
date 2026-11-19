@@ -38,6 +38,9 @@ export type WatchSurfaces = Readonly<{
   playOn?: Readonly<{active: boolean; open(anchor?: HTMLButtonElement): void; close(): void}>;
   together?: ReactNode;
   prompts?: ReactNode;
+  /** Up next, while it is offered: the frame's card (the prompts rule, 19 Nov: the card alone, the bar hidden). `dismiss` is
+   * its Watch credits (or Not now at an episode's end), which Esc does too. */
+  upNext?: Readonly<{card: ReactNode; dismiss: () => void}>;
   notices?: ReactNode;
   /** Frames 6e: a modal prompt that really owns the screen. Only the admitted
    * validator sets it, never raw attention; the stage and the portal stay. */
