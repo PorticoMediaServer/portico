@@ -1,4 +1,6 @@
 export {Button, ResumeButton} from './Button';
+export {ActionRow} from './ActionRow';
+export type {ActionRowProps, RowAction, RowPrimary} from './ActionRow';
 export type {ButtonProps, ResumeButtonProps} from './Button';
 export {Chip} from './Chip';
 export {FormError} from './FormError';
