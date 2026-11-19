@@ -33,10 +33,18 @@ export type PersonView = Readonly<{
   credits: Readonly<{title: string; count: string; choices: readonly ChoiceChip[];
     /** No credits under this filter, or the credits failed to read (Try again). */
     state?: StateRowProps;
-    grid: PosterGridScrollerProps<PersonCredit>}>;
+    grid: PosterGridScrollerProps<PersonCredit>;
+    /** TV (tv-detail frame 10, `f9`): a row per department ("Directing  5 titles"), each read on its own; one row of all
+     * the credits when the person has one department. */
+    rows: readonly PersonCreditRow[]}>;
+  /** TV draws these apart (f9): the departments as the accent line over the name, the birthplace beside the dates. */
+  roles?: string; birthPlace?: string;
+  /** TV's circle without a photo: a blur of their posters behind the initials (f9). */
+  mosaic: readonly AmbientArtSource[];
 }>;
+export type PersonCreditRow = Readonly<{id: string; title: string; count: string} & PosterGridScrollerProps<PersonCredit>>;
 
-export function usePerson({page, role, collection, runtime, actions, selection, onRole, total: personTotal}: PersonPageProps): PersonView {
+export function usePerson({page, role, collection, groups, runtime, actions, selection, onRole, total: personTotal}: PersonPageProps): PersonView {
   // A phone selects from a card's menu; a tablet leads the filters with Select (the old screen's rule).
   const phone = useTheme().form === 'phone';
   // A card's open menu and the selection redraw the cards that show them.
@@ -55,6 +63,8 @@ export function usePerson({page, role, collection, runtime, actions, selection, 
       onNavigate: () => actions.open(entry), onMore: anchor => actions.menu(entry, anchor, pick?.onEnter)};
   };
   const total = credits.total ?? page.pageInfo.total;
+  const creditKey = (credit: PersonCredit) => `${credit.media.kind}:${credit.media.id}:${credit.creditKind}:${credit.role || credit.character}`;
+  const creditCard = (credit: PersonCredit) => card(credit.media, 'credits', credit.character ? t('web.person.as', {character: credit.character}) : credit.role || undefined);
   // The heading's count is the person's (frame 7): a filter's read counts only its own credits, so the route keeps the All
   // read's total (`total`) and the heading shows it while Cast or Crew is chosen.
   return {
@@ -78,9 +88,13 @@ export function usePerson({page, role, collection, runtime, actions, selection, 
           label: t(value === 'all' ? 'title.creditsAll' : value === 'cast' ? 'web.person.cast' : 'web.person.crew')}))],
       state: credits.status === 'error' ? {kind: 'error', icon: 'i-warn', title: presentError(credits.error, 'detail').title, action: {label: t('action.tryAgain'), onPress: () => collection.retry()}}
         : total === 0 ? {kind: 'empty', icon: 'i-user', title: t('web.person.noCredits'), reason: t(role === 'cast' ? 'web.person.noCast' : role === 'crew' ? 'web.person.noCrew' : 'web.person.noCreditsBody')} : undefined,
-      grid: {collection, getKey: credit => `${credit.media.kind}:${credit.media.id}:${credit.creditKind}:${credit.role || credit.character}`, testID: 'person-credits',
-        item: credit => card(credit.media, 'credits', credit.character ? t('web.person.as', {character: credit.character}) : credit.role || undefined)},
+      grid: {collection, getKey: creditKey, testID: 'person-credits', item: creditCard},
+      rows: groups?.length ? groups.map(group => ({id: group.id, title: group.department, count: t('web.person.titles', {count: group.total}), collection: group.collection,
+        getKey: creditKey, item: creditCard, testID: `person-credits-${group.id}`}))
+        : [{id: 'all', title: t('web.person.credits'), count: t('web.person.titles', {count: total}), collection, getKey: creditKey, item: creditCard, testID: 'person-credits'}],
     },
+    roles: person.roles.length ? defaultI18n.list(person.roles) : undefined, birthPlace: person.birthPlace || undefined,
+    mosaic: known.flatMap(entry => {const art = runtime.ambient(entry.posterUrl); return art ? [art] : [];}),
   };
 }
 
