@@ -446,6 +446,9 @@ Rules this round (frames.ts `player` and `audio` blocks):
 - **R8: the upright form is a window taller than wide** (`player.upright.maxAspect` 1). An open foldable (wider than
   tall) gets the full-window player. On the web a window 500 or less high is a phone on its side and takes the phone's
   sideways forms whatever its width (`sidewaysMaxHeight`).
+- **The screen may choose the form** (`PlayerChromeFrame form`: `upright`, `sideways` or `wide`; a `data-form` attribute the
+  forms' CSS reads). Left out, it is the window's, as above. The watch screen passes it because a phone's Full screen makes
+  an upright phone the full-window player.
 - **SC-10: beside an open panel the bar drops its spare parts** (`PlayerBeside`; a `PlayerPill` or `PlayerControl`
   marked `spare`, the speed pill on a tablet), so nothing overlaps.
 - **The button whose panel is open shows it** (`open`): a raised disc with a dot (a control), the raised fill (a pill).
