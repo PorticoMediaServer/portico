@@ -22,7 +22,10 @@ import {useTVPlayPauseOwner} from '../platform/tv-play-pause-owner';
 import {StartingDock} from '../kit/dock/StartingDock';
 import {StartTimedOut} from './StartTimedOut';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {ListeningPageBackground, ListeningPagePreview, NowPlayingScreen, TVListeningRoute, type NowPlayingScreenProps} from '../screens/destinations/music/NowPlayingScreen';
+import {ListeningPageBackground, ListeningPagePreview} from '../kit/player/ListeningSurface';
+import {AudioPlayerPage} from '../pages/touch/player/AudioPlayerPage';
+import {TVListeningRoute} from '../pages/tv/player/ListeningRoute';
+import type {NowPlayingScreenProps} from '../pages/shared/player/audio-player';
 import {NowPlayingLyrics} from '../screens/destinations/music/NowPlayingLyrics';
 import type {LyricsTarget} from '../../../../packages/client-core/src/lyrics';
 import {musicSignalView} from '../screens/destinations/music/MusicSignal';
@@ -128,7 +131,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     // have no paint owner when the mini closes, expands or changes occupant.
     exitImages.retireUnconsumed(keep);
   }, [exitImages, snapshot.retired, snapshot.pictureInPicture?.active, local]);
-  const listeningOpen = !theme.isTV && local?.expanded === true && (local.kind === 'music' || local.kind === 'audiobook');
+  const listeningOpen = local?.expanded === true && (local.kind === 'music' || local.kind === 'audiobook');
   const returnedListening = useRef<PlaybackFence | undefined>(undefined);
   const listeningOpenRef = useRef(listeningOpen); listeningOpenRef.current = listeningOpen;
   // The page this opening belongs to: captured when the surface opens, so a route change aborts
@@ -148,6 +151,13 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     isCurrent: () => alive.current && listeningOpenRef.current && !listeningLease.controller.signal.aborted
       && sameAuthority(authority, listeningLease.authority) && navigation?.getSnapshot().revision === listeningLease.revision} : undefined,
     [listeningLease, authority, navigation]);
+  const listeningFence = listeningOpen && local.kind === 'music' && sameAuthority(snapshot.authority, authority) ? local.fence : undefined;
+  const listeningSongCurrent = useCallback(() => {
+    if (!listeningLifetime || !listeningFence) return false;
+    const live = adapter.getSnapshot();
+    return listeningLifetime.isCurrent() && sameFence(live.fence, listeningFence);
+  }, [adapter, listeningFence, listeningLifetime]);
+  const listeningSong = useListeningSong(runtime.listeningSongDetail, listeningFence, listeningLifetime, listeningSongCurrent);
   const layoutCapture = useRef<number | undefined>(undefined), layoutCaptureRevision = useRef(0);
   const capture = useMemo(() => new NativeVideoSnapshotCapture({capture: (fence, options) => adapter.captureVideoSnapshot(fence, options), reportError: runtime.reportError,
     changed: (owner, image) => {if (alive.current) {
@@ -229,7 +239,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
   }});
   const audioFence = !theme.isTV && !snapshot.dock.remote && fence && local && (local.kind === 'music' || local.kind === 'audiobook') && sameFence(local.fence, fence) ? fence : undefined;
   const coverOpening = useRef<ListeningPaintOpening<typeof navigationState> | undefined>(undefined);
-  coverOpening.current = captureListeningOpening(coverOpening.current, listeningOpen, navigationState);
+  coverOpening.current = captureListeningOpening(coverOpening.current, !theme.isTV && listeningOpen, navigationState);
   const coverOpeningKey = coverOpening.current.key, coverScope = coverOpening.current.scope;
   const coverCurrent = useCallback(() => {
     if (runtime.retirementSignal?.aborted) return false;
@@ -485,6 +495,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     ...(listeningPorts ?? {}),
     onAddToPlaylist: theme.isTV && runtime.listeningPlaylist?.canOpen(nowPlaying.playback.fence) ? () => runtime.listeningPlaylist?.open(nowPlaying.playback.fence) : undefined,
     queuePolicy: runtime.listeningQueuePolicy, signal,
+    song: {token: listeningSong.song, pending: listeningSong.pending, favorite: listeningSong.favorite},
     sleepAtMs: snapshot.playback.listeningDeadlines?.sleepAtMs ?? null,
     sleepEnd: adapter.sleepEnd?.(nowPlaying.playback.fence),
     notice: snapshot.playback.listeningNotice ? listeningNoticeKey(snapshot.playback.listeningNotice) : undefined, reportError: runtime.reportError,
@@ -528,9 +539,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
         {!nowPlaying && dockedLocal?.expanded !== true && snapshot.playback.listeningNotice && <NativeListeningNotice key={snapshot.playback.listeningNotice}
           notice={listeningNoticeKey(snapshot.playback.listeningNotice)} bottomOffset={insets.bottom + (theme.platform === 'web' ? 100 : theme.platform === 'tablet' ? 66 : 62) + 10}/>}
         {previewListening && <ListeningPagePreview occupant={previewListening} queue={snapshot.queue?.view ?? undefined} sidePane={!!(snapshot.queue?.view || lyricsOffered)} width={width} height={height} topInset={insets.top} bottomInset={insets.bottom}/>}
-        {theme.isTV ? <TVListeningRoute value={listeningView} scope={authorityKey(authority)} onPresenceChange={onTVListeningPresenceChange}/> : listeningView && <ListeningSongOpening adapter={adapter} detail={runtime.listeningSongDetail}
-          fence={listeningView.occupant.playback.fence} lifetime={listeningLifetime}>{song => <NowPlayingScreen {...listeningView}
-            song={{token: song.song, pending: song.pending, favorite: song.favorite}}/>}</ListeningSongOpening>}
+        {theme.isTV ? <TVListeningRoute value={listeningView} scope={authorityKey(authority)} onPresenceChange={onTVListeningPresenceChange}/> : listeningView && <AudioPlayerPage {...listeningView}/>}
         {theme.isTV && nowPlaying && runtime.listeningPlaylist?.render(runtime)}
       </View>
     </Animated.View>
@@ -568,24 +577,6 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
         runtime.openServers('consent-kind'); runtime.playOn?.close();
       }}/>}
   </DockVideoExitProvider></View>;
-}
-
-/** Conditional presentation mounts a child whose own hook order is fixed. The
- * authority gate above stays before all listening presentation and reader work. */
-function ListeningSongOpening({adapter, detail, fence, lifetime, children}: {
-  adapter: NativeShellPlaybackAdapter;
-  detail: Parameters<typeof useListeningSong>[0];
-  fence: PlaybackFence;
-  lifetime: Parameters<typeof useListeningSong>[2];
-  children: (song: ReturnType<typeof useListeningSong>) => React.ReactNode;
-}) {
-  const current = useCallback(() => {
-    if (!lifetime) return false;
-    const live = adapter.getSnapshot();
-    return lifetime.isCurrent() && !!live.fence && sameFence(live.fence, fence);
-  }, [adapter, lifetime, fence]);
-  const song = useListeningSong(detail, fence, lifetime, current);
-  return <>{children(song)}</>;
 }
 
 /** The current song's lyric target, as a stable key string: the queue fence's session

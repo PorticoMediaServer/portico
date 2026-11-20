@@ -1,4 +1,6 @@
 import {DetailService, type DetailAction, type DetailScope} from '../../../../packages/client-core/src/detail';
+import {parseMediaItem} from '../../../../packages/client-core/src/media-item';
+import {readCatalogueItemResponse} from '../../../../packages/client-core/src/query/catalogue-reads';
 import type {QueuePlaybackView} from '../../../../packages/client-core/src/queue-controller';
 import {sameFence, type PlaybackFence, type QueuePlaybackFence} from '../../../../packages/player-core/src';
 import type {NativePlaybackReadLifetime} from '../platform/playback/types';
@@ -12,10 +14,11 @@ import {viewerQueriesFor} from './freshness';
 export type NativeListeningSong = Readonly<{itemId: string; libraryId: string; favorite: boolean; actions: readonly DetailAction[]}>;
 
 type Bound = Readonly<{viewer: string; family: string; authority: string; navigation: number; fence: QueuePlaybackFence;
-  lifetime: NativePlaybackReadLifetime; target: Readonly<{itemId: string; libraryId: string}>; scope: DetailScope; live: () => boolean}>;
+  lifetime: NativePlaybackReadLifetime; target: Readonly<{itemId: string; libraryId?: string}>; scope: DetailScope; live: () => boolean}>;
 type Offer = Readonly<{bound: Bound; favorite: boolean}>;
 
 const cancelled = () => Object.assign(new Error('cancelled'), {name: 'AbortError', code: 'cancelled'});
+const songKind = (kind: string) => kind === 'song' || kind === 'track';
 const conflict = (error: unknown) => (error as {code?: unknown} | null)?.code === 'personal_state_conflict';
 
 /** One bounded DetailService read/mutation for the exact song the queue is playing. Never the
@@ -53,7 +56,7 @@ export function createNativeListeningSongDetail(context: NativeShellBootstrapCon
     if (state.dock.local?.expanded !== true || !sameFence(state.fence, bound.fence) || !view || view.queue.currentEntryId !== bound.fence.entryId) return false;
     const entry = view.queue.entries.find(value => value.id === bound.fence.entryId), item = view.items.find(value => value.entryId === bound.fence.entryId);
     return !!entry && !!item && entry.id === bound.fence.entryId && loadedAvailability(view, bound.fence.entryId) === true && !entry.hidden && !entry.removed
-      && item.entryId === bound.fence.entryId && item.kind === 'song' && item.itemId === bound.target.itemId && item.libraryId === bound.target.libraryId;
+      && item.entryId === bound.fence.entryId && songKind(item.kind) && entry.itemId === item.itemId && item.itemId === bound.target.itemId && item.libraryId === bound.target.libraryId;
   };
   const bind = (fence: PlaybackFence, lifetime: NativePlaybackReadLifetime): Bound | undefined => {
     if (fence.kind !== 'queue') return;
@@ -62,7 +65,7 @@ export function createNativeListeningSongDetail(context: NativeShellBootstrapCon
     if (!keys || !scope || !authority || disposed || !context.current() || !lifetime.isCurrent() || lifetime.signal.aborted
       || state.dock.local?.expanded !== true || !sameFence(state.fence, queueFence) || !view || view.queue.currentEntryId !== queueFence.entryId) return;
     const entry = view.queue.entries.find(value => value.id === queueFence.entryId), item = view.items.find(value => value.entryId === queueFence.entryId);
-    if (!entry || !item || item.kind !== 'song' || entry.hidden || entry.removed || loadedAvailability(view, queueFence.entryId) !== true || !item.itemId || !item.libraryId) return;
+    if (!entry || !item || !songKind(item.kind) || entry.hidden || entry.removed || entry.itemId !== item.itemId || loadedAvailability(view, queueFence.entryId) !== true || !item.itemId) return;
     const bound: Omit<Bound, 'live'> = {viewer: keys.viewer, family: keys.family, authority, navigation: context.navigation.getSnapshot().revision,
       fence: queueFence, lifetime, target: {itemId: item.itemId, libraryId: item.libraryId}, scope};
     return Object.freeze({...bound, live: () => liveBound(bound)});
@@ -99,14 +102,23 @@ export function createNativeListeningSongDetail(context: NativeShellBootstrapCon
     operation.service = service; active.add(operation);
     const close = () => {lifetime.signal.removeEventListener('abort', stop); off.forEach(stop => stop()); active.delete(operation); service?.dispose();};
     try {
-      await service.select(bound.target);
+      let libraryId = bound.target.libraryId;
+      if (!libraryId) {
+        // The rebuilt queue supplies the exact track ID and availability, but omits library ID.
+        // Resolve that fact from the catalogue using the same viewer and opening as the detail.
+        const item = parseMediaItem(await readCatalogueItemResponse(api, bound.target.itemId, operation.abort.signal));
+        if (item.id !== bound.target.itemId || item.kind !== 'song' || !item.available) {close(); return;}
+        libraryId = item.libraryId;
+      }
+      if (!bound.live() || operation.abort.signal.aborted) {close(); return;}
+      await service.select({itemId: bound.target.itemId, libraryId});
       if (!bound.live() || operation.abort.signal.aborted) {close(); return;}
       const data = service.getSnapshot().data;
       // The Detail parser only requires a nonempty kind, and its favorite action is the server's
       // to offer on any title. This port is for the queue's song, so the opened projection must
       // itself say song for the exact library target; a queue display kind is not that proof.
-      if (!data || data.item.id !== bound.target.itemId || data.item.kind !== 'song'
-        || data.item.libraryId !== bound.target.libraryId || data.scope.libraryId !== bound.target.libraryId) {close(); return;}
+      if (!data || data.item.id !== bound.target.itemId || !songKind(data.item.kind)
+        || data.item.libraryId !== libraryId || data.scope.libraryId !== libraryId) {close(); return;}
       return {service, data, operation, close};
     } catch {close(); return;}
   };
@@ -120,7 +132,7 @@ export function createNativeListeningSongDetail(context: NativeShellBootstrapCon
       try {
         if (opened.operation.abort.signal.aborted || !bound.live()) return;
         const data = opened.data;
-        const token: NativeListeningSong = Object.freeze({itemId: bound.target.itemId, libraryId: bound.target.libraryId,
+        const token: NativeListeningSong = Object.freeze({itemId: bound.target.itemId, libraryId: data.item.libraryId,
           favorite: data.personal.favorite, actions: data.actions});
         issued.set(token, Object.freeze({bound, favorite: data.personal.favorite}));
         return token;

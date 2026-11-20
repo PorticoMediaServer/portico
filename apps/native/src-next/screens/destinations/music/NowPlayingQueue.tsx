@@ -9,7 +9,7 @@ import {durationText} from '../../../../../../packages/client-core/src/presentat
 import {Artwork} from '../../../kit/artwork';
 import {Focusable} from '../../../kit/controls';
 import {FocusRegion, type FocusEdges} from '../../../kit/focus';
-import type {NowPlayingScreenProps} from './NowPlayingScreen';
+import type {NowPlayingScreenProps} from '../../../pages/shared/player/audio-player';
 import {useTVQueueSongMenu} from './TVQueueSongMenu';
 import {useStableFocusOrder} from '../../../kit/focus/useStableFocusOrder';
 import {Menu, type MenuEntry} from '../../../kit/overlays';
@@ -79,6 +79,24 @@ export function nowPlayingQueueEntry(window: QueuePlaybackWindow | undefined, en
   if (!window) return;
   const rows = window.entries.filter(entry => entry.entryId === entryId);
   return rows.length === 1 ? rows[0] : undefined;
+}
+
+/** The accepted queue window is the source of the playback context. */
+export function nowPlayingSource(view: QueuePlaybackView | undefined): string | undefined {
+  if (!view) return undefined;
+  const window = nowPlayingQueueWindow(view);
+  const entryId = view.queue.currentEntryId;
+  const facts = entryId ? nowPlayingQueueEntry(window, entryId) : undefined;
+  if (facts?.available) {
+    const label = window?.segments.find(segment => segment.id === facts.segmentId && segment.label)?.label;
+    if (label) return label;
+  }
+  const entry = view.queue.entries.find(item => item.id === entryId);
+  const track = view.items.find(item => item.entryId === entryId);
+  if (!entry || entry.hidden || entry.removed || !track || entry.itemId !== track.itemId) return;
+  // The rebuilt queue projects plain item entries for album playback. The album on the
+  // current entry is still a server fact. Named segments, such as playlists, take precedence.
+  if (entry.sourceContext.kind === 'item' && !view.queue.radio || entry.sourceContext.kind === 'album' && entry.sourceContext.id === track.albumId) return track.album;
 }
 
 export function nowPlayingQueueRows(view: QueuePlaybackView, options: Readonly<{includePlayed?: boolean}> = {}): readonly Row[] {

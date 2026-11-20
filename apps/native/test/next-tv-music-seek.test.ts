@@ -27,7 +27,7 @@ async function fixture() {
     '../../../platform/tv-keys': {useTVKeyEvent(callback: (event: any) => void) {listener = raw => {const event = keys.read(raw); if (event) callback(event);};}},
     '../../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: Parameters<typeof createTVSeekRepeat>[0]) => createTVSeekRepeat(step, clock)},
     '../../../../../../packages/player-core/src/identity': {sameFence}, '../../../kit/dock/model': model,
-    '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff'}, isTV: true})},
+    '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/player/parts': {PlayerScrubBar: 'ScrubBar'}, '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff'}, isTV: true})},
     '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../destinations/useEntryFocus': {},
   });
   const fence = {kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile'}, run: 1}, sessionId: 'session', itemId: 'song', sourceId: 'queue', entryId: 'entry', generation: 1};

@@ -20,7 +20,7 @@ import {ArtBox} from './parts';
 export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number; testID?: string; anchorRef?: React.Ref<View>; focusId?: string; busy?: boolean; repeatOne?: boolean}>;
 /** An audiobook's Speed, Sleep timer and Chapters. A phone draws each as a tile (its `value` over its label, outlined
  * in the accent when `active`); the wide forms draw Speed and Sleep timer as a row of their `choices` with `help`. */
-export type AudioOption = Omit<AudioControl, 'icon'> & Readonly<{icon?: IconName; value?: string; help?: string; choices?: readonly Readonly<{label: string; selected?: boolean; onPress: () => void}>[]}>;
+export type AudioOption = Omit<AudioControl, 'icon'> & Readonly<{icon?: IconName; value?: string; help?: string; choices?: readonly Readonly<{label: string; selected?: boolean; disabled?: boolean; onPress: () => void}>[]}>;
 /** The time read-outs: where it is and, at the other end, the length (music on a wide form) or the time left. */
 export type AudioTimes = Readonly<{position: string; end: string; /** A phone's audiobook: the time left in the book, between them. */ middle?: string}>;
 
@@ -43,7 +43,7 @@ export type AudioPlayerFrameProps = Readonly<{
   badge?: string;
   /** The artist then the album; an audiobook's author then "Read by" the narrator. A phone says the first only; TV puts the second on its own line. */
   byline?: readonly string[];
-  /** The heart at the end of the title row, and on the wide forms More beside it. Not drawn on TV. */
+  /** The heart at the end of the title row, and on the wide forms More beside it. On TV it sits with the other actions. */
   favourite?: AudioControl; titleMore?: AudioControl;
   /** An audiobook: the chapter line over the scrubber ("Chapter 8" ... "of 19"). */
   chapter?: Readonly<{label: string; of: string}>;
@@ -200,19 +200,19 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
   </View>;
 }
 
-function WideAudio({close, more, context, source, device, notice, artwork, cover, icon, title, badge, byline = [], favourite, titleMore, chapter, signal, scrubber, times, transport, lyrics, queue, speed, sleep, panel, loading = false, testID}: AudioPlayerFrameProps) {
+function WideAudio({close, more, context, source, device, notice, artwork, cover, icon, title, badge, byline = [], favourite, titleMore, chapter, signal, scrubber, times, transport, lyrics, queue, speed, sleep, chapters, panel, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = frame.form === 'medium' ? 'medium' as const : 'expanded' as const;
   // An upright tablet (tablet-play 10) keeps the device with Lyrics and Up next in a pill row under the transport; a tablet on its side and the web put it at the top right.
   const upright = window.height > window.width, book = chapter !== undefined, edge = wideSpec.panelInset[form], panelWidth = panel !== undefined ? spec.upNextWidth[form] : 0;
   const top = <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingHorizontal: edge}}>
     <Glyph item={close} loading={false} disc/><Context context={context} source={source} loading={loading} centred={false}/>
-    {device && !upright && <Button testID={device.testID} variant="glass" size="small" icon={device.icon} disabled={device.disabled || loading} onPress={device.onPress}>{device.label}</Button>}
+    {device && (!upright || book) && <Button ref={device.anchorRef} testID={device.testID} variant="glass" size="small" icon={device.icon} disabled={device.disabled || loading} onPress={device.onPress}>{device.label}</Button>}
     {more && <Glyph item={more} loading={loading} disc/>}
   </View>;
   // The column is as wide as the cover, which is the spec's size or the largest that leaves the column's fixed rows their room.
   const rows = spec.titleSlot[form] + wideSpec.scrubberGap[form] + spec.scrubber[form] + wideSpec.transportGap[form] + icons.primary[form] + wideSpec.belowGap[form] + theme.targets.touch;
   const room = window.height - insets.top - insets.bottom - spec.topBar[form] - wideSpec.titleGap[form] - rows - theme.space.lg;
-  const column = book ? wideSpec.bookColumn[form] : Math.max(0, Math.min(spec.artwork[form], frame.width - panelWidth - 3 * edge, room));
+  const column = Math.max(0, Math.min(frame.width - panelWidth - 3 * edge, book ? wideSpec.bookColumn[form] : Math.min(spec.artwork[form], room)));
   // R2: the title is the form scale's `audioTitle`, a song's and an audiobook's alike.
   const titleSize = theme.type.audioTitle.fontSize;
   const words = (size: 'title' | 'pageTitle') => <View style={{flex: 1, minWidth: 0, gap: theme.space.xs}}>{loading ? <><SkeletonBlock width="64%" height={titleSize}/><SkeletonBlock width="40%" height={theme.type.intro.fontSize}/></> : <>
@@ -237,6 +237,9 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
     {chapter && <View style={{marginTop: wideSpec.chapterGap}}><ChapterLine chapter={chapter} loading={loading} wide/></View>}
     <View style={{marginTop: chapter ? theme.space.xs : wideSpec.scrubberGap[form]}}><Times times={times} loading={loading} ends={scrubber}/></View>
     <View style={{marginTop: wideSpec.transportGap[form]}}><Transport transport={transport} loading={loading} gap={wideSpec.transportSpacing[form]}/></View>
+    {book && chapters && <View style={{alignItems: 'flex-start', marginTop: wideSpec.rowsGap}}><Button testID={chapters.testID}
+      variant={chapters.active ? 'glass' : 'text'} size="small" icon={chapters.icon} disabled={chapters.disabled || loading}
+      accessibilityState={{expanded: chapters.active}} onPress={chapters.onPress}>{chapters.label}</Button></View>}
     {(pills || options) && <View style={{marginTop: book ? wideSpec.rowsGap : wideSpec.belowGap[form], gap: wideSpec.belowGap[form]}}>{options}{pills}</View>}
   </View>;
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, edge)}}>
@@ -252,7 +255,7 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
 }
 
 /** TV (final3-tv-12): the regions at the mock-up's places from the cover's top edge, so nothing moves with the title's length. */
-function TVAudio({more, context, source, artwork, cover, icon, title, byline = [], chapter, signal, scrubber, times, transport, lyrics, playlist, speed, sleep, chapters, panel, tvFocus, panelTitle, loading = false, testID}: AudioPlayerFrameProps) {
+function TVAudio({more, context, source, artwork, cover, icon, title, byline = [], chapter, signal, scrubber, times, transport, lyrics, playlist, favourite, speed, sleep, chapters, panel, tvFocus, panelTitle, loading = false, testID}: AudioPlayerFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), form = 'tv' as const, art = spec.artwork[form];
   // The title that needed a second line at its role (state keyed by the title, so a new title measures afresh).
   const titleStyle = theme.type.audioTitle, [longTitle, setLongTitle] = useState<string>(), long = longTitle === title;
@@ -282,6 +285,8 @@ function TVAudio({more, context, source, artwork, cover, icon, title, byline = [
         <View style={{position: 'absolute', top: tvSpec.transportTop + shift, width: tvSpec.scrubberWidth}}><AudioFocusRegion region={tvFocus?.transport}><Transport transport={transport} loading={loading} gap={transport[0] || transport[4] ? undefined : theme.space.lg}/></AudioFocusRegion></View>
         <View style={{position: 'absolute', top: tvSpec.moreTop + shift}}><AudioFocusRegion region={tvFocus?.actions}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm}}>
           {buttons.map(item => <Button key={item.label} testID={item.testID} variant="glass" size="compact" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}>{label(item)}</Button>)}
+          {favourite && <Button focusId={favourite.focusId} testID={favourite.testID} variant="glass" size="compact" iconOnly icon={favourite.icon}
+            accessibilityState={{checked: favourite.active}} accessibilityLabel={favourite.label} disabled={favourite.disabled || loading} onPress={favourite.onPress}/>}
           {more && <Button ref={more.anchorRef} focusId={more.focusId} testID={more.testID} variant="glass" size="compact" iconOnly icon={more.icon} accessibilityLabel={more.label} disabled={more.disabled || loading} onPress={more.onPress}/>}
         </View></AudioFocusRegion></View>
       </View>
