@@ -337,7 +337,7 @@ export function ListeningSeekPaint({fence, fraction, span, seconds, label, testI
       if (live && channel && active?.value === owner && (ticket?.value ?? 0) > 0) channel.travel.value = width.value;
     }} style={{height: 28, justifyContent: 'center'}}>
     <View style={{height: 4, borderRadius: 2, backgroundColor: 'rgba(237,245,250,.18)'}}>
-      <Animated.View style={[{position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 2, backgroundColor: theme.colors.accentStrong}, fill]}/>
+      <Animated.View style={[{position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 2, backgroundColor: theme.colors.text}, fill]}/>
       <Animated.View pointerEvents="none" style={[{position: 'absolute', top: 2 - knobSize / 2, left: 0, width: knobSize, height: knobSize, borderRadius: knobSize / 2, backgroundColor: theme.colors.white}, knob]}/>
     </View>
   </View></GestureDetector>;
