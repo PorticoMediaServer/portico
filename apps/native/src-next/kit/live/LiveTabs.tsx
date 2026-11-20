@@ -1,8 +1,7 @@
 import React from 'react';
 import {Text, View} from 'react-native';
-import {Segmented} from '../../kit/controls';
-import {shellType} from '../../kit/shell/visual';
-import {useTheme} from '../../kit/theme';
+import {Segmented} from '../controls';
+import {useTheme} from '../theme';
 
 /** tablet-play6 and desktop-live: at expanded widths Live TV's title carries the Guide / Recordings pair,
  * on the guide and on the Recordings page alike. Touch only; TV keeps its own controls row. */
@@ -13,14 +12,13 @@ export function NativeLiveTabs({value, onGuide, onRecordings, conflicts = 0, t, 
   t: (key: 'search.chip.liveTV' | 'channels.tabGuide' | 'recordings.title' | 'next.live.recordingsConflicts', values?: Readonly<{count: number}>) => string; children?: React.ReactNode;
 }) {
   const theme = useTheme();
-  return <View testID="live-header" style={{flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 44, marginBottom: 14}}>
-    <Text accessibilityRole="header" style={[shellType(34, 800, 'normal', -.04), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>
+  return <View testID="live-header" style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, minHeight: theme.targets.touch}}>
     {(onGuide || onRecordings) && <Segmented testID="live-tabs" variant="browse" accessibilityLabel={t('search.chip.liveTV')} value={value}
       onValueChange={next => {if (next === value) return; if (next === 'guide') onGuide?.(); else onRecordings?.();}}
       itemProps={item => ({testID: item.value === 'recordings' ? 'live-recordings' : 'live-tab-guide', accessibilityRole: 'tab',
         ...(item.value === 'recordings' && conflicts > 0 ? {accessibilityLabel: t('next.live.recordingsConflicts', {count: conflicts})} : {})})}
       items={[{value: 'guide', label: t('channels.tabGuide')}, {value: 'recordings', label: conflicts > 0
-        ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}><Text style={[theme.type.button, {color: value === 'recordings' ? theme.colors.text : theme.colors.textTertiary, fontSize: 14 * theme.textScale}]}>{t('recordings.title')}</Text><LiveConflictDot/></View>
+        ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}><Text style={[theme.type.button, {color: value === 'recordings' ? theme.colors.text : theme.colors.textTertiary}]}>{t('recordings.title')}</Text><LiveConflictDot/></View>
         : t('recordings.title')}]}/>}
     <View style={{flex: 1}}/>
     {children}
