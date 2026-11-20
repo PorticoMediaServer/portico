@@ -3,19 +3,19 @@ import {Platform} from 'react-native';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeRouteRenderer} from '../../shell/route-registry';
 import type {NativePresentationBinding, NativeRouteSnapshot, NativeShellRoute} from '../../shell/routes';
-import type {ReadNativeHost} from './ReadNativeHost';
+import type {ReaderPage} from '../../pages/touch/reading/ReaderPage';
 import {nativeReadHost} from './host-component';
 import {readRouteBack} from './read-route-back';
 
 type ReadTarget = Extract<NativeShellRoute, {kind: 'read'}>;
-type Preferences = React.ComponentProps<typeof ReadNativeHost>['preferences'];
+type Preferences = React.ComponentProps<typeof ReaderPage>['preferences'];
 type Entry = Readonly<{key: string; route: ReadTarget; binding: NativePresentationBinding}>;
 
 /** Slots first remove the evicted guest. A new slot is assigned only after the
  * exact old guest reports its layout-effect teardown, never on a timer. */
 function ReadingResidence({entries, desired, expected, context, preferences, Host, openSettings, alive}: {
   entries: readonly Entry[]; desired: readonly string[]; expected: NativeRouteSnapshot; context: NativeShellBootstrapContext;
-  preferences: Preferences; Host: typeof ReadNativeHost; openSettings: () => void; alive: () => boolean;
+  preferences: Preferences; Host: typeof ReaderPage; openSettings: () => void; alive: () => boolean;
 }) {
   const [slots, setSlots] = useState<readonly string[]>([]), [teardowns, changed] = useState(0);
   const mounted = useRef(new Map<string, object>());

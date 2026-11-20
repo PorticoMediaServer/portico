@@ -1,4 +1,5 @@
 // @fabric-react
+import {readerFixtureModule} from './helpers/reader-fixture.mjs';
 import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -29,18 +30,18 @@ function find(value: unknown, type: unknown): Node | undefined {
  * element and actual route projection with in-memory session ports. This is
  * not a device or a signed-publication enrollment test. */
 test('twenty original sessions can evict and restore real guest components without reopening', async () => {
-  const {ReadingGuestView, createReadingGuestBridge} = await screenModule(new URL('../src-next/screens/read/ReadingGuestView.tsx', import.meta.url), {
+  const {ReadingGuestView, createReadingGuestBridge} = await screenModule(new URL('../src-next/kit/reading/ReadingGuestView.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native-webview': {default: 'WebView'},
     '../../../../../packages/client-core/src': {createReadingHost}, '../../../../../packages/client-core/src/route-identity': {routeBase64},
     '../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24).fill(7)}},
     '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => async () => 'cancelled'},
-    './asset-origin': {readerNavigationAllowed, readerDelivery}, './startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
+    '../../screens/read/asset-origin': {readerNavigationAllowed, readerDelivery}, '../../screens/read/startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
   const readerStatusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
     react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
     '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
   });
-  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
+  const {NativeReadingGuestHost} = await readerFixtureModule('Guest', {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react: {...React, default: React}, 'react-native': {View: 'View', NativeModules: {PorticoReaderAssets: {bundle: async () => ({url: appleReaderEntry})}}, useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
@@ -102,7 +103,7 @@ test('twenty original sessions can evict and restore real guest components witho
       else await mount(index, row.props.active, row.props.onGuestState);
     }
     assert.ok(mounted.size <= 2);
-    assert.equal([...mounted.values()].filter(item => {const props = (item.tree() as Node).props as {pointerEvents?: string; covered?: boolean}; return props.pointerEvents === 'auto' || props.covered === false;}).length, navigation.getSnapshot().route.kind === 'read' ? 1 : 0);
+    assert.equal([...mounted.values()].filter(item => {const props = (item.tree() as Node).props as {active?: boolean}; return props.active === true;}).length, navigation.getSnapshot().route.kind === 'read' ? 1 : 0);
   };
   try {
     for (let index = 0; index < 20; index++) {
