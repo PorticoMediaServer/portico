@@ -48,7 +48,14 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   useRowPageBoundary(enabled && (!singleRow || songs), registry, regionId, tailId, tailId ? {hasMore: true, waitingId: tailId,
     failed: paging?.error?.retryable, loading: !!paging?.loading, requestNext: retry} : undefined);
   const request = () => {if (enabled && tailId && !paging?.loading && !paging?.error) void destination.next(group.id).catch(runtime.reportError);};
+  const [caption, setCaption] = useState<{firstId: string | undefined; height: number}>();
+  const firstId = group.items[0]?.id;
+  const measureCaption = (height: number) => setCaption(current =>
+    current && current.firstId === firstId && current.height >= height ? current : {firstId, height});
   const height = songs ? 84 : group.id === 'live-tv' ? 225 : group.id === 'episodes' ? 210 : ['movies', 'shows'].includes(group.id) ? 390 : 290;
+  const artHeight = group.id === 'movies' || group.id === 'shows' ? cardWidth * 1.5
+    : group.id === 'episodes' ? cardWidth * 9 / 16 : cardWidth;
+  const rowHeight = Math.max(height, artHeight + (caption?.firstId === firstId ? caption?.height ?? 0 : 0));
   const failure = paging?.error ? runtime.error(paging.error, retry, 'search') : undefined;
   const groupFailure = group.status === 'error' ? runtime.error({code: group.errorCode}, paging?.error ? retry : () => {void destination.retry().catch(runtime.reportError);}) : undefined;
   const edges = {left: keyboardRegion, ...(previousRegion ? {up: previousRegion} : {}), ...(nextRegion ? {down: nextRegion} : {})};
@@ -57,14 +64,14 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   if (drawnAsRow) {
     const waitingId = tailId ?? paging?.fulfilled?.waitingId;
     return <View style={{marginTop: 46}}>{heading}<Row<Cell> title="" showHeading={false} style={{marginTop: 30, marginLeft: -focusRoom}}
-      items={items.filter(cell => cell.kind === 'entry')} getKey={getKey} getFocusId={getKey} itemWidth={cardWidth} itemHeight={height} gap={28} gutter={focusRoom} rightGutter={0} initialViewportWidth={width + focusRoom}
+      items={items.filter(cell => cell.kind === 'entry')} getKey={getKey} getFocusId={getKey} itemWidth={cardWidth} itemHeight={rowHeight} gap={28} gutter={focusRoom} rightGutter={0} initialViewportWidth={width + focusRoom}
       selection={{active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}}}
       focus={{id: regionId, enabled, entry: nativeSearchEntryKey(group.id, group.items[0]!), edges, neighbors: {next: nextRegion, previous: previousFallback}, screenStart}}
       refocus={refocus}
       paging={waitingId ? {hasMore: !!tailId, waitingId, waitingItem: {kind: 'tail', id: waitingId}, loading: !!paging?.loading, failed: !!paging?.error,
         fulfilled: paging?.fulfilled, requestNext: () => {if (paging?.error) retry(); else request();}} : undefined}
       renderItem={(cell, context) => <SearchGridCard entry={cell.kind === 'entry' ? cell.entry : undefined} group={group.id} width={cardWidth} runtime={runtime} actions={actions}
-        focusId={context.focusId} testID={context.testID} index={context.index} selection={cell.kind === 'entry' ? selection?.item(cell.entry, group.id) : undefined} disabled={!enabled} onFocus={() => {context.onFocus(); if (context.waiting) request();}} onBlur={context.onBlur}/>}/>
+        titleLines={0} onCaptionLayout={measureCaption} focusId={context.focusId} testID={context.testID} index={context.index} selection={cell.kind === 'entry' ? selection?.item(cell.entry, group.id) : undefined} disabled={!enabled} onFocus={() => {context.onFocus(); if (context.waiting) request();}} onBlur={context.onBlur}/>}/>
     </View>;
   }
   return <FocusRegion id={regionId} enabled={enabled} entry={items[0] && getKey(items[0])} orientation={items.length ? 'free' : 'vertical'}
@@ -76,7 +83,7 @@ export function TVSearchSection({group, destination, runtime, actions, selection
       scrollY={scrollY} viewportHeight={viewportHeight} coordinateRoot={contentRoot} initialWidth={width} layoutRevision={layoutRevision} onGeometry={geometry} style={{marginTop: 30}}
       renderItem={(cell, position) => <FocusItem focusId={getKey(cell)} cell={{index: position.index, pending: cell.kind === 'tail'}} waiting={cell.kind === 'tail' && !failure}>
         {cell.kind === 'entry' ? <SearchGridCard index={position.index} previousFocused={focusedIndex === position.index - 1} entry={cell.entry} group={group.id} width={cardWidth} runtime={runtime} actions={actions}
-          selection={selection?.item(cell.entry, group.id)} disabled={!enabled} onFocus={() => {setFocusedIndex(position.index); position.onFocus(); if (position.index >= group.items.length - columns) request();}}
+          selection={selection?.item(cell.entry, group.id)} titleLines={0} disabled={!enabled} onFocus={() => {setFocusedIndex(position.index); position.onFocus(); if (position.index >= group.items.length - columns) request();}}
           onBlur={() => setFocusedIndex(current => current === position.index ? undefined : current)}/>
           : <Focusable focusId={cell.id} focusKind="card" disabled={!enabled || !!paging?.error && !paging.error.retryable} focusableWhenDisabled={!!paging?.error && !paging.error.retryable}
             accessibilityRole={failure ? 'button' : undefined} accessibilityLabel={typeof failure?.title === 'string' ? failure.title : defaultI18n.t('saved.loading')}
