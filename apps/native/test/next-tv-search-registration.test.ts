@@ -123,6 +123,7 @@ async function setup() {
     './reading-search': {createNativeReadingSearch}, './ReadingSearchScreen': {ReadingSearchScreen: 'ReadingSearchScreen'},
   });
   await screenModule(new URL('../src-next/screens/search/register.tsx', import.meta.url), {
+    '@portico/design': {frameForm: () => 'tv'}, '../../pages/touch/search/SearchPage': {SearchPage: 'SearchPage'},
     './on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, 
     react: hooks().react, 'react-native': {AppState, Platform: {isTV: true}, View: 'View'}, '../../shell/route-registry': registry,
     '../../shell/model': {authorityKey},

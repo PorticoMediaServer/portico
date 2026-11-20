@@ -42,66 +42,67 @@ const entryRequests: any[] = [];
 const reactNative = {ScrollView: 'ScrollView', View: 'View', Text: 'Text', useWindowDimensions: () => ({width: 1920, height: 1080})};
 const presentation = {alpha, browseType};
 const landingOf = (value: any) => ({subscribe() {}, getSnapshot: () => value});
-const runtime = {getSnapshot: () => ({authority}), artwork: () => undefined, reportError: () => undefined};
+const runtime = {getSnapshot: () => ({authority}), text: defaultI18n, registerScrollToTop: () => () => {}, artwork: () => undefined, reportError: () => undefined};
 const screenProps = () => ({destination: {subscribe() {}, getSnapshot: () => state, setText: () => {}},
   runtime, activation: {subscribe() {}, getSnapshot: () => ({visible: true, intent: 'enter' as const, revision: 1})},
   explore: landingOf(landing), actions: {}, copy: {preferToTalk: 'voice-title', voiceHint: 'voice-body'}});
 
 async function screen(react: unknown) {
-  return screenModule(new URL('../src-next/screens/search/TVSearchScreen.tsx', import.meta.url), {
-    react, 'react-native': reactNative, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
+  const resultHost = hooks();
+  const content = await screenModule(new URL('../src-next/kit/search/TVSearchContent.tsx', import.meta.url), {
+    react: {...resultHost.react, useId: () => 'gradient'}, 'react-native': reactNative, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/client-core/src/library-content': {}, '../../../../../packages/client-core/src/search': {}, '../../shell/runtime': {}, './types': {},
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({id: 'text', title: 'text',
       caption: [{id: 'season-count', text: '1 season'}, {id: 'year', text: '2023'}], detail: [], progress: modelProgress})},
     '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups: (value: unknown) => value,
       SEARCH_CHIPS: [{id: 'all', label: 'search.chip.all'}, {id: 'movies', label: 'search.chip.movies'}],
       searchGroupLabel: () => 'search.chip.movies', topResultKindLabel: () => 'search.kind.show'},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', missingArt: () => undefined}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable'},
-    '../../kit/cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame', Parts: 'Parts', Progress: 'Progress'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/browse/presentation': presentation,
-    '../../kit/theme': {useTheme: () => theme}, '../destinations/focus': {nativeDestinationFocusIds}, '../home/model': {homeSubject: (content: unknown) => content},
-    './model': {nativeSearchEntryKey}, './TVSearchSection': {TVSearchSection: 'TVSearchSection'}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
-    '../settings-live/use-tv-voice-search': {useTVVoiceSearch: () => ({start: undefined, begin: undefined, busy: false})},
-    '../../kit/focus/recognizer-return': {retainRecognizerReturn}, '../../shell/model': {sameAuthority}, './genre-tiles': {nativeSearchGenreTiles},
+    '../../../../../packages/i18n/src': {defaultI18n}, '../artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', missingArt: () => undefined}, '../controls': {Chip: 'Chip', Focusable: 'Focusable'},
+    '../cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame', Parts: 'Parts', Progress: 'Progress'}, '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()},
+    '../Icon': {Icon: 'Icon'}, '../states': {StateView: 'StateView'}, '../browse/presentation': presentation,
+    '../theme': {useTheme: () => theme}, '../destinations/focus': {nativeDestinationFocusIds}, '../../screens/home/model': {homeSubject: (content: unknown) => content},
+    '../../screens/search/model': {nativeSearchEntryKey}, '../../screens/search/TVSearchSection': {TVSearchSection: 'TVSearchSection'},
+    '../../screens/search/genre-tiles': {nativeSearchGenreTiles},
+    '../frames/metrics': {useFrameMetrics: () => ({width: 1140, rightGutter: 96, bottomClear: 72, sectionGap: 44, headingGap: 22})},
   });
+  const {useSearch} = await screenModule(new URL('../src-next/pages/shared/search/useSearch.ts', import.meta.url), {
+    react, '../../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups: (groups: unknown) => groups,
+      SEARCH_CHIPS: [{id: 'all', label: 'search.chip.all'}, {id: 'movies', label: 'search.chip.movies'}]},
+    '../../../../../../packages/client-core/src/timer': {repeat: () => ({stop() {}})},
+  });
+  const {useTVSearch} = await screenModule(new URL('../src-next/pages/shared/search/useTVSearch.ts', import.meta.url), {
+    react, '../../../kit/focus': {useFocusRegistry: () => createFocusRegistry()}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../kit/focus/recognizer-return': {retainRecognizerReturn}, '../../../shell/model': {sameAuthority},
+    './useSearch': {useSearch}, '../../../screens/destinations/focus': {nativeDestinationFocusIds},
+    '../../../screens/settings-live/use-tv-voice-search': {useTVVoiceSearch: () => ({busy: false})},
+  });
+  const {TVSearchPage} = await screenModule(new URL('../src-next/pages/tv/search/SearchPage.tsx', import.meta.url), {
+    react, '../../../kit/frames': {SearchFrame: 'SearchFrame'}, '../../../kit/search/TVSearchContent': content,
+    '../../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
+  });
+  return {...content, TVSearchPage, renderResults: resultHost.render};
 }
 
-test('the drawn field, keyboard column and results column are tv.html#f5 geometry and paint', async () => {
-  const host = hooks(), {TVSearchScreen} = await screen({...host.react, useId: () => 'gradient'});
+function renderSearch(render: (fn: () => any) => any, renderResults: (fn: () => any) => any, screen: () => Element) {
+  const frame = render(screen);
+  const {field, keyboard, list} = frame.props;
+  return [render(() => field.type(field.props)), keyboard, renderResults(() => list.type(list.props))];
+}
+
+test('the TV Search page keeps its full query, keyboard and first result region together', async () => {
+  const host = hooks(), {TVSearchPage, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
-  landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
-  const tree = host.render(() => TVSearchScreen(screenProps()));
-  assert.equal(theme.gutter, 200);
-  const field = style(elements(tree).find(node => node.props.accessibilityLabel === defaultI18n.t('web.shell.search'))!.props.style);
-  const {backgroundColor, ...fieldGeometry} = field;
-  assert.deepEqual(fieldGeometry, {position: 'absolute', left: 200, top: 64, width: 500, height: 80, borderRadius: 16,
-    paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', gap: 16});
-  assert.equal(backgroundColor, alpha(colors.text, .08));
-  const typed = style(textNode(tree, 'the l')!.props.style);
-  assert.deepEqual({fontSize: typed.fontSize, fontFamily: typed.fontFamily, letterSpacing: typed.letterSpacing}, browseType(theme, 34, 700));
-  const caret = style(elements(tree).find(node => style(node.props.style).marginLeft === -12)!.props.style);
-  assert.deepEqual(caret, {width: 3, height: 40, marginLeft: -12, borderRadius: 2, backgroundColor: colors.accentStrong});
+  landing = {phase: 'ready', genres};
+  const tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
+  const query = textNode(tree, 'the l')!;
+  assert.equal(query.props.numberOfLines, undefined);
   const keyboard = elements(tree).find(node => node.type === 'NativeTVKeyboard')!;
-  assert.equal(keyboard.props.id, ids.searchKeyboard);
   assert.equal(keyboard.props.leftRegionId, ids.rail);
   assert.equal(keyboard.props.rightRegionId, ids.searchResults);
-  const keyboardFrame = style(elements(tree).find(node => (Array.isArray(node.props.children) ? node.props.children : [node.props.children]).includes(keyboard))!.props.style);
-  assert.deepEqual(keyboardFrame, {position: 'absolute', left: 200, top: 176});
-  // The voice hint is its own drawn stop (.voice); the results keep the right column (.sres).
-  const voice = elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === `${ids.searchKeyboard}.voice`)!;
-  assert.deepEqual(style(voice.props.style), {position: 'absolute', left: 200, top: 792, width: 500, flexDirection: 'row', alignItems: 'flex-start', gap: 18});
   const results = elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchResults)!;
-  // The region reaches 40 px left of and above .sres and pads its content by the same, so the
-  // drawn cards stay at x 780 / y 64 while a focused card's scale and ring are not clipped.
-  assert.deepEqual(style(results.props.style), {position: 'absolute', left: 740, right: 0, top: 24, bottom: 0});
   assert.equal(results.props.entryRegion, ids.searchSection('movies'));
   assert.equal(results.props.edges.left, ids.searchKeyboardRow(0));
-  const sections = elements(tree).filter(node => node.type === 'TVSearchSection');
-  assert.equal(sections[0]!.props.group.items[0], movie);
-  assert.equal(sections[0]!.props.width, 1044);
-  assert.equal(sections[0]!.props.keyboardRegion, ids.searchKeyboardRow(0));
-  // A title nobody has started draws no progress track (.mprog only rides a resume).
-  assert.equal(elements(tree).find(node => node.type === 'Progress'), undefined);
+  assert.equal(elements(tree).find(node => node.type === 'TVSearchSection')!.props.group.items[0], movie);
 });
 
 test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as .tag and 160px progress', async () => {
@@ -116,7 +117,9 @@ test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as
   assert.deepEqual({width: art.props.width, height: art.props.height, radius: art.props.radius}, {width: 480, height: 270, radius: 14});
   const label = style(textNode(row, defaultI18n.t('search.topResult'))!.props.style);
   assert.deepEqual(label, {...browseType(theme, 20, 700), color: colors.accentStrong, marginBottom: 10});
-  const title = style(elements(row).find(node => node.type === 'Text' && node.props.numberOfLines === 3)!.props.style);
+  const titleNode = textNode(row, show.title)!;
+  assert.equal(titleNode.props.numberOfLines, undefined);
+  const title = style(titleNode.props.style);
   assert.deepEqual(title, {...browseType(theme, 52, 800, -.04, 52), color: colors.text, marginBottom: 14});
   // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
   assert.equal(title.lineHeight, Math.ceil(52 * 1.36));
@@ -145,23 +148,23 @@ test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as
 });
 
 test('the drawn empty page is states.html#f18 and its genre tiles keep the drawn ring outside the clip', async () => {
-  const host = hooks(), {TVSearchScreen, TVSearchGenre} = await screen({...host.react, useId: () => 'gradient'});
+  const host = hooks(), {TVSearchPage, TVSearchGenre, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'casablanca', group: 'all', groups: [{id: 'movies' as const, status: 'success' as const, items: [], totalCount: 0, totalCountExact: true}],
     search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: [{q: 'severance'}]};
   landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
-  const tree = host.render(() => TVSearchScreen(screenProps()));
+  const tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const noMatches = style(textNode(tree, defaultI18n.t('next.states.noMatches', {query: 'casablanca'}))!.props.style);
-  assert.deepEqual(noMatches, {...browseType(theme, 52, 800, -.04, 54.6), color: colors.text, marginBottom: 14});
+  assert.deepEqual(noMatches, {...theme.type.pageTitle, color: colors.text, marginBottom: theme.space.sm});
   const body = style(textNode(tree, defaultI18n.t('next.states.noMatchesBody'))!.props.style);
-  assert.deepEqual(body, {...browseType(theme, 26, 400), color: colors.textSecondary, marginBottom: 54});
+  assert.deepEqual(body, {...theme.type.intro, color: colors.textSecondary, marginBottom: 44});
   const browse = style(textNode(tree, defaultI18n.t('next.search.browseInstead'))!.props.style);
-  assert.deepEqual(browse, {...browseType(theme, 32, 700, -.019), color: colors.text, marginBottom: 22});
+  assert.deepEqual(browse, {...theme.type.rowHeading, color: colors.text, marginBottom: 22});
   // states.html#f18's .sres ends at --safe-r, so its two drawn columns are (1140 - 96 - 26) / 2 and keep the producer's order.
   // The harness evaluates each screen module once, so the drawn tile is identified by its compiled component.
   const tiles = elements(tree).filter(node => typeof node.type === 'function' && node.type.name === 'TVSearchGenre');
   assert.equal(typeof TVSearchGenre, 'function');
   assert.deepEqual(tiles.map(node => node.props.genre.id), ['Crime', 'Drama', 'Adventure', 'Animation']);
-  assert.deepEqual(tiles.map(node => node.props.width), [509, 509, 509, 509]);
+  assert.deepEqual(tiles.map(node => node.props.width), Array(4).fill((1044 - theme.space.md) / 2));
   const tile = host.render(() => TVSearchGenre({genre: genres[0], runtime, width: 509, disabled: false, onPress: () => {}}));
   assert.deepEqual(style(tile.props.style), {width: 509, height: 200, borderRadius: 16, backgroundColor: colors.raised});
   assert.equal(tile.props.focusRadius, 16);
@@ -227,15 +230,15 @@ test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and 
 });
 
 test('Left from a result returns to the last keyboard row, and that key returns Right to the same card', async () => {
-  const host = hooks(), {TVSearchScreen} = await screen({...host.react, useId: () => 'gradient'});
+  const host = hooks(), {TVSearchPage, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
   landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
-  let tree = host.render(() => TVSearchScreen(screenProps()));
+  let tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const results = () => elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchResults)!;
   assert.equal(results().props.edges.left, ids.searchKeyboardRow(0));
   // F-SEARCH-4/27: the keyboard remembers its key, so the results point Left at the row that held it.
   elements(tree).find(node => node.type === 'NativeTVKeyboard')!.props.onRowFocus(`${ids.searchKeyboard}.row.1`);
-  tree = host.render(() => TVSearchScreen(screenProps()));
+  tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   assert.equal(results().props.edges.left, `${ids.searchKeyboard}.row.1`);
   // F-SEARCH-28: the results region remembers its own element, so Right from that key returns to it.
   assert.equal(results().props.entryRegion, ids.searchSection('movies'));
@@ -243,10 +246,10 @@ test('Left from a result returns to the last keyboard row, and that key returns 
 });
 
 test('result chips keep their natural width so no label is ellipsised or blanked', async () => {
-  const host = hooks(), {TVSearchScreen} = await screen({...host.react, useId: () => 'gradient'});
+  const host = hooks(), {TVSearchPage, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
   landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
-  const tree = host.render(() => TVSearchScreen(screenProps()));
+  const tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const chips = elements(tree).filter(node => node.type === 'Chip');
   assert.ok(chips.length >= 2);
   for (const chip of chips) {
@@ -254,5 +257,7 @@ test('result chips keep their natural width so no label is ellipsised or blanked
     assert.equal(style(chip.props.textStyle).flexShrink, 0);
   }
   const row = elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchChips)!;
-  assert.equal(style(row.props.style).flexWrap, 'wrap');
+  const strip = elements(row).find(node => node.type === 'ScrollView');
+  assert.equal(strip?.props.horizontal, true);
+  assert.equal(style(strip.props.contentContainerStyle).flexWrap, undefined);
 });

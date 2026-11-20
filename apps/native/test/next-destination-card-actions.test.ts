@@ -72,7 +72,7 @@ async function searchFixture(group = 'all') {
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {}, '../../kit/Icon': {}, '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
     '../home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})}, './model': {nativeSearchEntryKey: (kind: string, item: any) => JSON.stringify([kind, item.kind, item.id])},
-    './SearchGridCard': {SearchGridCard}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'},
+    './SearchGridCard': {SearchGridCard}, '../../pages/tv/search/SearchPage': {TVSearchPage: 'TVSearchPage'},
   });
   const tree = host.render(() => SearchScreen({destination: {subscribe() {}, getSnapshot: () => snapshot, setText() {}}, runtime,
     explore: {subscribe() {}, getSnapshot: (() => {const snapshot = {genres: []}; return () => snapshot;})()}, actions, activation: {subscribe() {}, getSnapshot: (() => {const snapshot = {visible: true, intent: 'enter', revision: 1}; return () => snapshot;})()},
