@@ -59,7 +59,11 @@ export function PaletteWash({palette, generated = false}: {palette: ArtworkPalet
 
 function ArtScrims({phone, side, bottomAt, top = false, phoneOverlay = false, tvSide = false}: {phone: boolean; side: boolean; bottomAt: number; top?: boolean; phoneOverlay?: boolean; tvSide?: boolean}) {
   const {colors, spec} = useTheme();
-  return <Svg accessible={false} pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+  // Drawn at its measured size once laid out: a percent-sized Svg kept its first height when its box grew (a tablet title page
+  // whose words run longer), and the unfaded wash showed as a band under the fade.
+  const [size, setSize] = useState<Readonly<{width: number; height: number}>>();
+  return <View pointerEvents="none" style={StyleSheet.absoluteFillObject} onLayout={event => {const {width, height} = event.nativeEvent.layout; setSize(size?.width === width && size.height === height ? size : {width, height});}}>
+    <Svg accessible={false} pointerEvents="none" width={size?.width ?? '100%'} height={size?.height ?? '100%'}>
     <Defs>
       <LinearGradient id="art-bottom" x1="0" y1="100%" x2="0" y2="0"><Stop offset="0" stopColor={colors.ink}/><Stop offset={bottomAt} stopColor={colors.ink} stopOpacity={0}/></LinearGradient>
       <LinearGradient id="art-side"><Stop offset="0" stopColor={colors.ink}/><Stop offset={phone ? 0.48 : 0.38} stopColor={colors.ink} stopOpacity={0}/></LinearGradient>
@@ -72,7 +76,7 @@ function ArtScrims({phone, side, bottomAt, top = false, phoneOverlay = false, tv
     {top ? <Rect width="100%" height="100%" fill="url(#art-top)"/> : null}
     {phoneOverlay ? <Rect width="100%" height="100%" fill="url(#phone-overlay)"/> : null}
     {tvSide ? <Rect width="100%" height="100%" fill="url(#art-tv-side)"/> : null}
-  </Svg>;
+  </Svg></View>;
 }
 
 /** An ink overlay drawn from a token's stops, top to bottom. */
