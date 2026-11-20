@@ -109,10 +109,11 @@ export const frame = {
       // coverCircleLargePhone: a native phone's large cover circle (phone-app frame 15b's artist, about 40 % of the width: 164).
       // artistCircleTV: an artist's circle on TV (tv-more frame 8): 360 across, at the right with its edge 280 from the
       // screen's, and room for its outer ring (80) on both sides; its head starts 150 from the top, so the rings (40 and 80 out) show above it.
-      // bylineCircle: the small initials circle before a byline's name (phone-read 7's author, 28).
+      // bylineCircle: the small initials circle before a byline's name (phone-read 7's author, 28); on TV 44 (the old TV album
+      // page's artist circle, tv-more frame 6).
       // listRow: a title in a phone's list of titles (phone-detail d3 frame 8's films in a collection): poster 56 wide, the
       // watched bar 72, the ⋯ target 44; a book's square cover in such a list 66 (collections 41b/41c).
-      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, bylineCircle: 28, artistCircleTV: {size: 360, right: 280, ring: 80, top: 150, rings: [40, 80] as readonly number[]}, listRow: {poster: 56, square: 66, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
+      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, bylineCircle: 28, bylineCircleTV: 44, artistCircleTV: {size: 360, right: 280, ring: 80, top: 150, rings: [40, 80] as readonly number[]}, listRow: {poster: 56, square: 66, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
         /** An episode row's still from a tablet up (tablet f7, 210) and the narrowest a Previous / Next card goes before the pair stacks (desktop-detail f5). */
         episodeArt: 210, neighbourMin: 220,
         /** The opened episode's plate (phone-detail d2 frame 4 `.epo`): 12 in from the page's edge, 8 inside (14 at its foot), corners 18 (its still's 12),

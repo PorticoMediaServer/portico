@@ -10,6 +10,7 @@ import {Tabs, type TabItem} from '../controls/Tabs';
 import {Focusable} from '../controls/Focusable';
 import {Chip} from '../controls/Chip';
 import {PersonCircle} from '../artwork/Circles';
+import type {ArtworkSource} from '../artwork';
 import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
 import {HeroFactsCentred} from '../layout/Hero';
@@ -75,7 +76,9 @@ export type TitleFrameProps = Readonly<{
   /** Who made it, under the title in the accent: an album's artist (phone-app frame 13), a link to their page. */
   byline?: Readonly<{text: string; onPress?: () => void;
     /** A person's initials in a small circle before their name (a reading book's author, phone-read 7 "FH Frank Herbert"). */
-    initials?: string}>;
+    initials?: string;
+    /** Their picture in that circle, over the initials (an album's artist drawn from the album's cover, tv-more frame 6). */
+    artwork?: ArtworkSource}>;
   /** Where a reader is in a book, one line under the buttons and over the synopsis (phone-read 7): the version they read
    * (a pill, when there is more than one: it opens the versions), then the place, the first part strong ("Page 248 of
    * 535", "About 7 h left"). */
@@ -153,6 +156,7 @@ const titlePrimaryId = 'title-primary';
 const tvFoldedCopy = .03;
 function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, place, title, metadata, picker, primary, actions = [], tagline, synopsis, note, quote, readMore, credits, cast, beside, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
+  const bylineSize = frame.form === 'tv' ? spec.parts.bylineCircleTV : spec.parts.bylineCircle;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
   // TV (detail-tv-3): focus moving into the panel folds the hero to the title and the tabs at the top, the art dims, and
@@ -243,10 +247,10 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
     {byline && (byline.onPress
       ? <Focusable accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
-        <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>{byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>{(byline.initials || byline.artwork) && <PersonCircle size={bylineSize} initials={byline.initials ?? ''} source={byline.artwork}/>}
           <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View></Focusable>
       : <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
-        {byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
+        {(byline.initials || byline.artwork) && <PersonCircle size={bylineSize} initials={byline.initials ?? ''} source={byline.artwork}/>}
         <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View>)}
     <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/>
       // A stacked head is centred, so its facts are too, line by line when they wrap: the page passes facts, never alignment.
