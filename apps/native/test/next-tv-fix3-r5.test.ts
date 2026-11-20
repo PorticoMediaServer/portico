@@ -28,7 +28,7 @@ test('E-tv-25: every anchor move is observable to the scroll reaction', () => {
 
 test('E-tv-26: related albums and artists open as a fresh page, scrolled to the top', () => {
   const music = source('screens/destinations/music/register.tsx');
-  assert.match(music, /<TVAlbumScreen key=\{page\.entry\.id\}/);
+  assert.match(music, /<TVAlbumPage key=\{page\.entry\.id\}/);
   assert.match(music, /<TVArtistPage key=\{page\.entry\.id\}/);
 });
 
