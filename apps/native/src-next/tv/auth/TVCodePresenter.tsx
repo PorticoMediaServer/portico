@@ -8,7 +8,7 @@ import {nativeType, useTheme} from '../../kit/theme';
 import {useDestinationEntryFocus} from '../../screens/destinations/useEntryFocus';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {useTVBusyEntryRevision} from './entry-revision';
-import {TVAuthLayout} from './TVAuthLayout';
+import {TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 
 export type TVCodePresenterProps = Readonly<{
   body: React.ReactNode;

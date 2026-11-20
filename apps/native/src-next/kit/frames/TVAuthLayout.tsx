@@ -1,15 +1,16 @@
-import React, {useEffect, useMemo} from 'react';
+import React, {useEffect, useMemo, type ComponentProps} from 'react';
 import {tvAccountSpec} from '@portico/design';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
-import {useMotion} from '../../kit/useMotion';
+import {useMotion} from '../useMotion';
 import {Image, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewProps} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {ProfileFace, type ProfileOption} from '../../kit/artwork';
-import {nativeType, useTheme} from '../../kit/theme';
+import {ProfileFace, type ProfileOption} from '../artwork';
+import {useTheme} from '../theme';
 import {shellLayout} from '../../shell/model';
-import {useNativeObservation} from '../../kit/dev-observation';
-import {StateActionButton} from '../../kit/states/StateActionButton';
-import type {StateLayoutProps} from '../../kit/states/StateLayout';
+import {useNativeObservation} from '../dev-observation';
+import {StateActionButton} from '../states/StateActionButton';
+import {FocusRegion} from '../focus';
+import type {StateLayoutProps} from '../states/StateLayout';
 
 /** The account family's one design canvas, backdrop and brand position. */
 export function TVAccountCanvas({children, testID, shape = 'side', onAccessibilityEscape}: Pick<ViewProps, 'children' | 'testID' | 'onAccessibilityEscape'> & {shape?: 'side' | 'round'}) {
@@ -25,7 +26,8 @@ export function TVAccountCanvas({children, testID, shape = 'side', onAccessibili
     declaredStyleComplete: typeof __DEV__ !== 'undefined' && __DEV__ ? true : undefined});
   return <View ref={root.ref} testID={testID} onAccessibilityEscape={onAccessibilityEscape} style={rootStyle}>
     <View style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height,
-      transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
+      transformOrigin: 'top left', transform: [{scale: canvas.scale}], alignItems: shape === 'round' ? 'center' : undefined,
+      justifyContent: shape === 'round' ? 'center' : undefined}}>
       <Image ref={wordmark.ref} source={require('../../../assets/wordmark.png')} accessibilityLabel={defaultI18n.t('accounts.brand')}
         resizeMode="contain" style={wordmarkStyle}/>
       {children}
@@ -89,9 +91,9 @@ export function TVProfilePINLayout({profile, children, pad, hints, onBack}: {
   return <TVAccountCanvas testID="tv-profile-pin" shape="round" onAccessibilityEscape={onBack}>
       <View style={{position: 'absolute', left: 240, top: 0, bottom: 0, width: 640, alignItems: 'center', justifyContent: 'center'}}>
         <ProfileFace {...profile} size={196} scaleOnFocus={false}/>
-        <Text accessibilityRole="header" style={[nativeType({size: 52, weight: 800, tracking: -.04, lineHeight: 'normal'}, theme.textScale),
+        <Text accessibilityRole="header" style={[theme.type.title,
           {color: theme.colors.text, marginTop: 30, marginBottom: 6}]}>{defaultI18n.t('auth.enterProfilePin')}</Text>
-        <Text style={[nativeType({size: 28, weight: 400, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary, marginBottom: 40}]}>{profile.name}</Text>
+        <Text style={[theme.type.accountLede, {color: theme.colors.textSecondary, marginBottom: 40}]}>{profile.name}</Text>
         {children}
       </View>
       {pad}
@@ -106,4 +108,23 @@ export function TVCodeErrorLine({error}: {error?: React.ReactNode}) {
   useEffect(() => {opacity.value = shown ? withTiming(1, motion.timing('standard')) : 0;}, [motion, opacity, shown]);
   const style = useAnimatedStyle(() => ({opacity: opacity.value}));
   return <Animated.View accessibilityRole={shown ? 'alert' : undefined} style={[{minHeight: 34, marginTop: 16, alignItems: 'center'}, style]}>{error}</Animated.View>;
+}
+
+export function TVAccountActions(props: Omit<ComponentProps<typeof FocusRegion>, 'style'>) {
+  return <FocusRegion {...props} style={{flexDirection: 'row', flexWrap: 'wrap', gap: tvAccountSpec.actionGap}}/>;
+}
+
+/** Auth17's two static remote hints; account callers supply no layout or copy. */
+export function TVProfilePINHints() {
+  const theme = useTheme();
+  return <>{([
+    ['next.auth.tv.playPause', 'next.auth.tv.deleteDigit'],
+    ['action.back', 'web.direct.otherProfiles'],
+  ] as const).map(([key, caption]) => <View key={key} style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+    <View style={{minWidth: 48, height: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1.5,
+      borderColor: `${theme.colors.text}4D`, alignItems: 'center', justifyContent: 'center'}}>
+      <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{defaultI18n.t(key)}</Text>
+    </View>
+    <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{defaultI18n.t(caption)}</Text>
+  </View>)}</>;
 }

@@ -14,8 +14,8 @@ import {NativeProfileRecovery, temporaryRecoveryApi} from '../../platform/profil
 import {nativeAccounts} from '../../platform/accounts';
 import {hostedUrl} from '../../platform/account-authority';
 import {nativeNetworkFetch} from '../../platform/server-connections';
-import {PhoneProfilePIN} from './PhoneProfilePIN';
-import {PhoneWhosWatching} from './PhoneWhosWatching';
+import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
+import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
 import {profilePinFailureText} from './profile-pin-failure';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
@@ -100,7 +100,7 @@ export function LifecycleProfileGate() {
     const tick = state.canRemember ? theme.isTV ? <TVPickerRememberRow checked={remember} onChange={setRemember} busy={busy}/>
       : <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/> : null;
     if (theme.isTV) return <TVWhosWatching testID="lifecycle-profiles">{picker}{tick}{status}{wait}</TVWhosWatching>;
-    return <PhoneWhosWatching testID="lifecycle-profiles" picker={picker} onBack={state.switching ? back : undefined} backDisabled={busy}>{tick}{status}{wait}</PhoneWhosWatching>;
+    return <ProfilesPage testID="lifecycle-profiles" picker={picker} onBack={state.switching ? back : undefined} backDisabled={busy}>{tick}{status}{wait}</ProfilesPage>;
   }
 
   const profile = state.profile;
@@ -135,7 +135,7 @@ export function LifecycleProfileGate() {
   if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={pinStatus}
     {...(state.canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
     hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (!busy) {setCode(''); setForgot(true);}}}/>;
-  return <PhoneProfilePIN testID="lifecycle-profile-pin" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: art(profile.id)}}}
+  return <ProfilePINPage testID="lifecycle-profile-pin" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: art(profile.id)}}}
     value={code} onChange={setCode} onSubmit={send} busy={busy} rejected={!!state.rejected} status={status}
     remember={state.canRemember ? <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/> : undefined}
     hints={wait} onForgot={openRecovery} forgotDisabled={!connection} onBack={back}/>;

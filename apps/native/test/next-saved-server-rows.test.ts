@@ -20,9 +20,9 @@ test('a sign-in past its end on this device offers only Forget; a live one offer
   const rows = savedServerRows([saved('a', 'http://127.0.0.1:32511', '2026-11-01T00:00:00Z'), saved('c', 'https://cottage.example', '2026-12-01T00:00:00Z')], id => names[id]!, () => 'accounts.servers.local', now);
   assert.deepEqual(rows.map(row => row.signedIn), [false, true]);
   const t = (key: string, values?: Record<string, string>) => values ? `${key}:${values.server}` : key;
-  const {serverMenuItems, serverRowDetail} = await screenModule(new URL('../src-next/screens/accounts/PhoneServerChooser.tsx', import.meta.url), {
-    react: {useState: () => [undefined, () => {}]}, 'react-native': {}, 'react-native-safe-area-context': {}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
-    '../../kit/controls': {}, '../../kit/Icon': {}, '../../kit/overlays': {}, '../../kit/shell/visual': {}, '../../kit/theme': {}, '../../kit/states': {}, '../../kit/artwork': {}, '../../kit/layout/TopBar': {},
+  const {serverMenuItems, serverRowDetail} = await screenModule(new URL('../src-next/pages/shared/accounts/useServerChooser.ts', import.meta.url), {
+    react: {useState: () => [undefined, () => {}]}, 'react-native': {}, 'react-native-safe-area-context': {}, '../../../../../../packages/i18n/src': {defaultI18n: {t}},
+    '../../kit/controls': {}, '../../kit/Icon': {}, '../../kit/overlays': {}, '../../kit/shell/visual': {}, '../../kit/theme': {}, '../../kit/states': {}, '../../kit/artwork': {}, '../../pages/touch/accounts/ServerChooserPage': {},
   });
   const acted: string[] = [];
   const items = (row: any) => serverMenuItems(row, {signOut: (server: any) => acted.push('signOut:' + server.id), forget: (server: any) => acted.push('forget:' + server.id)});

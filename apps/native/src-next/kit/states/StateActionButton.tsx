@@ -9,7 +9,7 @@ import type {StateAction} from './types';
  * the region throws instead of drawing the retry it was asked for. The caller's own
  * testID still wins, the derived control id is unchanged, and only when neither
  * exists does the caller's already-required semantic action id supply it. */
-export function StateActionButton({action, ...props}: {action: StateAction} & Pick<ButtonProps, 'variant' | 'size' | 'style' | 'textStyle' | 'hitSlop' | 'iconSize' | 'iconColor' | 'testID'>) {
+export function StateActionButton({action, ...props}: {action: StateAction} & Pick<ButtonProps, 'variant' | 'size' | 'align' | 'style' | 'textStyle' | 'hitSlop' | 'iconSize' | 'iconColor' | 'testID'>) {
   const {id, label, ...native} = action, testID = native.testID ?? controlID(props.testID, 'action', id);
   return <Button {...props} {...native} testID={testID} focusId={testID ?? id}>{label}</Button>;
 }

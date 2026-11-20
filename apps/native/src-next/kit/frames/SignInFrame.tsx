@@ -15,10 +15,15 @@ export type SignInFrameProps = Readonly<{
   /** A page after the first has Back; the first page has the wordmark in the same place. */
   back?: TopBarBack;
   /** The accent line over the title ("Sign in to"), with the server's name as the title (auth 6). */
-  kicker?: string;
-  title: string;
+  kicker?: ReactNode;
+  /** Profile pickers with their own heading omit the frame title. */
+  title?: ReactNode;
+  /** The profile being unlocked. */
+  identity?: ReactNode;
+  /** A dedicated keypad stays below the scroller. */
+  footer?: ReactNode;
   /** One line under the title. */
-  lede?: string;
+  lede?: ReactNode;
   /** Said above the fields; the fields and the primary button under them keep their order. */
   error?: string;
   /** The form: fields, then the primary button full width, then lesser choices. The one flexible region. */
@@ -36,23 +41,26 @@ export type SignInFrameProps = Readonly<{
 export function SignInFrame({startFocus, ...props}: SignInFrameProps) {
   return <StartFocusScope id={startFocus}><SignInFrameBody {...props}/></StartFocusScope>;
 }
-function SignInFrameBody({back, kicker, title, lede, error, children, terms, testID}: Omit<SignInFrameProps, 'startFocus'>) {
+function SignInFrameBody({back, kicker, title, lede, error, children, terms, identity, footer, testID}: Omit<SignInFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), column = frameSpec.signIn.column[frame.form];
-  return <View testID={testID} style={{flex: 1, paddingBottom: Math.max(insets.bottom, theme.space.sm)}}>
+  const centered = !!identity;
+  return <View testID={testID} style={{flex: 1, paddingBottom: footer ? 0 : Math.max(insets.bottom, theme.space.sm)}}>
     {back ? <TopBar back={back}/> : <View style={{paddingTop: insets.top, height: insets.top + frameSpec.header.backRow, paddingHorizontal: frame.gutter, justifyContent: 'center', alignItems: column ? 'center' : 'flex-start'}}>
       <Image source={require('../../../assets/wordmark.png')} accessibilityLabel={defaultI18n.t('accounts.brand')} resizeMode="contain" style={headerWordmark.phone}/>
     </View>}
-    <FormScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{flexGrow: 1, paddingHorizontal: frame.gutter, paddingTop: frame.headerGap, paddingBottom: theme.space.md, justifyContent: column ? 'center' : 'flex-start'}}>
+    <FormScrollView bottomOffset={frameSpec.signIn.keyboardClearance} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{flexGrow: 1, paddingHorizontal: frame.gutter, paddingTop: frame.headerGap, paddingBottom: theme.space.md, justifyContent: column ? 'center' : 'flex-start'}}>
       <View style={{width: '100%', maxWidth: column || undefined, alignSelf: 'center'}}>
-        {kicker !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.accentStrong, marginBottom: theme.space.xs}]}>{kicker}</Text>}
-        <Text accessibilityRole="header" textBreakStrategy="balanced" android_hyphenationFrequency="none" style={[theme.type.pageTitle, {color: theme.colors.text, includeFontPadding: false}]}>{title}</Text>
-        {lede !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginTop: frame.headingGap}]}>{lede}</Text>}
-        <View style={{marginTop: theme.space.md, gap: theme.space.controlGap}}>
+        {identity && <View style={{alignItems: 'center', marginBottom: theme.space.md}}>{identity}</View>}
+        {typeof kicker === 'string' ? <Text style={[theme.type.rowLabel, {color: theme.colors.accentStrong, marginBottom: theme.space.xs}]}>{kicker}</Text> : kicker}
+        {title !== undefined && <Text accessibilityRole="header" textBreakStrategy="balanced" android_hyphenationFrequency="none" style={[theme.type.pageTitle, {color: theme.colors.text, includeFontPadding: false, textAlign: centered ? 'center' : undefined}]}>{title}</Text>}
+        {typeof lede === 'string' ? <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginTop: frame.headingGap, textAlign: centered ? 'center' : undefined}]}>{lede}</Text> : lede}
+        <View style={{marginTop: title ? theme.space.md : 0, gap: theme.space.controlGap}}>
           {error !== undefined && <FormError placement="block">{error}</FormError>}
           {children}
         </View>
       </View>
     </FormScrollView>
+    {footer}
     {terms && <View style={{paddingHorizontal: frame.gutter, alignItems: column ? 'center' : 'flex-start'}}>{terms}</View>}
   </View>;
 }
