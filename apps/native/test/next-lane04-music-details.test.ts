@@ -12,7 +12,7 @@ const type = (_theme: unknown, fontSize: number, fontWeight: number, letterSpaci
 const i18n = {t: (key: string) => key, number: String, duration: (value: number) => `${value}s`, list: (items: string[]) => items.join(', ')};
 const runtime = {artwork: () => ({cacheKey: 'art'}), ambient: () => ({cacheKey: 'ambient'}), text: {locale: 'en-US'}, reportError: (error: unknown) => {throw error;}};
 
-async function music(platform = 'tablet', kind: 'album' | 'artist' = 'album') {
+async function music(platform = 'tablet') {
   const ui = hooks(), theme = {platform, layoutMode: 'phone', isTV: false, colors, textScale: 1, fontScale: 1}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
   // A child row renders in its own hook space, so the screen's hooks and the row's never share slots.
   const child = hooks(); let active = ui;
@@ -39,7 +39,7 @@ async function music(platform = 'tablet', kind: 'album' | 'artist' = 'album') {
   const controller: any = {getSnapshot: () => snapshot, subscribe: () => () => {}, artistEntry: () => artist, selectionProjection: () => ({}),
     play: async () => {plays++;}, songFavorite: () => false, songFavoritePending: () => false, toggleSongFavorite: async () => {favorites++;}};
   const props: any = {controller, entry, runtime, selection, actions: {menu: (...args: any[]) => menus.push(args)}, openEntry: (value: any) => opened.push(value), onBack() {}};
-  const tree = ui.render(() => (kind === 'album' ? module.PhoneAlbumScreen : module.PhoneArtistScreen)({...props, ...(kind === 'artist' ? {entry: artist} : {})}));
+  const tree = ui.render(() => module.PhoneAlbumScreen(props));
   const renderChild = (node: any) => {active = child; try {return child.render(() => node.type(node.props));} finally {active = ui;}};
   return {tree, song, artist, controller, selection, renderChild, enter, toggle, menus, opened, counts: () => ({plays, favorites, starts, selected}), ui, module};
 }
@@ -60,23 +60,9 @@ test('tablet album matches hero/table metrics and exposes the canonical artist l
   assert.equal(favorite.props.style.width, 44); favorite.props.onPress(); assert.equal(f.counts().favorites, 1);
 });
 
-// A phone album is the rebuilt page (pages/touch/music/AlbumPage); the phone artist page keeps these song rows and the wash.
-test('phone song long press opens its anchored menu with Select; selected taps toggle instead of play', async () => {
-  const f = await music('phone', 'artist');
-  const lines = nodes(f.tree).find(node => node.type?.name === 'SongLines');
-  const window = f.renderChild(lines);
-  const rowElement = nodes(window.props.renderItem(f.song, 0)).find(node => node.type?.name === 'SongLine');
-  let row = f.renderChild(rowElement);
-  row.props.onLongPressAction();
-  assert.equal(f.menus[0][0], f.song); assert.ok(f.menus[0][1]); assert.equal(f.menus[0][2], f.enter);
-  f.menus[0][2](); row = f.renderChild(rowElement);
-  assert.equal(row.props.accessibilityRole, 'checkbox'); row.props.onPress();
-  assert.equal(f.counts().selected, true); assert.equal(f.counts().plays, 0);
-});
+// A phone's album and artist pages are rebuilt (pages/touch/music): their song rows are TrackWindow's (next-track-window).
 
-test('the phone artist wash is the kit page wash with nothing over it; the tablet album keeps its own fade to ink', async () => {
-  const phone = await music('phone', 'artist'), phoneTree = phone.renderChild(nodes(phone.tree).find(node => node.type?.name === 'Wash'));
-  assert.deepEqual([phoneTree.type, phoneTree.props.treatment], ['AmbientArt', 'page'], 'W2: no private ink layer greys the cover\'s colour');
+test('the tablet album keeps its own wash, fading to ink (a phone\'s music pages take the kit page wash from TitleFrame)', async () => {
   const tablet = await music('tablet'), tree = tablet.renderChild(nodes(tablet.tree).find(node => node.type?.name === 'Wash')), all = nodes(tree);
   assert.equal(tree.props.style.height, 700);
   assert.ok(all.some(node => node.type === 'AmbientArt'));

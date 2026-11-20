@@ -12,6 +12,8 @@ import {PhoneAlbumScreen, PhoneArtistScreen} from './PhoneMusicScreens';
 import {useTheme} from '../../../kit/theme';
 import {AlbumPage} from '../../../pages/touch/music/AlbumPage';
 import type {AlbumPageProps} from '../../../pages/shared/music/useAlbum';
+import {ArtistPage} from '../../../pages/touch/music/ArtistPage';
+import type {ArtistPageProps} from '../../../pages/shared/music/useArtist';
 import {createMusicPlaylistPicker, type MusicPlaylistPickerHandle} from './MusicPlaylistPicker';
 import {nativeDownloadRequest} from '../../watch/download-request';
 import {askNativeDownload} from '../../downloads/request';
@@ -22,6 +24,10 @@ import {catalogueSelectionSource, createNativeSelection, type NativeCatalogueSel
  * pages are rebuilt. */
 function AlbumHost(props: AlbumPageProps & Readonly<{onPlaylist?: () => void}>) {
   return useTheme().platform === 'phone' ? <AlbumPage {...props}/> : <PhoneAlbumScreen {...props}/>;
+}
+/** As the album: a phone draws an artist on the rebuilt page (phone-app frame 15b), a tablet the old artist screen. */
+function ArtistHost(props: ArtistPageProps) {
+  return useTheme().platform === 'phone' ? <ArtistPage {...props}/> : <PhoneArtistScreen {...props}/>;
 }
 
 type Page = Readonly<{current:()=>boolean;key: string; route: {kind: 'music'; entry: ContentEntry}; entry: ContentEntry; controller: NativeTVMusicController; actions: ReturnType<typeof createNativeEntryActions>; picker: MusicPlaylistPickerHandle; tvSelection?: NativeSelection; touchSelection?: NativeSelection; abort: AbortController}>;
@@ -100,7 +106,7 @@ export function createNativeTVMusicRenderer(context: NativeShellBootstrapContext
       if (!Platform.isTV) return <>
         {page.entry.kind === 'album'
           ? <AlbumHost controller={page.controller} entry={page.entry} runtime={runtime} actions={page.actions} selection={page.touchSelection} openEntry={openEntry} onBack={back} download={download} onPlaylist={onPlaylist}/>
-          : <PhoneArtistScreen controller={page.controller} entry={page.entry} runtime={runtime} actions={page.actions} selection={page.touchSelection} openEntry={openEntry} onBack={back}/>}
+          : <ArtistHost controller={page.controller} entry={page.entry} runtime={runtime} actions={page.actions} selection={page.touchSelection} openEntry={openEntry} onBack={back}/>}
         {page.picker.render(runtime)}
         {page.touchSelection?.render(path => {const source = runtime.artwork(path); return source ? <Artwork source={source} width={48} height={48}/> : undefined;})}
       </>;

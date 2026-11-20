@@ -27,7 +27,7 @@ export function AlbumPage(props: AlbumPageProps) {
       ...(view.download ? [{icon: 'i-dl' as const, label: t('next.cards.download'), onPress: view.download, testID: 'album-download'}] : [])]}
     scroller={musicScroller({onNearEnd: songs.onNearEnd, testID: 'album-scroll'})}>
     {view.state && <PanelBlock><StateRow {...view.state}/></PanelBlock>}
-    <TrackWindow rows={songs.rows} variant="album" select={songs.select} onPlay={songs.onPlay} onMore={songs.onMore}/>
+    <TrackWindow rows={songs.rows} variant="album" select={songs.select} onPlay={songs.onPlay} onMore={songs.onMore} onFocusRow={songs.onFocusRow} onBlurRow={songs.onBlurRow}/>
     <PanelBlock><MusicSectionControls id="album-songs" section={songs.section} next={songs.next} previous={songs.previous} retry={songs.retry} refresh={songs.refresh}/></PanelBlock>
     {view.similar && <PosterRow {...view.similar}/>}
     {view.similarState && <PanelBlock><StateRow {...view.similarState}/></PanelBlock>}

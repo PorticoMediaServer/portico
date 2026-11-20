@@ -18,17 +18,19 @@ const similar = [{id: 'x1', kind: 'album', title: 'Thriller', libraryId: 'music'
 async function album(over: Record<string, unknown> = {}, props: Record<string, unknown> = {}) {
   const calls: unknown[][] = [], h = hooks();
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]); return Promise.resolve();};
+  // The shared song rows load for real, with the card text they read stubbed.
+  const rows = await screenModule(new URL('../src-next/pages/shared/music/music-rows.ts', import.meta.url), {react: h.react,
+    '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: (model: any) => ({id: model.id, title: model.title, caption: [], detail: []})}});
   const {useAlbum} = await screenModule(new URL('../src-next/pages/shared/music/useAlbum.ts', import.meta.url), {
     react: h.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/errors': errors,
-    '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: (model: any) => ({id: model.id, title: model.title, caption: [], detail: []})},
-    '../../../screens/destinations/music/use-playing-item': {usePlayingItem: () => 's2'}});
+    './music-rows': rows, '../../../screens/destinations/music/use-playing-item': {usePlayingItem: () => 's2'}});
   const page = {phase: 'ready', items: songs, offset: 0};
   const snapshot = {phase: 'ready', songs, songPage: page, songTotal: 2, songDurationSeconds: 489, albums: [], similar, similarBySound: true, favorite: false,
     albumDetails: {badges: [{variant: 'atmos'}]}, ...over};
   let current = true;
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, artistEntry: () => artist, play: record('play'), load: record('load'),
     nextSongs: record('next'), previousSongs: record('previous'), retrySongs: record('retry'), refreshSongs: record('refresh'),
-    similarPage: () => undefined, similarCurrent: () => current};
+    focusSong: record('focus'), blurSong: record('blur'), similarPage: () => undefined, similarCurrent: () => current};
   const picked = {active: false, selected: false, onToggle: () => {}, onEnter: () => {}};
   const view = h.render(() => useAlbum({controller, entry, runtime: {artwork: (path?: string) => path ? {uri: path} : undefined, ambient: (path?: string) => path ? {url: path} : undefined,
     text: {locale: 'en-US'}, reportError: record('error')}, actions: {menu: (...args: unknown[]) => {calls.push(['menu', ...args]);}},
@@ -51,7 +53,7 @@ test('an album shows its year, genre, songs and length, its badges, the artist a
   view.more(); assert.deepEqual(calls.at(-1), ['menu', entry]);
 });
 
-test('the songs are numbered from the read (or their place), the playing one marked; a song plays, and its ⋯ opens its menu with Select', async () => {
+test('the songs are numbered from the read (or their place), the playing one marked; a song plays, its ⋯ opens its menu with Select, and focus reaches the pager', async () => {
   const {view, calls, page, picked} = await album();
   assert.deepEqual(view.songs.rows.map((row: any) => [row.id, row.number, row.playing]), [['s1', 1, false], ['s2', 2, true]]);
   view.songs.onPlay('s2'); assert.deepEqual(calls.at(-1), ['play', 's2']);
@@ -59,6 +61,9 @@ test('the songs are numbered from the read (or their place), the playing one mar
   view.songs.onMore('s1', anchor); assert.deepEqual(calls.at(-1), ['menu', songs[0], anchor, picked.onEnter]);
   assert.equal(view.songs.select('s1'), picked);
   view.songs.onNearEnd(); assert.deepEqual(calls.at(-1), ['next', page]);
+  // The focused song (a keyboard or switch on a phone) is told to the pager, which keeps its page while it holds focus.
+  view.songs.onFocusRow('s1'); assert.deepEqual(calls.at(-1), ['focus', songs[0], page]);
+  view.songs.onBlurRow('s1'); assert.deepEqual(calls.at(-1), ['blur', songs[0], page]);
   view.songs.previous(); assert.deepEqual(calls.at(-1), ['previous', page]);
 });
 

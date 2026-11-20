@@ -1,19 +1,18 @@
-import {useSyncExternalStore, type RefObject} from 'react';
-import type {View} from 'react-native';
+import {useSyncExternalStore} from 'react';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {cardText, type FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
+import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
-import type {TrackRowData} from '../../../kit/browse';
 import type {StateRowProps} from '../../../kit/frames';
-import type {CardSelection, PosterRowProps} from '../../../kit/layout';
+import type {PosterRowProps} from '../../../kit/layout';
 import type {MusicSection} from '../../../kit/music/section';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeEntryActions} from '../../../screens/destinations/entry-actions';
 import type {NativeTVMusicController} from '../../../screens/destinations/music/model';
 import {usePlayingItem} from '../../../screens/destinations/music/use-playing-item';
 import type {NativeSavedSelectionPort} from '../../../screens/saved/SavedScreen';
+import {similarPaging, songList, type SongList} from './music-rows';
 
 const t = defaultI18n.t;
 const year = (value: number | undefined) => value === undefined ? undefined : defaultI18n.number(value, {useGrouping: false});
@@ -32,8 +31,9 @@ export type AlbumView = Readonly<{
   play: () => void; shuffle: () => void; download?: () => void; more: () => void;
   /** The read failed: Try again reads the album again (the old screen's error view). */
   state?: StateRowProps;
-  songs: Readonly<{rows: readonly TrackRowData[]; select: (id: string) => CardSelection | undefined;
-    onPlay: (id: string) => void; onMore: (id: string, anchor?: RefObject<View | null>) => void;
+  songs: SongList & Readonly<{
+    /** The focused song (a keyboard or switch on a phone): the server's pages keep it while it holds focus. */
+    onFocusRow: (id: string) => void; onBlurRow: (id: string) => void;
     /** Next, previous, Try again and Refresh for the server's pages of songs. */
     section: MusicSection<ContentEntry>; next: () => void; previous: () => void; retry: () => void; refresh: () => void;
     /** The scroller nears the end: the next page of songs. */
@@ -59,8 +59,7 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
   if (snapshot.songTotal !== undefined) facts.push({id: 'songs', role: 'context', text: minutes === undefined ? t('title.songCount', {count: snapshot.songTotal})
     : t('music.songCountAndDuration', {songs: snapshot.songTotal, minutes})});
   const byId = new Map(snapshot.songs.map(song => [song.id, song]));
-  const song = (id: string) => byId.get(id);
-  const albums = snapshot.similar.filter(value => value.kind === 'album' && value.libraryId), paging = controller.similarPage(snapshot);
+  const albums = snapshot.similar.filter(value => value.kind === 'album' && value.libraryId);
   const retryRead = {label: t('action.tryAgain'), onPress: () => run(controller.load())};
   return {
     title, cover: runtime.artwork(entry.posterUrl), glow: runtime.ambient(entry.posterUrl ?? entry.backdropUrl), artistName,
@@ -70,11 +69,10 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
     download: download ? () => download(entry) : undefined, more: () => actions.menu(entry),
     state: snapshot.phase === 'error' ? {kind: 'error', icon: 'i-warn', title: presentError(snapshot.error, 'detail').title, action: retryRead} : undefined,
     songs: {
-      rows: snapshot.songs.map((value, index) => ({id: value.id, number: value.trackNumber ?? page.offset + index + 1, playing: playingId === value.id,
-        text: cardText({id: value.id, kind: 'song', title: value.displayTitle ?? value.title, artist: value.artist?.name, album: value.album?.name, durationSeconds: value.duration}, 'song-row', runtime.text)})),
-      select: id => {const value = song(id); return value ? selection?.item(value) : undefined;},
-      onPlay: id => run(controller.play(id)),
-      onMore: (id, anchor) => {const value = song(id); if (value) actions.menu(value, anchor, selection?.item(value)?.onEnter);},
+      // Numbered by the album's own track numbers, else their place in the album.
+      ...songList({songs: snapshot.songs, number: (value, index) => value.trackNumber ?? page.offset + index + 1, playingId, controller, runtime, actions, selection}),
+      onFocusRow: id => {const value = byId.get(id); if (value) controller.focusSong(value, page);},
+      onBlurRow: id => {const value = byId.get(id); if (value) controller.blurSong(value, page);},
       section: page, next: () => run(controller.nextSongs(page)), previous: () => run(controller.previousSongs(page)),
       retry: () => run(controller.retrySongs(page)), refresh: () => run(controller.refreshSongs(page)), onNearEnd: () => run(controller.nextSongs(page)),
     },
@@ -85,8 +83,7 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
       items: albums.map(value => ({key: value.id, title: value.displayTitle ?? value.title, year: year(value.year), artwork: runtime.artwork(value.posterUrl), selection: selection?.item(value),
         onNavigate: () => {if (controller.similarCurrent(snapshot, value)) openEntry(value);},
         onMore: anchor => {if (controller.similarCurrent(snapshot, value)) actions.menu(value, anchor, selection?.item(value)?.onEnter);}})),
-      ...(paging ? {paging: {hasMore: paging.hasMore, loading: paging.loading, failed: paging.failed, waitingId: paging.waitingId, fulfilled: paging.fulfilled,
-        waitingItem: {key: paging.waitingId, title: '', onNavigate: () => {}}, requestNext: paging.requestNext}} : {})} : undefined,
+      ...similarPaging(controller, snapshot)} : undefined,
     similarState: snapshot.similarError ? {kind: 'error', icon: 'i-warn', title: presentError(snapshot.similarError, 'detail').title, action: retryRead} : undefined,
   };
 }
