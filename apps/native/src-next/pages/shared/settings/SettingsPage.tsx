@@ -95,7 +95,8 @@ export function NativeSettingsPage(props: SettingsProps) {
   const settingsPage = (!compact || pushed) && <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
-    scrollRef={pageScroll} onScrollLayout={height => pageScrollLayout(page.id, height)}
+    intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
+    scrollRef={pageScroll} onScrollLayout={pageScrollLayout}
     panel={custom ? <>{retry}{custom}</> : undefined}>
     {!custom && retry}
     {tvSearch ? <>
@@ -116,6 +117,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     search={search} profile={profile} shortcuts={shortcuts} list={list} page={settingsPage || undefined} searching={tvSearch} closing={closing}
     hints={tv && !tvSearch ? <SettingsKeyHints t={t}/> : undefined}/>;
   return tv ? content : <SettingsSheet open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'}
-    profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber={!(compact && pushed)} headerContent={null}
+    profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber={compact} headerContent={null}
     onOpenChange={sheetChanged}>{content}</SettingsSheet>;
 }

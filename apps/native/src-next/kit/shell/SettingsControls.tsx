@@ -65,7 +65,7 @@ export function SettingsRow({label, highlightQuery, description, scope, icon, na
     {lit && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 3, borderRadius: 3, backgroundColor: theme.colors.accent}}/>}
     {icon && <View style={{width: tv ? 40 : 30, height: tv ? 40 : 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(destructive ? theme.colors.record : theme.colors.text, .1)}}><Icon name={icon} size={tv ? 22 : 17} color={destructive ? theme.colors.record : theme.colors.textSecondary}/></View>}
     <View style={{flex: 1, minWidth: 0}}><HighlightedText text={label} query={highlightQuery} style={[shellType(tv ? 24 : 15.5), {color: destructive ? theme.colors.record : theme.colors.text}]}/>
-      {typeof description === 'string' && <Text numberOfLines={tv ? 2 : undefined} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{description}</Text>}
+      {typeof description === 'string' && <Text style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{description}</Text>}
       {Array.isArray(description) && description.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3, marginTop: 3}}>{description.map((part, index) => <Text key={index} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part}</Text>)}</View>}
       {scope && <Text style={[shellType(tv ? 18 : 12, 600), {color: theme.colors.textTertiary, marginTop: 3}]}>{scope}</Text>}
     </View>

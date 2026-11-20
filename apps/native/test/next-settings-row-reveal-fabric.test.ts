@@ -46,16 +46,16 @@ async function fixture() {
     './server/TroubleshootingPage': {NativeServerTroubleshooting: 'Troubleshooting'}, './server/StoragePage': {NativeServerStorage: 'Storage'}, './server/IntegrationsPage': {NativeServerIntegrations: 'Integrations'}, './server/GeneralPage': {NativeServerGeneral: 'General'}, './server/RemoteAccessPage': {NativeRemoteAccessPage: 'RemoteAccess'}, './server/StreamingPage': {NativeServerStreaming: 'Streaming'}, './server/SegmentsPage': {NativeServerSegments: 'Segments'}, './server/PeoplePage': {NativeServerPeople: 'People'}, './server/SignInPage': {NativeServerSignIn: 'SignIn'}, './server/MetadataPage': {NativeServerMetadata: 'Metadata'}, './server/HistoryPage': {NativeServerHistory: 'History'},
     './server/PhoneServerPageHeader': {PhoneServerPageHeader: 'PhoneHeader'}, '../settings/remote-sources/NativeRemoteSourcesScreen': {NativeRemoteSourcesScreen: 'RemoteSources'}, './DashboardScreen': {NativeDashboardScreen: 'Dashboard'},
     '../../platform/playback/equalizer': {}, '../../tv/auth/TVHandoff': {},
-    './use-tv-voice-search': {useTVVoiceSearch: () => ({})}, '../../platform/playback/passthrough-formats': {}, './NativeDynamicRangeRow': {}, '../../platform/playback/dynamic-range-matching': {}, './NativeApplePassthroughRow': {}, './NativeCapabilityRows': {}, './NativeFrameRateRow': {}, './NativePassthroughRow': {}, './NativeLossNoticesRow': {}, './NativeSafeModeRow': {}, './NativeServerOfflineNoticeRow': {NativeServerOfflineNoticeRow: 'NativeServerOfflineNoticeRow'},
+    './use-tv-voice-search': {useTVVoiceSearch: () => ({})}, '../../platform/playback/passthrough-formats': {}, './NativeDynamicRangeRow': {}, '../../platform/playback/dynamic-range-matching': {}, './NativeApplePassthroughRow': {}, '../../kit/settings/DeviceCapabilityRows': {}, './NativeFrameRateRow': {}, './NativePassthroughRow': {}, './NativeLossNoticesRow': {}, './NativeSafeModeRow': {}, './NativeServerOfflineNoticeRow': {NativeServerOfflineNoticeRow: 'NativeServerOfflineNoticeRow'},
   });
   const shell={profile:{name:'Profile'},account:{actions:[]}}; const state={};
   const runtime={retirementSignal:retirement.signal,text:{t:(id: string)=>id},subscribe:()=>()=>{},getSnapshot:()=>shell};
   const controller={subscribe:()=>()=>{},getSnapshot:()=>state,lifetime:{authority:{},current:()=>true}};
   const props={runtime,controller,ports:{context,settingsContext:()=>({}),serverName:()=> 'Server'},devicePreferences:{}};
   await h.render(React.createElement(NativeSettingsScreen, props));
-  const open = async () => {
+  const open = async (page = 'playback') => {
     nodes(h.root).find((n: any)=>n.props?.testID==='settings-search').props.onChangeText('sub'); await h.settle();
-    nodes(h.root).find((n: any)=>n.type==='SettingsSearchResults').props.onNavigate('playback','subtitles'); await h.settle();
+    nodes(h.root).find((n: any)=>n.type==='SettingsSearchResults').props.onNavigate(page,'subtitles'); await h.settle();
   };
   const flash = () => nodes(h.root).find((n: any)=>n.type==='AnimatedView');
   /** The page scroller's native layout (its viewport height). */
@@ -84,6 +84,17 @@ test('a second opening of an already laid-out row is revealed at commit, with no
     assert.equal(f.scrolls.length, 1);
     await f.open();
     assert.equal(f.measures, 2, 'the new opening measures its row once its aim is committed'); assert.equal(f.scrolls.length, 2);
+  } finally {await f.unmount();}
+});
+
+test('tablet search reveals a row on a different page using the existing scroll viewport', async () => {
+  const f = await fixture();
+  try {
+    await f.viewport(400);
+    await f.open('region');
+    f.flash().props.onLayout();
+    await f.settle();
+    assert.deepEqual(f.scrolls, [{y: 820, animated: false}]);
   } finally {await f.unmount();}
 });
 

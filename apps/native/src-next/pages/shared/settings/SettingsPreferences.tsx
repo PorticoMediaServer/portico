@@ -18,7 +18,7 @@ import {NativeFrameRateRow} from '../../../screens/settings-live/NativeFrameRate
 import {NativePassthroughRow} from '../../../screens/settings-live/NativePassthroughRow';
 import {NativeDynamicRangeRow} from '../../../screens/settings-live/NativeDynamicRangeRow';
 import {NativeLossNoticesRow} from '../../../screens/settings-live/NativeLossNoticesRow';
-import {NativeCapabilityRows} from '../../../screens/settings-live/NativeCapabilityRows';
+import {DeviceCapabilityRows} from '../../../kit/settings/DeviceCapabilityRows';
 import {NativeServerOfflineNoticeRow} from '../../../screens/settings-live/NativeServerOfflineNoticeRow';
 import {passthroughFormats} from '../../../platform/playback/passthrough-formats';
 import {playerEngineHints, useSettingsPreferences, type SettingsPreferencesProps} from './useSettingsPreferences';
@@ -139,7 +139,7 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
     )}
     {isTV && android && page.id === 'device' && advanced && section.id === 'about' && (
       <>
-        <NativeCapabilityRows/>
+        <DeviceCapabilityRows/>
         <SectionCard label={t('next.settingsSpec.account.device.advanced.groups.1.title')}>
           {passthroughFormats.map(format => (
             <NativePassthroughRow key={format} format={format} context={ports.context} runtime={runtime}/>
