@@ -1,3 +1,4 @@
+import {savedFixture} from './helpers/saved-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createTheme} from '../src-next/kit/theme.ts';
@@ -12,7 +13,7 @@ function reactFixture(host: ReturnType<typeof hooks>) {
 }
 function nodes(node: any): any[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
-  return node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.body)] : [];
+  return node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.body), ...nodes(node.props.grid)] : [];
 }
 
 test('TV Saved tabs have a mounted content target and return edges for every tab', async () => {
@@ -20,7 +21,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
     const host = hooks();
     let visible = true, back: any, entry: any;
     const ids = {savedTabs: 'tabs', savedGrid: 'grid', savedToolbar: 'toolbar', rail: 'rail'};
-    const {TVSavedScreen} = await screenModule(new URL('../src-next/screens/destinations/saved/TVSavedScreen.tsx', import.meta.url), {
+    const {TVSavedScreen} = await savedFixture('TVSaved', {
       react: reactFixture(host),
       'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
       '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, number: String}},
@@ -52,7 +53,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       squares: {sections: [{entries: [{id: 'song/1', kind: 'song', title: 'Song'}]}]},
     };
     const props = {
-      controller: {subscribe: () => () => {}, getSnapshot: () => snapshot, source: () => ({}), select: async () => {}},
+      controller: {subscribe: () => () => {}, getSnapshot: () => snapshot, source: () => ({}), select: async () => {}, summary: async () => {}},
       activation: {subscribe: () => () => {}, getSnapshot: () => ({visible})},
       runtime: {reportError: () => {}, text: {}, artwork: () => undefined, getSnapshot: () => ({libraries: []})}, actions: {isMenuOpen: () => false}, authority: {}, initialTab: tab,
       openSaved: () => {}, openEntry: () => {}, browseHome: () => {},
@@ -62,25 +63,25 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
     const tabs = mounted.find(node => node.type === 'TVSavedPage');
     const directory = mounted.find(node => node.type === 'SavedTVDirectory');
     if (directory) {
-      assert.equal(tabs.props.tabs.region.edges.down, directory.props.regionId);
+      assert.equal(tabs.props.header.tabs.region.edges.down, directory.props.regionId);
       assert.equal(directory.props.enabled, true);
       assert.deepEqual(directory.props.edges, {up: ids.savedTabs, left: ids.rail});
       visible = false;
       assert.equal(render().find(node => node.type === 'SavedTVDirectory').props.enabled, false);
       continue;
     }
-    const region = mounted.find(node => node.type === 'FocusRegion' && node.props.id === ids.savedGrid);
-    assert.equal(tabs.props.tabs.region.edges.down, region.props.id, tab);
-    assert.deepEqual(region.props.edges, {up: ids.savedToolbar, left: ids.rail});
-    assert.equal(mounted.find(node => node.props.id === ids.savedToolbar).props.edges.down, ids.savedGrid);
-    assert.equal(region.props.enabled, true);
+    const region = mounted.find(node => node.type?.name === 'TVSavedResults' && node.props.region.id === ids.savedGrid);
+    assert.equal(tabs.props.header.tabs.region.edges.down, region.props.region.id, tab);
+    assert.deepEqual(region.props.region.edges, {up: ids.savedToolbar, left: ids.rail});
+    assert.equal(mounted.find(node => node.props.region?.id === ids.savedToolbar).props.region.edges.down, ids.savedGrid);
+    assert.equal(region.props.region.enabled, true);
     for (const control of nodes(region.props.children).filter(node => ['Button', 'Chip', 'PosterCard', 'SquareCard'].includes(node.type) && !node.props.disabled)) {
       assert.ok(control.props.focusId || control.props.testID, 'every focusable region child has a stable address');
     }
-    assert.ok(mounted.some(node => node.props.id === ids.savedToolbar), 'toolbar owns a separate native region');
+    assert.ok(mounted.some(node => node.props.region?.id === ids.savedToolbar), 'toolbar owns a separate native region');
     if (tab === 'watchlist' || tab === 'favorites') {
       assert.equal(entry.regionId, 'grid.posters');
-      const grids = mounted.filter(node => node.type === 'TVFocusGrid');
+      const grids = mounted.filter(node => node.type?.name === 'TVSavedGrid');
       assert.equal(grids[0].props.focus.edges.down, 'grid.squares');
       assert.equal(grids[1].props.focus.edges.up, 'grid.posters');
       assert.equal(grids[1].props.focus.neighbors.previous, 'grid.posters');
@@ -94,21 +95,21 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       props.controller = {...props.controller, getSnapshot: () => ({phase: 'loading', entries: [], resources: []}) as any};
       const reloading = render();
       assert.ok(!reloading.some(node => node.type === 'SavedTVLoading'), 'the loading outline never replaces loaded content');
-      assert.ok(reloading.some(node => node.type === 'TVFocusGrid'), 'the last ready grid stays mounted');
+      assert.ok(reloading.some(node => node.type?.name === 'TVSavedGrid'), 'the last ready grid stays mounted');
       props.controller = {...props.controller, getSnapshot: ready};
     }
     if (tab === 'watchlist') {
       mounted.find(node => node.type === 'Menu' && node.props.title === 'saved.sort').props.items.find((item: any) => item.id === 'title').onSelect();
       let current = render();
-      current.find(node => node.type === 'View' && node.props.children?.some((child: any) => child?.props?.id === ids.savedToolbar)).props.onLayout({nativeEvent: {layout: {y: 65}}});
-      const body = current.find(node => node.props.id === ids.savedGrid);
-      body.props.onLayout({nativeEvent: {layout: {y: 90}}});
-      nodes(body.props.children).find(node => node.type === 'View' && node.props.onLayout).props.onLayout({nativeEvent: {layout: {y: 38}}});
-      const posters = current.find(node => node.type === 'TVFocusGrid' && node.props.focus.id === 'grid.posters');
+      current.find(node => node.type?.name === 'TVSavedSection' && node.props.children?.some((child: any) => child?.props?.region?.id === ids.savedToolbar)).props.onTop(65);
+      const body = current.find(node => node.props.region?.id === ids.savedGrid);
+      body.props.onTop(90);
+      nodes(body.props.children).find(node => node.type?.name === 'TVSavedSection' && node.props.onTop).props.onTop(38);
+      const posters = current.find(node => node.type?.name === 'TVSavedGrid' && node.props.focus.id === 'grid.posters');
       posters.props.onLayout({nativeEvent: {layout: {y: 120}}});
       posters.props.onGeometry(3, 420);
       const scroll: unknown[] = [];
-      current.find(node => node.type === 'ScrollView').props.ref.current = {scrollTo: (request: unknown) => scroll.push(request)};
+      current.find(node => node.type?.name === 'TVSavedScroll').props.node.current = {scrollTo: (request: unknown) => scroll.push(request)};
       current.find(node => node.props.focusId === 'saved-jump').props.onPress();
       current = render();
       current.find(node => node.type === 'LibraryJumpSheet').props.onSelect('M');
@@ -118,8 +119,8 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
     }
 
     visible = false;
-    assert.equal(render().find(node => node.props.id === ids.savedGrid).props.enabled, false, 'retained hidden content cannot receive focus');
-    const hiddenGrid = render().find(node => node.type === 'TVFocusGrid');
+    assert.equal(render().find(node => node.props.region?.id === ids.savedGrid).props.region.enabled, false, 'retained hidden content cannot receive focus');
+    const hiddenGrid = render().find(node => node.type?.name === 'TVSavedGrid');
     if (hiddenGrid && tab !== 'history' && snapshot.posters.sections[0].entries[0]) {
       const painted = hiddenGrid.props.renderItem(snapshot.posters.sections[0].entries[0], {index: 0, top: 0, onFocus() {}});
       assert.equal(nodes(painted).find(node => node.type === 'PosterCard').props.disabled, true, 'the native card host retires with the hidden route');

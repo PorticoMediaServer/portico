@@ -7,7 +7,7 @@ import {nativeDestinationLifetime} from '../src-next/screens/destinations/lifeti
 
 test('independent Saved descriptor uses the actual viewer lifetime with no Search or selection dependency', async () => {
   const {createNativeSavedRenderer} = await screenModule(new URL('../src-next/screens/saved/renderer.tsx', import.meta.url), {
-    react: {default: React}, './SavedScreen': {SavedScreen: 'SavedScreen'}, './model': {NativeSavedDestination},
+    react: {default: React}, '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'}, './model': {NativeSavedDestination},
     '../destinations/lifetime': {nativeDestinationLifetime},
   });
   let current = true, calls = 0;
@@ -19,7 +19,7 @@ test('independent Saved descriptor uses the actual viewer lifetime with no Searc
   try {
     assert.equal(renderer.render({kind: 'shell', destination: {kind: 'search'}}, {}), null);
     const screen = renderer.render({kind: 'shell', destination: {kind: 'saved'}}, {});
-    assert.equal(screen.type, 'SavedScreen'); assert.equal(screen.props.activation, activation); assert.equal(screen.props.device, offline);
+    assert.equal(screen.type, 'SavedPage'); assert.equal(screen.props.activation, activation); assert.equal(screen.props.device, offline);
     assert.equal(screen.props.selection, undefined, 'a genuine selection producer is optional, never replaced by a dummy');
     assert.equal(screen.props.destination.getSnapshot().phase, 'idle'); assert.equal(calls, 0);
     current = false; assert.equal(renderer.render({kind: 'shell', destination: {kind: 'saved'}}, {}), null);
