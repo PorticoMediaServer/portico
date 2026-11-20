@@ -1,7 +1,7 @@
 import React from 'react';
 import type {RefObject} from 'react';
 import {View} from 'react-native';
-import {TrackRow, trackRowHeight, type TrackRowData, type TrackSelection, type TrackVariant} from '../browse';
+import {TrackHeader, TrackRow, trackColumns, trackRowHeight, type TrackColumn, type TrackRowData, type TrackSelection, type TrackVariant} from '../browse';
 import type {CardSelection} from '../layout/types';
 import {PanelBlock, PanelHeading} from '../frames/title-parts';
 import {SelectionCircle} from '../selection';
@@ -16,6 +16,8 @@ export type TrackWindowProps = Readonly<{
   /** A row's place in the page's selection, when the page has one. */
   select?: (id: string) => CardSelection | undefined;
   onPlay: (id: string) => void; onMore?: (id: string, anchor?: RefObject<View | null>) => void;
+  /** A tablet's song table: the heart on each row (tablet-play 11). */
+  onFavorite?: (id: string) => void;
   /** Its rows open their place rather than play it (a book's chapters open the reader there). */
   opens?: boolean;
   /** The row that holds focus (a keyboard or switch on a phone), so the server's pages keep it while it is focused. */
@@ -26,19 +28,23 @@ export type TrackWindowProps = Readonly<{
 
 /** An album's songs or a book's chapters inside a music scroller (`musicScroller`; phone-app frame 13, collections 41a): its track rows, only the ones in view
  * mounted, as the old album screen windowed them. A row taller at a larger text size gets the room it needs. */
-export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onFocusRow, onBlurRow, inset = true, opens}: TrackWindowProps) {
+export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onFavorite, onFocusRow, onBlurRow, inset = true, opens}: TrackWindowProps) {
   const theme = useTheme(), scale = Math.max(1, theme.fontScale * theme.textScale);
   // Built on every draw: a row's place in the selection changes without the rows changing.
   const selection: TrackSelection = {active: rows.some(row => select?.(row.id)?.active),
     isSelected: id => select?.(id)?.selected === true, onToggle: id => select?.(id)?.onToggle(), onEnter: id => select?.(id)?.onEnter(),
     renderControl: (row, selected) => <SelectionCircle selected={selected} selecting accessibilityLabel={row.text.title} variant="row" interactive={false}/>};
   // The chapter you are in is drawn taller (its progress under its title); the rows after it move down.
+  // Plays only when some song has a count (no empty column under its name).
+  const columns = (trackColumns[variant] as readonly TrackColumn[]).filter(column => column !== 'plays' || rows.some(row => row.plays !== undefined));
   const current = variant === 'chapters' ? rows.findIndex(row => row.current) : -1, height = Math.ceil(trackRowHeight(theme, variant) * scale);
   const window = <MusicWindow items={rows} itemHeight={height}
     expanded={current >= 0 ? {index: current, extra: Math.ceil(trackRowHeight(theme, variant, true) * scale) - height} : undefined}
     renderItem={(row, index) => <View onFocus={() => onFocusRow?.(row.id)} onBlur={() => onBlurRow?.(row.id)}>
-      <TrackRow row={row} variant={variant} index={index} selection={selection} onPlay={onPlay} onMore={onMore} opens={opens}/></View>}/>;
+      <TrackRow row={row} variant={variant} columns={columns} index={index} selection={selection} onPlay={onPlay} onMore={onMore} opens={opens} onToggleFavorite={onFavorite && (id => onFavorite(id))}/></View>}/>;
   // On TV the rows sit in the page's gutter under their heading (tv-more frame 8); a phone row carries its own padding.
-  const placed = theme.isTV && inset ? <PanelBlock>{window}</PanelBlock> : window;
+  // A tablet's songs are a table under its column names (tablet-play 11); the header draws nothing on a phone, TV or chapters.
+  const table = <View><TrackHeader variant={variant} columns={columns}/>{window}</View>;
+  const placed = theme.isTV && inset ? <PanelBlock>{table}</PanelBlock> : table;
   return heading ? <View><PanelBlock><PanelHeading quiet={heading.quiet} title={heading.title} trailing={heading.trailing}/></PanelBlock>{placed}</View> : placed;
 }

@@ -62,7 +62,7 @@ function* elementNodes(value: unknown): Generator<Element> {
 const typed = (tree: unknown, type: string) => [...elementNodes(tree)].filter(node => node.type === type);
 const backButtons = (tree: unknown) => typed(tree, 'Button').filter(node => node.props?.accessibilityLabel === 'Back');
 
-async function tabletMusic(kind: 'album' | 'artist', phase: 'loading' | 'ready' | 'error') {
+async function tabletMusic(kind: 'artist', phase: 'loading' | 'ready' | 'error') {
   let backs = 0;
   const loads: string[] = [];
   const snapshot = {phase, songs: kind === 'artist' && phase === 'ready' ? [{id: 's1', title: 'Song'}] : [],
@@ -74,7 +74,7 @@ async function tabletMusic(kind: 'album' | 'artist', phase: 'loading' | 'ready' 
   const runtime = {artwork: () => undefined, ambient: () => undefined, text: {locale: 'en-US'}, reportError() {}, playback: undefined};
   const theme = {platform: 'tablet', colors: {ink: '#000', raised: '#111', shadow: '#000', text: '#fff', textSecondary: '#aaa',
     accentStrong: '#09f', textTertiary: '#777', line: '#222'}};
-  const {PhoneAlbumScreen, PhoneArtistScreen} = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
+  const {PhoneArtistScreen} = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
     ...musicImports,
     react: {...React, default: React},
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
@@ -92,22 +92,21 @@ async function tabletMusic(kind: 'album' | 'artist', phase: 'loading' | 'ready' 
   './MusicErrorView': {MusicErrorView: 'MusicErrorView'},
     './MusicFormatBadges': {MusicFormatBadges: 'MusicFormatBadges'},
   });
-  const Screen = kind === 'album' ? PhoneAlbumScreen : PhoneArtistScreen;
-  const entry = kind === 'album' ? {id: 'album-1', libraryId: 'music', kind: 'album', title: 'Album'} : {id: 'artist-1', libraryId: 'music', kind: 'artist', title: 'Artist'};
+  const Screen = PhoneArtistScreen;
+  const entry = {id: 'artist-1', libraryId: 'music', kind, title: 'Artist'};
   let tree: unknown;
-  const host = createFabricHookHost(() => {tree = Screen({controller, entry, runtime, actions: {menu() {}}, openEntry() {}, onBack: () => {backs++;},
-    ...(kind === 'album' ? {onPlaylist() {}} : {})});});
+  const host = createFabricHookHost(() => {tree = Screen({controller, entry, runtime, actions: {menu() {}}, openEntry() {}, onBack: () => {backs++;}});});
   await host.mount();
   return {get tree() {return tree;}, host, loads, get backs() {return backs;}};
 }
 
-for (const kind of ['album', 'artist'] as const) {
+for (const kind of ['artist'] as const) {
   for (const phase of ['loading', 'error', 'ready'] as const)
   test(`tablet ${kind} keeps one route Back while ${phase} and only ${phase === 'error' ? 'fails' : 'does not fail'} into the recovery view`, async () => {
     const view = await tabletMusic(kind, phase);
     const backs = backButtons(view.tree);
     assert.equal(backs.length, 1, 'exactly one accessible tablet Back');
-    assert.equal(backs[0].props.testID, kind === 'album' ? 'native-tablet-album-back' : 'native-tablet-artist-back');
+    assert.equal(backs[0].props.testID, 'native-tablet-artist-back');
     assert.equal(backs[0].props.icon, 'i-left');
     assert.equal(backs[0].props.accessibilityLabel, 'Back');
     backs[0].props.onPress();

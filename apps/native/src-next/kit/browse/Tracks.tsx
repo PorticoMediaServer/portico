@@ -48,7 +48,7 @@ export type TrackTableProps = TrackActions & Readonly<{
   | Readonly<{groups: readonly Readonly<{id: string; title: ReactNode; discNumber: number; rows: readonly TrackRowData[]}>[]; disc: Readonly<{value: string; onValueChange: (id: string) => void}>; rows?: never; collection?: never}>
 );
 
-const defaultColumns = {
+export const trackColumns = {
   album: ['number', 'title', 'plays', 'duration'],
   'top-songs': ['number', 'title', 'plays', 'duration'],
   songs: ['number', 'title', 'artist', 'album', 'duration', 'plays', 'added'],
@@ -142,7 +142,7 @@ export function trackRowHeight(theme: Pick<ReturnType<typeof useTheme>, 'platfor
   return theme.platform === 'tv' ? 84 : variant === 'chapters' && current ? 76 : theme.platform === 'phone' ? 54 : variant === 'songs' ? 56 : 60;
 }
 
-export function TrackRow({row, variant, columns = defaultColumns[variant], selection, onPlay, onMore, onToggleFavorite, isMenuOpen, focusId, testID, onFocus, onBlur, disabled, index, previousFocused, opens = false}: TrackActions & TVTrackFocus & {row: TrackRowData; variant: TrackVariant; columns?: readonly TrackColumn[]; selection: TrackSelection;
+export function TrackRow({row, variant, columns = trackColumns[variant], selection, onPlay, onMore, onToggleFavorite, isMenuOpen, focusId, testID, onFocus, onBlur, disabled, index, previousFocused, opens = false}: TrackActions & TVTrackFocus & {row: TrackRowData; variant: TrackVariant; columns?: readonly TrackColumn[]; selection: TrackSelection;
   /** The row opens its place rather than playing it (a book's chapter opens the reader there): said "Open", not "Play". */
   opens?: boolean}) {
   const theme = useTheme(), phone = theme.platform === 'phone', tv = theme.isTV, selected = selection.isSelected(row.id);
@@ -155,9 +155,9 @@ export function TrackRow({row, variant, columns = defaultColumns[variant], selec
   // A phone's chapter rows have no buttons: the row itself plays the chapter (collections 41a, phone-read 8).
   const actions = phone && variant === 'chapters' ? null : <View style={{width: phone ? 44 : variant === 'chapters' ? 60 : 84, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center'}}>
     {variant === 'chapters' ? <Button variant="icon" size="small" iconOnly icon={opens ? 'i-book' : 'i-play'} accessibilityLabel={t(opens ? 'next.layout.openTitle' : 'next.browse.native.play', {title: row.text.title})} onPress={() => onPlay(row.id)}/> : <>
-    {row.favorite !== undefined && onToggleFavorite && !phone && <Button variant="icon" size="small" iconOnly icon={row.favorite ? 'i-heart-f' : 'i-heart'} accessibilityLabel={t(row.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} accessibilityState={{checked: row.favorite}} onPress={() => onToggleFavorite(row.id, !row.favorite)}/>}
-    {/* A phone's ⋯ is plain, as the music frames draw it (phone-app 13, 15b); the round disc stays on wider forms. */}
-    {onMore && <Button variant={phone ? 'text' : 'icon'} size="small" iconOnly icon="i-more" iconColor={phone ? theme.colors.textTertiary : undefined} accessibilityLabel={t('next.browse.native.moreFor', {title: row.text.title})} onPress={() => onMore(row.id, menuAnchorRef)}/>}
+    {row.favorite !== undefined && onToggleFavorite && !phone && <Button variant="text" size="small" iconOnly icon={row.favorite ? 'i-heart-f' : 'i-heart'} iconColor={row.favorite ? theme.colors.accentStrong : theme.colors.textTertiary} accessibilityLabel={t(row.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} accessibilityState={{checked: row.favorite}} onPress={() => onToggleFavorite(row.id, !row.favorite)}/>}
+    {/* The heart and ⋯ are plain glyphs, as the music frames draw them (phone-app 13, 15b; tablet-play 11). */}
+    {onMore && <Button variant="text" size="small" iconOnly icon="i-more" iconColor={theme.colors.textTertiary} accessibilityLabel={t('next.browse.native.moreFor', {title: row.text.title})} onPress={() => onMore(row.id, menuAnchorRef)}/>}
     </>}
   </View>;
   const select = () => selection.onToggle(row.id);
@@ -188,12 +188,13 @@ export function TrackRow({row, variant, columns = defaultColumns[variant], selec
   </View>;
 }
 
-function TrackHeader({variant, columns = defaultColumns[variant], sort, sortable = [], onSort}: Pick<TrackTableProps, 'variant' | 'columns' | 'sort' | 'sortable' | 'onSort'>) {
+export function TrackHeader({variant, columns = trackColumns[variant], sort, sortable = [], onSort}: Pick<TrackTableProps, 'variant' | 'columns' | 'sort' | 'sortable' | 'onSort'>) {
   const theme = useTheme();
   const grow = theme.fontScale > 1 || theme.textScale > 1;
   if (theme.platform === 'phone' || theme.isTV || variant === 'chapters') return null;
   return <View style={{height: grow ? undefined : 42, minHeight: 42, paddingLeft: 8, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.line, marginBottom: 6}}>
-    {columns.map(column => <View key={column} style={columnStyle(column, variant)}>{column === 'number' ? <Text accessibilityLabel={t('next.browse.native.number')} style={[browseType(theme, 13), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.browse.native.numberSign')}</Text> : (onSort && sortable.includes(column) ? <Focusable accessibilityRole="button" focusKind="row" onPress={() => onSort(column)} style={{height: grow ? undefined : 42, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6}}><Text style={[browseType(theme, 13), {color: sort?.column === column ? theme.colors.text : theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>{sort?.column === column && <Icon name={sort.direction === 'asc' ? 'i-down' : 'i-up'} size={14} color={theme.colors.accentStrong}/>}</Focusable> : <Text style={[browseType(theme, 13), {color: theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>)}</View>)}
+    {/* A number column's name sits over its numbers' right edge, as the rows set them (tablet-play 11). */}
+    {columns.map(column => <View key={column} style={[columnStyle(column, variant), column === 'plays' || column === 'duration' ? {alignItems: 'flex-end'} : undefined]}>{column === 'number' ? <Text accessibilityLabel={t('next.browse.native.number')} style={[browseType(theme, 13), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.browse.native.numberSign')}</Text> : (onSort && sortable.includes(column) ? <Focusable accessibilityRole="button" focusKind="row" onPress={() => onSort(column)} style={{height: grow ? undefined : 42, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6}}><Text style={[browseType(theme, 13), {color: sort?.column === column ? theme.colors.text : theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>{sort?.column === column && <Icon name={sort.direction === 'asc' ? 'i-down' : 'i-up'} size={14} color={theme.colors.accentStrong}/>}</Focusable> : <Text style={[browseType(theme, 13), {color: theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>)}</View>)}
     <View style={{width: 84}}/>
   </View>;
 }

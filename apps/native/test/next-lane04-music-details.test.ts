@@ -12,62 +12,7 @@ const type = (_theme: unknown, fontSize: number, fontWeight: number, letterSpaci
 const i18n = {t: (key: string) => key, number: String, duration: (value: number) => `${value}s`, list: (items: string[]) => items.join(', ')};
 const runtime = {artwork: () => ({cacheKey: 'art'}), ambient: () => ({cacheKey: 'ambient'}), text: {locale: 'en-US'}, reportError: (error: unknown) => {throw error;}};
 
-async function music(platform = 'tablet') {
-  const ui = hooks(), theme = {platform, layoutMode: 'phone', isTV: false, colors, textScale: 1, fontScale: 1}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
-  // A child row renders in its own hook space, so the screen's hooks and the row's never share slots.
-  const child = hooks(); let active = ui;
-  for (const name of ['useRef', 'useState', 'useMemo', 'useCallback', 'useEffect', 'useSyncExternalStore', 'useContext']) react[name] = (...args: any[]) => (active.react as any)[name](...args);
-  const module = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
-    react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({detail: [{id: 'duration', text: '3:00'}]})},
-    '../../../kit/artwork': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', AmbientArt: 'AmbientArt', ArtistCircle: 'ArtistCircle'},
-    '../../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../../kit/cards': {CircleCard: 'CircleCard', SquareCard: 'SquareCard'},
-    '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/browse': {TrackNumber: 'TrackNumber'}, '../../../kit/browse/presentation': {browseType: type, alpha: (color: string, opacity: number) => `${color}/${opacity}`},
-    '../../../kit/theme': {useTheme: () => theme}, './MusicSectionControls': {MusicSectionControls: 'PageControls'},
-    '../../../../../../packages/client-core/src/presentation/library-tabs': {artistReleaseGroups: () => []}, './MusicErrorView': {MusicErrorView: 'Error'},
-    './MusicFormatBadges': {MusicFormatBadges: 'Badges'}, './use-playing-item': {usePlayingItem: () => 'song'},
-    './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow', MusicShelf: 'MusicShelf'}, '../../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-  });
-  const song = {id: 'song', kind: 'song', title: 'Song', libraryId: 'music', duration: 180}, artist = {id: 'artist', kind: 'artist', libraryId: 'music', title: 'Artist'};
-  const entry = {id: 'album', kind: 'album', libraryId: 'music', title: 'Album', artist: {id: 'artist', name: 'Artist'}};
-  const page = {phase: 'ready', items: [song], offset: 0}, snapshot = {phase: 'ready', songs: [song], songPage: page, albums: [], releases: {phase: 'ready', items: []}, similar: [], favorite: false};
-  let selecting = false, selected = false, plays = 0, favorites = 0, starts = 0, menus: any[] = [], opened: any[] = [];
-  const enter = () => {selecting = true;}, toggle = () => {selected = !selected;};
-  const selection = {subscribe: () => () => {}, getSnapshot: () => 0, start: () => {starts++;}, item: () => ({active: selecting, selected, onEnter: enter, onToggle: toggle})};
-  const controller: any = {getSnapshot: () => snapshot, subscribe: () => () => {}, artistEntry: () => artist, selectionProjection: () => ({}),
-    play: async () => {plays++;}, songFavorite: () => false, songFavoritePending: () => false, toggleSongFavorite: async () => {favorites++;}};
-  const props: any = {controller, entry, runtime, selection, actions: {menu: (...args: any[]) => menus.push(args)}, openEntry: (value: any) => opened.push(value), onBack() {}};
-  const tree = ui.render(() => module.PhoneAlbumScreen(props));
-  const renderChild = (node: any) => {active = child; try {return child.render(() => node.type(node.props));} finally {active = ui;}};
-  return {tree, song, artist, controller, selection, renderChild, enter, toggle, menus, opened, counts: () => ({plays, favorites, starts, selected}), ui, module};
-}
-
-test('tablet album matches hero/table metrics and exposes the canonical artist link and Select toolbar', async () => {
-  const f = await music();
-  const all = nodes(f.tree);
-  const cover = all.find(node => node.type === 'Artwork'); assert.equal(cover.props.width, 260);
-  const title = all.find(node => node.type === 'Lockup' && node.props.title === 'Album'); assert.equal(title.props.size, 80, 'the tablet album keeps its frame size through the one page title');
-  const link = all.find(node => node.type === 'Focusable' && node.props.accessibilityRole === 'link');
-  assert.equal(link.props.style.minHeight, 44); link.props.onPress(); assert.deepEqual(f.opened, [f.artist]);
-  const select = all.find(node => node.type === 'Chip'); select.props.onPress(); assert.equal(f.counts().starts, 1);
-  const list = all.find(node => node.type === 'MusicWindow'); assert.equal(list.props.itemHeight, 60);
-  const rowElement = nodes(list.props.renderItem(f.song, 0)).find(node => node.type?.name === 'TabletSongLine');
-  const row = f.renderChild(rowElement);
-  assert.equal(row.props.style.height, 60); assert.equal(row.props.style.backgroundColor, '#edf5fa/0.08');
-  const favorite = nodes(row).find(node => node.props.icon === 'i-heart');
-  assert.equal(favorite.props.style.width, 44); favorite.props.onPress(); assert.equal(f.counts().favorites, 1);
-});
-
 // A phone's album and artist pages are rebuilt (pages/touch/music): their song rows are TrackWindow's (next-track-window).
-
-test('the tablet album keeps its own wash, fading to ink (a phone\'s music pages take the kit page wash from TitleFrame)', async () => {
-  const tablet = await music('tablet'), tree = tablet.renderChild(nodes(tablet.tree).find(node => node.type?.name === 'Wash')), all = nodes(tree);
-  assert.equal(tree.props.style.height, 700);
-  assert.ok(all.some(node => node.type === 'AmbientArt'));
-  assert.deepEqual(all.filter(node => node.type === 'Stop').map(node => [node.props.offset, node.props.stopOpacity]), [['0.25', 0], ['1', 1]]);
-});
 
 async function audiobook(kind: 'book' | 'author') {
   const ui = hooks(), theme = {isTV: false, platform: 'phone', colors};
@@ -119,42 +64,4 @@ test('author header, book rows and grouped details retain their specified hierar
   assert.ok(nodes(first).some(node => style(node).left === 5 && style(node).height === 3));
   assert.ok(all.some(node => style(node).borderRadius === 14 && style(node).marginHorizontal === -4 && style(node).backgroundColor === colors.raised));
   assert.ok(all.some(node => node.type === 'Text' && content(node) === 'next.kit.narrators' && style(node).fontSize === 15.5));
-});
-
-// Owner's standing complaint (deferred row 247): upright beside the cover, the tablet album's Shuffle was cut to "S".
-// The album and artist pages share one action row that wraps: the round buttons move to a second line, no label is cut.
-test('the tablet album\'s action row wraps rather than cut Shuffle, and plays and shuffles', async () => {
-  const f = await music();
-  const element = nodes(f.tree).find(node => node.type?.name === 'TabletMusicActions');
-  assert.ok(element, 'the album draws the shared tablet action row');
-  const row = f.renderChild(element);
-  assert.deepEqual([row.props.style.flexDirection, row.props.style.flexWrap], ['row', 'wrap']);
-  const buttons = nodes(row).filter(node => node.type === 'Button');
-  const shuffle = buttons.find(node => node.props.icon === 'i-shuffle');
-  assert.deepEqual([shuffle.props.children].flat(), [i18n.t('title.shuffle')]); assert.equal(shuffle.props.style.flex, undefined, 'its own width, never a squeezed share');
-  assert.deepEqual(buttons.map(node => node.props.icon), ['i-play', 'i-shuffle', 'i-heart', 'i-more'], 'Play, Shuffle, Favorite and the page\'s own anchored More');
-  buttons[0].props.onPress(); shuffle.props.onPress(); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(f.counts().plays, 2);
-  assert.equal(nodes(f.tree).filter(node => node.type?.name === 'TabletMusicActions').length, 1);
-});
-
-// 13 Nov iPad walk: in iPad mini portrait the tablet album's track titles were cut to "A L…" beside fixed Plays and Duration
-// columns. The title keeps a real share; Plays gives way first, then Duration; the favourite and More always stay.
-test('the tablet song table keeps the title a real share: Plays drops first, then Duration', async () => {
-  const f = await music();
-  const columns = f.module.songTableColumns;
-  assert.deepEqual(columns(0), {plays: true, duration: true}, 'before measuring, the full table');
-  assert.deepEqual(columns(700), {plays: true, duration: true});
-  assert.deepEqual(columns(420), {plays: false, duration: true}, 'a short row drops Plays first');
-  assert.deepEqual(columns(320), {plays: false, duration: false}, 'then Duration; the title keeps 40 % and 160 pt');
-  assert.deepEqual(columns(700, 2), {plays: false, duration: true}, 'at large text the columns need more room: Plays goes first');
-  assert.deepEqual(columns(500, 2), {plays: false, duration: false});
-  const header = nodes(f.tree).find(node => node.type?.name === 'SongTableHeader');
-  assert.equal(typeof header.props.onWidth, 'function', 'the one table header measures the table');
-  const element = nodes(nodes(f.tree).find(node => node.type === 'MusicWindow').props.renderItem(f.song, 0)).find(node => node.type?.name === 'TabletSongLine');
-  assert.deepEqual(element.props.columns, header.props.columns, 'rows and header share one set of columns');
-  const narrow = f.renderChild({type: element.type, props: {...element.props, columns: {plays: false, duration: false}}});
-  const texts = nodes(narrow).filter(node => node.type === 'Text').map(node => [node.props.children].flat().join(''));
-  assert.ok(texts.includes('Song'), 'the title is drawn'); assert.equal(texts.includes('3:00'), false, 'no Duration column');
-  assert.ok(nodes(narrow).some(node => node.props?.icon === 'i-heart'), 'the favourite stays');
 });

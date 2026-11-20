@@ -4,7 +4,8 @@ import type {FactPart} from '../../../../../../packages/client-core/src/presenta
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
-import type {StateRowProps} from '../../../kit/frames';
+import type {AboutValue, StateRowProps} from '../../../kit/frames';
+import {useTheme} from '../../../kit/theme';
 import type {PosterRowProps} from '../../../kit/layout';
 import type {MusicSection} from '../../../kit/music/section';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -20,17 +21,25 @@ const year = (value: number | undefined) => value === undefined ? undefined : de
 export type AlbumPageProps = Readonly<{
   controller: NativeTVMusicController; entry: ContentEntry; runtime: NativeShellRuntime; actions: Pick<NativeEntryActions, 'menu'>;
   selection?: NativeSavedSelectionPort; openEntry: (entry: ContentEntry) => void; onBack: () => void; download?: (entry: ContentEntry) => void;
+  /** Add the album to a playlist (the old tablet page's button; the route's playlist picker). */
+  onPlaylist?: () => void;
 }>;
 
 /** What an album's page shows (phone-app frame 13), from the music controller the old album screen read: data only. */
 export type AlbumView = Readonly<{
   title: string; artistName?: string; cover?: ArtworkSource; glow?: AmbientArtSource;
+  /** "Album" over the title on a tablet (tablet-play 11, the old tablet page); a phone's frame 13 has none. */
+  kicker?: Readonly<{label: string}>;
   /** The album's artist under the title, a link to their page (the old tablet page's link; frame 13). */
   byline?: Readonly<{text: string; onPress: () => void}>;
   facts: readonly FactPart[]; badges: ContentEntry['badges'];
   play: () => void; shuffle: () => void; download?: () => void; more: () => void;
   /** Whether this viewer favourites the album, and the toggle (the old TV album page's heart). */
   favorite: Readonly<{on: boolean; toggle: () => void}>;
+  playlist?: () => void;
+  /** A tablet's Details beside the songs (tablet-play 11, the old tablet album page): year, release date, label, type,
+   * genres, added. None on a phone (frame 13 has none). */
+  details?: readonly Readonly<{label: string; values: readonly AboutValue[]}>[];
   /** A multi-disc album's discs, the chosen one's songs listed (the old TV album page's Disc chips, tv-more frame 6). A
    * single-disc album has none. */
   discs?: readonly Readonly<{id: string; label: string; selected: boolean; onPress: () => void}>[];
@@ -47,7 +56,7 @@ export type AlbumView = Readonly<{
   similar?: PosterRowProps; similarState?: StateRowProps;
 }>;
 
-export function useAlbum({controller, entry, runtime, actions, selection, openEntry, download}: AlbumPageProps): AlbumView {
+export function useAlbum({controller, entry, runtime, actions, selection, openEntry, download, onPlaylist}: AlbumPageProps): AlbumView {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playingId = usePlayingItem(runtime);
   // A row's place in the selection redraws the rows.
   useSyncExternalStore(selection?.subscribe ?? noSubscribe, selection?.getSnapshot ?? zero);
@@ -71,19 +80,25 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
   const byId = new Map(snapshot.songs.map(song => [song.id, song]));
   const albums = snapshot.similar.filter(value => value.kind === 'album' && value.libraryId);
   const retryRead = {label: t('action.tryAgain'), onPress: () => run(controller.load())};
+  const {form} = useTheme(), tablet = form === 'medium' || form === 'expanded';
+  const date = (value: string | null | undefined) => value ? new Intl.DateTimeFormat(runtime.text.locale ?? 'en-US', {dateStyle: 'medium'}).format(new Date(value)) : undefined;
+  const details = tablet ? ([[t('title.year'), released], [t('title.releaseDate'), date(entry.releaseDate)], [t('title.label'), entry.label],
+    [t('title.albumType'), entry.albumType], [t('title.genres'), entry.genres?.join(', ')], [t('title.added'), date(entry.addedAt)]] as const)
+    .flatMap(([label, value]) => value ? [{label, values: [{text: value}]}] : []) : [];
   return {
-    title, cover: runtime.artwork(entry.posterUrl), glow: runtime.ambient(entry.posterUrl ?? entry.backdropUrl), artistName,
+    title, kicker: tablet ? {label: t('next.browse.native.album')} : undefined, cover: runtime.artwork(entry.posterUrl), glow: runtime.ambient(entry.posterUrl ?? entry.backdropUrl), artistName,
     byline: artistName ? {text: artistName, onPress: () => {const artist = controller.artistEntry(); if (artist) openEntry(artist);}} : undefined,
     facts, badges: snapshot.albumDetails?.badges,
     play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)),
     download: download ? () => download(entry) : undefined, more: () => actions.menu(entry),
-    favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())},
+    favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())}, playlist: onPlaylist,
+    details: details.length ? details : undefined,
     discs: discNumbers.length > 1 ? discNumbers.map(value => ({id: String(value), label: t('title.disc', {number: defaultI18n.number(value, {useGrouping: false})}),
       selected: value === chosen, onPress: () => setDisc(value)})) : undefined,
     state: snapshot.phase === 'error' ? {kind: 'error', icon: 'i-warn', title: presentError(snapshot.error, 'detail').title, action: retryRead} : undefined,
     songs: {
       // Numbered by the album's own track numbers, else their place in the album.
-      ...songList({songs: listed, number: (value, index) => value.trackNumber ?? page.offset + index + 1, playingId, controller, runtime, actions, selection}),
+      ...songList({songs: listed, number: (value, index) => value.trackNumber ?? page.offset + index + 1, playingId, controller, runtime, actions, selection, table: tablet}),
       onFocusRow: id => {const value = byId.get(id); if (value) controller.focusSong(value, page);},
       onBlurRow: id => {const value = byId.get(id); if (value) controller.blurSong(value, page);},
       section: page, next: () => run(controller.nextSongs(page)), previous: () => run(controller.previousSongs(page)),
