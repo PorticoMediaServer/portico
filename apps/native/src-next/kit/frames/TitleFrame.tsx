@@ -258,9 +258,14 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
   const row = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primaryRef={primaryView} primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
     progress: lineUnder ? undefined : primary.progress, startOver: stacked ? undefined : primary.startOver}}/>;
   const track = theme.spec.card.progress.height[theme.column];
-  const resumeLine = lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? spec.coverResumeWidth : undefined}}>
-    <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
-      <View style={{width: `${primary!.progress! * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View>
+  const resumeBar = lineUnder ? <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{flex: 1, height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
+    <View style={{width: `${primary!.progress! * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View> : null;
+  // A phone page with no Start over under its buttons (an audiobook: Start over is in its ⋯, collections 41a) draws the bar
+  // and the time left on one line.
+  const resumeLine = lineUnder && stacked && !primary!.startOver ? <View style={{width: '100%', minHeight: buttonGeometry('xs', theme.column, 'link').height, flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+    {resumeBar}<Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{primary!.remaining}</Text></View>
+    : lineUnder ? <View style={{gap: theme.space.tight, width: '100%', maxWidth: cover && !stacked ? spec.coverResumeWidth : undefined}}>
+    <View style={{flexDirection: 'row'}}>{resumeBar}</View>
     {/* phone-detail d1 frame 3 `.rsm .rl`: the time left in the secondary caption, Start over a link whose right edge is the bar's. */}
     <View style={{minHeight: buttonGeometry('xs', theme.column, 'link').height, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}><Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{primary!.remaining}</Text>
       {primary!.startOver && stacked && <Button variant="link" size="xs" icon="i-restart" onPress={primary!.startOver.onPress}>{primary!.startOver.label}</Button>}</View>
