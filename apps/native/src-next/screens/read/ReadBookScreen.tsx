@@ -32,6 +32,7 @@ import {BookDetailActions} from './book-detail-actions';
 import type {NativeReadingCollectionKind} from './read-collection-capability';
 import {useReadingCollectionKind} from './use-reading-collection-kind';
 import {TopBar, RoundBarButton} from '../../kit/layout/TopBar';
+import {useRouteRevision} from './use-route-revision';
 
 const {t} = defaultI18n;
 const initials = (author: string): string => author.trim().split(/\s+/).slice(0, 2).map(part => part.slice(0, 1).toUpperCase()).join('') || '·';
@@ -63,11 +64,13 @@ export function ReadBookScreen({controller, route, comic, owner, context, runtim
   const [edit, setEdit] = useState<Readonly<{lease: NativeReadOwnerEditLease; owner: object; key: number}>>();
   const [collection, setCollection] = useState<Readonly<{lease: NativeReadOwnerEditLease; owner: object; key: number; kind: NativeReadingCollectionKind}>>();
   const editSeq = useRef(0);
+  // Back on top by the system's own Back (iOS's swipe) shows this same route under a new revision: arm again from it.
+  const revision = useRouteRevision(context, route);
   useLayoutEffect(() => {
     if (!controller.arm()) return;
     void controller.load().catch(() => {});
     return () => controller.release();
-  }, [controller, route]);
+  }, [controller, route, revision]);
   const manifest = state.manifest, title = manifest?.metadata.title ?? controller.item.title;
   // The exact selected version from the page's versions producer, never looked up again.
   const selectedVersion = state.sourceId ? state.versions.find(value => value.sourceId === state.sourceId) : undefined;

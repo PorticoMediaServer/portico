@@ -23,7 +23,7 @@ async function page(over: Record<string, unknown> = {}, options: {owner?: boolea
     react: {...h.react, useLayoutEffect: () => {}}, '../../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../../packages/client-core/src/presentation/errors': errors, '../../../../../../packages/client-core/src/presentation/kit-model/text': kitText,
     '../../../../../../packages/client-core/src/reading': reading, '../../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
-    '../../../screens/read/use-reading-collection-kind': {useReadingCollectionKind: () => 'ebook'},
+    '../../../screens/read/use-reading-collection-kind': {useReadingCollectionKind: () => 'ebook'}, '../../../screens/read/use-route-revision': {useRouteRevision: () => 1},
     '../../../screens/downloads/request': {askNativeDownload: (request: unknown) => calls.push(['download-volume', request])}});
   const manifest = options.manifest ?? epub;
   const snapshot = {phase: 'ready', manifest, sourceId: manifest.sourceId, versions: [{sourceId: manifest.sourceId, format: manifest.format, size: manifest.size, inventoryAvailable: true}],

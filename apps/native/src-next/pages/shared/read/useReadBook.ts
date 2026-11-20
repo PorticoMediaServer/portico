@@ -20,6 +20,7 @@ import type {ReadingActionsPort} from '../../../screens/read/ReadingActions';
 import type {NativeReadingCollectionKind} from '../../../screens/read/read-collection-capability';
 import {useReadingCollectionKind} from '../../../screens/read/use-reading-collection-kind';
 import {askNativeDownload} from '../../../screens/downloads/request';
+import {useRouteRevision} from '../../../screens/read/use-route-revision';
 
 const {t} = defaultI18n;
 const duration = (seconds: number) => durationText(seconds, t)!;
@@ -75,11 +76,13 @@ export function useReadBook({controller, route, comic, owner, context, runtime, 
   const shelf = useSyncExternalStore(controller.subscribeShelf, controller.shelfSnapshot);
   const [menuOpen, setMenuOpen] = useState(false), [versionsOpen, setVersionsOpen] = useState(false), [expanded, setExpanded] = useState(false), [tab, setTab] = useState<'contents' | 'details'>('contents');
   const downloadAnchor = useRef<View | null>(null);
+  // Back on top by the system's own Back (iOS's swipe) shows this same route under a new revision: arm again from it.
+  const revision = useRouteRevision(context, route);
   useLayoutEffect(() => {
     if (!controller.arm()) return;
     void controller.load().catch(() => {});
     return () => controller.release();
-  }, [controller, route]);
+  }, [controller, route, revision]);
   const run = (work: Promise<unknown>) => {void work.catch(runtime.reportError);};
   const ready = state.phase === 'ready' && !!state.manifest, manifest = ready ? state.manifest : undefined;
   const series = controller.series(), saved = manifest ? controller.savedProgression(manifest) : undefined;
