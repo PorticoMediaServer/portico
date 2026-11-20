@@ -183,7 +183,7 @@ test('Dialog provides bounded scrolling by default and honors a body-owned list 
 test('song rows speak their artist/album/state and enlarged rows release fixed virtualization estimates', async () => {
   for (const scale of [1, 2.5]) {
     const f = fixture(scale), calls: string[] = [];
-    const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {
+    const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {'../artwork': {Artwork: 'Artwork'},
       ...f.common, '../../../../../packages/i18n/src': {defaultI18n}, '../controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
       '../Icon': {Icon: 'Icon'}, '../cards/primitives': {CardFrame: 'CardFrame'}, '../cards/model': cardModel,
       './presentation': {alpha: (value: string) => value, browseType: () => ({})},
@@ -347,7 +347,7 @@ test('a circle with no picture draws the shared initials of its name; with a pic
 // 13 Nov art-library sweep (T12): at the largest text an album's track "10" broke into "1" over "0" in a fixed 18 pt column.
 test('a track number grows with its digits on one line, and shows the level meter while playing', async () => {
   const f = fixture(2.5);
-  const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {
+  const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {'../artwork': {Artwork: 'Artwork'},
     ...f.common, '../../../../../packages/i18n/src': {defaultI18n}, '../controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
     '../Icon': {Icon: 'Icon'}, '../cards/primitives': {CardFrame: 'CardFrame'}, '../cards/model': cardModel,
     './presentation': {alpha: (value: string) => value, browseType: () => ({})},
@@ -366,7 +366,7 @@ test('a track number grows with its digits on one line, and shows the level mete
 // TV draws its own track row; the phone number cell above never reaches it.
 test('a ranked song row on TV is the TV track row, untouched by the phone number cell', async () => {
   const f = fixture(), theme = createTheme({isTV: true, width: 1920, fontScale: 1});
-  const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {
+  const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {'../artwork': {Artwork: 'Artwork'},
     ...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}, '../../../../../packages/i18n/src': {defaultI18n}, '../controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
     '../Icon': {Icon: 'Icon'}, '../cards/primitives': {CardFrame: 'CardFrame'}, '../cards/model': cardModel,
     './presentation': {alpha: (value: string) => value, browseType: () => ({})},

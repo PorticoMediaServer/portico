@@ -1,10 +1,11 @@
 import React, {useId, useRef} from 'react';
-import type {View} from 'react-native';
+import {View} from 'react-native';
 import type {ArtworkSource} from '../artwork';
 import {CircleCard, PosterCard, SquareCard} from '../cards';
 import {cardCaptionHeight} from '../cards/caption-metrics';
 import {frameSpec} from '@portico/design';
 import {useTheme} from '../theme';
+import {FocusRegion} from '../focus';
 import {Row} from './Row';
 import type {RowPage} from './row-state';
 import type {CardSelection, LayoutItemContext, LayoutSelection} from './types';
@@ -50,6 +51,18 @@ export function PosterRow({title, items, paging, small, shape, subtitle, onSeeAl
   return <Row testID={testID} title={title} subtitle={subtitle} onSeeAll={onSeeAll} items={items} focus={theme.isTV ? {id: region} : undefined} getKey={item => item.key} itemWidth={width} itemHeight={artHeight + caption} captionHeight={caption} selection={resting} paging={paging}
     renderItem={(item, context) => <PosterItem item={item} context={context} width={width} shape={shape}/>}/>;
 }
+
+/** A column of square covers beside a page's panel, each card as in a row (tv-more frame 8: an artist's Albums beside Top
+ * songs, under the page's own heading). On TV it is a focus region of its own, so it keeps its card as a row does. */
+export function PosterColumn({items, testID}: Readonly<{items: readonly PosterRowItem[]; testID?: string}>) {
+  const theme = useTheme(), region = `poster-column.${useId()}`, width = theme.spec.card.width.square[theme.column];
+  const cards = items.map((item, index) => <PosterItem key={item.key} item={item} width={width} shape="square"
+    context={{index, id: item.key, focusId: `${region}.${item.key}`, testID: testID && `${testID}.${index}`, onFocus: noop, onBlur: noop}}/>);
+  const style = {gap: theme.space.md};
+  return theme.isTV ? <FocusRegion id={region} testID={testID} orientation="vertical" order={items.map(item => `${region}.${item.key}`)} style={style}>{cards}</FocusRegion>
+    : <View testID={testID} style={style}>{cards}</View>;
+}
+const noop = () => {};
 
 function PosterItem({item, context, width, shape}: Readonly<{item: PosterRowItem; context: LayoutItemContext; width: number; shape?: 'square' | 'circle'}>) {
   const anchor = useRef<View>(null), more = item.onMore, Card = shape === 'square' ? SquareCard : PosterCard;

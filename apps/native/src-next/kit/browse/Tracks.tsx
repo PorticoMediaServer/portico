@@ -8,14 +8,21 @@ import {Icon} from '../Icon';
 import {CardFrame} from '../cards/primitives';
 import {cardAccessibilityLabel} from '../cards/model';
 import {useTheme} from '../theme';
+import {Artwork, type ArtworkSource} from '../artwork';
 import {alpha, browseType} from './presentation';
 
 const t = defaultI18n.t;
 export type TrackRowData = Readonly<{
   id: string; text: CardTextModel; number?: number; plays?: number; addedAt?: string;
-  duration?: FactPart; artwork?: ReactNode; favorite?: boolean; playing?: boolean;
+  duration?: FactPart; artwork?: ReactNode;
+  /** The row's cover from its data, drawn by the kit at each row's own size (a TV row 56, a ranked row 46). */
+  artworkSource?: ArtworkSource; favorite?: boolean; playing?: boolean;
   done?: boolean; current?: boolean; progress?: number;
 }>;
+/** A row's cover at `size`: the node a caller drew, else its source drawn here. */
+function rowArt(row: TrackRowData, size: number): ReactNode {
+  return row.artwork ?? (row.artworkSource ? <Artwork source={row.artworkSource} width={size} height={size}/> : undefined);
+}
 export type TrackSelection = Readonly<{
   active: boolean; isSelected: (id: string) => boolean; onToggle: (id: string) => void; onEnter: (id: string) => void;
   /** The supplied selection family renders a nonfocusable mark inside the TV row. */
@@ -82,7 +89,7 @@ function TVTrackRow({row, onPress, onMenu, selection, selected, selectionMode = 
     {({focused}) => <View style={{minHeight: 84, paddingVertical: 6, paddingLeft: 18, paddingRight: 28, flexDirection: 'row', gap: 22, alignItems: 'center', borderRadius: 16, borderTopWidth: index === 0 || focused || previousFocused ? 0 : 1, borderTopColor: alpha(theme.colors.line, .6), backgroundColor: focused ? theme.colors.raisedHigh : selected ? alpha(theme.colors.accent, .18) : row.playing ? alpha(theme.colors.text, .07) : undefined}}>
       {selection}
       <View style={{width: 44, alignItems: 'center'}}>{row.playing ? <LevelMeter/> : <Text style={[browseType(theme, 24, 600), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{row.number}</Text>}</View>
-      {showArtwork && row.artwork && <View style={{width: 56, height: 56, borderRadius: 8, overflow: 'hidden'}}>{row.artwork}</View>}
+      {showArtwork && rowArt(row, 56) && <View style={{width: 56, height: 56, borderRadius: 8, overflow: 'hidden'}}>{rowArt(row, 56)}</View>}
       <View style={{flex: 1, minWidth: 0}}><Text numberOfLines={grow ? undefined : 2} style={[browseType(theme, 28, 700), {color: row.playing ? theme.colors.accentStrong : theme.colors.text}]}>{row.text.title}</Text>{showCaption && <View style={{flexDirection: 'row', gap: 12, marginTop: 2}}>{row.text.caption.map(part => <Text key={part.id} numberOfLines={grow ? undefined : 1} style={[browseType(theme, 20, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part.text}</Text>)}</View>}</View>
       {row.favorite && <Icon name="i-heart-f" size={22} color={theme.colors.accentStrong}/>}
       <Text style={[browseType(theme, 24), {color: theme.colors.textTertiary, width: 80, textAlign: 'right', fontVariant: ['tabular-nums']}]}>{duration?.text}</Text>
@@ -108,7 +115,7 @@ export function SongRow({row, onPlay, onMore, selection, selected = false, onSel
       {() =>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 14, flex: 1, minWidth: 0}}>
         {ranked && row.number !== undefined && <TrackNumber number={row.number} playing={row.playing} width={22} size={tv ? 22 : 15} weight={700}/>}
-        {row.artwork && <View style={{width: tv ? 72 : ranked ? 46 : 44, height: tv ? 72 : ranked ? 46 : 44, borderRadius: 6, overflow: 'hidden'}}>{row.artwork}</View>}
+        {rowArt(row, tv ? 72 : ranked ? 46 : 44) && <View style={{width: tv ? 72 : ranked ? 46 : 44, height: tv ? 72 : ranked ? 46 : 44, borderRadius: 6, overflow: 'hidden'}}>{rowArt(row, tv ? 72 : ranked ? 46 : 44)}</View>}
         <View style={{flex: 1, minWidth: 0}}>
           <Text numberOfLines={grow ? undefined : 2} style={[browseType(theme, tv ? 24 : 15, 700), {color: row.playing ? theme.colors.accentStrong : theme.colors.text}]}>{row.text.title}</Text>
           {caption.length > 0 && <View style={{flexDirection: 'row', gap: 10, marginTop: 2}}>{caption.map(part => <Text key={part.id} numberOfLines={grow ? undefined : 1} style={[browseType(theme, 13, 400), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part.text}</Text>)}</View>}
@@ -131,7 +138,8 @@ function columnStyle(column: TrackColumn, variant: TrackVariant) {
 /** A track row's resting height, at the system text size: a list that windows its rows (`TrackWindow`) steps by it. */
 export function trackRowHeight(theme: Pick<ReturnType<typeof useTheme>, 'platform'>, variant: TrackVariant, current?: boolean): number {
   // The chapter you are in is taller on every form: its own progress and the time left in it sit under its title.
-  return variant === 'chapters' && current ? 76 : theme.platform === 'phone' ? 54 : variant === 'songs' ? 56 : 60;
+  // A TV row is at least 84 (`TVTrackRow`, tv-more frames 6 and 8): a window must not stack them closer.
+  return theme.platform === 'tv' ? 84 : variant === 'chapters' && current ? 76 : theme.platform === 'phone' ? 54 : variant === 'songs' ? 56 : 60;
 }
 
 export function TrackRow({row, variant, columns = defaultColumns[variant], selection, onPlay, onMore, onToggleFavorite, isMenuOpen, focusId, testID, onFocus, onBlur, disabled, index, previousFocused}: TrackActions & TVTrackFocus & {row: TrackRowData; variant: TrackVariant; columns?: readonly TrackColumn[]; selection: TrackSelection}) {
@@ -162,7 +170,7 @@ export function TrackRow({row, variant, columns = defaultColumns[variant], selec
           if (column === 'number') return <View key={column} style={{width: phone ? 18 : 44, alignItems: 'center'}}>{row.playing ? <LevelMeter/> : row.done ? <Icon name="i-check" size={phone ? 16 : 20} color={theme.colors.textTertiary}/> : row.number !== undefined ? <Text style={[browseType(theme, tv ? 22 : phone ? 14 : 15, row.current ? 800 : 600), {color: row.current ? theme.colors.accentStrong : theme.colors.textTertiary}]}>{row.number}</Text> : null}</View>;
           // On a phone a title wraps to a second line before it is cut; two lines fit the 54-point row (the old song row, W4 F7).
           if (column === 'title') return <View key={column} style={[columnStyle(column, variant), {flexDirection: 'row', alignItems: 'center', gap: 14}]}>
-            {!phone && (variant === 'songs' || variant === 'top-songs') && row.artwork && <View style={{width: variant === 'songs' ? 40 : 42, height: variant === 'songs' ? 40 : 42, borderRadius: 6, overflow: 'hidden'}}>{row.artwork}</View>}
+            {!phone && (variant === 'songs' || variant === 'top-songs') && rowArt(row, variant === 'songs' ? 40 : 42) && <View style={{width: variant === 'songs' ? 40 : 42, height: variant === 'songs' ? 40 : 42, borderRadius: 6, overflow: 'hidden'}}>{rowArt(row, variant === 'songs' ? 40 : 42)}</View>}
             <View style={{flex: 1, minWidth: 0}}><Text numberOfLines={grow ? undefined : phone ? 2 : 1} style={[browseType(theme, tv ? 24 : phone ? 15.5 : variant === 'songs' ? 15 : 16, row.done ? 500 : 600), {color: row.current || row.playing ? theme.colors.accentStrong : row.done ? theme.colors.textTertiary : theme.colors.text}]}>{row.text.title}</Text>
               {!phone && variant === 'top-songs' && row.text.caption.some(part => part.id === 'album') && <View style={{flexDirection: 'row', gap: 10, marginTop: 2}}>{row.text.caption.filter(part => part.id === 'album').map(part => <Text key={part.id} numberOfLines={grow ? undefined : 1} style={[browseType(theme, 13), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part.text}</Text>)}</View>}
               {row.current && progress !== undefined && <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, maxWidth: 360}}><View style={{flex: 1, height: 4, borderRadius: 4, backgroundColor: alpha(theme.colors.text, .22)}}><View style={{height: 4, width: `${progress * 100}%`, borderRadius: 4, backgroundColor: theme.colors.accentStrong}}/></View>{remaining && <Text style={[browseType(theme, 12), {color: theme.colors.textTertiary}]}>{remaining.text}</Text>}</View>}
