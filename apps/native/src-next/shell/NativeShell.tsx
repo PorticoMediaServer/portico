@@ -407,7 +407,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   </View> : undefined;
   const content = <>
     {stacks ? <Animated.View pointerEvents="box-none" accessibilityElementsHidden={!!snapshot.mediaExpanded} importantForAccessibility={snapshot.mediaExpanded ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, pageStyle]}>
-      <TouchStacks port={stacks} slots={slots} tier={nativeStackMotionTier(motion)} background={theme.colors.ink} renderShell={renderShellPage} routeStyle={pushedPage}/>
+      <TouchStacks port={stacks} slots={slots} tier={nativeStackMotionTier(motion)} background={theme.colors.ink} renderShell={renderShellPage} routeStyle={pushedPage} shellInset={sideNavigation ? sideWidth : 0}/>
     </Animated.View> : <>
     <Animated.View pointerEvents={settingsPage ? 'none' : 'auto'} accessibilityElementsHidden={baseHidden || settingsPage} importantForAccessibility={baseHidden || settingsPage ? 'no-hide-descendants' : 'auto'} style={[{flex: 1}, settingsPage && !settingsSheet ? {display: 'none'} : null, sideNavigation ? {paddingLeft: sideWidth} : null, settingsPage ? undefined : pageStyle]}>
       {/* A pushed TV route covers this page: nothing under it may take D-pad focus (CoveredLayer). */}

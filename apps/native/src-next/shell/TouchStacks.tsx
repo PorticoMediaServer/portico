@@ -43,24 +43,26 @@ export type NativeStackPage = Readonly<{presentation: NativeRoutePresentation; t
 
 /** Touch route host: one native stack per visited tab, plus Settings' modal stack.
  * Tabs never slide (2.11); the shell fades the page area when the tab changes. */
-export function TouchStacks({port, slots, tier, background, renderShell, routeStyle, onResync}: {
+export function TouchStacks({port, slots, tier, background, renderShell, routeStyle, onResync, shellInset = 0}: {
   port: NativeTouchStacksPort; slots: NativeStackSlots; tier: NativeStackMotionTier; background: string;
   /** A tab's first screen or another shell destination (Home, Library, Settings...). */
   renderShell: (page: NativeStackPage) => ReactNode;
   /** Wraps a pushed page and its retained views (tab bar inset, the player's first paint). */
   routeStyle?: (route: NativeShellRoute, content: ReactNode) => ReactNode;
   onResync?: () => void;
+  /** Where a first screen's page starts: a tablet's rail width (the shell's page sits beside it), 0 on a phone. */
+  shellInset?: number;
 }) {
   const value = useSyncExternalStore(port.subscribe, port.getSnapshot, port.getSnapshot);
   return <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
     {value.stacks.map(stack => <TabStack key={stack.tab} stack={stack} active={stack.tab === value.active} port={port} slots={slots} tier={tier}
-      background={background} renderShell={renderShell} routeStyle={routeStyle} onResync={onResync}/>)}
+      background={background} renderShell={renderShell} routeStyle={routeStyle} onResync={onResync} shellInset={shellInset}/>)}
   </View>;
 }
 
-function TabStack({stack, active, port, slots, tier, background, renderShell, routeStyle, onResync}: {
+function TabStack({stack, active, port, slots, tier, background, renderShell, routeStyle, onResync, shellInset}: {
   stack: NativeTabStack; active: boolean; port: NativeTouchStacksPort; slots: NativeStackSlots; tier: NativeStackMotionTier; background: string;
-  renderShell: (page: NativeStackPage) => ReactNode; routeStyle?: (route: NativeShellRoute, content: ReactNode) => ReactNode; onResync?: () => void;
+  renderShell: (page: NativeStackPage) => ReactNode; routeStyle?: (route: NativeShellRoute, content: ReactNode) => ReactNode; onResync?: () => void; shellInset: number;
 }) {
   const presentations = stack.presentations, modalAt = presentations.findIndex(value => isModalRoot(value.route));
   const base = modalAt > 0 ? presentations.slice(0, modalAt) : presentations, modal = modalAt > 0 ? presentations.slice(modalAt) : [];
@@ -69,19 +71,19 @@ function TabStack({stack, active, port, slots, tier, background, renderShell, ro
     <FadeIn run={active} ms={nativeTabFadeMs(tier)}>
     <View pointerEvents={covered ? 'none' : 'box-none'} accessibilityElementsHidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} style={StyleSheet.absoluteFill}>
       <Stack id={`${stack.tab}:base`} presentations={base} modal={false} tabActive={active} active={active && !modal.length} port={port} slots={slots} tier={tier}
-        background={background} renderShell={renderShell} routeStyle={routeStyle} onResync={onResync}/>
+        background={background} renderShell={renderShell} routeStyle={routeStyle} onResync={onResync} shellInset={shellInset}/>
     </View>
     {modal.length > 0 && <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <Stack id={`${stack.tab}:modal`} presentations={modal} modal tabActive={active} active={active} port={port} slots={slots} tier={tier}
-        background={background} renderShell={renderShell} routeStyle={routeStyle} onResync={onResync}/>
+        background={background} renderShell={renderShell} routeStyle={routeStyle} onResync={onResync} shellInset={shellInset}/>
     </View>}
     </FadeIn>
   </View>;
 }
 
-function Stack({id, presentations, modal, tabActive, active, port, slots, tier, background, renderShell, routeStyle, onResync}: {
+function Stack({id, presentations, modal, tabActive, active, port, slots, tier, background, renderShell, routeStyle, onResync, shellInset}: {
   id: string; presentations: readonly NativeRoutePresentation[]; modal: boolean; tabActive: boolean; active: boolean; port: NativeTouchStacksPort; slots: NativeStackSlots;
-  tier: NativeStackMotionTier; background: string; renderShell: (page: NativeStackPage) => ReactNode; routeStyle?: (route: NativeShellRoute, content: ReactNode) => ReactNode; onResync?: () => void;
+  tier: NativeStackMotionTier; background: string; renderShell: (page: NativeStackPage) => ReactNode; routeStyle?: (route: NativeShellRoute, content: ReactNode) => ReactNode; onResync?: () => void; shellInset: number;
 }) {
   // A refused native pop leaves the system's stack ahead of navigation; a fresh
   // native stack is the only way back into agreement (the pages' modules keep their state).
@@ -105,9 +107,10 @@ function Stack({id, presentations, modal, tabActive, active, port, slots, tier, 
       // The first screen keeps one native identity: switching library in place never slides.
       const key = index === 0 ? `${id}:root` : presentation.occurrence;
       const outlet = <NativeStackSlotOutlet slots={slots} route={presentation.route}/>;
-      // A first screen's retained views (Search) cover the whole screen as before; a pushed
-      // page and its retained views share one box.
-      const page = shell ? <>{renderShell({presentation, top, tabActive, modal: modal && index === 0})}{outlet}</>
+      // A first screen's retained views (Search) take its page's box: the whole screen on a phone, beside the rail on a
+      // tablet (they drew under the rail there). A pushed page and its retained views share one box.
+      const page = shell ? <>{renderShell({presentation, top, tabActive, modal: modal && index === 0})}
+        <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: shellInset}}>{outlet}</View></>
         : routeStyle ? routeStyle(presentation.route, <>{port.renderRoute(presentation.route)}{outlet}</>) : <>{port.renderRoute(presentation.route)}{outlet}</>;
       // Reduced: a pushed page fades in, and so does the page a pop returns to (the same 160 ms).
       // Only this stack's own pushes and pops count; a tab switch has the tab's fade.
