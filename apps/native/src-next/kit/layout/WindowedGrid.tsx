@@ -19,6 +19,8 @@ export type WindowedGridProps<T> = {
   renderNativeSlot?: (item: T | undefined, context: NativeGridSlotContext) => ReactNode;
   itemWidth: number;
   itemHeight: number;
+  /** Use the row height as a minimum while its contents report their natural size. */
+  measureItemHeight?: boolean;
   /** Caption allowance at OS fontScale 1, already including any app text-size preference. */
   captionHeight?: number;
   gap?: number;
@@ -46,7 +48,7 @@ export type WindowedGridProps<T> = {
   testID?: string;
 };
 
-function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativeSlot, itemWidth, itemHeight: authoredItemHeight, captionHeight = 0, gap, rowGap, gutter, rightGutter, paddingTop: authoredPaddingTop = 0, paddingBottom = 0, stickyOffset: contentStickyOffset = 0, header, stickyHeader, overscanRows = 2, initialIndex = 0, selection, onVisibleRange, onScrollOffset, onItemFocus, onGeometry, refreshControl, style, testID}: WindowedGridProps<T>, ref: React.ForwardedRef<WindowedGridHandle>) {
+function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativeSlot, itemWidth, itemHeight: authoredItemHeight, measureItemHeight, captionHeight = 0, gap, rowGap, gutter, rightGutter, paddingTop: authoredPaddingTop = 0, paddingBottom = 0, stickyOffset: contentStickyOffset = 0, header, stickyHeader, overscanRows = 2, initialIndex = 0, selection, onVisibleRange, onScrollOffset, onItemFocus, onGeometry, refreshControl, style, testID}: WindowedGridProps<T>, ref: React.ForwardedRef<WindowedGridHandle>) {
   const theme = useTheme();
   const itemHeight = captionItemHeight(authoredItemHeight, captionHeight, theme.fontScale);
   const committedSlots = useRef<NativeSlotProjection | undefined>(undefined);
@@ -176,7 +178,7 @@ function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativ
           anchor.anchor(paddingTop + Math.floor(index / columns) * stride, itemHeight, viewport.height, height, stickyOffset + (theme.isTV ? 24 : 0), theme.isTV ? 24 : 0);
           if (slot.kind === 'item') onItemFocus?.(slot.item, index);
         };
-        return <View key={nativeSlot?.key ?? id} testID={testID ? `${testID}-cell-${id}` : undefined} style={{position: 'absolute', top: contentPaddingTop + Math.floor(index / columns) * stride, left: leading + index % columns * (itemWidth + columnGap), width: itemWidth, height: itemHeight}}>
+        return <View key={nativeSlot?.key ?? id} testID={testID ? `${testID}-cell-${id}` : undefined} style={{position: 'absolute', top: contentPaddingTop + Math.floor(index / columns) * stride, left: leading + index % columns * (itemWidth + columnGap), width: itemWidth, ...(measureItemHeight ? {minHeight: itemHeight} : {height: itemHeight})}}>
           {nativeSlot && renderNativeSlot ? renderNativeSlot(slot.kind === 'item' ? slot.item : undefined,
             {index, id, focusId: nativeSlot.focusId, entityId: nativeSlot.entityId, source: nativeSlot.source, waiting: nativeSlot.waiting,
               selection: slot.kind === 'item' ? itemSelection(selection, id) : undefined, onFocus: focus, onBlur: () => setFocused(current => current === index ? undefined : current)})

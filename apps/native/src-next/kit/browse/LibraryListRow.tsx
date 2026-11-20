@@ -27,7 +27,7 @@ export function LibraryListRow({entry, width, runtime, actions, selected, disabl
   return <CardFrame testID={`library-list-${encodeURIComponent(focusId)}`} focusId={focusId} title={title} caption={text.caption} detail={text.detail} width={width} disabled={disabled}
     selection={selected} onNavigate={() => actions.open(entry)} onPlay={entry.playback ? () => actions.play(entry) : undefined}
     onMore={() => actions.menu(entry, menuAnchorRef, onSelect)} moreExpanded={actions.isMenuOpen?.(entry)} menuAnchorRef={menuAnchorRef} onFocus={onFocus} onBlur={onBlur}
-    pressableStyle={{minHeight: height, borderRadius: 10, justifyContent: 'center'}}>
+    pressableStyle={onCaptionLayout ? undefined : {height, borderRadius: 10, justifyContent: 'center'}}>
     {() => <View style={{minHeight: height, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 12, paddingVertical: theme.space.xs}}>
       {selected?.active && <SelectionCircle selected={selected.selected} selecting interactive={false} variant="row" size={24} accessibilityLabel={t('card.select', {title})}/>}
       <MediaArt kind={square ? 'square' : 'poster'} source={runtime.artwork(entry.posterUrl)} width={square ? 54 : 36} height={54} style={{borderRadius: 5}}/>

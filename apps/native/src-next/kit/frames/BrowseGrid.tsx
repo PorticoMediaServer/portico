@@ -33,7 +33,7 @@ export function BrowseGrid<T>({gridRef, shape, alphabet, cardSizePercent = 100, 
   const art = list ? spec.listRow[frame.form] : shape === 'genre' ? width / theme.spec.card.aspect.wide : width / theme.spec.card.aspect[shape];
   const caption = list ? Math.max(art, measuredCaption / theme.fontScale) : shape === 'genre' ? 0 : Math.max(measuredCaption, cardCaptionHeight({...theme, fontScale: 1}, 2));
   const onCaptionLayout = shape === 'genre' ? undefined : reserveCaption;
-  const content = <WindowedGrid<T> {...props} ref={gridRef} itemWidth={width} itemHeight={list ? caption : art + caption} captionHeight={caption}
+  const content = <WindowedGrid<T> {...props} ref={gridRef} itemWidth={width} itemHeight={list ? caption : art + caption} captionHeight={caption} measureItemHeight={list}
     onGeometry={region ? setColumns : props.onGeometry}
     gap={list ? 0 : spec.grid.columnGap[frame.form]} rowGap={list ? 0 : spec.grid.rowGap[frame.form]}
     gutter={frame.gutter} rightGutter={rightGutter} paddingBottom={frame.bottomClear} style={{flex: 1}}
