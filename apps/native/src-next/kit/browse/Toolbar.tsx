@@ -93,7 +93,7 @@ export function AppliedFilterChips({filters, onRemove, onClear, platform, childr
 
 /** The toolbar's sideways chip rail (phone and tablet). A chip is never shown cut (owner): while chips lie past the end, the rail
  * fades out from the end of the last chip that fits whole, so a partly visible chip is never drawn (it read as a stray "(" beside
- * grid / list, SMALL-FAULTS 29). With every chip in view there is no fade. With no room for even its first chip whole, the rail is
+ * grid / list, SMALL-FAULTS 29); on a phone the next chip peeks under a plain end fade instead (owner, 20 Nov). With every chip in view there is no fade. With no room for even its first chip whole, the rail is
  * not drawn at all (lead, 19 Nov); its choices stay in Filters. */
 export function chipRailCut(box: number, offset: number, content: number, ends: readonly number[]): number | undefined {
   // Nothing past the end (all in view, or scrolled to the end): no fade.
@@ -117,14 +117,19 @@ export function ChipRail({children}: {children: ReactNode}) {
   // Drawn only with room for its first chip whole (lead, 19 Nov); its choices are all in Filters too, so nothing is lost. Without
   // room it keeps its place (grid / list stays pinned) and keeps measuring, but is invisible, takes no touch and is not read.
   const room = ends[0] === undefined || ends[0] <= box + .5;
-  // Solid to 12 before the cut (a chip's own end padding), clear from the cut on.
-  const solid = cut === undefined || box <= 0 ? 1 : Math.max(0, cut - 12) / box, clear = cut === undefined || box <= 0 ? 1 : cut / box;
+  // Solid to 12 before the cut (a chip's own end padding), clear from the cut on. On a phone (owner, 20 Nov) the next chip
+  // shows partly under a plain fade at the row's end instead, so people can see the row scrolls.
+  const peek = theme.platform === 'phone' && cut !== undefined && box > 0;
+  const solid = peek ? Math.max(0, box - theme.space.xl) / box : cut === undefined || box <= 0 ? 1 : Math.max(0, cut - 12) / box;
+  const clear = peek ? 1 : cut === undefined || box <= 0 ? 1 : cut / box;
+  // Scrolled on a phone, the chip cut at the row's start fades in the same way (a hard cut read as a stray ")").
+  const lead = theme.platform === 'phone' && offset > 1 && box > 0 ? Math.min(theme.space.xl / box, solid) : 0;
   return <View testID="browse-chip-rail" style={{flex: 1, minWidth: 0, opacity: room ? 1 : 0}} pointerEvents={room ? 'auto' : 'none'}
     accessibilityElementsHidden={!room} importantForAccessibility={room ? 'auto' : 'no-hide-descendants'}>
     {/* The rail is as tall as its chips (their measured content): a flex height in this row came out shorter on the tablet and cut
         the chips' bottom edge. */}
     <MaskedView style={{height: height || chipGeometry('quick', theme.column).height}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id={gradient} x1="0" y1="0" x2="1" y2="0">
-      <Stop offset={0} stopColor="#fff" stopOpacity={1}/><Stop offset={solid} stopColor="#fff" stopOpacity={1}/><Stop offset={clear} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
+      <Stop offset={0} stopColor="#fff" stopOpacity={lead ? 0 : 1}/><Stop offset={lead} stopColor="#fff" stopOpacity={1}/><Stop offset={solid} stopColor="#fff" stopOpacity={1}/><Stop offset={clear} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
       <Stop offset={1} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
     </LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${gradient})`}/></Svg>}>
       <TVRow><ScrollView horizontal scrollEnabled={room} showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, alignItems: 'center'}} scrollEventThrottle={32}
