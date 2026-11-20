@@ -28,10 +28,10 @@ function BookHost(props: BookPageProps) {
   return isTV ? <TVBookPage {...props}/> : platform === 'phone' ? <BookPage {...props}/> : <BookScreen {...props}/>;
 }
 
-/** A phone draws an author or a series on the rebuilt page (collections 41b, 41c); a tablet and TV keep the old screen
- * until their lanes rebuild it. */
+/** A phone and a tablet draw an author or a series on the rebuilt page (collections 41b, 41c); TV keeps the old screen
+ * until its lane rebuilds it. */
 function AuthorSeriesHost(props: AuthorSeriesPageProps) {
-  return useTheme().platform === 'phone' ? <AuthorSeriesPage {...props}/> : <AuthorSeriesScreen {...props}/>;
+  return useTheme().isTV ? <AuthorSeriesScreen {...props}/> : <AuthorSeriesPage {...props}/>;
 }
 
 /** Phone 41a and TV 43: the real book page. One route-owned controller per book. */
