@@ -87,7 +87,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './live-owner-controller': {NativeLiveOwnerController: function NativeLiveOwnerController() {}},
     './recordings-controller': {createNativeRecordingsController: () => ({dispose: () => {}})},
     '../../platform/server-connections': {nativeRouteCrypto: {random: (size: number) => new Uint8Array(size)}},
-    './server/TroubleshootingPage': {NativeServerTroubleshooting: 'NativeServerTroubleshooting'},
+    './ServerTroubleshootingPage': {ServerTroubleshootingPage: 'NativeServerTroubleshooting'},
     './server/StoragePage': {NativeServerStorage: 'NativeServerStorage'},
     './server/IntegrationsPage': {NativeServerIntegrations: 'NativeServerIntegrations'},
     './ServerGeneralPage': {ServerGeneralPage: 'ServerGeneralPage'},

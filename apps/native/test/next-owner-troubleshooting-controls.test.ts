@@ -8,12 +8,15 @@ const t = (id: string) => id;
 const colors = new Proxy({}, {get: (_target, key) => String(key)});
 const common = {
   'react-native': {Text: 'Text', View: 'View', AppState: {}},
-  '../../../../../../../packages/i18n/src': {defaultI18n: {t, time: () => '12:30', has: () => true}},
-  '../../../../kit/controls': {Button: 'Button', Chip: 'Chip', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
-  '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
-  '../../../../kit/shell/visual': {shellType: () => ({}), alpha: (value: string) => value},
-  '../../../../kit/theme': {useTheme: () => ({colors})},
-  '../../lifetime': {}, '../storage/space-source': {},
+  '../../../../../../packages/i18n/src': {defaultI18n: {t, time: () => '12:30', has: () => true}},
+  '../../controls': {Button: 'Button', Chip: 'Chip', FormError: 'FormError', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
+  '../../frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard'},
+  '../../shell': {SettingsRow: 'SettingsRow'},
+  '../SettingsParts': {SettingsHelp: 'SettingsHelp'},
+  '../../overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
+  '../../shell/visual': {shellType: () => ({}), alpha: (value: string) => value},
+  '../../theme': {useTheme: () => ({colors, space: {}, type: {rowHelp: {}, rowLabel: {}}})},
+  '../../../screens/settings-live/lifetime': {}, '../../../screens/settings-live/server/storage/space-source': {},
 };
 
 test('Messages filters by level and kind with their exact picker openings, Live is a switch, and a line\'s time, level and values stay separate from its message', async () => {
@@ -25,10 +28,14 @@ test('Messages filters by level and kind with their exact picker openings, Live 
   const group = {source, current: () => current, subscribeFailure: () => () => {}, getFailure: () => false, clearFailure() {},
     setLive: (value: boolean) => {calls.push(['live', value]); state.live = value;},
     select: async (level: string, kind: string) => {calls.push([level, kind]); state.level = level; state.kind = kind;}};
-  const {Messages} = await screenModule(new URL('../src-next/screens/settings-live/server/troubleshooting/Messages.tsx', import.meta.url), {
+  const imports = {
     ...common, react: host.react,
-    '../../../../../../../packages/client-core/src/server-admin/messages-source': {KEEP_MESSAGE_DAYS: [7, 14, 30], MESSAGE_KINDS: ['server', 'playback', 'scan', 'network']},
-    '../../../../../../../packages/client-core/src/server-administration': {LOG_DETAIL_MINUTES: [30], logLevels: ['error', 'warn', 'info', 'debug']},
+    '../../../../../../packages/client-core/src/server-admin/messages-source': {KEEP_MESSAGE_DAYS: [7, 14, 30], MESSAGE_KINDS: ['server', 'playback', 'scan', 'network']},
+    '../../../../../../packages/client-core/src/server-administration': {LOG_DETAIL_MINUTES: [30], logLevels: ['error', 'warn', 'info', 'debug']},
+  };
+  const controls = await screenModule(new URL('../src-next/pages/shared/settings/useTroubleshootingMessages.ts', import.meta.url), imports);
+  const {Messages} = await screenModule(new URL('../src-next/kit/settings/troubleshooting/Messages.tsx', import.meta.url), {
+    ...imports, '../../../pages/shared/settings/useTroubleshootingMessages': controls,
   });
   const render = () => host.render(() => Messages({group, runtime: {text: {t}}}));
   const chip = (label: string) => nodes(render()).find(node => node.type === 'Chip' && node.props.accessibilityLabel === label)!;
@@ -63,17 +70,53 @@ test('Feedback opens the shared Message everyone sheet with the same original po
   const state = {phase: 'ready', reports: []};
   const group = {source: {subscribe: () => () => {}, getSnapshot: () => state}, current: () => current};
   const ports = {context: {}}, runtime = {text: {t}};
-  const {NativeFeedback} = await screenModule(new URL('../src-next/screens/settings-live/server/troubleshooting/Feedback.tsx', import.meta.url), {
+  const imports = {
     ...common, react: host.react,
-    '../../../../../../../packages/client-core/src/server-admin/feedback-source': {},
-    '../../../../../../../packages/client-core/src/server-admin/console-catalogue': {},
-    '../../../../../../../packages/client-core/src/server-admin/console-words': {},
-    '../../../../pages/shared/settings/ServerBroadcastSheet': {ServerBroadcastSheet: 'BroadcastSheet'},
+    '../../../../../../packages/client-core/src/server-admin/feedback-source': {},
+    '../../../../../../packages/client-core/src/server-admin/console-catalogue': {},
+    '../../../../../../packages/client-core/src/server-admin/console-words': {},
+    '../../../pages/shared/settings/ServerBroadcastSheet': {ServerBroadcastSheet: 'BroadcastSheet'},
+  };
+  const controls = await screenModule(new URL('../src-next/pages/shared/settings/useTroubleshootingFeedback.ts', import.meta.url), imports);
+  const {NativeFeedback} = await screenModule(new URL('../src-next/kit/settings/troubleshooting/Feedback.tsx', import.meta.url), {
+    ...imports, '../../../pages/shared/settings/useTroubleshootingFeedback': controls,
   });
   const render = () => {let tree = host.render(() => NativeFeedback({group, ports, runtime})); if (effects.length) {effects.splice(0).forEach(effect => effect()); tree = host.render(() => NativeFeedback({group, ports, runtime}));} return tree;};
   const sheet = () => nodes(render()).find(node => node.type === 'BroadcastSheet')!;
-  const launch = () => nodes(render()).find(node => node.type === 'Button' && text(node) === 'server.messageEveryone')!.props.onPress();
+  const launch = () => nodes(render()).find(node => node.type === 'SettingsRow' && node.props.label === 'server.messageEveryone')!.props.onPress();
   assert.equal(sheet().props.open, false); launch();
   assert.equal(sheet().props.open, true); assert.equal(sheet().props.ports, ports); assert.equal(sheet().props.runtime, runtime);
   sheet().props.onOpenChange(false); current = false; launch(); assert.equal(sheet().props.open, false);
+});
+
+test('Troubleshooting uses the Settings frame and hides owner tabs from administrators', async () => {
+  const host = hooks();
+  const {ServerTroubleshootingPage} = await screenModule(new URL('../src-next/pages/shared/settings/ServerTroubleshootingPage.tsx', import.meta.url), {
+    react: host.react,
+    '../../../kit/controls/Tabs': {Tabs: 'Tabs'},
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'},
+    '../../../kit/settings/troubleshooting/Messages': {Messages: 'Messages'},
+    '../../../kit/settings/troubleshooting/Feedback': {NativeFeedback: 'Feedback'},
+    '../../../kit/settings/troubleshooting/Reports': {NativeReports: 'Reports'},
+    '../../../kit/settings/troubleshooting/SkippedFiles': {NativeSkippedFiles: 'SkippedFiles'},
+    '../../../kit/settings/troubleshooting/Support': {NativeSupport: 'Support'},
+    '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
+    './useTroubleshootingMessages': {useMessages: () => undefined},
+    './useTroubleshootingFeedback': {useNativeFeedback: () => ({state: {reports: []}, group: {}})},
+    './useTroubleshootingReports': {useNativeReports: () => ({})},
+    './useTroubleshootingSupport': {useNativeSupport: () => ({})},
+  });
+  const runtime = {text: {t}};
+  const back = {label: 'Settings', onPress: () => {}};
+  const render = (role: string) => host.render(() => ServerTroubleshootingPage({runtime, back, initialTab: 'feedback',
+    ports: {context: {account: {account: {role}, canManage: true}, serverName: 'Fixture server'}}}));
+  const owner = render('owner');
+  assert.equal(owner.type, 'SettingsPageFrame');
+  assert.equal(owner.props.back, back);
+  assert.equal(owner.props.tabs.props.value, 'feedback');
+  assert.ok(nodes(owner).some(node => node.type === 'Feedback'));
+  const administrator = render('administrator');
+  assert.deepEqual(administrator.props.tabs.props.items.map((tab: {value: string}) => tab.value), ['messages', 'skipped']);
+  assert.equal(administrator.props.tabs.props.value, 'messages');
+  assert.ok(!nodes(administrator).some(node => node.type === 'Feedback'));
 });
