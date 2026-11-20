@@ -38,8 +38,22 @@ async function fixture() {
   return {model, calls, read, listed, manifest,
     current: (callback?: () => void) => {beforeCurrent = callback;}, random: (callback?: () => void) => {beforeRandom = callback;},
     revision: (callback?: () => void) => {beforeRevision = callback;}, respond: (callback: typeof reply) => {reply = callback;},
-    reopen: async () => {model.release(); revision++; model.arm(); await model.load();}};
+    reopen: async () => {model.release(); revision++; model.arm(); await model.load();}, back: () => {revision++;}};
 }
+
+// Looker, 20 Nov (books on iPhone): back on the book page by iOS's swipe flashed a loading skeleton, because the page was
+// armed and read again. Coming back under a new revision only moves the press check; the page keeps what it drew.
+test('back on top under a new revision keeps the page as drawn and checks presses against the new revision', async () => {
+  const f = await fixture();
+  try {
+    const drawn = f.model.getSnapshot();
+    f.back();
+    assert.equal(await f.model.toggleRead(f.read), false, 'a press from before the reader opened is refused');
+    assert.equal(f.model.rearm(), true);
+    assert.equal(f.model.getSnapshot(), drawn, 'nothing read again: the same ready page, no loading state');
+    assert.equal(await f.model.toggleRead(f.read), true, 'a press from the page as drawn now goes through');
+  } finally {f.model.dispose();}
+});
 
 test('Finished and My List send the exact original offered revisions and boolean intent', async () => {
   const f = await fixture();

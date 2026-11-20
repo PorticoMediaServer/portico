@@ -128,6 +128,16 @@ export class NativeReadBook {
     this.emit();
     return true;
   };
+  /** Back on top under a new navigation revision (the system's Back over the reader): the page is drawn again as it
+   * was, so only the snapshot a press is checked against moves to the one it is drawn under now. Nothing is read again
+   * and nothing is retired. A different session, or a page never armed, is refused (the caller arms afresh). */
+  rearm = (): boolean => {
+    if (this.disposed || !this.origin || !this.captured) return false;
+    const selected = this.context.session(), origin = nativeReadOrigin(this.context, this.route);
+    if (!selected || !origin || selected.sessionFamilyId !== this.captured.sessionFamilyId) return false;
+    this.origin = origin;
+    return true;
+  };
   /** Unmount makes the cached page inert: no requests, no client, no session. */
   release = (): void => {
     this.retire();
