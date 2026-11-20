@@ -135,7 +135,7 @@ test('renderer commands retain their original navigation occurrence across cache
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
     './BookScreen': {BookScreen: 'book'}, './AuthorSeriesScreen': {AuthorSeriesScreen: 'author'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'},
+    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'},
   });
   const context = {api: {}, authority: () => ({}), playback: {start: async (input: any) => {starts.push(input);}},
     subscribeAuthority: (fn: () => void) => {callbacks.add(fn); return () => callbacks.delete(fn);},
@@ -546,7 +546,7 @@ test('a scoped loading publication restores the cached book when its opening is 
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
     './BookScreen': {BookScreen: 'book'}, './AuthorSeriesScreen': {AuthorSeriesScreen: 'author'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'},
+    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'},
   });
   const api = {request: async (path: string) => {
     const url = new URL(path, 'https://server.test');
@@ -726,7 +726,7 @@ test('renderer stops guarded navigation reads when a predicate disposes it but r
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
     './BookScreen': {BookScreen: 'book'}, './AuthorSeriesScreen': {AuthorSeriesScreen: 'author'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'},
+    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'},
   });
   let disposed = false, renderer: any, starts = 0;
   const context = {api: {}, authority: () => ({}), playback: {start: async () => {starts++;}}, subscribeAuthority: () => () => {},

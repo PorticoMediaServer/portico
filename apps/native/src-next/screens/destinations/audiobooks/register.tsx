@@ -10,6 +10,8 @@ import {useTheme} from '../../../kit/theme';
 import {BookPage} from '../../../pages/touch/book/BookPage';
 import type {BookPageProps} from '../../../pages/shared/book/useBook';
 import {AuthorSeriesScreen} from './AuthorSeriesScreen';
+import {AuthorSeriesPage} from '../../../pages/touch/book/AuthorSeriesPage';
+import type {AuthorSeriesPageProps} from '../../../pages/shared/book/useAuthorSeries';
 
 type MenuArgs = Parameters<ReturnType<typeof createNativeEntryActions>['menu']>;
 type Page = Readonly<{key: string; entry: ContentEntry; controller: NativeAudiobookController; actions: ReturnType<typeof createNativeEntryActions>;
@@ -18,13 +20,19 @@ type Page = Readonly<{key: string; entry: ContentEntry; controller: NativeAudiob
    * route object they were built with. */
   drawn: {route?: NativeShellRoute}}>;
 
-/** Phone 41a and TV 43: the real book page. One route-owned controller per book. */
 /** A phone draws an audiobook on the rebuilt page (collections 41a); a tablet and TV keep the old book screen until their
  * lanes rebuild it. */
 function BookHost(props: BookPageProps) {
   return useTheme().platform === 'phone' ? <BookPage {...props}/> : <BookScreen {...props}/>;
 }
 
+/** A phone draws a series on the rebuilt page (collections 41c); an author's page follows it in its own change. A tablet
+ * and TV keep the old screen until their lanes rebuild it. */
+function AuthorSeriesHost(props: AuthorSeriesPageProps) {
+  return useTheme().platform === 'phone' && props.entry.kind === 'book_series' ? <AuthorSeriesPage {...props}/> : <AuthorSeriesScreen {...props}/>;
+}
+
+/** Phone 41a and TV 43: the real book page. One route-owned controller per book. */
 export function createNativeBookRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
   const lifetime = nativeDestinationLifetime(context);
   let pages = new Map<string, Page>(), disposed = false;
@@ -136,7 +144,7 @@ export function createNativeBookRenderer(context: NativeShellBootstrapContext): 
       };
       return route.kind === 'book'
         ? <BookHost controller={controller} entry={page.entry} runtime={runtime} actions={actions} openEntry={openEntry} onBack={back}/>
-        : <AuthorSeriesScreen controller={controller} entry={page.entry} runtime={runtime} actions={actions} openEntry={openEntry} onBack={back}/>;
+        : <AuthorSeriesHost controller={controller} entry={page.entry} runtime={runtime} actions={actions} openEntry={openEntry} onBack={back}/>;
     },
     dispose: () => {
       if (disposed) return;
