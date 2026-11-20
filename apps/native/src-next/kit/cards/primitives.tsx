@@ -206,7 +206,8 @@ export function Caption({title, titleLines, onCaptionLayout, captionLines, capti
     style={{opacity: waiting ? 0 : 1, marginTop: top, minHeight: reserved, gap: slot.subtitleGap, alignItems: centered ? 'center' : undefined}}>
     {/* A grid or shelf (it measures its captions, `onCaptionLayout`) keeps one row height: the title takes its lines at most
         and ends in "…" on a whole word (owner, 20 Nov); the card's own label still reads the whole title. */}
-    {onCaptionLayout ? <View style={{alignSelf: 'stretch', flexDirection: 'row'}}><GuideProgrammeTitle title={title} lines={lines} style={titleTextStyles}/></View>
+    {/* `titleLines={0}` is no cap (Search's result rows wrap the whole title, as before): the fitter is for a cap only. */}
+    {onCaptionLayout && lines > 0 ? <View style={{alignSelf: 'stretch', flexDirection: 'row'}}><GuideProgrammeTitle title={title} lines={lines} style={titleTextStyles}/></View>
       : <Text numberOfLines={lines} ellipsizeMode="tail" style={titleTextStyles}>{title}</Text>}
     <Parts parts={caption} fit={captionLines === 2 ? 'wrap' : t.isTV ? 'cut' : 'drop'} lines={captionLines} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
   </View>;
