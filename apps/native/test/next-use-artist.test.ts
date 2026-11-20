@@ -14,7 +14,7 @@ const songs = [{id: 's3', kind: 'song', title: 'Hardest To Love', libraryId: 'mu
 const after = {id: 'al', libraryId: 'music', title: 'After Hours', year: 2020, posterUrl: '/ah.jpg', role: 'album'}, single = {id: 'sg', libraryId: 'music', title: 'Blinding Lights', year: 2019, role: 'single'};
 const similar = [{id: 'x1', kind: 'artist', title: 'Prince', libraryId: 'music', artworkPaths: ['/p1.jpg', '/p2.jpg']}, {id: 'x2', kind: 'album', title: 'Thriller', libraryId: 'music'}] as any[];
 
-async function artist(over: Record<string, unknown> = {}) {
+async function artist(over: Record<string, unknown> = {}, form = 'phone') {
   const calls: unknown[][] = [], h = hooks();
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]); return Promise.resolve();};
   const rows = await screenModule(new URL('../src-next/pages/shared/music/music-rows.ts', import.meta.url), {react: h.react,
@@ -22,7 +22,7 @@ async function artist(over: Record<string, unknown> = {}) {
   const {useArtist} = await screenModule(new URL('../src-next/pages/shared/music/useArtist.ts', import.meta.url), {
     react: h.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/errors': errors,
     '../../../../../../packages/client-core/src/presentation/library-tabs': {artistReleaseGroups}, './music-rows': rows,
-    '../../../screens/destinations/music/use-playing-item': {usePlayingItem: () => 's3'}});
+    '../../../screens/destinations/music/use-playing-item': {usePlayingItem: () => 's3'}, '../../../kit/theme': {useTheme: () => ({form})}});
   const releases = {phase: 'ready', items: [after, single], offset: 0};
   const snapshot = {phase: 'ready', songs, songPage: {phase: 'ready', items: songs, offset: 0}, songTotal: 4, albums: [after, single], releases, similar,
     similarBySound: false, favorite: false, artistDetails: {albumCount: 1}, allSongs: {phase: 'idle', items: [], songs: [], offset: 0}, ...over};
@@ -31,7 +31,7 @@ async function artist(over: Record<string, unknown> = {}) {
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, play: record('play'), load: record('load'),
     nextReleases: record('next'), previousReleases: record('previous'), retryReleases: record('retry'), refreshReleases: record('refresh'),
     releaseEntry: (row: any) => {if (!entries.has(row)) entries.set(row, {...row, kind: 'album'}); return entries.get(row);}, contains: () => current,
-    similarPage: () => undefined, similarCurrent: () => current, toggleFavorite: record('favorite'), loadAllSongs: record('all'),
+    similarPage: () => undefined, similarCurrent: () => current, toggleFavorite: record('favorite'), loadAllSongs: record('all'), songFavorite: () => false, toggleSongFavorite: record('song-favorite'),
     nextAllSongs: record('all-next'), focusAllSong: (...args: unknown[]) => {calls.push(['all-focus', ...args]);}};
   const picked = {active: false, selected: false, onToggle: () => {}, onEnter: () => {}};
   const view = h.render(() => useArtist({controller, entry, runtime: {artwork: (path?: string) => path ? {uri: path} : undefined, ambient: (path?: string) => path ? {url: path} : undefined,
@@ -97,4 +97,15 @@ test('TV: the longer facts line, the heart, Details, and All songs read when ask
   assert.deepEqual(read.view.allSongs.list.rows.map((row: any) => row.number), songs.map((_song: unknown, index: number) => 21 + index), 'numbered from the page offset');
   assert.equal(read.view.allSongs.total, defaultI18n.t('title.songCount', {count: 40}));
   read.view.allSongs.focus(songs[0].id); assert.equal(read.calls.at(-1)![0], 'all-focus');
+});
+
+// A tablet (the old tablet artist page): Top songs as a table with hearts, and Details (genres, country, active years) beside
+// the songs; a phone (frame 15b) has neither.
+test('a tablet gets the song table\'s hearts and the Details beside the songs; a phone neither', async () => {
+  const phone = await artist();
+  assert.equal(phone.view.about, undefined); assert.equal(phone.view.topSongs?.onFavorite, undefined);
+  const tablet = await artist({}, 'expanded');
+  assert.ok(tablet.view.about && tablet.view.about.length > 0, 'Details rows on a tablet');
+  assert.equal(typeof tablet.view.topSongs?.onFavorite, 'function');
+  assert.equal(tablet.view.topSongs?.rows[0].favorite, false, 'each song carries its heart, on or off');
 });
