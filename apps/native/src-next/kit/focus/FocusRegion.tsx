@@ -1,11 +1,12 @@
 import React, {createContext, forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore} from 'react';
 import {findNodeHandle, Platform, TVFocusGuideView, View, type FocusGuideMethods, type ViewProps} from 'react-native';
 import {useTheme} from '../theme';
-import {createFocusHandleResolver, createFocusRegistry, focusTestID, requestNativeFocus, type FocusAddress, type FocusHost, type FocusRegionConfig, type FocusRegistry} from './registry';
+import {createFocusHandleResolver, createFocusRegistry, deferStartFocus, focusTestID, requestNativeFocus, requestStartFocus, type FocusAddress, type FocusHost, type FocusRegionConfig, type FocusRegistry} from './registry';
 import type {FocusCell} from './cell-navigation';
 import {useHostRef} from './useHostRef';
 import {useLayerCovered} from './CoveredLayer';
 
+deferStartFocus(Platform?.OS === 'android');
 const nativeHandle = createFocusHandleResolver((host: FocusHost) => findNodeHandle(host as View));
 // R1: a declared edge is real on Android TV. Android drops a next-focus aimed at a region's TVFocusGuideView (the guide
 // is often not focusable natively, e.g. after react-native-tvos's focus recovery), and plain geometry decides instead. So
@@ -172,7 +173,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
   useLayoutEffect(() => {
     if (!wanted) {asked.current = false; return;}
     if (asked.current || disabled || preferredBlocked) return;
-    asked.current = true; landed.current = false; if (native.current) registry?.notePreferred?.(native.current); requestNativeFocus(native.current);
+    asked.current = true; landed.current = false; if (native.current) registry?.notePreferred?.(native.current); requestStartFocus(native.current);
     // Android TV drops an ask made before the view (or the layer it is in) can take focus natively, and then nothing is
     // focused at all. Ask again on the next frames, for at most about half a second, until focus lands here. Android
     // TV also gives a page with nothing focused its first focusable view by itself (a library's Discover tab above

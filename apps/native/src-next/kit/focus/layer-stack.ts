@@ -1,4 +1,4 @@
-import {requestNativeFocus, type FocusHost, type FocusRegistry, type FocusSnapshot} from './registry';
+import {requestNativeFocus, requestStartFocus, type FocusHost, type FocusRegistry, type FocusSnapshot} from './registry';
 
 /** One full-screen TV layer: the page, a route over it, the player, the listening screen. Bottom first. */
 export type TVLayerSpec = Readonly<{
@@ -77,7 +77,7 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
     // A page that asked for its own start since the last layer change (Play on a title page) is claimed on that control,
     // not on the layer's host: the host would land on what the layer remembered from an earlier page.
     const start = registry.preferredAsk?.(), named = start && start.seq > seenPreferred ? start.host : undefined;
-    const ask = target?.claim ?? (named ? () => requestNativeFocus(named) : target?.host ? () => requestNativeFocus(host(key)) : undefined);
+    const ask = target?.claim ?? (named ? () => requestStartFocus(named) : target?.host ? () => requestNativeFocus(host(key)) : undefined);
     if (!ask) return;
     // At the deadline, a layer whose focus is still outside it (or never moved) asks once more.
     settle(ask, () => {const now = registry.capture(); if (!now || outside(now)) ask();}, undefined, !!named && !target?.claim);
