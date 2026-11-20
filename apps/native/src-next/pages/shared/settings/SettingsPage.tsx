@@ -22,7 +22,7 @@ import {NativeRemoteAccessPage} from '../../../screens/settings-live/server/Remo
 import {NativeServerStreaming} from '../../../screens/settings-live/server/StreamingPage';
 import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
-import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
+import {ServerSignInPage} from './ServerSignInPage';
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
 import {NativeServerHistory} from '../../../screens/settings-live/server/HistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
@@ -76,7 +76,6 @@ export function NativeSettingsPage(props: SettingsProps) {
   </>;
   const custom = historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/>
     : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/>
-    : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
     : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/>
@@ -92,7 +91,9 @@ export function NativeSettingsPage(props: SettingsProps) {
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
   const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
-    back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : signInPage ? <ServerSignInPage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onOpenPage={choose}
+      back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
     intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
