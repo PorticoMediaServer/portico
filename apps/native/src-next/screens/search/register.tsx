@@ -128,7 +128,7 @@ function SearchHost({entry, runtime}: {entry: Root; runtime: NativeShellRuntime}
 }
 function TouchSearchRoute(props: React.ComponentProps<typeof SearchScreen>) {
   const {width, height} = useWindowDimensions();
-  return height > width && frameForm(width, false, height) === 'phone' ? <SearchPage {...props}/> : <SearchScreen {...props}/>;
+  return width >= height && frameForm(width, false, height) === 'phone' ? <SearchScreen {...props}/> : <SearchPage {...props}/>;
 }
 
 function AllHost({entry, runtime, navigation, back}: {entry: All; runtime: NativeShellRuntime; navigation: NativeShellBootstrapContext['navigation']; back: () => void}) {

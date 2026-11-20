@@ -8,7 +8,8 @@ test('phone Search keeps the query field and lets a viewer return from an empty 
   const artwork = () => undefined;
   const state = {text: 'Scarlet', group: 'movies', search: {phase: 'ready'}, groups: [], recent: []};
   const {SearchPage} = await screenModule(new URL('../src-next/pages/touch/search/SearchPage.tsx', import.meta.url), {
-    react: h.react,
+    react: h.react, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/frames/metrics': {useFrameMetrics: () => ({form: 'phone'})},
     '../../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel: () => 'search.chip.movies'},
     '../../../kit/artwork': {Artwork: 'Artwork'}, '../../../kit/cards/primitives': {Parts: 'Parts'},
     '../../../kit/controls': {Button: 'Button', Chip: 'Chip', TextField: 'TextField'},

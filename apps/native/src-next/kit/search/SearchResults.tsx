@@ -18,7 +18,7 @@ import {Button} from '../controls';
 import {useFrameMetrics} from '../frames/metrics';
 import {TVRow} from '../layout/TVRow';
 import {SelectionCircle} from '../selection';
-import {GridSkeleton} from '../states';
+import {GridSkeleton, LoadingPaint, SkeletonBlock, StateView} from '../states';
 import {useTheme} from '../theme';
 
 export function SearchSection({title, detail, action, children}: {
@@ -124,4 +124,21 @@ export function SearchResultsGrid({entries, group, runtime, actions, selection, 
 export function SearchLoading({elapsed}: {elapsed: number}) {
   const frame = useFrameMetrics();
   return <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={frame.width} width={frame.width} columns={3} totalCount={9}/>;
+}
+
+export function SearchResultShelf({entries, group, title, count, runtime, actions, selection, loading, failure, onMore}: {
+  entries: readonly SearchEntry[]; group: SearchGroup; title: string; count?: string; runtime: NativeShellRuntime; actions: NativeSearchActions;
+  selection?: NativeSearchSelectionPort; loading?: boolean; failure?: React.ComponentProps<typeof StateView>; onMore?: () => void;
+}) {
+  const frame = useFrameMetrics(), theme = useTheme(), columns = 7, gap = theme.space.sm;
+  const width = Math.max(1, Math.floor((frame.width - frame.gutter - frame.rightGutter - (columns - 1) * gap) / columns));
+  const footer = failure ? <View style={{width: width * 2, paddingLeft: gap}}><StateView {...failure}/></View> : loading
+    ? <LoadingPaint ready={false} style={{marginLeft: gap}} skeleton={<SkeletonBlock width={width} height={group === 'movies' || group === 'shows' ? 1.5 * width : width}/>}/> : null;
+  return <SearchSection title={title} detail={count}><FlatList horizontal testID={`search-shelf-${group}`} data={entries}
+    contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter, gap}}
+    keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}
+    keyExtractor={entry => nativeSearchEntryKey(group, entry)} initialNumToRender={columns}
+    onEndReached={onMore} onEndReachedThreshold={1} ListFooterComponent={footer}
+    renderItem={({item}) => <SearchGridCard entry={item} group={group} runtime={runtime} actions={actions}
+      selection={selection?.item(item, group)} width={width} titleLines={0}/>}/></SearchSection>;
 }

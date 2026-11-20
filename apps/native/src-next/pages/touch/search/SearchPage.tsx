@@ -1,3 +1,4 @@
+import {defaultI18n} from '../../../../../../packages/i18n/src';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import type {FlatList, ScrollView, TextInput} from 'react-native';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
@@ -7,9 +8,10 @@ import {Artwork} from '../../../kit/artwork';
 import {Parts} from '../../../kit/cards/primitives';
 import {Button, Chip, TextField} from '../../../kit/controls';
 import {SearchFrame} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Banner} from '../../../kit/overlays';
 import {SearchHistory, TopResult} from '../../../kit/search';
-import {SearchGenres, SearchLoading, SearchOnNow, SearchResultRow, SearchResultsGrid, SearchSection} from '../../../kit/search/SearchResults';
+import {SearchGenres, SearchLoading, SearchOnNow, SearchResultRow, SearchResultsGrid, SearchResultShelf, SearchSection} from '../../../kit/search/SearchResults';
 import {StateView} from '../../../kit/states';
 import type {NativeSearchScreenProps} from '../../../screens/search/SearchScreen';
 import {nativeSearchGenreTiles} from '../../../screens/search/genre-tiles';
@@ -23,6 +25,15 @@ export function SearchPage(props: NativeSearchScreenProps) {
   const [focused, setFocused] = useState(false), [elapsed, setElapsed] = useState(0);
   const loading = state.search.phase === 'loading' && !state.groups.length;
   const run = useCallback((work: Promise<void>) => {void work.catch(runtime.reportError);}, [runtime]);
+  const {form} = useFrameMetrics();
+  const focusedOnEntry = useRef(false);
+  useEffect(() => {
+    if (!active.visible) {focusedOnEntry.current = false; return;}
+    if (form === 'phone' || focusedOnEntry.current) return;
+    focusedOnEntry.current = true;
+    const frame = requestAnimationFrame(() => field.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [active.visible, form]);
   const historyLoaded = useRef(false);
   useEffect(() => {
     if (!active.visible) return;
@@ -62,7 +73,8 @@ export function SearchPage(props: NativeSearchScreenProps) {
         action={{label: t('next.states.tryAgain'), onPress: () => run(explore.load())}}/>
       : <SearchGenres genres={genreTiles} backdrop={emptyAll} runtime={runtime} open={genre => explore.openGenre(genre)}/>}
   </SearchSection> : undefined;
-  const topEntry = top?.entry;
+  const wide = form === 'expanded';
+  const topEntry = wide ? undefined : top?.entry;
   const media = topEntry && topEntry.kind !== 'person' && topEntry.kind !== 'channel' ? topEntry as ContentEntry : undefined;
   const title = media?.displayTitle || topEntry?.title;
   const kind = top && topResultKindLabel(top.group);
@@ -95,6 +107,16 @@ export function SearchPage(props: NativeSearchScreenProps) {
       onPress={() => actions.open(topEntry, top.group)}
       play={media?.playback ? {label: t('card.play', {title}), onPress: () => actions.play(topEntry, top.group)} : undefined}/>}
     {state.group === 'all' && groups.map(group => {
+      if (wide) {
+        if (!group.items.length) return null;
+        const paging = state.paging?.[group.id];
+        return <SearchResultShelf key={group.id} group={group.id} title={t(searchGroupLabel(group.id))}
+          count={group.totalCountExact ? defaultI18n.number(group.totalCount) : undefined} entries={group.items}
+          runtime={runtime} actions={actions} selection={selection} loading={paging?.loading}
+          failure={paging?.error === undefined ? undefined : runtime.error(paging.error, () => run(destination.retryGroup(group.id)), 'search')}
+          onMore={group.nextCursor && active.visible && state.search.phase === 'ready' && !paging?.loading && !paging?.error
+            ? () => run(destination.next(group.id)) : undefined}/>;
+      }
       const entries = group.items.filter(entry => entry !== topEntry).slice(0, 3);
       if (!entries.length) return null;
       const more = !!group.nextCursor || group.totalCount > entries.length + (top?.group === group.id ? 1 : 0);
