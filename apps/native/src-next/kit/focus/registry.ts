@@ -24,6 +24,24 @@ export function requestNativeFocus(host: FocusHost | null | undefined): boolean 
   if (host?.focus) {host.focus(); return true;}
   return false;
 }
+/** Focus asked in the commit that uncovers a layer: a page's start (a control's `preferred` / `StartFocusScope`, and the TV
+ * layer stack's claim on that named start) and the stack's return to a layer's opener on Back. On Android TV it is sent on
+ * the next frame. Sent in the same commit that uncovers its layer (the layer's guide turning focusable), a start lands but
+ * then holds focus on that control with no D-pad key moving it (the TV artist page, 3 of 3 fresh opens; one frame later,
+ * 0 of 3), and a return does not land at all (Android puts focus on the layer's first control: Back from the TV artist page
+ * landed on the Music tab, not the artist's card). The kit's focus module sets this once from the platform. */
+let layerNextFrame = false;
+export function deferStartFocus(value: boolean): void {layerNextFrame = value;}
+/** Runs `ask` now, or on Android TV on the next frame; says whether a request was (or will be) sent. */
+export function afterLayerChange(ask: () => boolean, sendable = true): boolean {
+  if (!layerNextFrame || typeof requestAnimationFrame !== 'function') return ask();
+  if (!sendable) return false;
+  requestAnimationFrame(() => {ask();});
+  return true;
+}
+export function requestStartFocus(host: FocusHost | null | undefined): boolean {
+  return afterLayerChange(() => requestNativeFocus(host), !!(host?.requestTVFocus || host?.focus));
+}
 /** Native host identity owns its tag. Retry unresolved hosts after attachment. */
 export function createFocusHandleResolver(resolve: (host: FocusHost) => number | null) {
   const handles = new WeakMap<FocusHost, number>();

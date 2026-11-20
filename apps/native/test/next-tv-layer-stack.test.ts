@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
+import {afterLayerChange, createFocusRegistry, deferStartFocus, requestStartFocus} from '../src-next/kit/focus/registry.ts';
 import {createTVLayerStack, tvLayerSpecs, tvRouteLayerKeys} from '../src-next/kit/focus/layer-stack.ts';
 import {holdTVPageModal, provideTVPage, tvPageModal} from '../src-next/kit/focus/tv-page-modal.ts';
 import {tvFocusKit} from './helpers/tv-focus-kit.mjs';
@@ -538,4 +538,23 @@ test('Android: the player under the refused page never asks for focus in its own
     await s.home();
     assert.equal(engine.focused, 'player-pause', 'the held ask lands only once the page has gone (Focusable\'s preferredBlocked), on the control it asked for');
   } finally {s.dispose();}
+});
+
+test('Android TV: a page\'s start ask and a return to its opener go on the next frame, never in the commit that uncovers the layer (the TV artist page stuck on Play; Back landed on the Music tab)', () => {
+  const frames: (() => void)[] = [], asked: string[] = [], host = {requestTVFocus: () => {asked.push('play');}};
+  const raf = (globalThis as any).requestAnimationFrame;
+  (globalThis as any).requestAnimationFrame = (run: () => void) => {frames.push(run); return frames.length;};
+  try {
+    deferStartFocus(true);
+    assert.equal(requestStartFocus(host), true, 'the request is sent');
+    assert.deepEqual(asked, [], 'not in this commit');
+    frames.shift()!(); assert.deepEqual(asked, ['play'], 'on the next frame');
+    assert.equal(requestStartFocus(undefined), false, 'nothing to ask');
+    deferStartFocus(false);
+    requestStartFocus(host); assert.deepEqual(asked, ['play', 'play'], 'tvOS (and touch) ask at once, as before');
+    deferStartFocus(true);
+    const returned: string[] = [];
+    assert.equal(afterLayerChange(() => {returned.push('card'); return true;}), true);
+    assert.deepEqual(returned, [], 'a return to the opener waits a frame too'); frames.shift()!(); assert.deepEqual(returned, ['card']);
+  } finally {deferStartFocus(false); (globalThis as any).requestAnimationFrame = raf;}
 });
