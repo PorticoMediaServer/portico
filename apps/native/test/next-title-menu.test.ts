@@ -35,6 +35,17 @@ test('the Watch menu draws the shared model in the mock-ups\' order on touch: pe
   assert.equal((items.find(item => item.id === 'play') as any).label, t('entry.play'));
 });
 
+test('the title\'s own ⋯ on its page draws phone-detail 9\'s groups: personal, the host\'s rows, the rest, Owner only; the page\'s buttons are left out', () => {
+  const groups = nativeWatchMenuGroups({entry, detail: detail(), menu: fullMenu()});
+  const items = titleMenuItems(groups, {tv: false, page: true, run() {}, afterPlay: [row('start-radio')], surface: [row('different-version'), row('file-info')], trailing: [row('share'), row('copy-link')]});
+  assert.deepEqual(ids(items), ['watched', 'favorite', 'rate', 'addToPlaylist', 'separator:1', 'different-version', 'file-info',
+    'separator:2', 'start-radio', 'addToCollection', 'share', 'copy-link', 'group:manage', 'editMetadata', 'refreshMetadata', 'delete']);
+  // Play, My List and Download are the page's own buttons; nothing else a card's menu offers is lost.
+  for (const id of ['play', 'resume', 'watchlist', 'download']) assert.equal(ids(items).includes(id), false, id);
+  const owner = items.find(item => item.id === 'group:manage') as any;
+  assert.deepEqual([owner.label, owner.tone], [t('next.selection.ownerOnly'), 'owner']);
+});
+
 test('the Watch menu keeps the model\'s groups on TV, with owner rows and no Download', () => {
   const groups = nativeWatchMenuGroups({entry, detail: detail(), menu: fullMenu(['download']), together: {queue: true, watch: true}});
   const items = titleMenuItems(groups, {tv: true, run() {}, afterPlay: [row('start-radio')], surface: [row('different-version'), row('file-info'), row('select')]});
