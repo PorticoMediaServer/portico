@@ -1,3 +1,4 @@
+import {shapeFor, type ShapeFamily} from '../../../../../../packages/client-core/src/presentation/card-shape';
 import type {ComponentProps, ReactNode} from 'react';
 import type {MusicMixesRow} from '../../../screens/destinations/music/MusicMixesRow';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
@@ -112,7 +113,11 @@ export function useLibrary(props: LibraryProps, tv = false) {
       const target: HomeSeeAll | undefined = section.seeAll && ('rowId' in section.seeAll
         ? {type: 'row', rowId: section.seeAll.rowId, libraryId: state.library.id}
         : {type: 'library', libraryId: state.library.id, ...section.seeAll});
-      return {...section, title, onSeeAll: target && (() => {
+      // The row is as tall as the cards it draws: LibraryCard takes each card's shape from the shared rule (shapeFor), so a
+      // music row the server calls "poster" still draws square cards and must not reserve a poster's height.
+      const first = section.entries[0];
+      const drawn = first && shapeFor(first.kind, 'grid', state.library.kind as ShapeFamily) === 'square' && section.shape !== 'landscape' ? 'square' as const : section.shape;
+      return {...section, shape: drawn, title, onSeeAll: target && (() => {
         if (activation.getSnapshot().visible) props.onSeeAll(target, title);
       }), onVisibleRange: (_first: number, last: number) => {
         if (activation.getSnapshot().visible && section.nextCursor && last >= section.entries.length - 10) void destination.nextDiscover(section.id).catch(runtime.reportError);
