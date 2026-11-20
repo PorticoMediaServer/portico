@@ -92,7 +92,7 @@ export function useServerRemoteAccess({ports, runtime}: {ports: NativeSettingsLi
   };
   const outside = status?.outside, answers = outside?.addresses ?? [];
   const reachable = answers.length > 0 && answers.every(item => item.reachable);
-  const outsideTone = !state.checking && outside?.checkedAt && answers.length ? reachable ? 'success' : 'warning' : 'info';
+  const outsideTone: 'success' | 'warning' | 'info' = !state.checking && outside?.checkedAt && answers.length ? reachable ? 'success' : 'warning' : 'info';
   const outsideTitle = t(state.checking ? 'settings.server.remote.checking' : !outside?.checkedAt ? 'next.remoteOwner.notChecked'
     : reachable ? 'next.remoteOwner.reachable' : answers.length ? 'next.remoteOwner.unreachable' : 'next.remoteOwner.unknown');
   const certificate = status?.managedCertificate;
