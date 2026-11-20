@@ -29,7 +29,7 @@ test('actual collection presenter sends its current member through the fenced pr
     '../selection/native-selection': {catalogueSelectionSource: (source: unknown) => source, createNativeSelection: () => ({dispose() {}})},
     '../destinations/entry-actions': {createNativeEntryActions}, './controller': {NativeCollectionController: Controller}, './CollectionScreen': {NativeCollectionScreen: 'CollectionScreen'},
     // Phones and tablets draw the rebuilt page; the presenter's handlers are the same either way.
-    '../../pages/touch/collection/CollectionPage': {CollectionPage: 'CollectionPage'},
+    '../../pages/touch/collection/CollectionPage': {CollectionPage: 'CollectionPage'}, '../../pages/tv/collection/CollectionPage': {CollectionPage: 'TVCollectionPage'},
   });
   const navigation = new NativeShellNavigation(authority, () => authority);
   const route = {kind: 'collection' as const, libraryId: 'library', collectionId: 'collection', title: 'Collection'};

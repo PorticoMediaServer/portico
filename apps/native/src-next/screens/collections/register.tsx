@@ -10,8 +10,8 @@ import {createNativeEntryActions} from '../destinations/entry-actions';
 import {catalogueSelectionSource, createNativeSelection} from '../selection/native-selection';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {NativeCollectionController} from './controller';
-import {NativeCollectionScreen} from './CollectionScreen';
 import {CollectionPage} from '../../pages/touch/collection/CollectionPage';
+import {CollectionPage as TVCollectionPage} from '../../pages/tv/collection/CollectionPage';
 import {Platform, type View} from 'react-native';
 
 type CollectionRoute = Extract<NativeShellRoute, {kind: 'collection'}>;
@@ -104,7 +104,7 @@ function CollectionHost({route, active, context, runtime}: {route: CollectionRou
       {signal: operation.signal, isCurrent}).catch(runtime.reportError);
   };
   // Phones and tablets: the rebuilt page (pages/touch/collection); TV keeps this screen until its page lands.
-  const Screen = Platform.isTV ? NativeCollectionScreen : CollectionPage;
+  const Screen = Platform.isTV ? TVCollectionPage : CollectionPage;
   // Play on in the top bar, as on a title page: only while this page is the one on screen.
   const onPlayOn = runtime.playOn ? (anchor?: React.RefObject<View | null>) => {if (current() && context.navigation.getSnapshot().route === route) runtime.playOn?.open(anchor);} : undefined;
   return <Screen playOn={runtime.playOn} onPlayOn={onPlayOn} focusScope={`collection:${authorityKey(authority)}:${route.libraryId}:${route.collectionId}`} state={state} runtime={runtime} actions={actions} selection={selection}
