@@ -52,7 +52,8 @@ test('reading shelf keeps a bounded native window, starts ten cards early and dr
 });
 
 test('phone card long press opens its anchored menu and selection tap does not open the book', async () => {
-  const r = renderer(), {PhoneReadingBookCard} = await screenModule(new URL('../src-next/kit/reading/PhoneReadingBookCard.tsx', import.meta.url), {'../cards/model': cardModel,
+  const r = renderer(), {PhoneReadingBookCard} = await screenModule(new URL('../src-next/kit/reading/PhoneReadingBookCard.tsx', import.meta.url), {
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},'../cards/model': cardModel,
     react: r.react, 'react-native': {Text: 'Text', View: 'View'}, '@portico/design': {generatedCoverTint: () => ({})},
     '../artwork': {StandardBackdrop: 'StandardBackdrop', GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../controls': {Focusable: 'Focusable'},
     '../selection': {SelectionCircle: 'SelectionCircle'}, '../browse/presentation': {browseType: typography}, '../theme': {useTheme: () => createTheme({isTV: false, width: 390})},

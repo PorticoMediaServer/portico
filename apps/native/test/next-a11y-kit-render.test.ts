@@ -78,6 +78,7 @@ test('reading-card long press opens the item menu (which offers Download) and it
   // reading menu, so no unnamed long-press side effect remains (NM-08).
   const f = fixture(), menus: unknown[] = [];
   const {PhoneReadingBookCard} = await screenModule(new URL('../src-next/kit/reading/PhoneReadingBookCard.tsx', import.meta.url), {
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
     react: f.common.react, 'react-native': f.native, '@portico/design': {}, '../../../../../packages/i18n/src': {defaultI18n},
     '../artwork': {GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../controls': {FormError, Focusable: 'Focusable'},
     '../selection': {SelectionCircle: 'SelectionCircle'},
