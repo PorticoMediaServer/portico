@@ -21,6 +21,7 @@ import {Chip, Focusable} from '../controls';
 import {ArtFrame, CardFrame, Parts, Progress} from '../cards/primitives';
 import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
+import {TVRow} from '../layout/TVRow';
 import {StateView} from '../states';
 import {alpha, browseType} from '../browse/presentation';
 import {useTheme} from '../theme';
@@ -34,7 +35,7 @@ const media = (entry: SearchEntry): entry is ContentEntry => entry.kind !== 'per
 const tvTopResultFocusId = (group: SearchGroup, entry: SearchEntry): string => `top:${nativeSearchEntryKey(group, entry)}`;
 const tvSearchR46 = {
   /** Chips keep their natural width: a squeezed row ellipsised every label and blanked the first. */
-  chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 12},
+  chips: {alignItems: 'center', gap: 12},
   chip: {flexShrink: 0},
   chipLabel: {flexShrink: 0},
   /** The composite (art plus words) grows from its left edge so the art never shifts into the clip. */
@@ -95,12 +96,14 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
         if (group?.nextCursor && contentOffset.y + layoutMeasurement.height >= contentSize.height - 600) run(destination.next(group.id));
       }}><View ref={contentRoot} collapsable={false}>
         {chipsDrawn && <FocusRegion id={ids.searchChips} enabled={active.visible} orientation="horizontal" entry={`chip:${state.group}`} stops={{up: true}}
-          edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} style={[tvSearchR46.chips, {maxWidth: resultsWidth}]}>{chips.map(chip => {
+          edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} style={{maxWidth: resultsWidth, marginLeft: -focusRoom}}>
+          <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[tvSearchR46.chips, {padding: focusRoom}]}>{chips.map(chip => {
           const group = groups.find(value => value.id === chip.id);
           const count = chip.id === 'all' ? groups.every(value => value.totalCountExact) ? groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
           return <Chip key={chip.id} focusId={`chip:${chip.id}`} testID={`tv-search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'}
             disabled={!active.visible} style={tvSearchR46.chip} textStyle={tvSearchR46.chipLabel} onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
-        })}</FocusRegion>}
+        })}</ScrollView></TVRow></FocusRegion>}
         {state.search.error && <StateView testID="tv-search-read-error" {...runtime.error(state.search.error, () => run(destination.retry()))}/>}
         {problem && <StateView variant="search" title={problem}/>}
         {emptyAll && <View><Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: theme.space.sm}]}>{t('next.states.noMatches', {query: state.text.trim()})}</Text>

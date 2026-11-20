@@ -259,5 +259,7 @@ test('result chips keep their natural width so no label is ellipsised or blanked
     assert.equal(style(chip.props.textStyle).flexShrink, 0);
   }
   const row = elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchChips)!;
-  assert.equal(style(row.props.style).flexWrap, 'wrap');
+  const strip = elements(row).find(node => node.type === 'ScrollView');
+  assert.equal(strip?.props.horizontal, true);
+  assert.equal(style(strip.props.contentContainerStyle).flexWrap, undefined);
 });
