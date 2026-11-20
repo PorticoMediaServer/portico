@@ -10,7 +10,7 @@ export type ReadingManifestFacts = Readonly<{wordCount?: number; estimatedSecond
 const record = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const integer = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max;
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && new TextEncoder().encode(v).length <= max && !/[\x00-\x1f\x7f]/.test(v);
-const keys = ['wordCount', 'estimatedSeconds', 'pageCount', 'openingLines', 'series'] as const;
+const keys = ['wordCount', 'estimatedSeconds', 'pageCount', 'openingLines', 'series', 'publicationType'] as const;
 
 /** Strip optional facts before the generated base decoder, then reconstruct only
  * known scalar/tuple facts. This remains valid when Release regenerates that decoder.
@@ -34,6 +34,11 @@ export function withReadingManifestFacts<T extends {metadata: object; format: st
       && (series.number === undefined || typeof series.number === 'number' && Number.isFinite(series.number) && series.number >= 0)) {
       facts.series = Object.freeze({id: series.id, name: series.name, libraryId: series.libraryId, source: series.source as ReadingManifestSeries['source'], ...(series.number === undefined ? {} : {number: series.number})});
     }
+    // The rebuilt server names the kind of publication but not where that came from, so `source` is optional here, where
+    // the generated contract requires it: a manifest the app built must survive the Reader's own parse of it.
+    const type = supplied.publicationType;
+    if (record(type) && text(type.value, 32) && (type.source === undefined || text(type.source, 32)))
+      facts.publicationType = Object.freeze({value: type.value, ...(type.source === undefined ? {} : {source: type.source})});
   }
   return Object.freeze({...base, metadata: Object.freeze({...base.metadata, ...facts})});
 }
