@@ -1,4 +1,4 @@
-import React, {useState, type ReactNode, type ComponentProps, type Ref} from 'react';
+import React, {useState, type ReactElement, type ReactNode, type ComponentProps, type Ref} from 'react';
 import {FlatList, Text, View, type ListRenderItemInfo} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {titleTintHue} from '../../../../../packages/client-core/src/presentation/title-page';
@@ -151,7 +151,7 @@ export function recordingGridColumns({width, isTV}: Pick<Theme, 'width' | 'isTV'
 
 export function RecordingList<Row>({listRef, columns, lead, fade, renderItem, ...list}: Omit<ComponentProps<typeof FlatList<Row>>, 'renderItem'> & {
   listRef?: Ref<FlatList<Row>>; columns?: number; lead?: ReactNode; fade?: boolean;
-  renderItem: (info: ListRenderItemInfo<Row>, cardWidth: number) => ReactNode;
+  renderItem: (info: ListRenderItemInfo<Row>, cardWidth: number) => ReactElement | null;
 }) {
   const theme = useTheme(), gap = theme.space.sm;
   const [width, setWidth] = useState(0);
