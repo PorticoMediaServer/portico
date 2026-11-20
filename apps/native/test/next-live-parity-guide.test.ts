@@ -110,7 +110,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     '../destinations/useTVPageBack': {useTVPageBack: noop}, '../destinations/useEntryFocus': {useDestinationEntryFocus: noop}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
     './useGuideTimePan': {useGuideTimePan: () => ({active: false, position: {value: 0}, adjust: noop})}, '../../../../../packages/client-core/src/presentation/live-availability': availability, './guide-pan-model': guidePan, './LivePhonePicker': {NativeLivePhonePicker: 'PhonePicker'},
-    './LiveOwnerScreen': {NativeLiveOwnerScreen: (props: any) => {editors.push(`owner:${props.initialAction}`); return jsx('OwnerEditor', props);}},
+    './ServerLiveOwnerPage': {ServerLiveOwnerPage: (props: any) => {editors.push(`owner:${props.initialAction}`); return jsx('OwnerEditor', props);}},
     './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'}, './server/tv-server-reader': {nativeServerAdmission}, '../../tv/auth': {TVManagementHandoff: 'Handoff'},
     '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (address: string) => ({url: address})},
   });

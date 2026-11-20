@@ -116,7 +116,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../tv/layout/guide-focus': {}, '../destinations/useTVPageBack': {useTVPageBack() {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
     './guide-presentation': {...guidePresentation, nativeGuideClock: () => () => '12:00', nativeGuideDate: () => () => 'Today', nativeGuideRegion: () => ({locale: 'en-US', hour12: false}), nativeGuideNext: () => undefined},
     './useGuideTimePan': {useGuideTimePan: (options: any) => {panOptions = options; return {active: true, position: {value: 0}, adjust: (delta: number) => adjustments.push(delta)};}},
-    '../../../../../packages/client-core/src/presentation/live-availability': await import('../../../packages/client-core/src/presentation/live-availability.ts'), './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './LiveOwnerScreen': {NativeLiveOwnerScreen: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
+    '../../../../../packages/client-core/src/presentation/live-availability': await import('../../../packages/client-core/src/presentation/live-availability.ts'), './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './ServerLiveOwnerPage': {ServerLiveOwnerPage: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
     '../../tv/auth': {TVManagementHandoff: 'Handoff'}, '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (url: string) => ({url})}, './recording-rule-presentation': {}, './server/tv-server-reader': {nativeServerAdmission: () => 'owner'},
   };
   modules['../../kit/live/NativeGuideRow'] = await screenModule(new URL('../src-next/kit/live/NativeGuideRow.tsx', import.meta.url), {
@@ -233,4 +233,35 @@ test('programme text keeps whole words and drops an incomplete time range', asyn
   parent = hooks(); child = hooks();
   measured(draw('2:30 PM – 3:00 PM', true), ['2:30 PM –', '3:00 PM']);
   assert.equal(visible(draw('2:30 PM – 3:00 PM', true)), undefined);
+});
+
+test('the Live TV owner page keeps the Add source choices and opens their forms', async () => {
+  const host = fixture();
+  const {ServerLiveOwnerPage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerLiveOwnerPage.tsx', import.meta.url), {
+    react: host.react, '../../../kit/controls': {Button: 'Button', Tabs: 'Tabs'},
+    '../../../kit/frames': {SettingsPageFrame: 'Frame'}, '../../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'},
+    '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'}, '../../../kit/shell': {ServerHeader: 'ServerHeader'},
+    '../../../kit/settings/LiveDefaultsSection': {LiveDefaultsSection: 'Defaults'}, '../../../kit/settings/LiveSourcesSection': {LiveSourcesSection: 'Sources'},
+    '../../../screens/settings-live/LiveOwnerSheets': {AddSourceSheet: 'AddSource', DiscoverSheet: 'Discover'},
+    '../../../screens/settings-live/LiveOwnerSettingsSheets': {ChannelMapSheet: 'ChannelMap'},
+    '../../../screens/settings-live/LiveOwnerUploadSheet': {UploadSourceSheet: 'Upload'},
+    '../../../screens/settings-live/LiveRecordingOwner': {NativeRecordingOwner: 'Recording'},
+    '../../../screens/settings-live/LiveSourceSettingsSheet': {SourceSettingsSheet: 'SourceSettings'},
+    '../../../screens/settings-live/live-document-picker': {liveDocumentPicker: true},
+    '../../../screens/settings-live/server/LibraryChannelsPanel': {NativeLibraryChannelsPanel: 'Channels'},
+    '../../shared/settings/useLiveOwnerPage': {useLiveOwnerPage: () => {
+      const [open, setOpen] = host.react.useState('menu');
+      return {t, tab: 'sources', role: 'owner', sources: [], menuItems: [], addMenu: open === 'menu',
+        adding: open === 'add', discovering: open === 'discover', uploading: open === 'upload', setTuner: () => {},
+        setAdding: () => setOpen('add'), setDiscovering: () => setOpen('discover'), setUploading: () => setOpen('upload')};
+    }},
+  });
+  const render = () => host.render(() => ServerLiveOwnerPage({ports: {context: {serverName: 'Test server'}}}));
+  const menu = find(render(), 'live-owner-add-menu');
+  assert.equal(menu.props.open, true);
+  assert.deepEqual(menu.props.items.map((action: {id: string}) => action.id), ['remote', 'discover', 'upload']);
+  for (const [index, name] of ['AddSource', 'Discover', 'Upload'].entries()) {
+    menu.props.items[index].onSelect();
+    assert.equal(nodes(render()).find(node => node.type === name)?.props.open, true);
+  }
 });
