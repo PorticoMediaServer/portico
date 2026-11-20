@@ -1,5 +1,5 @@
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from 'react';
-import {Keyboard, Platform, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Keyboard, Platform, StyleSheet, Text, TextInput, View, useTVEventHandler} from 'react-native';
 import {fieldSpec} from '@portico/design';
 import {Focusable} from './Focusable';
 import {colorAlpha} from './control-model';
@@ -34,6 +34,11 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
   const suppliedRadius = StyleSheet.flatten(fieldStyle)?.borderRadius;
   const radius = typeof suppliedRadius === 'number' ? suppliedRadius : search ? fieldSpec.search.radius.tv : fieldSpec.radius.tv;
   const open = useCallback(() => {if (eligible && !editing) {submitted.current = false; setEditing(true);}}, [editing, eligible]);
+  // tvOS can report Select from an enclosing view rather than the focused field (the sign-in page's "Server address": the
+  // event's tag was not the field's, so its press never fired and no keyboard opened). While the drawn field holds focus, a
+  // Select opens it whichever view the event names.
+  const held = useRef(false);
+  useTVEventHandler(event => {if (appleTV && held.current && event.eventType === 'select') open();});
   const close = useCallback(() => {
     if (!editing) return;
     setEditing(false);
@@ -57,7 +62,7 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
     <View><Focusable ref={target} focusId={focusId} testID={testID} disabled={!eligible} preferredFocus={autoFocus}
       accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessibilityValue={{text: displayed || props.placeholder || ''}} accessibilityState={{...accessibilityState, disabled: !editable}}
-      focusKind="field" focusRadius={radius} onPress={open} onAccessibilityTap={open} onFocus={onFocus} onBlur={onBlur}
+      focusKind="field" focusRadius={radius} onPress={open} onAccessibilityTap={open} onFocus={event => {held.current = true; onFocus?.(event);}} onBlur={event => {held.current = false; onBlur?.(event);}}
       style={({focused}) => [{minHeight: height, borderRadius: radius, paddingHorizontal: search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
         flexDirection: 'row', alignItems: 'center', gap: 10, opacity: editable ? 1 : .45}, fieldStyle,
         {backgroundColor: focused ? theme.colors[fieldSpec.fill.focus] : colorAlpha(theme.colors[fieldSpec.tv.rest.background], fieldSpec.tv.rest.backgroundAlpha ?? 1),

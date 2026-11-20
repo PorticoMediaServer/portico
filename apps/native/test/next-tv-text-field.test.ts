@@ -17,7 +17,7 @@ test('TV text entry draws one box, opens the keyboard only on Select, and edits 
   let keyboardDidHide: (() => void) | undefined;
   const {TVTextField} = await screenModule(new URL('../src-next/kit/controls/TVTextField.tsx', import.meta.url), {
     react: {...React, default: React}, '@portico/design': {fieldSpec},
-    'react-native': {View: 'View', Text: 'Text', TextInput: 'TextInput', Platform: {OS: 'android'},
+    'react-native': {View: 'View', Text: 'Text', TextInput: 'TextInput', Platform: {OS: 'android'}, useTVEventHandler: () => {},
       Keyboard: {addListener(event: string, callback: () => void) {
         assert.equal(event, 'keyboardDidHide');
         keyboardDidHide = callback;
@@ -79,5 +79,29 @@ test('TV text entry draws one box, opens the keyboard only on Select, and edits 
     secure = true; await host.rerender();
     assert.equal(nodes(field()).find(node => node.type === 'Text')!.props.children, '•'.repeat(value.length));
     assert.equal(field().props.accessibilityValue.text.includes('https'), false, 'the spoken value is masked too');
+  } finally {await host.unmount();}
+});
+
+test('Apple TV: while the drawn field holds focus, a Select opens it even when tvOS names another view (the sign-in page\'s Server address)', async () => {
+  const theme = createTheme({isTV: true, width: 1920});
+  let handler: ((event: {eventType: string; tag?: number}) => void) | undefined;
+  const {TVTextField} = await screenModule(new URL('../src-next/kit/controls/TVTextField.tsx', import.meta.url), {
+    react: {...React, default: React}, '@portico/design': {fieldSpec},
+    'react-native': {View: 'View', Text: 'Text', TextInput: 'TextInput', Platform: {OS: 'ios'}, useTVEventHandler: (next: typeof handler) => {handler = next;},
+      Keyboard: {addListener: () => ({remove() {}})}, StyleSheet: {create: (value: any) => value, flatten: (value: any) => value}},
+    './Focusable': {Focusable: 'Focusable'}, './FormError': {FormError: 'FormError'}, '../Icon': {Icon: 'Icon'},
+    '../theme': {useTheme: () => theme}, '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
+  });
+  let tree!: Element;
+  const host = createFabricHookHost(() => {tree = TVTextField.render({label: 'Server address', value: '', onChangeText: () => {}}, {current: null});});
+  const field = () => nodes(tree).find(node => node.type === 'Focusable')!;
+  const editor = () => nodes(tree).find(node => node.type === 'TextInput');
+  try {
+    await host.mount();
+    assert.equal(editor(), undefined, 'no editor until Select');
+    handler!({eventType: 'select', tag: 11}); await host.flush();
+    assert.equal(editor(), undefined, 'a Select elsewhere, while the field does not hold focus, opens nothing');
+    field().props.onFocus({}); handler!({eventType: 'select', tag: 11}); await host.flush();
+    assert.ok(editor(), 'the field holds focus: Select opens its editor and so the keyboard');
   } finally {await host.unmount();}
 });
