@@ -25,7 +25,8 @@ export function LibraryPage(props: LibraryProps) {
   const loading = state.phase === 'loading' || state.phase === 'idle';
   const pageState = view.failure ?? view.emptyState;
   const shelfBar = shelfSelection?.render(path => path && <Artwork source={runtime.artwork(path)}/>);
-  return <BrowseFrame testID="library-frame" header={header} notice={notice} toolbar={props.tvMusicDiscover ? shelfBar : undefined}
+  return <BrowseFrame testID="library-frame" header={header} notice={props.tvMusicDiscover ? undefined : notice}
+    toolbar={props.tvMusicDiscover ? <>{notice}{shelfBar}</> : undefined}
     state={pageState ? {...pageState, focus: view.pageState} : loading ? {kind: 'loading'} : undefined}
     grid={props.tvMusicDiscover ?? (loading && state.tab.shows !== 'rows')}>
     {!props.tvMusicDiscover && shelfBar}
@@ -59,14 +60,14 @@ function TVCatalogue(props: LibraryProps & {
         : <BrowseGrid gridRef={grid.grid} testID="library-grid" shape={grid.shape} region={grid.region} initialIndex={grid.initialIndex}
           collection={grid.collection} getKey={nativeLibraryEntryKey} selection={grid.selected}
           onVisibleRange={grid.onVisibleRange} onScrollOffset={grid.onScrollOffset} onItemFocus={grid.onItemFocus}
-          renderItem={(entry, cell, width) => <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={runtime} actions={actions}
+          renderItem={(entry, cell, width, onCaptionLayout) => <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={runtime} actions={actions}
             focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={cell.selection}
-            onSelect={cell.selection?.onEnter ?? grid.selection?.start} disabled={!active.visible}/>}
-          renderNativeSlot={(entry, cell, width, height) => <FocusItem focusId={cell.focusId} entityId={cell.entityId} waiting={cell.waiting}
+            onSelect={cell.selection?.onEnter ?? grid.selection?.start} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>}
+          renderNativeSlot={(entry, cell, width, height, onCaptionLayout) => <FocusItem focusId={cell.focusId} entityId={cell.entityId} waiting={cell.waiting}
             cell={{index: cell.index, pending: cell.waiting, generation: cell.source}}>
             <LibraryCard entry={entry} family={state.library.kind} width={width} placeholderHeight={height} runtime={runtime} actions={actions}
               focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={cell.selection}
-              onSelect={cell.selection?.onEnter ?? grid.selection?.start} disabled={!active.visible}/>
+              onSelect={cell.selection?.onEnter ?? grid.selection?.start} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>
           </FocusItem>}/>}
       <LibraryJumpSheet {...grid.jump}/>
     </>}/>;

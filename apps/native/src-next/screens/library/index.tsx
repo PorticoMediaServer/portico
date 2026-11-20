@@ -155,10 +155,10 @@ function LibrarySurface(props: LibraryProps) {
   if (Platform.isTV) {
     const tvMusicDiscover = state.library.kind === 'music' && state.tab.id === 'discover' && state.phase === 'ready' ?
       <TVMusicDiscover destination={props.destination} state={state} runtime={props.runtime} active={active} anchor={props.mixAnchor}
-        renderEntry={(entry, width, cell) => {
+        renderEntry={(entry, width, cell, onCaptionLayout) => {
           const selected = props.shelfSelection?.item(entry);
           return <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={props.runtime} actions={props.actions}
-            focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} disabled={!active.visible}/>;
+            focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>;
         }}/> : undefined;
     return <TVLibraryPage {...props} tvMusicDiscover={tvMusicDiscover}/>;
   }
