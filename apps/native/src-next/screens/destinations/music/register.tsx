@@ -7,12 +7,13 @@ import {nativeDestinationLifetime} from '../lifetime';
 import {createNativeEntryActions} from '../entry-actions';
 import {createNativeMusicSelection} from './selection';
 import {NativeTVMusicController} from './model';
-import {TVAlbumScreen, TVArtistScreen} from './TVMusicScreens';
+import {TVAlbumScreen} from './TVMusicScreens';
 import {PhoneAlbumScreen, PhoneArtistScreen} from './PhoneMusicScreens';
 import {useTheme} from '../../../kit/theme';
 import {AlbumPage} from '../../../pages/touch/music/AlbumPage';
 import type {AlbumPageProps} from '../../../pages/shared/music/useAlbum';
 import {ArtistPage} from '../../../pages/touch/music/ArtistPage';
+import {ArtistPage as TVArtistPage} from '../../../pages/tv/music/ArtistPage';
 import type {ArtistPageProps} from '../../../pages/shared/music/useArtist';
 import {createMusicPlaylistPicker, type MusicPlaylistPickerHandle} from './MusicPlaylistPicker';
 import {nativeDownloadRequest} from '../../watch/download-request';
@@ -113,7 +114,7 @@ export function createNativeTVMusicRenderer(context: NativeShellBootstrapContext
       return <>
         {page.entry.kind === 'album'
           ? <TVAlbumScreen key={page.entry.id} selection={page.tvSelection} controller={page.controller} entry={page.entry} runtime={runtime} actions={page.actions} openEntry={openEntry} onPlaylist={onPlaylist}/>
-          : <TVArtistScreen key={page.entry.id} selection={page.tvSelection} controller={page.controller} entry={page.entry} runtime={runtime} actions={page.actions} openEntry={openEntry}/>}
+          : <TVArtistPage key={page.entry.id} selection={page.tvSelection} controller={page.controller} entry={page.entry} runtime={runtime} actions={page.actions} openEntry={openEntry} onBack={back}/>}
         {page.picker.render(runtime)}
         {page.tvSelection?.render(path => <Artwork source={runtime.artwork(path)} width={40} height={40}/>)}
       </>;
