@@ -102,7 +102,7 @@ export function SearchResultRow({entry, group, runtime, actions, selection}: {
         </View>
       </>}
     </CardFrame>
-    {!selection?.active && menu && <Button testID={`search-more-${key}`} variant="text" size="small" icon="i-more" iconOnly
+    {!selection?.active && menu && <Button testID={`search-more-${key}`} variant="text" size="small" icon="i-more" iconOnly align="center" iconColor={theme.colors.textSecondary}
       accessibilityLabel={t('card.more', {title})} onPress={menu}/>}
   </View>;
 }
