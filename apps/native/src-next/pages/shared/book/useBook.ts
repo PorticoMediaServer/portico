@@ -41,6 +41,8 @@ export type BookView = Readonly<{
   download?: () => void;
   /** The book's menu, with Start over in it. */
   more: () => void;
+  /** Start the book over from its first chapter (a TV page's own button, collections 43; a phone keeps it in the menu). */
+  startOver: () => void;
   description?: Readonly<{text: string; readMore: Readonly<{label: string; expanded: boolean; onPress: () => void}>}>;
   /** The read failed, or a further page of chapters is loading or failed. */
   state?: StateRowProps; continuation?: StateRowProps;
@@ -90,6 +92,7 @@ export function useBook({controller, entry, runtime, actions, openEntry}: BookPa
     finished: {active: snapshot.finished, onPress: () => run(controller.markFinished())},
     download: download ? () => askNativeDownload(download) : undefined,
     more: () => actions.menu(entity, undefined, undefined, [{id: 'book-start-over', icon: 'i-restart', label: t('action.startOver'), onSelect: () => run(controller.startOver())}]),
+    startOver: () => run(controller.startOver()),
     description: entity.overview ? {text: entity.overview,
       readMore: {label: t(expanded ? 'web.person.showLess' : 'web.person.readMore'), expanded, onPress: () => setExpanded(value => !value)}} : undefined,
     state: failed ? {kind: 'error', icon: 'i-warn', title: failed.title, action: {label: failed.actionLabel ?? t('action.tryAgain'), onPress: () => run(controller.load())}} : undefined,
