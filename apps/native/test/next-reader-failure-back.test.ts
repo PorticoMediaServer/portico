@@ -30,7 +30,12 @@ const childrenOf = (node: Node): unknown[] => {
 function* nodes(value: unknown): Generator<Node> {
   if (Array.isArray(value)) {for (const item of value) yield* nodes(item); return;}
   if (!value || typeof value !== 'object' || !('props' in value)) return;
-  const node = value as Node; yield node;
+  const node = value as Node;
+  if (typeof node.type === 'function' && ['ReaderStatusPage', 'ReaderBack'].includes(node.type.name)) {
+    yield* nodes(node.type(node.props));
+    return;
+  }
+  yield node;
   for (const child of childrenOf(node)) yield* nodes(child);
 }
 const find = (tree: unknown, match: (node: Node) => boolean): Node | undefined => {
@@ -71,6 +76,14 @@ async function harness(fixture: Fixture) {
     authority: () => ({kind: 'owner'}),
   };
   const width = fixture.width ?? 390;
+  const {ReaderBack} = await screenModule(new URL('../src-next/kit/reading/ReaderBack.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => ({width})},
+    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})}, '../controls/Button': {Button: 'Button'},
+  });
+  const statusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/reading/ReaderBack': {ReaderBack},
+    '../../../kit/frames': {PageStateFrame: 'StateView'},
+  });
   // Leaf hosts are stable string types: this driver never renders a mocked
   // component, it only traverses the elements ReadNativeHost returns.
   const {ReadingGuestView} = await screenModule(new URL('../src-next/screens/read/ReadingGuestView.tsx', import.meta.url), {
@@ -82,7 +95,7 @@ async function harness(fixture: Fixture) {
     './asset-origin': {readerNavigationAllowed, readerDelivery},
     './startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
-  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': statusPage, ...stackSlotFixture,
     react: {...React, default: React}, 'react-native': {View: 'View', NativeModules: {PorticoReaderAssets: {bundle: async () => at === 'assets' ? {} : {url: appleReaderEntry}}}, useWindowDimensions: () => ({width, height: 844})},
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'},
@@ -90,7 +103,7 @@ async function harness(fixture: Fixture) {
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, './asset-origin': {readerAssetEntry},
     './ReadingGuestView': {ReadingGuestView: 'ReadingGuestView', createReadingGuestBridge: () => {hostCalls++; return {...reader};}},
   });
-  const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': statusPage, ...stackSlotFixture,
     react: {...React, default: React},
     'react-native': {
       AppState: {addEventListener: () => ({remove() {}})}, View: 'View',

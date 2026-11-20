@@ -94,13 +94,17 @@ test(`actual retained Read components cap guest residency and restore original s
   });
   const native = {View: 'RCTView', AppState: {addEventListener: () => ({remove() {}})}, NativeModules: {PorticoReaderAssets: {bundle: async () => ({url: appleReaderEntry})}},
     useWindowDimensions: () => ({width: 390, height: 844})};
-  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const readerStatusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
+    '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
+  });
+  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react, 'react-native': native, 'react-native-webview': {default: WebView}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/states': {LoadingPaint: ({children}: any) => children, SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, './asset-origin': {readerAssetEntry}, './ReadingGuestView': {ReadingGuestView, createReadingGuestBridge},
   });
-  const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/client-core/src': {preferenceValue, ReadingError}, '../../../../../packages/i18n/src': {defaultI18n},
     '../downloads/device': {createNativeDownloadsDevice: () => {throw new Error('unexpected offline device');}}, '../../../platform/offline-downloads': {offlineDownloads: {}},

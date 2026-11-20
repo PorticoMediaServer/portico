@@ -132,7 +132,8 @@ export function useLibraryGrid(props: NativeLibraryScreenProps, source: NativeLi
   const initialIndex = useRef(source.memory.firstVisibleIndex).current;
   const [range, setRange] = useState({first: initialIndex, last: initialIndex});
   const lastRange = useRef(range), offset = useRef(source.memory.offset);
-  const [view, setView] = useState({value: 'grid' as 'grid' | 'list', anchor: initialIndex, revision: 0});
+  const [choice, setView] = useState<{value: 'grid' | 'list'; anchor: number; revision: number}>();
+  const view = choice ?? {value: !tv && source.tab.shows === 'tracks' ? 'list' as const : 'grid' as const, anchor: initialIndex, revision: 0};
   const revision = useRef(0);
   const unregister = useRef<(() => void) | undefined>(undefined);
   useEffect(() => () => unregister.current?.(), [collection]);
