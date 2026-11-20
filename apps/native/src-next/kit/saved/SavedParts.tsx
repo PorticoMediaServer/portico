@@ -38,7 +38,7 @@ export function SavedMyListRow({entry, runtime, actions, selection}: {entry: Con
         {selection?.active && <SelectionCircle selected={selection.selected} selecting interactive={false} variant="row" size={24} accessibilityLabel={t('card.select', {title: entry.displayTitle || entry.title})}/>}
         <Artwork source={runtime.artwork(entry.posterUrl)} width={46} height={69} style={{borderRadius: 6}}/>
         <View style={{flex: 1, minWidth: 0}}><Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{entry.displayTitle || entry.title}</Text>
-          <Parts parts={text.caption} gap={8} style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginTop: 2}]}/></View>
+          <Parts parts={text.caption} fit="wrap" lines={0} gap={8} style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginTop: 2, maxWidth: '100%'}]}/></View>
       </>}
     </CardFrame>
   </View>;

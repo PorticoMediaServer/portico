@@ -12,7 +12,7 @@ import {groupOfflineEntries, type NativeOfflineDownloadsDevice} from '../../../p
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSavedDestination} from '../../../screens/saved/model';
 import {savedNearEnd} from '../../../screens/saved/paging';
-import type {NativeSavedDownloadsCopy} from '../../../screens/saved/SavedDownloadCard';
+import type {NativeSavedDownloadsCopy} from '../../../kit/saved/SavedDownloadCard';
 import type {NativeDestinationActivationPort} from '../../../screens/destinations/focus';
 import type {NativeEntryMenuState} from '../../../screens/destinations/entry-actions';
 import {registerBack} from '../../../kit/navigation/back';

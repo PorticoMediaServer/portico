@@ -16,7 +16,7 @@ import {SavedListScreen, type NativeSavedListRoute} from './SavedListScreen';
 import {SavedResourceScreen} from './SavedResourceScreen';
 import {createNativeSavedState} from './state';
 import {nativeSavedRouteTarget, openNativeSavedView, type NativeSavedRouteTarget} from './navigation';
-import type {NativeSavedDownloadsCopy} from './SavedDownloadCard';
+import type {NativeSavedDownloadsCopy} from '../../kit/saved/SavedDownloadCard';
 import {nativeScreenServices} from '../native-screen-services';
 import {createNativeSavedSelection, createNativeSavedViewSelection} from './selection';
 import {NativeSavedViewDestination} from './view-model';

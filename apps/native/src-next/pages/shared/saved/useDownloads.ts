@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
-import {useWindowDimensions, type ScrollView, type View} from 'react-native';
+import type {ScrollView, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {DownloadsService, TrackedDownloadRequest} from '../../../../../../packages/client-core/src/downloads-service';
 import type {NativeOfflineDownloadsDevice, OfflineEntry, OfflineSettings, OfflineSnapshot} from '../../../platform/offline-downloads';
@@ -31,8 +31,8 @@ export type DownloadsPageProps = Readonly<{
 
 /** The device adapter publishes only this viewer's native files. No server preparation
  * is ever counted as a file available here, or substituted for a local action. */
-export function useDownloads({device, runtime, copy: nativeCopy, openTitle, service}: DownloadsPageProps) {
-  const theme = useTheme(), dimensions = useWindowDimensions();
+export function useDownloads({device, runtime, copy: nativeCopy, openTitle, service}: DownloadsPageProps, sheetMenu: boolean) {
+  const theme = useTheme();
   const tablet = theme.form === 'medium' || theme.form === 'expanded';
   const copy: NativeDownloadsCopy = tablet ? {...nativeCopy, storageLimitHelp: 'next.saved.tablet.storageLimitHelp',
     freeOnPhone: 'downloads.freeOnDevice', removeFromPhone: 'next.saved.tablet.remove',
@@ -48,12 +48,11 @@ export function useDownloads({device, runtime, copy: nativeCopy, openTitle, serv
     },
   }), [device]);
   const membership = useSyncExternalStore(inventory.subscribe, inventory.getMembership);
-  const viewport = useMemo(createDownloadViewport, [device]), [inventoryTop, setInventoryTop] = useState(0);
+  const viewport = useMemo(createDownloadViewport, [device]);
   const [failure, setFailure] = useState<unknown>(), [entryMenu, setEntryMenu] = useState<{entry: OfflineEntry; anchor: RefObject<View | null>}>();
   const menu = entryMenu && snapshot.entries.find(entry => downloadEntryIdentity(entry) === downloadEntryIdentity(entryMenu.entry));
   useEffect(() => {if (entryMenu && !menu) setEntryMenu(undefined);}, [entryMenu, menu]);
   const [pickingLimit, setPickingLimit] = useState(false), [pending, setPending] = useState(false);
-  const [paneWidth, setPaneWidth] = useState(0);
   const [removingOthers, setRemovingOthers] = useState<OthersOpening>();
   // 09-downloads rule 30: removing a download asks first, then deletes it from the device at once.
   const [removing, setRemoving] = useState<OfflineEntry>(), removeAfterMenu = useRef<OfflineEntry | undefined>(undefined);
@@ -134,32 +133,12 @@ export function useDownloads({device, runtime, copy: nativeCopy, openTitle, serv
   const requests = useSyncExternalStore(service ? service.subscribe : noSubscribe, service ? () => service.getSnapshot().requests : noRequests);
   const waiting = snapshot.pendingDownloads ?? [];
   const empty = snapshot.ready && snapshot.entries.length === 0 && requests.length === 0 && waiting.length === 0;
-  // tablet-read12 draws Saved › Downloads at the expanded width: what the device
-  // holds and what is left, then the profile's actual reading publications and
-  // everything else as two-column lists. Phone and medium keep today's page.
-  const expanded = !theme.isTV && dimensions.width >= 1024;
-  const readingEntries = membership.reading;
-  // A reading page keeps the full-width lists and rules below (tablet-read12).
-  const rulesBeside = expanded && !empty && readingEntries.length === 0;
   let readingBytes = 0, watchingBytes = 0;
   for (const entry of snapshot.entries) {
     const bytes = entry.state === 'ready' ? entry.bytes : entry.bytesDone;
     if (readingEntry(entry)) readingBytes += bytes; else watchingBytes += bytes;
   }
   const heldBytes = Math.max(snapshot.usedBytes, readingBytes + watchingBytes);
-  // tablet-read12's measured reading page is an expanded, non-phone reading page. 628 is
-  // an inferred usable-row minimum (48 grid gutter + 20 column gap + 2 x 280), not a
-  // frame measurement; below it the existing page is left exactly as it was.
-  const readingTablet = expanded && theme.platform !== 'phone' && readingEntries.length > 0 && paneWidth >= 628;
-  const readingColumn = readingTablet ? Math.max(0, (paneWidth - 48 - 20) / 2) : undefined;
-  // The tablet split reserves only its real 2px inter-segment gap from the known inner bar
-  // width, then applies the existing watching/held and reading/held ratios. Any remainder
-  // stays unrepresented; the default percentage bar is untouched.
-  const readingBarInner = readingTablet ? Math.max(0, paneWidth - 64 - 40) : 0;
-  const readingBarGap = readingTablet && watchingBytes > 0 && readingBytes > 0 ? 2 : 0;
-  const readingBarWatching = readingTablet ? (readingBarInner - readingBarGap) * watchingBytes / Math.max(1, heldBytes) : 0;
-  const readingBarReading = readingTablet ? (readingBarInner - readingBarGap) * readingBytes / Math.max(1, heldBytes) : 0;
-  const sheetMenu = dimensions.width < 600 && !theme.isTV;
   const menuItems: MenuAction[] = menu ? [
     ...(menu.state !== 'ready' ? [{id: 'resume', label: t('action.tryAgain'), icon: 'i-retry' as const, onSelect: () => run(() => device.resume(menu))}] : []),
     {id: 'title', label: t('web.downloads.goToTitle'), icon: 'i-film', onSelect: () => openTitle(menu)},
@@ -183,10 +162,9 @@ export function useDownloads({device, runtime, copy: nativeCopy, openTitle, serv
     setRemoving(undefined);
     if (entry) run(() => device.remove(entry));
   };
-  return {snapshot, copy, inventory, membership, viewport, scroll, limitRef, inventoryTop, setInventoryTop, setPaneWidth, paneWidth,
-    empty, storage, requests, waiting, cancelWaiting, expanded, readingTablet, readingColumn, rulesBeside, heldBytes,
-    readingBytes, watchingBytes, readingBarWatching, readingBarReading, readingBarGap,
-    failure, setEntryMenu, entryMenu, menu, menuItems, sheetMenu, afterMenu, pickingLimit, setPickingLimit,
+  return {snapshot, copy, inventory, membership, viewport, scroll, limitRef,
+    empty, storage, requests, waiting, cancelWaiting, heldBytes, readingBytes, watchingBytes,
+    failure, setEntryMenu, entryMenu, menu, menuItems, afterMenu, pickingLimit, setPickingLimit,
     pending, removingOthers, closeRemoveOthers, openRemoveOthers, confirmRemoveOthers,
     removing, setRemoving, removeEntry, openMenu, playEntry, retryEntry, save, retry: () => run(device.open)};
 }

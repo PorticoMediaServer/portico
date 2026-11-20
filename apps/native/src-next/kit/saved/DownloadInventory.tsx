@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {TrackedDownloadRequest} from '../../../../../packages/client-core/src/downloads-service';
@@ -19,20 +19,34 @@ import {type createDownloadViewport, downloadWindow} from '../../screens/downloa
 import type {DownloadInventory, DownloadMembership} from '../../pages/shared/saved/useDownloads';
 
 const t = defaultI18n.t;
+const readingGutter = 24, readingGap = 20, readingColumnMin = 280;
+
+export function useDownloadsLayout() {
+  const theme = useTheme(), {width} = useWindowDimensions();
+  const [paneWidth, setPaneWidth] = useState(0), [inventoryTop, setInventoryTop] = useState(0);
+  const expanded = !theme.isTV && width >= 1024;
+  const sheetMenu = !theme.isTV && width < 600;
+  return {expanded, sheetMenu, paneWidth, setPaneWidth, inventoryTop, setInventoryTop,
+    inventoryLayout: (empty: boolean, hasReading: boolean) => ({
+      readingTablet: expanded && theme.platform !== 'phone' && hasReading && paneWidth >= 2 * (readingColumnMin + readingGutter) + readingGap,
+      rulesBeside: expanded && !empty && !hasReading,
+    })};
+}
 
 type WindowRow = Readonly<{key: string; kind: 'section' | 'group' | 'entries'; estimate: number; label?: string; count?: number;
   metric?: boolean; reading?: boolean; ids?: readonly string[]; first?: boolean; last?: boolean}>;
 
 /** One bounded native window inside the page's existing scroll owner. The same measured
  * geometry retains compact rounded groups and the tablet's two-column rows/rules split. */
-export const DownloadInventoryWindow = React.memo(function DownloadInventoryWindow({inventory, membership, viewport, top, expanded, readingTablet, readingColumn,
+export const DownloadInventoryWindow = React.memo(function DownloadInventoryWindow({inventory, membership, viewport, top, expanded, readingTablet,
   rulesBeside, paneWidth, device, runtime, copy, menuId, onMenu, onPlay, onRetry}: {
   inventory: DownloadInventory; membership: DownloadMembership; viewport: ReturnType<typeof createDownloadViewport>; top: number;
-  expanded: boolean; readingTablet: boolean; readingColumn?: number; rulesBeside: boolean; paneWidth: number;
+  expanded: boolean; readingTablet: boolean; rulesBeside: boolean; paneWidth: number;
   device: NativeOfflineDownloadsDevice; runtime: NativeShellRuntime; copy: NativeDownloadsCopy; menuId?: string;
   onMenu: (entry: OfflineEntry, anchor: RefObject<View | null>) => void; onPlay?: (entry: OfflineEntry) => void; onRetry: (entry: OfflineEntry) => void;
 }) {
   const theme = useTheme(), visible = useSyncExternalStore(viewport.subscribe, viewport.getSnapshot);
+  const readingColumn = (paneWidth - 2 * readingGutter - readingGap) / 2;
   const [focused, setFocused] = useState<string>(), [measureVersion, setMeasureVersion] = useState(0), measures = useRef(new Map<string, number>());
   const layoutKey = `${paneWidth}:${expanded}:${readingTablet}:${rulesBeside}`, measuredLayout = useRef(layoutKey);
   if (measuredLayout.current !== layoutKey) {measuredLayout.current = layoutKey; measures.current.clear();}
@@ -82,7 +96,7 @@ export const DownloadInventoryWindow = React.memo(function DownloadInventoryWind
           <Text accessibilityRole="header" style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{row.label}</Text>
           {row.count !== undefined && <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{t('count.episodes', {count: row.count})}</Text>}
         </View> : <View style={{height: 8}}/> : <View style={expanded ? row.metric
-          ? {flexDirection: 'row', paddingHorizontal: 24, columnGap: 20}
+          ? {flexDirection: 'row', paddingHorizontal: readingGutter, columnGap: readingGap}
           : {flexDirection: 'row', marginHorizontal: 14}
           : {marginHorizontal: 16, backgroundColor: theme.colors.raised, borderTopLeftRadius: row.first ? 14 : 0, borderTopRightRadius: row.first ? 14 : 0,
             borderBottomLeftRadius: row.last ? 14 : 0, borderBottomRightRadius: row.last ? 14 : 0, overflow: 'hidden'}}>
@@ -215,11 +229,14 @@ export function DownloadsEmpty({copy}: {copy: NativeDownloadsCopy}) {
         </View>;
 }
 
-export function DownloadStorage({snapshot, copy, expanded, readingTablet, heldBytes, readingBytes, watchingBytes, readingBarGap, readingBarWatching, readingBarReading, storage}: {
+export function DownloadStorage({snapshot, copy, expanded, readingTablet, heldBytes, readingBytes, watchingBytes, storage}: {
   snapshot: OfflineSnapshot; copy: NativeDownloadsCopy; expanded: boolean; readingTablet: boolean; storage: ReturnType<typeof import('../../screens/downloads/presentation').downloadStorageSegments>;
-  heldBytes: number; readingBytes: number; watchingBytes: number; readingBarGap: number; readingBarWatching: number; readingBarReading: number;
+  heldBytes: number; readingBytes: number; watchingBytes: number;
 }) {
   const theme = useTheme();
+  const [barWidth, setBarWidth] = useState(0);
+  const readingBarGap = readingTablet && watchingBytes > 0 && readingBytes > 0 ? 2 : 0;
+  const availableWidth = Math.max(0, barWidth - readingBarGap);
   return <View style={readingTablet ? {marginHorizontal: 32, marginTop: 22, paddingVertical: 16, paddingHorizontal: 20, borderRadius: 16, backgroundColor: theme.colors.raised}
           : {marginHorizontal: 16, marginTop: 4, padding: 14, borderRadius: 14, backgroundColor: theme.colors.raised}}>
           <View style={{flexDirection: 'row', gap: 12, alignItems: 'baseline'}}>
@@ -227,10 +244,11 @@ export function DownloadStorage({snapshot, copy, expanded, readingTablet, heldBy
           <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{t(expanded ? 'downloads.freeOnDevice' : copy.freeOnPhone, {size: defaultI18n.bytes(snapshot.freeBytes)})}</Text>
           </View>
           {expanded ? (heldBytes > 0 && <>
-            <View testID="downloads-storage-split" style={{height: readingTablet ? 7 : 6, borderRadius: readingTablet ? 4 : 3, backgroundColor: theme.colors.raisedBright,
+            <View testID="downloads-storage-split" onLayout={readingTablet ? event => setBarWidth(event.nativeEvent.layout.width) : undefined}
+              style={{height: readingTablet ? 7 : 6, borderRadius: readingTablet ? 4 : 3, backgroundColor: theme.colors.raisedBright,
               marginTop: readingTablet ? 12 : 10, marginBottom: readingTablet ? 10 : 0, overflow: 'hidden', flexDirection: 'row', gap: readingBarGap}}>
-              <View style={{height: readingTablet ? 7 : 6, width: readingTablet ? readingBarWatching : `${100 * watchingBytes / heldBytes}%`, backgroundColor: theme.colors.accentStrong}}/>
-              <View style={{height: readingTablet ? 7 : 6, width: readingTablet ? readingBarReading : `${100 * readingBytes / heldBytes}%`, backgroundColor: theme.colors.amber}}/>
+              <View style={{height: readingTablet ? 7 : 6, width: readingTablet ? availableWidth * watchingBytes / heldBytes : `${100 * watchingBytes / heldBytes}%`, backgroundColor: theme.colors.accentStrong}}/>
+              <View style={{height: readingTablet ? 7 : 6, width: readingTablet ? availableWidth * readingBytes / heldBytes : `${100 * readingBytes / heldBytes}%`, backgroundColor: theme.colors.amber}}/>
             </View>
             <View style={{flexDirection: 'row', gap: readingTablet ? 20 : 18, marginTop: readingTablet ? 0 : 10, flexWrap: 'wrap'}}>
               <DownloadsStorageKey metric={readingTablet} color={theme.colors.accentStrong} label={t('next.live.watching')} size={watchingBytes}/>
