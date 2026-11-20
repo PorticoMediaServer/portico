@@ -1,11 +1,13 @@
 package decoder
 
 import (
+	"context"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // outputName is one file a live HLS job writes: its playlist or a segment.
@@ -29,6 +31,12 @@ func proxyHandler(target *url.URL, transport http.RoundTripper, output string) h
 		switch {
 		case r.Method == "GET" || r.Method == "HEAD":
 		case r.Method == "PUT" && outputAllowed(output, r.URL):
+			// FFmpeg can close the connection after sending the body, before
+			// the gateway has finished receiving it. Finish forwarding the PUT
+			// within a deadline even if the decoder no longer needs the reply.
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
+			defer cancel()
+			r = r.WithContext(ctx)
 		default:
 			http.Error(w, "method unavailable", 405)
 			return

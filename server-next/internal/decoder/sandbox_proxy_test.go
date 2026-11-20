@@ -1,6 +1,8 @@
 package decoder
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -52,5 +54,32 @@ func TestSandboxProxyAllowsOutputPutOnly(t *testing.T) {
 	proxyHandler(target, http.DefaultTransport, "").ServeHTTP(w, httptest.NewRequest("PUT", output+"index.m3u8", strings.NewReader("x")))
 	if w.Code != 405 {
 		t.Fatalf("PUT without an output path: %d", w.Code)
+	}
+}
+
+func TestSandboxProxyFinishesOutputAfterDecoderDisconnects(t *testing.T) {
+	const playlist = "#EXTM3U\n"
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil || string(body) != playlist {
+			http.Error(w, "incomplete playlist", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer gateway.Close()
+	target, err := url.Parse(gateway.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := "/output/" + strings.Repeat("a", 64) + "/"
+	ctx, disconnect := context.WithCancel(t.Context())
+	r := httptest.NewRequestWithContext(ctx, http.MethodPut, output+"index.m3u8", strings.NewReader(playlist))
+	// FFmpeg closes the connection after sending the upload, without waiting for a reply.
+	disconnect()
+	w := httptest.NewRecorder()
+	proxyHandler(target, http.DefaultTransport, output).ServeHTTP(w, r)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("complete playlist after decoder disconnect answered %d: %s", w.Code, w.Body)
 	}
 }

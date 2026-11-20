@@ -3,7 +3,9 @@
 package decoder
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -97,8 +99,8 @@ func liveHLS(t *testing.T, check func(*exec.Cmd, string)) {
 		t.Skipf("ffmpeg's libraries can't be resolved: %v", err)
 	}
 	output := "/output/" + strings.Repeat("c", 64) + "/"
-	var mu sync.Mutex
-	written := map[string]int{}
+	playlist, segment := make(chan struct{}), make(chan struct{})
+	var firstPlaylist, firstSegment sync.Once
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -109,62 +111,87 @@ func liveHLS(t *testing.T, check func(*exec.Cmd, string)) {
 			http.Error(w, "no", 404)
 			return
 		}
-		n, _ := countBody(r)
-		mu.Lock()
-		written[name] += n
-		mu.Unlock()
-		w.WriteHeader(201)
+		n, err := io.Copy(io.Discard, r.Body)
+		if err != nil || n == 0 {
+			http.Error(w, "incomplete upload", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		switch {
+		case name == "index.m3u8":
+			firstPlaylist.Do(func() { close(playlist) })
+		case strings.HasPrefix(name, "segment-"):
+			firstSegment.Do(func() { close(segment) })
+		}
 	})}
 	go func() { _ = gateway.Serve(listener) }()
 	defer gateway.Close()
 	endpoint := listener.Addr().String()
-	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10", "-t", "3", "-c:v", "mpeg2video",
-		"-f", "hls", "-hls_time", "1", "-hls_list_size", "12", "-method", "PUT", "-hls_segment_filename", "http://" + endpoint + output + "segment-%09d.ts", "http://" + endpoint + output + "index.m3u8"}
+	outputURL := "http://" + endpoint + output
+	args := []string{
+		"-nostdin", "-hide_banner", "-loglevel", "error",
+		"-f", "rawvideo", "-pixel_format", "yuv420p", "-video_size", "8x8", "-framerate", "10", "-i", "pipe:0",
+		"-c:v", "mpeg2video", "-g", "10",
+		"-f", "hls", "-hls_time", "1", "-hls_list_size", "12", "-method", "PUT",
+		"-hls_segment_filename", outputURL + "segment-%09d.ts", outputURL + "index.m3u8",
+	}
 	cmd, err := confinedOutputCommand(ffmpeg, args, endpoint, output, false, libraries...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	check(cmd, ffmpeg)
 	configureInheritedFiles(cmd)
-	done := make(chan error, 1)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stdin.Close()
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
 	if err = cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	go func() { done <- cmd.Wait() }()
-	select {
-	case err = <-done:
-	case <-ctx.Done():
+	done := make(chan struct{})
+	var waitErr error
+	go func() {
+		waitErr = cmd.Wait()
+		close(done)
+	}()
+	stop := func() {
 		_ = cmd.Process.Kill()
-		t.Fatal("the confined job did not finish")
+		<-done
 	}
-	if err != nil {
-		t.Fatalf("confined live HLS job failed: %v", err)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	if written["index.m3u8"] == 0 {
-		t.Fatalf("no playlist written: %v", written)
-	}
-	segments := 0
-	for name, n := range written {
-		if strings.HasPrefix(name, "segment-") && n > 0 {
-			segments++
-		}
-	}
-	if segments == 0 {
-		t.Fatalf("no segments written: %v", written)
-	}
-}
+	defer stop()
 
-func countBody(r *http.Request) (int, error) {
-	buf := make([]byte, 32<<10)
-	total := 0
-	for {
-		n, err := r.Body.Read(buf)
-		total += n
-		if err != nil {
-			return total, nil
+	// FFmpeg can exit without waiting for its final HTTP PUTs to reach the
+	// gateway. Feed four seconds of frames (less than one Linux pipe buffer)
+	// and keep the live source open until both uploads reach the gateway.
+	if _, err := stdin.Write(bytes.Repeat([]byte{128}, 40*8*8*3/2)); err != nil {
+		t.Fatal(err)
+	}
+	for _, upload := range []struct {
+		name string
+		seen <-chan struct{}
+	}{{"playlist", playlist}, {"segment", segment}} {
+		select {
+		case <-upload.seen:
+		case <-done:
+			t.Fatalf("confined live HLS job exited before the %s arrived: %v: %s", upload.name, waitErr, stderr.String())
+		case <-ctx.Done():
+			stop()
+			t.Fatalf("no %s written while the live source was open: %s", upload.name, stderr.String())
 		}
+	}
+	if err := stdin.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+		if waitErr != nil {
+			t.Fatalf("confined live HLS job failed: %v: %s", waitErr, stderr.String())
+		}
+	case <-ctx.Done():
+		t.Fatal("the confined job did not finish")
 	}
 }
 
