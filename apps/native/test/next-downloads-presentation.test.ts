@@ -111,7 +111,7 @@ test('Cached artwork consumer rejects late retired identities and does not rerea
 test('Remove from this phone asks first with the shared confirm, and removes only that download on confirm', async () => {
   const theme = createTheme({width: 390, isTV: false});
   const current = entry(), removed: unknown[] = [];
-  let opened = 0; void opened;
+  let opened = 0, returned = false; void opened;
   const snapshot = {supported: true, ready: true, entries: [current], settings: {}, usedBytes: 1, freeBytes: 100, otherBytes: 0};
   const device = {getSnapshot: () => snapshot, subscribe: () => () => {}, open: async () => {opened++;},
     playabilityReason: () => null, remove: async (value: unknown) => {removed.push(value);}};
@@ -135,9 +135,13 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
     if (Array.isArray(node)) return node.flatMap(nodes);
     return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children), ...nodes(node.props.body), ...nodes(node.props.overlays), ...nodes(node.props.rules), ...nodes(node.props.grid)] : [];
   }
-  const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
+  const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {returned = true;}, openTitle() {}});
   try {
     const find = (test: (node: any) => boolean) => nodes(screen.tree).find(test);
+    const back = find(node => node.type === 'DownloadsPage').props.header.back;
+    assert.equal(back.label, defaultI18n.t('saved.title'));
+    back.onPress();
+    assert.equal(returned, true);
     find(node => node.type?.type?.name === 'DownloadInventoryWindow').props.onMenu(current, {current: null});
     await screen.host.rerender();
     const menu = find(node => node.type?.name === 'DownloadEntryMenu');
