@@ -32,7 +32,7 @@ export function SeeAllPage(props: SeeAllProps) {
           const play = () => {if (current()) onPlayEntry(item.entry, current);};
           if (list) return <LibraryListRow entry={item.entry} width={width} runtime={runtime} actions={{open, play,
             menu: (_entry, anchor) => {if (anchor && current()) onMenu?.(item.entry, anchor);}, saveView: () => {}}}
-            focusId={item.membershipId} onFocus={cell.onFocus} onBlur={cell.onBlur} disabled={!active}/>;
+            focusId={item.membershipId} onCaptionLayout={onCaptionLayout} onFocus={cell.onFocus} onBlur={cell.onBlur} disabled={!active}/>;
           return <HomeRowCard onCaptionLayout={onCaptionLayout} entry={item.entry} width={width} runtime={runtime} onOpen={open} onPlay={play}
             onMenu={onMenu && (anchor => {if (current()) onMenu(item.entry, anchor);})}
             onFocus={cell.onFocus} onBlur={cell.onBlur}/>;
