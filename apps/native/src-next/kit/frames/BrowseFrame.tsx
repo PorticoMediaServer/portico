@@ -161,10 +161,10 @@ function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, t
     return <LibraryHeader name={title} switcher={undefined} menu={trailing}>{tabs}</LibraryHeader>;
   }
   if (!switcher) return <>
-    <PageHeader title={title} back={back} trailing={trailing} showTVBack/>
-    {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
+    <PageHeader title={title} back={back} trailing={trailing} showTVBack list={!!(intro || actions)}/>
+    {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}, form === 'tv' ? {marginTop: frameSpec.browse.listHeadTV.introGap - frame.headerGap} : undefined]}>{intro}</Text>}
     {/* On a phone a pushed list's actions share their row in equal halves (collections 46a: Play and Shuffle). */}
-    {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: frame.headerGap}}>
+    {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: form === 'tv' ? frameSpec.browse.listHeadTV.actionsGap : frame.headerGap}}>
       {form === 'phone' ? halves(actions) : actions}</View>}
     {tabs}</>;
   if (form === 'phone') return <StickyBrowseHeader name={title} switcher={switcher} menu={menu} back={back}>{tabs}</StickyBrowseHeader>;

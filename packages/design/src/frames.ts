@@ -166,6 +166,9 @@ export const frame = {
     /** TV Filters is a `.panel-r` (tv.html frame 4), not a menu `.sheet`: 60 above the title, the count line 8 under it and
      * 30 from the count line to the first group. */
     filtersPanelTV: {top: 60, countGap: 8, belowCount: 30},
+    /** TV See all (collections 48): the back line's text at 64 from the top and 6 above the title, the reason line 12 under the
+     * title and 24 above Play. The back line is a 64 button around 26 of text, so its box starts 19 higher and ends 19 lower. */
+    listHeadTV: {top: 64 - 19, backGap: 6 - 19, introGap: 12, actionsGap: 24},
   },
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing.
    * The phone (phone-app 14 and 15) is one column; the wide forms (desktop-listen "now" and "book-player", tablet-play
