@@ -43,12 +43,12 @@ try:
     jar = work / 'transport-test.jar'
     source = native / 'android/app/src/main/java/tv/getportico/portico/native/PorticoTransport.kt'
     surface = (source.parent / 'PorticoRuntime.kt').read_text()
-    start = surface.index('  @ReactMethod\n  fun networkStreamOpen(')
+    start = surface.index('  /** Actual bounded Reading bytes over the existing trust/cancel transport')
     end = surface.index('  @ReactMethod\n  fun openNetworkStream(', start)
     methods = surface[start:end]
-    if methods.count('@ReactMethod') != 2:
+    if methods.count('@ReactMethod') != 3:
         raise RuntimeError('Unexpected native Reading method boundary')
-    # Compile the actual two methods, not a hand-maintained policy copy. The
+    # Compile the actual three methods (bytes, stream open, stream read), not a hand-maintained policy copy. The
     # temporary class supplies only the RN base-class/value boundary for JVM IO.
     runtime_surface = work / 'RuntimeSurface.kt'
     runtime_surface.write_text('package tv.getportico.portico.native\nimport com.facebook.react.bridge.*\ninternal class RuntimeSurface {\n' + methods + '\n}\n')

@@ -307,6 +307,32 @@ static NSDictionary *PorticoQueueResponseHeaders(NSHTTPURLResponse *response) {
 }
 @end
 
+/** A book's own address on the rebuilt server and nothing wider (API.md: /v1/media/{grant}/source, /parts/{path},
+ * /pages/{n}). The grant is the exact form the server signs (`b.` and 118 base64url characters, reading.go sign), never
+ * any segment. Returns "source", "pages" or "parts" for an allowed path and query, else nil. A part's path is decoded
+ * once and refused if any segment is empty, `.` or `..`, or holds a slash, backslash, percent sign or control character
+ * after that one decoding (so encoded and double-encoded slashes and dots are refused too). */
+static NSString *PorticoReadingMediaKind(NSURLComponents *parts) {
+ NSString *path=parts.percentEncodedPath,*query=parts.percentEncodedQuery;
+ if(!path||parts.fragment)return nil;
+ NSRegularExpression *shape=[NSRegularExpression regularExpressionWithPattern:@"^/v1/media/b\\.[A-Za-z0-9_-]{118}/(.+)$" options:0 error:nil];
+ NSTextCheckingResult *match=[shape firstMatchInString:path options:0 range:NSMakeRange(0,path.length)];
+ if(!match)return nil;
+ NSString *rest=[path substringWithRange:[match rangeAtIndex:1]];
+ if([rest isEqualToString:@"source"])return query?nil:@"source";
+ if([rest rangeOfString:@"^pages/(?:0|[1-9][0-9]{0,9})$" options:NSRegularExpressionSearch].location!=NSNotFound)
+  return !query||[query rangeOfString:@"^w=(?:0|[1-9][0-9]{0,5})$" options:NSRegularExpressionSearch].location!=NSNotFound?@"pages":nil;
+ if(query||![rest hasPrefix:@"parts/"])return nil;
+ NSArray<NSString *> *segments=[[rest substringFromIndex:6] componentsSeparatedByString:@"/"];
+ NSCharacterSet *refused=[NSCharacterSet characterSetWithCharactersInString:@"/\\%"];
+ for(NSString *segment in segments){
+  NSString *decoded=segment.length?[segment stringByRemovingPercentEncoding]:nil;
+  if(!decoded.length||[decoded isEqualToString:@"."]||[decoded isEqualToString:@".."]||[decoded rangeOfCharacterFromSet:refused].location!=NSNotFound
+    ||[decoded rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location!=NSNotFound)return nil;
+ }
+ return @"parts";
+}
+
 /** Reading byte reads use the existing queue/trust/session/cancel machinery. This builder
  * grants no authority: the normal identity/certificate gate and server session still apply. */
 static PorticoQueueRequest *PorticoReadingBytesRequest(id identifier,id rawURL,id method,id headers,id byteLimit,id owner,PorticoTransportResolve resolve,PorticoTransportReject reject) {
@@ -314,11 +340,13 @@ static PorticoQueueRequest *PorticoReadingBytesRequest(id identifier,id rawURL,i
  double limit=valid?[byteLimit doubleValue]:0;
  valid=valid&&isfinite(limit)&&floor(limit)==limit&&limit>=1&&limit<=33554432;
  NSURLComponents *parts=valid?[NSURLComponents componentsWithString:rawURL]:nil;
- NSString *path=parts.percentEncodedPath;
- BOOL source=path&&[path rangeOfString:@"^/v1/reading/sessions/[A-Za-z0-9_-]{1,128}/source$" options:NSRegularExpressionSearch].location!=NSNotFound;
- BOOL asset=path&&[path rangeOfString:@"^/v1/reading/sessions/[A-Za-z0-9_-]{1,128}/(?:assets|pages/(?:0|[1-9][0-9]*))$" options:NSRegularExpressionSearch].location!=NSNotFound;
- valid=valid&&parts.URL&&parts.host.length&&[@[@"https",@"http"] containsObject:parts.scheme]&&!parts.user&&!parts.password&&!parts.fragment&&(source||([method isEqualToString:@"GET"]&&asset));
- if(valid)for(id name in headers)if(![name isKindOfClass:NSString.class]||![headers[name] isKindOfClass:NSString.class]){valid=NO;break;}
+ // HEAD only on a book's source; a part or a page is read whole with GET.
+ NSString *kind=parts?PorticoReadingMediaKind(parts):nil;
+ valid=valid&&parts.URL&&parts.host.length&&[@[@"https",@"http"] containsObject:parts.scheme]&&!parts.user&&!parts.password&&!parts.fragment&&kind
+   &&([kind isEqualToString:@"source"]||[method isEqualToString:@"GET"]);
+ if(valid)for(id name in headers)if(![name isKindOfClass:NSString.class]||![headers[name] isKindOfClass:NSString.class]
+   // A byte range is asked only of the source, and only with GET.
+   ||([name caseInsensitiveCompare:@"Range"]==NSOrderedSame&&!([kind isEqualToString:@"source"]&&[method isEqualToString:@"GET"]))){valid=NO;break;}
  if(!valid){reject(@"queue_transport",@"network_bytes_request_invalid",nil);return nil;}
  PorticoQueueRequest *request=[PorticoQueueRequest new];request.identifier=identifier;request.resolve=resolve;request.reject=reject;request.data=[NSMutableData data];request.owner=owner;request.binaryResponse=YES;request.responseLimit=(NSUInteger)limit;
  NSMutableURLRequest *wire=[NSMutableURLRequest requestWithURL:parts.URL cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:15];wire.HTTPMethod=method;
@@ -326,10 +354,10 @@ static PorticoQueueRequest *PorticoReadingBytesRequest(id identifier,id rawURL,i
  request.wire=wire;return request;
 }
 
-/** Only the existing Reading source GET may become a pull stream. */
+/** Only a book's source GET may become a pull stream. */
 static PorticoQueueRequest *PorticoReadingStreamRequest(id identifier,id rawURL,id headers,id owner,PorticoTransportResolve resolve,PorticoTransportReject reject) {
  NSURLComponents *parts=[rawURL isKindOfClass:NSString.class]?[NSURLComponents componentsWithString:rawURL]:nil;
- BOOL valid=parts&&!parts.query&&[parts.percentEncodedPath rangeOfString:@"^/v1/reading/sessions/[A-Za-z0-9_-]{1,128}/source$" options:NSRegularExpressionSearch].location!=NSNotFound&&[headers isKindOfClass:NSDictionary.class];
+ BOOL valid=parts&&!parts.query&&[PorticoReadingMediaKind(parts) isEqualToString:@"source"]&&[headers isKindOfClass:NSDictionary.class];
  if(valid)for(id name in headers)if(![name isKindOfClass:NSString.class]||[name caseInsensitiveCompare:@"Range"]==NSOrderedSame){valid=NO;break;}
  if(!valid){reject(@"queue_transport",@"network_stream_request_invalid",nil);return nil;}
  PorticoQueueRequest *request=PorticoReadingBytesRequest(identifier,rawURL,@"GET",headers,@(PorticoStreamChunkLimit),owner,resolve,reject);

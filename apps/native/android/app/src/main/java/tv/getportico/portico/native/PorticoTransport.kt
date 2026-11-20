@@ -382,3 +382,44 @@ internal object PorticoTransport {
     synchronized(entries) {endedStreams.entries.removeAll {it.value.owner === owner}}
   }
 }
+
+/** A book's own address on the rebuilt server and nothing wider (API.md: /v1/media/{grant}/source, /parts/{path},
+ * /pages/{n}). The grant is the exact form the server signs (`b.` and 118 base64url characters, reading.go sign), never
+ * any segment. Returns "source", "pages" or "parts" for an allowed path and query, else null. The raw path is checked
+ * (not one a URL parser has normalised), and the parsed target must carry exactly that path and query. A part's path is
+ * decoded once and refused if any segment is empty, `.` or `..`, or holds a slash, backslash, percent sign or control
+ * character after that one decoding (so encoded and double-encoded slashes and dots are refused too). */
+internal fun readingMediaKind(url: String?, target: okhttp3.HttpUrl?): String? {
+  if (url == null || target == null) return null
+  val raw = try {java.net.URI(url)} catch (_: Exception) {return null}
+  val path = raw.rawPath ?: return null
+  val query = raw.rawQuery
+  if (raw.rawFragment != null || target.encodedPath != path || target.encodedQuery != query) return null
+  val rest = Regex("^/v1/media/b\\.[A-Za-z0-9_-]{118}/(.+)$").matchEntire(path)?.groupValues?.get(1) ?: return null
+  if (rest == "source") return if (query == null) "source" else null
+  if (Regex("^pages/(?:0|[1-9][0-9]{0,9})$").matches(rest))
+    return if (query == null || Regex("^w=(?:0|[1-9][0-9]{0,5})$").matches(query)) "pages" else null
+  if (query != null || !rest.startsWith("parts/")) return null
+  for (segment in rest.removePrefix("parts/").split("/")) {
+    val decoded = percentDecodedOnce(segment) ?: return null
+    if (decoded.isEmpty() || decoded == "." || decoded == ".." || decoded.any {it == '/' || it == '\\' || it == '%' || it.isISOControl()}) return null
+  }
+  return "parts"
+}
+
+/** One percent-decoding to UTF-8, or null for a malformed escape or invalid UTF-8. */
+private fun percentDecodedOnce(segment: String): String? {
+  val out = java.io.ByteArrayOutputStream(); var index = 0
+  while (index < segment.length) {
+    val c = segment[index]
+    if (c == '%') {
+      if (index + 2 >= segment.length) return null
+      val hex = segment.substring(index + 1, index + 3)
+      if (!hex.all {it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F'}) return null
+      val value = hex.toInt(16)
+      out.write(value); index += 3
+    } else {out.write(c.toString().toByteArray(Charsets.UTF_8)); index++}
+  }
+  return try {Charsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(out.toByteArray())).toString()} catch (_: Exception) {null}
+}

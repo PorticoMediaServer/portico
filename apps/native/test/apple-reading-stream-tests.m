@@ -3,6 +3,8 @@
 #import <netinet/in.h>
 #import <unistd.h>
 #import <errno.h>
+// A book's address as the server signs it: `b.` and 118 base64url characters (server-next reading.go sign).
+#define GRANT_C "b.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWVw"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
@@ -43,7 +45,7 @@ static PorticoQueueTransport *transport;
 static void check(BOOL value,const char *name){checks++;if(!value){fprintf(stderr,"FAIL %s\n",name);exit(1);}}
 static PorticoQueueRequest *make(void){
  opened=openRejected=0;opening=nil;openError=nil;
- return PorticoReadingStreamRequest(NSUUID.UUID.UUIDString,@"https://server.example/v1/reading/sessions/s-1/source",@{@"If-Match":@"\"revision\"",@"Authorization":@"synthetic-test-token"},owner,
+ return PorticoReadingStreamRequest(NSUUID.UUID.UUIDString,@"https://server.example/v1/media/" GRANT_C "/source",@{@"If-Match":@"\"revision\"",@"Authorization":@"synthetic-test-token"},owner,
   ^(id value){opened++;opening=value;},^(NSString *code,NSString *message,NSError *error){openRejected++;openError=code;});
 }
 static ReadingStreamTask *install(PorticoQueueRequest *request){
@@ -53,7 +55,7 @@ static ReadingStreamTask *install(PorticoQueueRequest *request){
  PorticoQueueRequests[request.identifier]=request;PorticoQueueActive++;PorticoQueueReads++;return task;
 }
 static void headers(ReadingStreamTask *task,NSInteger status){
- NSHTTPURLResponse *response=[[NSHTTPURLResponse alloc]initWithURL:[NSURL URLWithString:@"https://server.example/v1/reading/sessions/s-1/source"] statusCode:status HTTPVersion:@"HTTP/1.1" headerFields:@{@"Content-Length":status==403?@"6":@"100000",@"Content-Type":@"application/pdf",@"ETag":@"\"revision\""}];
+ NSHTTPURLResponse *response=[[NSHTTPURLResponse alloc]initWithURL:[NSURL URLWithString:@"https://server.example/v1/media/" GRANT_C "/source"] statusCode:status HTTPVersion:@"HTTP/1.1" headerFields:@{@"Content-Length":status==403?@"6":@"100000",@"Content-Type":@"application/pdf",@"ETag":@"\"revision\""}];
  [PorticoQueueRequests[task.testID] openStreamResponse:response];
 }
 static void bytes(PorticoQueueRequest *request,NSData *data,BOOL eof,NSError *error){ReadingStreamDriver *driver=(id)request.streamDriver;void (^pending)(NSData *,BOOL,NSError *)=driver.pending;driver.pending=nil;check(pending!=nil,"only an actual pending pull receives bytes");pending(data,eof,error);}
@@ -89,7 +91,7 @@ static void actualPullStream(BOOL chunked) {
   char request[8192]={0};ssize_t count=0;
   while(count<(ssize_t)sizeof(request)-1&&!strstr(request,"\r\n\r\n")){ssize_t next=recv(peer,request+count,sizeof(request)-1-count,0);if(next<=0)break;count+=next;}
   char header[256];if(chunked)snprintf(header,sizeof(header),"HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n");else snprintf(header,sizeof(header),"HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: %lu\r\nConnection: close\r\n\r\n",(unsigned long)total);
-  if(strstr(request,"GET /v1/reading/sessions/live/source HTTP/1.1")&&!strstr(request,"Range:")){
+  if(strstr(request,"GET /v1/media/" GRANT_C "/source HTTP/1.1")&&!strstr(request,"Range:")){
    sendAll(peer,header,strlen(header));unsigned char bytes[16384];for(NSUInteger i=0;i<sizeof(bytes);i++)bytes[i]=(uint8_t)i;
    NSUInteger sent=0;
    while(sent<total){NSUInteger amount=MIN(sizeof(bytes),total-sent);char size[24];int n=snprintf(size,sizeof(size),"%lx\r\n",(unsigned long)amount);if(chunked&&!sendAll(peer,size,(NSUInteger)n))break;if(!sendAll(peer,bytes,amount))break;sent+=amount;if(chunked&&!sendAll(peer,"\r\n",2))break;}
@@ -98,7 +100,7 @@ static void actualPullStream(BOOL chunked) {
   shutdown(peer,SHUT_RDWR);close(peer);
  });
  NSMutableDictionary *state=[NSMutableDictionary new];NSObject *realOwner=[NSObject new];
- NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/reading/sessions/live/source",ntohs(address.sin_port)];
+ NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/media/" GRANT_C "/source",ntohs(address.sin_port)];
  PorticoQueueRequest *request=PorticoReadingStreamRequest(NSUUID.UUID.UUIDString,url,@{},realOwner,^(id value){@synchronized(state){state[@"headers"]=value;}},^(NSString *c,NSString *m,NSError *e){@synchronized(state){state[@"error"]=c;state[@"failure"]=m;}});
  [PorticoQueueTransport submit:request domain:@"queue_transport" busy:@"network_stream_busy"];
  BOOL opened=waitFor(^BOOL{@synchronized(state){return state[@"headers"]||state[@"error"];}});
@@ -141,7 +143,7 @@ static void actualCancel(NSUInteger mode) {
   char byte;ssize_t end=recv(peer,&byte,1,0);disconnected=end==0||(end<0&&errno==ECONNRESET);shutdown(peer,SHUT_RDWR);close(peer);
  });
  NSObject *realOwner=[NSObject new];NSMutableDictionary *state=[NSMutableDictionary new];
- NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/reading/sessions/cancel/source",ntohs(address.sin_port)];
+ NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/media/" GRANT_C "/source",ntohs(address.sin_port)];
  PorticoQueueRequest *request=PorticoReadingStreamRequest(NSUUID.UUID.UUIDString,url,@{},realOwner,^(id value){@synchronized(state){state[@"headers"]=value;}},^(NSString *c,NSString *m,NSError *e){@synchronized(state){state[@"error"]=c;}});
  [PorticoQueueTransport submit:request domain:@"queue_transport" busy:@"network_stream_busy"];
  BOOL began=dispatch_semaphore_wait(accepted,dispatch_time(DISPATCH_TIME_NOW,6*NSEC_PER_SEC))==0;
@@ -180,7 +182,7 @@ static void actualResponse(NSInteger status,NSString *text,BOOL delayed,BOOL sil
   shutdown(peer,SHUT_RDWR);close(peer);
  });
  NSObject *realOwner=[NSObject new];NSMutableDictionary *state=[NSMutableDictionary new];
- NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/reading/sessions/response/source",ntohs(address.sin_port)];
+ NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/media/" GRANT_C "/source",ntohs(address.sin_port)];
  PorticoQueueRequest *request=PorticoReadingStreamRequest(NSUUID.UUID.UUIDString,url,@{},realOwner,^(id value){@synchronized(state){state[@"headers"]=value;}},^(NSString *c,NSString *m,NSError *e){@synchronized(state){state[@"error"]=c;}});
  [PorticoQueueTransport submit:request domain:@"queue_transport" busy:@"network_stream_busy"];
  check(dispatch_semaphore_wait(headersSent,dispatch_time(DISPATCH_TIME_NOW,6*NSEC_PER_SEC))==0,"wire headers sent before optional body delay");
@@ -211,11 +213,11 @@ static void actualResponse(NSInteger status,NSString *text,BOOL delayed,BOOL sil
 
 int main(void){@autoreleasepool{
  transport=[PorticoQueueTransport new];owner=[NSObject new];
- for(NSString *url in @[@"https://server.example/v1/reading/sessions/s/source?x=1",@"https://server.example/v1/reading/sessions/s/assets",@"https://server.example/v1/reading/sessions/s/pages/0",@"https://server.example/v1/reading/sessions/s/%73ource",@"https://server.example/v1/system",@"file:///v1/reading/sessions/s/source",@"https://user:pass@server.example/v1/reading/sessions/s/source",@"https://server.example/v1/reading/sessions/s/source#f"]){
+ for(NSString *url in @[@"https://server.example/v1/media/" GRANT_C "/source?x=1",@"https://server.example/v1/media/" GRANT_C "/parts/x.xhtml",@"https://server.example/v1/media/" GRANT_C "/pages/0",@"https://server.example/v1/media/" GRANT_C "/%73ource",@"https://server.example/v1/reading/sessions/s/source",@"https://server.example/v1/system",@"file:///v1/media/" GRANT_C "/source",@"https://user:pass@server.example/v1/media/" GRANT_C "/source",@"https://server.example/v1/media/" GRANT_C "/source#f"]){
   __block NSUInteger failures=0;PorticoQueueRequest *bad=PorticoReadingStreamRequest(@"id",url,@{},owner,^(id value){},^(NSString *c,NSString *m,NSError *e){failures++;});check(!bad&&failures==1,"source-only canonical URL rejected before any task");
  }
  for(NSString *name in @[@"Range",@"range",@"rAnGe"]){
-  __block NSUInteger failures=0;check(!PorticoReadingStreamRequest(@"id",@"https://server.example/v1/reading/sessions/s/source",@{name:@"bytes=0-4"},owner,^(id value){},^(NSString *c,NSString *m,NSError *e){failures++;})&&failures==1,"Range never enters sequential stream");
+  __block NSUInteger failures=0;check(!PorticoReadingStreamRequest(@"id",@"https://server.example/v1/media/" GRANT_C "/source",@{name:@"bytes=0-4"},owner,^(id value){},^(NSString *c,NSString *m,NSError *e){failures++;})&&failures==1,"Range never enters sequential stream");
  }
  PorticoQueueRequest *request=make();ReadingStreamTask *task=install(request);headers(task,200);
  check(opened==1&&!openRejected&&[opening[@"status"]isEqual:@200]&&[opening[@"headers"] count]==3&&!opening[@"bodyBase64"],"open resolves actual metadata only");
