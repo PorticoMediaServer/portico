@@ -13,6 +13,7 @@ import {nativeType, useTheme, type Theme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useCovered, useFocusTarget, useFocusWaiting, useLayerCovered} from '../focus';
 import {focusFromTouch, noteTouch} from '../controls/touch-focus';
+import {GuideProgrammeTitle} from '../live/GuideProgrammeTitle';
 import {useInTopLayer} from '../overlays/OverlayHost';
 import {activateCard, cardAccessibilityLabel, cardProgress, holdCard, type CardActions} from './model';
 
@@ -198,12 +199,15 @@ export function Caption({title, titleLines, onCaptionLayout, captionLines, capti
   const compact = density === 'grid' && !t.isTV, slot = t.scale.card.caption, top = titleMargin ?? (compact ? 7 : slot.gap);
   // R5: a reserved slot. The title and the line under it keep their boxes when the card has no second line (and when a
   // title that may take two lines takes one), so the cards of a row line up and the row's height includes its captions.
+  const titleTextStyles = [t.type.cardTitle, compact ? titleStyle(t, 12.5, 600) : {lineHeight: slot.titleLine}, {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' as const : 'left' as const}, titleTextStyle];
   const reserved = compact ? undefined : Math.ceil((slot.titleLine * lines + slot.subtitleLine) * t.fontScale) + slot.subtitleGap;
   return <View accessibilityElementsHidden={waiting} importantForAccessibility={waiting ? 'no-hide-descendants' : 'auto'}
     onLayout={onCaptionLayout && (event => onCaptionLayout(event.nativeEvent.layout.height + top))}
     style={{opacity: waiting ? 0 : 1, marginTop: top, minHeight: reserved, gap: slot.subtitleGap, alignItems: centered ? 'center' : undefined}}>
-    <Text numberOfLines={onCaptionLayout ? undefined : lines} ellipsizeMode="tail"
-      style={[t.type.cardTitle, compact ? titleStyle(t, 12.5, 600) : {lineHeight: slot.titleLine}, {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' : 'left'}, titleTextStyle]}>{title}</Text>
+    {/* A grid or shelf (it measures its captions, `onCaptionLayout`) keeps one row height: the title takes its lines at most
+        and ends in "…" on a whole word (owner, 20 Nov); the card's own label still reads the whole title. */}
+    {onCaptionLayout ? <View style={{alignSelf: 'stretch', flexDirection: 'row'}}><GuideProgrammeTitle title={title} lines={lines} style={titleTextStyles}/></View>
+      : <Text numberOfLines={lines} ellipsizeMode="tail" style={titleTextStyles}>{title}</Text>}
     <Parts parts={caption} fit={captionLines === 2 ? 'wrap' : t.isTV ? 'cut' : 'drop'} lines={captionLines} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
   </View>;
 }

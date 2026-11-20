@@ -37,7 +37,7 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
       handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {touchMenuHaptic() {}},
     '../../platform/menu-key': {registerFocusedMenu: (_owner: unknown, callback: () => void) => {menus.push(callback); return () => {}; }},
-    '../Icon': {Icon: 'RCTIcon'}, '../selection/index': {SelectionHoldFeedback: 'RCTSelection'},
+    '../Icon': {Icon: 'RCTIcon'}, '../selection/index': {SelectionHoldFeedback: 'RCTSelection'}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'RCTGuideTitle'},
     '../theme': {nativeType, useTheme: () => theme}, '../useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
     '../focus': {...focus, useCovered: () => false, useLayerCovered: () => false}, './model': cardModel,
   });
