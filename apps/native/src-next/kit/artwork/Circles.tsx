@@ -50,14 +50,19 @@ export function ArtistCircle({rings, ...props}: ArtistCircleProps) {
 /** Real portraits when supplied; authors otherwise keep initials over only their own covers. */
 export function PersonCircle({source, covers = [], ambientCovers = [], palette, initials, alt, size = 96, visible = true, style}: PersonCircleProps) {
   const {colors, isTV} = useTheme();
-  const samples = boundedCovers(isTV ? ambientCovers : covers, 4);
+  // Touch: one cover's blur behind the initials, so the circle is one soft wash (collections 41b); side-by-side blurs met in a
+  // hard line through the initials. TV keeps its mosaic of up to four.
+  const samples = boundedCovers(isTV ? ambientCovers : covers, isTV ? 4 : 1);
   return <View accessible={Boolean(alt)} accessibilityRole={alt ? 'image' : undefined} accessibilityLabel={alt} style={[{width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: colors.raised}, style]}>
     <CircleBase size={size}/>
     {palette ? <PaletteWash palette={palette}/> : null}
     {samples.length ? <View style={[StyleSheet.absoluteFillObject, {left: -size * 0.25, right: -size * 0.25, top: -size * 0.25, bottom: -size * 0.25, flexDirection: 'row'}]}>
-      {samples.map((cover, i) => <View key={`${cover.cacheKey}-${i}`} style={{flex: 1}}><Artwork source={cover} visible={visible} sized={isTV} blurRadius={isTV ? undefined : 20} filter={isTV ? undefined : [{saturate: 1.5}, {brightness: 0.56}]} imageStyle={isTV ? {opacity: 0.56} : undefined}/></View>)}
+      {samples.map((cover, i) => <View key={`${cover.cacheKey}-${i}`} style={{flex: 1}}><Artwork source={cover} visible={visible} sized={isTV} blurRadius={isTV ? undefined : 20} imageStyle={isTV ? {opacity: 0.56} : undefined}/></View>)}
     </View> : null}
-    {samples.length ? <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, {backgroundColor: colors.ink, opacity: 0.34}]}/> : null}
+    {/* Touch darkens the blur with this layer alone: a CSS filter (brightness) on the art left it unpainted on Android under a
+        title page (the cover reported ready, nothing drew), so a single-album author showed a plain dark circle. 0.63 is the old
+        brightness 0.56 under the 0.34 ink. */}
+    {samples.length ? <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, {backgroundColor: colors.ink, opacity: isTV ? 0.34 : 0.63}]}/> : null}
     <View style={[StyleSheet.absoluteFillObject, {alignItems: 'center', justifyContent: 'center'}]}><Text accessible={false} allowFontScaling={false} style={{fontFamily: fontFamilies[800], fontSize: size * (samples.length ? 50 / 172 : 30 / 96), letterSpacing: -size * 0.0145, color: samples.length ? colors.text : colors.textSecondary}}>{initials}</Text></View>
     {source ? <Artwork source={source} visible={visible} fallback={null}/> : null}
     <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, {borderRadius: size / 2, borderWidth: 1, borderColor: colors.text, opacity: 0.12}]}/>
