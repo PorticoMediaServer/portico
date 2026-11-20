@@ -8,6 +8,8 @@ import {Button} from '../controls/Button';
 import {ActionRow, type RowAction, type RowPrimary} from '../controls/ActionRow';
 import {Tabs, type TabItem} from '../controls/Tabs';
 import {Focusable} from '../controls/Focusable';
+import {Chip} from '../controls/Chip';
+import {PersonCircle} from '../artwork/Circles';
 import {Icon, type IconName} from '../Icon';
 import {Lockup} from '../layout/Lockup';
 import {HeroFactsCentred} from '../layout/Hero';
@@ -42,7 +44,9 @@ export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNod
   /** A circle drawn large on a phone: an artist's (phone-app frame 15b), where a person's is small (phone-detail d3 frame 7). */
   large?: boolean}>;
 /** Where the collapsed bar shows, for a page's own scroller (`MusicScrollView`'s `collapseAt` and `onCollapse`). */
-export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean) => void}>;
+export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean) => void;
+  /** Where the page's tabs reach the bar and pin under it (a page with tabs): past `pinAt`, `onPin(true)`. */
+  pinAt?: number; onPin?: (pinned: boolean) => void}>;
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
   art?: ReactNode;
@@ -68,7 +72,13 @@ export type TitleFrameProps = Readonly<{
   selectionBar?: ReactNode;
   kicker?: TitleKicker;
   /** Who made it, under the title in the accent: an album's artist (phone-app frame 13), a link to their page. */
-  byline?: Readonly<{text: string; onPress?: () => void}>;
+  byline?: Readonly<{text: string; onPress?: () => void;
+    /** A person's initials in a small circle before their name (a reading book's author, phone-read 7 "FH Frank Herbert"). */
+    initials?: string}>;
+  /** Where a reader is in a book, one line under the buttons and over the synopsis (phone-read 7): the version they read
+   * (a pill, when there is more than one: it opens the versions), then the place, the first part strong ("Page 248 of
+   * 535", "About 7 h left"). */
+  place?: Readonly<{version?: Readonly<{label: string; value: string; onPress: () => void}>; facts?: readonly string[]}>;
   title: string;
   /** The metadata line (`HeroMetadata`). Its line is kept when there is nothing to show. */
   metadata?: ReactNode;
@@ -135,7 +145,7 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 const titlePrimaryId = 'title-primary';
 /** How far the folded head's words fade: almost away, never to zero (tvOS will not focus a transparent view). */
 const tvFoldedCopy = .03;
-function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, place, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
@@ -227,8 +237,11 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
     {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
     {byline && (byline.onPress
       ? <Focusable accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
-        <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></Focusable>
-      : <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left', marginTop: theme.space.hairline * 2}]}>{byline.text}</Text>)}
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>{byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
+          <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View></Focusable>
+      : <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
+        {byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
+        <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View>)}
     <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/>
       // A stacked head is centred, so its facts are too, line by line when they wrap: the page passes facts, never alignment.
       : <HeroFactsCentred.Provider value={stacked}>{metadata}</HeroFactsCentred.Provider>}</View>
@@ -256,7 +269,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
   </View> : null;
 
   // The played part and the time left are in the button on a tablet on its side and TV; under the row elsewhere, with Start over.
-  const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover);
+  // A reading book's place line (phone-read 7) carries where the reader is, so its progress stays in the button.
+  const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover) && !place;
   const row = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primaryRef={primaryView} primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
     progress: lineUnder ? undefined : primary.progress, startOver: stacked ? undefined : primary.startOver}}/>;
   const track = theme.spec.card.progress.height[theme.column];
@@ -273,13 +287,18 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
       {primary!.startOver && stacked && <Button variant="link" size="xs" icon="i-restart" onPress={primary!.startOver.onPress}>{primary!.startOver.label}</Button>}</View>
   </View> : null;
   const pickerRow = picker && stacked && !loading ? <View style={{alignSelf: 'stretch'}}>{picker}</View> : null;
+  // phone-read 7: the version pill, then where the reader is, on one line under the buttons.
+  const placeRow = place && !loading && (place.version || place.facts?.length) ? <View style={{alignSelf: stacked ? 'stretch' : 'flex-start', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: theme.space.sm, rowGap: theme.space.tight}}>
+    {place.version && <Chip testID="title-version" variant="pill" prefix={place.version.label} trailingIcon="i-chdown" onPress={place.version.onPress}
+      accessibilityLabel={`${place.version.label} ${place.version.value}`}>{place.version.value}</Chip>}
+    {place.facts?.map((fact, index) => <Text key={fact} style={[index ? theme.type.meta : theme.type.captionStrong, {color: index ? theme.colors.textSecondary : theme.colors.text}]}>{fact}</Text>)}</View> : null;
 
   // The head: the art box with the words hanging from its bottom edge, or the cover beside them.
   const discs = !tv && <View pointerEvents="box-none" style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, right: theme.space.sm, top: discTop, flexDirection: 'row', justifyContent: 'space-between'}}>
     <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/>
     {topControl ?? (topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>)}
   </View>;
-  const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}</View></>}</View>;
+  const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{placeRow}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}{placeRow}</View></>}</View>;
   const coverSize = cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
     : spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
@@ -416,7 +435,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
     {held && bar}
     {tv && art && !cover && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height}}>{art}</View>}
     {tv && !scroller && <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: theme.colors.ink}, scrimStyle]}/>}
-    {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: barAt, onChange: value => {setPassed(value); setTabsPinned(value);}})}</View>
+    {scroller ? <View style={{flex: 1}}>{scroller(page, {paddingBottom: frame.bottomClear}, {at: barAt, onChange: value => {setPassed(value); if (!tabs) setTabsPinned(value);}, ...(tabs ? {pinAt: tabsY - barHeight, onPin: setTabsPinned} : {})})}</View>
       : <ScrollView ref={scroll} style={{flex: 1}} scrollEnabled={!tv} contentContainerStyle={{paddingBottom: tv ? Math.max(frame.bottomClear, window.height - bandHeight) : frame.bottomClear}} scrollEventThrottle={32}
         onContentSizeChange={tv ? undefined : (_, contentHeight) => {
           // Back to where the page was, once it is long enough to hold that place (its panel arrives after the head).

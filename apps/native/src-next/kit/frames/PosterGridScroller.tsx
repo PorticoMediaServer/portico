@@ -115,5 +115,5 @@ function TitleRowsScroller<T>({collection, getKey, item, testID, content, style,
  * the frame's page as its content and the frame's compact bar at the frame's point. */
 export function musicScroller(props: Readonly<{onNearEnd?: () => void; testID?: string}>) {
   return (content: ReactNode, style: ViewStyle, collapse: TitleCollapse) => <MusicScrollView testID={props.testID} style={{flex: 1}} contentContainerStyle={style}
-    collapseAt={collapse.at} onCollapse={collapse.onChange} onNearEnd={props.onNearEnd}>{content}</MusicScrollView>;
+    collapseAt={collapse.at} onCollapse={collapse.onChange} pinAt={collapse.pinAt} onPin={collapse.onPin} onNearEnd={props.onNearEnd}>{content}</MusicScrollView>;
 }

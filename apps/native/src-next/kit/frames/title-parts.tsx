@@ -448,3 +448,14 @@ export function EpisodeBand({band}: Readonly<{band: EpisodeBandData}>) {
     </View>
   </View>;
 }
+
+/** A short passage set apart with a rule at its left and a quiet label over it: a reading book's first lines (the old phone
+ * reading page's "The first lines"). Drawn whole: the passage is a few sentences, and text is never cut. */
+export function QuoteBlock({label, text}: Readonly<{label: string; text: string}>) {
+  const theme = useTheme();
+  return <View style={{gap: theme.space.tight}}>
+    <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.textTertiary}]}>{label}</Text>
+    <View style={{borderLeftWidth: theme.space.hairline * 2, borderLeftColor: alpha(theme.colors.text, .2), paddingLeft: theme.space.sm}}>
+      <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{text}</Text></View>
+  </View>;
+}
