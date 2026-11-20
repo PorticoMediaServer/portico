@@ -37,6 +37,10 @@ export type SettingsListFrameProps = Readonly<{
   startFocus?: string;
   /** TV: the key hints under the list (R11: "Up Down Choose a page", ...). */
   hints?: ReactNode;
+  /** TV search puts the keyboard in the wider left column. */
+  searching?: boolean;
+  /** The phone sheet has begun its close animation. */
+  closing?: boolean;
 }>;
 
 /** Frame 3, the index of Settings. Phone: one bar over the list, or the selected page in its place. Tablet and TV: the
@@ -46,21 +50,21 @@ export type SettingsListFrameProps = Readonly<{
 export function SettingsListFrame({startFocus, ...props}: SettingsListFrameProps) {
   return <StartFocusScope id={startFocus}><SettingsListBody {...props}/></StartFocusScope>;
 }
-function SettingsListBody({bar, search, list, profile, shortcuts, page, hints, testID}: Omit<SettingsListFrameProps, 'startFocus'>) {
-  const frame = useFrameMetrics(), {form} = frame, phone = form === 'phone', width = frameSpec.settings.listWidth[form];
+function SettingsListBody({bar, search, list, profile, shortcuts, page, hints, testID, searching, closing}: Omit<SettingsListFrameProps, 'startFocus'>) {
+  const frame = useFrameMetrics(), {form} = frame, phone = form === 'phone', width = searching && form === 'tv' ? frameSpec.settings.tvSearchWidth : frameSpec.settings.listWidth[form];
   // A TV row's focus ring is drawn outside the row: the list's scroll box leaves it that room so it is never cut.
   const theme = useTheme(), column = useContext(FrameColumn), ring = form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
   // A phone shows one of the two columns; the other stays mounted, hidden.
   const shown = {flex: 1}, hidden = {display: 'none'} as const;
-  return <View testID={testID} style={{flex: 1, flexDirection: phone ? 'column' : 'row', paddingLeft: phone ? 0 : frame.gutter, gap: phone ? 0 : frameSpec.settings.gap[form]}}>
+  return <View testID={testID} pointerEvents={closing ? 'none' : undefined} style={{flex: 1, flexDirection: phone ? 'column' : 'row', paddingLeft: phone ? 0 : frame.gutter, gap: phone ? 0 : frameSpec.settings.gap[form]}}>
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
     <View style={phone ? page ? hidden : shown : {width}}>
       {phone && <SheetBar {...bar}/>}
       <ScrollView style={phone ? undefined : {flex: 1, width: width + 2 * ring, marginLeft: -ring}}
         contentContainerStyle={phone ? {paddingBottom: frameSpec.sheet.footerClear} : {paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}>
         <FrameColumn.Provider value={!phone || column}>
-          {!phone && <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: frame.headerGap}]}>{bar.title}</Text>}
-          {search}{phone && profile}{phone && shortcuts}{list}
+          {!phone && !searching && <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: frame.headerGap}]}>{bar.title}</Text>}
+          {phone ? <View style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.xs}}>{search}</View> : search}{phone && profile}{phone && shortcuts}{list}
         </FrameColumn.Provider>
       </ScrollView>
       {form === 'tv' && hints ? <View style={{paddingBottom: frame.bottomClear}}>{hints}</View> : null}
@@ -87,6 +91,10 @@ export type SettingsPageFrameProps = Readonly<{
   tabs?: ReactNode;
   /** Sections of rows (`SectionCard`): the one flexible region. */
   children?: ReactNode;
+  /** A server panel that owns its own scrolling. */
+  panel?: ReactNode;
+  /** An embedded panel or the TV search results already has a heading. */
+  hideHeader?: boolean;
   /** The whole page can't load. One section failing is a `StateRow` in that section's card instead. */
   state?: PageStateProps;
   testID?: string;
@@ -103,7 +111,7 @@ export type SettingsPageFrameProps = Readonly<{
 export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps) {
   return <StartFocusScope id={startFocus}><SettingsPageBody {...props}/></StartFocusScope>;
 }
-function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, state, testID, scrollRef, onScrollLayout}: Omit<SettingsPageFrameProps, 'startFocus'>) {
+function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, panel, hideHeader, state, testID, scrollRef, onScrollLayout}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), parentColumn = useContext(FrameColumn), inListPlace = useContext(InListPlace), inSheet = useInSheet() || inListPlace, beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
@@ -129,13 +137,13 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   const column = !beside && frame.form !== 'phone' && !inSheet ? {maxWidth: frameSpec.settings.pageMax + 2 * frame.gutter} : undefined;
   return <View testID={testID} style={[{flex: 1}, column]}>
     {beside && strip}
-    {header}
+    {!hideHeader && header}
     {!beside && strip}
-    {state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
+    {panel ?? (state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
       style={{flex: 1}} contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
       {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One
           provider on every form, so a form change restyles the body and never remounts it. */}
       <FrameColumn.Provider value={beside || parentColumn}>{body}</FrameColumn.Provider>
-    </FormScrollView>}
+    </FormScrollView>)}
   </View>;
 }

@@ -72,7 +72,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
   const handoff = await screenModule(new URL('../src-next/tv/auth/TVHandoff.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': native, 'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n, catalogue, enUS},
     '../../kit/controls': controls, '../../kit/focus': focus, '../../kit/theme': {useTheme: () => theme, nativeType}, '../../kit/states/sentence-parts': {stateSentenceParts},
-    '../../platform/native-blur': {}, '../../screens/destinations/useEntryFocus': {}, './TVAuthLayout': {}, './entry-revision': {},
+    '../../platform/native-blur': {}, '../../screens/destinations/useEntryFocus': {}, '../../kit/frames/TVAuthLayout': {}, './entry-revision': {},
     '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'}, '../../platform/forgot-pin-handoff': {forgotPINHandoff: () => ({url: '', body: 'next.auth.tv.forgotPINBody'})},
   });
   const common: any = {react: {...React, default: React}, 'react-native': native,

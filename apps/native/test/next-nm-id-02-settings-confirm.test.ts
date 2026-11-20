@@ -37,7 +37,7 @@ test('NM-ID-02: the real Settings confirmation keeps its region, busy binding, B
     const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
     const {createBoundNativeSettingsController} = await import('../src-next/screens/settings-live/settings-controller.ts');
     const {createNativeSettingsPorts} = await import('../src-next/screens/settings-live/settings-ports.ts');
-    const {NativeSettingsScreen} = await import('../src-next/screens/settings-live/SettingsScreen.tsx');
+    const {NativeSettingsPage: NativeSettingsScreen} = await import('../src-next/pages/shared/settings/SettingsPage.tsx');
     const {tvFocusIds} = await import('../src-next/shell/tv-focus.ts');
     const {Platform} = await import('react-native');
 

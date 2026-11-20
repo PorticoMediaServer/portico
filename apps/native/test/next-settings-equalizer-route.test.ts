@@ -20,7 +20,7 @@ async function fixture() {
     '../../../../../packages/client-core/src/admin/dashboard': {DashboardDataClient: class {}},
     '../../../../../packages/client-core/src/server-admin/server-storage': {},
     './lifetime': {NativeScreenLifetime}, './settings-controller': {}, './device-preference-consumer': {},
-    './dashboard-controller': {}, './server/tv-server-reader': {}, './server/TVServerScreen': {}, './SettingsScreen': {}, './DashboardScreen': {}, './settings-ports': {},
+    './dashboard-controller': {}, './server/tv-server-reader': {}, './server/TVServerScreen': {}, '../../pages/shared/settings/SettingsPage': {}, './DashboardScreen': {}, './settings-ports': {},
     './server/TVServerPageMenu': {isTVServerPage: () => false},
     './EqualizerSettingsScreen': {NativeEqualizerSettingsScreen: () => null},
     './downloads-summary': {createNativeSettingsDownloads},
