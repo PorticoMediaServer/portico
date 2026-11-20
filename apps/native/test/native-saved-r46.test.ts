@@ -138,33 +138,31 @@ test('Saved row headings and links match the drawn phone parts', async () => {
 
 async function downloadCard(entry: Record<string, any>, entries: readonly Record<string, any>[] = [entry]) {
   const host = hooks();
-  const {SavedDownloadCard} = await screenModule(new URL('../src-next/screens/saved/SavedDownloadCard.tsx', import.meta.url), {
-    react: {...host.react, useId: () => 'gradient'}, 'react-native': {Text: 'Text', View: 'View'},
-    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
+  const {SavedDownloadCard} = await screenModule(new URL('../src-next/kit/saved/SavedDownloadCard.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id, bytes: () => '1.4 GB'}},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame', Progress: 'Progress'},
-    '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme},
-    '../downloads/presentation': {downloadEntryIdentity: (value: any) => value.id, downloadTransferProgress: () => .64},
-    '../downloads/useDownloadArtwork': {useDownloadArtwork: () => undefined},
+    '../artwork': {Artwork: 'Artwork'}, '../cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame', Progress: 'Progress'},
+    '../theme': {useTheme: () => theme},
+    '../../screens/downloads/presentation': {downloadEntryIdentity: (value: any) => value.id, downloadTransferProgress: () => .64},
+    '../../screens/downloads/useDownloadArtwork': {useDownloadArtwork: () => undefined},
   });
-  const group = {key: 'slow', title: 'Slow Horses', entries};
+  const group = {key: 'slow', title: 'Slow Horses With A Very Long Title That Needs More Room', entries};
   return host.render(() => SavedDownloadCard({group, device: {subscribe() {}, getSnapshot: (() => {const snapshot = {entries: []}; return () => snapshot;})()} as any, copy: {downloading: 'next.saved.phone.downloading'}, onOpen: () => {}}));
 }
 
-test('Saved downloads keep the drawn 214 wide on-art card and its progress', async () => {
+test('Saved downloads keep their artwork and progress, with a full title below the art', async () => {
   const ready = {id: 'ep1', title: 'Slow Horses', state: 'ready', waiting: false, bytes: 1.4e9, bytesDone: 0, info: {kind: 'episode'}};
   const card = await downloadCard(ready, [ready, {...ready, id: 'ep2'}]);
   const frame = elements(card).find(node => node.type === 'CardFrame')!;
   assert.equal(frame.props.width, 214, 'the frame overrides the shelf card to 214');
-  const artElement = frame.props.children[0]({focused: false, hovered: false, holding: false});
-  const art = elements(artElement);
+  const cardBody = elements(frame.props.children[0]({focused: false, hovered: false, holding: false}));
+  const artElement = cardBody.find(node => node.type === 'ArtFrame')!;
   assert.equal(artElement.props.height, 214 * 9 / 16);
   assert.equal(artElement.props.radius, theme.spec.card.radius.phone, 'the shared card radius, not a local 8');
-  const caption = art.find(node => node.type === 'View' && node.props.style?.left === 14 && node.props.style?.bottom === 14)!;
-  assert.deepEqual({left: caption.props.style.left, right: caption.props.style.right, bottom: caption.props.style.bottom}, {left: 14, right: 14, bottom: 14});
-  const title = art.find(node => node.type === 'Text' && text(node) === 'Slow Horses')!;
-  assert.equal(flat(title.props.style).fontSize, 16, '.wide .on-art b is 16');
-  const facts = art.find(node => node.type === 'View' && node.props.style?.gap === 12)!;
+  const title = cardBody.find(node => node.type === 'Text' && text(node) === frame.props.title)!;
+  assert.equal(title.props.numberOfLines, undefined);
+  assert.ok(!elements(artElement).includes(title));
+  const facts = cardBody.find(node => node.type === 'View' && node.props.style?.flexWrap === 'wrap')!;
   assert.equal(facts.props.style.alignItems, 'baseline');
 
   const downloading = await downloadCard({...ready, state: 'downloading', bytes: 0, bytesDone: 2.1e9});

@@ -7,7 +7,7 @@ import {Menu} from '../../../kit/overlays';
 import {savedGridCardWidth, savedShelfWidth, SavedGrid, SavedGridControls, SavedLink, SavedLinkGroup, SavedMyListCard, SavedMyListRow, SavedPinnedHeading, SavedRowHeading, SavedScroll, SavedSection, SavedShelf, SavedSurface} from '../../../kit/saved/SavedParts';
 import {StateView} from '../../../kit/states';
 import {openNativeSavedDownload} from '../../../screens/downloads/playback';
-import {SavedDownloadCard} from '../../../screens/saved/SavedDownloadCard';
+import {SavedDownloadCard} from '../../../kit/saved/SavedDownloadCard';
 import {SavedLoading, SavedTail} from '../../../screens/saved/SavedLoading';
 import {useSavedPage, type SavedPageProps} from '../../shared/saved/useSavedPage';
 

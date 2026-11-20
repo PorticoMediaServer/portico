@@ -8,7 +8,7 @@ import {NativeSearchDestination} from '../search/model';
 import type {NativeSearchActions, NativeSearchExplorePort, NativeSearchSelectionPort, NativeSearchTVCopy} from '../search/types';
 import type {NativeSavedActions, NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
 import {createNativeSavedRenderer} from '../saved/renderer';
-import type {NativeSavedDownloadsCopy} from '../saved/SavedDownloadCard';
+import type {NativeSavedDownloadsCopy} from '../../kit/saved/SavedDownloadCard';
 import {DownloadsPage} from '../../pages/touch/saved/DownloadsPage';
 import type {NativeDownloadsCopy} from '../downloads/presentation';
 import type {OfflineEntry} from '../../platform/offline-downloads';
@@ -79,7 +79,7 @@ export type {NativeSavedActions, NativeSavedSelectionPort} from '../../pages/sha
 export {openNativeSavedView, createNativeSavedHubController, createNativeSavedViewController} from '../saved/navigation';
 export type {NativeSavedViewRoute} from '../saved/navigation';
 export {createNativeSavedState} from '../saved/state';
-export type {NativeSavedDownloadsCopy} from '../saved/SavedDownloadCard';
+export type {NativeSavedDownloadsCopy} from '../../kit/saved/SavedDownloadCard';
 export {createNativeSavedRenderer};
 export type {NativeSavedRendererPorts} from '../saved/renderer';
 export type {NativeDownloadsCopy} from '../downloads/presentation';
