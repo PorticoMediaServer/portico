@@ -1545,6 +1545,19 @@ test('phone and TV selection actions retain disabled sort reasons and Queue expl
     }
   } finally {state.theme = previous;}
 });
+test('the phone action bar draws only what the selection offers, sharing the row: no empty slot for an action it lacks', async () => {
+  const previous = state.theme;
+  try {
+    state.theme = createTheme({isTV: false, width: 390});
+    // Songs on an album offer no Queue: Play, Playlist, My List and More share the row (the looker saw a gap after Play).
+    const props: SelectionBarProps = {count: 1, onCancel() {}, menu: null, onMenuChange() {}, onAction() {}, actions: [{id: 'play'}, {id: 'playlist'}, {id: 'myList'}, {id: 'more'}]};
+    const phone = await mount(SelectionPhoneActionBar, props);
+    try {
+      const slots = elements(phone.tree).filter(element => element.props.style?.flex === 1);
+      assert.deepEqual(slots.map(slot => slot.props.accessibilityRole), ['button', 'button', 'button', 'button']);
+    } finally {await phone.host.unmount();}
+  } finally {state.theme = previous;}
+});
 test('bounded unavailable Delete uses the existing phone control reason while TV owner curation remains intact', async () => {
   const previous = state.theme, calls: string[] = [], reason = 'Unavailable with this sort order.';
   try {
