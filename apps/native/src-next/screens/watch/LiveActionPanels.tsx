@@ -7,7 +7,7 @@ import {StateView} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {ProgrammeDetails} from '../settings-live/LiveScreen';
+import {ProgrammeDetails} from '../../kit/live/ProgrammeDetails';
 import {NativeSeriesRuleSheet} from '../settings-live/LiveSeriesRule';
 import type {NativeTVLiveActions} from './live-actions';
 

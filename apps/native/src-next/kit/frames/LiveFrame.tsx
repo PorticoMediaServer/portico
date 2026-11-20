@@ -34,17 +34,21 @@ export type LiveFrameProps = Readonly<{
   list?: ReactNode;
   /** A programme's details, or the rule being edited: beside the page from tablet width, a sheet on a phone. */
   details?: FramePane;
+  /** The TV guide's time grid extends to the right edge. */
+  flushList?: boolean;
   /** The keyboard line under the guide (desktop); TV's key hints (kit `KeyHints`). */
   hints?: ReactNode;
   /** The whole page can't load. */
   state?: PageStateProps;
+  footer?: ReactNode;
+  overlay?: ReactNode;
   testID?: string;
 }>;
 
 /** Live TV (desktop-live, phone-guide, phone-app 10 to 12, tablet-play 6 and 7, final3-tv-10): the guide, the channel
  * list and Recordings share one frame. Fixed: the title row (title, the source picker, its facts and buttons), the tabs,
  * the chips and the toolbar. Flexible: the guide or the list under them. The details pane is `SplitFrame`'s. */
-export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, lead, toolbar, children, list, details, hints, state, testID}: LiveFrameProps) {
+export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, lead, toolbar, children, list, details, flushList, hints, state, footer, overlay, testID}: LiveFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), {form} = frame;
   const edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
   // On a phone the source picker heads the chips, so the title row keeps List | Guide beside the title (phone-guide g1, as the web).
@@ -65,26 +69,28 @@ export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, l
     : <View style={[edge, {paddingTop: Math.max(frame.titleTop, insets.top + frame.headerGap), flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: form === 'phone' ? theme.space.xs : theme.space.sm}]}>
       <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, flexShrink: 1}]}>{title}</Text>
       {form !== 'phone' && switcher}
-      <View style={{flex: 1}}/>
-      {form === 'expanded' && facts}
+      {(form !== 'tv' || facts) && <View style={{flex: 1}}/>}
+      {(form === 'expanded' || form === 'tv') && facts}
       {actions}
     </View>;
   const header = shortWide ? <View style={{paddingBottom: theme.space.xs}}>{titleRow}</View> : <View style={{gap: frame.headingGap, paddingBottom: frame.headingGap}}>
     {titleRow}
-    {tabs}
+    {form === 'tv' && tabs ? <View style={edge}>{tabs}</View> : tabs}
     {chipsLine(false)}
-    {toolbar && form !== 'tv' && <View style={[edge, {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.xs}]}>{toolbar}</View>}
+    {toolbar && form !== 'tv' && <View style={[edge, {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: form === 'phone' ? 'space-between' : undefined, gap: theme.space.xs}]}>{toolbar}</View>}
   </View>;
   const page = <View testID={testID} style={{flex: 1}}>
     {header}
     {state ? <PageStateFrame {...state}/> : list ? <>
-      <View style={{flex: 1}}>{list}</View>
+      <View style={[{flex: 1}, form === 'tv' && {paddingLeft: frame.gutter, paddingRight: flushList ? theme.space.xs : frame.rightGutter}]}>{list}</View>
       {hints && <View style={edge}>{hints}</View>}
     </> : <ScrollView style={{flex: 1}} contentContainerStyle={{paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
       {lead}
       {children}
       {hints && <View style={edge}>{hints}</View>}
     </ScrollView>}
+    {footer}
+    {overlay}
   </View>;
   return <SplitFrame pane={details}>{page}</SplitFrame>;
 }

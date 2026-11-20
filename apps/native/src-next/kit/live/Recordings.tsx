@@ -1,7 +1,16 @@
-import React, {type ReactNode} from 'react';
-import {Text, View} from 'react-native';
-import {Artwork, ChannelMark, type ArtworkSource} from '../artwork';
+import React, {type ReactNode, type ComponentProps, type Ref} from 'react';
+import {FlatList, Text, View} from 'react-native';
+import {defaultI18n} from '../../../../../packages/i18n/src';
+import {titleTintHue} from '../../../../../packages/client-core/src/presentation/title-page';
+import type {RecordingGroups} from '../../../../../packages/client-core/src/dvr';
+import type {NativeShellRuntime} from '../../shell/runtime';
+import {TVRow} from '../layout/TVRow';
+import {Chip, Tabs} from '../controls';
+import {Artwork, ChannelMark, GeneratedArt, type ArtworkSource} from '../artwork';
+import {Progress} from '../cards/primitives';
 import {Button} from '../controls/Button';
+import {FocusRegion, type FocusRegionProps} from '../focus';
+import {ListEdgeFade} from '../layout/ListEdgeFade';
 import {Focusable} from '../controls/Focusable';
 import {Icon} from '../Icon';
 import {useFrameMetrics} from '../frames/metrics';
@@ -27,11 +36,12 @@ export type RecordingRowProps = Readonly<{
   /** "Recording", "Tuner conflict", "Series": said in the row's status column. */
   status?: Readonly<{text: string; tone?: 'record' | 'accent'}>;
   onPress?: () => void;
+  focus?: Pick<ComponentProps<typeof Focusable>, 'focusId' | 'testID' | 'onFocus' | 'onBlur' | 'onLongPressAction'> & {node?: Ref<View>};
   more?: Readonly<{label: string; onPress: () => void}>;
 }>;
 
 /** One upcoming or recording-now row (desktop-live live-upcoming, phone-app 12). */
-export function RecordingRow({time, range, title, flags, detail, channel, source, artwork, status, onPress, more}: RecordingRowProps) {
+export function RecordingRow({time, range, title, flags, detail, channel, source, artwork, status, onPress, more, focus}: RecordingRowProps) {
   const theme = useTheme(), frame = useFrameMetrics(), art = recordingArt[frame.form];
   const tone = status?.tone === 'record' ? theme.colors.record : status?.tone === 'accent' ? theme.colors.accentStrong : theme.colors.textSecondary;
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, paddingVertical: theme.space.xs}}>
@@ -39,7 +49,8 @@ export function RecordingRow({time, range, title, flags, detail, channel, source
       <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{time}</Text>
       {range !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{range}</Text>}
     </View>
-    <Focusable accessibilityLabel={title} onPress={onPress} style={{flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+    <Focusable ref={focus?.node} focusId={focus?.focusId} testID={focus?.testID} onFocus={focus?.onFocus} onBlur={focus?.onBlur}
+      onLongPressAction={focus?.onLongPressAction} focusKind="row" accessibilityLabel={title} onPress={onPress} style={{flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
       {art > 0 && <View style={{width: art, height: art * 9 / 16, borderRadius: theme.radii.artwork, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={artwork} width={art} height={art * 9 / 16}/></View>}
       <View style={{flex: 1, minWidth: 0, gap: 2}}>
         <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{title}</Text>
@@ -54,7 +65,7 @@ export function RecordingRow({time, range, title, flags, detail, channel, source
       </View>
     </Focusable>
     {status && <Text style={[theme.type.rowHelp, {color: tone, fontFamily: theme.type.listLabel.fontFamily}]}>{status.tone === 'record' ? '● ' : ''}{status.text}</Text>}
-    {more && frame.form !== 'tv' && <Button variant="icon" size="small" icon="i-more" iconOnly accessibilityLabel={more.label} onPress={more.onPress}/>}
+    {more && frame.form !== 'tv' && <Button variant="icon" size="small" icon="i-more" iconOnly testID={focus?.testID && `${focus.testID}-more`} accessibilityLabel={more.label} onPress={more.onPress}/>}
   </View>;
 }
 
@@ -69,13 +80,15 @@ export type RuleCardProps = Readonly<{
   artwork?: ArtworkSource;
   selected?: boolean;
   onPress?: () => void;
+  focus?: Pick<ComponentProps<typeof Focusable>, 'focusId' | 'testID' | 'onFocus' | 'onBlur' | 'onLongPressAction'> & {node?: Ref<View>};
   more?: Readonly<{label: string; onPress: () => void}>;
 }>;
 
 /** One series rule (desktop-live live-rules): its picture, what it records, what is next, On or Paused. The web kit's `dvr` RuleCard is the same part (it draws a generated picture from `glyph`). */
-export function RuleCard({title, summary, next, warning = false, state, upcoming, artwork, selected = false, onPress, more}: RuleCardProps) {
+export function RuleCard({title, summary, next, warning = false, state, upcoming, artwork, selected = false, onPress, more, focus}: RuleCardProps) {
   const theme = useTheme(), frame = useFrameMetrics(), art = recordingArt[frame.form];
-  return <Focusable accessibilityLabel={title} onPress={onPress} style={{marginHorizontal: frame.cardInset, flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, padding: frame.cardPadding / 2 + theme.space.tight, borderRadius: frame.cardRadius,
+  return <Focusable ref={focus?.node} focusId={focus?.focusId} testID={focus?.testID} onFocus={focus?.onFocus} onBlur={focus?.onBlur}
+      onLongPressAction={focus?.onLongPressAction} focusKind="row" accessibilityLabel={title} onPress={onPress} style={{marginHorizontal: frame.cardInset, flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, padding: frame.cardPadding / 2 + theme.space.tight, borderRadius: frame.cardRadius,
     backgroundColor: theme.colors.raised, borderWidth: selected ? 2 : 0, borderColor: theme.colors.accentStrong, opacity: state.on ? 1 : .72}}>
     {art > 0 && <View style={{width: art * .9, height: art * .9 * 9 / 16, borderRadius: theme.radii.artwork, overflow: 'hidden', backgroundColor: theme.colors.raisedHigh}}><Artwork source={artwork} width={art * .9} height={art * .9 * 9 / 16}/></View>}
     <View style={{flex: 1, minWidth: 0, gap: 2}}>
@@ -89,11 +102,11 @@ export function RuleCard({title, summary, next, warning = false, state, upcoming
       </View>
       {upcoming !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{upcoming}</Text>}
     </View>
-    {more && frame.form !== 'tv' && <Button variant="icon" size="small" icon="i-more" iconOnly accessibilityLabel={more.label} onPress={more.onPress}/>}
+    {more && frame.form !== 'tv' && <Button variant="icon" size="small" icon="i-more" iconOnly testID={focus?.testID && `${focus.testID}-more`} accessibilityLabel={more.label} onPress={more.onPress}/>}
   </Focusable>;
 }
 
-export type ConflictCardProps = Readonly<{title: string; body: string; children?: ReactNode; action?: Readonly<{label: string; onPress: () => void}>}>;
+export type ConflictCardProps = Readonly<{title: string; body: string; children?: ReactNode; action?: Readonly<{label: string; onPress: () => void; focus?: RecordingRowProps['focus']}>}>;
 
 /** Recordings' conflict (desktop-live live-upcoming, phone-app 12): a card ruled in the record colour that says what
  * clashes and why, the airings involved, and Resolve conflict. */
@@ -108,6 +121,90 @@ export function ConflictCard({title, body, children, action}: ConflictCardProps)
       </View>
     </View>
     {children}
-    {action && <Button variant="glass" size="small" onPress={action.onPress}>{action.label}</Button>}
+    {action && <Button ref={action.focus?.node} focusId={action.focus?.focusId} testID={action.focus?.testID} onFocus={action.focus?.onFocus} onBlur={action.focus?.onBlur}
+      onLongPressAction={action.focus?.onLongPressAction} variant="glass" size="small" onPress={action.onPress}>{action.label}</Button>}
   </View>;
+}
+
+export function RecordingStorageSummary({title, used, free, remaining, fraction, onPress}: {
+  title: string; used: string; free: string; remaining: string; fraction?: number; onPress: () => void;
+}) {
+  const theme = useTheme(), frame = useFrameMetrics();
+  return <Focusable accessibilityRole="button" accessibilityLabel={[title, used, free, remaining].join(', ')} onPress={onPress}
+    style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.sm, padding: frame.cardPadding, gap: theme.space.xs,
+      borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
+    <View style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
+      <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{used}</Text>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{free}</Text>
+      <View style={{flex: 1}}/><Icon name="i-right" size={theme.type.listLabel.fontSize} color={theme.colors.textTertiary}/>
+    </View>
+    <Progress value={fraction} height={theme.space.tight}/>
+    <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{remaining}</Text>
+  </Focusable>;
+}
+
+export function RecordingList<Row>({listRef, columns, lead, fade, ...list}: ComponentProps<typeof FlatList<Row>> & {
+  listRef?: Ref<FlatList<Row>>; columns?: number; lead?: ReactNode; fade?: boolean;
+}) {
+  const theme = useTheme(), gap = theme.space.sm;
+  return <View style={{flex: 1}}>
+    {lead}
+    <FlatList {...list} ref={listRef} numColumns={columns} columnWrapperStyle={columns && columns > 1 ? {gap} : undefined}
+      contentContainerStyle={{gap, paddingBottom: theme.space.xl}}/>
+    {fade && <ListEdgeFade edge="bottom" length={theme.targets.touch} opacity={0.94}/>}
+  </View>;
+}
+
+export function RecordingResults({region, children}: {region: FocusRegionProps; children: ReactNode}) {
+  const theme = useTheme(), frame = useFrameMetrics();
+  return <FocusRegion {...region} style={{flex: 1, paddingHorizontal: theme.isTV ? 0 : frame.gutter}}>{children}</FocusRegion>;
+}
+
+export function RecordingSection({title, action}: {title: string; action?: ReactNode}) {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+    <Text accessibilityRole="header" style={[theme.type.rowHeading, {flex: 1, color: theme.colors.text}]}>{title}</Text>
+    {action}
+  </View>;
+}
+
+type Group = RecordingGroups['groups'][number];
+
+export function RecordingFacts({items}: {items: readonly (string | undefined)[]}) {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+    {items.filter(Boolean).map((item, index) => <Text key={index} style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{item}</Text>)}
+  </View>;
+}
+
+export function RecordingSpaceFacts({used, free, fraction, remaining, policy, warning}: {
+  used: string; free: string; fraction?: number; remaining?: string; policy?: string; warning?: string;
+}) {
+  const theme = useTheme();
+  return <View style={{gap: theme.space.sm}}>
+    <RecordingFacts items={[used, free, remaining]}/>
+    {fraction !== undefined && <Progress value={fraction} height={theme.space.xs}/>}
+    {policy && <RecordingFacts items={[policy]}/>}
+    {warning && <Text style={[theme.type.rowLabel, {color: theme.colors.record}]}>{warning}</Text>}
+  </View>;
+}
+
+export function RecordingViewTabs({region, choices, value, onChange}: {
+  region: FocusRegionProps; choices: readonly {value: string; label: string; count?: number}[]; value: string; onChange: (value: string) => void;
+}) {
+  const theme = useTheme();
+  return theme.isTV ? <FocusRegion {...region} style={{flexDirection: 'row', gap: theme.space.sm}}>
+    {choices.map(choice => <Chip key={choice.value} focusId={choice.value} testID={`recordings-view-${choice.value}`}
+      selected={choice.value === value} onFocus={() => onChange(choice.value)} onPress={() => onChange(choice.value)} count={choice.count}>{choice.label}</Chip>)}
+  </FocusRegion> : <TVRow><Tabs value={value} items={choices} onValueChange={onChange}
+    itemProps={item => ({testID: `recordings-view-${item.value}`})}/></TVRow>;
+}
+
+function ProgrammeArt({title, seed, image, runtime, width}: {title: string; seed: string; image?: string; runtime?: NativeShellRuntime; width: number}) {
+  const source = image && runtime?.artwork(image), hue = titleTintHue(seed);
+  return <View style={{width, aspectRatio: 16 / 9, backgroundColor: `hsl(${hue}, 32%, 22%)`, borderRadius: 12, overflow: 'hidden'}}><GeneratedArt glyph={(Array.from(title.trim())[0] ?? '').toLocaleUpperCase(defaultI18n.locale)} palette={{first: `hsl(${hue}, 40%, 32%)`, second: `hsl(${hue}, 30%, 12%)`}}/>{source && <Artwork source={source}/>}</View>;
+}
+export function RecordingCard({value, runtime, columns, onOpen, onFocus, onBlur}: {value: Group; columns: number; runtime: NativeShellRuntime; onOpen: () => void; onFocus: () => void; onBlur: () => void}) {
+  const theme = useTheme(), t = defaultI18n.t, recording = value.recording;
+  return <View style={{width: theme.isTV ? 385 : (theme.width - (columns + 1) * theme.space.sm) / columns, gap: 12}}><Focusable onFocus={onFocus} onBlur={onBlur} focusId={value.key} testID={`recordings-group-${value.key}`} focusKind="card" onPress={onOpen} style={{aspectRatio: 16 / 9, borderRadius: 14, overflow: 'hidden'}}><ProgrammeArt title={value.title} seed={recording.occurrence.channelId} image={recording.programme.image} runtime={runtime} width={theme.isTV ? 385 : (theme.width - (columns + 1) * theme.space.sm) / columns}/><View style={{position: 'absolute', left: 16, right: 12, bottom: 16, gap: 8}}><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{recording.channel?.name}</Text><Text style={[theme.type.cardTitle, {color: theme.colors.text}]}>{value.title}</Text></View>{value.kept > 0 && <View style={{position: 'absolute', left: 16, top: 12}}><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('recordings.kept')}</Text></View>}{value.exceptions > 0 && <View style={{position: 'absolute', left: 16, top: value.kept > 0 ? 44 : 12}}><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('web.dvr.state.incomplete')}</Text></View>}{recording.watched === false && value.recordings === 1 && <View style={{position: 'absolute', right: 16, top: 16, width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.accentStrong}}/>}</Focusable><RecordingFacts items={[t(value.unwatched ? 'recordings.showCountUnwatched' : 'recordings.showCount', {count: value.recordings, unwatched: value.unwatched})]}/></View>;
 }

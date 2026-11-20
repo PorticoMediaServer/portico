@@ -1,0 +1,91 @@
+import React, {type ReactNode, type Ref, type ComponentProps} from 'react';
+import {FlatList, Text, View} from 'react-native';
+import {Button, Chip, Segmented, Select} from '../controls';
+import {FocusRegion, type FocusRegionProps} from '../focus';
+import {Icon} from '../Icon';
+import {TVRow} from '../layout/TVRow';
+import {Banner} from '../overlays';
+import {NativeLivePhonePicker} from './LivePhonePicker';
+import {useTheme} from '../theme';
+
+export function GuideViewSwitch({value, onChange, list, guide, compact}: {
+  value: 'list' | 'guide'; onChange: (value: 'list' | 'guide') => void; list: string; guide: string; compact: boolean;
+}) {
+  const theme = useTheme();
+  return <Segmented testID="live-view" variant={compact ? 'phone' : 'glass'} value={value}
+    onValueChange={next => {if (next === 'list' || next === 'guide') onChange(next);}}
+    itemProps={item => ({accessibilityLabel: item.value === 'list' ? list : guide})}
+    items={(compact ? ['list', 'guide'] as const : ['guide', 'list'] as const).map(mode => ({value: mode, label: <View style={{flexDirection: 'row', gap: theme.space.xs, alignItems: 'center'}}>
+      <Icon name={mode === 'list' ? 'i-list' : 'i-timeline'} size={theme.type.rowLabel.fontSize} color={value === mode ? theme.colors.text : theme.colors.textTertiary}/>
+      {compact && <Text style={[theme.type.rowLabel, {color: value === mode ? theme.colors.text : theme.colors.textTertiary}]}>{mode === 'list' ? list : guide}</Text>}
+    </View>}))}/>;
+}
+
+export function GuideFilterStrip({choices, leading, region}: {
+  choices: readonly Readonly<{id: string; testID: string; label: string; count?: number; selected: boolean; onPress: () => void}>[];
+  leading?: ReactNode; region: FocusRegionProps;
+}) {
+  const theme = useTheme(), focusRoom = theme.isTV ? theme.space.sm : 0;
+  return <FocusRegion {...region}><TVRow><FlatList horizontal data={choices} keyExtractor={choice => choice.id} showsHorizontalScrollIndicator={false}
+    initialNumToRender={10} maxToRenderPerBatch={10} windowSize={3}
+    contentContainerStyle={{gap: theme.space.xs, paddingHorizontal: theme.gutter, paddingVertical: focusRoom}}
+    ListHeaderComponent={leading ? <View>{leading}</View> : undefined}
+    renderItem={({item}) => <Chip focusId={item.id} testID={item.testID} count={item.count} selected={item.selected} onPress={item.onPress}>{item.label}</Chip>}/>
+  </TVRow></FocusRegion>;
+}
+
+export function GuideActionRow({children, region, testID}: {children: ReactNode; region?: FocusRegionProps; testID?: string}) {
+  const theme = useTheme();
+  const style = {flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: theme.space.xs, alignItems: 'center' as const};
+  return region ? <FocusRegion {...region} testID={testID} style={style}>{children}</FocusRegion> : <View testID={testID} style={style}>{children}</View>;
+}
+
+export function GuideOnNow({label, clock}: {label: string; clock?: string}) {
+  const theme = useTheme();
+  return <GuideActionRow><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{label}</Text>
+    <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{clock}</Text></GuideActionRow>;
+}
+
+export function GuideNotices({reason, stale}: {reason?: Readonly<{title: string; body: string}>; stale?: string}) {
+  const theme = useTheme();
+  if (!reason && !stale) return null;
+  return <View testID="live-guide-notices" style={{gap: theme.space.xs, marginBottom: theme.space.sm, paddingHorizontal: theme.isTV ? 0 : theme.gutter}}>
+    {reason && <Banner testID="live-server-wide" placement="inline" variant="quiet" tone="warning" icon="i-alert"
+      message={<Text><Text style={theme.type.rowLabel}>{reason.title}</Text>{' '}{reason.body}</Text>}
+      accessibilityLabel={`${reason.title} ${reason.body}`}/>}
+    {stale && <Banner testID="live-guide-stale" placement="inline" variant="quiet" tone="warning" icon="i-clock" message={stale}/>}
+  </View>;
+}
+
+export function GuideRecordingsButton({label, count, onPress}: {label: string; count: number; onPress: () => void}) {
+  const theme = useTheme();
+  return <View><Button testID="live-recordings" variant="icon" size="small" icon="i-rec-ring" accessibilityLabel={label} onPress={onPress}/>
+    {count > 0 && <View testID="live-recordings-conflict" pointerEvents="none" style={{position: 'absolute', top: theme.space.xs, right: theme.space.xs,
+      width: theme.space.xs, height: theme.space.xs, borderRadius: theme.space.xs, backgroundColor: theme.colors.record}}/>}</View>;
+}
+
+export function GuideSourcePicker({label, value, options, current, phone, onChange}: {
+  label: string; value?: string; options: readonly {value: string; label: string}[]; current?: string; phone: boolean; onChange: (value: string) => void;
+}) {
+  const theme = useTheme(), style = {minHeight: theme.targets.touch - theme.space.xs, borderWidth: theme.space.hairline,
+    borderColor: theme.colors.lineStrong, borderRadius: theme.baseRadii.control, paddingHorizontal: theme.space.sm, justifyContent: 'center' as const};
+  if (!phone) return <Select focusId="live-source" testID="live-source" accessibilityLabel={label} value={value} options={options} onValueChange={onChange}/>;
+  if (current) return <View testID="live-source" style={style}><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{current}</Text></View>;
+  return <NativeLivePhonePicker testID="live-source" style={style} accessibilityLabel={label} value={value ?? ''}
+    options={options.map(option => ({id: option.value, label: option.label}))} onChange={onChange}>{options.find(option => option.value === value)?.label}</NativeLivePhonePicker>;
+}
+
+export function GuideDayPicker({name, date, ...props}: Omit<ComponentProps<typeof NativeLivePhonePicker>, 'children'> & {name: string; date?: string}) {
+  const theme = useTheme();
+  return <NativeLivePhonePicker {...props}>
+    <Icon name="i-cal" size={theme.type.rowLabel.fontSize} color={theme.colors.textTertiary}/>
+    <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{name}</Text>
+    {date && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{date}</Text>}
+  </NativeLivePhonePicker>;
+}
+
+export function GuideViewport({children, viewport, onLayout, leading, trailing}: {
+  children: ReactNode; viewport: Ref<View>; onLayout: NonNullable<ComponentProps<typeof View>['onLayout']>; leading: number; trailing: number;
+}) {
+  return <View ref={viewport} onLayout={onLayout} style={{flex: 1, paddingLeft: leading, paddingRight: trailing}}>{children}</View>;
+}
