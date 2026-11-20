@@ -5,15 +5,14 @@ import {Chip} from '../../../kit/controls';
 import {PanelBlock, PanelHeading, StateRow, TitleFrame} from '../../../kit/frames';
 import {HeroMetadata} from '../../../kit/layout';
 import {Menu} from '../../../kit/overlays';
-import type {NativeCollectionScreenProps} from '../../../screens/collections/CollectionScreen';
 import {PlayOnButton} from '../../../shell/PlayOnButton';
-import {useCollection} from '../../shared/collection/useCollection';
+import {useCollection, type CollectionPageProps} from '../../shared/collection/useCollection';
 
 const t = defaultI18n.t;
 
 /** A collection's page on a phone and a tablet (phone-detail d3 frame 8): `TitleFrame` with Play all, Shuffle and ⋯, the
  * note when Portico made it, the count with the sort, and its films windowed: rows on a phone, posters on a tablet. */
-export function CollectionPage(props: NativeCollectionScreenProps) {
+export function CollectionPage(props: CollectionPageProps) {
   const view = useCollection(props);
   return <>
     <TitleFrame testID="native-collection" back={{label: t('action.back'), onPress: props.onBack, testID: 'collection-back'}}

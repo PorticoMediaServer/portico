@@ -27,7 +27,7 @@ test('actual collection presenter sends its current member through the fenced pr
     react: {...React, default: React}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {authorityKey, sameAuthority},
     'react-native': {View: 'View', Platform: {isTV: false}}, '../../kit/focus': {useFocusRegistry: () => ({capture: () => undefined, subscribe: () => () => {}, retain: () => () => {}, restore() {}})},
     '../selection/native-selection': {catalogueSelectionSource: (source: unknown) => source, createNativeSelection: () => ({dispose() {}})},
-    '../destinations/entry-actions': {createNativeEntryActions}, './controller': {NativeCollectionController: Controller}, './CollectionScreen': {NativeCollectionScreen: 'CollectionScreen'},
+    '../destinations/entry-actions': {createNativeEntryActions}, './controller': {NativeCollectionController: Controller},
     // Phones and tablets draw the rebuilt page; the presenter's handlers are the same either way.
     '../../pages/touch/collection/CollectionPage': {CollectionPage: 'CollectionPage'}, '../../pages/tv/collection/CollectionPage': {CollectionPage: 'TVCollectionPage'},
   });

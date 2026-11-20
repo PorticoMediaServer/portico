@@ -353,39 +353,6 @@ test('TV Saved caller passes original grid sort/filter roots through actual Menu
   } finally {await source.unmount(); await b.dispose();}
 });
 
-for (const kind of ['collection'] as const) test(`${kind} actual entity menu retains its original scoped root and command`, async () => {
-  const b = await bindings(), o = await overlayBindings(b), presentation = await import('../src-next/kit/browse/presentation');
-  const modules = {'../share/share-actions': {shareLinkActions: () => []}, react: b.react, 'react-native': b.native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', PersonCircle: 'Person', AmbientArt: 'Ambient', Artwork: 'Artwork'},
-    '../../kit/cards': {PosterCard: 'Poster'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: (value: number) => String(value)}, '../../kit/controls': {Button: o.Button, Chip: 'Chip', Focusable: b.Focusable},
-    '../../kit/overlays': o.menu, '../../tv/layout/TVShelf': {TVShelf: 'Shelf'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/states': {StateView: 'State'}, '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme},
-    '../../kit/focus': b.focus, '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'}};
-  const mod = await screenModule(new URL('../src-next/screens/collections/CollectionScreen.tsx', import.meta.url), modules);
-  const component = mod.NativeCollectionScreen;
-  let tree: any, scope = `${kind}:original-authority:original-entity`, commands = 0;
-  const person = {page: {person: {id: 'person', name: 'Person', roles: [], knownFor: []}, pageInfo: {total: 0}}, role: 'all',
-    collection: {pageOf: () => 0, subscribe: () => () => {}, subscribePage: () => () => {}, getSnapshot: (() => {const snapshot = {generation: 1, total: 0, status: 'ready'}; return () => snapshot;})(), getPageVersion: () => 0, ensureRange() {}},
-    actions: {menuState: {subscribe: () => () => {}, getSnapshot: () => 0}, isMenuOpen: () => false}, onRole: () => {commands++;}};
-  const collection = {state: {phase: 'ready', title: 'Collection', collection: person.collection, totalCount: 0,
-    sorts: [{id: 'title', labelKey: 'next.browse.native.sort', directions: ['asc']}, {id: 'added', labelKey: 'next.browse.native.sort', directions: ['desc']}], sort: 'title'},
-    onPlay() {}, onShuffle() {}, onSort: () => {commands++;}, onOpen() {}, onRetry() {}};
-  const props = {...collection, runtime: {ambient: () => undefined, artwork: () => undefined}, onBack() {}};
-  const source = createFabricHookHost(() => {tree = component({...props, focusScope: scope});}); await source.mount();
-  try {
-    const menu = nodes(tree).find(node => node.type === o.menu.Menu), expected = `${scope}.sort-menu`;
-    assert.equal(menu.props.testID, expected);
-    await b.region(() => ({id: expected})); let real: any;
-    const menuDriver = createFabricHookHost(() => {real = o.menu.Menu({...menu.props, open: true});}); await menuDriver.mount();
-    const rows = nodes(real).filter(node => node.type === o.menu.MenuRow);
-    const hosts = await mountInOrder(rows, row => b.target(expected, () => row.type.render(row.props, row.props.ref).props));
-    assert.equal(new Set(hosts.map(host => host.props.testID)).size, rows.length); assert.ok(hosts.length > 1);
-    hosts[1]!.props.onPress(); assert.equal(commands, 1); await menuDriver.unmount();
-    scope += ':retained-other-entity'; await source.rerender(); assert.notEqual(nodes(tree).find(node => node.type === o.menu.Menu).props.testID, expected);
-  } finally {await source.unmount(); await b.dispose();}
-});
-
 test('MusicMixes actual original caller scope names its panel through failed busy work without enabling commands', async () => {
   const b = await bindings(), o = await overlayBindings(b), presentation = await import('../src-next/kit/browse/presentation');
   const {MusicMixesRow} = await screenModule(new URL('../src-next/screens/destinations/music/MusicMixesRow.tsx', import.meta.url), {

@@ -123,23 +123,6 @@ test('Saved resource menus keep membership commands beside canonical selection, 
   list.props.onPlace(list.props.rows[0], 'occ-b', ['occ-a', 'occ-b']); assert.equal(calls.length, 2, 'a revoked capability cannot write');
 });
 
-test('Phone collection uses the centred 300-point hero, full-width play and actual metadata rows', async () => {
-  const f = fixture(), {NativeCollectionScreen} = await f.load('collections/CollectionScreen');
-  const collection = {itemAt: () => entry};
-  const state = {phase: 'ready', title: 'Collection', totalCount: 1, collection, first: entry, complete: [entry], sorts: [], projection: {entity: {origin: 'automatic'}}};
-  const page = f.host.render(() => NativeCollectionScreen({state, runtime, focusScope: 'collection', onBack() {}, onOpen() {}, onPlay() {}, onShuffle() {}, onSort() {}, onRetry() {}}));
-  // The members are one windowed list; the hero, actions and note scroll as its header.
-  const list = nodes(page).find(node => node.type === 'WindowedGrid');
-  assert.equal(list.props.testID, 'collection-list'); assert.equal(list.props.collection, collection); assert.equal(list.props.itemHeight, 98);
-  const tree = [page, list.props.header];
-  assert.ok(nodes(tree).some(node => node.type === 'View' && node.props.style?.height === 300));
-  const bar = nodes(tree).find(node => node.type === 'TopBar'); assert.equal(bar.props.back.testID, 'collection-back'); assert.equal(bar.props.overArtwork, true);
-  assert.deepEqual(find(tree, 'collection-play-all').props.style, {flex: 1, height: 48});
-  assert.equal(find(tree, 'collection-shuffle').props.iconOnly, true); assert.ok(find(tree, 'collection-menu'));
-  assert.ok(text(tree).includes('Portico put this together from the films’ details'));
-  const row = list.props.renderItem(entry, {index: 0, id: 'movie:e', onFocus() {}, onBlur() {}}); assert.equal(row.type.name, 'CollectionRow'); assert.equal(row.props.entry, entry);
-});
-
 test('Saved delayed initial skeleton retains its shape and adds the quiet line after eight seconds', async context => {
   const f = fixture(), cleanups: Array<() => void> = []; let effect = false;
   f.modules.react.useEffect = (run: () => () => void) => {if (!effect) {effect = true; cleanups.push(run());}};

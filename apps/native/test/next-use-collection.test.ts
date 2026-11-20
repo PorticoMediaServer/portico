@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {defaultI18n} from '../../../packages/i18n/src';
 import * as errors from '../../../packages/client-core/src/presentation/errors';
 import * as kitText from '../../../packages/client-core/src/presentation/kit-model/text';
+import * as kitModel from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 // `useCollection` is what a collection's page shows (phone-detail d3 frame 8), from the old collection screen's read: this
@@ -15,20 +16,19 @@ const towers = {id: 'f2', kind: 'movie', title: 'The Two Towers', libraryId: 'mo
 async function collection(over: Record<string, unknown> = {}, form = 'phone') {
   const calls: unknown[][] = [], h = hooks(), scrollers: unknown[][] = [];
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]);};
-  const {useCollection} = await screenModule(new URL('../src-next/pages/shared/collection/useCollection.ts', import.meta.url), {
+  const mod = await screenModule(new URL('../src-next/pages/shared/collection/useCollection.ts', import.meta.url), {
     react: h.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/errors': errors,
     '../../../kit/frames': {titleRowsScroller: (props: unknown) => {scrollers.push(['rows', props]); return 'rows';}, posterGridScroller: (props: unknown) => {scrollers.push(['grid', props]); return 'grid';}},
     '../../../kit/theme': {useTheme: () => ({form})},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': kitText,
-    '../../../screens/collections/CollectionScreen': {sortLabel: (sort: {id: string}) => sort.id === 'release' ? 'Release order' : 'Title', years: (state: any) => state.complete ? '2001 – 2002' : undefined,
-    composedCollectionLede: (state: any) => `${state.totalCount} films`}});
+    '../../../../../../packages/client-core/src/presentation/kit-model': kitModel});
   const state = {phase: 'ready', title: 'The Lord of the Rings', totalCount: 2, first: fellowship, complete: [fellowship, towers], collection: {}, sorts: [
     {id: 'release', labelKey: 'x', directions: ['asc']}, {id: 'title', labelKey: 'y', directions: ['asc']}], sort: 'release', projection: {entity: {origin: 'automatic'}}, ...over};
   const props = {state, focusScope: 'collection:x', runtime: {artwork: (path?: string) => path ? {uri: path} : undefined, ambient: (path?: string) => path ? {url: path} : undefined},
     actions: {menuState: {subscribe: () => () => {}, getSnapshot: () => 0}, menu: record('menu')},
     selection: {subscribe: () => () => {}, getSnapshot: () => 0, item: () => undefined, start: record('select')},
     onPlay: record('play'), onShuffle: record('shuffle'), onSort: record('sort'), onOpen: record('open'), onBack: record('back'), onRetry: record('retry')};
-  return {view: h.render(() => useCollection(props)), calls, scrollers};
+  return {view: h.render(() => mod.useCollection(props)), calls, scrollers, mod};
 }
 
 test('a collection shows its count, years and genres, the automatic note, and its films as rows on a phone', async () => {
@@ -63,7 +63,7 @@ test('the sort offers the read\'s sorts; the page menu holds Play all, Shuffle a
 
 test('on TV the films are one row of posters, with the lede under the facts and how many are watched', async () => {
   const {view, calls} = await collection({}, 'tv');
-  assert.equal(view.lede, '2 films', 'composed from the films when the read has no overview');
+  assert.equal(view.lede, '2 films on your server, from 2001 to The Two Towers.', 'composed from the films when the read has no overview');
   assert.equal((await collection({projection: {entity: {overview: ' Frodo and the Ring. '}}}, 'tv')).view.lede, 'Frodo and the Ring.');
   assert.equal(view.watched, t('next.browse.watchedOf', {watched: 1, count: 2}));
   assert.equal(view.row.testID, 'collection-row');
@@ -78,4 +78,17 @@ test('an empty collection says so; a failed read offers Try again; a hand-made o
   assert.equal(failed.view.state.kind, 'error');
   failed.view.state.action.onPress(); assert.deepEqual(failed.calls.at(-1), ['retry']);
   assert.equal((await collection({projection: {entity: {origin: 'manual'}}})).view.note, undefined);
+});
+
+// #754 review (from the old screen's test): with no provider overview the TV collection lede is composed from the titles as Home's banner does
+// (tv-detail f10: "Four films on your server, from 1995 to Toy Story 5."); the overview replaces it when there is one.
+test('the collection lede is composed from its titles when there is no overview', async () => {
+  const {mod} = await collection();
+  const env = {t: defaultI18n.t as never, locale: 'en-US'};
+  const film = (title: string, year: number) => ({id: title, kind: 'movie', title, year}) as any;
+  const all = [film('Toy Story', 1995), film('Toy Story 2', 1999), film('Toy Story 3', 2010), film('Toy Story 5', 2026)];
+  assert.equal(mod.composedCollectionLede({totalCount: 4, complete: all}, env), 'Four films on your server, from 1995 to Toy Story 5.');
+  assert.equal(mod.composedCollectionLede({totalCount: 4, first: all[0]}, env), 'Four films on your server.', 'only part in memory: the count alone');
+  assert.equal(mod.composedCollectionLede({totalCount: 2, complete: [film('A', 2001), {id: 'show', kind: 'show', title: 'S', year: 2003}]}, env), undefined, 'not all films: no lede');
+  assert.equal(mod.composedCollectionLede({totalCount: 0}, env), undefined);
 });
