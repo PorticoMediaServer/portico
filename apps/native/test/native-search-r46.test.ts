@@ -57,7 +57,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme},
     '../home/model': {homeCardText, nativeSearchCardText: (entry: any, env: any) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env)}, './model': {NativeSearchDestination: class {}, nativeSearchEntryKey}, './genre-tiles': {nativeSearchGenreTiles},
-    './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'},
+    './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, '../../pages/tv/search/SearchPage': {TVSearchPage: 'TVSearchPage'},
     '../../../../../packages/client-core/src/presentation/kit-model': {channelTint},
   });
   const tree = host.render(() => view.SearchScreen({

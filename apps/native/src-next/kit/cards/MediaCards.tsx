@@ -17,7 +17,7 @@ type Media = Readonly<{
   watched?: boolean;
   isNew?: boolean;
 }>;
-export type PosterCardProps = CardProps & Media & {titleLines?: 1 | 2};
+export type PosterCardProps = CardProps & Media & {titleLines?: 0 | 1 | 2};
 export type WideCardProps = CardProps & Media & {captionBelow?: boolean};
 export type SquareCardProps = CardProps & Media;
 export type CircleCardProps = CardProps & ({art: CircleArtProps; person?: false} | {art: PersonCircleProps; person: true}) & {
