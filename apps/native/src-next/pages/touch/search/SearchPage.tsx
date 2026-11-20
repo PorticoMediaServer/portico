@@ -10,7 +10,7 @@ import {Button, Chip, TextField} from '../../../kit/controls';
 import {SearchFrame} from '../../../kit/frames';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Banner} from '../../../kit/overlays';
-import {SearchHistory, TopResult} from '../../../kit/search';
+import {SearchCancel, SearchClear, SearchHistory, TopResult} from '../../../kit/search';
 import {SearchGenres, SearchLoading, SearchOnNow, SearchResultRow, SearchResultsGrid, SearchResultShelf, SearchSection} from '../../../kit/search/SearchResults';
 import {StateView} from '../../../kit/states';
 import type {NativeSearchScreenProps} from '../../../screens/search/SearchScreen';
@@ -89,10 +89,9 @@ export function SearchPage(props: NativeSearchScreenProps) {
       autoCapitalize="none" autoCorrect={false} returnKeyType="search"
       onChangeText={value => destination.setText(value)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
       onSubmitEditing={() => run(destination.commit())}
-      trailing={typed && <Button testID="search-clear" variant="text" size="small" icon="i-x" iconOnly
-        accessibilityLabel={t('web.search.clear')} onPress={() => destination.setText('')}/>}/>}
-    cancel={typed || focused ? <Button testID="search-cancel" variant="text" size="small"
-      onPress={() => {destination.setText(''); field.current?.blur(); setFocused(false);}}>{t('action.cancel')}</Button> : undefined}
+      trailing={typed && <SearchClear testID="search-clear" label={t('web.search.clear')} onPress={() => destination.setText('')}/>}/>}
+    cancel={typed || focused ? <SearchCancel testID="search-cancel" label={t('action.cancel')}
+      onPress={() => {destination.setText(''); field.current?.blur(); setFocused(false);}}/> : undefined}
     scopes={scopes} notice={groupList ? undefined : error} none={emptyState} list={groupList} scrollRef={scroll}
     overlay={selection?.render(path => {const source = runtime.artwork(path); return source && <Artwork source={source}/>;})}>
     {!typed ? <>{recent}{genres}</> : emptyAll ? <>{genres}{recent}</> : null}
