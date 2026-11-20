@@ -42,7 +42,7 @@ async function mount(component: (props: any) => any, props: any) {
 async function focusNamespace(react: any) {
   return screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {react: {...react, createContext: (value: any) => ({value}), forwardRef: (render: any) => render},
     'react-native': {findNodeHandle: () => undefined, TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => theme},
-    './registry': focusRegistry, './useHostRef': focusHostRef});
+    './registry': focusRegistry, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': focusHostRef});
 }
 
 async function searchFixture(group = 'all') {

@@ -80,7 +80,7 @@ async function rig({count = 3, tv = true, reduced = false, initialWidth = 1920}:
   const focusReact = {...react, createContext(value: any) {const context = {current: value}; contexts.push(context); return context;}, useContext: (context: any) => context.current};
   const focus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
     react: focusReact, 'react-native': {View: 'View', TVFocusGuideView: 'TVFocusGuideView', findNodeHandle: (host: any) => host.nativeTag},
-    '../theme': {useTheme: () => theme}, './registry': registryModule, './useHostRef': hostRefModule,
+    '../theme': {useTheme: () => theme}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
   });
   contexts[0].current = registry;
   const motion = () => {

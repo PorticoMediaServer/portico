@@ -16,7 +16,7 @@ export async function tvFocusKit(options = {}) {
   const theme = {isTV: true, platform: 'tv', colors: {ink: '#000', focus: '#fff', accentStrong: '#f80', text: '#fff'}, layers: {tvFocus: 5}};
   const common = {react, 'react-native': engine.native, 'react-native-reanimated': engine.animated, '../theme': {useTheme: () => theme}};
   const {useHostRef} = await screenModule(src('kit/focus/useHostRef.ts'), {react});
-  const regions = await screenModule(src('kit/focus/FocusRegion.tsx'), {...common, './registry': registryModule, './cell-navigation': {}, './useHostRef': {useHostRef}});
+  const regions = await screenModule(src('kit/focus/FocusRegion.tsx'), {...common, './registry': registryModule, './cell-navigation': {}, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': {useHostRef}});
   const covered = await screenModule(src('kit/focus/CoveredLayer.tsx'), common);
   const focus = {...regions, ...covered, createFocusRegistry: registryModule.createFocusRegistry, focusTestID: registryModule.focusTestID, requestNativeFocus: registryModule.requestNativeFocus,
     createTVLayerStack: layerStack.createTVLayerStack};

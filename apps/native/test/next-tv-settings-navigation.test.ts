@@ -15,7 +15,7 @@ async function focusFixture() {
   const module = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
     react, 'react-native': {View: 'View', TVFocusGuideView: 'Guide', findNodeHandle: (value: any) => value.tag},
     '../theme': {useTheme: () => theme}, './registry': focus,
-    './useHostRef': {useHostRef: () => ({native: {current: null}, ref() {}})},
+    './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': {useHostRef: () => ({native: {current: null}, ref() {}})},
   });
   contexts[0].value = registry;
   let tag = 1;

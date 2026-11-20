@@ -4,6 +4,7 @@ import {useTheme} from '../theme';
 import {createFocusHandleResolver, createFocusRegistry, focusTestID, requestNativeFocus, type FocusAddress, type FocusHost, type FocusRegionConfig, type FocusRegistry} from './registry';
 import type {FocusCell} from './cell-navigation';
 import {useHostRef} from './useHostRef';
+import {useLayerCovered} from './CoveredLayer';
 
 const nativeHandle = createFocusHandleResolver((host: FocusHost) => findNodeHandle(host as View));
 // R1: a declared edge is real on Android TV. Android drops a next-focus aimed at a region's TVFocusGuideView (the guide
@@ -75,7 +76,9 @@ export const FocusRegion = forwardRef<View, FocusRegionProps>(function FocusRegi
   return parent ? <Region {...props} onFocusChange={onFocusChange} ref={ref}>{children}</Region>
     : <FocusProvider><Region {...props} onFocusChange={onFocusChange} ref={ref}>{children}</Region></FocusProvider>;
 });
-const Region = forwardRef<View, FocusRegionProps>(function Region({id, entry, entryRegion, parent: configuredParent, entryPolicy = 'memory', order, neighbors, screenStart, edges, grid, timeGrid, stops, orientation = 'free', hold = false, enabled = true, onFocusChange, children, testID, ...view}, ref) {
+const Region = forwardRef<View, FocusRegionProps>(function Region({id, entry, entryRegion, parent: configuredParent, entryPolicy = 'memory', order, neighbors, screenStart, edges, grid, timeGrid, stops, orientation = 'free', hold = false, enabled: declared = true, onFocusChange, children, testID, ...view}, ref) {
+  // A region in a layer a route or the player covers takes no focus either (nor do its controls: `Focusable`, `CardFrame`).
+  const layerCovered = useLayerCovered(), enabled = declared && !layerCovered;
   const parent = useContext(RegionContext);
   const registry = useFocusRegistry(), {isTV} = useTheme(), owner = useRef({});
   const onHost = useCallback((host: Guide | null) => {registry.attachRegion(id, host, owner.current);}, [id, registry]);

@@ -44,7 +44,7 @@ async function fixture() {
     findNodeHandle: (host: any) => host.nativeTag,
     AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, useWindowDimensions: () => ({width: 1920, height: 1080})};
   const focus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
-    react, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': registryModule, './useHostRef': hostRefModule,
+    react, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
   });
   // The guide Region must not inherit the injected RegionContext as its own
   // parent; only the standalone Play target needs the spotlight region identity.
@@ -52,7 +52,7 @@ async function fixture() {
   const targetReact = {...React, default: React, createContext: (current: unknown) => {const context = {current}; targetContexts.push(context); return context;},
     useContext: (context: {current: unknown}) => context.current};
   const targetFocus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
-    react: targetReact, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': registryModule, './useHostRef': hostRefModule,
+    react: targetReact, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
   });
   contexts[0].current = registry;
   targetContexts[0].current = registry; targetContexts[1].current = ids.spotlight;

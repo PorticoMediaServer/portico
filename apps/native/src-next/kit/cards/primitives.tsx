@@ -11,7 +11,7 @@ import {Icon, type IconName} from '../Icon';
 import {SelectionHoldFeedback} from '../selection/index';
 import {nativeType, useTheme, type Theme} from '../theme';
 import {useMotion} from '../useMotion';
-import {useCovered, useFocusTarget, useFocusWaiting} from '../focus';
+import {useCovered, useFocusTarget, useFocusWaiting, useLayerCovered} from '../focus';
 import {focusFromTouch, noteTouch} from '../controls/touch-focus';
 import {useInTopLayer} from '../overlays/OverlayHost';
 import {activateCard, cardAccessibilityLabel, cardProgress, holdCard, type CardActions} from './model';
@@ -65,7 +65,7 @@ export type CardFrameProps = CardFrameSurfaceProps & {children: (state: Interact
 
 /** One root TV focus target. Images and secondary affordances never register Menu. */
 export function CardFrame({children, overlay, frame: _frame, title, titleMargin: _titleMargin, caption, detail, accessibilityDetails = [], watched, isNew, playing, progress, primaryAction, onNavigate, onPlay, onMore, selection, width, style, onFocus, onBlur, disabled, accessibilityLabel, testID, focusId, focusable, moreExpanded, pressableStyle, menuAnchorRef, preferredFocus = false, focusScale, ...native}: CardFrameProps) {
-  const theme = useTheme(), motion = useMotion(), covered = useCovered();
+  const theme = useTheme(), motion = useMotion(), covered = useCovered(), layerCovered = useLayerCovered();
   const eligible = !disabled && focusable !== false;
   const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: !eligible, ref: menuAnchorRef, preferred: theme.isTV && preferredFocus, preferredBlocked: covered});
   const [nativeFocused, setFocused] = useState(false), [hovered, setHovered] = useState(false), [pressed, setPressed] = useState(false);
@@ -93,7 +93,7 @@ export function CardFrame({children, overlay, frame: _frame, title, titleMargin:
     [...accessibilityDetails, watched ? defaultI18n.t('card.watched') : undefined, isNew ? defaultI18n.t('next.kit.new') : undefined, playing ? defaultI18n.t('next.kit.session.playing') : undefined]);
   const fraction = cardProgress(progress);
   const frame = <Animated.View style={[{width, flex: pressableStyle ? 1 : undefined}, theme.isTV && style, animated]}>
-    <Pressable {...binding} {...nativePressableProps(native)} ref={binding.ref} style={pressableStyle} testID={binding.testID} disabled={commandDisabled} focusable={eligible} accessibilityRole="button" accessibilityLabel={label}
+    <Pressable {...binding} {...nativePressableProps(native)} ref={binding.ref} style={pressableStyle} testID={binding.testID} disabled={commandDisabled} focusable={eligible && !layerCovered} accessibilityRole="button" accessibilityLabel={label}
       accessibilityValue={waiting ? undefined : native.accessibilityValue ?? (fraction === undefined ? undefined : {min: 0, max: 100, now: Math.round(fraction * 100)})}
       onAccessibilityTap={commandDisabled ? undefined : native.onAccessibilityTap} onMagicTap={commandDisabled ? undefined : native.onMagicTap}
       accessibilityState={{...native.accessibilityState, busy: waiting || native.accessibilityState?.busy, disabled: disabled ?? native.accessibilityState?.disabled, ...(selection?.active ? {selected: selection.selected} : {})}}

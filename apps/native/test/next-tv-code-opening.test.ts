@@ -639,7 +639,7 @@ test('FX213 real Retry Button/Focusable/registry retains its entry host through 
     const native = {Platform: {OS: 'android', isTV: true}, View: 'View', Text: 'Text', Pressable: 'Pressable', ActivityIndicator: 'Spinner',
       TVFocusGuideView: 'Guide', findNodeHandle: (host: any) => host.nativeTag, StyleSheet: {create: (value: any) => value, flatten, absoluteFill: {position: 'absolute'}}};
     const focus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
-      react: controlled, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': focusRegistry, './useHostRef': hostRef,
+      react: controlled, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': focusRegistry, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRef,
     });
     const paint = await screenModule(new URL('../src-next/kit/overlays/OverlayPaintContext.tsx', import.meta.url), {react: controlled});
     const actualRegion = presenter.region().props;
@@ -648,7 +648,7 @@ test('FX213 real Retry Button/Focusable/registry retains its entry host through 
     registry.configure({id: actualRegion.id, entry: actualRegion.entry, order: actualRegion.order, enabled: actualRegion.enabled});
     const observation = {useNativeObservation: (_: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus() {}, recordDeclaredStyle() {}})};
     const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
-      react: controlled, 'react-native': native, '@portico/design': {focusSpec}, '../theme': {useTheme: () => theme}, '../focus': {...focus, useCovered: () => false},
+      react: controlled, 'react-native': native, '@portico/design': {focusSpec}, '../theme': {useTheme: () => theme}, '../focus': {...focus, useCovered: () => false, useLayerCovered: () => false},
       '../useMotion': {useMotion: () => ({transforms: false, reduce: true, timing: () => ({})})}, './control-model': controlModel,
       './useFocusedMenu': {useFocusedMenu() {}}, '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': paint, '../dev-observation': observation,
       'react-native-reanimated': {default: {View: 'AnimatedView', createAnimatedComponent: (component: any) => component}, useAnimatedStyle: (fn: () => any) => fn(), useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: number) => value},

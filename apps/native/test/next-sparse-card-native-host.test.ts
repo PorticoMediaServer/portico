@@ -27,7 +27,7 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
     useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: number) => value};
   const hostRefs = await screenModule(new URL('../src-next/kit/focus/useHostRef.ts', import.meta.url), {react});
   const focus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
-    react, 'react-native': nativeModule, '../theme': {useTheme: () => theme}, './registry': registryModule, './useHostRef': hostRefs,
+    react, 'react-native': nativeModule, '../theme': {useTheme: () => theme}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefs,
   });
   const primitives = await screenModule(new URL('../src-next/kit/cards/primitives.tsx', import.meta.url), {
     react, 'react-native': nativeModule, 'react-native-reanimated': animated,
@@ -39,7 +39,7 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
     '../../platform/menu-key': {registerFocusedMenu: (_owner: unknown, callback: () => void) => {menus.push(callback); return () => {}; }},
     '../Icon': {Icon: 'RCTIcon'}, '../selection/index': {SelectionHoldFeedback: 'RCTSelection'},
     '../theme': {nativeType, useTheme: () => theme}, '../useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
-    '../focus': {...focus, useCovered: () => false}, './model': cardModel,
+    '../focus': {...focus, useCovered: () => false, useLayerCovered: () => false}, './model': cardModel,
   });
   const sparse = await screenModule(new URL('../src-next/kit/cards/TVSparseCardFrame.tsx', import.meta.url), {react, './primitives': primitives});
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
