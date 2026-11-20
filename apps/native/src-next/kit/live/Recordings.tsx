@@ -1,5 +1,5 @@
-import React, {type ReactNode, type ComponentProps, type Ref} from 'react';
-import {FlatList, Text, View} from 'react-native';
+import React, {useState, type ReactNode, type ComponentProps, type Ref} from 'react';
+import {FlatList, Text, View, type ListRenderItemInfo} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {titleTintHue} from '../../../../../packages/client-core/src/presentation/title-page';
 import type {RecordingGroups} from '../../../../../packages/client-core/src/dvr';
@@ -149,14 +149,18 @@ export function recordingGridColumns({width, isTV}: Pick<Theme, 'width' | 'isTV'
   return isTV ? grid.tv : width >= grid.wideMin ? grid.tablet : grid.phone;
 }
 
-export function RecordingList<Row>({listRef, columns, lead, fade, ...list}: ComponentProps<typeof FlatList<Row>> & {
+export function RecordingList<Row>({listRef, columns, lead, fade, renderItem, ...list}: Omit<ComponentProps<typeof FlatList<Row>>, 'renderItem'> & {
   listRef?: Ref<FlatList<Row>>; columns?: number; lead?: ReactNode; fade?: boolean;
+  renderItem: (info: ListRenderItemInfo<Row>, cardWidth: number) => ReactNode;
 }) {
   const theme = useTheme(), gap = theme.space.sm;
-  return <View style={{flex: 1}}>
+  const [width, setWidth] = useState(0);
+  const measureGrid = !theme.isTV && columns !== undefined;
+  const cardWidth = theme.isTV ? 385 : columns ? Math.max(1, (width - (columns - 1) * gap) / columns) : 0;
+  return <View style={{flex: 1}} onLayout={measureGrid ? event => setWidth(event.nativeEvent.layout.width) : undefined}>
     {lead}
-    <FlatList {...list} ref={listRef} numColumns={columns} columnWrapperStyle={columns && columns > 1 ? {gap} : undefined}
-      contentContainerStyle={{gap, paddingBottom: theme.space.xl}}/>
+    {(!measureGrid || width > 0) && <FlatList {...list} ref={listRef} numColumns={columns} columnWrapperStyle={columns && columns > 1 ? {gap} : undefined}
+      renderItem={info => renderItem(info, cardWidth)} contentContainerStyle={{gap, paddingBottom: theme.space.xl}}/>}
     {fade && <ListEdgeFade edge="bottom" length={theme.targets.touch} opacity={0.94}/>}
   </View>;
 }
@@ -210,10 +214,8 @@ function ProgrammeArt({title, seed, image, runtime, width}: {title: string; seed
   const source = image && runtime?.artwork(image), hue = titleTintHue(seed);
   return <View style={{width, aspectRatio: 16 / 9, backgroundColor: `hsl(${hue}, 32%, 22%)`, borderRadius: 12, overflow: 'hidden'}}><GeneratedArt glyph={(Array.from(title.trim())[0] ?? '').toLocaleUpperCase(defaultI18n.locale)} palette={{first: `hsl(${hue}, 40%, 32%)`, second: `hsl(${hue}, 30%, 12%)`}}/>{source && <Artwork source={source}/>}</View>;
 }
-export function RecordingCard({value, runtime, columns, onOpen, onFocus, onBlur}: {value: Group; columns: number; runtime: NativeShellRuntime; onOpen: () => void; onFocus: () => void; onBlur: () => void}) {
+export function RecordingCard({value, runtime, width, onOpen, onFocus, onBlur}: {value: Group; width: number; runtime: NativeShellRuntime; onOpen: () => void; onFocus: () => void; onBlur: () => void}) {
   const theme = useTheme(), t = defaultI18n.t, recording = value.recording;
-  const frame = useFrameMetrics();
-  const width = theme.isTV ? 385 : Math.max(1, (frame.width - 2 * frame.gutter - (columns - 1) * theme.space.sm) / columns);
   const status = [value.kept > 0 ? t('recordings.kept') : undefined, value.exceptions > 0 ? t('web.dvr.state.incomplete') : undefined];
   return <Focusable onFocus={onFocus} onBlur={onBlur} focusId={value.key} testID={`recordings-group-${value.key}`} focusKind="card"
     onPress={onOpen} style={{width, gap: theme.space.xs}}>
