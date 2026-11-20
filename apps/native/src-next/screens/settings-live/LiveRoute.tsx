@@ -7,7 +7,7 @@ import {NativeLiveController} from './live-controller';
 import {nativeGuideMemory} from './guide-memory';
 import {nativeScreenServices} from '../native-screen-services';
 import {createNativeRecordingsController} from './recordings-controller';
-import {NativeLiveScreen} from './LiveScreen';
+import {GuidePage} from '../../pages/shared/live/GuidePage';
 import {NativeLiveOwnerController} from './live-owner-controller';
 import {withGuardedRaw} from '../../../../../packages/client-core/src/home-selection/list-destinations';
 import {nativeSettingsRequestId} from './settings-ports';
@@ -26,7 +26,7 @@ export function createNativeLiveRenderer(context: NativeShellBootstrapContext): 
     render: (route, runtime) => {
       lifetime.assert();
       if (route.kind !== 'shell' || route.destination.kind !== 'live') throw new Error('native_live_route_mismatch');
-      return <NativeLiveScreen ports={{context, dvrRequestId, requestId: nativeSettingsRequestId}} controller={controller} recordings={recordings} owner={owner} runtime={runtime}/>;
+      return <GuidePage ports={{context, dvrRequestId, requestId: nativeSettingsRequestId}} controller={controller} recordings={recordings} owner={owner} runtime={runtime}/>;
     },
     dispose: () => {releaseWatch(); owner.dispose(); controller.dispose(); recordings.dispose(); lifetime.dispose();},
   };

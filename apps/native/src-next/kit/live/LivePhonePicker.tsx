@@ -1,10 +1,9 @@
 import React, {useRef, useState} from 'react';
 import {Text, View, type StyleProp, type ViewStyle} from 'react-native';
-import {Focusable} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {Menu, type MenuAction} from '../../kit/overlays';
-import {shellType} from '../../kit/shell/visual';
-import {useTheme} from '../../kit/theme';
+import {Focusable} from '../controls';
+import {Icon} from '../Icon';
+import {Menu, type MenuAction} from '../overlays';
+import {useTheme} from '../theme';
 
 /** phone-guide's inline controls retain their genuine native opener and use the
  * existing anchored menu. No settings, source or remembered-view store lives here. */
@@ -28,12 +27,12 @@ export function NativeLivePhonePicker({value, options, onChange, children, acces
     <Focusable ref={anchor} testID={testID} accessibilityRole="combobox" accessibilityLabel={accessibilityLabel}
       accessibilityState={{expanded: open, disabled}} accessibilityValue={typeof selectedLabel === 'string' ? {text: selectedLabel} : undefined} disabled={disabled} onPress={() => setOpen(true)}
       style={[{height: 32, flexDirection: 'row', alignItems: 'center', gap: 4, opacity: disabled ? .45 : 1}, style]}>
-      {typeof children === 'string' ? <Text numberOfLines={1} style={[shellType(13.5, 700), {color: secondary ? theme.colors.textSecondary : theme.colors.text}]}>{children}</Text> : children}
+      {typeof children === 'string' ? <Text style={[theme.type.rowLabel, {color: secondary ? theme.colors.textSecondary : theme.colors.text}]}>{children}</Text> : children}
       <Icon name="i-down" size={15} color={theme.colors.textTertiary}/>
     </Focusable>
     <Menu testID={`${testID}-menu`} open={open} onOpenChange={setOpen} anchorRef={anchor} returnFocusRef={anchor}
       title={accessibilityLabel} accessibilityLabel={accessibilityLabel} presentation="anchored" placement={placement}
-      footer={note ? <Text style={[shellType(12.5), {color: theme.colors.textTertiary}]}>{note}</Text> : undefined}
+      footer={note ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{note}</Text> : undefined}
       width={menuWidth} initialFocusId={value} items={options.map(option => ({...option, selected: option.selected ?? option.id === value, onSelect: () => onChange(option.id)}))}/>
   </>;
 }

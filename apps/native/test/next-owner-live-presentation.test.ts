@@ -2,11 +2,12 @@ import * as guideRangeModel from '../../../packages/client-core/src/guide/range'
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
-import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
+import {liveGuideModule, liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
+import * as guidePresentation from '../src-next/screens/settings-live/guide-presentation.ts';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus.ts';
 import {createTheme} from '../src-next/kit/theme.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.list)] : [];
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.list), ...nodes(tree.props?.overlay), ...nodes(tree.props?.toolbar)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 const colors = new Proxy({}, {get: (_target, key) => String(key)});
 const theme = {isTV: false, width: 1180, platform: 'web', colors};
@@ -95,10 +96,10 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
   const runtime = {text: {t}, subscribe: () => () => {}, getSnapshot: () => shell, artwork: () => undefined, error: () => ({title: 'Error'})};
   const context = {account: {account: {role: facts.role ?? 'owner', primaryProfileId: 'profile'}, canManage: true}, api: {baseUrl: 'https://example.invalid'}, current: () => true, authority: () => authority,
     navigation: {subscribe: () => () => {}, getSnapshot: () => ({revision: 1, route: top, destination: {kind: 'live'}}), isCurrent: () => true}};
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {'../../pages/touch/live/GuidePage': {GuidePage: 'GuidePage'}, '../../pages/tv/live/GuidePage': {TVGuidePage: 'GuidePage'}, ...liveTabsFixture(host.react), ...ownerTagFixture, '../../kit/navigation/rail-hold': {useRailHold: (active: boolean) => {holds.push(active);}}, './tv-settings-focus': tvSettingsFocus,
+  const modules: Record<string, any> = {'../../pages/touch/live/GuidePage': {GuidePage: 'GuidePage'}, '../../pages/tv/live/GuidePage': {TVGuidePage: 'GuidePage'}, ...liveTabsFixture(host.react), ...ownerTagFixture, '../../kit/navigation/rail-hold': {useRailHold: (active: boolean) => {holds.push(active);}}, './tv-settings-focus': tvSettingsFocus,
     react, 'react-native': {...native, BackHandler: {}, FlatList: 'FlatList', ScrollView: 'ScrollView', VirtualizedList: 'VirtualizedList', Platform: {OS: 'web'}, useWindowDimensions: () => ({width, height: 900})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
-    'react-native-gesture-handler': {GestureDetector: 'GestureDetector'}, 'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: () => ({})},
+    'react-native-gesture-handler': {GestureDetector: 'GestureDetector'}, 'react-native-reanimated': {useDerivedValue: (fn: () => unknown) => ({value: fn()}), default: {View: 'AnimatedView'}, useAnimatedStyle: () => ({})},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Pattern: 'Pattern', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/client-core/src/dvr': {defaultRecordingOptions: {}},
     '../../../../../packages/client-core/src/channel-guide': {dayPrimeTime: (value: number) => value},
@@ -108,17 +109,30 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select'},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({attachedFocus: () => undefined})},
     '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog', Menu: 'Menu', ToastHost: 'ToastHost'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', ChannelMark: 'ChannelMark'}, '../../kit/Icon': {Icon: 'Icon'},
-    './GuideLoadingMarker': {GuideLoadingMarker: 'GuideLoadingMarker'}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell/visual': visual, '../../kit/theme': {useTheme: () => viewTheme, fontFamilies: {700: 'Manrope-Bold'}},
+    '../../kit/live/NativeGuideRow': {LiveRow: 'LiveRow', GuideChannelArt: 'GuideChannelArt'}, '../../kit/live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../../kit/live/GuideRuler': {GuideRuler: 'GuideRuler'}, '../../kit/live/Guide': {guideSpec: {ruler: 36, nowPill: 120}}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell/visual': visual, '../../kit/theme': {useTheme: () => viewTheme, fontFamilies: {700: 'Manrope-Bold'}},
     '../../kit/useScreenReader': {useScreenReader: () => screenReader}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity() {}},
     '../../shell/model': {sameAuthority: () => true, shellLayout: () => ({kind: width < 600 ? 'phone' : 'expanded'})}, '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})},
     './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack() {}, useScreenEntry() {}}, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'},
     '../../tv/layout/guide-focus': {}, '../destinations/useTVPageBack': {useTVPageBack() {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
-    './guide-presentation': {nativeGuideClock: () => () => '12:00', nativeGuideDate: () => () => 'Today', nativeGuideRegion: () => ({locale: 'en-US', hour12: false}), nativeGuideNext: () => undefined},
+    './guide-presentation': {...guidePresentation, nativeGuideClock: () => () => '12:00', nativeGuideDate: () => () => 'Today', nativeGuideRegion: () => ({locale: 'en-US', hour12: false}), nativeGuideNext: () => undefined},
     './useGuideTimePan': {useGuideTimePan: (options: any) => {panOptions = options; return {active: true, position: {value: 0}, adjust: (delta: number) => adjustments.push(delta)};}},
     '../../../../../packages/client-core/src/presentation/live-availability': await import('../../../packages/client-core/src/presentation/live-availability.ts'), './guide-pan-model': {nativeGuidePanRange: () => ({first: 0, last: Number.MAX_SAFE_INTEGER})}, './LivePhonePicker': {NativeLivePhonePicker: 'Picker'}, './LiveOwnerScreen': {NativeLiveOwnerScreen: 'Owner'}, './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'},
     '../../tv/auth': {TVManagementHandoff: 'Handoff'}, '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (url: string) => ({url})}, './recording-rule-presentation': {}, './server/tv-server-reader': {nativeServerAdmission: () => 'owner'},
+  };
+  modules['../../kit/live/NativeGuideRow'] = await screenModule(new URL('../src-next/kit/live/NativeGuideRow.tsx', import.meta.url), {
+    ...modules, '../artwork': modules['../../kit/artwork'], '../controls': modules['../../kit/controls'],
+    '../focus': modules['../../kit/focus'], '../Icon': modules['../../kit/Icon'], '../shell/visual': visual, '../theme': modules['../../kit/theme'],
+    './GuideLoadingMarker': {GuideLoadingMarker: 'GuideLoadingMarker'}, './GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    './ProgrammeDetails': {ProgrammeFlags: 'ProgrammeFlags'}, '../../screens/settings-live/Screen': modules['./Screen'],
+    '../../screens/settings-live/guide-pan-model': modules['./guide-pan-model'], '../../screens/settings-live/guide-presentation': modules['./guide-presentation'],
+    '../../screens/settings-live/tv-settings-focus': tvSettingsFocus, '../../tv/layout/guide-focus': {},
   });
-  const render = () => host.render(() => NativeLiveScreen({controller, recordings: {subscribe: () => () => {}, getSnapshot: () => ({}), loadSummary: async () => {}}, owner: {}, ports: {context}, runtime}));
+  const {NativeLiveScreen} = await liveGuideModule(modules, true);
+  const parts = new Set(['GuideViewport', 'GuideNotices', 'NativeGuideGrid', 'ProgrammePanel', 'ProgrammeButton']);
+  const draw = (value: any): any => Array.isArray(value) ? value.map(draw) : value && typeof value === 'object' && value.props
+    ? parts.has(value.type?.name) ? draw(value.type(value.props)) : {...value, props: {...value.props, children: draw(value.props.children),
+      list: draw(value.props.list), overlay: draw(value.props.overlay), toolbar: draw(value.props.toolbar)}} : value;
+  const render = () => host.render(() => draw(NativeLiveScreen({controller, recordings: {subscribe: () => () => {}, getSnapshot: () => ({}), loadSummary: async () => {}}, owner: {}, ports: {context}, runtime})));
   return {render, adjustments, holds, shell, push: (route: any) => {top = route;}, channel, programme, renderRow: (row: any) => {activeHost = fixture(); try {return activeHost.render(() => row.type(row.props));} finally {activeHost = host;}}, get panOptions() {return panOptions;}};
 }
 

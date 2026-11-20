@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {React, fabricHost} from './helpers/fabric-host.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
+import {liveGuideModule, liveTabsFixture, ownerTagFixture, recordingsPageModule} from './helpers/live-fixtures.mjs';
 import {defaultI18n, catalogue, enUS} from '../../../packages/i18n/src';
 import * as dvr from '../../../packages/client-core/src/dvr';
 import * as channels from '../../../packages/client-core/src/channel-guide';
@@ -61,7 +61,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
   const context: any = {api: {baseUrl: origin}, account, authority: () => authority,
     current: () => current, navigation: {subscribe: listen, getSnapshot: () => {if (disposed) {disposedReads++; throw new Error('native_shell_cancelled');} return route;}, isCurrent: () => current}};
   const runtime: any = {retirementSignal: retirement.signal, subscribe: listen, getSnapshot: () => {if (disposed) {disposedReads++; throw new Error('native_shell_cancelled');} return shell;}, text: {t: defaultI18n.t, locale: 'en-US'},
-    error: (_: unknown, retry: () => void) => ({title: 'Unavailable', primaryAction: {id: 'retry', label: 'Retry', onPress: retry}}), reportError: (error: unknown) => {throw error;}, onDestination: noop};
+    error: (_: unknown, retry: () => void) => ({title: 'Unavailable', primaryAction: {id: 'retry', label: 'Retry', onPress: retry}}), reportError: (error: unknown) => {throw error;}, onDestination: noop, artwork: () => undefined};
   const useScreenBack = (_: unknown, fn: () => boolean, enabled: boolean) => React.useEffect(() => {if (enabled) {backs.add(fn); return () => {backs.delete(fn);};}}, [fn, enabled]);
   const pageBack = {enabled: false, page: undefined as any}, entries: any[] = [];
   const native = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', FlatList: 'FlatList', VirtualizedList: 'VirtualizedList', Platform: {OS: 'android'},
@@ -81,8 +81,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
     '../../kit/controls': controls, '../../kit/focus': focus, '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog', Menu: 'Menu', ToastHost: 'ToastHost'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {Quiet: ({children}: any) => children, StateView: (props: any) => jsx('StateView', props)}, '../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
     '../../kit/theme': {useTheme: () => theme}, '../../shell/tv-focus': {tvFocusIds}, './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack, useScreenEntry: () => noop}, './recording-rule-presentation': rules};
-  const recordingModule = await screenModule(new URL('../src-next/screens/settings-live/RecordingsScreen.tsx', import.meta.url), {'../../kit/live/Recordings': {RecordingStorageSummary: 'RecordingStorageSummary'},
-    '../../pages/touch/live/RecordingsPage': {RecordingsPage: ({back, list, overlay}: any) => React.createElement('RecordingsPage', null, jsx('Button', back), list, overlay)}, '../../pages/tv/live/RecordingsPage': {TVRecordingsPage: ({facts, tabs, list, overlay}: any) => React.createElement('TVRecordingsPage', null, facts, tabs, list, overlay)}, ...common, ...liveTabsFixture(React),
+  const recordingModule = await recordingsPageModule({...common, ...liveTabsFixture(React),
     '../../../../../packages/client-core/src/presentation/title-page': titlePage, '../../../../../packages/client-core/src/media-item': mediaItem, '../../../../../packages/client-core/src/library-content': content, '../../../../../packages/contracts/src/routes': routes,
     './recording-overlap-window': overlap, '../home/entry-lifetime': entryLifetime, './LiveRecordingOwner': {NewRuleSheet: (props: any) => {editors.push(`new-rule:${props.open}`); return jsx('NewRuleEditor', props);}},
   });
@@ -102,12 +101,11 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
   const recordings: any = realRecordings ? new NativeRecordingsController(lifetime, realService) : fakeRecordings;
   let activeOpening: object | undefined;
   if (realRecordings) {const begin = recordings.beginViewerOpening; recordings.beginViewerOpening = (opening: object) => {activeOpening = opening; begin(opening);};}
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {'../../pages/touch/live/GuidePage': {GuidePage: ({actions, tabs, toolbar, list, overlay}: any) => React.createElement('GuidePage', null, actions, tabs, toolbar, list, overlay)}, '../../pages/tv/live/GuidePage': {TVGuidePage: ({actions, tabs, toolbar, list, overlay}: any) => React.createElement('GuidePage', null, actions, tabs, toolbar, list, overlay)}, ...common, ...liveTabsFixture(React), ...ownerTagFixture,
+  const {NativeLiveScreen} = await liveGuideModule({...common, ...liveTabsFixture(React), ...ownerTagFixture,
     './tv-settings-focus': tvSettingsFocus,
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 'react-native-gesture-handler': {GestureDetector: 'GestureDetector'},
-    'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
-    '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': directory, './GuideLoadingMarker': {GuideLoadingMarker: 'Loading'},
-    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity() {}}, '../../shell/model': shellModel, './RecordingsScreen': recordingModule, '../../tv/layout/guide-focus': {},
+    'react-native-reanimated': {useDerivedValue: (fn: () => unknown) => ({value: fn()}), default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
+    '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': directory, '../../kit/live/NativeGuideRow': {LiveRow: 'LiveRow', GuideChannelArt: 'GuideChannelArt'}, '../../kit/live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../../kit/live/GuideRuler': {GuideRuler: 'GuideRuler'}, '../../kit/live/Guide': {guideSpec: {ruler: 36, nowPill: 120}}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity() {}}, '../../shell/model': shellModel, './RecordingsScreen': recordingModule, '../../tv/layout/guide-focus': {},
     '../destinations/useTVPageBack': {useTVPageBack: (_r: unknown, _d: unknown, enabled: boolean, page: any) => {pageBack.enabled = enabled; pageBack.page = page;}},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
@@ -229,7 +227,7 @@ test('TV Recordings uses its original viewer window for tail events and keeps FX
     list.props.onScrollBeginDrag(); list.props.onEndReached(); assert.deepEqual(f.viewerCalls, [original]);
     assert.ok(f.find('recordings-page-next')); assert.equal(f.editors.some(value => value.startsWith('new-rule:')), false);
     const rendered = list.props.renderItem({item: {kind: 'recording', recording: row}, index: 0});
-    const saved = rendered.props.onOpen;
+    const saved = rendered.props.onPress;
     f.publishRecordingState({...f.recordingState, viewerWindow: {...original, scope: {}, generation: 2}}); await f.recordings();
     saved(); await f.host.settle(); assert.equal(f.find('recordings-details'), undefined, 'a stale row cannot open a successor');
   } finally {await f.close();}
@@ -245,7 +243,7 @@ for (const change of ['route', 'query', 'revision', 'normal-close'] as const) te
     f.context.api.request = () => {reads++; return new Promise(resolve => {finish = resolve;});};
     f.context.playback = {start: async () => {plays++;}};
     await f.recordings(); const list = f.all().find(node => node.type === 'FlatList')!;
-    const rendered = list.props.renderItem({item: {kind: 'recording', recording: row}, index: 0}); rendered.props.onMenu(); await f.host.settle();
+    const rendered = list.props.renderItem({item: {kind: 'recording', recording: row}, index: 0}); rendered.props.focus.onLongPressAction(); await f.host.settle();
     const menu = f.find('recordings-menu'); assert.ok(menu); const play = menu.props.items.find((item: any) => item.id === 'play'); assert.ok(play); play.onSelect(); assert.equal(reads, 1);
     menu.props.onOpenChange(false, 'action'); await f.host.settle();
     if (change === 'route') await f.replace('route');
@@ -269,10 +267,14 @@ for (const kind of ['recording', 'group', 'rule'] as const) test(`old drawn ${ki
     f.recordingState.groups = kind === 'group' ? {groups: [group]} : undefined; f.recordingState.viewerWindow = original;
     await f.recordings(); let list = f.all().find(node => node.type === 'FlatList')!;
     const args = {item: kind === 'recording' ? {kind: 'recording', recording} : item, index: 0};
-    const old = list.props.renderItem(args).props.onOpen; await f.replace('route');
+    const openRow = () => {
+      const props = list.props.renderItem(args).props;
+      return props.onPress ?? props.onOpen;
+    };
+    const old = openRow(); await f.replace('route');
     const before = f.viewerLoads.length; old(); await f.host.settle(); assert.equal(f.viewerLoads.length, before);
     assert.equal(f.find('recordings-details'), undefined); assert.equal(f.find('recordings-rule-editor'), undefined);
-    list = f.all().find(node => node.type === 'FlatList')!; list.props.renderItem(args).props.onOpen(); await f.host.settle();
+    list = f.all().find(node => node.type === 'FlatList')!; openRow()(); await f.host.settle();
     if (kind === 'group') assert.equal(f.viewerLoads.length, before + 1);
     if (kind === 'recording') assert.ok(f.find('recordings-details'));
     if (kind === 'rule') assert.ok(f.find('recordings-rule-editor'));
@@ -289,7 +291,7 @@ test('same recording detail reopen retires the old opening and follows the fresh
     f.recordingsController.detail = (_id: string, cursor?: string) => new Promise(resolve => {reads.push({cursor, resolve});});
     const detail = (nextOverlap: string, id: string) => ({recording: row, capacity: {known: true, effective: 1}, overlaps: [{id, title: id, start: '2026-10-21T12:00:00Z', end: '2026-10-21T13:00:00Z', priority: 1, state: 'scheduled'}], nextOverlap});
     await f.recordings(); const list = f.all().find(node => node.type === 'FlatList')!;
-    const open = list.props.renderItem({item: {kind: 'recording', recording: row}, index: 0}).props.onOpen;
+    const open = list.props.renderItem({item: {kind: 'recording', recording: row}, index: 0}).props.action.onPress;
     open(); await f.host.settle(); assert.equal(reads.length, 1); reads[0].resolve(detail('p2', 'old')); await f.host.settle();
     const oldDialog = f.find('recordings-details'), oldMore = f.find('recordings-overlap-next'); assert.ok(oldDialog); assert.ok(oldMore);
     oldMore.props.onPress(); await f.host.settle(); assert.equal(reads[1].cursor, 'p2');
@@ -312,7 +314,7 @@ for (const change of ['route', 'query', 'revision', 'normal-close'] as const) te
     let caller: any, finish!: () => void, starts = 0;
     f.context.playback = {start: (input: any) => {starts++; caller = input.lifetime; return new Promise<void>(resolve => {finish = resolve;});}};
     await f.recordings(); const list = f.all().find(node => node.type === 'FlatList')!;
-    list.props.renderItem({item: {kind: 'recording', recording: row}, index: 0}).props.onMenu(); await f.host.settle();
+    list.props.renderItem({item: {kind: 'recording', recording: row}, index: 0}).props.focus.onLongPressAction(); await f.host.settle();
     const menu = f.find('recordings-menu'); menu.props.items.find((item: any) => item.id === 'play').onSelect(); menu.props.onOpenChange(false, 'action'); await f.host.settle();
     assert.equal(starts, 1); assert.equal(caller.isCurrent(), true);
     if (change === 'route') await f.replace('route');
