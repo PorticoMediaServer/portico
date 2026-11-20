@@ -1,4 +1,5 @@
 import {useNativeStackHosted} from '../../kit/navigation/stack-slot';
+import {Layer} from '../../kit/shell/Layer';
 import {CoveredLayer} from '../../kit/focus/CoveredLayer';
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {NativeModules, View, useWindowDimensions} from 'react-native';
@@ -89,7 +90,9 @@ export function NativeReadingGuestHost({owner, active, preferences, onBack, onSe
   useLayoutEffect(() => {reader.current?.setCrease(crease ? {left: crease.left, right: crease.right} : undefined);}, [crease, state.reader]);
   const failure = () => {if (!state.reader || reader.current !== state.reader) return; setState({failed: true}); disposeGuest.current?.();};
   return <CoveredLayer covered={!active}
-    style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: active || stacked ? 1 : 0}}>
+    style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
+    {/* A full-window layer over the shell: the one backdrop under the reading view, its wait and its failure page. */}
+    <Layer>
     {state.failed ? <StateView variant="centered" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')}
       primaryAction={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || !owner.current(), onPress: retryOriginal}}/>
       : <LoadingPaint ready={!!state.url} immediate={!!state.url} skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}>
@@ -102,5 +105,6 @@ export function NativeReadingGuestHost({owner, active, preferences, onBack, onSe
         onPress={() => {if (callbacks.current.active) onBack();}}
         style={{height: dimensions.width >= 700 ? 44 : 38, width: dimensions.width >= 700 ? 44 : 38, paddingHorizontal: 0}}/>
     </View> : null}
+  </Layer>
   </CoveredLayer>;
 }

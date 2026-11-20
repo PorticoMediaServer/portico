@@ -1,4 +1,5 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
+import {Layer} from '../../kit/shell/Layer';
 import {CoveredLayer} from '../../kit/focus/CoveredLayer';
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, View, useWindowDimensions} from 'react-native';
@@ -12,7 +13,6 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute, NativePresentationBinding} from '../../shell/routes';
 import {LoadingPaint, StateView, SkeletonBlock} from '../../kit/states';
 import {Button} from '../../kit/controls/Button';
-import {useTheme} from '../../kit/theme';
 import {NativeReadingGuestHost} from './NativeReadingGuestHost';
 import {closeReadingResource, createReadingSessionOwner} from './reading-session-owner';
 import {NativeAnnotationJournal, nativeAnnotationIdentity, nativeAnnotationLeaseOf, type NativeAnnotationFormat} from './annotation-journal';
@@ -29,7 +29,7 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
   context: NativeShellBootstrapContext; target: Target; active: boolean; preferences: Readonly<{getSnapshot: () => PreferenceSnapshot; subscribe: (listener: () => void) => () => void}>;
   onBack: () => void; onOpenSettings: () => void; resident?: boolean; binding?: NativePresentationBinding; onGuestState?: (mounted: boolean, incarnation: object) => void;
 }) {
-  const theme = useTheme(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
+  const dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
   const place = useNativeStackPlacement(target), stacked = useNativeStackHosted();
   const callbacks = useRef({active, onBack, onOpenSettings}); callbacks.current = {active, onBack, onOpenSettings};
   const [retry, setRetry] = useState(0);
@@ -152,7 +152,9 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
   // RD-5: the server refuses a book too large to read (422, retry never): say so plainly, no Try again.
   const tooLarge = failed && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_publication_too_large';
   return place(<CoveredLayer covered={!active}
-    style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, opacity: active || stacked ? 1 : 0}}>
+    style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
+    {/* A full-window layer over the shell: the one backdrop under the reading view, its wait and its failure page. */}
+    <Layer>
     {ended ? <StateView variant="centered" title={defaultI18n.t('next.reader.sessionEndedTitle')} body={defaultI18n.t('next.reader.sessionEndedBody')}
       primaryAction={{id: 'reopen', label: defaultI18n.t('next.reader.openAgain'), disabled: !active || !context.current(), onPress: reopenEnded}}/>
       : tooLarge ? <StateView variant="centered" title={defaultI18n.t('next.reader.publicationTooLargeTitle')} body={defaultI18n.t('next.reader.publicationTooLargeBody')}/>
@@ -164,5 +166,6 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
         focusRadius={dimensions.width >= 700 ? 22 : 19} onPress={() => {if (callbacks.current.active) onBack();}}
         style={{height: dimensions.width >= 700 ? 44 : 38, width: dimensions.width >= 700 ? 44 : 38, paddingHorizontal: 0}}/>
     </View>
+  </Layer>
   </CoveredLayer>);
 }
