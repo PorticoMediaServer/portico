@@ -176,7 +176,8 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
       <Text accessibilityRole="header" style={[theme.type.title, {color: theme.colors.text, includeFontPadding: false}]}>{title}</Text>
       <Text style={[theme.type.intro, {color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily}]}>{byline?.[0] ?? ' '}</Text>
     </>}</View>
-    {favourite && !loading && <Glyph item={favourite} loading={loading} size={icons.inlineIcon[form]}/>}
+    {/* The heart's place is held while it loads, so the title doesn't rewrap and move everything under it when the heart arrives. */}
+    {favourite && !loading ? <Glyph item={favourite} loading={loading} size={icons.inlineIcon[form]}/> : <View style={{width: theme.spec.button.height.sm[theme.column]}}/>}
   </View>;
   const nextLine = <View style={{minHeight: spec.nextLine[form], justifyContent: 'center'}}>{upcoming && !loading && <Text style={[theme.type.rowHelp, {textAlign: 'center', color: theme.colors.textTertiary}]}>
     {upcoming.label}  <Text style={{color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}}>{upcoming.title}</Text></Text>}</View>;
