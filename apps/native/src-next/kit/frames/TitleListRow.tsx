@@ -13,6 +13,12 @@ import {fontFamilies, textLine, useTheme} from '../theme';
 import {PanelBlock, PanelHeading} from './title-parts';
 
 const row = frameSpec.hero.title.parts.listRow;
+/** The picture's width: a phone's list size (phone-detail d3 frame 8), a tablet's the numbered list's (desktop-detail f8, 106);
+ * a square cover (a book) the same width as a tablet's poster. TV keeps the phone's sizes it had. */
+export function titleListArt(theme: ReturnType<typeof useTheme>, square?: boolean): number {
+  const tablet = theme.form === 'medium' || theme.form === 'expanded';
+  return tablet ? frameSpec.hero.title.parts.numberedArt[theme.form] : square ? row.square : row.poster;
+}
 
 /** A row's height, the stride a list of them is windowed at: the taller of its poster and its words with the title on two
  * lines (a long title wraps; it is never cut), the facts line and the Watched / time-left line, and room above and below. */
@@ -20,7 +26,7 @@ export function titleListRowHeight(theme: ReturnType<typeof useTheme>, kicker = 
   const help = textLine(theme.type.rowHelp);
   // A row with a kicker (a book's place in its series) has one more line, and one more gap, over its title.
   const words = (kicker ? help + theme.space.hairline * 2 : 0) + 2 * textLine(theme.type.episodeTitle) + help + theme.space.tight + Math.max(row.check, help) + 2 * theme.space.hairline * 2;
-  return Math.max(row.poster * 1.5, words) + 2 * theme.space.tight;
+  return Math.max(titleListArt(theme) * 1.5, words) + 2 * theme.space.tight;
 }
 
 /** One title in a phone's list of titles: what the page knows about it, never how big it is. */
@@ -43,7 +49,7 @@ export type TitleListItem = Readonly<{title: string;
   onMore?: (anchor: React.RefObject<View | null>) => void;
   selection?: CardSelection; testID?: string}>;
 
-/** A title in a phone's list (phone-detail d3 frame 8, a collection's films): its poster, title, year and length, then
+/** A title in a list (phone-detail d3 frame 8, a collection's films; larger on a tablet, desktop-detail f8): its poster, title, year and length, then
  * Watched or how far in, and its ⋯ menu. Moved from the old collection screen's row (`CollectionRow`). */
 /** `kickerRoom`: the row is as tall as one with a kicker, so a list whose rows may carry one keeps one stride. */
 export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item: TitleListItem; kickerRoom?: boolean}>) {
@@ -54,7 +60,7 @@ export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item:
     selection={item.selection} style={{flex: 1}} pressableStyle={{flex: 1, flexDirection: 'row', alignItems: 'center', gap: row.gap}}>
     {() => <>
       {item.selection?.active && <SelectionCircle selected={item.selection.selected} selecting interactive={false} variant="row" size={theme.space.md} accessibilityLabel={t('card.select', {title: item.title})}/>}
-      <Artwork source={item.artwork} width={item.square ? row.square : row.poster} height={item.square ? row.square : row.poster * 1.5} style={{borderRadius: theme.radii.artwork}}/>
+      <Artwork source={item.artwork} width={titleListArt(theme, item.square)} height={item.square ? titleListArt(theme, true) : titleListArt(theme) * 1.5} style={{borderRadius: theme.radii.artwork}}/>
       <View style={{flex: 1, minWidth: 0, gap: theme.space.hairline * 2}}>
         {item.kicker && <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.accentStrong}]}>{item.kicker}</Text>}
         <Text style={[theme.type.episodeTitle, {color: theme.colors.text}]}>{item.title}</Text>
@@ -84,7 +90,7 @@ export function TitleRowWindow({heading, rows, testID}: Readonly<{heading?: Read
   return <View testID={testID}>
     {heading && <PanelBlock><PanelHeading title={heading.title} trailing={heading.trailing}/></PanelBlock>}
     <PanelBlock><MusicWindow items={rows} itemHeight={titleListRowHeight(theme, kicker)} renderItem={(item, index) => <View>
-      {index > 0 && <View pointerEvents="none" style={{position: 'absolute', top: 0, right: 0, left: (item.square ? row.square : row.poster) + row.gap, height: theme.space.hairline, backgroundColor: theme.colors.line}}/>}
+      {index > 0 && <View pointerEvents="none" style={{position: 'absolute', top: 0, right: 0, left: titleListArt(theme, item.square) + row.gap, height: theme.space.hairline, backgroundColor: theme.colors.line}}/>}
       <TitleListRow item={item} kickerRoom={kicker}/></View>}/></PanelBlock>
   </View>;
 }
