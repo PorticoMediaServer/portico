@@ -65,11 +65,13 @@ test('channel logos stay above the monogram with unchanged geometry, scheduling 
   assert.equal(label.props.style.color, theme.colors.text); assert.equal(label.props.accessible, false); assert.equal(label.props.allowFontScaling, false);
 });
 
-test('LiveCard forwards the authoritative mark and logo without a palette override or card geometry change', async () => {
+test('LiveCard forwards the authoritative mark and logo, glows in the mark\'s own tint on touch, and keeps its card geometry', async () => {
   for (const isTV of [false, true]) {
     const theme = createTheme({isTV, width: isTV ? 1920 : 390});
     const {LiveCard} = await screenModule(new URL('../src-next/kit/cards/SurfaceCards.tsx', import.meta.url), {
-      react: {...React, default: React}, 'react-native': {View: 'View', Text: 'Text'},
+      react: {...React, default: React}, 'react-native': {View: 'View', Text: 'Text', StyleSheet: {absoluteFill: {position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}},
+      'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'RadialGradient', Rect: 'Rect', Stop: 'Stop'},
+      '../../../../../packages/client-core/src/presentation/kit-model/index': {channelTint},
       '../../../../../packages/i18n/src/index': {defaultI18n: {}},
       '../artwork/index': {...Object.fromEntries(['AmbientArt', 'Artwork', 'ChannelMark', 'CoverFan', 'CoverMosaic', 'MediaArt'].map(name => [name, name])), GeneratedCoverClearance: {Provider: 'Provider'}},
       '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme}, './MediaCards': {CardOverlays: 'CardOverlays'},
@@ -83,6 +85,14 @@ test('LiveCard forwards the authoritative mark and logo without a palette overri
     const channel = nodes.find(node => node.type === 'ChannelMark')!;
     assert.equal(channel.props.mark, mark); assert.equal(channel.props.source, logo); assert.equal(channel.props.size, isTV ? 48 : 34); assert.equal(channel.props.visible, false);
     assert.equal(Object.hasOwn(channel.props, 'tint'), false);
-    assert.deepEqual(nodes.find(node => node.type === 'AmbientArt')!.props.palette, {first: theme.colors.ambient, second: theme.colors.raised});
+    if (isTV) assert.deepEqual(nodes.find(node => node.type === 'AmbientArt')!.props.palette, {first: theme.colors.ambient, second: theme.colors.raised});
+    else {
+      // kit.css `.live`: radial-gradient(120% 140% at 100% 0%, tint 0%, transparent 60%) over the raised surface.
+      assert.equal(nodes.some(node => node.type === 'AmbientArt'), false);
+      const glow = nodes.find(node => node.type === 'RadialGradient')!;
+      assert.deepEqual([glow.props.cx, glow.props.cy, glow.props.rx, glow.props.ry], ['100%', '0%', '120%', '140%']);
+      assert.deepEqual(nodes.filter(node => node.type === 'Stop').map(node => [node.props.offset, node.props.stopColor, node.props.stopOpacity]),
+        [['0', channelTint(mark.seed), 1], ['0.6', channelTint(mark.seed), 0]]);
+    }
   }
 });
