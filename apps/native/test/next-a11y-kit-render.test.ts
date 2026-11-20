@@ -209,7 +209,7 @@ test('CardFrame announces presentation context and state while preserving named 
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
     '../overlays/OverlayHost': {useInTopLayer: () => true}, '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
-    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'},
+    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
   });
   const props = {title: 'Title', caption: [{id: 'year', text: '1982'}], detail: [{id: 'duration', text: '109 min'}], watched: true, isNew: true, progress: .42,
     onNavigate() {}, onPlay: () => calls.push('play'), onMore: () => calls.push('more'),
@@ -311,7 +311,7 @@ test('card facts: drop is one fixed line of whole facts, wrap moves whole facts 
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
     '../overlays/OverlayHost': {useInTopLayer: () => true}, '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
-    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../focus': {...f.common['../focus'], useFocusWaiting: () => false},
+    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../focus': {...f.common['../focus'], useFocusWaiting: () => false}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
   });
   const parts = [{id: 'range', text: '12 Nov 2026 to 4 Jan 2027', role: 'context'}, {id: 'new', text: 'New', role: 'status'}, {id: 'year', text: '2026'}];
   const box = f.host.render(() => Parts({parts, fit: 'drop'})), style = flatten(box.props.style), facts = nodes(box).filter(node => node.type === 'Text');
