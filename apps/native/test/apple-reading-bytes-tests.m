@@ -30,9 +30,13 @@ static NSDictionary *answer;
 static NSString *header(NSString *name){for(NSString *key in answer[@"headers"])if([key caseInsensitiveCompare:name]==NSOrderedSame)return answer[@"headers"][key];return nil;}
 static NSString *failure;
 static NSUInteger resolved,rejected;
+// A book's address as the server signs it: `b.` and 118 base64url characters (server-next reading.go sign).
+#define GRANT @"b.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWVw"
 static PorticoQueueRequest *make(NSString *method,NSString *suffix,NSNumber *limit){
  answer=nil;failure=nil;resolved=0;rejected=0;
- return PorticoReadingBytesRequest(NSUUID.UUID.UUIDString,[@"https://server.example/v1/reading/sessions/s-1/" stringByAppendingString:suffix],method,@{@"Range":@"bytes=0-4",@"If-Match":@"\"revision\""},limit,owner,^(id raw){resolved++;answer=raw;},^(NSString *code,NSString *message,NSError *error){rejected++;failure=code;});
+ // A byte range is asked only of the source with GET.
+ NSDictionary *headers=[method isEqualToString:@"GET"]&&[suffix hasPrefix:@"source"]?@{@"Range":@"bytes=0-4",@"If-Match":@"\"revision\""}:@{@"If-Match":@"\"revision\""};
+ return PorticoReadingBytesRequest(NSUUID.UUID.UUIDString,[[@"https://server.example/v1/media/" stringByAppendingString:GRANT] stringByAppendingFormat:@"/%@",suffix],method,headers,limit,owner,^(id raw){resolved++;answer=raw;},^(NSString *code,NSString *message,NSError *error){rejected++;failure=code;});
 }
 static ReadingBytesTask *install(PorticoQueueRequest *request){
  ReadingBytesTask *task=[ReadingBytesTask new];task.testID=request.identifier;request.task=task;
@@ -46,16 +50,25 @@ static NSURLSessionResponseDisposition respond(ReadingBytesTask *task,NSInteger 
 }
 int main(void){@autoreleasepool{
  transport=[PorticoQueueTransport new];owner=[NSObject new];session=[PorticoQueueTransport sessionFor:NO];
- for(NSString *path in @[@"source",@"assets?path=OPS%2Fpage.xhtml",@"pages/0?width=1024"]){
-  PorticoQueueRequest *r=make(@"GET",path,@33554432);check(r&&r.binaryResponse&&r.responseLimit==33554432,"all three canonical GET resources use explicit bounded raw bytes");
+ for(NSString *path in @[@"source",@"parts/OEBPS/chapter%201.xhtml",@"parts/images/cover.jpg",@"pages/0",@"pages/12?w=640"]){
+  PorticoQueueRequest *r=make(@"GET",path,@33554432);check(r&&r.binaryResponse&&r.responseLimit==33554432,"the book's source, parts and pages use explicit bounded raw bytes");
   check(r.wire.timeoutInterval==15&&[r.wire valueForHTTPHeaderField:@"If-Match"]!=nil,"deadline and source precondition retained");
  }
  for(id limit in @[@0,@(-1),@1.5,@33554433,@YES,@(NAN),@"64",NSNull.null])check(!make(@"GET",@"source",limit)&&rejected==1,"invalid/nonintegral/boolean/oversized limits refused");
- for(NSString *path in @[@"",@"progress",@"source/extra",@"%73ource",@"pages/-1",@"pages/01",@"../other/source",@"source#fragment"])
-  check(!make(@"GET",path,@64),"noncanonical resource rejected");
+ for(NSString *path in @[@"",@"progress",@"source/extra",@"%73ource",@"source?x=1",@"source#fragment",@"assets",@"audio",@"audio-index",
+   @"pages/-1",@"pages/01",@"pages/1?width=2",@"pages/1?w=x",@"pages/1?w=1&x=2",@"pages/12345678901",
+   @"parts",@"parts/",@"parts//x",@"parts/x/",@"parts/../x",@"parts/a/../x",@"parts/./x",@"parts/a%2Fb",@"parts/a%2fb",@"parts/%2E%2E/x",@"parts/%2e%2e",
+   @"parts/a%252Fb",@"parts/%252E%252E/x",@"parts/a%5Cb",@"parts/a%5cb",@"parts/a%00b",@"parts/a%0Ab",@"parts/a%7Fb",@"parts/a%ZZ",@"parts/x?y=1",@"parts/x#f",@"../other/source"])
+  check(!make(@"GET",path,@64),"only a book's exact source, page or part is read");
  for(NSString *method in @[@"POST",@"PUT",@"DELETE",@"get"])check(!make(method,@"source",@64),"no write or method alias in byte API");
- check(!make(@"HEAD",@"assets?path=x",@64)&&!make(@"HEAD",@"pages/0",@64),"HEAD is source-only");
- for(NSString *url in @[@"https://user:pass@server.example/v1/reading/sessions/s/source",@"file:///v1/reading/sessions/s/source",@"https://server.example/v1/system",@"https://server.example/v1/reading/sessions//source"]){
+ check(!make(@"HEAD",@"parts/x.xhtml",@64)&&!make(@"HEAD",@"pages/0",@64)&&make(@"HEAD",@"source",@64),"HEAD is source-only");
+ rejected=0;check(!PorticoReadingBytesRequest(@"id",[@"https://server.example/v1/media/" stringByAppendingFormat:@"%@/source",GRANT],@"HEAD",@{@"Range":@"bytes=0-1"},@64,owner,^(id raw){},^(NSString *c,NSString *m,NSError *e){rejected++;})&&rejected==1,"a range only with GET");
+ rejected=0;check(!PorticoReadingBytesRequest(@"id",[@"https://server.example/v1/media/" stringByAppendingFormat:@"%@/parts/x.xhtml",GRANT],@"GET",@{@"Range":@"bytes=0-1"},@64,owner,^(id raw){},^(NSString *c,NSString *m,NSError *e){rejected++;})&&rejected==1,"a range only of the source");
+ for(NSString *url in @[[@"https://user:pass@server.example/v1/media/" stringByAppendingFormat:@"%@/source",GRANT],[@"file:///v1/media/" stringByAppendingFormat:@"%@/source",GRANT],
+   @"https://server.example/v1/system",@"https://server.example/v1/reading/sessions/s/source",@"https://server.example/v1/media/b.short/source",
+   [@"https://server.example/v1/media/" stringByAppendingFormat:@"%@x/source",GRANT],[@"https://server.example/v1/media/c" stringByAppendingFormat:@"%@/source",[GRANT substringFromIndex:1]],
+   [@"https://server.example/v1/media/" stringByAppendingFormat:@"%@/source",[GRANT stringByReplacingCharactersInRange:NSMakeRange(10,1) withString:@"."]],
+   [@"https://server.example/v1/media/" stringByAppendingFormat:@"%@/source",[GRANT stringByReplacingCharactersInRange:NSMakeRange(10,1) withString:@"%41"]]]){
   rejected=0;PorticoQueueRequest *r=PorticoReadingBytesRequest(@"id",url,@"GET",@{},@64,owner,^(id raw){},^(NSString *c,NSString *m,NSError *e){rejected++;});check(!r&&rejected==1,"credential-free canonical HTTP API URL required");
  }
  PorticoQueueRequest *r=make(@"GET",@"source",@5);ReadingBytesTask *task=install(r);
@@ -73,7 +86,7 @@ int main(void){@autoreleasepool{
  check(respond(task,200,@{@"Content-Length":@"2147483648",@"Content-Type":@"application/pdf"})==NSURLSessionResponseAllow,"HEAD full resource size is not received body length");
  [transport URLSession:session task:task didCompleteWithError:nil];check([answer[@"bodyBase64"]isEqual:@""]&&[header(@"Content-Length")isEqual:@"2147483648"],"HEAD keeps actual total size with empty bytes");
  r=make(@"GET",@"pages/0",@4);task=install(r);check(respond(task,200,@{@"Content-Length":@"5"})==NSURLSessionResponseCancel&&rejected==1&&task.cancelled,"declared oversized body rejected before data");
- r=make(@"GET",@"assets?path=x",@4);task=install(r);respond(task,200,@{});
+ r=make(@"GET",@"parts/x.xhtml",@4);task=install(r);respond(task,200,@{});
  [transport URLSession:session dataTask:task didReceiveData:[NSMutableData dataWithLength:3]];
  [transport URLSession:session dataTask:task didReceiveData:[NSMutableData dataWithLength:2]];
  check(rejected==1&&resolved==0&&task.cancelled&&r.data==nil,"streamed overrun cancels and discards bytes");

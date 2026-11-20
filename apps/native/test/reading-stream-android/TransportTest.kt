@@ -76,8 +76,11 @@ private class Server: AutoCloseable {
 
 private val owner = RuntimeSurface()
 private val headers = HeaderMap(mapOf("Authorization" to "Bearer throwaway-native-test", "If-Match" to "\"${"a".repeat(64)}\""))
+// A book's address as the server signs it: `b.` and 118 base64url characters (server-next reading.go sign). The test
+// server reads its behaviour (held, short, chunked, redirect) from the word the grant starts with.
+private fun grant(word: String) = "b." + word + "A".repeat(118 - word.length)
 private fun open(server: Server, id: String, source: String = "normal"): Result {
-  return Result().also {owner.networkStreamOpen(id, "${server.origin}/v1/reading/sessions/$source/source", headers, it)}
+  return Result().also {owner.networkStreamOpen(id, "${server.origin}/v1/media/${grant(source)}/source", headers, it)}
 }
 private fun pull(id: String) = Result().also {owner.networkStreamRead(id, it)}
 private fun bytes(result: BridgeMap): ByteArray = java.util.Base64.getDecoder().decode(result.values["bodyBase64"] as String)
@@ -87,13 +90,41 @@ fun main() {
   var cases = 0
   try {
     Server().use {server ->
-      val base = "${server.origin}/v1/reading/sessions/source/source"
-      for ((id, url) in listOf("" to base, "x".repeat(129) to base, "asset" to base.replace("/source/source", "/source/assets"),
+      val base = "${server.origin}/v1/media/${grant("source")}/source"
+      for ((id, url) in listOf("" to base, "x".repeat(129) to base, "part" to base.replace("/source", "/parts/x.xhtml"), "page" to base.replace("/source", "/pages/0"),
+          "old" to "${server.origin}/v1/reading/sessions/source/source",
           "query" to "$base?path=other", "fragment" to "$base#other", "credentials" to base.replace("http://", "http://user:password@"))) {
         Result().also {owner.networkStreamOpen(id, url, headers, it)}.failure("queue_transport")
       }
       Result().also {owner.networkStreamOpen("range", base, HeaderMap(mapOf("rAnGe" to "bytes=0-9")), it)}.failure("queue_transport")
       check(server.requests.get() == 0); cases++
+    }
+    // The byte gate: a book's exact source, page or part, and nothing wider.
+    Server().use {server ->
+      val book = "${server.origin}/v1/media/${grant("normal")}"
+      fun ask(id: String, url: String, method: String = "GET", with: Map<String, String> = mapOf()) =
+        // The fixture answers only the test's own authorization; a range is never sent to it (it is the stream fixture),
+        // so a range is proven only where the gate refuses it, before any request.
+        Result().also {owner.networkBytesRequest(id, url, method, HeaderMap(mapOf("Authorization" to "Bearer throwaway-native-test") + with), 33554432.0, it)}
+      for ((id, call) in listOf("source" to {ask("ok-source", "$book/source")},
+          "head" to {ask("ok-head", "$book/source", "HEAD")}, "page" to {ask("ok-page", "$book/pages/12?w=640")},
+          "part" to {ask("ok-part", "$book/parts/OEBPS/chapter%201.xhtml")})) {call().value(); PorticoTransport.cancel("ok-$id")}
+      val accepted = server.requests.get(); check(accepted == 4)
+      val refused = listOf("$book/source?x=1", "$book/audio", "$book/audio-index", "$book/progress", "$book/%73ource",
+        "$book/pages/-1", "$book/pages/01", "$book/pages/1?width=2", "$book/pages/1?w=x", "$book/pages/12345678901",
+        "$book/parts", "$book/parts/", "$book/parts//x", "$book/parts/x/", "$book/parts/../x", "$book/parts/a/../x", "$book/parts/./x",
+        "$book/parts/a%2Fb", "$book/parts/a%2fb", "$book/parts/%2E%2E/x", "$book/parts/%2e%2e", "$book/parts/a%252Fb", "$book/parts/%252E%252E/x",
+        "$book/parts/a%5Cb", "$book/parts/a\\b", "$book/parts/a%00b", "$book/parts/a%0Ab", "$book/parts/a%7Fb", "$book/parts/a%ZZ", "$book/parts/a%-1",
+        "$book/parts/x?y=1", "$book/parts/x#f", "${server.origin}/v1/reading/sessions/s/source", "${server.origin}/v1/media/b.short/source",
+        "${server.origin}/v1/media/${grant("normal")}x/source", "${server.origin}/v1/media/c.${grant("normal").substring(2)}/source",
+        "${server.origin}/v1/media/${grant("normal").replaceRange(10, 11, ".")}/source", "${server.origin}/v1/media/${grant("normal").replaceRange(10, 11, "%41")}/source",
+        book.replace("http://", "http://user:password@") + "/source", "file:///v1/media/${grant("normal")}/source")
+      for ((index, url) in refused.withIndex()) ask("bad-$index", url).failure("queue_transport")
+      ask("head-part", "$book/parts/x.xhtml", "HEAD").failure("queue_transport"); ask("head-page", "$book/pages/0", "HEAD").failure("queue_transport")
+      ask("head-range", "$book/source", "HEAD", mapOf("Range" to "bytes=0-1")).failure("queue_transport")
+      ask("part-range", "$book/parts/x.xhtml", with = mapOf("rAnGe" to "bytes=0-1")).failure("queue_transport")
+      for (method in listOf("POST", "PUT", "DELETE", "get")) ask("method-$method", "$book/source", method).failure("queue_transport")
+      check(server.requests.get() == accepted); cases++
     }
     for (source in listOf("normal", "chunked")) Server().use {server ->
       val opened = open(server, "complete-$source", source).value(); check(opened.values["status"] == 200)

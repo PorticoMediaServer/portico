@@ -179,14 +179,15 @@ class PorticoRuntime(context: ReactApplicationContext) : ReactContextBaseJavaMod
     } catch (_: Exception) { promise.reject("queue_transport", "Invalid subtitle upload request.") }
   }
 
-  /** Actual bounded Reading bytes over the existing trust/cancel transport. */
+  /** Actual bounded Reading bytes over the existing trust/cancel transport: a book's exact source, page or part only
+   * (readingMediaKind). HEAD only on the source, and a byte range only with GET on the source. */
   @ReactMethod
   fun networkBytesRequest(identifier: String?, url: String?, method: String?, headers: ReadableMap?, byteLimit: Double, promise: Promise) {
     val target = PorticoTransport.target(url)
-    val path = target?.encodedPath ?: ""
-    val reading = Regex("^/v1/reading/sessions/[A-Za-z0-9_-]{1,128}/(?:source|assets|pages/[0-9]{1,10})$").matches(path)
+    val kind = readingMediaKind(url, target)
+    val ranged = headers?.keySetIterator()?.let {keys -> var found = false; while (keys.hasNextKey()) if (keys.nextKey().equals("Range", ignoreCase = true)) found = true; found} == true
     val limit = byteLimit.toLong()
-    val request = if (target != null && reading && (method == "GET" || method == "HEAD" && path.endsWith("/source")) &&
+    val request = if (target != null && kind != null && (method == "GET" || method == "HEAD" && kind == "source") && (!ranged || method == "GET" && kind == "source") &&
         limit in 1..33554432L && limit.toDouble() == byteLimit && identifier != null && identifier.length <= 128)
       PorticoTransport.request(target, method!!, headers, null) else null
     if (request == null || identifier == null) {promise.reject("queue_transport", "Invalid Reading byte request."); return}
@@ -197,7 +198,7 @@ class PorticoRuntime(context: ReactApplicationContext) : ReactContextBaseJavaMod
   @ReactMethod
   fun networkStreamOpen(identifier: String?, url: String?, headers: ReadableMap?, promise: Promise) {
     val target = PorticoTransport.target(url)
-    val request = if (target != null && target.encodedQuery == null && Regex("^/v1/reading/sessions/[A-Za-z0-9_-]{1,128}/source$").matches(target.encodedPath) &&
+    val request = if (target != null && target.encodedQuery == null && readingMediaKind(url, target) == "source" &&
         identifier != null && identifier.isNotEmpty() && identifier.length <= 128) PorticoTransport.request(target, "GET", headers, null) else null
     if (request == null || request.header("Range") != null || identifier == null) {promise.reject("queue_transport", "Invalid Reading stream request."); return}
     PorticoTransport.submit(this, identifier, request, 49152L, "queue_transport", "Too many requests.", promise, binary = true, streaming = true)
