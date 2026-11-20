@@ -13,6 +13,22 @@ import type {CardSelection} from '../cards';
 import {ArtFrame, CardFrame} from '../cards/primitives';
 import {SelectionCircle} from '../selection';
 
+/** The search field's own clear (phone-app `.clr`): a small round mark in the strong line colour with the × cut out. */
+export function SearchClear({label, onPress, testID}: {label: string; onPress: () => void; testID?: string}) {
+  const theme = useTheme(), size = theme.spec.chip.icon.phone + 4, slop = Math.max(0, (theme.targets.touch - size) / 2);
+  return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} focusKind="chip" focusRadius={size / 2}
+    hitSlop={{top: slop, bottom: slop, left: slop, right: slop}}
+    style={{width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.lineStrong, alignItems: 'center', justifyContent: 'center'}}>
+    <Icon name="i-x" size={size * .6} color={theme.colors.raised}/>
+  </Focusable>;
+}
+
+/** Cancel beside the search field (phone-app `.cancel`): quiet secondary text. */
+export function SearchCancel({label, onPress, testID}: {label: string; onPress: () => void; testID?: string}) {
+  const theme = useTheme();
+  return <Button testID={testID} variant="text" size="small" textStyle={{color: theme.colors.textSecondary}} onPress={onPress}>{label}</Button>;
+}
+
 export type SearchHistoryItem = Readonly<{query: string; onPress: () => void; remove?: Readonly<{label: string; onPress: () => void}>}>;
 export type SearchHistoryProps = Readonly<{
   title: string;
