@@ -398,7 +398,7 @@ function PhoneSeries() {
     actions={[{icon: 'i-restart', label: t('action.startSeriesOver'), onPress: none}]}>
     {/* A finished book (its place, a two-line title, who read it and Watched) over the next: the list keeps one stride. */}
     <TitleRowWindow heading={{title: t('next.kit.booksInSeries'), trailing: '2'}} rows={[{id: 'hp1', square: true, kicker: t('next.reader.bookNumber', {number: '1'}), title: f('book'), artwork: cover,
-      facts: [t('next.kit.readBy', {name: f('narratorValue')})], watched: true, onNavigate: none, onMore: none},
+      facts: [t('next.kit.readBy', {name: f('narratorValue')})], watched: true, doneLabel: t('title.finished'), onNavigate: none, onMore: none},
       {id: 'hp2', square: true, kicker: t('next.reader.bookNumber', {number: '2'}), title: f('bookChamber'), artwork: cover,
         facts: [t('next.kit.readBy', {name: f('narratorValue')})], note: f('bookLeft'), onNavigate: none, onMore: none}]}/>
   </TitleFrame></Page>;

@@ -34,6 +34,8 @@ export type TitleListItem = Readonly<{title: string;
   /** A square cover (a book) in place of a poster. */
   square?: boolean;
   watched?: boolean;
+  /** The word beside the check when it is done: films "Watched" (the default), books "Finished". */
+  doneLabel?: string;
   /** How far in (0 to 1), drawn as a short bar with `remaining` ("1 h 2 min left"). */
   progress?: number; remaining?: string;
   artwork?: ArtworkSource; onNavigate: () => void;
@@ -63,7 +65,7 @@ export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item:
           {item.watched ? <Icon name="i-check" size={row.check} color={theme.colors.accentStrong}/>
             : <View style={{width: row.bar, height: theme.spec.card.progress.height[theme.column], borderRadius: theme.space.hairline * 2, backgroundColor: theme.colors.raisedBright}}>
               <View style={{width: `${Math.min(1, item.progress ?? 0) * 100}%`, height: '100%', borderRadius: theme.space.hairline * 2, backgroundColor: theme.colors.accentStrong}}/></View>}
-          <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.textSecondary}]}>{item.watched ? t('saved.watched') : item.remaining}</Text>
+          <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.textSecondary}]}>{item.watched ? item.doneLabel ?? t('saved.watched') : item.remaining}</Text>
         </View>}
       </View>
       {more && <Focusable accessibilityLabel={t('card.more', {title: item.title})} onPress={() => more(anchor)} style={{width: row.more, height: row.more, alignItems: 'center', justifyContent: 'center'}}>
