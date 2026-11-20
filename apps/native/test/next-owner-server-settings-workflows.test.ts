@@ -179,17 +179,24 @@ test('Streaming edits its folder and server-wide tone-map method', async () => {
   class Lifetime {authority = fixture.group.context.authority(); current = fixture.group.context.current; assert() {assert.ok(this.current());} request = (run: any) => run(new AbortController().signal);dispose() {}}
   class Streaming {form = (id: string) => fixture.group.forms[id];readConfiguration = async () => configuration;}
   const {FormSet} = await import('../../../packages/client-core/src/server-admin/draft-form.ts');
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/StreamingPage.tsx', import.meta.url), {
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerStreaming.ts', import.meta.url), {
     ...chrome, react: host.react, '../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24)}},
     '../../../../../../packages/client-core/src/server-admin/streaming-hardware': {readOwnerStreamingHardware: async () => hardwareReport, runOwnerHardwareTest: () => {hardwareTests++;return new Promise(resolve => {finish = resolve;});}}, '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../../packages/client-core/src/server-admin/draft-form': {FormSet},
     '../../../../../../packages/client-core/src/server-admin/server-forms': {createServerForm: (id: string) => fixture.group.forms[id], withFormValue: (draft: object, key: string, value: unknown) => ({...draft, [key]: value})}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../packages/client-core/src/server-admin/streaming-settings': {OwnerStreamingSettings: Streaming},
     '../../../../../../packages/client-core/src/home-selection/list-destinations': {withRequestRaw: (api: unknown) => api},
-    './StreamingHardware': {NativeStreamingHardware: 'Hardware'}, '../lifetime': {NativeScreenLifetime: Lifetime},
+    '../../../screens/settings-live/server/settings-values': values, '../../../screens/settings-live/lifetime': {NativeScreenLifetime: Lifetime},
     '../../../../../../packages/client-core/src/presentation/hardware-selection': await import('../../../packages/client-core/src/presentation/hardware-selection.ts'),
   });
+  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerStreamingPage.tsx', import.meta.url), {
+    ...chrome, react: host.react, './useServerStreaming': model,
+    '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', SettingsPageFrame: 'SettingsPageFrame', StateRow: 'StateRow'},
+    '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'}, '../../../kit/settings/StreamingHardware': {StreamingHardware: 'Hardware'},
+    '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
+  });
   (fixture.group.context as any).api = {request: async () => configuration};
-  const render = () => host.render(() => module.NativeServerStreaming({ports: {context: fixture.group.context}, runtime}));
+  const render = () => host.render(() => module.ServerStreamingPage({ports: {context: fixture.group.context}, runtime}));
   render();host.flush();await settle();
   const tree = render(), controls = nodes(tree).filter((node: any) => node.type === 'Setting');
   assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);
