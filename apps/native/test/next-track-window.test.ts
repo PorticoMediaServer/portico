@@ -13,7 +13,7 @@ const nodes = (value: any): Node[] => Array.isArray(value) ? value.flatMap(nodes
 
 async function window(props: Record<string, unknown>) {
   const {TrackWindow} = await screenModule(new URL('../src-next/kit/music/TrackWindow.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View'}, '../browse': {TrackRow: 'TrackRow', trackRowHeight: (_theme: unknown, _variant: string, current?: boolean) => current ? 76 : 54},
+    react, 'react-native': {View: 'View'}, '../browse': {TrackRow: 'TrackRow', TrackHeader: 'TrackHeader', trackColumns: {album: ['number', 'title', 'plays', 'duration'], 'top-songs': ['number', 'title', 'plays', 'duration'], chapters: ['number', 'title', 'duration']}, trackRowHeight: (_theme: unknown, _variant: string, current?: boolean) => current ? 76 : 54},
     '../frames/title-parts': {PanelBlock: 'PanelBlock', PanelHeading: 'PanelHeading'}, '../selection': {SelectionCircle: 'SelectionCircle'},
     '../theme': {useTheme: () => ({platform: 'phone', fontScale: 1, textScale: 1})}, './MusicWindow': {MusicWindow: 'MusicWindow'}});
   const tree = TrackWindow(props) as Node;
