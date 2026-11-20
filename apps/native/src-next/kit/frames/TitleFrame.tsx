@@ -240,7 +240,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     : <View style={[kickerRow, {marginBottom: theme.space.controlGap}]}>{kickerWords}</View>);
   const identity = <>
     {kickerLine}
-    {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} lines={tv ? 3 : undefined} style={{textAlign: stacked ? 'center' : 'left'}}/>}
+    {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} style={{textAlign: stacked ? 'center' : 'left'}}/>}
     {byline && (byline.onPress
       ? <Focusable accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>{byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
