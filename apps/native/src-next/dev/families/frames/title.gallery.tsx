@@ -69,10 +69,11 @@ function Film({more = false, selecting = false}: {more?: boolean; selecting?: bo
     {/* TV draws every section, and focus walks down them into Details. */}
     {isTV && <TitleSection tab="details"><DuneDetails/></TitleSection>}
   </TitleFrame>
-  {more && <Menu open={open} onOpenChange={setOpen} title={f('dune2')} items={[
-    {id: 'fav', icon: 'i-heart', label: f('menuFavourite'), onSelect: none}, {id: 'rate', icon: 'i-star', label: f('menuRate'), onSelect: none}, {id: 'playlist', icon: 'i-listadd', label: f('menuPlaylist'), onSelect: none},
+  {/* phone-detail 9: a title page's own ⋯ is the `groups` form (a card's menu is the `list` form, select.html 1). */}
+  {more && <Menu open={open} onOpenChange={setOpen} title={f('dune2')} secondaryTitle="2024" touchContext={!isTV} form="groups" items={[
+    {id: 'watched', icon: 'i-check', label: defaultI18n.t('entry.markWatched'), onSelect: none}, {id: 'fav', icon: 'i-heart', label: f('menuFavourite'), onSelect: none}, {id: 'rate', icon: 'i-star', label: f('menuRate'), onSelect: none}, {id: 'playlist', icon: 'i-listadd', label: f('menuPlaylist'), onSelect: none},
     {id: 'sep', separator: true}, {id: 'version', icon: 'i-film', label: f('menuVersion'), onSelect: none}, {id: 'info', icon: 'i-info', label: f('menuFileInfo'), onSelect: none},
-    {id: 'owner', section: true, label: f('ownerOnly'), tone: 'owner'}, {id: 'edit', icon: 'i-edit', label: f('menuEdit'), onSelect: none}, {id: 'refresh', icon: 'i-refresh', label: f('menuRefresh'), onSelect: none}]}/>}</Page>;
+    {id: 'owner', section: true, label: f('ownerOnly'), tone: 'owner'}, {id: 'edit', icon: 'i-edit', label: f('menuEdit'), tone: 'owner', onSelect: none}, {id: 'refresh', icon: 'i-refresh', label: f('menuRefresh'), tone: 'owner', onSelect: none}]}/>}</Page>;
 }
 function FilmResume() {
   const [tab, setTab] = useState('more'), {isTV} = useTheme();
