@@ -94,7 +94,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
   const runtime = {text: {t}, subscribe: () => () => {}, getSnapshot: () => shell, artwork: () => undefined, error: () => ({title: 'Error'})};
   const context = {account: {account: {role: facts.role ?? 'owner', primaryProfileId: 'profile'}, canManage: true}, api: {baseUrl: 'https://example.invalid'}, current: () => true, authority: () => authority,
     navigation: {subscribe: () => () => {}, getSnapshot: () => ({revision: 1, route: top, destination: {kind: 'live'}}), isCurrent: () => true}};
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {...liveTabsFixture(host.react), ...ownerTagFixture, '../../kit/navigation/rail-hold': {useRailHold: (active: boolean) => {holds.push(active);}}, './tv-settings-focus': tvSettingsFocus,
+  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {'../../pages/touch/live/GuidePage': {GuidePage: 'GuidePage'}, ...liveTabsFixture(host.react), ...ownerTagFixture, '../../kit/navigation/rail-hold': {useRailHold: (active: boolean) => {holds.push(active);}}, './tv-settings-focus': tvSettingsFocus,
     react, 'react-native': {...native, BackHandler: {}, FlatList: 'FlatList', ScrollView: 'ScrollView', VirtualizedList: 'VirtualizedList', Platform: {OS: 'web'}, useWindowDimensions: () => ({width, height: 900})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     'react-native-gesture-handler': {GestureDetector: 'GestureDetector'}, 'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: () => ({})},
