@@ -21,6 +21,7 @@ async function fixture() {
   });
   const TargetProvider = ({value}: any) => value.flash ? React.createElement(SettingsRowFlash,{...value.flash,reveal: value.flash.reveal}) : null;
   const retirement=new AbortController(), role='member', initialWidth=800, hardwareBack: (() => boolean)[]=[], opens=[];
+  let keyboardDismissals = 0;
   let navigation={revision:1,route:{kind:'shell',destination:{kind:'settings'}}};
   const guarded=(v: unknown)=>v;
   const context={current:()=>true,account:{account:{role,username:'Viewer'},canManage:false,capabilities:{}},authority:()=>({}),navigation:{subscribe:()=>()=>{},getSnapshot:()=>navigation,isCurrent:()=>true,back(){},open(){}}};
@@ -29,7 +30,7 @@ async function fixture() {
   const theme={isTV:false,width:800,platform:'tablet',colors:new Proxy({},{get:(_t,key)=>String(key)})};
   const {NativeSettingsScreen} = await settingsFixture({'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: reactNamespace,
-    'react-native': {AppState: {addEventListener: () => ({remove(){}})}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
+    'react-native': {AppState: {addEventListener: () => ({remove(){}})}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, Keyboard: {dismiss: () => {keyboardDismissals++;}}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})}, 'react-native-qrcode-svg': {default: 'QRCode'},
     '../../../../../packages/client-core/src/presentation/settings-structure': {settingsStructure: () => structure, searchSettings: () => search.matches, findSettingsPage: (searchable: any, address: string) => {for (const heading of searchable.headings) {const found = heading.pages.find((value: any) => value.id === address); if (found) return {heading, page: found};} return undefined;}},
     '../../../../../packages/client-core/src/presentation/language-list': {}, '../../../../../packages/client-core/src/presentation/region-choices': {},
@@ -59,7 +60,7 @@ async function fixture() {
   const flash = () => nodes(h.root).find((n: any)=>n.type==='AnimatedView');
   /** The page scroller's native layout (its viewport height). */
   const viewport = async (height: number) => {nodes(h.root).find((n: any)=>n.type==='ScrollView'&&n.props.onLayout).props.onLayout({nativeEvent:{layout:{x:0,y:0,width:390,height}}}); await h.settle();};
-  return {open, flash, viewport, settle: () => h.settle(), unmount: () => h.unmount(), get measures() {return measures;}, scrolls};
+  return {open, flash, viewport, settle: () => h.settle(), unmount: () => h.unmount(), get measures() {return measures;}, get keyboardDismissals() {return keyboardDismissals;}, scrolls};
 }
 
 test('the first aimed row is revealed once the page has committed its aim, and a later native layout measures nothing more', async () => {
@@ -67,6 +68,7 @@ test('the first aimed row is revealed once the page has committed its aim, and a
   try {
     await f.viewport(400);
     await f.open(); assert.ok(f.flash());
+    assert.equal(f.keyboardDismissals, 1, 'the touch keyboard leaves before the matching row opens');
     f.flash().props.onLayout(); await f.settle();
     assert.equal(f.measures, 1, 'the aimed row is measured once'); assert.equal(f.scrolls.length, 1, 'and scrolled to');
     f.flash().props.onLayout(); await f.settle();

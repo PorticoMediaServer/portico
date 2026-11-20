@@ -3,7 +3,7 @@ import {readServerUpdates, updatePillShown} from '../../../../../../packages/cli
 import {useTVVoiceSearch} from '../../../screens/settings-live/use-tv-voice-search';
 import {tvGroupEdges, tvSettingsResultGroups} from '../../../screens/settings-live/tv-settings-focus';
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {AppState, NativeModules, Platform, type ScrollView, type View} from 'react-native';
+import {AppState, Keyboard, NativeModules, Platform, type ScrollView, type View} from 'react-native';
 import {settingsStructure, settingsRowId, searchSettings, findSettingsPage, type SettingsPage} from '../../../../../../packages/client-core/src/presentation/settings-structure';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 import {useTheme} from '../../../kit/theme';
@@ -183,6 +183,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     const found = findSettingsPage(searchable, address);
     if (!found || !viewCurrent()) return;
     if (theme.isTV) {setSearching(false); setQuery('');}
+    else Keyboard.dismiss();
     choose(found.page.id);
     if (rowId) setTarget({opening, page: found.page.id, rowId, serial: ++targetSerial.current});
   };
