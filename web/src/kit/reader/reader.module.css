@@ -23,7 +23,9 @@
    Hidden controls are inert immediately; their original paint finishes fading. */
 .top, .bottom, .turn { opacity: 1; pointer-events: auto; }
 .reader[data-chrome="hidden"] :is(.top,.bottom,.turn) { opacity: 0; pointer-events: none; }
-.top { position: absolute; inset: 0 0 auto; height: 72px; display: flex; align-items: center; gap: 14px; padding: 0 20px 0 18px; background: rgba(7,16,24,.9); backdrop-filter: blur(24px) saturate(1.2); box-shadow: 0 1px 0 rgba(237,245,250,.08); }
+/* The bar clears the status bar where the page runs under it (the native reader's WebView, viewport-fit=cover); 0 in a browser. */
+.reader { --reader-safe-top: env(safe-area-inset-top, 0px); }
+.top { position: absolute; inset: 0 0 auto; height: calc(72px + var(--reader-safe-top)); display: flex; align-items: center; gap: 14px; padding: var(--reader-safe-top) 20px 0 18px; background: rgba(7,16,24,.9); backdrop-filter: blur(24px) saturate(1.2); box-shadow: 0 1px 0 rgba(237,245,250,.08); }
 .title { min-width: 0; }
 /* No cut text: a long title or author takes a second line (owner's rule), never an ellipsis. */
 .title b { display: block; overflow-wrap: anywhere; font-size: 16px; line-height: 1.2; font-weight: 800; letter-spacing: -.01em; }
@@ -49,7 +51,7 @@
 .progressGroup { min-width: 0; position: relative; }
 @media (pointer: coarse) { .turn { display: none !important; } }
 @media (max-width: 1023px) { .reader[data-panel] .surface { inset-inline-end: 360px; } .bottom { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; height: 100px; padding: 12px 28px 22px; } .progressGroup { grid-row: 2; grid-column: 1 / -1; } .remaining { grid-column: 2; grid-row: 1; } .sectionRemaining { inset: auto 0 23px; } .runningFooter { inset-inline: 40px; } }
-@media (max-width: 599px) { .reader[data-panel] .surface { inset-inline-end: 0; } .top { height: 68px; gap: 4px; padding: 0 12px; } .title b { font-size: 14px; } .title small { font-size: 11px; } .reader .tool { width: 40px; height: 44px; } .tools { gap: 0; } .bottom { padding-inline: 20px; } .position b, .remaining b { font-size: 13px; } .position small, .remaining small { font-size: 11px; } .runningTitle { top: 24px; } .runningFooter { inset-inline: 28px; bottom: 28px; font-size: 11px; } }
+@media (max-width: 599px) { .reader[data-panel] .surface { inset-inline-end: 0; } .top { height: calc(68px + var(--reader-safe-top)); gap: 4px; padding: var(--reader-safe-top) 12px 0; } .title b { font-size: 14px; } .title small { font-size: 11px; } .reader .tool { width: 40px; height: 44px; } .tools { gap: 0; } .bottom { padding-inline: 20px; } .position b, .remaining b { font-size: 13px; } .position small, .remaining small { font-size: 11px; } .runningTitle { top: 24px; } .runningFooter { inset-inline: 28px; bottom: 28px; font-size: 11px; } }
 .reader[data-reduced-motion] :is(.runningTitle,.runningFooter), :global([data-reduce-motion='true']) .reader :is(.runningTitle,.runningFooter) { transition-duration: var(--motion-reduced); }
 @media (prefers-reduced-motion: reduce) { .reader :is(.runningTitle,.runningFooter) { transition-duration: var(--motion-reduced); } }
 
@@ -64,19 +66,19 @@
 /* desktop-read 9, phone-read 8 and tablet-read 8: clear comic chrome over the pages. */
 .fixedShade { position: absolute; inset: 0; pointer-events: none; opacity: 1; background: linear-gradient(180deg,rgba(4,9,13,.88) 0,rgba(4,9,13,.4) 110px,rgba(4,9,13,0) 200px),linear-gradient(0deg,rgba(4,9,13,.97) 0,rgba(4,9,13,.88) 130px,rgba(4,9,13,.5) 210px,rgba(4,9,13,0) 320px); }
 .reader[data-chrome="hidden"] .fixedShade { opacity: 0; }
-.reader[data-comic] .top { height: 96px; align-items: flex-start; padding-top: 14px; background: linear-gradient(180deg,rgba(4,9,13,.86),rgba(4,9,13,0)); backdrop-filter: none; box-shadow: none; }
+.reader[data-comic] .top { height: calc(96px + var(--reader-safe-top)); align-items: flex-start; padding-top: calc(14px + var(--reader-safe-top)); background: linear-gradient(180deg,rgba(4,9,13,.86),rgba(4,9,13,0)); backdrop-filter: none; box-shadow: none; }
 .reader[data-comic] .bottom.fixedPageFooter { height: auto; padding: 0 40px 26px; background: transparent; backdrop-filter: none; box-shadow: none; }
 @media (max-width: 1023px) { .reader[data-comic] .bottom.fixedPageFooter { padding: 0 32px 34px; } }
-.reader[data-comic][data-presentation="tablet"] .top { height: 132px; padding-top: 28px; align-items: center; }
+.reader[data-comic][data-presentation="tablet"] .top { height: calc(132px + var(--reader-safe-top)); padding-top: calc(28px + var(--reader-safe-top)); align-items: center; }
 .reader[data-comic][data-presentation="tablet"] .bottom.fixedPageFooter { padding: 0 32px 34px; }
 .reader[data-comic][data-presentation="tablet"] .fixedShade { background: linear-gradient(180deg,rgba(4,9,13,.94) 0,rgba(4,9,13,.72) 120px,rgba(4,9,13,0) 230px),linear-gradient(0deg,rgba(4,9,13,.97) 0,rgba(4,9,13,.9) 150px,rgba(4,9,13,.5) 230px,rgba(4,9,13,0) 330px); }
 @media (max-width: 599px) {
-  .reader[data-comic] .top { height: 68px; align-items: center; padding-top: 0; background: transparent; }
+  .reader[data-comic] .top { height: calc(68px + var(--reader-safe-top)); align-items: center; padding-top: var(--reader-safe-top); background: transparent; }
   .reader[data-comic] .bottom.fixedPageFooter { padding: 0 16px 34px; }
   .fixedShade { background: linear-gradient(180deg,rgba(4,9,13,.92) 0,rgba(4,9,13,.6) 104px,rgba(4,9,13,0) 170px),linear-gradient(0deg,rgba(4,9,13,.97) 0,rgba(4,9,13,.9) 150px,rgba(4,9,13,.5) 220px,rgba(4,9,13,0) 290px); }
 }
 @media (max-width: 1023px) and (max-height: 599px) and (orientation: landscape) {
-  .reader[data-comic] .top { height: 64px; padding-top: 0; align-items: center; background: transparent; }
+  .reader[data-comic] .top { height: calc(64px + var(--reader-safe-top)); padding-top: var(--reader-safe-top); align-items: center; background: transparent; }
   .reader[data-comic] .bottom.fixedPageFooter { padding: 0 24px 18px; }
   .fixedShade { background: linear-gradient(180deg,rgba(4,9,13,.9) 0,rgba(4,9,13,.5) 60px,rgba(4,9,13,0) 110px),linear-gradient(0deg,rgba(4,9,13,.95) 0,rgba(4,9,13,.7) 60px,rgba(4,9,13,0) 120px); }
 }

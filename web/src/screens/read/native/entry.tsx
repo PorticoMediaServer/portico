@@ -6,6 +6,7 @@ import {defaultI18n} from '@i18n';
 import '../../../kit/tokens.css';
 import '../../../kit/fonts.css';
 import '../../../bootstrap.css';
+import {IconSprite} from '../../../kit/Icon';
 import {Skeleton, StateView} from '../../../kit/states';
 import {ReaderBook, readerNear, type ReaderBookState} from '../ReaderBook';
 import {bindReadPreferences} from '../preferences';
@@ -98,4 +99,5 @@ function NativeReaderEntry() {
   return guest ? <NativeReading guest={guest}/> : <Skeleton height="100dvh"/>;
 }
 root = createRoot(document.getElementById('root')!);
-root.render(<NativeReaderEntry/>);
+// The reader's icons are `<use href="#…">` into the one sprite each HTML document mounts (as App.tsx does on the web).
+root.render(<><IconSprite/><NativeReaderEntry/></>);
