@@ -5,8 +5,7 @@ import {logBootMilestone} from '../../shell/boot-timing';
 import {AppState, RefreshControl, ScrollView, Text, View, useWindowDimensions, type ViewProps, type ViewStyle} from 'react-native';
 import {BrowseFrame} from '../../kit/frames';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Animated, {cancelAnimation, runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming, type LayoutAnimationFunction} from 'react-native-reanimated';
-import {useMotion} from '../../kit/useMotion';
+import Animated, {runOnJS, useAnimatedScrollHandler, useSharedValue} from 'react-native-reanimated';
 import {heroSpec} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {HomeRow} from '../../../../../packages/client-core/src/home';
@@ -17,19 +16,15 @@ import {serverTextLabel} from '../../../../../packages/client-core/src/presentat
 import {usePlatformPosture} from '../../platform/platformPosture';
 import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
-import {useTVPageBack} from '../destinations/useTVPageBack';
-import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
-import {createInitialRegionEntry} from '../../kit/focus/initial-entry';
+import {FocusItem, useFocusRegistry} from '../../kit/focus';
 import {authorityKey} from '../../shell/model';
 import {PlayOnButton} from '../../shell/PlayOnButton';
 import {roundBarSize} from '../../kit/layout/TopBar';
-import {tvFocusIds, tvHomeRegionMap} from '../../shell/tv-focus';
-import {NativeHomePaging} from '../../shell/home-paging';
-import {tvHomeRows} from './tv-presentation';
-import {homeMixesFocusRow as mixesFocusRow, homeSpotlightFocusActions, homeStartModel, resolveTVHomeStart} from './home-start';
+import {tvFocusIds} from '../../shell/tv-focus';
+import {homeSpotlightFocusActions} from './home-start';
 import {wideDetailHeight} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
-import {Hero, FocusPreviewHero, Row, type HeroCandidate} from '../../kit/layout';
+import {Hero, Row, type HeroCandidate} from '../../kit/layout';
 import {useFocusAnchor} from '../../kit/layout/FocusAnchor';
 import type {ArtworkRenderContext} from '../../kit/layout/types';
 import {LoadingPaint, StateView, HomeSkeleton, SkeletonBlock, skeletonTiming} from '../../kit/states';
@@ -38,16 +33,14 @@ import {nativeType, useTheme, type Theme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
 import {phoneHeaderGeometry, sameAuthority, shellLayout, type ShellAuthority, type ShellLayout} from '../../shell/model';
-import {authorizedHome, homeCardText, homePlayTarget, homeRowHasContent, pageAtVisibleEnd, platformRows} from './model';
-import {TvHomeRecovery} from './TvHomeRecovery';
-import {useTvHomeRecovery} from './useTvHomeRecovery';
+import {authorizedHome, homeRowHasContent, pageAtVisibleEnd, platformRows} from './model';
 import {homeMountedRows, homeVisibleRange, type HomeRowBox} from './home-window';
-import {HomeCard, HomeCollectionCard, HomeHeroFacts, HomeLiveRow, HomePendingRow, HomeRemoteHint, HomeWindow, booksCardSize} from '../../kit/home';
+import {HomeCard, HomeCollectionCard, HomeHeroFacts, HomeLiveRow, HomePendingRow, HomeWindow, booksCardSize} from '../../kit/home';
 import {HomePage} from '../../pages/touch/home/HomePage';
+import {TVHomePage} from '../../pages/tv/home/HomePage';
 
 type HomeCandidate = HeroCandidate & {entry: ContentEntry; target?: ContentEntry; primaryLabel?: string};
 const noMixesSubscription = () => () => {};
-const noMixesSnapshot = () => undefined;
 type HomeCardModel = ReturnType<typeof homeRowPresentation>['cards'][number];
 const homeCardKey = (item: HomeCardModel) => item.entry.id;
 
@@ -113,59 +106,41 @@ export function homeContentBottom(theme: Theme, bottomInset: number): number {
   return bottomInset + (theme.isTV ? 96 : theme.platform === 'tablet' ? 40 : theme.layoutMode === 'phone' && theme.platform === 'phone' ? 12 : 24);
 }
 
-/** motion.html 4.1: Down from the spotlight brings the first row up to the preview's line
- * (slow 320, in-out). The hero block's height change lands in one layout pass; this carries
- * only that exact change as a UI-thread translation, so content arriving above a row (any
- * other delta) still lands in place and never glides the focused row. */
-function TVHomeRowShift({heroDelta, style, onLayout, children}: {heroDelta: number; style: ViewProps['style']; onLayout: ViewProps['onLayout']; children: React.ReactNode}) {
-  const motion = useMotion(), y = useSharedValue(0), transforms = motion.transforms;
-  const shift = useMemo(() => motion.timing('slow', 'inOut'), [motion]);
-  const layout = useMemo<LayoutAnimationFunction>(() => values => {
-    'worklet';
-    const moved = values.currentOriginY + y.value - values.targetOriginY;
-    cancelAnimation(y);
-    y.value = transforms && heroDelta > 0 && Math.abs(Math.abs(moved) - heroDelta) < 1 ? moved : 0;
-    y.value = withTiming(0, shift);
-    return {initialValues: {originX: values.targetOriginX, originY: values.targetOriginY, width: values.targetWidth, height: values.targetHeight}, animations: {}};
-  }, [heroDelta, shift, transforms, y]);
-  const position = useAnimatedStyle(() => ({transform: [{translateY: y.value}]}));
-  return <Animated.View collapsable={false} layout={layout} onLayout={onLayout} style={[style, position]}>{children}</Animated.View>;
-}
+type HomeScreenProps = Parameters<typeof HomeScreenForms>[0] & Pick<React.ComponentProps<typeof TVHomePage>, 'railExpanded' | 'holdRailDim' | 'releaseRailDim'>;
 
-type HomeScreenProps = Parameters<typeof HomeScreenForms>[0];
-
-/** An upright phone draws the rebuilt Home page (phone-app.html 1, 2), with Music's mixes row handed in from here; a
- * tablet, a phone on its side, a desktop window and TV keep this screen's forms until their pages are rebuilt. The
- * switch is an element, never an inline call, so turning a phone over swaps whole components, never hook orders. */
+/** Home uses shared pages on TV and touch. Rotated phones and folds keep their own layout. */
 export function HomeScreen(props: HomeScreenProps) {
-  const theme = useTheme(), {runtime, authority, active} = props;
-  if (theme.isTV || theme.platform !== 'phone' || theme.layoutMode !== 'phone') return <HomeScreenForms {...props}/>;
+  const theme = useTheme(), {runtime, authority, active} = props, posture = usePlatformPosture();
+  if (theme.isTV) return <TVHomePage {...props}/>;
+  const folded = posture?.status === 'available' && posture.folds.some(fold => fold.orientation === 'vertical');
+  if (folded || (theme.form ?? 'phone') === 'phone' && (theme.layoutMode !== 'phone' || theme.platform !== 'phone'))
+    return <HomeScreenForms {...props}/>;
   const mixes = runtime.mixes ? <MusicMixesRow focusScope={`home:${authorityKey(authority)}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError}
     title={runtime.text.t('music.mixesForYou')} onOpen={runtime.musicDiscover} active={active ?? true}/> : undefined;
-  return <HomePage runtime={runtime} authority={authority} active={props.active} heroObscured={props.heroObscured} bottomInset={props.bottomInset} onScrolledChange={props.onScrolledChange} mixes={mixes}/>;
+  return <HomePage runtime={runtime} authority={authority} active={props.active} heroObscured={props.heroObscured} bottomInset={props.bottomInset} onScrolledChange={props.onScrolledChange} mixes={mixes}
+    toolbar={theme.form !== 'phone' && !props.playOnHidden ? <PlayOnButton playOn={runtime.playOn} variant="round"/> : undefined}/>;
 }
 
 /** Server-authored Home only. No whole-library reads, local ranking or metadata inference. */
-function HomeScreenForms({runtime, authority, playOnHidden = false, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
+function HomeScreenForms({runtime, authority, playOnHidden = false, active = true, heroObscured = false, bottomInset = 0, onScrolledChange}: {
   runtime: NativeShellRuntime; authority: ShellAuthority;
   /** The shell hides Play on while Home is selecting or its chrome is hidden. */
-  playOnHidden?: boolean; active?: boolean; heroObscured?: boolean; railExpanded?: boolean; bottomInset?: number; onScrolledChange?: (scrolled: boolean) => void;
-  holdRailDim?: (lease: Readonly<{retired: boolean}>) => void; releaseRailDim?: (lease: Readonly<{retired: boolean}>) => void;
+  playOnHidden?: boolean; active?: boolean; heroObscured?: boolean; bottomInset?: number; onScrolledChange?: (scrolled: boolean) => void;
 }) {
   const registry = useFocusRegistry();
   const ids = useMemo(() => tvFocusIds(authority), [authority]);
   const homeCardFocusId = useCallback((item: HomeCardModel) => ids.entry(item.entry), [ids]);
   const theme = useTheme(), dimensions = useWindowDimensions(), t = runtime.text.t, insets = useSafeAreaInsets();
   const labels = useMemo(() => ({t, has: defaultI18n.has}), [t]);
-  const desktop = theme.layoutMode === 'desktop', medium = theme.platform === 'tablet' && !theme.isTV;
-  const expandedTouch = desktop && !theme.isTV;
+  const desktop = theme.layoutMode === 'desktop', medium = theme.platform === 'tablet';
+  const expandedTouch = desktop;
   // Confirmed Appearance effects: the drawn card is 100 percent, and the picture is drawn unless the viewer turned backdrops off.
   const cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100, showBackdrops = runtime.appearanceShowBackdrops !== false;
-  const windowWidth = theme.isTV ? 1920 : dimensions.width, windowHeight = theme.isTV ? 1080 : dimensions.height;
+  const windowWidth = dimensions.width, windowHeight = dimensions.height;
   const snapshot = useSyncExternalStore(runtime.home.subscribe, runtime.home.getSnapshot);
   // P2-61 HOME-RESILIENCE: a library directory that did not answer is unknown, never "no libraries".
   const librariesUnavailable = useSyncExternalStore(runtime.subscribe ?? noMixesSubscription, () => {try {return runtime.getSnapshot?.().librariesUnavailable === true;} catch {return false;}});
-  const librariesNotice = librariesUnavailable ? <View testID="home-libraries-unavailable" style={{paddingHorizontal: theme.isTV ? theme.layout.gutter.tv : theme.gutter, paddingTop: theme.isTV ? 24 : 16, paddingBottom: theme.isTV ? 8 : 4}}>
+  const librariesNotice = librariesUnavailable ? <View testID="home-libraries-unavailable" style={{paddingHorizontal: theme.gutter, paddingTop: 16, paddingBottom: 4}}>
     <Banner placement="inline" variant="notice" tone="warning" icon="i-alert" message={t('next.home.librariesUnavailable')}
       action={runtime.retryLibraries ? {label: t('next.states.tryAgain'), onPress: () => runtime.retryLibraries?.()} : undefined}/></View> : null;
   // foldable7: on a real vertical crease the medium hero keeps its words on the left
@@ -174,38 +149,18 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
   const crease = medium && posture.status === 'available' && posture.window?.width === windowWidth && posture.window.height === windowHeight
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.right > value.bounds.left && value.bounds.right <= windowWidth) : undefined;
   const tabletMedium = medium && !crease && mediumUprightTablet(windowWidth, windowHeight), mediumGutter = tabletMedium ? 28 : 24;
-  const heroHeight = theme.isTV ? 820 : expandedTouch ? 440 : tabletMedium ? 560 : medium ? mediumHeroHeight(windowWidth, windowHeight) : theme.spec.hero.homeHeight[theme.column];
-  const heroDelta = theme.isTV ? homeHeroBlock(theme, heroHeight, false) - homeHeroBlock(theme, heroHeight, true) : 0;
+  const heroHeight = expandedTouch ? 440 : tabletMedium ? 560 : medium ? mediumHeroHeight(windowWidth, windowHeight) : theme.spec.hero.homeHeight[theme.column];
   const heroActive = active && !heroObscured && !runtime.getSnapshot().selectionActive;
   // states 4b: a page already read may stay on screen only for a positively known
   // transport failure. A refusal, permission, missing or invalid answer takes the
   // ordinary full error state instead of stale rows. TV keeps its own recovery.
   const errorFacts = snapshot.error ? presentError(snapshot.error, 'home') : undefined;
-  const transportFailure = !theme.isTV && errorFacts !== undefined && (errorFacts.category === 'unreachable' || errorFacts.category === 'offline'
+  const transportFailure = errorFacts !== undefined && (errorFacts.category === 'unreachable' || errorFacts.category === 'offline'
     || errorFacts.category === 'timeout' || errorFacts.category === 'busy');
-  const retainable = theme.isTV || errorFacts === undefined || transportFailure;
+  const retainable = errorFacts === undefined || transportFailure;
   const document = retainable ? authorizedHome(snapshot.document, authority) : undefined;
-  const ownershipIds = useMemo(() => [ids.spotlight, ...(document?.rows ?? []).map(row => ids.row(row.id))], [document, ids]);
-  const ownershipSnapshot = useCallback(() => JSON.stringify(ownershipIds.filter(id => registry.isRegionActive(id))), [ownershipIds, registry]);
-  // Home needs ownership transitions for row ordering. A child-to-child move is
-  // already delivered by the focused card's preview callback, not every registry revision.
-  useSyncExternalStore(registry.subscribe, ownershipSnapshot, ownershipSnapshot);
   const cachedAtMount = useRef(!!document);
   const [foreground, setForeground] = useState(AppState.currentState === 'active'), [loadingElapsed, setLoadingElapsed] = useState(0);
-  // The recovery session lives here, at the screen's stable scope, so the service clearing
-  // its error for the length of a retry cannot unmount it or restart its schedule.
-  const recovery = useTvHomeRecovery({runtime, authority, error: snapshot.error, active: active && foreground, resolved: !!document, enabled: theme.isTV});
-  // states.html 5 dims the rail while the mounted recovery is the only thing to read. The lease
-  // is that recovery's own ticket: it ends with the opening, and a stale release compares
-  // against the current lease, so it can never clear a successor's.
-  const railLease = recovery.visible ? recovery.session?.ticket : undefined;
-  // Committed-layout acquisition and release: the lease is taken only once the recovery is on
-  // screen and dropped in the same layout phase as its removal.
-  useLayoutEffect(() => {
-    if (!railLease) return;
-    holdRailDim?.(railLease);
-    return () => {releaseRailDim?.(railLease);};
-  }, [railLease, holdRailDim, releaseRailDim]);
   const [heroVisible, setHeroVisible] = useState(true), [visibleRows, setVisibleRows] = useState<ReadonlySet<string>>(new Set());
   const [visibleRange, setVisibleRange] = useState<readonly [number, number]>([0, 0]);
   const [measuredRows, setMeasuredRows] = useState<Readonly<{layout: string; boxes: ReadonlyMap<string, {y: number; height: number}>}>>({layout: '', boxes: new Map()});
@@ -213,51 +168,25 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
   const [rowsTop, setRowsTop] = useState<number>();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Shelf offsets belong to this authority.
   const shelfOffsets = useMemo(() => new Map<string, {offset: number}>(), [authority]);
-  const [focus, setFocusState] = useState<{rowId: string; entryId: string}>(), [heroFocused, setHeroFocused] = useState(false), [repeating, setRepeating] = useState(false);
-  const focusTarget = useRef<typeof focus>(undefined), canAnchor = useRef(false);
-  canAnchor.current = theme.isTV && active && !railExpanded;
-  const setFocus = useCallback((next: typeof focus) => {
-    if (focusTarget.current?.rowId === next?.rowId && focusTarget.current?.entryId === next?.entryId) return;
-    focusTarget.current = next; setFocusState(next);
-  }, []);
+  const [focus, setFocus] = useState<{rowId: string; entryId: string}>();
   const [activeIndex, setActiveIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const scrolled = useRef(false);
-  const initialEntry = useMemo(() => createInitialRegionEntry(registry, ids.spotlight), [registry, ids.spotlight]);
   const rowPositions = useRef(new Map<string, {y: number; height: number}>());
-  // TV: a focused row's top sits under the 588 preview hero, whichever way focus came. A row (492) never fits between that
-  // and a bottom margin, so keeping it merely visible put it 96 px higher when focus arrived from below, as at the first landing.
-  const vertical = useFocusAnchor(false, theme.isTV && active, 'start');
+  const vertical = useFocusAnchor(false, false, 'start');
   const moveToTop = vertical.move;
-  useEffect(() => !theme.isTV ? runtime.registerScrollToTop({kind: 'home'}, () => moveToTop(0, true)) : undefined, [runtime, moveToTop, theme.isTV]);
+  useEffect(() => runtime.registerScrollToTop({kind: 'home'}, () => moveToTop(0, true)), [runtime, moveToTop]);
   const current = useCallback(() => {
     try {return sameAuthority(authority, runtime.getSnapshot().authority);}
     catch (error) {if (error instanceof Error && error.name === 'AbortError') return false; throw error;}
   }, [authority, runtime]);
-  const pages = useMemo(() => new NativeHomePaging(runtime.home, () => sameAuthority(authority, runtime.getSnapshot().authority), error => runtime.reportError(error)), [authority, runtime]);
-  const pagingRevision = useSyncExternalStore(pages.subscribe, pages.getSnapshot, pages.getSnapshot);
-  useEffect(() => pages.activate(), [pages]);
-  useEffect(() => {
-    const saved = registry.capture();
-    const row = document?.rows.find(value => ids.row(value.id) === saved?.regionId);
-    const page = row && pages.state(row.id), fulfilled = page?.fulfilled;
-    const entryId = fulfilled?.firstItemId;
-    if (row && entryId && saved?.childId === page?.hostId) {
-      setFocus({rowId: row.id, entryId});
-      setHeroFocused(false);
-    }
-  }, [document, ids, pages, pagingRevision, registry, setFocus]);
   const guarded = (run: () => void) => {if (current()) run();};
   const readLibraries = new Set(runtime.getSnapshot().libraries.filter(library => library.kind === 'books').map(library => library.id));
-  const incomingRows = document ? platformRows(document, theme.isTV ? 'tv' : 'phone', readLibraries).filter(homeRowHasContent).map(row => theme.isTV ? pages.present(row) : row) : [];
+  const rows = document ? platformRows(document, 'phone', readLibraries).filter(homeRowHasContent) : [];
   // The server publishes every Home row as a deferred descriptor with its real title and
   // shape, then the row previews hydrate one at a time. Draw only the descriptors whose
   // preview has not arrived yet as bounded skeletons; no card, count or focus target.
-  const pendingRows = document ? platformRows(document, theme.isTV ? 'tv' : 'phone', readLibraries).filter(row => row.deferred === true && !homeRowHasContent(row)).slice(0, theme.isTV ? 3 : 2) : [];
-  const previousRows = useRef<readonly HomeRow[]>([]);
-  const occupied = theme.isTV && (registry.isRegionActive(ids.spotlight) || previousRows.current.some(row => registry.isRegionActive(ids.row(row.id))));
-  const rows = theme.isTV ? tvHomeRows(previousRows.current, incomingRows, rowId => registry.isRegionActive(ids.row(rowId)), occupied) : incomingRows;
-  previousRows.current = rows;
+  const pendingRows = document ? platformRows(document, 'phone', readLibraries).filter(row => row.deferred === true && !homeRowHasContent(row)).slice(0, 2) : [];
   const rowLayoutKey = `${windowWidth}:${windowHeight}:${dimensions.fontScale}:${theme.textScale}:${cardScale}:${theme.platform}:${theme.layoutMode}:${tabletMedium}`;
   const rowModels = rows.map(row => {
     const presentation = homeRowPresentation(row), wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
@@ -265,23 +194,23 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
     // Continue your books draws the Read lane's resume card (tablet-read.html frame 11) at the
     // sizes the Reading library uses for its own Continue row.
     const books = row.id === 'continue_books';
-    const drawnWidth = books ? booksCardSize(theme).width : ranked ? theme.isTV ? 318 : desktop ? theme.spec.shelf.rank.width : 186
+    const drawnWidth = books ? booksCardSize(theme).width : ranked ? desktop ? theme.spec.shelf.rank.width : 186
       : wide ? medium ? mediumCardWidth(true, tabletMedium) : desktop ? 262 : theme.spec.card.width.wide[theme.column]
       : square ? desktop ? 150 : theme.spec.card.width.square[theme.column] : medium ? mediumCardWidth(false, tabletMedium) : desktop ? 150 : theme.spec.card.width.poster[theme.column];
     const width = cardScale === 1 ? drawnWidth : Math.round(drawnWidth * cardScale);
-    const posterWidth = ranked ? Math.round((theme.isTV ? 214 : desktop ? theme.spec.shelf.rank.posterWidth : 116) * cardScale) : width;
-    const height = books ? Math.round(booksCardSize(theme).height * cardScale) : wide ? width * 9 / 16 + wideDetailHeight(theme) : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
-    const cardHeight = row.live ? theme.isTV ? 225 : desktop ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone : height;
-    const top = theme.isTV ? Math.ceil(cardHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : theme.spec.shelf.phonePaddingTop;
-    const estimatedHeight = row.collection ? theme.isTV ? 360 : 236 : (theme.type.rowHeading.lineHeight ?? (theme.type.rowHeading.fontSize ?? 24) * 1.4)
-      + theme.spec.shelf.headingMargin[theme.column] + cardHeight + (theme.isTV ? Math.max(14, top) : top + theme.spec.shelf.phonePaddingBottom);
+    const posterWidth = ranked ? Math.round((desktop ? theme.spec.shelf.rank.posterWidth : 116) * cardScale) : width;
+    const height = books ? Math.round(booksCardSize(theme).height * cardScale) : wide ? width * 9 / 16 + wideDetailHeight(theme) : square ? width + 54 : posterWidth * 1.5 + (48 + cardTitleLine(theme));
+    const cardHeight = row.live ? desktop ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone : height;
+    const top = theme.spec.shelf.phonePaddingTop;
+    const estimatedHeight = row.collection ? 236 : (theme.type.rowHeading.lineHeight ?? (theme.type.rowHeading.fontSize ?? 24) * 1.4)
+      + theme.spec.shelf.headingMargin[theme.column] + cardHeight + (top + theme.spec.shelf.phonePaddingBottom);
     return {row, presentation, width, height, slotHeight: measuredRows.layout === rowLayoutKey ? measuredRows.boxes.get(row.id)?.height ?? estimatedHeight : estimatedHeight};
   });
-  const noHero = !theme.isTV && !document?.spotlight.length;
-  const heroBlock = (preview: boolean) => noHero ? homeTopWithoutHero(shellLayout(windowWidth, windowHeight, theme.isTV).kind, insets.top) : homeHeroBlock(theme, heroHeight, preview);
-  // TV measures its rows in the scrolled content; on the frame a row's box is measured from where the frame starts the rows.
-  const framedTop = theme.isTV ? 0 : rowsTop ?? 0;
-  let rowY = !theme.isTV && rowsTop !== undefined ? rowsTop : heroBlock(rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)));
+  const noHero = !document?.spotlight.length;
+  const heroBlock = (preview: boolean) => noHero ? homeTopWithoutHero(shellLayout(windowWidth, windowHeight, false).kind, insets.top) : homeHeroBlock(theme, heroHeight, preview);
+  // A row reports its position relative to the rows container.
+  const framedTop = rowsTop ?? 0;
+  let rowY = rowsTop !== undefined ? rowsTop : heroBlock(rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)));
   const spacing = homeRowSpacing(theme);
   const rowBoxes: readonly HomeRowBox[] = rowModels.map(({row, slotHeight}) => {
     rowY += spacing.marginTop ?? 0;
@@ -298,28 +227,6 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
   // The drawn skeleton rows are demanded too: they are not in `rows` until they load, so leaving them out
   // parked every deferred row after a restore forever (E-tv-02, E-mobile-08).
   const rowDemand = JSON.stringify([...rows.filter((_row, index) => mountedRows.has(index)).map(row => row.id), ...pendingRows.map(row => row.id)]);
-  // TV: skeleton rows have no focus target, so Down from the hero and the first native focus would otherwise skip
-  // them to Customize and scroll Home to the bottom. Customize waits until no row is still loading.
-  const holdCustomize = theme.isTV && pendingRows.length > 0;
-  const mixes = useSyncExternalStore(runtime.mixes?.subscribe ?? noMixesSubscription, runtime.mixes?.getSnapshot ?? noMixesSnapshot);
-  const hasMixes = mixes?.phase === 'ready' && mixes.rows.length > 0;
-  const regionMap = tvHomeRegionMap(authority, [...rows.map(row => row.id), ...(hasMixes ? [mixesFocusRow] : [])], {spotlightFocusable: homeStartModel(document, authority, {rows: rows.map(row => row.id)}).spotlightActions});
-  const mixesRegion = regionMap.rows.get(mixesFocusRow);
-  const startModel = homeStartModel(document, authority, {rows: rows.map(row => row.id), readLibraryIds: readLibraries, mixesReady: hasMixes, playbackAvailable: !!runtime.playback});
-  const resolveStart = useCallback(() => resolveTVHomeStart(registry, startModel), [registry, startModel]);
-  useTVPageBack(runtime, {kind: 'home'}, theme.isTV, {
-    // A pending jump from removed content cannot survive an actionless page.
-    scope: startModel.actionless ? 'empty' : 'content', registerTop: true,
-    current: () => active && foreground && sameAuthority(authority, runtime.getSnapshot().authority),
-    start: () => resolveStart().address,
-    atTop: () => {const start = resolveStart(); return start.kind === 'empty' || vertical.offset.value <= 0 && start.kind === 'ready';},
-    scrollTop: () => {moveToTop(0, true); setFocus(undefined);},
-  });
-  useLayoutEffect(() => {
-    if (theme.isTV && startModel.actionless && scrolled.current && !runtime.retirementSignal?.aborted && current()) {
-      scrolled.current = false; onScrolledChange?.(false);
-    }
-  }, [current, onScrolledChange, runtime, startModel.actionless, theme.isTV]);
   const ranges = useRef(new Map<string, {first: number; last: number; keys?: readonly string[]}>());
   const viewportHeight = windowHeight, viewportWidth = windowWidth;
 
@@ -361,14 +268,13 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
   // read by client-core's HomeService, one read per row, stopped when a row stops being demanded.
   useEffect(() => {runtime.home.demand(active && foreground && current() ? JSON.parse(rowDemand) as string[] : []);}, [active, current, foreground, rowDemand, runtime]);
   const updateViewport = useCallback((y: number) => {
-    if (startModel.actionless) return;
     setHeroVisible(y < heroHeight);
     if (scrolled.current !== (y > 0)) {scrolled.current = y > 0; onScrolledChange?.(scrolled.current);}
     const boxes = boxesRef.current, range = homeVisibleRange(boxes, y, viewportHeight - bottomInset);
     const visible = new Set(boxes.slice(range[0], range[1] + 1).map(box => box.id));
     setVisibleRange(previous => previous[0] === range[0] && previous[1] === range[1] ? previous : range);
     setVisibleRows(previous => previous.size === visible.size && [...visible].every(id => previous.has(id)) ? previous : visible);
-  }, [bottomInset, heroHeight, onScrolledChange, startModel.actionless, viewportHeight]);
+  }, [bottomInset, heroHeight, onScrolledChange, viewportHeight]);
   useLayoutEffect(() => {scrollBoxes.value = rowBoxes; reportedRange.value = ''; updateViewport(vertical.offset.value);}, [rowBoxes, scrollBoxes, reportedRange, updateViewport, vertical.offset]);
   const onScroll = useAnimatedScrollHandler(event => {
     const y = event.contentOffset.y;
@@ -377,39 +283,15 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
     const next = `${range[0]}:${range[1]}:${y < heroHeight}:${y > 0}`;
     if (reportedRange.value !== next) {reportedRange.value = next; runOnJS(updateViewport)(y);}
   });
-  const focusedRow = rows.find(row => row.id === focus?.rowId), focusedEntry = focusedRow?.entries.find(entry => entry.id === focus?.entryId);
-  const preview = focusedEntry ? {
-    id: focusedEntry.id, title: homeCardText(focusedEntry, true, runtime.text).title, entry: focusedEntry,
-    facts: homeTitleFactParts(focusedEntry, runtime.text), overview: focusedEntry.overview,
-    target: focusedRow && homePlayTarget(focusedRow, focusedEntry),
-  } satisfies HomeCandidate : undefined;
   const candidates: readonly HomeCandidate[] = useMemo(() => document ? homeSpotlightModels(document).map(model => ({
     id: model.entry.id, title: model.entry.displayTitle || model.entry.title, long: expandedTouch && (model.entry.displayTitle || model.entry.title).length > 20, entry: model.entry, overview: model.overview,
     reason: serverTextLabel(labels, model.reason.text), facts: homeTitleFactParts(model.entry, runtime.text),
     target: model.primary?.entry, primaryLabel: model.primary ? t(model.primary.label.key, model.primary.label.params) : undefined,
   })) : [], [document, expandedTouch, runtime.text, labels, t]);
-  useEffect(() => {
-    if (!theme.isTV) return;
-    const request = () => {
-      const start = resolveStart();
-      return initialEntry.request({active: heroActive && foreground && !railExpanded && !recovery.visible && current() && start.kind === 'ready',
-        primary: start.address?.regionId ?? ids.spotlight});
-    };
-    if (request() !== 'waiting') return;
-    let live = true, pending = false;
-    const off = registry.subscribe(() => {
-      if (pending) return;
-      pending = true;
-      // Registration may run during a layout commit; land only after it settles.
-      queueMicrotask(() => {pending = false; if (live && request() !== 'waiting') off();});
-    });
-    return () => {live = false; off();};
-  }, [initialEntry, heroActive, foreground, railExpanded, recovery.visible, current, ids.spotlight, registry, resolveStart, theme.isTV]);
-
   const renderArtwork = (candidate: HomeCandidate, context: ArtworkRenderContext) => {
     const art = <AmbientArt source={runtime.ambient(candidate.entry.backdropUrl ?? candidate.entry.posterUrl)}
       foreground={showBackdrops ? runtime.artwork(candidate.entry.backdropUrl ?? candidate.entry.posterUrl) : undefined} treatment={theme.layoutMode === 'phone' ? 'phone' : 'hero'} visible={active && foreground && context.visible} priority
-      onReady={context.onReady} onFallbackReady={context.onReady} onError={context.onError} foregroundStyle={context.foregroundStyle} width={crease ? Math.max(0, windowWidth - crease.bounds.right) : viewportWidth} height={theme.isTV ? 900 : heroHeight}
+      onReady={context.onReady} onFallbackReady={context.onReady} onError={context.onError} foregroundStyle={context.foregroundStyle} width={crease ? Math.max(0, windowWidth - crease.bounds.right) : viewportWidth} height={heroHeight}
       foregroundFraction={expandedTouch ? .74 : medium && !tabletMedium ? mediumBackdropFraction(windowWidth, windowHeight) : undefined} foregroundFade={medium && !tabletMedium || expandedTouch ? 'left' : undefined}
       position={tabletMedium ? {x: .36, y: .28} : medium ? {x: 0.38, y: 0.22} : undefined}/>;
     return crease ? <View style={{position: 'absolute', left: crease.bounds.right, right: 0, top: 0, height: heroHeight}}>{art}</View> : art;
@@ -418,31 +300,21 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
     if (target?.playback) runtime.actions.play(entry, target.playback); else runtime.actions.navigate(entry);
   });
   const heroActions = (candidate: HomeCandidate) => {
-    const {offers, order} = homeSpotlightFocusActions(candidate.entry, candidate.target, {platform: theme.isTV ? 'tv' : 'phone-app', playbackAvailable: !!runtime.playback});
-    return <HomeRegion focus={theme.isTV ? {...regionMap.spotlight, entry: order[0], orientation: 'horizontal', order,
-      style: {flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 18 : 12}} : undefined}>
-      {offers.playable && candidate.target?.playback && <Button focusId="play" icon="i-play" variant="primary" size="hero" style={tabletMedium || expandedTouch ? {height: undefined, minHeight: tabletMedium ? 52 : 48, paddingHorizontal: tabletMedium ? 26 : 22, borderRadius: 12} : undefined} textStyle={tabletMedium || expandedTouch ? {fontSize: 16 * theme.textScale} : undefined} onFocus={() => {initialEntry.finish(); setHeroFocused(true); if (theme.isTV) {moveToTop(0, true); setFocus(undefined);}}} onBlur={() => setHeroFocused(false)} onPress={() => activate(candidate.entry, candidate.target)}
-        onLongPressAction={theme.isTV ? () => guarded(() => runtime.actions.more(candidate.entry)) : undefined}>{candidate.primaryLabel ?? t('next.home.play')}</Button>}
-      {offers.watchlisted !== undefined && <Button focusId="my-list" icon={offers.watchlisted ? 'i-check' : 'i-plus'} variant="glass" size="hero" style={tabletMedium || expandedTouch ? {height: undefined, minHeight: tabletMedium ? 52 : 48, paddingHorizontal: tabletMedium ? 26 : 22, borderRadius: 12} : undefined} textStyle={tabletMedium || expandedTouch ? {fontSize: 16 * theme.textScale} : undefined} onFocus={() => {initialEntry.finish(); setHeroFocused(true); if (theme.isTV) {moveToTop(0, true); setFocus(undefined);}}} onBlur={() => setHeroFocused(false)} onPress={() => {
-        if (current()) void runtime.actions.myList(candidate.entry, !offers.watchlisted).then(() => {if (current()) {noteHomeRead('my-list'); return runtime.home.revalidate();}}).catch(runtime.reportError);
+    const {offers} = homeSpotlightFocusActions(candidate.entry, candidate.target, {platform: 'phone-app', playbackAvailable: !!runtime.playback});
+    const style = tabletMedium || expandedTouch ? {height: undefined, minHeight: tabletMedium ? 52 : 48, paddingHorizontal: tabletMedium ? 26 : 22, borderRadius: 12} : undefined;
+    const textStyle = tabletMedium || expandedTouch ? {fontSize: 16 * theme.textScale} : undefined;
+    return <>
+      {offers.playable && candidate.target?.playback && <Button focusId="play" icon="i-play" variant="primary" size="hero" style={style} textStyle={textStyle}
+        onPress={() => activate(candidate.entry, candidate.target)}>{candidate.primaryLabel ?? t('next.home.play')}</Button>}
+      {offers.watchlisted !== undefined && <Button focusId="my-list" icon={offers.watchlisted ? 'i-check' : 'i-plus'} variant="glass" size="hero" style={style} textStyle={textStyle} onPress={() => {
+        if (current()) void runtime.actions.myList(candidate.entry, !offers.watchlisted).then(() => {
+          if (current()) {noteHomeRead('my-list'); return runtime.home.revalidate();}
+        }).catch(runtime.reportError);
       }}>{t('next.home.myList')}</Button>}
-      {theme.isTV && offers.details && <Button focusId="details" variant="glass" size="hero" onFocus={() => {initialEntry.finish(); setHeroFocused(true); if (theme.isTV) {moveToTop(0, true); setFocus(undefined);}}} onBlur={() => setHeroFocused(false)} onPress={() => guarded(() => runtime.actions.navigate(candidate.entry))}>{t('action.details')}</Button>}
-    </HomeRegion>;
+    </>;
   };
-  const onRowFocus = (row: HomeRow, entryId: string) => {
-    if (theme.isTV) initialEntry.finish();
-    setFocus({rowId: row.id, entryId}); setHeroFocused(false);
-    if (focus?.rowId === row.id && focus.entryId === entryId) return;
-    const target = focusTarget.current;
-    // Focus changes the TV hero/row geometry. Anchor after that real layout has landed.
-    requestAnimationFrame(() => {
-      if (!current() || !canAnchor.current || focusTarget.current !== target) return;
-      const box = rowPositions.current.get(row.id);
-      if (box) vertical.anchor(box.y, box.height, viewportHeight, contentHeight.current, 588, 96);
-    });
-  };
-  const spotlight = <Hero candidates={candidates} activeIndex={activeIndex} onIndexChange={setActiveIndex} heroFocused={heroFocused && !railExpanded}
-    testID={theme.isTV ? ids.surface('hero') : undefined} active={heroActive && (!theme.isTV || !preview)} visible={active && foreground && heroVisible} variant={theme.isTV ? 'tv' : desktop ? 'desktop' : 'phone-app'} height={heroHeight}
+  const onRowFocus = (row: HomeRow, entryId: string) => setFocus({rowId: row.id, entryId});
+  const spotlight = <Hero candidates={candidates} activeIndex={activeIndex} onIndexChange={setActiveIndex} active={heroActive} visible={active && foreground && heroVisible} variant={desktop ? 'desktop' : 'phone-app'} height={heroHeight}
     copySide={expandedTouch ? {inset: 32, width: 440, bottom: 118} : medium && !tabletMedium ? mediumCopySide(windowWidth, windowHeight) : undefined}
     copyStyle={tabletMedium ? {left: 56, right: 56, bottom: 44} : undefined}
     lockupStyle={expandedTouch || tabletMedium ? {...nativeType({size: tabletMedium ? 62 : 58, weight: 800, tracking: -.04, lineHeight: (tabletMedium ? 62 : 58) * 1.02}, theme.textScale), marginBottom: 12} : medium ? mediumLockupStyle(theme, windowWidth, windowHeight) : undefined}
@@ -454,28 +326,21 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
     renderArtwork={renderArtwork} renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []} centered={tabletMedium ? true : undefined} size={expandedTouch ? heroFactsSize(14, theme) : tabletMedium ? heroFactsSize(15, theme) : undefined}/>} renderActions={heroActions}
     renderThumbnail={candidate => <Artwork source={runtime.artwork(candidate.entry.backdropUrl ?? candidate.entry.posterUrl)} width={expandedTouch ? 104 : heroSpec.thumbnail.width} height={expandedTouch ? 58 : heroSpec.thumbnail.height}/>}
     onArtworkError={(error, candidate) => runtime.onArtworkError(error, candidate.entry)}/>;
-  const contentHeight = useRef(viewportHeight);
-  const mixesContent = runtime.mixes ? <MusicMixesRow focusScope={`home:${authorityKey(authority)}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError} title={t('music.mixesForYou')} onOpen={runtime.musicDiscover} active={active}
-    focus={theme.isTV && mixesRegion ? {id: mixesRegion.id, up: mixesRegion.edges.up!, down: mixesRegion.edges.down, left: ids.rail} : undefined}/> : null;
-  if (!document) return recovery.visible && recovery.session
-    ? <TvHomeRecovery session={recovery.session} onRetryNow={recovery.retryNow} onSwitchServer={recovery.switchServer} connectionFacts={runtime.connectionFacts}/>
-    // E-mobile-03/04: a full page below the status bar and header that scrolls, so large text never clips its actions.
-    : snapshot.error ? theme.isTV ? <StateView {...runtime.error(snapshot.error, () => guarded(() => {void runtime.home.retry();}), 'home')}/>
-      : <ScrollView testID="home-error-page" contentContainerStyle={{flexGrow: 1, justifyContent: 'center', paddingTop: phoneHeaderGeometry(insets.top, false).height, paddingBottom: homeContentBottom(theme, bottomInset)}}>
-        <StateView variant="centered" {...runtime.error(snapshot.error, () => guarded(() => {void runtime.home.retry();}), 'home')}/></ScrollView>
+  const mixesContent = runtime.mixes ? <MusicMixesRow focusScope={`home:${authorityKey(authority)}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError} title={t('music.mixesForYou')} onOpen={runtime.musicDiscover} active={active}/> : null;
+  if (!document) return snapshot.error
+    ? <ScrollView testID="home-error-page" contentContainerStyle={{flexGrow: 1, justifyContent: 'center', paddingTop: phoneHeaderGeometry(insets.top, false).height, paddingBottom: homeContentBottom(theme, bottomInset)}}>
+      <StateView variant="centered" {...runtime.error(snapshot.error, () => guarded(() => {void runtime.home.retry();}), 'home')}/></ScrollView>
     : <LoadingPaint ready={false} quietMs={0} skeleton={<HomeSkeleton elapsedMs={loadingElapsed} visible={active && foreground}/>}/>;
-  // A resolved actionless TV page has no action region. Keep the independent
-  // mixes reader mounted: it paints nothing until it has a real offered row.
-  if (theme.isTV ? startModel.actionless : !document.spotlight.length && !rows.length) return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>
-    {librariesUnavailable ? <View style={{paddingTop: theme.isTV ? 120 : 100}}>{librariesNotice}</View> : runtime.renderHomeEmpty()}{theme.isTV ? mixesContent : null}</LoadingPaint>;
+  if (!document.spotlight.length && !rows.length) return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>
+    {librariesUnavailable ? <View style={{paddingTop: 100}}>{librariesNotice}</View> : runtime.renderHomeEmpty()}</LoadingPaint>;
 
   const scroll = (content: React.ReactNode, contentContainerStyle: ViewStyle) => <Animated.ScrollView ref={vertical.scrollRef} testID="native-home" style={vertical.scrollStyle} scrollEventThrottle={16} onScroll={onScroll}
-    refreshControl={theme.isTV ? undefined : <RefreshControl refreshing={refreshing} tintColor={theme.colors.text} onRefresh={() => {
+    refreshControl={<RefreshControl refreshing={refreshing} tintColor={theme.colors.text} onRefresh={() => {
       if (!current() || refreshing) return;
       setRefreshing(true);
       noteHomeRead('pull'); void runtime.home.revalidate().catch(runtime.reportError).finally(() => {if (current()) setRefreshing(false);});
     }}/>}
-    onContentSizeChange={(_, height) => {contentHeight.current = height;}} onScrollBeginDrag={vertical.stop}
+    onScrollBeginDrag={vertical.stop}
     showsVerticalScrollIndicator={false}
     contentContainerStyle={contentContainerStyle}>{content}</Animated.ScrollView>;
   const rowsContent = <>
@@ -483,23 +348,16 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
     {rowModels.map(({row, presentation, width, height, slotHeight}, rowIndex) => {
       const sourceRow = document.rows.find(value => value.id === row.id);
       if (!sourceRow) return null;
-      if (!mountedRows.has(rowIndex)) return <View key={row.id} style={theme.isTV ? homeRowSpacing(theme) : undefined}><View style={{height: slotHeight}}/></View>;
-      let scrollMemory = theme.isTV ? undefined : shelfOffsets.get(row.id);
-      if (!theme.isTV && !scrollMemory) {scrollMemory = {offset: 0}; shelfOffsets.set(row.id, scrollMemory);}
-      const physicalIds = theme.isTV ? row.live ? row.live.channels.map(item => JSON.stringify([item.channel.sourceId, item.channel.id])) : row.entries.map(entry => entry.id) : undefined;
+      if (!mountedRows.has(rowIndex)) return <View key={row.id}><View style={{height: slotHeight}}/></View>;
+      let scrollMemory = shelfOffsets.get(row.id);
+      if (!scrollMemory) {scrollMemory = {offset: 0}; shelfOffsets.set(row.id, scrollMemory);}
       const shown = active && foreground && (visibleRows.has(row.id) || !rowPositions.current.has(row.id) && rowIndex === 0);
-      const pending = pages.state(row.id), waitingItem = presentation.cards.at(-1);
-      const waitingId = pending?.loading ? pending.waitingId : ids.page(row.id, row.nextCursor);
-      const paging = theme.isTV && waitingItem && !row.live && !row.collection ? {hasMore: !!row.nextCursor || !!pending?.loading,
-        loading: !!pending?.loading || !!snapshot.paging?.has(row.id) || !shown, failed: !!pending?.failed && pending.cursor === row.nextCursor,
-        waitingId, waitingItem, fulfilled: pending?.fulfilled, requestNext: () => {if (shown && current()) void pages.request(sourceRow, waitingId);}} : undefined;
       const title = serverTextLabel(labels, presentation.title), subtitle = serverTextLabel(labels, presentation.subtitle);
       // The kit's Row draws a string sub-line in the phone's 13 px role (phone-app.html .row-head .sub).
       const rowSubtitle = subtitle || undefined;
-      const retainedIds = theme.isTV && registry.isRegionActive(ids.row(row.id)) && focus?.rowId === row.id ? [focus.entryId] : undefined;
-      const range = (first: number, last: number) => {if (!current()) return; const keys = ranges.current.get(row.id)?.keys; ranges.current.set(row.id, {first, last, keys}); runtime.setHomeWindow(sourceRow, rowIndex, first, last, shown, physicalIds, retainedIds, keys); if (shown && (!theme.isTV || row.live) && pageAtVisibleEnd(row, last, theme.isTV || medium || desktop ? 10 : 3)) void runtime.home.more(row.id);};
+      const range = (first: number, last: number) => {if (!current()) return; const keys = ranges.current.get(row.id)?.keys; ranges.current.set(row.id, {first, last, keys}); runtime.setHomeWindow(sourceRow, rowIndex, first, last, shown, undefined, undefined, keys); if (shown && pageAtVisibleEnd(row, last, medium || desktop ? 10 : 3)) void runtime.home.more(row.id);};
       const visibleKeys = (keys: readonly string[]) => {if (!current()) return; const before = ranges.current.get(row.id) ?? {first: 0, last: -1};
-        ranges.current.set(row.id, {...before, keys}); runtime.setHomeWindow(sourceRow, rowIndex, before.first, before.last, shown, physicalIds, retainedIds, keys);};
+        ranges.current.set(row.id, {...before, keys}); runtime.setHomeWindow(sourceRow, rowIndex, before.first, before.last, shown, undefined, undefined, keys);};
       const rowLayout: ViewProps['onLayout'] = event => {const box = event.nativeEvent.layout;
         rowPositions.current.set(row.id, box);
         setMeasuredRows(before => {
@@ -508,59 +366,39 @@ function HomeScreenForms({runtime, authority, playOnHidden = false, active = tru
           const boxes = new Map(before.layout === rowLayoutKey ? before.boxes : []); boxes.set(row.id, {y: box.y, height: box.height});
           return {layout: rowLayoutKey, boxes};
         });
-        // Initial focus can precede the compact hero layout. Re-anchor against
-        // this measured box rather than retaining the previous hero's offset.
-        if (canAnchor.current && focus?.rowId === row.id && focusTarget.current?.rowId === row.id && current()) vertical.anchor(box.y, box.height, viewportHeight, contentHeight.current, 588, 96);};
+      };
       const rowBody = <>
-        {row.live ? <HomeLiveRow row={row} runtime={runtime} visible={shown} itemWidth={theme.isTV ? 400 : desktop ? theme.spec.card.live.width.web : theme.spec.card.live.width.phone} onRange={range} onVisibleKeys={visibleKeys} onItemFocus={item => onRowFocus(row, JSON.stringify([item.channel.sourceId, item.channel.id]))} current={current} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} viewportWidth={viewportWidth} tabletMedium={tabletMedium} scrollMemory={scrollMemory} headingStyle={mediumHeadingStyle}/>
-          : row.collection ? <HomeRegion focus={theme.isTV ? {...regionMap.rows.get(row.id)!, orientation: 'horizontal', order: [ids.collection(row.collection)]} : undefined}><FocusItem focusId={ids.collection(row.collection)}><View style={{paddingHorizontal: theme.gutter}}><HomeCollectionCard row={row} runtime={runtime}
-            width={viewportWidth - theme.gutter - (theme.isTV ? 96 : theme.gutter)} visible={shown} current={current} onFocus={() => onRowFocus(row, row.collection!.collection.id)}/></View></FocusItem></HomeRegion>
-          : <Row title={title} subtitle={rowSubtitle} items={presentation.cards} getKey={homeCardKey} getFocusId={homeCardFocusId} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory} testID={theme.isTV ? ids.row(row.id) : undefined} itemWidth={width} itemHeight={height} captionHeight={row.id === 'continue_books' ? 0 : row.artworkShape === 'landscape' ? wideDetailHeight(theme) : theme.isTV ? 80 : row.artworkShape === 'square' ? 54 : 48 + cardTitleLine(theme)}
-            gutter={medium ? mediumGutter : theme.gutter} rightGutter={medium ? mediumGutter : theme.isTV ? 96 : theme.gutter} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined} selection={runtime.selection(row.id)} paging={paging} onVisibleRange={range} onVisibleKeys={visibleKeys}
-            onSeeAll={row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined} onRepeatingChange={setRepeating}
+        {row.live ? <HomeLiveRow row={row} runtime={runtime} visible={shown} itemWidth={desktop ? theme.spec.card.live.width.web : theme.spec.card.live.width.phone} onRange={range} onVisibleKeys={visibleKeys} onItemFocus={item => onRowFocus(row, JSON.stringify([item.channel.sourceId, item.channel.id]))} current={current} viewportWidth={viewportWidth} tabletMedium={tabletMedium} scrollMemory={scrollMemory} headingStyle={mediumHeadingStyle}/>
+          : row.collection ? <FocusItem focusId={ids.collection(row.collection)}><View style={{paddingHorizontal: theme.gutter}}><HomeCollectionCard row={row} runtime={runtime}
+            width={viewportWidth - theme.gutter - (theme.gutter)} visible={shown} current={current} onFocus={() => onRowFocus(row, row.collection!.collection.id)}/></View></FocusItem>
+          : <Row title={title} subtitle={rowSubtitle} items={presentation.cards} getKey={homeCardKey} getFocusId={homeCardFocusId} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory} itemWidth={width} itemHeight={height} captionHeight={row.id === 'continue_books' ? 0 : row.artworkShape === 'landscape' ? wideDetailHeight(theme) : row.artworkShape === 'square' ? 54 : 48 + cardTitleLine(theme)}
+            gutter={medium ? mediumGutter : theme.gutter} rightGutter={medium ? mediumGutter : theme.gutter} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined} selection={runtime.selection(row.id)} onVisibleRange={range} onVisibleKeys={visibleKeys}
+            onSeeAll={row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined}
             onItemFocus={item => onRowFocus(row, item.entry.id)} renderItem={(item, context) => <View style={theme.fontScale > 1 || theme.textScale > 1 ? {width, minHeight: height} : {width, height}}><LoadingPaint ready={!context.waiting} immediate={!context.waiting} skeleton={<View style={{backgroundColor: theme.colors.ink}}><SkeletonBlock width={width} height={height}/></View>}><HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context}
               width={width} rowIndex={rowIndex} visible={shown} preferred={false} cardType={medium ? mediumCardType : undefined}
               current={current}/></LoadingPaint></View>}/>}
 </>;
-      return <HomeWindow key={row.id} runtime={runtime} row={sourceRow} sectionOrder={rowIndex} visible={shown} physicalIds={physicalIds} retainedIds={retainedIds} range={ranges.current.get(row.id)}><>{theme.isTV ? <TVHomeRowShift heroDelta={heroDelta} style={homeRowSpacing(theme)} onLayout={rowLayout}>{rowBody}</TVHomeRowShift>
-        : <View onLayout={rowLayout}>{rowBody}</View>}</></HomeWindow>;
+      return <HomeWindow key={row.id} runtime={runtime} row={sourceRow} sectionOrder={rowIndex} visible={shown} range={ranges.current.get(row.id)}>
+        <View onLayout={rowLayout}>{rowBody}</View></HomeWindow>;
     })}
     {pendingRows.map(row => <HomePendingRow key={`pending:${row.id}`} row={row} labels={labels} viewportWidth={viewportWidth}/>)}
     {mixesContent}
-    <HomeRegion focus={theme.isTV ? {...regionMap.customize, order: ['customize'], enabled: !holdCustomize} : undefined}><View style={theme.isTV ? {flexDirection: 'row', alignItems: 'center', gap: 30, paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight, paddingVertical: 24} : {marginHorizontal: 24, alignItems: 'center', gap: 12}}><Button focusId="customize" disabled={holdCustomize} variant="glass" icon="i-sliders" style={theme.isTV ? undefined : {height: 48, paddingHorizontal: 22}} onPress={() => guarded(runtime.actions.customize)}>{t('home.customize.action')}</Button>
-      {theme.isTV
-        ? <Text style={[nativeType({size: 22, weight: 400, tracking: 0, lineHeight: 30.8}, theme.textScale), {color: theme.colors.textTertiary, flexShrink: 1}]}>{t('next.home.customizeDescriptionTV')}</Text>
-        : <Text style={[nativeType({size: 13, weight: 400, tracking: 0, lineHeight: 19.5}, theme.textScale), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.home.customizeDescription')}</Text>}
-    </View></HomeRegion>
+    <View style={{marginHorizontal: 24, alignItems: 'center', gap: 12}}>
+      <Button focusId="customize" variant="glass" icon="i-sliders" style={{height: 48, paddingHorizontal: 22}} onPress={() => guarded(runtime.actions.customize)}>{t('home.customize.action')}</Button>
+      <Text style={[nativeType({size: 13, weight: 400, tracking: 0, lineHeight: 19.5}, theme.textScale), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.home.customizeDescription')}</Text>
+    </View>
   </>;
   // tablet 2: Play on is the round glass button at the hero's top right, drawn in the page so it scrolls away with the hero
   // and never covers a row; with nothing featured it is the hero, a bar the rows start under. Hidden while the shell hides it.
-  const tablet = !theme.isTV && shellLayout(windowWidth, windowHeight, false).kind === 'tablet';
+  const tablet = shellLayout(windowWidth, windowHeight, false).kind === 'tablet';
   const tabletPlayOn = !playOnHidden && <View pointerEvents="box-none" style={{position: 'absolute', top: tabletPlayOnTop(insets.top), right: 20}}><PlayOnButton playOn={runtime.playOn} variant="round"/></View>;
   // Phone and tablet: the library frame (`BrowseFrame`) draws Home with its hero. The frame places the hero, the rows, the
   // gaps between them and the bottom clearance; Home keeps its own scroller, whose handler drives the row window, the
   // scrolled header and pull to refresh, and measures its rows from where the frame starts them.
-  if (!theme.isTV) return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>
+  return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>
     <BrowseFrame testID="home-frame" hero={tablet ? <View style={{height: noHero ? tabletPlayOnTop(insets.top) + roundBarSize : heroBlock(false)}}>{noHero ? null : spotlight}{tabletPlayOn}</View>
       : noHero ? null : <View style={{height: heroBlock(false)}}>{spotlight}</View>}
       onRowsLayout={event => setRowsTop(event.nativeEvent.layout.y)}
       scroller={(content, style) => scroll(content, {paddingBottom: Number(style.paddingBottom ?? 0) + bottomInset})}>{rowsContent}</BrowseFrame>
   </LoadingPaint>;
-  return <LoadingPaint ready immediate={cachedAtMount.current} skeleton={null}>{scroll(<>
-    <View style={{height: heroBlock(!!preview)}}>
-      {/* tv-focus frames1..3: the real spotlight controls stay mounted for native
-          Up guides while the preview covers them. Focus restores the spotlight. */}
-      {theme.isTV ? <View pointerEvents={preview ? 'none' : 'box-none'} style={{position: 'absolute', inset: 0}}>{spotlight}</View> : noHero ? null : spotlight}
-      {theme.isTV && preview && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height: heroHeight}}><FocusPreviewHero focusedEntry={preview} repeating={repeating || vertical.repeating} active={heroActive} visible={active && foreground && heroVisible}
-        renderArtwork={renderArtwork} renderReason={candidate => <View style={{flexDirection: 'row', gap: 16, marginBottom: 16}}>{homeCardText(candidate.entry, true, runtime.text).caption.map(part => <Text key={part.id} numberOfLines={1} style={[theme.type.eyebrow, {color: theme.colors.accentStrong, flexShrink: 1, includeFontPadding: false}]}>{part.text}</Text>)}</View>}
-        renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []} continuation={homeCardText(candidate.entry, true, runtime.text)}/>}
-        renderHint={candidate => <HomeRemoteHint resume={!!candidate.target?.progressSeconds} text={runtime.text}/>}
-        onPreviewError={(error, candidate) => runtime.onArtworkError(error, candidate.entry)}/></View>}
-    </View>
-    {rowsContent}
-  </>, {paddingBottom: homeContentBottom(theme, bottomInset)})}</LoadingPaint>;
-}
-
-function HomeRegion({focus, children}: {focus?: Omit<FocusRegionProps, 'children'>; children: React.ReactNode}) {
-  return focus ? <FocusRegion {...focus}>{children}</FocusRegion> : <>{children}</>;
 }

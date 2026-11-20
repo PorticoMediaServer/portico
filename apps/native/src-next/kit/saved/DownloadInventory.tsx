@@ -21,12 +21,16 @@ import type {DownloadInventory, DownloadMembership} from '../../pages/shared/sav
 const t = defaultI18n.t;
 const readingGutter = 24, readingGap = 20, readingColumnMin = 280;
 
-export function useDownloadsLayout() {
+export function useDownloadsLayout(nativeCopy: NativeDownloadsCopy) {
   const theme = useTheme(), {width} = useWindowDimensions();
   const [paneWidth, setPaneWidth] = useState(0), [inventoryTop, setInventoryTop] = useState(0);
   const expanded = !theme.isTV && width >= 1024;
   const sheetMenu = !theme.isTV && width < 600;
-  return {expanded, sheetMenu, paneWidth, setPaneWidth, inventoryTop, setInventoryTop,
+  const tablet = theme.form === 'medium' || theme.form === 'expanded';
+  const copy: NativeDownloadsCopy = tablet ? {...nativeCopy, storageLimitHelp: 'next.saved.tablet.storageLimitHelp',
+    freeOnPhone: 'downloads.freeOnDevice', removeFromPhone: 'next.saved.tablet.remove',
+    goneFromServer: 'next.saved.tablet.gone', otherProfiles: 'downloads.othersOnDevice'} : nativeCopy;
+  return {expanded, sheetMenu, paneWidth, setPaneWidth, inventoryTop, setInventoryTop, copy,
     inventoryLayout: (empty: boolean, hasReading: boolean) => ({
       readingTablet: expanded && theme.platform !== 'phone' && hasReading && paneWidth >= 2 * (readingColumnMin + readingGutter) + readingGap,
       rulesBeside: expanded && !empty && !hasReading,
@@ -226,7 +230,7 @@ export function DownloadsEmpty({copy}: {copy: NativeDownloadsCopy}) {
   const theme = useTheme();
   return <View style={{paddingTop: 58, paddingHorizontal: 24, alignItems: 'center'}}>
           <View style={{width: 54, height: 54, borderRadius: 27, backgroundColor: alpha(theme.colors.text, .08), alignItems: 'center', justifyContent: 'center', marginBottom: 18}}><Icon name="i-dl" size={26} color={theme.colors.text}/></View>
-          <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, textAlign: 'center', marginBottom: 10}]}>{t('next.states.native.noDownloads')}</Text>
+          <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, textAlign: 'center', marginBottom: 10}]}>{t(theme.form === 'medium' || theme.form === 'expanded' ? 'next.saved.tablet.empty' : 'next.states.native.noDownloads')}</Text>
           <Text style={[theme.type.intro, {color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 16}]}>{t(copy.emptyBody)}</Text>
         </View>;
 }
