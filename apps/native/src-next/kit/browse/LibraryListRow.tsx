@@ -14,11 +14,12 @@ import type {NativeLibraryActions} from '../../screens/library/LibraryScreen';
 
 /** The catalogue row: genuine title/art/facts and the same card
  * activation, selection and menu handling as the poster presentation. */
-export function LibraryListRow({entry, width, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: Readonly<{
+export function LibraryListRow({entry, width, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect, onCaptionLayout}: Readonly<{
   entry: ContentEntry; width: number; runtime: NativeShellRuntime; actions: NativeLibraryActions;
   selected?: CardSelection; disabled?: boolean; focusId: string; onFocus: () => void; onBlur: () => void;
   /** The menu's Select row: this row's real selection entry. */
   onSelect?: () => void;
+  onCaptionLayout?: (height: number) => void;
 }>) {
   const theme = useTheme(), menuAnchorRef = useRef<View>(null), title = entry.displayTitle || entry.title;
   const text = entry.kind === 'song'
@@ -30,12 +31,13 @@ export function LibraryListRow({entry, width, runtime, actions, selected, disabl
   return <CardFrame testID={`library-list-${encodeURIComponent(focusId)}`} focusId={focusId} title={title} caption={text.caption} detail={text.detail} width={width} disabled={disabled}
     selection={selected} onNavigate={() => actions.open(entry)} onPlay={entry.playback ? () => actions.play(entry) : undefined}
     onMore={() => actions.menu(entry, menuAnchorRef, onSelect)} moreExpanded={actions.isMenuOpen?.(entry)} menuAnchorRef={menuAnchorRef} onFocus={onFocus} onBlur={onBlur}
-    pressableStyle={{height, borderRadius: 10, justifyContent: 'center'}}>
-    {() => <View style={{height, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 12}}>
+    pressableStyle={{minHeight: height, borderRadius: 10, justifyContent: 'center'}}>
+    {() => <View style={{minHeight: height, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 12, paddingVertical: theme.space.xs}}>
       {selected?.active && <SelectionCircle selected={selected.selected} selecting interactive={false} variant="row" size={24} accessibilityLabel={t('card.select', {title})}/>}
       <MediaArt kind={square ? 'square' : 'poster'} source={runtime.artwork(entry.posterUrl)} width={square ? 54 : 36} height={54} style={{borderRadius: 5}}/>
       <View style={{flex: 1, minWidth: 0, gap: 3}}>
-        <Caption title={title} titleLines={2} titleMargin={0} selected={selected?.selected}
+        <Caption title={title} titleLines={2} titleMargin={0}
+          onCaptionLayout={onCaptionLayout && (captionHeight => onCaptionLayout(captionHeight + 2 * theme.space.xs))} selected={selected?.selected}
           titleTextStyle={theme.type.rowLabel} caption={text.caption} captionTextStyle={theme.type.caption}/>
       </View>
       {!disabled && !selected?.active && <View style={{flexDirection: 'row', gap: 6}}>
