@@ -30,7 +30,7 @@ async function album(over: Record<string, unknown> = {}, props: Record<string, u
   let current = true;
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, artistEntry: () => artist, play: record('play'), load: record('load'),
     nextSongs: record('next'), previousSongs: record('previous'), retrySongs: record('retry'), refreshSongs: record('refresh'),
-    focusSong: record('focus'), blurSong: record('blur'), similarPage: () => undefined, similarCurrent: () => current};
+    focusSong: record('focus'), blurSong: record('blur'), similarPage: () => undefined, similarCurrent: () => current, toggleFavorite: record('favorite')};
   const picked = {active: false, selected: false, onToggle: () => {}, onEnter: () => {}};
   const view = h.render(() => useAlbum({controller, entry, runtime: {artwork: (path?: string) => path ? {uri: path} : undefined, ambient: (path?: string) => path ? {url: path} : undefined,
     text: {locale: 'en-US'}, reportError: record('error')}, actions: {menu: (...args: unknown[]) => {calls.push(['menu', ...args]);}},
@@ -86,4 +86,14 @@ test('a failed read offers Try again; a failed More like this says so; no downlo
   assert.equal(similarFailed.view.similarState.kind, 'error');
   assert.equal((await album({}, {download: undefined})).view.download, undefined);
   assert.equal((await album()).view.state, undefined);
+});
+
+test('TV: the heart, and a multi-disc album lists its first disc with a choice of discs (the old TV album page)', async () => {
+  const {view, calls} = await album({favorite: true});
+  assert.equal(view.favorite.on, true); view.favorite.toggle(); assert.deepEqual(calls.at(-1), ['favorite']);
+  assert.equal(view.discs, undefined, 'one disc: no choice');
+  const two = songs.map((song: any, index: number) => ({...song, discNumber: index + 1}));
+  const multi = (await album({songs: two, songPage: {phase: 'ready', items: two, offset: 0}})).view;
+  assert.deepEqual(multi.discs.map((value: any) => [value.label, value.selected]), [[t('title.disc', {number: '1'}), true], [t('title.disc', {number: '2'}), false]]);
+  assert.deepEqual(multi.songs.rows.map((row: any) => row.id), [two[0].id], 'the chosen disc\'s songs');
 });

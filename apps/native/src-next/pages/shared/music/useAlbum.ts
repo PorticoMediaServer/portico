@@ -1,4 +1,4 @@
-import {useSyncExternalStore} from 'react';
+import {useMemo, useState, useSyncExternalStore} from 'react';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
@@ -29,6 +29,11 @@ export type AlbumView = Readonly<{
   byline?: Readonly<{text: string; onPress: () => void}>;
   facts: readonly FactPart[]; badges: ContentEntry['badges'];
   play: () => void; shuffle: () => void; download?: () => void; more: () => void;
+  /** Whether this viewer favourites the album, and the toggle (the old TV album page's heart). */
+  favorite: Readonly<{on: boolean; toggle: () => void}>;
+  /** A multi-disc album's discs, the chosen one's songs listed (the old TV album page's Disc chips, tv-more frame 6). A
+   * single-disc album has none. */
+  discs?: readonly Readonly<{id: string; label: string; selected: boolean; onPress: () => void}>[];
   /** The read failed: Try again reads the album again (the old screen's error view). */
   state?: StateRowProps;
   songs: SongList & Readonly<{
@@ -58,6 +63,11 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
   if (genre) facts.push({id: 'genre', text: genre, role: 'context'});
   if (snapshot.songTotal !== undefined) facts.push({id: 'songs', role: 'context', text: minutes === undefined ? t('title.songCount', {count: snapshot.songTotal})
     : t('music.songCountAndDuration', {songs: snapshot.songTotal, minutes})});
+  // The album's own discs, in order; the list shows the chosen one (the first until one is chosen).
+  const discNumbers = useMemo(() => [...new Set(snapshot.songs.flatMap(song => song.discNumber === undefined ? [] : [song.discNumber]))].sort((left, right) => left - right), [snapshot.songs]);
+  const [disc, setDisc] = useState<number>();
+  const chosen = disc !== undefined && discNumbers.includes(disc) ? disc : discNumbers[0];
+  const listed = discNumbers.length > 1 ? snapshot.songs.filter(song => (song.discNumber ?? discNumbers[0]) === chosen) : snapshot.songs;
   const byId = new Map(snapshot.songs.map(song => [song.id, song]));
   const albums = snapshot.similar.filter(value => value.kind === 'album' && value.libraryId);
   const retryRead = {label: t('action.tryAgain'), onPress: () => run(controller.load())};
@@ -67,10 +77,13 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
     facts, badges: snapshot.albumDetails?.badges,
     play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)),
     download: download ? () => download(entry) : undefined, more: () => actions.menu(entry),
+    favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())},
+    discs: discNumbers.length > 1 ? discNumbers.map(value => ({id: String(value), label: t('title.disc', {number: defaultI18n.number(value, {useGrouping: false})}),
+      selected: value === chosen, onPress: () => setDisc(value)})) : undefined,
     state: snapshot.phase === 'error' ? {kind: 'error', icon: 'i-warn', title: presentError(snapshot.error, 'detail').title, action: retryRead} : undefined,
     songs: {
       // Numbered by the album's own track numbers, else their place in the album.
-      ...songList({songs: snapshot.songs, number: (value, index) => value.trackNumber ?? page.offset + index + 1, playingId, controller, runtime, actions, selection}),
+      ...songList({songs: listed, number: (value, index) => value.trackNumber ?? page.offset + index + 1, playingId, controller, runtime, actions, selection}),
       onFocusRow: id => {const value = byId.get(id); if (value) controller.focusSong(value, page);},
       onBlurRow: id => {const value = byId.get(id); if (value) controller.blurSong(value, page);},
       section: page, next: () => run(controller.nextSongs(page)), previous: () => run(controller.previousSongs(page)),
