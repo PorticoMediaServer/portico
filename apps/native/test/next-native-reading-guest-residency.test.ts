@@ -36,7 +36,11 @@ test('twenty original sessions can evict and restore real guest components witho
     '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => async () => 'cancelled'},
     './asset-origin': {readerNavigationAllowed, readerDelivery}, './startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
-  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const readerStatusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
+    '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
+  });
+  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react: {...React, default: React}, 'react-native': {View: 'View', NativeModules: {PorticoReaderAssets: {bundle: async () => ({url: appleReaderEntry})}}, useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},

@@ -2,8 +2,7 @@ import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigatio
 import {Layer} from '../../kit/shell/Layer';
 import {CoveredLayer} from '../../kit/focus/CoveredLayer';
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {AppState, View, useWindowDimensions} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {AppState} from 'react-native';
 import {preferenceValue, ReadingError, type PreferenceSnapshot, type ReadingSession} from '../../../../../packages/client-core/src';
 import type {ReadingHostSession} from '../../../../../packages/client-core/src/reading-host';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -11,8 +10,8 @@ import {createNativeDownloadsDevice} from '../downloads/device';
 import {offlineDownloads} from '../../../platform/offline-downloads';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute, NativePresentationBinding} from '../../shell/routes';
-import {LoadingPaint, StateView, SkeletonBlock} from '../../kit/states';
-import {Button} from '../../kit/controls/Button';
+import {LoadingPaint, SkeletonBlock} from '../../kit/states';
+import {ReaderStatusPage} from '../../pages/touch/reading/ReaderStatusPage';
 import {NativeReadingGuestHost} from './NativeReadingGuestHost';
 import {closeReadingResource, createReadingSessionOwner} from './reading-session-owner';
 import {NativeAnnotationJournal, nativeAnnotationIdentity, nativeAnnotationLeaseOf, type NativeAnnotationFormat} from './annotation-journal';
@@ -29,7 +28,6 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
   context: NativeShellBootstrapContext; target: Target; active: boolean; preferences: Readonly<{getSnapshot: () => PreferenceSnapshot; subscribe: (listener: () => void) => () => void}>;
   onBack: () => void; onOpenSettings: () => void; resident?: boolean; binding?: NativePresentationBinding; onGuestState?: (mounted: boolean, incarnation: object) => void;
 }) {
-  const dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
   const place = useNativeStackPlacement(target), stacked = useNativeStackHosted();
   const callbacks = useRef({active, onBack, onOpenSettings}); callbacks.current = {active, onBack, onOpenSettings};
   const [retry, setRetry] = useState(0);
@@ -155,17 +153,16 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
     style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
     {/* A full-window layer over the shell: the one backdrop under the reading view, its wait and its failure page. */}
     <Layer>
-    {ended ? <StateView variant="centered" title={defaultI18n.t('next.reader.sessionEndedTitle')} body={defaultI18n.t('next.reader.sessionEndedBody')}
-      primaryAction={{id: 'reopen', label: defaultI18n.t('next.reader.openAgain'), disabled: !active || !context.current(), onPress: reopenEnded}}/>
-      : tooLarge ? <StateView variant="centered" title={defaultI18n.t('next.reader.publicationTooLargeTitle')} body={defaultI18n.t('next.reader.publicationTooLargeBody')}/>
-      : failed ? <StateView variant="centered" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t(busy ? 'error.busy' : 'next.states.pageFailedBody')}
-      primaryAction={{id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || snapshot.phase === 'retired' || !!snapshot.session || !context.current(), onPress: retryOriginal}}/>
-      : <LoadingPaint ready={false} skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}/>}
-    <View pointerEvents="box-none" style={{position: 'absolute', left: 12, top: insets.top + 8, zIndex: 20}}>
-      <Button testID="native-read-host-back" variant="icon" size="compact" icon="i-left" iconOnly accessibilityLabel={defaultI18n.t('action.back')}
-        focusRadius={dimensions.width >= 700 ? 22 : 19} onPress={() => {if (callbacks.current.active) onBack();}}
-        style={{height: dimensions.width >= 700 ? 44 : 38, width: dimensions.width >= 700 ? 44 : 38, paddingHorizontal: 0}}/>
-    </View>
+    <ReaderStatusPage back={{testID: 'native-read-host-back', label: defaultI18n.t('action.back'),
+      onPress: () => {if (callbacks.current.active) onBack();}}}
+      state={ended ? {title: defaultI18n.t('next.reader.sessionEndedTitle'), body: defaultI18n.t('next.reader.sessionEndedBody'),
+        primaryAction: {id: 'reopen', label: defaultI18n.t('next.reader.openAgain'), disabled: !active || !context.current(), onPress: reopenEnded}}
+        : tooLarge ? {title: defaultI18n.t('next.reader.publicationTooLargeTitle'), body: defaultI18n.t('next.reader.publicationTooLargeBody')}
+        : failed ? {title: defaultI18n.t('next.states.pageFailed'), body: defaultI18n.t(busy ? 'error.busy' : 'next.states.pageFailedBody'),
+          primaryAction: {id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || snapshot.phase === 'retired' || !!snapshot.session || !context.current(), onPress: retryOriginal}}
+          : undefined}>
+      <LoadingPaint ready={false} skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}/>
+    </ReaderStatusPage>
   </Layer>
   </CoveredLayer>);
 }

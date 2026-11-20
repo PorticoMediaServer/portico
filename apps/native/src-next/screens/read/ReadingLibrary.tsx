@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -9,7 +9,7 @@ import {readLibrarySummaries, type LibrarySummary} from '../../../../../packages
 import {readingDuration} from '../../../../../packages/client-core/src/reading-manifest-facts';
 import {authorPredicate, libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {GeneratedCover, type ArtworkSource} from '../../kit/artwork';
-import {PhoneReadingBookCover} from './PhoneReadingBookCard';
+import {PhoneReadingBookCard} from './PhoneReadingBookCard';
 import {ReadResumeCard} from '../../kit/cards';
 import {Focusable} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -19,7 +19,6 @@ import {WindowedGrid} from '../../kit/layout';
 import {ReadingLoading, ReadingGridSkeleton} from './ReadingLoading';
 import {NativeReadingWindow} from './reading-window';
 import {ReadingItemMenu, ReadingSelectionToolbar, ReadingMenuAnchor, useReadingActions} from './ReadingActions';
-import {SelectionCircle} from '../../kit/selection';
 import type {NativeReadingActionOffer} from './reading-actions';
 import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
@@ -34,6 +33,7 @@ import {askNativeDownload} from '../downloads/request';
 import {NativeReadingDownloads, nativeReadingPageOpening, nativeReadingDownloadOffer, type NativeReadingPageOpening, type NativeReadingDownloadOffer, type NativeReadingOfferLifetime} from './reading-page-opening';
 import {NativeReadingDiscovery} from './reading-discovery';
 import {NativeReadingLibrary} from './reading-library';
+import {BooksPage} from '../../pages/touch/reading/BooksPage';
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
 
@@ -66,6 +66,7 @@ const authorPart = (item: ReadingItem) => item.author ? [{id: 'author', text: it
  * signed series page; the library itself lists no synthetic series row. */
 export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProps) {
   const {context, runtime, libraryId, title, labels, onBack} = props, theme = useTheme(), insets = useSafeAreaInsets(), pageWidth = usePageWidth();
+  const window = useWindowDimensions(), uprightPhone = theme.form === 'phone' && window.width < window.height;
   const library = context.libraries().find(value => value.id === libraryId);
   const navigation = useSyncExternalStore(context.navigation.subscribe, context.navigation.getSnapshot);
   const {route: renderedRoute, revision: renderedRevision} = navigation;
@@ -210,26 +211,49 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
         detail={defaultI18n.t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(row.estimatedSeconds))})}/>)}
     </DiscoveryRow> : null}
   </ScrollView>;
+  const [captionHeight, setCaptionHeight] = useState(44);
   const booksGrid = <View style={{flex: 1}}>
     {booksState.phase === 'error' ? retry : null}
     <ReadingLoading ready={booksState.items.length > 0 || booksState.phase === 'ready' || booksState.phase === 'error'} style={{flex: 1}}
       skeleton={<ReadingGridSkeleton width={width} columns={columns} gap={gap} gutter={theme.gutter}/>}>
-      <WindowedGrid testID="reading-books" collection={booksWindow} getKey={item => `${item.id}:${item.sourceId}`} itemWidth={width} itemHeight={width * 1.5 + 44}
+      <WindowedGrid testID="reading-books" collection={booksWindow} getKey={item => `${item.id}:${item.sourceId}`} itemWidth={width} itemHeight={width * 1.5 + captionHeight} captionHeight={captionHeight}
         gap={gap} rowGap={gap} gutter={theme.gutter} paddingTop={theme.gutter} paddingBottom={insets.bottom + 40} style={{flex: 1}}
         header={booksState.phase === 'ready' && !booksState.items.length ? empty : undefined}
         renderPlaceholder={() => <ReadingGridSkeleton width={width} columns={1} gutter={0} rows={1}/>}
-        renderItem={item => <DiscoveryCoverCard item={item} artwork={runtime.artwork(item.coverUrl)} width={width} onOpen={openBooks} offer={readingOffer(item, 'books')} actions={readingActions}/>}/>
+        renderItem={item => <DiscoveryCoverCard item={item} artwork={runtime.artwork(item.coverUrl)} width={width} onOpen={openBooks} offer={readingOffer(item, 'books')} actions={readingActions}
+          onCaptionLayout={height => setCaptionHeight(current => Math.max(current, height))}/>}/>
     </ReadingLoading>
   </View>;
   const pivots: Readonly<Record<string, string>> = {book: 'books', ebook: 'books', comic: 'titles', magazine: 'titles', newspaper: 'titles'};
   const counts = (summary?.opening === opening ? summary?.value?.counts ?? [] : []).filter(part => pivots[part.kind]).map(part =>
     defaultI18n.t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: pivots[part.kind]!}));
+  const toolbar = (!gridTab || tab === 'discover') ? <ReadingSelectionToolbar port={readingActions} runtime={runtime}/> : null;
+  const bookBody = !opening ? <View style={{flex: 1}}>{loading}</View> : tab === 'discover' ? discover
+      : !theme.isTV && gridTab && library ? <NativeReadingBooks key={`${(gridSelected ?? gridTab).id}:${authorOpen?.opening === opening ? authorOpen.personId : ''}`}
+        context={scopedContext} opening={opening} runtime={runtime} library={library} tab={gridSelected ?? gridTab} labels={labels}
+        owner={context.session()?.viewer.role === 'owner'} onCount={tablet ? projectGridCount : undefined}
+        onDownload={offerDownload}
+        onAuthor={gridSelected?.id === 'authors' ? personId => {if (opening.isCurrent()) {setAuthorOpen({opening, personId}); setTab('browse');}} : undefined}
+        startQuery={(gridSelected ?? gridTab).id === 'browse' && authorOpen?.opening === opening ? [authorPredicate(authorOpen.personId)] : undefined}/>
+      : !theme.isTV && !capability ? <View style={{flex: 1}}>{loading}</View>
+      : booksGrid;
+  const overlays = <>
+    <ReadingItemMenu port={readingActions} runtime={runtime}/>
+    <Menu open={!!downloadMenu && downloadMenu.opening === opening && downloadMenu.lifetime.isCurrent()}
+      onOpenChange={open => {if (!open) downloads.dismiss(downloadMenu);}} title={downloadMenu?.item.title}
+      items={[{id: 'download', label: defaultI18n.t('action.download'), onSelect: () => downloads.select(downloadMenu)}]}/>
+  </>;
   return <View testID={`native-reading-library-${libraryId}`} style={{flex: 1}} onLayout={event => {
     // The authored cover grid fills the pane it is laid out in, not the window:
     // the shell rail is already outside this view.
     const next = Math.round(event.nativeEvent.layout.width);
     if (next > 0 && next !== paneWidth) setPaneWidth(next);
   }}>
+    {uprightPhone ? <BooksPage title={name} library={{libraries: readingLibraries, value: libraryId,
+      onValueChange: id => {if (id !== libraryId) runtime.onDestination({kind: 'library', libraryId: id});}}}
+      back={{label: defaultI18n.t('next.browse.native.libraries'), onPress: onBack}}
+      tabs={{items: tabs.map(value => ({value: value.id, label: defaultI18n.t(value.label)})), value: tab, onValueChange: id => selectTab(id as LibraryTabId)}}
+      toolbar={toolbar} body={bookBody} overlay={overlays}/> : <>
     {tablet ? <View style={{paddingTop: insets.top + 6, paddingHorizontal: theme.gutter}}>
       <Focusable accessibilityRole="button" focusKind="row" accessibilityLabel={defaultI18n.t('next.browse.native.libraries')} onPress={onBack}
         style={{height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
@@ -253,21 +277,10 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
       <LibraryTabs items={tabs} selected={tab} enabled phone={theme.platform === 'phone'} regionId={`reading-tabs-${libraryId}`}
         leftEdge="reading-tabs-edge" onSelect={selectTab}/>
     </LibraryCompactHeader>}
-    {(!gridTab || tab === 'discover') ? <ReadingSelectionToolbar port={readingActions} runtime={runtime}/> : null}
-    {!opening ? <View style={{flex: 1}}>{loading}</View> : tab === 'discover' ? discover
-      : !theme.isTV && gridTab && library ? <NativeReadingBooks key={`${(gridSelected ?? gridTab).id}:${authorOpen?.opening === opening ? authorOpen.personId : ''}`}
-        context={scopedContext} opening={opening} runtime={runtime} library={library} tab={gridSelected ?? gridTab} labels={labels}
-        owner={context.session()?.viewer.role === 'owner'} onCount={tablet ? projectGridCount : undefined}
-        onDownload={offerDownload}
-        onAuthor={gridSelected?.id === 'authors' ? personId => {if (opening.isCurrent()) {setAuthorOpen({opening, personId}); setTab('browse');}} : undefined}
-        startQuery={(gridSelected ?? gridTab).id === 'browse' && authorOpen?.opening === opening ? [authorPredicate(authorOpen.personId)] : undefined}/>
-      : !theme.isTV && !capability ? <View style={{flex: 1}}>{loading}</View>
-      : booksGrid}
-    <ReadingItemMenu port={readingActions} runtime={runtime}/>
-    <Menu open={!!downloadMenu && downloadMenu.opening === opening && downloadMenu.lifetime.isCurrent()}
-      onOpenChange={open => {if (!open) downloads.dismiss(downloadMenu);}} title={downloadMenu?.item.title}
-      items={[{id: 'download', label: defaultI18n.t('action.download'), onSelect: () => downloads.select(downloadMenu)}]}/>
+    {toolbar}{bookBody}{overlays}
     <Menu open={switcherOpen} onOpenChange={setSwitcherOpen} title={defaultI18n.t('next.browse.native.switchLibrary')} items={switcherItems}/>
+    </>}
+
   </View>;
 }
 
@@ -295,19 +308,12 @@ function DiscoveryRow({title, sub, first = false, onSeeAll, onNearEnd, children}
 /** One sparse-metadata cover: the drawn portrait art with the title and author
  * under it, using the catalogue's canonical generated cover. Books and comics
  * are drawn 2:3; a magazine or newspaper issue is drawn 3:4. */
-function DiscoveryCoverCard({item, artwork, width, detail, onOpen, offer, actions}: {item: ReadingItem; artwork?: ArtworkSource; width: number; detail?: string; offer?: NativeReadingActionOffer; actions: ReturnType<typeof useReadingActions>; onOpen: (item: ReadingItem) => void}) {
-  const anchor = useRef<View>(null), selection = offer ? actions.selection(offer) : undefined;
-  const theme = useTheme(), periodical = item.publicationType?.value === 'magazine' || item.publicationType?.value === 'newspaper';
-  const height = periodical ? width * 4 / 3 : width * 3 / 2, unavailable = item.inventoryAvailable !== true;
-  return <Focusable testID={`reading-item-${item.id}`} accessibilityRole="button" accessibilityLabel={detail ? `${item.title}. ${detail}` : item.title} focusKind="row"
-    ref={anchor} disabled={unavailable} accessibilityState={unavailable ? {disabled: true} : undefined} onPress={selection?.active ? selection.onToggle : () => onOpen(item)}
-    onLongPressAction={offer ? () => actions.actions.show({...offer, anchorRef: anchor}) : undefined} style={{width}}>
-    <View accessible={false} importantForAccessibility="no-hide-descendants" style={{width, height, borderRadius: 10, overflow: 'hidden', borderWidth: selection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>{/* The item's own picture, the generated cover only when it has none or it fails. */}<PhoneReadingBookCover title={item.title} author={item.author?.value} artwork={artwork} width={width} height={height}/>
-      {selection?.active ? <SelectionCircle selected={selection.selected} selecting interactive={false} accessibilityLabel={item.title}
-        style={{position: 'absolute', right: 7, bottom: 7}}/> : null}
-    </View>
-    <Text numberOfLines={1} style={[browseType(theme, 12.5, 600), {color: theme.colors.text, marginTop: 7}]}>{item.title}</Text>
-    {item.author ? <Text numberOfLines={1} style={[browseType(theme, 11.5, 500), {color: theme.colors.textTertiary, marginTop: 2}]}>{item.author.value}</Text> : null}
-    {detail ? <Text numberOfLines={1} style={[browseType(theme, 11.5, 500), {color: theme.colors.textTertiary, marginTop: 2}]}>{detail}</Text> : null}
-  </Focusable>;
+function DiscoveryCoverCard({item, artwork, width, detail, onOpen, offer, actions, onCaptionLayout}: {
+  item: ReadingItem; artwork?: ArtworkSource; width: number; detail?: string; offer?: NativeReadingActionOffer;
+  actions: ReturnType<typeof useReadingActions>; onOpen: (item: ReadingItem) => void; onCaptionLayout?: (height: number) => void;
+}) {
+  return <PhoneReadingBookCard testID={`reading-item-${item.id}`} title={item.title} author={item.author?.value} detail={detail}
+    width={width} artwork={artwork} periodical={item.publicationType?.value === 'magazine' || item.publicationType?.value === 'newspaper'}
+    onOpen={() => onOpen(item)} disabled={item.inventoryAvailable !== true} selection={offer ? actions.selection(offer) : undefined}
+    onMenu={offer ? anchorRef => actions.actions.show({...offer, anchorRef}) : undefined} onCaptionLayout={onCaptionLayout}/>;
 }

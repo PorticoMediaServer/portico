@@ -1,3 +1,4 @@
+import {createTheme} from '../src-next/kit/theme';
 import * as cardModel from '../src-next/kit/cards/model.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -54,7 +55,7 @@ test('phone card long press opens its anchored menu and selection tap does not o
   const r = renderer(), {PhoneReadingBookCard} = await screenModule(new URL('../src-next/screens/read/PhoneReadingBookCard.tsx', import.meta.url), {'../../kit/cards/model': cardModel, 
     react: r.react, 'react-native': {Text: 'Text', View: 'View'}, '@portico/design': {generatedCoverTint: () => ({})},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../../kit/controls': {Focusable: 'Focusable'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/browse/presentation': {browseType: typography}, '../../kit/theme': {useTheme: () => theme(false)},
+    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/browse/presentation': {browseType: typography}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
   });
   let opened = 0, selected = 0, anchor: unknown;
   const tree = r.render(PhoneReadingBookCard, {testID: 'one', title: 'One', width: 108, onOpen: () => {opened++;}, onMenu: (ref: unknown) => {anchor = ref;},
