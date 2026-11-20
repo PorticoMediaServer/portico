@@ -44,7 +44,10 @@ export function LibraryCard({entry, family, width, wide = false, placeholderHeig
   }
   const text = homeCardText(entry, false, runtime.text);
   const playingAlbum = entry.kind === 'album' && playing?.entry?.album?.id === entry.id;
-  const props = {focusId, disabled, title: entry.displayTitle || entry.title, width, titleLines: 2 as const, onCaptionLayout, caption: text.caption, artwork: runtime.artwork(entry.posterUrl), watched: entry.watched, playing: playingAlbum,
+  const listening = entry.kind === 'album' || entry.kind === 'song';
+  const artworkFallback = listening ? <GeneratedArt glyph={Array.from(entry.title.trim())[0] ?? ''}
+    palette={generatedCoverTint(entry.title)} width={width} height={width}/> : undefined;
+  const props = {focusId, disabled, title: entry.displayTitle || entry.title, width, titleLines: 2 as const, onCaptionLayout, caption: text.caption, artwork: runtime.artwork(entry.posterUrl), artworkFallback, watched: entry.watched, playing: playingAlbum,
     onNavigate: () => actions.open(entry), onPlay: entry.playback ? () => actions.play(entry) : undefined, onMore: () => actions.menu(entry, menuAnchorRef, onSelect), selection: selected,
     menuAnchorRef, moreExpanded: actions.isMenuOpen?.(entry), onFocus, onBlur};
   // A landscape shelf keeps the 16:9 art and puts its title and time left in the caption.

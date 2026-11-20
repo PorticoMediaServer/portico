@@ -162,7 +162,7 @@ function LibrarySurface(props: LibraryProps) {
         }}/> : undefined;
     return <TVLibraryPage {...props} tvMusicDiscover={tvMusicDiscover}/>;
   }
-  if (width >= height || frameForm(width, false, height) !== 'phone') return <LibraryScreen {...props}/>;
+  if (width >= height && frameForm(width, false, height) === 'phone') return <LibraryScreen {...props}/>;
   return <CoveredLayer covered={!active.visible} testID={`native-library-${encodeURIComponent(state.library.id)}`} style={{flex: 1}}><LibraryPage {...props} mixes={state.library.kind === 'music' && props.runtime.mixes ? events =>
     <MusicMixesRow {...events} port={props.runtime.mixes!} artwork={props.runtime.artwork} reportError={props.runtime.reportError}
       active={active.visible} focusScope={`library:${state.library.id}.mixes`}/> : undefined}/></CoveredLayer>;
