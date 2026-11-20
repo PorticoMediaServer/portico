@@ -32,14 +32,17 @@ export type PosterRowProps = Readonly<{title: string; items: readonly PosterRowI
   /** A quiet line beside the heading (the server's reason for the row). */
   subtitle?: string;
   /** "See all" at the end of the heading (phone-read 8's "More by" row, a book's rest of the series). */
-  onSeeAll?: () => void; testID?: string}>;
+  onSeeAll?: () => void; testID?: string;
+  /** TV: a stable name for the row's focus region, for a page drawn again on Back (a music page) whose layer stack must find
+   * the card that opened the next page. Unique on screen; without it the row's region gets a generated id. */
+  focusKey?: string}>;
 
 const resting: LayoutSelection = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}};
 
 /** A heading and a row of poster cards at the form's poster width (rule 14, `theme.spec.card.width.poster`): More like
  * this on a title page (phone-detail d1, tablet f6), and any other row of titles a page shows. The kit `Row` places and
  * spaces it on the frame; the page passes titles, never sizes. */
-export function PosterRow({title, items, paging, small, shape, subtitle, onSeeAll, testID}: PosterRowProps) {
+export function PosterRow({title, items, paging, small, shape, subtitle, onSeeAll, testID, focusKey}: PosterRowProps) {
   // The row reserves the captions' two lines, so a title's year never runs into the next section.
   const theme = useTheme(), caption = cardCaptionHeight(theme, 2);
   const width = shape === 'square' ? theme.spec.card.width.square[theme.column] : shape === 'circle' ? theme.spec.card.width.artist[theme.column]
@@ -47,15 +50,15 @@ export function PosterRow({title, items, paging, small, shape, subtitle, onSeeAl
   const artHeight = shape ? width : width * 1.5;
   // TV: the row is a focus region of its own, so it keeps its card when focus leaves it and comes back (tv-focus 3: "rows
   // keep their remembered card"), instead of landing on whichever poster lies nearest.
-  const region = `poster-row.${useId()}`;
+  const generated = useId(), region = `poster-row.${focusKey ?? generated}`;
   return <Row testID={testID} title={title} subtitle={subtitle} onSeeAll={onSeeAll} items={items} focus={theme.isTV ? {id: region} : undefined} getKey={item => item.key} itemWidth={width} itemHeight={artHeight + caption} captionHeight={caption} selection={resting} paging={paging}
     renderItem={(item, context) => <PosterItem item={item} context={context} width={width} shape={shape}/>}/>;
 }
 
 /** A column of square covers beside a page's panel, each card as in a row (tv-more frame 8: an artist's Albums beside Top
  * songs, under the page's own heading). On TV it is a focus region of its own, so it keeps its card as a row does. */
-export function PosterColumn({items, testID}: Readonly<{items: readonly PosterRowItem[]; testID?: string}>) {
-  const theme = useTheme(), region = `poster-column.${useId()}`, width = theme.spec.card.width.square[theme.column];
+export function PosterColumn({items, testID, focusKey}: Readonly<{items: readonly PosterRowItem[]; testID?: string; focusKey?: string}>) {
+  const theme = useTheme(), generated = useId(), region = `poster-column.${focusKey ?? generated}`, width = theme.spec.card.width.square[theme.column];
   const cards = items.map((item, index) => <PosterItem key={item.key} item={item} width={width} shape="square"
     context={{index, id: item.key, focusId: `${region}.${item.key}`, testID: testID && `${testID}.${index}`, onFocus: noop, onBlur: noop}}/>);
   const style = {gap: theme.space.md};
