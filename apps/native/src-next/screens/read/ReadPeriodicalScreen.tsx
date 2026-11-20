@@ -19,7 +19,7 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {askNativeDownload} from '../downloads/request';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 import type {NativeReadPeriodical, NativeReadPeriodicalState} from './read-periodical-model';
-import {ReadingLoading} from './ReadingLoading';
+import {ReadingLoading} from '../../kit/reading/ReadingLoading';
 import {ReadingShelf} from './ReadingShelf';
 import {ReadingItemMenu, ReadingSelectionToolbar, useReadingActions, type ReadingActionsPort} from './ReadingActions';
 import type {NativeReadingActionOffer} from './reading-actions';

@@ -31,7 +31,7 @@ test('the Library descriptor requires the actual authorized ID and never supplie
     react: {default: React}, 'react-native': {Platform: platform}, './LibraryScreen': {LibraryScreen: 'LibraryScreen'}, './model': {NativeLibraryDestination}, './directory': {NativeLibraryDirectory},
     '../../shell/model': {sameAuthority},
     '../read/platform': readPlatform,
-    '../read/ReadingLibrary': {NativeReadingLibraryScreen: 'NativeReadingLibraryScreen'},
+    '../../pages/touch/reading/BooksPage': {BooksPage: 'BooksPage'},
     '../../../../../packages/client-core/src/presentation/library-tabs': libraryTabs,
     './opening': libraryOpening, './saved-view-intent': librarySavedViewIntent,
     '../destinations/lifetime': {nativeDestinationLifetime},
@@ -70,7 +70,7 @@ test('the Library descriptor requires the actual authorized ID and never supplie
     for (const [id, name, kind] of [['books', 'Books', 'book'], ['comics', 'Comics', 'comic']] as const) {
       libraries = [{id, name, kind}];
       const reading = renderer.render({kind: 'shell', destination: {kind: 'library', libraryId: id}}, {});
-      assert.equal(reading.type, 'NativeReadingLibraryScreen', `${kind} uses the reading renderer`);
+      assert.equal(reading.type, 'BooksPage', `${kind} uses the reading renderer`);
       assert.equal(reading.props.libraryId, id); assert.equal(reading.props.title, name);
       assert.equal(reading.props.context, context); assert.equal(typeof reading.props.onBack, 'function');
     }

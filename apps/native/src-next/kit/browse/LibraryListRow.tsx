@@ -1,5 +1,6 @@
 import React, {useRef} from 'react';
 import {View} from 'react-native';
+import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {MediaArt} from '../artwork';
 import {CardFrame, CardAction, Caption} from '../cards/primitives';
@@ -21,7 +22,10 @@ export function LibraryListRow({entry, width, runtime, actions, selected, disabl
   onCaptionLayout?: (height: number) => void;
 }>) {
   const theme = useTheme(), menuAnchorRef = useRef<View>(null), title = entry.displayTitle || entry.title;
-  const text = homeCardText(entry, false, runtime.text), t = runtime.text.t;
+  const text = entry.kind === 'song'
+    ? cardText({id: entry.id, kind: 'song', title, artist: entry.artist?.name, album: entry.album?.name, year: entry.year, durationSeconds: entry.duration}, 'song-row', runtime.text)
+    : homeCardText(entry, false, runtime.text);
+  const t = runtime.text.t;
   const square = ['album', 'song', 'book', 'audiobook_file'].includes(entry.kind);
   const height = frameSpec.browse.listRow[theme.form] * theme.fontScale;
   return <CardFrame testID={`library-list-${encodeURIComponent(focusId)}`} focusId={focusId} title={title} caption={text.caption} detail={text.detail} width={width} disabled={disabled}

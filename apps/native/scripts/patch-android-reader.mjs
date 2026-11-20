@@ -10,20 +10,29 @@ export function patchAndroidReader(appRoot = resolve(dirname(here), '..')) {
   if (manifest.dependencies?.['react-native-webview'] !== '16.0.0' || lock.packages?.['node_modules/react-native-webview']?.version !== '16.0.0') throw new Error('reader_webview_pin_changed');
   const require = createRequire(join(appRoot, 'package.json')), packagePath = require.resolve('react-native-webview/package.json');
   if (JSON.parse(readFileSync(packagePath)).version !== '16.0.0') throw new Error('reader_webview_pin_changed');
-  const target = join(dirname(packagePath), patch.path), source = readFileSync(target, 'utf8');
-  let output = source;
-  if (digest(source) !== patch.afterSHA256) {
-    if (digest(source) !== patch.beforeSHA256 || source.split(patch.before).length !== 2) throw new Error('reader_webview_source_changed');
-    output = source.replace(patch.before, patch.after);
-    if (digest(output) !== patch.afterSHA256) throw new Error('reader_webview_patch_invalid');
-  }
-  const helper = join(dirname(target), 'PorticoReaderAndroidAssets.java'), helperSource = readFileSync(join(appRoot, 'Native/PorticoReaderAndroidAssets.java'), 'utf8');
+  const changes = [patch, patch.messages].map(entry => {
+    const target = join(dirname(packagePath), entry.path), source = readFileSync(target, 'utf8');
+    let output = source;
+    if (digest(source) !== entry.afterSHA256) {
+      if (digest(source) !== entry.assetsSHA256) {
+        if (digest(source) !== entry.beforeSHA256 || source.split(entry.before).length !== 2) throw new Error('reader_webview_source_changed');
+        output = source.replace(entry.before, entry.after);
+      }
+      if (entry.navigationBefore) {
+        if (output.split(entry.navigationBefore).length !== 2) throw new Error('reader_webview_source_changed');
+        output = output.replace(entry.navigationBefore, entry.navigationAfter);
+      }
+      if (digest(output) !== entry.afterSHA256) throw new Error('reader_webview_patch_invalid');
+    }
+    return {target, source, output};
+  });
+  const helper = join(dirname(changes[0].target), 'PorticoReaderAndroidAssets.java'), helperSource = readFileSync(join(appRoot, 'Native/PorticoReaderAndroidAssets.java'), 'utf8');
   if (existsSync(helper) && readFileSync(helper, 'utf8') !== helperSource) throw new Error('reader_asset_helper_changed');
   // Replacement avoids modifying another immutable dependency hardlink.
-  for (const [name, value] of [[target, output], [helper, helperSource]]) {
+  for (const [name, value] of [...changes.map(({target, output}) => [target, output]), [helper, helperSource]]) {
     const temporary = name + '.portico-reader-' + process.pid; writeFileSync(temporary, value, {mode: 0o644}); renameSync(temporary, name);
   }
-  return output !== source;
+  return changes.some(({source, output}) => source !== output);
 }
 if (process.argv[1] && resolve(process.argv[1]) === here) {
   if (process.argv.length !== 2) throw new Error('reader_patch_no_arguments');

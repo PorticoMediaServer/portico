@@ -5,7 +5,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Dialog} from '../../kit/overlays/surface';
 import {Button} from '../../kit/controls';
 import {LoadingPaint, SkeletonBlock, StateView} from '../../kit/states';
-import {NativeReadingGuestHost} from '../read/NativeReadingGuestHost';
+import {ReaderGuestPage} from '../../pages/touch/reading/ReaderGuestPage';
 import type {createRememberedReadingOwner} from '../../shell/remembered-reading-owner';
 
 type Reading = ReturnType<typeof createRememberedReadingOwner>;
@@ -26,7 +26,7 @@ export function RememberedReadingScreen({reading, noticeCopy, current: rootCurre
   const closeNotice = (captured: object) => {if (!current() || noticeRef.current !== captured) return; noticeRef.current = undefined; setNotice(undefined);};
   const back = () => {if (!pageCurrent()) return; ticket.live = false; noticeRef.current = undefined; void reading.owner.dispose().catch(() => {}); onBack();};
   if (snapshot.phase === 'ready') return <View style={{flex: 1}}>
-    <NativeReadingGuestHost owner={reading.owner} active={!notice} preferences={reading.preferences} onBack={back} onSettings={openNotice}/>
+    <ReaderGuestPage owner={reading.owner} active={!notice} preferences={reading.preferences} onBack={back} onSettings={openNotice}/>
     {notice ? <Dialog open onOpenChange={open => {if (!open) closeNotice(notice);}} title={noticeCopy.title}
       description={noticeCopy.body} showClose={false} dismissOnOutsidePress={false} dismissOnBack={false}
       footer={<Button onPress={() => closeNotice(notice)}>{defaultI18n.t('action.close')}</Button>}>{null}</Dialog> : null}

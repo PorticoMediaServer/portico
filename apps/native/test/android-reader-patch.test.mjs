@@ -16,10 +16,13 @@ async function fixture(t) {
   await writeFile(path.join(directory, 'package.json'), JSON.stringify({dependencies: {'react-native-webview': '16.0.0'}}));
   await writeFile(path.join(directory, 'package-lock.json'), JSON.stringify({packages: {'node_modules/react-native-webview': {version: '16.0.0'}}}));
   await writeFile(path.join(directory, 'node_modules/react-native-webview/package.json'), JSON.stringify({name: 'react-native-webview', version: '16.0.0'}));
-  let source = await readFile(path.join(root, 'node_modules/react-native-webview', patch.path), 'utf8');
-  if (createHash('sha256').update(source).digest('hex') === patch.afterSHA256) source = source.replace(patch.after, patch.before);
-  assert.equal(createHash('sha256').update(source).digest('hex'), patch.beforeSHA256);
-  await writeFile(target, source);
+  for (const entry of [patch, patch.messages]) {
+    let source = await readFile(path.join(root, 'node_modules/react-native-webview', entry.path), 'utf8');
+    if (createHash('sha256').update(source).digest('hex') === entry.afterSHA256) source = source.replace(entry.after, entry.before).replace(entry.navigationAfter ?? '', entry.navigationBefore ?? '');
+    assert.equal(createHash('sha256').update(source).digest('hex'), entry.beforeSHA256);
+    await writeFile(path.join(directory, 'node_modules/react-native-webview', entry.path), source);
+  }
+  const source = await readFile(target, 'utf8');
   await writeFile(path.join(directory, 'Native/PorticoReaderAndroidAssets.java'), await readFile(path.join(root, 'Native/PorticoReaderAndroidAssets.java')));
   return {directory, target, source};
 }
@@ -28,8 +31,19 @@ test('exact pinned Android hook is repeatable and never mutates another dependen
   assert.equal(patchAndroidReader(f.directory), true); assert.equal(patchAndroidReader(f.directory), false);
   const changed = await readFile(f.target, 'utf8');
   assert.equal(createHash('sha256').update(changed).digest('hex'), patch.afterSHA256);
+  const bridge = await readFile(path.join(f.directory, 'node_modules/react-native-webview', patch.messages.path), 'utf8');
+  assert.equal(createHash('sha256').update(bridge).digest('hex'), patch.messages.afterSHA256);
   assert.equal(await readFile(peer, 'utf8'), f.source);
   assert.equal(await readFile(path.join(path.dirname(f.target), 'PorticoReaderAndroidAssets.java'), 'utf8'), await readFile(path.join(root, 'Native/PorticoReaderAndroidAssets.java'), 'utf8'));
+});
+test('an installed asset-only hook gains the native subframe check', async t => {
+  const f = await fixture(t);
+  await writeFile(f.target, f.source.replace(patch.before, patch.after));
+  assert.equal(patchAndroidReader(f.directory), true);
+  const source = await readFile(f.target, 'utf8');
+  assert.match(source, /if \(!request\.isForMainFrame\(\)\)/);
+  assert.match(source, /blob:https:\/\/appassets\.androidplatform\.net/);
+  assert.equal(patchAndroidReader(f.directory), false);
 });
 test('changed pin, upstream bytes or conflicting helper fail closed', async t => {
   const f = await fixture(t);

@@ -4,8 +4,8 @@ import {createReadingHost} from '../../../../../packages/client-core/src';
 import {routeBase64} from '../../../../../packages/client-core/src/route-identity';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {readingHighlightsSavePort} from '../../platform/reading-highlights-save';
-import {readerDelivery, readerNavigationAllowed} from './asset-origin';
-import {readerStartupDiagnostic, readerStartupProbe} from './startup-diagnostics';
+import {readerDelivery, readerNavigationAllowed} from '../../screens/read/asset-origin';
+import {readerStartupDiagnostic, readerStartupProbe} from '../../screens/read/startup-diagnostics';
 
 type Reader = ReturnType<typeof createReadingHost>;
 
