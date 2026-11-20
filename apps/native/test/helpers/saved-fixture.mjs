@@ -38,6 +38,7 @@ export async function savedFixture(kind, old) {
   const kit = await load(`kit/saved/${parts}.tsx`, kitBindings);
   const page = await load(`pages/${tv ? 'tv' : 'touch'}/saved/${downloads ? 'Downloads' : 'Saved'}Page.tsx`, {
     ...pageBindings, '../../../kit/frames': {BrowseFrame: pageName},
+    '../../../kit/saved/SavedDownloadCard': old['./SavedDownloadCard'],
     [`../../../kit/saved/${parts}`]: kit, [`../../shared/saved/${hookName}`]: hook,
   });
   return {[`${kind}Screen`]: page[pageName]};

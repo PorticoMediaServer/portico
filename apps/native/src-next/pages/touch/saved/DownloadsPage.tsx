@@ -3,7 +3,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {BrowseFrame} from '../../../kit/frames';
 import {Menu} from '../../../kit/overlays';
 import {DownloadEntryMenu, DownloadInventoryWindow, DownloadStorage, DownloadsEmpty, DownloadsInventory,
-  DownloadsRules, DownloadsScroll, DownloadsTransfers, OtherProfileDownloads} from '../../../kit/saved/DownloadInventory';
+  DownloadsRules, DownloadsScroll, DownloadsTransfers, OtherProfileDownloads, useDownloadsLayout} from '../../../kit/saved/DownloadInventory';
 import {StateView} from '../../../kit/states';
 import {downloadEntryIdentity} from '../../../screens/downloads/presentation';
 import {SavedConfirmSheet} from '../../../screens/saved/SavedForms';
@@ -13,13 +13,14 @@ const t = defaultI18n.t;
 
 export function DownloadsPage(props: DownloadsPageProps) {
   const {runtime, device, copy, back, inline} = props;
-  const state = useDownloads(props);
-  const {snapshot, inventory, membership, viewport, scroll, limitRef, inventoryTop, setInventoryTop, setPaneWidth, paneWidth,
-    empty, storage, requests, waiting, cancelWaiting, expanded, readingTablet, readingColumn, rulesBeside, heldBytes,
-    readingBytes, watchingBytes, readingBarWatching, readingBarReading, readingBarGap,
-    failure, setEntryMenu, entryMenu, menu, menuItems, sheetMenu, afterMenu, pickingLimit, setPickingLimit,
+  const {expanded, sheetMenu, paneWidth, setPaneWidth, inventoryTop, setInventoryTop, inventoryLayout} = useDownloadsLayout();
+  const state = useDownloads(props, sheetMenu);
+  const {snapshot, inventory, membership, viewport, scroll, limitRef, empty, storage, requests, waiting, cancelWaiting,
+    heldBytes, readingBytes, watchingBytes,
+    failure, setEntryMenu, entryMenu, menu, menuItems, afterMenu, pickingLimit, setPickingLimit,
     pending, removingOthers, closeRemoveOthers, openRemoveOthers, confirmRemoveOthers,
     removing, setRemoving, removeEntry, openMenu, playEntry, retryEntry, save, retry} = state;
+  const {readingTablet, rulesBeside} = inventoryLayout(empty, membership.reading.length > 0);
   const overlays = <>
     <DownloadEntryMenu sheetMenu={sheetMenu} menu={menu} menuItems={menuItems} anchor={entryMenu?.anchor}
       close={() => setEntryMenu(undefined)} afterMenu={afterMenu} copy={copy}/>
@@ -40,15 +41,14 @@ export function DownloadsPage(props: DownloadsPageProps) {
       {snapshot.error && <StateView title={snapshot.error} tone="error"/>}
       {empty && <DownloadsEmpty copy={copy}/>}
       {!empty && snapshot.ready && <DownloadStorage snapshot={snapshot} copy={copy} expanded={expanded} readingTablet={readingTablet}
-        storage={storage} heldBytes={heldBytes} readingBytes={readingBytes} watchingBytes={watchingBytes} readingBarGap={readingBarGap}
-        readingBarWatching={readingBarWatching} readingBarReading={readingBarReading}/>}
+        storage={storage} heldBytes={heldBytes} readingBytes={readingBytes} watchingBytes={watchingBytes}/>}
       <DownloadsTransfers requests={requests} waiting={waiting} pending={pending} cancel={cancelWaiting}/>
       <DownloadsInventory beside={rulesBeside} expanded={expanded && !empty} onTop={setInventoryTop} rules={<>
         <DownloadsRules settings={snapshot.settings} pending={pending} copy={copy} save={save} limitRef={limitRef} onLimit={() => setPickingLimit(true)}/>
         {snapshot.otherBytes > 0 && <OtherProfileDownloads size={snapshot.otherBytes} copy={copy} pending={pending} openRemoveOthers={openRemoveOthers}/>}
       </>}>
         {!empty && <DownloadInventoryWindow inventory={inventory} membership={membership} viewport={viewport} top={inventoryTop}
-          expanded={expanded} readingTablet={readingTablet} readingColumn={readingColumn} rulesBeside={rulesBeside} paneWidth={paneWidth}
+          expanded={expanded} readingTablet={readingTablet} rulesBeside={rulesBeside} paneWidth={paneWidth}
           device={device} runtime={runtime} copy={copy} menuId={menu ? downloadEntryIdentity(menu) : undefined}
           onMenu={openMenu} onPlay={device.openOffline ? playEntry : undefined} onRetry={retryEntry}/>}
       </DownloadsInventory>

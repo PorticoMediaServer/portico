@@ -7,7 +7,7 @@ import {nativeDestinationLifetime} from '../destinations/lifetime';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {SavedPage} from '../../pages/touch/saved/SavedPage';
 import type {NativeSavedActions, NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
-import type {NativeSavedDownloadsCopy} from './SavedDownloadCard';
+import type {NativeSavedDownloadsCopy} from '../../kit/saved/SavedDownloadCard';
 import {NativeSavedDestination} from './model';
 
 export type NativeSavedRendererPorts = Readonly<{
