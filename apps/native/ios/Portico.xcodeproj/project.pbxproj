@@ -440,7 +440,7 @@
 			outputPaths = ();
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nif [ -f \"$SRCROOT/.xcode.env\" ]; then . \"$SRCROOT/.xcode.env\"; fi\nif [ -f \"$SRCROOT/.xcode.env.local\" ]; then . \"$SRCROOT/.xcode.env.local\"; fi\n: \"${NODE_BINARY:?node_binary_missing}\"\n\"$NODE_BINARY\" \"$SRCROOT/../scripts/stage-apple-reader.mjs\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/PorticoReader.bundle\"\n";
+			shellScript = "set -eu\nif [ -f \"$SRCROOT/.xcode.env\" ]; then . \"$SRCROOT/.xcode.env\"; fi\nif [ -f \"$SRCROOT/.xcode.env.local\" ]; then . \"$SRCROOT/.xcode.env.local\"; fi\n: \"${NODE_BINARY:?node_binary_missing}\"\nrelease=\"\"\nif [ \"${CONFIGURATION:-}\" = Release ]; then release=--release; fi\n\"$NODE_BINARY\" \"$SRCROOT/../scripts/stage-apple-reader.mjs\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/PorticoReader.bundle\" $release\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

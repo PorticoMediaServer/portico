@@ -163,12 +163,14 @@ def porticoFonts = tasks.register("porticoFonts", Copy) {
 }
 preBuild.dependsOn(porticoFonts)
 
-// The already-built immutable web graph is optional; absent input removes stale
-// output and leaves the actual native Reader unavailable, never a fake entry.
+// The Reader's web graph: the producer's own build when PORTICO_READER_BUNDLE_DIR names one, else this checkout's
+// web/reader-native built now. A release variant fails without it, never ships a phone that can't open a book; a
+// debug build that can't build it says so and has no Reader.
+def porticoReleaseBuild = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
 def porticoReaderAssets = tasks.register("porticoReaderAssets", Exec) {
     workingDir rootProject.file("..")
-    commandLine(System.getenv("NODE_BINARY") ?: "node", "scripts/stage-apple-reader.mjs",
-        layout.buildDirectory.dir("generated/portico/assets/PorticoReader.bundle").get().asFile.absolutePath)
+    commandLine([System.getenv("NODE_BINARY") ?: "node", "scripts/stage-apple-reader.mjs",
+        layout.buildDirectory.dir("generated/portico/assets/PorticoReader.bundle").get().asFile.absolutePath] + (porticoReleaseBuild ? ["--release"] : []))
     outputs.upToDateWhen { false }
 }
 preBuild.dependsOn(porticoReaderAssets)

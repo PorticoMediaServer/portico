@@ -1,14 +1,16 @@
+import {spawn} from 'node:child_process';
 import {constants} from 'node:fs';
 import * as fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const fileLimit = 64 * 1024 * 1024, totalLimit = 256 * 1024 * 1024, memberLimit = 4096;
 const extensions = new Set(['.html', '.js', '.mjs', '.css', '.json', '.wasm', '.ttf', '.otf', '.woff', '.woff2', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.map']);
 const invalid = () => { throw new Error('reader_bundle_invalid'); };
 
-/** Stage only the producer's final, public build graph. No source build, network read or
- * selected-server content is performed by Xcode. Missing input leaves the bridge unavailable. */
+/** Stage only the producer's final, public build graph. No network read or selected-server content is performed.
+ * Missing input leaves the bridge unavailable (`stageReader` decides when that is allowed). */
 export async function stageAppleReader(input, output) {
   const destination = path.resolve(output);
   if (path.basename(destination) !== 'PorticoReader.bundle') invalid();
@@ -72,8 +74,41 @@ export async function stageAppleReader(input, output) {
   } finally { await fs.rm(temporary, {recursive: true, force: true}); }
 }
 
+/** This checkout's Reader graph (web/reader-native), built now with the workspace's own vite into `out`. */
+export function buildReader(out) {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const vite = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'), config = path.join(root, 'web', 'reader-native', 'vite.config.ts');
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [vite, 'build', '--config', config, '--logLevel', 'warn'],
+      {cwd: root, env: {...process.env, PORTICO_READER_OUT_DIR: out}, stdio: 'inherit'});
+    child.on('error', reject);
+    child.on('exit', code => code === 0 ? resolve() : reject(new Error('reader_build_failed')));
+  });
+}
+
+/** The app's Reader, every build: the producer's graph named by PORTICO_READER_BUNDLE_DIR, else this checkout's built now
+ * (in a temporary folder outside the app). A development build that can't build it says so and leaves the Reader
+ * unavailable; a release never ships without it. */
+export async function stageReader(output, {release = false, input = process.env.PORTICO_READER_BUNDLE_DIR, build = buildReader} = {}) {
+  let temporary;
+  try {
+    if (!input) {
+      temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'portico-reader-build-'));
+      const out = path.join(temporary, 'PorticoReader.bundle');
+      try { await build(out); input = out; } catch (error) {
+        if (release) throw new Error('reader_bundle_required', {cause: error});
+        console.warn(`reader_build_failed: ${error instanceof Error ? error.message : error}; this development build has no Reader`);
+      }
+    }
+    const result = await stageAppleReader(input, output);
+    if (release && (!result.available || !result.files)) throw new Error('reader_bundle_required');
+    return result;
+  } finally { if (temporary) await fs.rm(temporary, {recursive: true, force: true}); }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  if (process.argv.length !== 3) throw new Error('reader_bundle_output_required');
-  const result = await stageAppleReader(process.env.PORTICO_READER_BUNDLE_DIR, process.argv[2]);
+  const [output, flag, ...rest] = process.argv.slice(2);
+  if (!output || rest.length || (flag !== undefined && flag !== '--release')) throw new Error('reader_bundle_output_required');
+  const result = await stageReader(output, {release: flag === '--release'});
   console.info(result.available ? `Reader bundle staged: ${result.files} public build files` : 'reader_bundle_absent: native reader unavailable');
 }

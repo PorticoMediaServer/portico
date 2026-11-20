@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {stageAppleReader} from '../scripts/stage-apple-reader.mjs';
+import {stageAppleReader, stageReader} from '../scripts/stage-apple-reader.mjs';
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'apple-reader-stage-'));
@@ -65,4 +65,19 @@ test('only the iOS project stages the bundle before code signing through the nat
   assert.match(ios, /stage-apple-reader\.mjs/);
   assert.match(ios, /UNLOCALIZED_RESOURCES_FOLDER_PATH/);
   assert.doesNotMatch(tvos, /stage-apple-reader/);
+});
+
+test('with no producer graph named, the build makes the Reader itself; a release never stages without it', async t => {
+  const f = await fixture(t);
+  // No PORTICO_READER_BUNDLE_DIR: this checkout's Reader is built (here, the fixture copied in) and staged.
+  const built = async out => {await fs.cp(f.input, out, {recursive: true});};
+  assert.deepEqual(await stageReader(f.output, {input: undefined, build: built}), {available: true, files: 4});
+  assert.deepEqual(await stageReader(f.output, {input: undefined, build: built, release: true}), {available: true, files: 4});
+  // The Reader can't be built: a development build says so and goes on without it; a release fails.
+  const broken = async () => {throw new Error('reader_build_failed');};
+  t.mock.method(console, 'warn', () => {});
+  assert.deepEqual(await stageReader(f.output, {input: undefined, build: broken}), {available: false, files: 0});
+  await assert.rejects(stageReader(f.output, {input: undefined, build: broken, release: true}), {message: 'reader_bundle_required'});
+  // A named producer graph is staged as given, never rebuilt.
+  assert.deepEqual(await stageReader(f.output, {input: f.input, build: broken, release: true}), {available: true, files: 4});
 });
