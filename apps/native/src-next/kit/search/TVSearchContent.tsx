@@ -11,16 +11,17 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeDestinationFocusIds} from '../../screens/destinations/focus';
 import {homeSubject} from '../../screens/home/model';
 import {nativeSearchEntryKey} from '../../screens/search/model';
-import {TVSearchSection} from '../../screens/search/TVSearchSection';
+import {TVSearchSection} from './TVSearchSection';
 import type {NativeTVSearchPageProps} from '../../pages/shared/search/useTVSearch';
 import type {NativeSearchGenre, NativeSearchSelectionPort} from '../../screens/search/types';
 import {nativeSearchGenreTiles} from '../../screens/search/genre-tiles';
 import type {useSearch} from '../../pages/shared/search/useSearch';
-import {Artwork, missingArt} from '../artwork';
+import {Artwork} from '../artwork';
 import {Chip, Focusable} from '../controls';
-import {ArtFrame, CardFrame, Parts, Progress} from '../cards/primitives';
+import {Parts, Progress} from '../cards/primitives';
 import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
+import {TopResult} from './Search';
 import {TVRow} from '../layout/TVRow';
 import {StateView} from '../states';
 import {alpha, browseType} from '../browse/presentation';
@@ -38,9 +39,6 @@ const tvSearchR46 = {
   chips: {alignItems: 'center', gap: 12},
   chip: {flexShrink: 0},
   chipLabel: {flexShrink: 0},
-  /** The composite (art plus words) grows from its left edge so the art never shifts into the clip. */
-  topResult: {marginTop: 44, transformOrigin: 'left center'},
-  topRow: {flexDirection: 'row', gap: 36, alignItems: 'center'},
   meta: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 26, rowGap: 10, marginBottom: 14},
   metaProgress: {width: 160},
   /** tv.html#f5 `.mprog`: the bar, then the drawn resume point, on its own line. */
@@ -156,26 +154,21 @@ export function TVSearchTag({children}: {children: React.ReactNode}) {
 
 export function TVSearchTopResult({entry, group, runtime, actions, selection, disabled}: Pick<NativeTVSearchPageProps, 'runtime' | 'actions'> & {entry: SearchEntry; group: SearchGroup; selection?: ReturnType<NativeSearchSelectionPort['item']>; disabled: boolean}) {
   // tv.html#f5 calls a show a "TV show"; the shared kind label keeps "Show".
-  const theme = useTheme(), anchor = useRef<View>(null), content = media(entry) ? entry : undefined,
+  const theme = useTheme(), content = media(entry) ? entry : undefined,
     kind = group === 'shows' ? 'next.search.tvShow' : topResultKindLabel(group);
   const text = content && cardText(homeSubject(content), 'search', runtime.text), title = content?.displayTitle || entry.title, topArt = runtime.artwork(content?.backdropUrl ?? entry.posterUrl);
   const progress = text?.progress, resume = text?.resume, caption = text?.caption.filter(part => part.id !== 'year') ?? [];
-  return <CardFrame focusId={tvTopResultFocusId(group, entry)} testID="tv-search-top-result" title={title} disabled={disabled} selection={selection}
-    menuAnchorRef={anchor} moreExpanded={actions.isMenuOpen?.(entry, group)} onNavigate={() => actions.open(entry, group)} onMore={() => actions.menu(entry, group, anchor)}
-    style={tvSearchR46.topResult} pressableStyle={tvSearchR46.topRow}>
-    {state => <><ArtFrame width={480} height={270} radius={14} focused={state.focused} hovered={state.hovered} holding={state.holding} selected={selection?.selected}>
-      <Artwork source={topArt} width={480} height={270} fallback={topArt ? undefined : missingArt({title, shape: 'wide', width: 480, height: 270})}/></ArtFrame>
-      <View style={{flex: 1}}><Text style={[browseType(theme, 20, 700), {color: theme.colors.accentStrong, marginBottom: 10}]}>{t('search.topResult')}</Text>
-        <Text style={[browseType(theme, 52, 800, -.04, 52), {color: theme.colors.text, marginBottom: 14}]}>{title}</Text>
-        <View style={tvSearchR46.meta}>{content?.year !== undefined && <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{content.year}</Text>}
-          {kind && <Text style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{t(kind)}</Text>}
-          {caption.map(part => part.id === 'season-count' ? <TVSearchTag key={part.id}>{part.text}</TVSearchTag>
-            : <Text key={part.id} style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{part.text}</Text>)}</View>
-        {((progress !== undefined && progress > 0) || resume) && <View style={tvSearchR46.resumeLine}>
-          {progress !== undefined && progress > 0 && <View style={tvSearchR46.metaProgress}><Progress value={progress} height={6} radius={6}/></View>}
-          {resume && <Text style={[browseType(theme, 20, 700), {color: theme.colors.text}]}>{resume.text}</Text>}</View>}
-        <Parts parts={text?.detail} style={theme.type.intro} fit="wrap"/></View></>}
-  </CardFrame>;
+  return <TopResult focusId={tvTopResultFocusId(group, entry)} testID="tv-search-top-result" title={title} eyebrow={t('search.topResult')}
+    disabled={disabled} selection={selection} artwork={topArt} menuOpen={actions.isMenuOpen?.(entry, group)}
+    onPress={() => actions.open(entry, group)} onMenu={actions.canMenu?.(entry, group) === false ? undefined : anchor => actions.menu(entry, group, anchor)}
+    facts={<View style={tvSearchR46.meta}>{content?.year !== undefined && <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{content.year}</Text>}
+      {kind && <Text style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{t(kind)}</Text>}
+      {caption.map(part => part.id === 'season-count' ? <TVSearchTag key={part.id}>{part.text}</TVSearchTag>
+        : <Text key={part.id} style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{part.text}</Text>)}</View>}
+    details={<>{((progress !== undefined && progress > 0) || resume) && <View style={tvSearchR46.resumeLine}>
+      {progress !== undefined && progress > 0 && <View style={tvSearchR46.metaProgress}><Progress value={progress} height={6} radius={6}/></View>}
+      {resume && <Text style={[browseType(theme, 20, 700), {color: theme.colors.text}]}>{resume.text}</Text>}</View>}
+      <Parts parts={text?.detail} style={theme.type.intro} fit="wrap"/></>}/>;
 }
 
 export function TVSearchSelectionArtwork({runtime, path}: {runtime: NativeTVSearchPageProps['runtime']; path?: string}) {

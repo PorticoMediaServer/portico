@@ -105,7 +105,7 @@ export function SearchPage(props: NativeSearchScreenProps) {
       menuOpen={actions.isMenuOpen?.(topEntry, top.group)}
       onMenu={actions.canMenu?.(topEntry, top.group) === false ? undefined : anchor => actions.menu(topEntry, top.group, anchor)}
       onPress={() => actions.open(topEntry, top.group)}
-      play={media?.playback ? {label: t('card.play', {title}), onPress: () => actions.play(topEntry, top.group)} : undefined}/>}
+      play={media?.playback ? {label: t('card.play', {title}), title: t('entry.play'), onPress: () => actions.play(topEntry, top.group)} : undefined}/>}
     {state.group === 'all' && groups.map(group => {
       if (wide) {
         if (!group.items.length) return null;
