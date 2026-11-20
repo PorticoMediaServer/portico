@@ -87,8 +87,9 @@ export const frame = {
        * the wash of ink behind it and the tabs, solid to just above its foot, so a row moving up passes under it. */
       tvFoldedLockup: 62, tvBand: [[1, 0], [1, .88], [0, 1]] as readonly (readonly [number, number])[],
       /** A cover page's cover, its width per form (a poster is 1.5 times as tall): phone-app 13 and phone-detail d3 frame 7
-       * (220 square, 180 poster, 104 circle), tablet f8, desktop-listen album, artist and book (340). R5 interim. */
-      cover: {square: {...forms(220, 280, 300, 400), web: 340}, poster: {...forms(180, 220, 260, 340), web: 340}, circle: {...forms(104, 160, 300, 280), web: 340}},
+       * (220 square, 180 poster, 104 circle), tablet f8, desktop-listen album, artist and book (340); TV's square is tv-more frame 6's
+       * album (480). R5 interim. */
+      cover: {square: {...forms(220, 280, 300, 480), web: 340}, poster: {...forms(180, 220, 260, 340), web: 340}, circle: {...forms(104, 160, 300, 280), web: 340}},
       /** A cover page's name: smaller than a title's lockup on a phone (phone-detail d3 frame 7's person, 28/800). */
       coverLockup: {...forms(28, 52, 52, 100), web: 72},
       /** A small row of posters on a phone (phone-detail d3 frame 7's Known for); wider forms keep the poster width. */
