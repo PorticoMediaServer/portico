@@ -20,11 +20,13 @@ export type TrackWindowProps = Readonly<{
   opens?: boolean;
   /** The row that holds focus (a keyboard or switch on a phone), so the server's pages keep it while it is focused. */
   onFocusRow?: (id: string) => void; onBlurRow?: (id: string) => void;
+  /** TV: false for a window already in its column (`TitleFrame`'s `beside`, an album's songs beside its cover): no gutter of its own. */
+  inset?: boolean;
 }>;
 
 /** An album's songs or a book's chapters inside a music scroller (`musicScroller`; phone-app frame 13, collections 41a): its track rows, only the ones in view
  * mounted, as the old album screen windowed them. A row taller at a larger text size gets the room it needs. */
-export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onFocusRow, onBlurRow, opens}: TrackWindowProps) {
+export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onFocusRow, onBlurRow, inset = true, opens}: TrackWindowProps) {
   const theme = useTheme(), scale = Math.max(1, theme.fontScale * theme.textScale);
   // Built on every draw: a row's place in the selection changes without the rows changing.
   const selection: TrackSelection = {active: rows.some(row => select?.(row.id)?.active),
@@ -37,6 +39,6 @@ export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onF
     renderItem={(row, index) => <View onFocus={() => onFocusRow?.(row.id)} onBlur={() => onBlurRow?.(row.id)}>
       <TrackRow row={row} variant={variant} index={index} selection={selection} onPlay={onPlay} onMore={onMore} opens={opens}/></View>}/>;
   // On TV the rows sit in the page's gutter under their heading (tv-more frame 8); a phone row carries its own padding.
-  const placed = theme.isTV ? <PanelBlock>{window}</PanelBlock> : window;
+  const placed = theme.isTV && inset ? <PanelBlock>{window}</PanelBlock> : window;
   return heading ? <View><PanelBlock><PanelHeading quiet={heading.quiet} title={heading.title} trailing={heading.trailing}/></PanelBlock>{placed}</View> : placed;
 }
