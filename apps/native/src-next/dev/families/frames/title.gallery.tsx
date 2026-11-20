@@ -6,18 +6,18 @@ import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../ki
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, TrackRow, type TrackRowData, type TrackSelection} from '../../../kit/browse/Tracks';
-import {AboutTable, CastRow, ChoiceChips, EpisodeList, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, ChoiceChips, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {HeroMetadata, PosterRow, SeasonBar} from '../../../kit/layout';
 import {SeasonSheet} from '../../../kit/layout/SeasonSheet';
+import {MusicFormatBadges} from '../../../kit/music/MusicFormatBadges';
 import {Menu} from '../../../kit/overlays';
 import {SelectionBar} from '../../../kit/selection';
 import {useTheme} from '../../../kit/theme';
 import {Page} from './frames.gallery';
-import {MusicScrollView} from '../../../screens/destinations/music/MusicWindow';
 import type {Gallery} from '../../gallery-registry';
 import {referenceOrigin} from '../../reference-art';
 import {createWindowedCollection} from '../../../../../../packages/client-core/src/collections/windowed';
@@ -285,13 +285,15 @@ function PhoneAlbum() {
   const rows = songs(['song1', 'song2', 'song3', 'song4']).map((row, index) => ({...row, number: index + 1}));
   return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back}
     topAction={{icon: 'i-more', label: f('more'), onPress: none}}
-    scroller={(content, style, collapse) => <MusicScrollView style={{flex: 1}} contentContainerStyle={style} collapseAt={collapse.at} onCollapse={collapse.onChange}>{content}</MusicScrollView>}
+    scroller={musicScroller({})}
     // The served ambient image is not available to the gallery (artwork.gallery.tsx); the cover's palette stands in for the glow.
     art={<AmbientArt treatment="library" palette={{first: '#8a5636', second: '#3b2418'}}/>}
     cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}}
     title={f('album')} byline={{text: f('albumArtist'), onPress: none}} metadata={<Meta text={f('albumFacts')}/>}
     primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, split: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}]}>
+    {/* The album's notable formats, as the server sends them (a hi-res lossless album in Dolby Atmos). */}
+    <MusicFormatBadges badges={[{variant: 'lossless', codec: 'flac', bitDepth: 24, sampleRate: 96_000}, {variant: 'atmos'}]} size="phone"/>
     <View>{rows.map((row, index) => <TrackRow key={row.id} row={row} variant="album" index={index} selection={restingTracks} onPlay={none} onMore={none}/>)}</View>
   </TitleFrame></Page>;
 }
@@ -299,7 +301,7 @@ function Album() {
   if (useFrameMetrics().form === 'phone') return <PhoneAlbum/>;
   // The album page keeps its own scroller (song windowing, paging near the end): the frame hands it the page and the collapse point.
   return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back}
-    scroller={(content, style, collapse) => <MusicScrollView style={{flex: 1}} contentContainerStyle={style} collapseAt={collapse.at} onCollapse={collapse.onChange}>{content}</MusicScrollView>} cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('albumKicker')}} title={f('album')}
+    scroller={musicScroller({})} cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('albumKicker')}} title={f('album')}
     metadata={<Meta text={`${f('albumArtist')} · ${f('albumFacts')}`}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-listadd', label: f('addToPlaylist'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('details')}/><AboutTable rows={[{label: f('year'), values: [{text: '2020'}]}, {label: f('label'), values: [{text: f('labelValue')}]}, {label: f('type'), values: [{text: f('albumKicker')}]}, {label: f('genre'), values: [link('R&B/Soul')]}, {label: f('added'), values: [{text: 'Oct 17, 2026'}]}]}/></View>

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {playbackItemStore} from '../src-next/screens/destinations/music/playback-item.ts';
-import {musicWindow, musicWindowShift} from '../src-next/screens/destinations/music/music-window.ts';
+import {musicWindow, musicWindowShift} from '../src-next/kit/music/music-window.ts';
 import {audiobookAuthorInitials} from '../src-next/screens/destinations/audiobooks/presentation.ts';
 
 test('music item selector suppresses progress/buffering publications and observes item removal', () => {
