@@ -62,11 +62,12 @@ export function MusicMixCard({row, artwork, width = 186, onPlay, onFocus, onMenu
 }
 
 /** Mixes for you: the server's own profile row, absent until it has something real to draw. */
-export function MusicMixesRow({port, artwork, reportError, title = t('music.mixesForYou'), onOpen, marginHorizontal, active = true, focus, focusScope, onCardFocus, onReady}: {
+export function MusicMixesRow({port, artwork, reportError, title = t('music.mixesForYou'), onOpen, marginHorizontal, active = true, focus, focusScope, onCardFocus, onReady, onLayout}: {
   port: NativeMusicMixesPort; artwork: (path: string | undefined) => React.ComponentProps<typeof Artwork>['source'];
   reportError: (error: unknown) => void; title?: string; onOpen?: () => void; marginHorizontal?: number; active?: boolean;
   focusScope?: string; focus?: Readonly<{id: string; up: string; down?: string; left: string}>; onCardFocus?: (id: string) => void;
   onReady?: () => void;
+  onLayout?: React.ComponentProps<typeof View>['onLayout'];
 }) {
   const theme = useTheme(), snapshot = useSyncExternalStore(port.subscribe, port.getSnapshot);
   const revision = useSyncExternalStore(port.subscribeRevision, port.getRevision);
@@ -112,7 +113,7 @@ export function MusicMixesRow({port, artwork, reportError, title = t('music.mixe
     <Text style={[heading, {color: theme.colors.text}]}>{title}</Text>
     <Text style={[sub, {color: theme.colors.textTertiary}]}>{t('music.mixesFromListening')}</Text>
   </Focusable>;
-  return <View testID="music-mixes-row" style={{marginTop: theme.isTV ? 44 : theme.layoutMode === 'phone' ? 28 : 26}}>
+  return <View onLayout={onLayout} testID="music-mixes-row" style={{marginTop: theme.isTV ? 44 : theme.layoutMode === 'phone' ? 28 : 26}}>
     {onOpen ? focus ? <FocusRegion id={`${focus.id}.more`} enabled={active} entry="music-mixes-open" order={['music-mixes-open']}
       edges={{up: focus.up, down: focus.id, left: focus.left}}>{headingButton}</FocusRegion> : headingButton : <View style={{marginHorizontal: theme.isTV ? 96 : 16, marginBottom: 12, flexDirection: 'row', alignItems: 'baseline', gap: 16}}>
       <Text style={[heading, {color: theme.colors.text}]}>{title}</Text>

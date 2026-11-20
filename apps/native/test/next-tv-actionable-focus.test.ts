@@ -504,6 +504,7 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
   const sort = {field: 'title', direction: 'asc'}, quick = [{id: 'unwatched', active: false, query: {variant: 'predicate', field: 'watched', operator: 'equals', value: false}}];
   const toolbar = {sorts: [{id: 'title', directions: ['asc', 'desc'], defaultDirection: 'asc'}], sort, quick, groups: [{id: 'activity', fields: [{id: 'playState'}]}]};
   const {HomeSeeAll} = await screenModule(new URL('../src-next/screens/home/HomeSeeAll.tsx', import.meta.url), {
+    '../../kit/browse/HomeRowCard': {HomeRowCard: 'HomeRowCard'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
     './generated-poster': {generatedPoster: () => null},
     react: b.react, 'react-native': b.native, '../../../../../packages/i18n/src': {defaultI18n},
@@ -559,7 +560,7 @@ test('retained Home recommendation menu delegates the original entry, anchor and
   const mod = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, react: b.react,
     'react-native': {...b.native, Platform: {isTV: true}, AccessibilityInfo: {isScreenReaderEnabled: async () => false, addEventListener: () => ({remove() {}})}}, '../../kit/focus': b.focus,
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true}, '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, './HomeSeeAll': {HomeSeeAll: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
+    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, './HomeSeeAll': {HomeSeeAll: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
     '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
     '../destinations/entry-actions': {createNativeEntryActions: (context: any, membership: any) => {
@@ -601,7 +602,7 @@ test('retained Home Undo uses the shared toast with the original entry command',
     'react-native': {...b.native, Platform: {isTV: true}}, '../../kit/focus': b.focus,
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: unknown) => entry, setNotInterested: async () => true},
     '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, './HomeSeeAll': {HomeSeeAll: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
+    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, './HomeSeeAll': {HomeSeeAll: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
     '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
     '../destinations/entry-actions': {createNativeEntryActions: () => ({menu: (_entry: unknown, _anchor: unknown, _select: unknown, extras: any[]) => {extra = extras?.[0];}, dispose() {}})},
