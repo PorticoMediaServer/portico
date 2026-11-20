@@ -26,7 +26,9 @@ export function StateView({title, body, icon, tone = 'neutral', primaryAction, s
   const bodySize = tv ? centered ? 26 : panel ? 22 : 24 : search ? phoneSearch ? 14.5 : 14 : 15;
   const iconSize = iconMetrics?.size ?? (tv ? centered ? 112 : 88 : 54);
   const color = tone === 'warning' ? theme.colors.amber : tone === 'error' ? theme.colors.record : tone === 'accent' ? theme.colors.accentStrong : theme.colors.text;
-  return <View testID={testID} style={[{alignItems: search ? 'stretch' : 'center', justifyContent: 'center', paddingHorizontal: search ? 0 : panel ? tv ? 48 : 24 : theme.gutter, paddingVertical: search ? 0 : tv ? panel ? 40 : 48 : 28,
+  // On touch a centred state is the whole page's: it fills what it is given, so it sits in the middle, clear of the status
+  // bar and the page's Back, never at the top under them. TV places its own.
+  return <View testID={testID} style={[{flexGrow: centered && !tv ? 1 : undefined, alignItems: search ? 'stretch' : 'center', justifyContent: 'center', paddingHorizontal: search ? 0 : panel ? tv ? 48 : 24 : theme.gutter, paddingVertical: search ? 0 : tv ? panel ? 40 : 48 : 28,
     backgroundColor: panel ? theme.colors.raised : undefined, borderRadius: panel ? tv ? 26 : 14 : undefined}, style]}>
     {kicker != null && <View style={{marginBottom: tv ? 24 : 22}}>{kicker}</View>}
     {icon && !search && <View style={{width: iconSize, height: iconSize, borderRadius: panel ? tv ? 24 : 14 : theme.baseRadii.pill, backgroundColor: panel ? theme.colors.raisedHigh : `${theme.colors.text}14`, alignItems: 'center', justifyContent: 'center', marginBottom: iconMetrics?.marginBottom ?? (tv ? centered ? 30 : 22 : 18)}}>
