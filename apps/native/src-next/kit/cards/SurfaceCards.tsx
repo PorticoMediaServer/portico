@@ -1,6 +1,7 @@
 import React, {type ReactNode} from 'react';
-import {Text, View} from 'react-native';
-import type {ChannelMarkModel, FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
+import {StyleSheet, Text, View} from 'react-native';
+import Svg, {Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
+import {channelTint, type ChannelMarkModel, type FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {AmbientArt, Artwork, ChannelMark, CoverFan, CoverMosaic, GeneratedArt, MediaArt, type AmbientArtSource, type ArtworkPalette, type ArtworkSource, type CoverShape} from '../artwork/index';
 import {Icon} from '../Icon';
@@ -28,7 +29,12 @@ export function LiveCard(props: LiveCardProps) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 400 : 244), height = t.isTV ? 225 : 140, pad = t.isTV ? 22 : 14;
   return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
     {s => <><ArtFrame height={height} radius={12} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={t.spec.card.hover.liveScale} selected={props.selection?.selected}>
-      <AmbientArt palette={{first: t.colors.ambient, second: t.colors.raised}} treatment="cover" visible={props.visible} priority={props.priority} />
+      {/* kit.css `.live`: on touch the card glows from its top right in the channel's own colour (the mark's tint) over the
+          raised surface: radial-gradient(120% 140% at 100% 0%, tint 0%, transparent 60%). TV keeps its ambient wash. */}
+      {t.isTV ? <AmbientArt palette={{first: t.colors.ambient, second: t.colors.raised}} treatment="cover" visible={props.visible} priority={props.priority} />
+        : <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: t.colors.raised}]}><Svg width="100%" height="100%"><Defs>
+          <RadialGradient id="live-tint" cx="100%" cy="0%" rx="120%" ry="140%"><Stop offset="0" stopColor={channelTint(props.mark.seed)} stopOpacity={1}/><Stop offset="0.6" stopColor={channelTint(props.mark.seed)} stopOpacity={0}/></RadialGradient>
+        </Defs><Rect width="100%" height="100%" fill="url(#live-tint)"/></Svg></View>}
       {props.badge !== undefined && <View style={{position: 'absolute', top: pad / 2, left: pad / 2}}><Badge>{props.badge}</Badge></View>}
       {!!props.count && <View style={{position: 'absolute', top: pad / 2, right: pad / 2, minWidth: t.isTV ? 36 : 24, height: t.isTV ? 36 : 24, paddingHorizontal: 6, borderRadius: t.isTV ? 18 : 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.accent}}>
         <Text style={[t.type.badge, {color: t.colors.text}]}>{props.count}</Text></View>}
