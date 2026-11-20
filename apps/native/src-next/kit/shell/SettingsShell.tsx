@@ -21,14 +21,19 @@ export function LargeTitleHeader({title, trailing, style}: {title: string; trail
 }
 export function ShortcutTiles({actions, testID}: {testID?: string; actions: readonly AccountAction[]}) {
   const theme = useTheme();
-  return <View style={{flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 10}}>{actions.map(action => <Focusable key={action.id} testID={controlID(testID, 'shortcut', action.id)} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress} focusRadius={14} style={{flex: 1, height: 70, borderRadius: 14, backgroundColor: theme.colors.raised, alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 4}}>
-    <Icon name={action.icon} size={24}/>
-    {/* phone-app.html .sc4 draws four tiles; with changes waiting to sync there are five, so a one-word label ("Notifications")
-        shrinks a little on one line instead of breaking mid-word. Two-word labels wrap between the words. */}
-    <Text {...(/\s/.test(action.label.trim()) ? {numberOfLines: 2} : {numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: .75})}
-      style={[shellType(11.5, 700, 13.8), {color: theme.colors.textSecondary, textAlign: 'center'}]}>{action.label}</Text>
-    {action.trailing && <View pointerEvents="none" style={{position: 'absolute', top: 8, right: 10, minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.accentStrong}}>{action.trailing}</View>}
-  </Focusable>)}</View>;
+  const rows = [actions.slice(0, 4), actions.slice(4)].filter(row => row.length > 0);
+  return <View style={{gap: 8, marginHorizontal: 16, marginTop: 10}}>{rows.map(row =>
+    <View key={row[0].id} style={{flexDirection: 'row', gap: 8}}>
+      {row.map(action => <Focusable key={action.id} testID={controlID(testID, 'shortcut', action.id)}
+        accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress} focusRadius={14}
+        style={{flex: 1, minHeight: 70, borderRadius: 14, backgroundColor: theme.colors.raised, alignItems: 'center',
+          justifyContent: 'center', gap: 7, paddingHorizontal: 4, paddingVertical: 8}}>
+        <Icon name={action.icon} size={24}/>
+        <Text style={[shellType(11.5, 700, 13.8), {color: theme.colors.textSecondary, textAlign: 'center'}]}>{action.label}</Text>
+        {action.trailing && <View pointerEvents="none" style={{position: 'absolute', top: 8, right: 10, minWidth: 18, height: 18,
+          paddingHorizontal: 5, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.accentStrong}}>{action.trailing}</View>}
+      </Focusable>)}
+    </View>)}</View>;
 }
 
 /** The accepted sheet owns gesture/back/focus lifecycles. Real settings content is supplied by the caller. */

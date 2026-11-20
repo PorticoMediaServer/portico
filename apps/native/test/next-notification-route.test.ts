@@ -40,9 +40,9 @@ test('the published commands and views open a real surface or run in place', asy
 
 test('on phone and tablet a named server page opens on that Settings page, never the Dashboard (N5-3)', () => {
   const source = readFileSync(new URL('../src-next/screens/settings-live/SettingsRoute.tsx', import.meta.url), 'utf8');
-  assert.match(source, /if \(!Platform\.isTV && route\.page\) return <NativeSettingsScreen key=\{[^}]+\}[^>]*initialPage=\{route\.page\}/);
+  assert.match(source, /if \(!Platform\.isTV && route\.page\) return <NativeSettingsPage key=\{[^}]+\}[^>]*initialPage=\{route\.page\}/);
   assert.doesNotMatch(source, /allowed === 'owner' && route\.page === 'live'/, 'Live is no longer the only page the phone opens');
-  const screen = readFileSync(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), 'utf8');
+  const screen = readFileSync(new URL('../src-next/pages/shared/settings/useSettingsPage.ts', import.meta.url), 'utf8');
   assert.match(screen, /const opensInitial = !theme\.isTV && !!initialPage && \[\.\.\.accountPages, \.\.\.serverPages\]\.some\(value => value\.id === initialPage\);/,
     'a page opens only when this viewer has it, so an administrator reaches People & devices');
   for (const view of ['admin-devices', 'settings-network', 'settings-storage'] as const) {

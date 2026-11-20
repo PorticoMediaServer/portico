@@ -22,6 +22,8 @@ export function tvServerPageDefinition(id: TVServerPage) {
 // The primary-profile admission and reader still enforce these roles. G35 places
 // Troubleshooting off television for both roles; no message-log route is offered.
 const administratorPages: ReadonlySet<TVServerPage> = new Set(['dashboard', 'people']);
+export const tvServerPagesFor = (role: 'owner' | 'administrator') =>
+  tvServerPageOrder.filter(id => role === 'owner' || administratorPages.has(id)).map(tvServerPageDefinition);
 
 /** Only pages with a real mounted reader enter the menu. Admission is still
  * checked by route composition; this list never grants a reader authority. */
@@ -40,7 +42,7 @@ export function TVServerPageMenu({role, page, serverName, runtime, column, rows,
     {/* Room above the first page too, so its focus ring is not cut by the list's top edge
         (it already has room at the sides and bottom); the list does not move. */}
     <ScrollView style={{flex: 1, marginTop: -MENU_RING_ROOM}} contentContainerStyle={{paddingHorizontal: 16, paddingTop: MENU_RING_ROOM, paddingBottom: 24}}><FocusRegion id={column} entry={page} orientation="vertical" edges={{left: rail, right: rows}} onLayout={onLayout}>
-      {tvServerPageOrder.filter(id => role === 'owner' || administratorPages.has(id)).map(tvServerPageDefinition).map(item => <Focusable key={item.id} focusId={item.id} testID={`server-page-${item.id}`} focusKind="row" accessibilityRole="button" accessibilityLabel={t(item.label)} accessibilityState={{selected: page === item.id}}
+      {tvServerPagesFor(role).map(item => <Focusable key={item.id} focusId={item.id} testID={`server-page-${item.id}`} focusKind="row" accessibilityRole="button" accessibilityLabel={t(item.label)} accessibilityState={{selected: page === item.id}}
         onFocus={() => {if (page !== item.id) onSelect(item.id);}} onPress={() => onSelect(item.id)} style={{minHeight: 56, paddingHorizontal: 20, borderRadius: 14, backgroundColor: page === item.id ? `${theme.colors.accent}29` : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 16}}>
         {page === item.id && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: 2, backgroundColor: theme.colors.accent}}/>}
         <Icon name={item.icon} size={24} color={page === item.id ? theme.colors.accentStrong : theme.colors.textTertiary}/>

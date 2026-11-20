@@ -118,6 +118,20 @@ for (const isTV of [false, true]) {
     nodes(tree).find(node => node.type === Focusable)!.props.onPress(); assert.equal(calls, 1);
   });
 }
+test('an extra Settings shortcut keeps its full label and action', () => {
+  state.theme = createTheme({isTV: false, width: 390});
+  const labels = ['Switch profile', 'Switch server', 'Notifications', 'Watch Together', 'Forget remembered profile'];
+  let pressed: string | undefined;
+  const tree = ShortcutTiles({actions: labels.map((label, index) => ({id: String(index), label, icon: 'i-close',
+    onPress: () => {pressed = label;}}))});
+  const rows = tree.props.children as ReturnType<typeof nodes>;
+  assert.deepEqual(rows.map(row => (row.props.children as unknown[]).length), [4, 1]);
+  const action = nodes(tree).find(node => node.type === Focusable && node.props.accessibilityLabel === labels[4])!;
+  const caption = nodes(action).find(node => node.props.children === labels[4])!;
+  assert.equal(caption.props.numberOfLines, undefined);
+  action.props.onPress();
+  assert.equal(pressed, labels[4]);
+});
 test('actual search result grouping preserves its content match count and current values', () => {
   const calls: unknown[] = [];
   const matches = [{address: 'account/playback', pageTitle: 'Playback', rowId: 'skip', label: 'Skip intro'}, {address: 'account/playback', pageTitle: 'Playback', rowId: 'credits', label: 'Skip credits'}] as unknown as Parameters<typeof SettingsSearchResults>[0]['matches'];
