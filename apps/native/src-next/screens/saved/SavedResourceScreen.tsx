@@ -24,7 +24,7 @@ import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import {nativeDestinationFocusIds, type NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeSavedViewDestination} from './view-model';
-import type {NativeSavedSelectionPort} from './SavedScreen';
+import type {NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
 import type {NativeWatchMenuExtra} from '../watch/factory';
 import {SavedLoading, SavedTail} from './SavedLoading';
 import {savedNearEnd} from './paging';

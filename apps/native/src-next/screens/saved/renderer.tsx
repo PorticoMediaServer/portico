@@ -5,7 +5,8 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeRouteRenderer} from '../../shell/route-registry';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
-import {SavedScreen, type NativeSavedActions, type NativeSavedSelectionPort} from './SavedScreen';
+import {SavedPage} from '../../pages/touch/saved/SavedPage';
+import type {NativeSavedActions, NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
 import type {NativeSavedDownloadsCopy} from './SavedDownloadCard';
 import {NativeSavedDestination} from './model';
 
@@ -28,7 +29,7 @@ export function createNativeSavedRenderer(context: NativeShellBootstrapContext, 
   const saved = new NativeSavedDestination({api: context.api, scope: lifetime.scope, current, requestId: ports.requestId});
   return Object.freeze({
     render: (route, runtime) => current() && route.kind === 'shell' && route.destination.kind === 'saved'
-      ? <SavedScreen destination={saved} runtime={runtime} device={ports.offline} actions={ports.savedActions} selection={ports.savedSelection}
+      ? <SavedPage destination={saved} runtime={runtime} device={ports.offline} actions={ports.savedActions} selection={ports.savedSelection}
         downloadsCopy={ports.savedDownloadsCopy} onThisPhone={ports.onThisPhone} activation={ports.activation}/> : null,
     dispose: () => {if (disposed) return; disposed = true; saved.dispose();},
   } satisfies NativeRouteRenderer & {dispose: () => void});

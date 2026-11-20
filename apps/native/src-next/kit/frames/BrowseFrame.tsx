@@ -156,6 +156,9 @@ function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, t
     contentContainerStyle={form === 'tv' ? {paddingHorizontal: 0} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
   const tabs = tabItems?.region ? <FocusRegion {...tabItems.region} orientation="horizontal" entry={tabItems.value}>{strip}</FocusRegion> : strip;
   const theme = useTheme();
+  if (form === 'tv' && tabs && !switcher && !back && !intro && !actions) {
+    return <LibraryHeader name={title} switcher={undefined} menu={trailing}>{tabs}</LibraryHeader>;
+  }
   if (!switcher) return <>
     <PageHeader title={title} back={back} trailing={trailing} showTVBack/>
     {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}

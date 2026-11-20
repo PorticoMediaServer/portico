@@ -1,3 +1,4 @@
+import {savedFixture} from './helpers/saved-fixture.mjs';
 import test from 'node:test';
 import * as savedCore from '../../../packages/client-core/src/saved.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
@@ -34,11 +35,12 @@ function fixture(phone = true) {
     '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: String}, '../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'},
     '../../platform/offline-downloads': {groupOfflineEntries: () => []}, './model': {}, './SavedDownloadCard': {SavedDownloadCard: 'SavedDownloadCard'},
     '../downloads/playback': {openNativeSavedDownload() {}},
+    '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'},
   };
-  const load = async (name: string) => screenModule(new URL(`../src-next/screens/${name}.tsx`, import.meta.url), modules);
+  const load = async (name: string) => name === 'saved/SavedScreen' ? savedFixture('Saved', modules) : screenModule(new URL(`../src-next/screens/${name}.tsx`, import.meta.url), modules);
   return {host, modules, load};
 }
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.ListHeaderComponent)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.ListHeaderComponent), ...nodes(node.props.grid)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props.testID === id);
 const text = (tree: any): string => typeof tree === 'string' || typeof tree === 'number' ? String(tree) : Array.isArray(tree) ? tree.map(text).join('') : tree?.props ? text(tree.props.children) : '';
 const entry = {id: 'movie-a', kind: 'movie', libraryId: 'movies', title: 'A', posterUrl: '/a', duration: 1000, progressSeconds: 250, year: 2020};
@@ -70,9 +72,10 @@ test('Tablet Saved changes all seven tabs locally and retains its own chrome', a
     tabBody: (tab: string) => {bodies.push(tab); return `body:${tab}`;}, downloads: () => 'body:downloads'};
   let tree = f.host.render(() => SavedScreen(props));
   for (const tab of ['favorites', 'playlists', 'collections', 'views', 'history', 'downloads', 'watchlist']) {
-    find(tree, 'saved-tablet-tabs').props.onValueChange(tab); tree = f.host.render(() => SavedScreen(props));
-    assert.equal(find(tree, 'saved-tablet-tabs').props.value, tab);
-    assert.ok(text(tree).includes('saved.title'));
+    nodes(tree).find(node => node.type === 'SavedPage').props.header.tabs.onValueChange(tab); tree = f.host.render(() => SavedScreen(props));
+    const saved = nodes(tree).find(node => node.type === 'SavedPage');
+    assert.equal(saved.props.header.tabs.value, tab);
+    assert.equal(saved.props.header.title, 'saved.title');
   }
   assert.deepEqual(bodies, ['favorites', 'playlists', 'collections', 'views', 'history']); assert.deepEqual(pushed, []);
 });

@@ -1,4 +1,5 @@
 // @fabric-react
+import {savedFixture} from './helpers/saved-fixture.mjs';
 import * as layoutModel from '../src-next/kit/layout/model.ts';
 import {createTVKeyAdapter} from '../src-next/platform/tv-key-adapter.ts';
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ import {screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
 import {registerLibrarySelectionFooterTests} from './helpers/tv-library-selection-footer.mts';
 import * as kitModel from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.grid)] : [];
 const flush = async () => {await act(() => {});};
 // Separate probe roots must commit in the sibling order the composed tree uses.
 async function mountInOrder<T, R>(values: readonly T[], mount: (value: T) => Promise<R>): Promise<R[]> {
@@ -320,7 +321,7 @@ test('TV Saved caller passes original grid sort/filter roots through actual Menu
   const b = await bindings(), o = await overlayBindings(b);
   const buckets = await import('../../../packages/client-core/src/browse-buckets');
   const saved = await import('../../../packages/client-core/src/saved');
-  const {TVSavedScreen} = await screenModule(new URL('../src-next/screens/destinations/saved/TVSavedScreen.tsx', import.meta.url), {
+  const {TVSavedScreen} = await savedFixture('TVSaved', {
     react: b.react, 'react-native': b.native, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/browse-buckets': buckets,
     '../../../../../../packages/client-core/src/saved': saved, '../../../tv/layout/TVFocusGrid': {TVFocusGrid: 'Grid'}, '../../saved/SavedForms': {SavedConfirmSheet: 'Confirm'},
     '../../../kit/browse/LibraryJumpSheet': {LibraryJumpSheet: 'Jump'}, '../useTVPageBack': {useTVPageBack() {}}, '../useEntryFocus': {useDestinationEntryFocus() {}},
@@ -329,7 +330,7 @@ test('TV Saved caller passes original grid sort/filter roots through actual Menu
     '../../../kit/cards': {PosterCard: 'Poster', SquareCard: 'Square'}, '../../../kit/overlays': {...o.menu, Dialog: 'Dialog'}, '../../../kit/states': {StateView: 'State'},
     '../../../kit/focus': b.focus, '../../../kit/browse/presentation': {browseType: () => ({})}, '../../../kit/theme': {useTheme: () => b.theme},
     '../focus': {useCovered: () => false, nativeDestinationFocusIds: (authority: any) => ({savedTabs: 'tabs', savedGrid: authority.grid, savedToolbar: 'toolbar', rail: 'rail'})},
-    '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, '../../saved/SavedTVTabs': {SavedTVTabs: 'Tabs'}, '../../saved/SavedTVDirectory': {SavedTVDirectory: 'Directory'}});
+    '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, '../../saved/useSavedTVTabs': {useSavedTVTabs: () => undefined}, '../../../pages/tv/saved/SavedPage': {TVSavedPage: 'TVSavedPage'}, '../../saved/SavedTVDirectory': {SavedTVDirectory: 'Directory'}});
   let tree: any, scope = 'original.saved'; const selected: any[] = [];
   const snapshot = {phase: 'ready', entries: [], resources: [], posters: {sections: []}, squares: {sections: []}};
   const props: any = {controller: {subscribe: () => () => {}, getSnapshot: () => snapshot, source: () => ({}), summary: async () => {}, select: async (...value: any[]) => {selected.push(value);}},
