@@ -9,6 +9,7 @@ import {chipGeometry} from '../controls/control-model';
 import {MenuRow, Popover} from '../overlays';
 import {Icon} from '../Icon';
 import {useTheme} from '../theme';
+import {frameSpec} from '@portico/design';
 import {alpha, browsePlatform, browseType} from './presentation';
 import type {AppliedFilterChip, BrowsePlatform, BrowseToolbarProps} from './types';
 import {FocusItem, FocusRegion} from '../focus';
@@ -167,6 +168,7 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, res
   </View>;
   const controls = <>
     {sort}<FocusItem focusId="filters">{filters}</FocusItem>{onJump && <Chip focusId="jump" disabled={jumpEnabled === false} onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}
+    {quick.length > 0 && <View style={{width: frameSpec.browse.toolbarRule.width, height: frameSpec.browse.toolbarRule.height, marginHorizontal: frameSpec.browse.toolbarRule.inset, backgroundColor: theme.colors.line}}/>}
     {quick}{children}
     {save && <View style={{marginLeft: 'auto'}}><FocusItem focusId="save"><SaveViewButton {...save}/></FocusItem></View>}
   </>;

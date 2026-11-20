@@ -155,6 +155,8 @@ export const frame = {
     /** The poster grid: the narrowest a column's card may be (the columns stretch to both gutters), and the gaps between
      * columns and rows (desktop-browse .pgrid 20 / 30; phone-app 5; tablet 4 and 5). Its loading boxes use the same. */
     grid: {card: forms(100, 130, 160, 200), columnGap: forms(10, 16, 20, 28), rowGap: forms(16, 22, 30, 36)}, // R2 and R5 interim
+    /** TV toolbar (tv.html .sep): the rule between Jump to and the quick chips. */
+    toolbarRule: {width: 1.5, height: 40, inset: 6},
     libraryTile: forms(108, 108, 108, 140),
     listRow: forms(76, 76, 76, 84),
     genreWidth: forms(150, 150, 160, 320),
