@@ -31,8 +31,12 @@ export type DownloadsPageProps = Readonly<{
 
 /** The device adapter publishes only this viewer's native files. No server preparation
  * is ever counted as a file available here, or substituted for a local action. */
-export function useDownloads({device, runtime, copy, openTitle, service}: DownloadsPageProps) {
+export function useDownloads({device, runtime, copy: nativeCopy, openTitle, service}: DownloadsPageProps) {
   const theme = useTheme(), dimensions = useWindowDimensions();
+  const tablet = theme.form === 'medium' || theme.form === 'expanded';
+  const copy: NativeDownloadsCopy = tablet ? {...nativeCopy, storageLimitHelp: 'next.saved.tablet.storageLimitHelp',
+    freeOnPhone: 'downloads.freeOnDevice', removeFromPhone: 'next.saved.tablet.remove',
+    goneFromServer: 'next.saved.tablet.gone', otherProfiles: 'downloads.othersOnDevice'} : nativeCopy;
   const snapshot = useSyncExternalStore(device.subscribe, device.getSnapshot);
   const inventory = useMemo(() => createDownloadInventory(device, {
     identity: downloadEntryIdentity,
@@ -179,7 +183,7 @@ export function useDownloads({device, runtime, copy, openTitle, service}: Downlo
     setRemoving(undefined);
     if (entry) run(() => device.remove(entry));
   };
-  return {snapshot, inventory, membership, viewport, scroll, limitRef, inventoryTop, setInventoryTop, setPaneWidth, paneWidth,
+  return {snapshot, copy, inventory, membership, viewport, scroll, limitRef, inventoryTop, setInventoryTop, setPaneWidth, paneWidth,
     empty, storage, requests, waiting, cancelWaiting, expanded, readingTablet, readingColumn, rulesBeside, heldBytes,
     readingBytes, watchingBytes, readingBarWatching, readingBarReading, readingBarGap,
     failure, setEntryMenu, entryMenu, menu, menuItems, sheetMenu, afterMenu, pickingLimit, setPickingLimit,
