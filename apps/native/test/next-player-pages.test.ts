@@ -33,3 +33,37 @@ test('TV video keeps the full title, remote focus and held-seek content in one f
   assert.equal(frame.props.focus.transport.entry, 'watch-toggle');
   assert.equal(frame.props.hints, 'remote hints');
 });
+
+test('audio keeps its page scroll, wide panel actions, and TV lyrics focus return', async () => {
+  const {frameSpec} = await import('@portico/design');
+  const {createTheme} = await import('../src-next/kit/theme');
+  let form = 'phone', width = 800, height = 390;
+  const theme = () => createTheme({width, isTV: form === 'tv'});
+  const {AudioPlayerFrame} = await screenModule(new URL('../src-next/kit/frames/AudioPlayerFrame.tsx', import.meta.url), {
+    react: {...react, useState: (value: unknown) => [value, () => {}]},
+    'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}}, useWindowDimensions: () => ({width, height})},
+    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
+    '@portico/design': {frameSpec}, '../../../../../packages/i18n/src': {defaultI18n}, '../theme': {useTheme: theme},
+    '../controls/Button': {Button: 'Button'}, '../controls/Focusable': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'},
+    '../states/SkeletonBlock': {SkeletonBlock: 'Skeleton'}, '../shell/visual': {alpha: String},
+    '../focus': {StartFocusScope: 'StartFocusScope', FocusRegion: 'FocusRegion'}, '../player/parts': {PlayerControl: 'PlayerControl'},
+    '../player/queue': {AudioChoiceRow: 'AudioChoiceRow'}, './parts': {ArtBox: 'ArtBox'},
+    './metrics': {useFrameMetrics: () => ({form, width, gutter: 20, rightGutter: 20, rowTwoLine: 60, bottomClear: 20})},
+  });
+  const all = (node: any): Node[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children)] : [];
+  const ref = {current: null}, close = {icon: 'i-down', label: 'Close', onPress() {}};
+  const lyrics = {...close, label: 'Lyrics', focusId: 'lyrics', testID: 'lyrics', anchorRef: ref};
+  const queue = {...close, label: 'Up next', testID: 'queue'};
+  const render = () => {
+    const leaf = AudioPlayerFrame({close, title: 'Song', icon: 'i-music', scrubber: 'Seek', times: {position: '0:00', end: '1:00'},
+      lyrics, queue, transport: [undefined, close, close, close, undefined]}).props.children[0];
+    return all(leaf.type(leaf.props));
+  };
+  assert.ok(all(render().find(node => node.type === 'ScrollView')).some(node => node.props.item === lyrics), 'the short phone can scroll to Lyrics');
+  form = 'expanded'; width = 1180; height = 800;
+  assert.deepEqual(render().filter(node => ['lyrics', 'queue'].includes(node.props.testID)).map(node => node.props.testID), ['lyrics', 'queue']);
+  form = 'tv'; width = 1920; height = 1080;
+  const action = render().find(node => node.props.testID === 'lyrics');
+  assert.equal(action?.props.focusId, 'lyrics');
+  assert.equal(action?.props.ref, ref);
+});

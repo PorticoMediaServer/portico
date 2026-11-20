@@ -168,7 +168,8 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
   const book = chapter !== undefined, tiles = [speed, sleep, chapters, device].filter((item): item is AudioOption => item !== undefined);
   // The artwork is the spec's size where the window has room; a short window gets the largest square that leaves every fixed region its place.
   const fixed = (book ? frame.rowTwoLine / 2 : 0) + spec.topBar[form] + spec.gap[form] + theme.space.sm + spec.titleSlot[form] + spec.scrubber[form] + spec.transport[form] + spec.nextLine[form] + spec.bottomRow[form] + insets.top + Math.max(insets.bottom, frameSpec.sheet.footerClear);
-  const column = Math.max(0, Math.min(spec.artwork[form], frame.width - 2 * inset, window.height - fixed));
+  const artRoom = Math.max(spec.artwork[form] / 2, window.height - fixed);
+  const column = Math.max(0, Math.min(spec.artwork[form], frame.width - 2 * inset, artRoom));
   const words = <View style={{minHeight: spec.titleSlot[form], flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.xs}}>
     <View style={{flex: 1, minWidth: 0, gap: theme.space.tight}}>{loading ? <><SkeletonBlock width="64%" height={theme.type.title.fontSize}/><SkeletonBlock width="40%" height={theme.type.intro.fontSize}/></> : <>
       {/* A longer title uses room from the flexible space below the transport. */}
@@ -184,7 +185,7 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
       : <>{lyrics && <Slot item={lyrics} loading={loading}/>}{device && <View style={{flex: 1.6, height: '100%'}}><Slot item={device} loading={loading} inline/></View>}{queue && <Slot item={queue} loading={loading}/>}</>}
   </View>;
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
-    <View style={{flex: 1, paddingHorizontal: inset}}>
+    <ScrollView style={{flex: 1}} contentContainerStyle={{flexGrow: 1, paddingHorizontal: inset}} keyboardShouldPersistTaps="handled">
       <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}><Glyph item={close} loading={false}/><Context context={context} source={source} loading={loading} centred/>{more && <Glyph item={more} loading={loading}/>}</View>
       <View style={{marginTop: spec.gap[form], alignItems: 'center'}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={book ? column * spec.bookArtShare : column} loading={loading}/></View>
       <View style={{marginTop: theme.space.sm}}>{words}</View>
@@ -195,7 +196,7 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
       {/* What is left of the height is shared under the transport and under the next line, the same on every phone. */}
       <View style={{flex: 1}}/>{nextLine}<View style={{flex: 1}}/>
       {bottom}
-    </View>
+    </ScrollView>
     {panel !== undefined && <View style={[StyleSheet.absoluteFill, {top: frameSpec.sheet.fullTop + insets.top, borderTopLeftRadius: frameSpec.sheet.fullRadius, borderTopRightRadius: frameSpec.sheet.fullRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}]}>{panel}</View>}
   </View>;
 }
@@ -212,7 +213,8 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
   // The column is as wide as the cover, which is the spec's size or the largest that leaves the column's fixed rows their room.
   const rows = spec.titleSlot[form] + wideSpec.scrubberGap[form] + spec.scrubber[form] + wideSpec.transportGap[form] + icons.primary[form] + wideSpec.belowGap[form] + theme.targets.touch;
   const room = window.height - insets.top - insets.bottom - spec.topBar[form] - wideSpec.titleGap[form] - rows - theme.space.lg;
-  const column = Math.max(0, Math.min(frame.width - panelWidth - 3 * edge, book ? wideSpec.bookColumn[form] : Math.min(spec.artwork[form], room)));
+  const artRoom = Math.max(wideSpec.bookArt[form], room);
+  const column = Math.max(0, Math.min(frame.width - panelWidth - 3 * edge, book ? wideSpec.bookColumn[form] : Math.min(spec.artwork[form], artRoom)));
   // R2: the title is the form scale's `audioTitle`, a song's and an audiobook's alike.
   const titleSize = theme.type.audioTitle.fontSize;
   const words = (size: 'title' | 'pageTitle') => <View style={{flex: 1, minWidth: 0, gap: theme.space.xs}}>{loading ? <><SkeletonBlock width="64%" height={titleSize}/><SkeletonBlock width="40%" height={theme.type.intro.fontSize}/></> : <>
@@ -226,8 +228,9 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
   const marks = !book && !loading && (favourite || titleMore) && <View style={{flexDirection: 'row', alignSelf: 'flex-end'}}>{favourite && <Glyph item={favourite} loading={loading} size={icons.inlineIcon[form]}/>}{titleMore && <Glyph item={titleMore} loading={loading} size={icons.inlineIcon[form]}/>}</View>;
   const head = book ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: wideSpec.bookArtGap}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={wideSpec.bookArt[form]} loading={loading}/>{words('pageTitle')}</View>
     : <><Art artwork={artwork} cover={cover} icon={icon} title={title} size={column} loading={loading}/><View style={{marginTop: wideSpec.titleGap[form], flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm}}>{words('pageTitle')}{marks}</View></>;
-  const pills = upright && !book && [lyrics, device, queue].some(Boolean) && <View style={{flexDirection: 'row', justifyContent: 'center', gap: theme.space.controlGap}}>
-    {[lyrics, device, queue].filter((item): item is AudioControl => item !== undefined).map(item => <Button key={item.focusId ?? item.label} ref={item.anchorRef} focusId={item.focusId} testID={item.testID} variant="glass" size="small" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}
+  const actions = [lyrics, upright ? device : undefined, queue].filter((item): item is AudioControl => item !== undefined);
+  const pills = !book && actions.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: theme.space.controlGap}}>
+    {actions.map(item => <Button key={item.focusId ?? item.label} ref={item.anchorRef} focusId={item.focusId} testID={item.testID} variant="glass" size="small" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}
       style={{borderRadius: theme.targets.touch / 2}}>{item.label}</Button>)}</View>;
   const options = book && [speed, sleep].some(item => item?.choices) && <View style={{gap: theme.space.controlGap}}>
     {[speed, sleep].filter((item): item is AudioOption => !!item?.choices).map(item => <AudioChoiceRow key={item.label} testID={item.testID ?? item.label} label={item.label} help={item.help} choices={item.choices!}/>)}</View>;
@@ -284,7 +287,7 @@ function TVAudio({more, context, source, artwork, cover, icon, title, byline = [
         <View style={{position: 'absolute', top: tvSpec.scrubberTop + shift - (chapter ? theme.space.xl : 0), width: tvSpec.scrubberWidth, gap: theme.space.sm}}>{chapter && <ChapterLine chapter={chapter} loading={loading} wide/>}<AudioFocusRegion region={tvFocus?.seek}>{scrubber}<Times times={times} loading={loading}/></AudioFocusRegion></View>
         <View style={{position: 'absolute', top: tvSpec.transportTop + shift, width: tvSpec.scrubberWidth}}><AudioFocusRegion region={tvFocus?.transport}><Transport transport={transport} loading={loading} gap={transport[0] || transport[4] ? undefined : theme.space.lg}/></AudioFocusRegion></View>
         <View style={{position: 'absolute', top: tvSpec.moreTop + shift}}><AudioFocusRegion region={tvFocus?.actions}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm}}>
-          {buttons.map(item => <Button key={item.label} testID={item.testID} variant="glass" size="compact" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}>{label(item)}</Button>)}
+          {buttons.map(item => <Button key={item.focusId ?? item.label} ref={item.anchorRef} focusId={item.focusId} testID={item.testID} variant="glass" size="compact" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}>{label(item)}</Button>)}
           {favourite && <Button focusId={favourite.focusId} testID={favourite.testID} variant="glass" size="compact" iconOnly icon={favourite.icon}
             accessibilityState={{checked: favourite.active}} accessibilityLabel={favourite.label} disabled={favourite.disabled || loading} onPress={favourite.onPress}/>}
           {more && <Button ref={more.anchorRef} focusId={more.focusId} testID={more.testID} variant="glass" size="compact" iconOnly icon={more.icon} accessibilityLabel={more.label} disabled={more.disabled || loading} onPress={more.onPress}/>}
