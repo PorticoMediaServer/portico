@@ -2,7 +2,7 @@ import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react
 import {Text, View} from 'react-native';
 import {formatMessage} from '../../../../../../packages/i18n/src';
 import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/title-fixtures';
-import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../kit/artwork/index';
+import {AmbientArt, ArtistCircle, Artwork, PersonCircle, type ArtworkSource} from '../../../kit/artwork/index';
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
@@ -312,8 +312,29 @@ function Album() {
     <PanelBlock><Songs rows={songs(['song1', 'song2', 'song3', 'song4'])}/></PanelBlock>
   </TitleFrame></Page>;
 }
+const artistAlbums = [['pool/albums/abbey-road-2019-mix.jpg', 'Abbey Road (2019 Mix)', '1969']] as const;
+const similarArtists = [['pool/albums/rumours.jpg', 'Fleetwood Mac'], ['pool/albums/the-wall.jpg', 'Pink Floyd'], ['pool/albums/thriller.jpg', 'Michael Jackson'], ['pool/albums/21.jpg', 'Adele']] as const;
+/** An artist on a phone (phone-app frame 15b): the circle of their albums over a glow from them, the counts and genre,
+ * Play and Shuffle sharing the row with ⋯, Top songs (the playing one marked), their albums as square covers, and similar
+ * artists as circles with the server's reason. */
+function PhoneArtist() {
+  const t = defaultI18n.t, rows = songs(['artistSong1', 'artistSong2', 'artistSong3', 'artistSong4'], f('abbeyRoad')).map((row, index) => ({...row, number: index + 1}));
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back}
+    topAction={{icon: 'i-more', label: f('more'), onPress: none}} scroller={musicScroller({})}
+    // The served ambient image is not available to the gallery (artwork.gallery.tsx); the cover's palette stands in for the glow.
+    art={<AmbientArt treatment="library" palette={{first: '#6b5a3a', second: '#2a2418'}}/>}
+    cover={{shape: 'circle', node: size => <ArtistCircle covers={[asset('pool/albums/abbey-road-2019-mix.jpg')]} rings={[3]} initials="TB" alt={f('artist')} size={size} visible/>}}
+    title={f('artist')} metadata={<HeroMetadata facts={[{id: 'albums', text: t('title.albumCount', {count: 1}), role: 'context'}, {id: 'songs', text: t('title.songCount', {count: 4}), role: 'context'}, {id: 'genre', text: 'Rock', role: 'context'}]}/>}
+    primary={{icon: 'i-play', label: f('play'), onPress: none}}
+    actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, split: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}>
+    <TrackWindow title={t('music.topSongs')} rows={rows} variant="top-songs" onPlay={none} onMore={none}/>
+    <PosterRow shape="square" title={t('title.albums')} items={artistAlbums.map(item => ({key: item[0], title: item[1], year: item[2], artwork: asset(item[0]), onNavigate: none}))}/>
+    <PosterRow shape="circle" title={t('music.similarArtists')} subtitle={t('music.moreLikeThisBySound')} items={similarArtists.map(item => ({key: item[1], title: item[1], covers: [asset(item[0])], onNavigate: none}))}/>
+  </TitleFrame></Page>;
+}
 function Artist() {
   const theme = useTheme();
+  if (useFrameMetrics().form === 'phone') return <PhoneArtist/>;
   return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', node: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
     metadata={<Meta text={f('artistFacts')}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
