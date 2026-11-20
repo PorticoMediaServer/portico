@@ -20,7 +20,9 @@ export function songList({songs, number, playingId, controller, runtime, actions
 }>): SongList {
   const byId = new Map(songs.map(song => [song.id, song]));
   return {
+    // Its cover and a favourite's heart, drawn where the form draws them (a TV row: tv-more frames 6 and 8; not a phone's).
     rows: songs.map((value, index) => ({id: value.id, number: number(value, index), playing: playingId === value.id,
+      ...(value.favorite === true ? {favorite: true} : {}), artworkSource: runtime.artwork(value.posterUrl),
       text: cardText({id: value.id, kind: 'song', title: value.displayTitle ?? value.title, artist: value.artist?.name, album: value.album?.name, durationSeconds: value.duration}, 'song-row', runtime.text)})),
     select: id => {const value = byId.get(id); return value ? selection?.item(value) : undefined;},
     onPlay: id => {void controller.play(id).catch(runtime.reportError);},
