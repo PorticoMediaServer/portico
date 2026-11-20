@@ -4,6 +4,7 @@ import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {RecordingStorageSummary} from '../../kit/live/Recordings';
+import {TVRecordingsPage} from '../../pages/tv/live/RecordingsPage';
 import {RecordingsPage} from '../../pages/touch/live/RecordingsPage';
 import {ListEdgeFade} from '../../kit/layout/ListEdgeFade';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
@@ -211,6 +212,9 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
   const expandedTouch = !theme.isTV && theme.platform === 'web';
   if (state.accessDenied) return <Screen><StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')}/></Screen>;
   const groupHeader = group && <View style={{marginBottom: 34, flexDirection: 'row', gap: 20}}><ScreenText secondary>{group.recording.channel?.name}</ScreenText><SpacedFacts text={t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched})}/></View>;
+  const storageHeader = !group && state.storage && query.view !== 'storage' && <View style={{width: theme.isTV ? 360 : 160}}>
+    <StorageFacts storage={state.storage}/><Meter storage={state.storage}/>
+  </View>;
   const header = <>
     {/* desktop-live, tablet-play6: at expanded touch widths Recordings is Live TV's second tab, so the page keeps
         Live TV's title and the Guide / Recordings pair in place of Back; a show's page keeps Back. */}
@@ -219,11 +223,11 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
     </NativeLiveTabs></View> : <View style={{flexDirection: 'row', alignItems: 'center', height: theme.isTV ? 64 : 48, marginBottom: theme.isTV ? 24 : 16, paddingHorizontal: theme.isTV ? 0 : 20}}>
       {!theme.isTV && <Button testID="recordings-back" variant="text" icon="i-left" size="small" onPress={leaveGuide}>{t('action.back')}</Button>}
       <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 32, 800, 'normal', -.03), {color: theme.colors.text, flex: 1}]}>{group?.title ?? t('recordings.title')}</Text>
-      {!group && state.storage && query.view !== 'storage' && <View style={{width: theme.isTV ? 360 : 160}}><StorageFacts storage={state.storage}/><Meter storage={state.storage}/></View>}
+      {storageHeader}
     </View>}
-    {!group ? <FocusRegion id={tabs} entry={query.view} orientation="horizontal" edges={{left: ids.rail, down: body}} onLayout={entryRegion === tabs ? enter : undefined} style={{flexDirection: 'row', gap: 12, marginBottom: theme.isTV ? 42 : 24, paddingHorizontal: theme.isTV ? 0 : 20}}>{views.map(view => <Chip key={view} focusId={view} testID={`recordings-view-${view}`} selected={view === query.view} onFocus={() => {if (theme.isTV) select(view);}} onPress={() => select(view)} count={view === 'upcoming' || view === 'recorded' || view === 'rules' ? state.summary?.[view] : undefined}>{t(viewLabels[view])}</Chip>)}</FocusRegion>
-      : groupHeader}
   </>;
+  const viewsHeader = !group ? <FocusRegion id={tabs} entry={query.view} orientation="horizontal" edges={{left: ids.rail, down: body}} onLayout={entryRegion === tabs ? enter : undefined} style={{flexDirection: 'row', gap: 12, marginBottom: theme.isTV ? 0 : 24, paddingHorizontal: theme.isTV ? 0 : 20}}>{views.map(view => <Chip key={view} focusId={view} testID={`recordings-view-${view}`} selected={view === query.view} onFocus={() => {if (theme.isTV) select(view);}} onPress={() => select(view)} count={view === 'upcoming' || view === 'recorded' || view === 'rules' ? state.summary?.[view] : undefined}>{t(viewLabels[view])}</Chip>)}</FocusRegion>
+      : groupHeader;
   const recordingsBody = <FocusRegion id={body} entry={first} orientation="free" edges={{left: ids.rail, up: tabs}} onFocusChange={value => {bodyFocused.current = value;}} onLayout={entryRegion === body ? enter : undefined} style={{flex: 1, paddingHorizontal: theme.isTV ? 0 : 20}}>
       {state.error !== undefined ? <StateView testID="recordings-error" {...runtime.error(state.error, () => {void controller.load(); void controller.loadFacts();}, 'live')}/>
         : query.view === 'storage' ? state.storage && <StorageView storage={state.storage} owner={ports.context.account.account.role === 'owner' && ports.context.account.account.primaryProfileId === controller.lifetime.authority.profileId}/>
@@ -270,7 +274,9 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
         remaining={t('recordings.hoursLeft', {count: storage.hoursLeft})}
         fraction={totalBytes && storage.usedBytes !== undefined ? storage.usedBytes / totalBytes : undefined} onPress={() => select('storage')}/>}/>;
   }
-  return <Screen style={{paddingTop: theme.isTV ? 56 : 20}}>{header}{recordingsBody}{overlays}</Screen>;
+  if (theme.isTV) return <TVRecordingsPage title={group?.title ?? t('recordings.title')} facts={storageHeader} tabs={viewsHeader}
+    list={recordingsBody} overlay={overlays}/>;
+  return <Screen style={{paddingTop: 20}}>{header}{viewsHeader}{recordingsBody}{overlays}</Screen>;
 }
 
 function SpacedFacts({text}: {text: string}) {return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>{text.split(' · ').map((part, index) => <ScreenText key={index} secondary>{part}</ScreenText>)}</View>;}
