@@ -5,7 +5,8 @@ import {titleFixtureMessages} from '../../../../../../packages/i18n/src/catalog/
 import {AmbientArt, Artwork, PersonCircle, type ArtworkSource} from '../../../kit/artwork/index';
 import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
-import {SongRow, TrackRow, type TrackRowData, type TrackSelection} from '../../../kit/browse/Tracks';
+import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
+import {TrackWindow} from '../../../kit/music/TrackWindow';
 import {AboutTable, CastRow, ChoiceChips, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
@@ -278,9 +279,10 @@ const songs = (names: readonly Name[], album?: string): TrackRowData[] => names.
 function Songs({rows, ranked = false}: {rows: readonly TrackRowData[]; ranked?: boolean}) {
   return <View>{rows.map((row, index) => <SongRow key={row.id} row={row} index={index} ranked={ranked} onPlay={none} onMore={none} onEnter={none}/>)}</View>;
 }
+const moreLikeAfterHours = [['pool/albums/random-access-memories.jpg', 'Random Access Memories', '2013'], ['pool/albums/thriller.jpg', 'Thriller', '1982'], ['pool/albums/hit-me-hard-and-soft.jpg', 'Hit Me Hard and Soft', '2024'], ['pool/albums/21.jpg', '21', '2011']] as const;
 /** An album on a phone (phone-app frame 13): its cover over a glow from it, the artist as a link under the title, Play,
- * Shuffle and Download, ⋯ at the top, and its numbered songs (the playing one marked). */
-const restingTracks: TrackSelection = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}, renderControl: () => null};
+ * Shuffle and Download, ⋯ at the top, its numbered songs (the playing one marked), a window at a time, and More like this as
+ * square covers with the server's reason. */
 function PhoneAlbum() {
   const rows = songs(['song1', 'song2', 'song3', 'song4']).map((row, index) => ({...row, number: index + 1}));
   return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-album" back={back}
@@ -294,7 +296,8 @@ function PhoneAlbum() {
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, split: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}]}>
     {/* The album's notable formats, as the server sends them (a hi-res lossless album in Dolby Atmos). */}
     <MusicFormatBadges badges={[{variant: 'lossless', codec: 'flac', bitDepth: 24, sampleRate: 96_000}, {variant: 'atmos'}]} size="phone"/>
-    <View>{rows.map((row, index) => <TrackRow key={row.id} row={row} variant="album" index={index} selection={restingTracks} onPlay={none} onMore={none}/>)}</View>
+    <TrackWindow rows={rows} variant="album" onPlay={none} onMore={none}/>
+    <PosterRow shape="square" title={f('moreLikeThis')} subtitle={defaultI18n.t('music.moreLikeThisBySound')} items={moreLikeAfterHours.map(item => ({key: item[0], title: item[1], year: item[2], artwork: asset(item[0]), onNavigate: none}))}/>
   </TitleFrame></Page>;
 }
 function Album() {

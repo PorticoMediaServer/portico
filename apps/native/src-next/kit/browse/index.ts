@@ -5,6 +5,6 @@ export {FilterBuilder, FieldTile, FacetChips, MatchMode} from './Filters';
 export {FiltersPane, FiltersDock, FiltersOver, libraryFiltersTabletPane, type FiltersPaneGeometry} from './FiltersPane';
 export {FilteredEmpty, RelaxSuggestions} from './FilteredEmpty';
 export type {RelaxSuggestion} from './FilteredEmpty';
-export {TrackTable, TrackRow, SongRow, TrackNumber} from './Tracks';
-export type {TrackRowData, TrackTableProps, TrackSelection, TrackColumn} from './Tracks';
+export {TrackTable, TrackRow, SongRow, TrackNumber, trackRowHeight} from './Tracks';
+export type {TrackRowData, TrackTableProps, TrackSelection, TrackColumn, TrackVariant} from './Tracks';
 export type {BrowsePlatform, BrowseLabels, LibraryChoice, LibraryHeaderProps, BrowseToolbarProps, AppliedFilterChip, FilterBuilderProps, FilterFieldState, FilterFieldValue, FacetValue, MatchModeValue} from './types';

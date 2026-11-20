@@ -27,7 +27,7 @@ type TrackActions = Readonly<{
   onToggleFavorite?: (id: string, favorite: boolean) => void;
 }>;
 type TVTrackFocus = Pick<FocusableProps, 'focusId' | 'testID' | 'onFocus' | 'onBlur' | 'disabled'> & Readonly<{index?: number; previousFocused?: boolean}>;
-type TrackVariant = 'album' | 'top-songs' | 'songs' | 'chapters';
+export type TrackVariant = 'album' | 'top-songs' | 'songs' | 'chapters';
 export type TrackColumn = 'number' | 'title' | 'artist' | 'album' | 'plays' | 'duration' | 'added';
 export type TrackTableProps = TrackActions & Readonly<{
   variant: TrackVariant; columns?: readonly TrackColumn[]; selection: TrackSelection;
@@ -128,10 +128,15 @@ function columnStyle(column: TrackColumn, variant: TrackVariant) {
   return {width: column === 'number' ? 44 : column === 'duration' ? variant === 'songs' ? 86 : variant === 'chapters' ? 90 : 80 : column === 'plays' ? variant === 'songs' ? 64 : 90 : 124};
 }
 
+/** A track row's resting height, at the system text size: a list that windows its rows (`TrackWindow`) steps by it. */
+export function trackRowHeight(theme: Pick<ReturnType<typeof useTheme>, 'platform'>, variant: TrackVariant, current?: boolean): number {
+  return theme.platform === 'phone' ? 54 : variant === 'chapters' && current ? 76 : variant === 'songs' ? 56 : 60;
+}
+
 export function TrackRow({row, variant, columns = defaultColumns[variant], selection, onPlay, onMore, onToggleFavorite, isMenuOpen, focusId, testID, onFocus, onBlur, disabled, index, previousFocused}: TrackActions & TVTrackFocus & {row: TrackRowData; variant: TrackVariant; columns?: readonly TrackColumn[]; selection: TrackSelection}) {
   const theme = useTheme(), phone = theme.platform === 'phone', tv = theme.isTV, selected = selection.isSelected(row.id);
   const grow = theme.fontScale > 1 || theme.textScale > 1;
-  const height = phone ? 54 : variant === 'chapters' && row.current ? 76 : variant === 'songs' ? 56 : 60;
+  const height = trackRowHeight(theme, variant, row.current);
   const menuAnchorRef = useRef<View>(null);
   const duration = row.duration ?? row.text.detail.find(part => part.id === 'duration');
   const progress = boundedProgress(row.progress ?? row.text.progress), remaining = row.text.detail.find(part => part.id === 'remaining');
