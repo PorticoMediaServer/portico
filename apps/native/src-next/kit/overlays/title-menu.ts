@@ -40,6 +40,10 @@ export type TitleMenuSurface = Readonly<{
   afterDetails?: readonly MenuAction[];
   /** Rows after Details: a screen's own extras, and See all on TV. */
   trailing?: readonly MenuAction[];
+  /** Touch: the title's own ⋯ on its page (phone-detail 9, 10, the Menu's `groups` form), not a card's menu. Its groups are
+   * [Watched, Favorites, Rate, Playlist] [the host's own rows: versions, File info…] [every other row the card menu has]
+   * [Owner only]; Play, My List and Download are the page's own buttons, so they are left out. */
+  page?: boolean;
 }>;
 
 const t = defaultI18n.t;
@@ -55,6 +59,17 @@ export function titleMenuRow(action: EntryActionGroup['actions'][number], surfac
 /** The menu's rows for the shared model's groups. */
 export function titleMenuItems(groups: readonly EntryActionGroup[], surface: TitleMenuSurface): MenuEntry[] {
   const own = surface.surface ?? [], after = surface.trailing ?? [];
+  if (!surface.tv && surface.page) {
+    const rows = groups.flatMap(group => group.actions.map(action => titleMenuRow(action, surface, group.id === 'manage')));
+    const pick = (ids: readonly EntryActionId[]) => ids.flatMap(id => rows.filter(row => row.id === id));
+    const personal = pick(['watched', 'favorite', 'rate', 'addToPlaylist']), owner = pick(ownerOrder);
+    // Nothing a card's menu offers is lost: the rest sit in a last group (desk ruling: a difference from frame 9, no loss).
+    const onPage = new Set<string>(['play', 'resume', 'watchlist', 'download', 'watched', 'favorite', 'rate', 'addToPlaylist']);
+    const rest = [...(surface.afterPlay ?? []), ...pick(touchOrder).filter(row => !onPage.has(row.id)), ...after];
+    const groupsDrawn = [personal, own, rest].filter(group => group.length);
+    return [...groupsDrawn.flatMap((group, index) => [...(index ? [{id: `separator:${index}`, separator: true as const}] : []), ...group]),
+      ...(owner.length ? [{id: 'group:manage', section: true as const, label: t('next.selection.ownerOnly'), tone: 'owner' as const}, ...owner] : [])];
+  }
   if (!surface.tv) {
     const rows = groups.flatMap(group => group.actions.map(action => titleMenuRow(action, surface, group.id === 'manage')));
     const regular = touchOrder.flatMap(id => rows.filter(row => row.id === id));
