@@ -103,6 +103,7 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
   const gap = cell.kind === 'gap', narrow = nativeGuideTitleLines(cell.tier, left, Math.max(0, cell.width - (compact ? 2 : 0)), laneWidth, compact, theme.isTV) === 1;
   const background = selected ? theme.colors.raisedBright : !theme.isTV && gap ? 'transparent' : cell.state === 'now' ? theme.colors.raisedHigh : !theme.isTV && cell.state === 'past' ? alpha(theme.colors.raised, .5) : theme.colors.raised;
   const cellWidth = Math.max(0, cell.width - (compact ? 2 : 0)), clippedStart = cell.clippedStart, isTV = theme.isTV;
+  const elapsed = !gap && cell.state === 'now';
   const phoneTile = compact && theme.form === 'phone';
   const titleLines = phoneTile && cellWidth >= theme.space.xl ? 2 : narrow ? 1 : 2;
   const content = useAnimatedStyle(() => {
@@ -117,12 +118,12 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
   if (failed) return <Focusable ref={refNode} focusId={focusId} testID={`${testID}-error`} accessibilityRole="button" accessibilityLabel={runtime.text.t('guide.tileFailed')} onFocus={onTVFocus} onLongPress={theme.isTV ? retry : undefined} onPress={retry} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: theme.colors.raised}}><Animated.View style={[{position: 'absolute', left: padding, top: 0, bottom: 0, justifyContent: 'center'}, content]}><Text style={[shellType(theme.isTV ? 20 : 12), {color: theme.colors.textTertiary}]}>{runtime.text.t('guide.tileFailed')}</Text></Animated.View></Focusable>;
   return <Focusable ref={refNode} focusId={focusId} testID={testID} accessibilityRole="button" accessibilityLabel={cell.program?.title ?? gapLabel} onFocus={onTVFocus} onLongPress={theme.isTV ? onPress : undefined} onPress={onPress} accessibilityState={{selected}} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: background, borderWidth: selected ? 2 : !theme.isTV && gap ? 1 : 0, borderColor: selected ? theme.colors.accentStrong : theme.colors.line, overflow: 'hidden'}}>
     {!theme.isTV && gap && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}><Svg width="100%" height="100%" accessible={false}><Defs><Pattern id={`${fadeId}-gap`} patternUnits="userSpaceOnUse" width={14} height={14} patternTransform="rotate(45)"><Rect width={7} height={14} fill={theme.colors.text} fillOpacity={.035}/></Pattern></Defs><Rect width="100%" height="100%" fill={`url(#${fadeId}-gap)`}/></Svg></View>}
-    <Animated.View style={[{position: 'absolute', left: padding, top: 0, bottom: 0, justifyContent: 'center'}, content]}>
+    <Animated.View style={[{position: 'absolute', left: padding, top: 0, bottom: elapsed ? theme.space.tight : 0, justifyContent: 'center'}, content]}>
       <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>{!theme.isTV && cell.program?.recording && <View style={{width: 7, height: 7, borderRadius: 4, marginTop: 4.5, marginRight: 5, backgroundColor: theme.colors.record}}/>}<Animated.View style={[{overflow: 'hidden'}, clip]}><Icon name="i-left" size={theme.isTV ? 16 : 10} color={theme.colors.textTertiary}/></Animated.View><GuideProgrammeTitle title={cell.program?.title ?? gapLabel} lines={titleLines}
         style={[theme.isTV ? theme.type.cardTitle : gap ? theme.type.rowHelp : theme.type.captionStrong,
           {color: !theme.isTV && (gap || cell.state === 'past') ? theme.colors.textTertiary : theme.colors.text}]}/></View>
       {!theme.isTV && gap && gapBody && (cell.tier === 'full' || cell.tier === 'title2') && <Text style={[shellType(11.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{gapBody}</Text>}
-      {(cell.tier === 'full' || cell.tier === 'title2') && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 12 : 5, marginTop: theme.isTV ? 8 : 3}}>
+      {(cell.tier === 'full' || cell.tier === 'title2') && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 12 : 5, marginTop: theme.isTV ? theme.space.tight : 3}}>
         <ProgrammeFlags programme={cell.program} grid text={runtime.text}/>
         {theme.isTV && cell.program?.recording && <View style={{width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.record}}/>}
         {nativeProgrammeCaption(cell.program, cell.state === 'now', theme.isTV, clock, runtime.text).map((caption, captionIndex) => <GuideProgrammeTitle key={captionIndex} title={caption} lines={1} complete
@@ -130,7 +131,7 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
             opacity: !theme.isTV && cell.state === 'past' ? .65 : 1}]}/>)}
       </View>}
     </Animated.View>
-    {cell.kind === 'program' && cell.state === 'now' && <View style={{position: 'absolute', left: 0, right: 0, bottom: compact ? 0 : 8, height: 3, backgroundColor: alpha(theme.colors.text, .07)}}><View style={{height: '100%', width: nativeGuideElapsedWidth(left, cellWidth, (now - start) * px), backgroundColor: theme.colors.accentStrong}}/></View>}
+    {elapsed && <View style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: alpha(theme.colors.text, .07)}}><View style={{height: '100%', width: nativeGuideElapsedWidth(left, cellWidth, (now - start) * px), backgroundColor: theme.colors.accentStrong}}/></View>}
   </Focusable>;
 }
 
