@@ -191,7 +191,7 @@ Live screens whose look changes with this foundation (they are in the app today,
 Changed in the final round before the owner's review (r6):
 
 - `AudioPlayerFrame`: the artwork, title, scrubber and transport are one group. What is left of the height is under the group on a phone and around it on a tablet; on TV the words sit against the scrubber. A TV's buttons wrap to a second row before any label is cut.
-- `TitleFrame`: on a tablet the picture is shaded behind the words (`frameSpec.hero.title.shade`); `TitleAction.active` tints an action that is on (in My List).
+- `TitleFrame`: on a tablet on its side the picture fades by alpha into its own wash behind the words, with no ink shade (tablet f6; the shade was removed 20 Nov); `TitleAction.active` tints an action that is on (in My List).
 - `PlayerScrubBar`: the filmstrip's landing picture stays over the knob. `PlayerChromeFrame`'s `body` under an upright live picture is the channel's page (the gallery draws one).
 - Kit: `SettingsNav`'s TV group no longer clips its rows' focus ring, and `SettingsListFrame` leaves the ring its room; the server card's name takes two lines; a banner's action never shrinks under its message; an episode row that is playing carries the playing mark on its picture; a poster's progress bar sits inside the art's edges.
 - Gallery: a wide tablet counts as a tablet for which sections it has (its sections showed "not drawn on this kind of device" in landscape); on Android a section that is not a whole screen keeps clear of the status bar; TV pages draw the shell's own rail. TV sign-in is the `tv-account-*` sections of the accounts family.
@@ -338,7 +338,7 @@ One frame for every kind of title page, its regions written once as data (`frame
 |---|---|
 | Phone, and a tablet upright (`medium`, taller than wide) | One centred column: the art box with Back and Play on as glass discs, the kicker, title and facts hanging from its bottom edge; then the action row (round buttons), the played line with Start over, the synopsis, the picker row; the tabs; the panel; the side under it. A cover page puts the cover centred above the words. Ruling 6, tablet f8, phone-detail d1 |
 | An open foldable on its side (`medium`, wider than tall) | Two pages on the crease (foldable f2): the title and the cast on the left, the tabs and their panel on the right, each scrolling on its own |
-| A tablet on its side (`expanded`) | The words over the shaded art at the left: kicker, title, facts, tagline, synopsis, credits, then the action row with labelled buttons. A cover page: a square or poster at the left, a circle at the right (desktop-listen, desktop-detail f7). The side beside the panel |
+| A tablet on its side (`expanded`) | The words over the art at the left, the art fading into its own wash behind them: kicker, title, facts, tagline, synopsis, credits, then the action row with labelled buttons. A cover page: a square or poster at the left, a circle at the right (desktop-listen, desktop-detail f7). The side beside the panel |
 | TV | As a tablet on its side, with no discs. `collapsed` (focus in the panel) is the title and the tabs at the top (detail-tv-4, 5a). A show's or season's Episodes tab: `seasons.column` (330 wide, `SeasonListRow`s, Hold OK) with `seasons.episodes` beside it (the stills and the band) at the top of the panel; the rest of the panel runs under both (detail-tv-5a, 5b) |
 
 On a tablet on its side and TV the art box is at least its drawn height and grows with its words (a long title never
@@ -349,7 +349,7 @@ A page that keeps its own scroller (an album's and artist's `MusicScrollView`: s
 passes `scroller(content, contentContainerStyle, collapse)`; the frame uses it in place of its own on every form and
 hands it the collapse point (`collapse.at`, `collapse.onChange`, the scroller's `collapseAt` / `onCollapse`).
 A screen that holds `collapsed` (a tab opened directly) gets the bar in place of the hero and the page's tabs, with the
-panel under it (desktop-detail f3, phone-detail d1 frame 2). The collapsed bar (touch): once the tabs pass under it. A phone and an upright tablet: Back, the title centred and Play
+panel under it (desktop-detail f3, phone-detail d1 frame 2). The collapsed bar (touch): once the title reaches it (never after the title has run under Back and the top action), or the tabs do. A phone and an upright tablet: Back, the title centred and Play
 on, with the tabs under it (phone-detail d1 frame 2). A tablet on its side: Back, the title, the tabs, the primary and
 the actions marked `pinned` (desktop-detail f3).
 
