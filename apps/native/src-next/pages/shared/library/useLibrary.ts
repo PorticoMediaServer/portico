@@ -183,7 +183,7 @@ export function useLibraryGrid(props: NativeLibraryScreenProps, source: NativeLi
 
 const rememberedTVResource = new WeakMap<NativeShellRuntime, Map<string, Readonly<{key: string; index: number}>>>();
 
-export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof useLibrary>, regionId: string, toolbarId: string) {
+export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof useLibrary> & {tabChosen?: boolean}, regionId: string, toolbarId: string) {
   const {state: source, active} = view, {runtime, activation} = props;
   const grid = useLibraryGrid(props, source, true);
   const registry = useFocusRegistry();
@@ -204,7 +204,8 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
     if (restore) gridRef.current?.scrollToIndex(startingIndex);
     else top();
   }, [gridRef, top, restore, startingIndex]);
-  useDestinationEntryFocus({...active, intent: resource && active.intent === 'restore' ? 'enter' : active.intent}, view.emptyState ? undefined : address || undefined, requested);
+  // F-LIB-13/14: a tab chosen by focus changes the page and focus stays on the tab, so the grid does not take it.
+  useDestinationEntryFocus({...active, intent: resource && active.intent === 'restore' ? 'enter' : active.intent}, view.emptyState || view.tabChosen ? undefined : address || undefined, requested);
   useTVPageBack(runtime, {kind: 'library', libraryId: source.library.id}, true, {
     registerTop: true, scope: JSON.stringify([active.revision, source.queryRevision, source.tab.id]),
     current: () => activation.getSnapshot().visible && !view.emptyState && !jumpOpen && !view.filters?.getSnapshot().open,
@@ -309,12 +310,18 @@ export function useTVLibrary(props: LibraryProps) {
   }}} : view.failure;
   const firstAction = (failure ?? emptyState)?.primaryAction?.id;
   useDestinationEntryFocus(active, firstAction ? {regionId: stateId, childId: firstAction} : undefined, undefined, request);
+  // F-LIB-13/14: moving along the tabs changes the page as focus lands, and focus stays on the tab. The catalogue and the
+  // shelves are different pages, so the tabs are drawn anew; the tab chosen asks for focus as it is drawn, until it has it.
+  const tabChosen = useRef<number | undefined>(undefined), [refocusTab, setRefocusTab] = useState<string>();
   const rowId = (index: number) => `${gridId}.row.${index}`;
-  return {...view, failure, emptyState, gridId, toolbarId, tabsId, stateId,
+  return {...view, failure, emptyState, gridId, toolbarId, tabsId, stateId, tabChosen: tabChosen.current === active.revision,
     switcher: {id: switcherId, enabled: active.visible, edges: {left: ids.rail, right: tabsId, down: tabsId}},
     tabs: {...view.tabs, region: {id: tabsId, enabled: active.visible, edges: {left: switcherId, up: switcherId,
       down: firstAction ? stateId : state.collection ? toolbarId : view.rows.length && !props.tvMusicDiscover ? rowId(0) : undefined}},
-      itemProps: (item: {value: string}) => ({focusId: item.value, onFocus: () => {if (state.tab.id !== item.value) view.tabs.onValueChange(item.value);}})},
+      itemProps: (item: {value: string}) => ({focusId: item.value, preferredFocus: refocusTab === item.value, onFocus: () => {
+        if (state.tab.id !== item.value) {tabChosen.current = active.revision; setRefocusTab(item.value); view.tabs.onValueChange(item.value);}
+        else if (refocusTab) setRefocusTab(undefined);
+      }})},
     shelves: view.rows.map((row, index) => ({...row, focus: {id: rowId(index), enabled: active.visible,
       edges: {left: ids.rail, up: index ? rowId(index - 1) : tabsId, down: index + 1 < view.rows.length ? rowId(index + 1) : undefined}}})),
     pageState: firstAction ? {id: stateId, entry: firstAction,
