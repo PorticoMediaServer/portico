@@ -122,7 +122,7 @@ export function GenreTile(props: GenreTileProps) {
   return <Frame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
     {s => <ArtFrame height={height} radius={12} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1.03} selected={props.selection?.selected}>
       <AmbientArt source={props.ambient} palette={props.palette} treatment="cover" visible={props.visible} priority={props.priority} />
-      {props.variant === 'video' ? t.isTV ? <><MediaArt kind="wide" source={props.backdrop} width={width} height={height} visible={props.visible} priority={props.priority} /><Scrim start={0} opacity={0.75} /></>
+      {props.variant === 'video' ? t.isTV || props.backdrop ? <><MediaArt kind="wide" source={props.backdrop} width={width} height={height} visible={props.visible} priority={props.priority} /><Scrim start={0} opacity={0.75} /></>
         : props.covers.slice(0, 2).map((source, index) => <Artwork key={source.cacheKey} source={source} width={42} height={63} visible={props.visible} priority={props.priority} fallback={props.renderCoverFallback?.(index)} style={{position: 'absolute', right: index ? -2 : 30, top: index ? 30 : 38, borderRadius: 5, transform: [{rotate: index ? '10deg' : '-8deg'}]}} />)
         : <CoverFan covers={props.covers} shape="square" variant="music" width={t.isTV ? 180 : 112} height={t.isTV ? 140 : 84} visible={props.visible} renderFallback={props.renderCoverFallback} style={{position: 'absolute', right: -2, top: 18}} />}
       <View style={{position: 'absolute', left: t.isTV ? 22 : 14, top: t.isTV ? 22 : 12, right: props.variant === 'music' ? width * 0.42 : 14}}>

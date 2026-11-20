@@ -3,11 +3,12 @@ import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useTheme} from '../theme';
 import {TVRow} from '../layout/TVRow';
+import {ChipRail} from '../browse/Toolbar';
 import {useFrameMetrics} from './metrics';
 import {NativePageInsetProvider, usePageInset} from '../layout/page-inset';
 import {frameSpec} from '@portico/design';
 
-export type SearchNone = Readonly<{title: string; body?: string; action?: ReactNode}>;
+export type SearchNone = Readonly<{title: string; body?: string; action?: ReactNode; testID?: string}>;
 export type SearchFrameProps = Readonly<{
   /** The page title, drawn on a phone before anything is typed (phone-app 7). Wider forms have the shell's Search. */
   title?: string;
@@ -31,26 +32,29 @@ export type SearchFrameProps = Readonly<{
   list?: ReactNode;
   /** The results' scroller, so a new search starts at the top. */
   scrollRef?: Ref<ScrollView>;
+  overlay?: ReactNode;
   testID?: string;
 }>;
 
 /** Search (desktop-search, phone-app 7 and 8, tablet 10, final3-tv-09). Fixed: the title (phone, before typing), the
  * field with Cancel, the scope chips; on TV the field and its keyboard in a column on the left. Flexible: what is
  * under them. The field and chips stay where they are while the results scroll. */
-export function SearchFrame({title, field, cancel, keyboard, scopes, notice, none, children, list, scrollRef, testID}: SearchFrameProps) {
+export function SearchFrame({title, field, cancel, keyboard, scopes, notice, none, children, list, scrollRef, overlay, testID}: SearchFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), inset = usePageInset(), tv = frame.form === 'tv';
   const top = Math.max(frame.titleTop, insets.top + frame.headerGap), edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
   // Dragging the results puts the keyboard away; a tap on a result still lands while it is up.
   const results = list ?? <ScrollView ref={scrollRef} style={{flex: 1}} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingTop: tv ? frame.headingGap : frame.sectionGap / 2, paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
     {notice && <View style={edge}>{notice}</View>}
-    {none && <View style={[edge, {gap: frame.headingGap}]}>
+    {none && <View testID={none.testID} style={[edge, {gap: frame.headingGap}]}>
       <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{none.title}</Text>
       {none.body !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{none.body}</Text>}
       {none.action}
     </View>}
     {children}
   </ScrollView>;
-  const chips = scopes && <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={[edge, {gap: theme.space.xs, alignItems: 'center'}]}>{scopes}</ScrollView></TVRow>;
+  const chips = scopes && (tv
+    ? <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow: 0}} contentContainerStyle={[edge, {gap: theme.space.xs, alignItems: 'center'}]}>{scopes}</ScrollView></TVRow>
+    : <View style={[edge, {flexDirection: 'row'}]}><ChipRail>{scopes}</ChipRail></View>);
   // TV: the results column runs to the window's right edge and starts a gutter early, so its rows and sections, which
   // keep their own gutters, line up with the column's edge.
   if (tv) return <View testID={testID} style={{flex: 1, flexDirection: 'row', paddingTop: frame.titleTop, paddingLeft: frame.gutter}}>
@@ -59,6 +63,7 @@ export function SearchFrame({title, field, cancel, keyboard, scopes, notice, non
     <NativePageInsetProvider value={inset + frameSpec.search.keyboardWidth + frame.sectionGap}>
       <View style={{flex: 1, minWidth: 0, marginLeft: frame.sectionGap - frame.gutter, gap: frame.headingGap}}>{chips}{results}</View>
     </NativePageInsetProvider>
+    {overlay}
   </View>;
   return <View testID={testID} style={{flex: 1}}>
     <View style={{paddingTop: top, gap: frame.headingGap}}>
@@ -67,5 +72,6 @@ export function SearchFrame({title, field, cancel, keyboard, scopes, notice, non
       {chips}
     </View>
     {results}
+    {overlay}
   </View>;
 }

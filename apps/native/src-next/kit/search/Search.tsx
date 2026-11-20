@@ -1,4 +1,4 @@
-import React, {useId, type ReactNode} from 'react';
+import React, {useId, useRef, type ReactNode} from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
@@ -9,6 +9,9 @@ import {Focusable} from '../controls/Focusable';
 import {Icon} from '../Icon';
 import {useFrameMetrics} from '../frames/metrics';
 import {useTheme} from '../theme';
+import type {CardSelection} from '../cards';
+import {CardFrame} from '../cards/primitives';
+import {SelectionCircle} from '../selection';
 
 export type SearchHistoryItem = Readonly<{query: string; onPress: () => void; remove?: Readonly<{label: string; onPress: () => void}>}>;
 export type SearchHistoryProps = Readonly<{
@@ -51,13 +54,18 @@ export type TopResultProps = Readonly<{
   actions?: ReactNode;
   play?: Readonly<{label: string; onPress: () => void}>;
   onPress: () => void;
+  testID?: string;
+  selection?: CardSelection;
+  selectionLabel?: string;
+  onMenu?: (anchor: React.RefObject<View | null>) => void;
+  menuOpen?: boolean;
 }>;
 
 /** The Top result (phone-app 8, desktop-search s-top, final3-tv-09): the title's picture with its words over it. A phone's
  * is a card the width of the page with a round Play; wider forms put the words beside the picture with the title's own
  * buttons. The live phone screen's copy (`screens/search/SearchScreen.tsx` `SearchTopResult`) moves onto this in Stage 2. */
-export function TopResult({eyebrow, title, facts, synopsis, artwork, actions, play, onPress}: TopResultProps) {
-  const theme = useTheme(), frame = useFrameMetrics(), gradient = useId(), phone = frame.form === 'phone', tv = frame.form === 'tv';
+export function TopResult({eyebrow, title, facts, synopsis, artwork, actions, play, onPress, testID, selection, selectionLabel, onMenu, menuOpen}: TopResultProps) {
+  const theme = useTheme(), frame = useFrameMetrics(), gradient = useId(), anchor = useRef<View>(null), phone = frame.form === 'phone', tv = frame.form === 'tv';
   const width = frame.width - 2 * frame.cardInset, height = phone ? width * .5 : Math.min(width * .32, frame.form === 'tv' ? 300 : 360);
   const words = <View style={{gap: theme.space.tight}}>
     <Text style={[theme.type.rowHelp, {color: theme.colors.accentStrong, fontFamily: theme.type.listLabel.fontFamily}]}>{eyebrow}</Text>
@@ -74,17 +82,26 @@ export function TopResult({eyebrow, title, facts, synopsis, artwork, actions, pl
     </Focusable>;
   }
   return <View style={{marginHorizontal: frame.cardInset}}>
-    <Focusable accessibilityLabel={title} onPress={onPress} focusRadius={frame.cardRadius} style={{height, borderRadius: frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
+    <CardFrame testID={testID} title={title} selection={selection} menuAnchorRef={anchor} moreExpanded={menuOpen}
+      onNavigate={onPress} onMore={onMenu && (() => onMenu(anchor))}
+      pressableStyle={{minHeight: height, borderRadius: frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised, justifyContent: 'flex-end'}}>
+      {() => <>
       <View style={{position: 'absolute', top: 0, bottom: 0, right: 0, width: phone ? width : width * .62}}><Artwork source={artwork} height={height}/></View>
       <Svg pointerEvents="none" width={width} height={height} style={{position: 'absolute', top: 0, left: 0}}>
         <Defs><LinearGradient id={gradient} x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.94}/><Stop offset={phone ? .5 : .42} stopColor={theme.colors.ink} stopOpacity={.6}/><Stop offset={phone ? .8 : .66} stopColor={theme.colors.ink} stopOpacity={0}/></LinearGradient></Defs>
         <Rect width={width} height={height} fill={`url(#${gradient})`}/>
       </Svg>
-      <View style={{position: 'absolute', left: frame.cardPadding, right: phone ? frame.cardPadding + theme.targets.touch + theme.space.sm : width * .5, bottom: frame.cardPadding, gap: frame.headingGap}}>
+      <View style={{marginLeft: frame.cardPadding, marginRight: phone ? frame.cardPadding + theme.targets.touch + theme.space.sm : width * .5, marginTop: frame.cardPadding, marginBottom: frame.cardPadding, gap: frame.headingGap}}>
         {words}
         {!phone && actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>{actions}</View>}
       </View>
-      {phone && play && <View style={{position: 'absolute', right: frame.cardPadding, bottom: frame.cardPadding}}><Button variant="primary" size="small" icon="i-play" iconOnly accessibilityLabel={play.label} onPress={play.onPress}/></View>}
-    </Focusable>
+      {selection?.active && <View style={{position: 'absolute', top: frame.cardPadding, right: frame.cardPadding}}>
+        <SelectionCircle selected={selection.selected} selecting interactive={false} variant="row" accessibilityLabel={selectionLabel ?? title}/>
+      </View>}
+      {phone && play && !selection?.active && <View style={{position: 'absolute', right: frame.cardPadding, bottom: frame.cardPadding}}>
+        <Button testID="search-top-play" variant="primary" size="small" icon="i-play" iconOnly accessibilityLabel={play.label} onPress={play.onPress}/>
+      </View>}
+      </>}
+    </CardFrame>
   </View>;
 }
