@@ -18,7 +18,7 @@ import {NativeServerTroubleshooting} from '../../../screens/settings-live/server
 import {NativeServerStorage} from '../../../screens/settings-live/server/StoragePage';
 import {NativeServerIntegrations} from '../../../screens/settings-live/server/IntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';
-import {NativeRemoteAccessPage} from '../../../screens/settings-live/server/RemoteAccessPage';
+import {ServerRemoteAccessPage} from './ServerRemoteAccessPage';
 import {NativeServerStreaming} from '../../../screens/settings-live/server/StreamingPage';
 import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
@@ -79,7 +79,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
-    : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/>
     : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
@@ -92,6 +91,8 @@ export function NativeSettingsPage(props: SettingsProps) {
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
   const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : remoteAccessPage ? <ServerRemoteAccessPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
