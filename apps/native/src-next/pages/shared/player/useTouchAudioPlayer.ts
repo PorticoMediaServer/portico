@@ -26,7 +26,7 @@ export function sleepLabel(choice: NativeSleepChoice): string {
   return choice === 'item' ? t('player.opt.sleepEndOfTitle') : choice === 'chapter' ? t('player.opt.sleepEndOfChapter') : choice === 'book' ? t('player.opt.sleepEndOfBook')
     : choice === null ? t('player.opt.off') : t('player.opt.minutes', {count: choice});
 }
-export function useTouchAudioPlayer({occupant, queue, onAction, queuePolicy, policyLifetime, queueEdit, song, reportError = () => {}, lyrics, audiobook, sleepAtMs = null, sleepEnd}: NowPlayingScreenProps) {
+export function useTouchAudioPlayer({occupant, queue, width, height, onAction, queuePolicy, policyLifetime, queueEdit, song, reportError = () => {}, lyrics, audiobook, sleepAtMs = null, sleepEnd}: NowPlayingScreenProps) {
   const theme = useTheme(), {presentation: p, playback} = occupant, book = occupant.mode === 'audiobook';
   const playOnButton = useRef<View>(null);
   const paintPermit = useListeningPaintPermit(playback.fence), paintActive = useListeningPageActive(playback.fence);
@@ -51,8 +51,8 @@ export function useTouchAudioPlayer({occupant, queue, onAction, queuePolicy, pol
   };
   const focus = useId();
   const paneOwner = useMemo(() => Object.freeze({}), []);
-  const wide = theme.form !== 'phone';
-  const [sheet, setSheet] = useState<'queue' | 'lyrics' | 'chapters' | null>(() => !wide ? null : book ? 'chapters' : queue ? 'queue' : lyrics ? 'lyrics' : null);
+  const wide = theme.form !== 'phone', canShowSide = wide && width >= height;
+  const [sheet, setSheet] = useState<'queue' | 'lyrics' | 'chapters' | null>(() => !canShowSide ? null : book ? 'chapters' : queue ? 'queue' : lyrics ? 'lyrics' : null);
   const [panel, setPanel] = useState<'signal' | 'eq' | 'speed' | 'sleep' | 'more' | null>(null);
   const moreRef = useRef<View | null>(null);
   const {reader: bookReader, snapshot: bookSnapshot} = useAudiobookRead(book && paintActive ? audiobook?.read : undefined, playback.fence, reportError);
@@ -82,7 +82,7 @@ export function useTouchAudioPlayer({occupant, queue, onAction, queuePolicy, pol
     return () => {releaseBack(); release();};
   }, [panel, closePanel, theme.isTV]);
   const equalizer = useSyncExternalStore(nativeEqualizer.subscribe, nativeEqualizer.getSnapshot);
-  const side = wide && sheet !== null, position = playbackPosition(occupant);
+  const side = canShowSide && sheet !== null, position = playbackPosition(occupant);
   const bookFacts = bookSnapshot.phase === 'current' ? bookSnapshot : undefined;
   const chapterData = bookFacts?.chapters.data;
   // MU-2: the whole book's chapters when known (every part, numbered through the book); the
