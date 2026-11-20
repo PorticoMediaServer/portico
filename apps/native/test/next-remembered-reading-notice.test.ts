@@ -28,7 +28,7 @@ test('saved-only Settings shows a local notice and closes onto the same original
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../kit/overlays/surface': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../read/NativeReadingGuestHost': {NativeReadingGuestHost: 'NativeReadingGuestHost'},
+    '../../pages/touch/reading/ReaderGuestPage': {ReaderGuestPage: 'NativeReadingGuestHost'},
   });
   let tree: unknown; const host = await sceneHost(() => {tree = RememberedReadingScreen({reading, noticeCopy: {title: 'Reading settings', body: 'Reading settings aren’t available in this saved-only opening.'}, current: () => root, onBack() {}}); return tree;});
   const original = find(tree, 'NativeReadingGuestHost')!; const oldSettings = original.props.onSettings;

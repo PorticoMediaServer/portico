@@ -1,30 +1,24 @@
-import {useNativeStackHosted} from '../../kit/navigation/stack-slot';
-import {Layer} from '../../kit/shell/Layer';
-import {CoveredLayer} from '../../kit/focus/CoveredLayer';
-import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {NativeModules, useWindowDimensions} from 'react-native';
-import WebView from 'react-native-webview';
-import type {PreferenceSnapshot} from '../../../../../packages/client-core/src/preferences';
-import type {ReadingHostSearchAll, ReadingHostContentsTarget} from '../../../../../packages/client-core/src/reading-host';
-import {LoadingPaint, SkeletonBlock} from '../../kit/states';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {useTheme} from '../../kit/theme';
-import {ReaderStatusPage} from '../../pages/touch/reading/ReaderStatusPage';
-import {usePlatformPosture} from '../../platform/platformPosture';
-import {readerAssetEntry} from './asset-origin';
-import {createReadingGuestBridge, ReadingGuestView} from './ReadingGuestView';
-import type {createReadingSessionOwner} from './reading-session-owner';
+import type WebView from 'react-native-webview';
+import type {PreferenceSnapshot} from '../../../../../../packages/client-core/src/preferences';
+import type {ReadingHostSearchAll, ReadingHostContentsTarget} from '../../../../../../packages/client-core/src/reading-host';
+import {usePlatformPosture} from '../../../platform/platformPosture';
+import {readerAssetEntry} from '../../../screens/read/asset-origin';
+import {createReadingGuestBridge} from '../../../kit/reading/ReadingGuestView';
+import type {createReadingSessionOwner} from '../../../screens/read/reading-session-owner';
 
 type Owner = ReturnType<typeof createReadingSessionOwner>;
 type Reader = ReturnType<typeof createReadingGuestBridge>;
 
 /** One disposable rendering ticket over an already accepted logical session. */
-export function NativeReadingGuestHost({owner, active, preferences, onBack, onSettings, onSearchAll, contentsTarget, onGuestState, activeCurrent}: {
+export type ReaderGuestProps = {
   owner: Owner; active: boolean; preferences: Readonly<{getSnapshot: () => PreferenceSnapshot; subscribe: (listener: () => void) => () => void}>;
   onBack: () => void; onSettings: () => void; onSearchAll?: ReadingHostSearchAll; contentsTarget?: ReadingHostContentsTarget; onGuestState?: (mounted: boolean, incarnation: object) => void; activeCurrent?: () => boolean;
-}) {
-  const stacked = useNativeStackHosted();
-  const theme = useTheme(), view = useRef<WebView>(null), reader = useRef<Reader | undefined>(undefined);
+};
+
+export function useReaderGuest({owner, active, preferences, onBack, onSettings, onSearchAll, contentsTarget, onGuestState, activeCurrent}: ReaderGuestProps) {
+  const view = useRef<WebView>(null), reader = useRef<Reader | undefined>(undefined);
   const dimensions = useWindowDimensions(), posture = usePlatformPosture();
   const crease = posture.status === 'available' && posture.window?.width === dimensions.width && posture.window.height === dimensions.height
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.left <= value.bounds.right && value.bounds.right <= dimensions.width)?.bounds : undefined;
@@ -88,20 +82,6 @@ export function NativeReadingGuestHost({owner, active, preferences, onBack, onSe
   useLayoutEffect(() => {reader.current?.setActive(active);}, [active, state.reader]);
   useLayoutEffect(() => {reader.current?.setCrease(crease ? {left: crease.left, right: crease.right} : undefined);}, [crease, state.reader]);
   const failure = () => {if (!state.reader || reader.current !== state.reader) return; setState({failed: true}); disposeGuest.current?.();};
-  return <CoveredLayer covered={!active}
-    style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
-    {/* A full-window layer over the shell: the one backdrop under the reading view, its wait and its failure page. */}
-    <Layer>
-    {state.url && state.reader && !state.failed ? <LoadingPaint ready immediate skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}>
-      <ReadingGuestView url={state.url} view={view} reader={state.reader} currentReader={() => reader.current}
-        backgroundColor={theme.colors.ink} observeBridge={() => {}} onFailure={failure}/>
-    </LoadingPaint>
-      : <ReaderStatusPage back={{testID: 'native-read-host-back', label: defaultI18n.t('action.back'),
-        onPress: () => {if (callbacks.current.active) onBack();}}}
-        state={state.failed ? {title: defaultI18n.t('next.states.pageFailed'), body: defaultI18n.t('next.states.pageFailedBody'),
-          primaryAction: {id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || !owner.current(), onPress: retryOriginal}} : undefined}>
-        <LoadingPaint ready={false} skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}/>
-      </ReaderStatusPage>}
-  </Layer>
-  </CoveredLayer>;
+  const back = () => {if (callbacks.current.active) onBack();};
+  return {state, view, currentReader: () => reader.current, onFailure: failure, back, retryOriginal};
 }

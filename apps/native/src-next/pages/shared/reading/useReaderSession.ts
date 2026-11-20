@@ -1,34 +1,28 @@
-import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
-import {Layer} from '../../kit/shell/Layer';
-import {CoveredLayer} from '../../kit/focus/CoveredLayer';
-import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState} from 'react-native';
-import {preferenceValue, ReadingError, type PreferenceSnapshot, type ReadingSession} from '../../../../../packages/client-core/src';
-import type {ReadingHostSession} from '../../../../../packages/client-core/src/reading-host';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {createNativeDownloadsDevice} from '../downloads/device';
-import {offlineDownloads} from '../../../platform/offline-downloads';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRoute, NativePresentationBinding} from '../../shell/routes';
-import {LoadingPaint, SkeletonBlock} from '../../kit/states';
-import {ReaderStatusPage} from '../../pages/touch/reading/ReaderStatusPage';
-import {NativeReadingGuestHost} from './NativeReadingGuestHost';
-import {closeReadingResource, createReadingSessionOwner} from './reading-session-owner';
-import {NativeAnnotationJournal, nativeAnnotationIdentity, nativeAnnotationLeaseOf, type NativeAnnotationFormat} from './annotation-journal';
-import {nativeAnnotationBridge} from './annotation-session';
-import {NativeAnnotationSync, type NativeAnnotationLivePort} from './annotation-sync';
-import {NATIVE_OFFLINE_ANNOTATION_AUTHORING} from './annotation-authoring';
+import {preferenceValue, ReadingError, type PreferenceSnapshot, type ReadingSession} from '../../../../../../packages/client-core/src';
+import type {ReadingHostSession} from '../../../../../../packages/client-core/src/reading-host';
+import {createNativeDownloadsDevice} from '../../../screens/downloads/device';
+import {offlineDownloads} from '../../../../platform/offline-downloads';
+import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
+import type {NativeShellRoute, NativePresentationBinding} from '../../../shell/routes';
+import {closeReadingResource, createReadingSessionOwner} from '../../../screens/read/reading-session-owner';
+import {NativeAnnotationJournal, nativeAnnotationIdentity, nativeAnnotationLeaseOf, type NativeAnnotationFormat} from '../../../screens/read/annotation-journal';
+import {nativeAnnotationBridge} from '../../../screens/read/annotation-session';
+import {NativeAnnotationSync, type NativeAnnotationLivePort} from '../../../screens/read/annotation-sync';
+import {NATIVE_OFFLINE_ANNOTATION_AUTHORING} from '../../../screens/read/annotation-authoring';
 
 type Target = Readonly<{itemId: string; sourceId: string; downloadId?: string; expectedSourceRevision?: string; contentsTarget?: Readonly<{sourceId: string; sourceRevision: string; index: number}>}>;
 type Session = ReadingHostSession & Pick<ReadingSession, 'close'>;
 const cancelled = () => new ReadingError('cancelled');
 
 /** The live adapter owns the original session and its authority. A guest never owns it. */
-export function ReadNativeHost({context, target, active, preferences, onBack, onOpenSettings, resident = true, binding, onGuestState}: {
+export type ReaderPageProps = {
   context: NativeShellBootstrapContext; target: Target; active: boolean; preferences: Readonly<{getSnapshot: () => PreferenceSnapshot; subscribe: (listener: () => void) => () => void}>;
   onBack: () => void; onOpenSettings: () => void; resident?: boolean; binding?: NativePresentationBinding; onGuestState?: (mounted: boolean, incarnation: object) => void;
-}) {
-  const place = useNativeStackPlacement(target), stacked = useNativeStackHosted();
+};
+
+export function useReaderSession({context, target, active, preferences, onBack, onOpenSettings, resident = true, binding}: ReaderPageProps) {
   const callbacks = useRef({active, onBack, onOpenSettings}); callbacks.current = {active, onBack, onOpenSettings};
   const [retry, setRetry] = useState(0);
   const mounted = useRef(false);
@@ -138,9 +132,6 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
   useEffect(() => {void Promise.resolve().then(() => owner.ensure()).catch(() => {}); return () => {void owner.dispose().catch(() => {});};}, [owner]);
   // No "Search all books": the app's Search does not look inside books (reading rule 34, ruling R3); search inside the
   // open book stays (rules 32 and 33).
-  if (snapshot.phase === 'ready' && resident) return place(<NativeReadingGuestHost owner={owner} active={active} preferences={preferences}
-    onBack={onBack} onSettings={onOpenSettings} contentsTarget={target.contentsTarget} onGuestState={onGuestState} activeCurrent={binding?.activeCurrent}/>);
-  if (!resident) return null;
   const failed = snapshot.phase === 'failed' || snapshot.phase === 'retired';
   // RD-8 (DECISIONS W-19): only the server-wide session cap is busy, and the reading client has
   // already waited out its Retry-After once. Say so in the catalogue's words (presentError's busy copy).
@@ -149,20 +140,6 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
   const ended = snapshot.phase === 'retired' && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_session_expired';
   // RD-5: the server refuses a book too large to read (422, retry never): say so plainly, no Try again.
   const tooLarge = failed && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_publication_too_large';
-  return place(<CoveredLayer covered={!active}
-    style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
-    {/* A full-window layer over the shell: the one backdrop under the reading view, its wait and its failure page. */}
-    <Layer>
-    <ReaderStatusPage back={{testID: 'native-read-host-back', label: defaultI18n.t('action.back'),
-      onPress: () => {if (callbacks.current.active) onBack();}}}
-      state={ended ? {title: defaultI18n.t('next.reader.sessionEndedTitle'), body: defaultI18n.t('next.reader.sessionEndedBody'),
-        primaryAction: {id: 'reopen', label: defaultI18n.t('next.reader.openAgain'), disabled: !active || !context.current(), onPress: reopenEnded}}
-        : tooLarge ? {title: defaultI18n.t('next.reader.publicationTooLargeTitle'), body: defaultI18n.t('next.reader.publicationTooLargeBody')}
-        : failed ? {title: defaultI18n.t('next.states.pageFailed'), body: defaultI18n.t(busy ? 'error.busy' : 'next.states.pageFailedBody'),
-          primaryAction: {id: 'retry', label: defaultI18n.t('next.states.tryAgain'), disabled: !active || snapshot.phase === 'retired' || !!snapshot.session || !context.current(), onPress: retryOriginal}}
-          : undefined}>
-      <LoadingPaint ready={false} skeleton={<SkeletonBlock width="100%" style={{flex: 1}}/>}/>
-    </ReaderStatusPage>
-  </Layer>
-  </CoveredLayer>);
+  const back = () => {if (callbacks.current.active) onBack();};
+  return {owner, snapshot, failed, busy, ended, tooLarge, retryOriginal, reopenEnded, back};
 }

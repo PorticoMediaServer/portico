@@ -1,4 +1,5 @@
 // @fabric-react
+import {readerFixtureModule} from './helpers/reader-fixture.mjs';
 import test, {after} from 'node:test';
 import {rebuiltBookFetch} from './rebuilt-book-fixture';
 import assert from 'node:assert/strict';
@@ -88,7 +89,7 @@ test(`actual live host with its presentation binding fences original close on ${
     react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
     '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
   });
-  const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
+  const {ReadNativeHost} = await readerFixtureModule('Host', {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react: {...React, default: React}, 'react-native': {View: 'View', AppState: {addEventListener: () => ({remove() {}})}, useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/client-core/src': {preferenceValue: () => undefined, ReadingError: class extends Error {}},

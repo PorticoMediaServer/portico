@@ -1,4 +1,5 @@
 // @fabric-react
+import {readerFixtureModule} from './helpers/reader-fixture.mjs';
 import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -31,7 +32,7 @@ function* nodes(value: unknown): Generator<Node> {
   if (Array.isArray(value)) {for (const item of value) yield* nodes(item); return;}
   if (!value || typeof value !== 'object' || !('props' in value)) return;
   const node = value as Node;
-  if (typeof node.type === 'function' && ['ReaderStatusPage', 'ReaderBack'].includes(node.type.name)) {
+  if (typeof node.type === 'function' && ['ReaderStatusPage', 'ReaderBack', 'ReaderSurface', 'ReaderLoading'].includes(node.type.name)) {
     yield* nodes(node.type(node.props));
     return;
   }
@@ -86,16 +87,16 @@ async function harness(fixture: Fixture) {
   });
   // Leaf hosts are stable string types: this driver never renders a mocked
   // component, it only traverses the elements ReadNativeHost returns.
-  const {ReadingGuestView} = await screenModule(new URL('../src-next/screens/read/ReadingGuestView.tsx', import.meta.url), {
+  const {ReadingGuestView} = await screenModule(new URL('../src-next/kit/reading/ReadingGuestView.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native-webview': {default: 'WebView'},
     '../../../../../packages/client-core/src': {createReadingHost: () => reader},
     '../../../../../packages/client-core/src/route-identity': {routeBase64: () => 'route'},
     '../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24)}},
     '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => ({})},
-    './asset-origin': {readerNavigationAllowed, readerDelivery},
-    './startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
+    '../../screens/read/asset-origin': {readerNavigationAllowed, readerDelivery},
+    '../../screens/read/startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
-  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': statusPage, ...stackSlotFixture,
+  const {NativeReadingGuestHost} = await readerFixtureModule('Guest', {'../../pages/touch/reading/ReaderStatusPage': statusPage, ...stackSlotFixture,
     react: {...React, default: React}, 'react-native': {View: 'View', NativeModules: {PorticoReaderAssets: {bundle: async () => at === 'assets' ? {} : {url: appleReaderEntry}}}, useWindowDimensions: () => ({width, height: 844})},
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'},
@@ -103,7 +104,7 @@ async function harness(fixture: Fixture) {
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, './asset-origin': {readerAssetEntry},
     './ReadingGuestView': {ReadingGuestView: 'ReadingGuestView', createReadingGuestBridge: () => {hostCalls++; return {...reader};}},
   });
-  const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {'../../pages/touch/reading/ReaderStatusPage': statusPage, ...stackSlotFixture,
+  const {ReadNativeHost} = await readerFixtureModule('Host', {'../../pages/touch/reading/ReaderStatusPage': statusPage, ...stackSlotFixture,
     react: {...React, default: React},
     'react-native': {
       AppState: {addEventListener: () => ({remove() {}})}, View: 'View',
@@ -130,7 +131,7 @@ async function harness(fixture: Fixture) {
     './reading-session-owner': {createReadingSessionOwner, closeReadingResource},
     './ReadingGuestView': {ReadingGuestView: 'ReadingGuestView', createReadingGuestBridge: () => {hostCalls++; return reader;}},
     './asset-origin': {readerAssetEntry, readerNavigationAllowed, readerDelivery},
-    './startup-diagnostics': {readerBridgeDiagnostic: () => undefined, readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
+    '../../screens/read/startup-diagnostics': {readerBridgeDiagnostic: () => undefined, readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
     './annotation-journal': {NativeAnnotationJournal: class {bind() {} unbind() {} dispose() {}}, nativeAnnotationIdentity: () => ({}), nativeAnnotationLeaseOf: () => ({})},
     './annotation-session': {nativeAnnotationBridge: (value: any) => value.session},
     './annotation-sync': {NativeAnnotationSync: class {flush() {return Promise.resolve();} subscribe() {return () => {};} getSnapshot() {return {};} dispose() {}}},
@@ -309,14 +310,14 @@ test('an old native Back callback cannot borrow the guard from a reopened retain
 });
 
 test('the extracted guest view rejects stale and foreign messages and forwards each native failure', async () => {
-  const {ReadingGuestView} = await screenModule(new URL('../src-next/screens/read/ReadingGuestView.tsx', import.meta.url), {
+  const {ReadingGuestView} = await screenModule(new URL('../src-next/kit/reading/ReadingGuestView.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native-webview': {default: 'WebView'},
     '../../../../../packages/client-core/src': {createReadingHost: () => {}},
     '../../../../../packages/client-core/src/route-identity': {routeBase64: () => 'route'},
     '../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24)}},
     '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => ({})},
-    './asset-origin': {readerNavigationAllowed, readerDelivery},
-    './startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
+    '../../screens/read/asset-origin': {readerNavigationAllowed, readerDelivery},
+    '../../screens/read/startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
   const received: string[] = [], observed: string[] = [];
   const reader = {receive: (message: string) => received.push(message)}, replacement = {receive() {}};
