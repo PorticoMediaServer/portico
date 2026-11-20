@@ -81,9 +81,9 @@ test('a summary read that fails draws no dot and is never the Recordings page\'s
 
 test('the tab pair names the conflict and draws the dot on Recordings only while there is one', async () => {
   const h = hooks();
-  const {NativeLiveTabs} = await screenModule(new URL('../src-next/screens/settings-live/LiveTabs.tsx', import.meta.url), {
-    react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../kit/controls': {Segmented: 'Segmented'},
-    '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => ({colors: {record: 'red', text: 'white', textTertiary: 'grey'}, type: {button: {}}, textScale: 1})},
+  const {NativeLiveTabs} = await screenModule(new URL('../src-next/kit/live/LiveTabs.tsx', import.meta.url), {
+    react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../controls': {Segmented: 'Segmented'},
+    '../shell/visual': {shellType: () => ({})}, '../theme': {useTheme: () => ({colors: {record: 'red', text: 'white', textTertiary: 'grey'}, type: {button: {}}, space: {sm: 16}, targets: {touch: 44}, textScale: 1})},
   });
   const t = defaultI18n.t;
   for (const conflicts of [0, 1, 3]) {
