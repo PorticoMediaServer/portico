@@ -212,7 +212,8 @@ function ProgrammeArt({title, seed, image, runtime, width}: {title: string; seed
 }
 export function RecordingCard({value, runtime, columns, onOpen, onFocus, onBlur}: {value: Group; columns: number; runtime: NativeShellRuntime; onOpen: () => void; onFocus: () => void; onBlur: () => void}) {
   const theme = useTheme(), t = defaultI18n.t, recording = value.recording;
-  const width = theme.isTV ? 385 : (theme.width - (columns + 1) * theme.space.sm) / columns;
+  const frame = useFrameMetrics();
+  const width = theme.isTV ? 385 : Math.max(1, (frame.width - 2 * frame.gutter - (columns - 1) * theme.space.sm) / columns);
   const status = [value.kept > 0 ? t('recordings.kept') : undefined, value.exceptions > 0 ? t('web.dvr.state.incomplete') : undefined];
   return <Focusable onFocus={onFocus} onBlur={onBlur} focusId={value.key} testID={`recordings-group-${value.key}`} focusKind="card"
     onPress={onOpen} style={{width, gap: theme.space.xs}}>

@@ -168,13 +168,23 @@ test('a server that cannot record shows its unavailable state inside Recordings'
 // phone-app's Recordings frame draws no Sort and no per-row ⋯ (the lead's call: undrawn web parity is left out).
 // TV keeps its drawn header, Sort and hold-OK menu; touch rows keep tap (details) and long press (the same menu).
 for (const isTV of [false, true]) test(`${isTV ? 'TV' : 'phone'} Recorded: ${isTV ? 'the header and Sort open its side sheet' : 'no header Sort, as the frame draws'}`, async () => {
-  const f = await fixture({isTV, role: 'member', canManage: false}); try {
+  const f = await fixture({isTV, role: 'member', canManage: false, width: 360}); try {
     const group = {key: 'show', title: 'Show', recordings: 2, unwatched: 1, kept: 0, exceptions: 0, recording: row()};
     f.recordingState.query = {view: 'recorded'}; f.recordingState.summary = summary; f.recordingState.page = {recordings: [], rules: [], captureAvailable: true};
     f.recordingState.viewerWindow = {...windowOf([]), items: [{kind: 'group', value: group}]};
     await f.recordings();
     const sort = f.all().find(node => node.type === 'Chip' && node.props.testID === 'recordings-sort');
-    if (!isTV) {assert.equal(sort, undefined); return;}
+    if (!isTV) {
+      assert.equal(sort, undefined);
+      const list = f.all().find(node => node.type === 'FlatList')!;
+      const region = f.all().find(node => node.type === 'Region' && node.props.style?.paddingHorizontal)!;
+      const card = list.props.renderItem({item: group, index: 0});
+      const button = elements(card.type(card.props)).find(node => node.props.testID === 'recordings-group-show')!;
+      const columns = list.props.numColumns;
+      const rowWidth = columns * button.props.style.width + (columns - 1) * list.props.columnWrapperStyle.gap;
+      assert.equal(rowWidth + 2 * region.props.style.paddingHorizontal, 360);
+      return;
+    }
     assert.ok(sort, 'Sort chip');
     const sheet = () => f.all().find(node => node.type === 'Menu' && node.props.testID === 'recordings-sort')!;
     assert.equal(sheet().props.open, false); assert.equal(sheet().props.presentation, 'sideSheet');
