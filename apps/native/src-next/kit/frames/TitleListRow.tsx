@@ -1,9 +1,10 @@
 import React, {useRef} from 'react';
-import {Text, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Artwork, type ArtworkSource} from '../artwork';
 import {CardFrame} from '../cards/primitives';
+import type {CardActions} from '../cards/model';
 import type {CardSelection} from '../layout/types';
 import {Focusable} from '../controls';
 import {Icon} from '../Icon';
@@ -14,10 +15,10 @@ import {PanelBlock, PanelHeading} from './title-parts';
 
 const row = frameSpec.hero.title.parts.listRow;
 /** The picture's width: a phone's list size (phone-detail d3 frame 8), a tablet's the numbered list's (desktop-detail f8, 106);
- * a square cover (a book) the same width as a tablet's poster. TV keeps the phone's sizes it had. */
+ * a square cover (a book) the same width as a tablet's poster; on TV a book's cover is 128 (collections 44/45). */
 export function titleListArt(theme: ReturnType<typeof useTheme>, square?: boolean): number {
   const tablet = theme.form === 'medium' || theme.form === 'expanded';
-  return tablet ? frameSpec.hero.title.parts.numberedArt[theme.form] : square ? row.square : row.poster;
+  return tablet ? frameSpec.hero.title.parts.numberedArt[theme.form] : square ? (theme.isTV ? row.squareTV : row.square) : row.poster;
 }
 
 /** A row's height, the stride a list of them is windowed at: the taller of its poster and its words with the title on two
@@ -45,6 +46,13 @@ export type TitleListItem = Readonly<{title: string;
   /** How far in (0 to 1), drawn as a short bar with `remaining` ("1 h 2 min left"). */
   progress?: number; remaining?: string;
   artwork?: ArtworkSource; onNavigate: () => void;
+  /** TV: what OK does when it is not opening the title (a book: resume it, collections 44 "OK plays one"); hold OK opens the
+   * menu, and the row draws no ⋯ of its own. */
+  onPlay?: () => void;
+  /** TV: its length at the row's end (collections 44 "10 h 53 min"). */
+  length?: string;
+  /** The row took focus (a list that reads its next page when focus reaches its last row). */
+  onFocus?: () => void;
   /** Opens the title's menu from the row's own place. */
   onMore?: (anchor: React.RefObject<View | null>) => void;
   selection?: CardSelection; testID?: string}>;
@@ -55,10 +63,17 @@ export type TitleListItem = Readonly<{title: string;
 export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item: TitleListItem; kickerRoom?: boolean}>) {
   const theme = useTheme(), anchor = useRef<View>(null), more = item.onMore, t = defaultI18n.t;
   // The card fills the row's own height (CardFrame grows into its parent).
-  return <View style={{height: titleListRowHeight(theme, kickerRoom)}}><CardFrame testID={item.testID} title={item.title} menuAnchorRef={anchor} onNavigate={item.onNavigate} onMore={more ? () => more(anchor) : undefined}
+  const tv = theme.isTV;
+  // TV: the row is at least its height and grows for a second line of title (no cut text), and OK plays when it can.
+  // One branch of CardActions or the other: a conditional spread would leave `primaryAction` as 'play' | undefined.
+  const press: CardActions = tv && item.onPlay ? {primaryAction: 'play', onPlay: item.onPlay, onNavigate: item.onNavigate} : {onNavigate: item.onNavigate};
+  return <View style={tv ? {minHeight: titleListRowHeight(theme, kickerRoom)} : {height: titleListRowHeight(theme, kickerRoom)}}><CardFrame testID={item.testID} title={item.title} menuAnchorRef={anchor} {...press} onMore={more ? () => more(anchor) : undefined} onFocus={item.onFocus}
     // CardFrame's own wrapper takes `style`: it fills the row, so the card (which grows into it) has the row's height.
     selection={item.selection} style={{flex: 1}} pressableStyle={{flex: 1, flexDirection: 'row', alignItems: 'center', gap: row.gap}}>
-    {() => <>
+    {({focused}) => <>
+      {/* TV: the focused row is a band with the kit's ring (collections 44), as the old TV row and a TV track row draw it. */}
+      {tv && <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, {left: -row.gap / 2, right: -row.gap / 2, borderRadius: theme.radii.artwork * 2,
+        backgroundColor: focused ? theme.colors.raisedHigh : 'transparent', borderWidth: theme.spec.focus.ringWidth.tv, borderColor: focused ? theme.colors.accentStrong : 'transparent'}]}/>}
       {item.selection?.active && <SelectionCircle selected={item.selection.selected} selecting interactive={false} variant="row" size={theme.space.md} accessibilityLabel={t('card.select', {title: item.title})}/>}
       <Artwork source={item.artwork} width={titleListArt(theme, item.square)} height={item.square ? titleListArt(theme, true) : titleListArt(theme) * 1.5} style={{borderRadius: theme.radii.artwork}}/>
       <View style={{flex: 1, minWidth: 0, gap: theme.space.hairline * 2}}>
@@ -74,7 +89,8 @@ export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item:
           <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.textSecondary}]}>{item.watched ? item.doneLabel ?? t('saved.watched') : item.remaining}</Text>
         </View>}
       </View>
-      {more && <Focusable accessibilityLabel={t('card.more', {title: item.title})} onPress={() => more(anchor)} style={{width: row.more, height: row.more, alignItems: 'center', justifyContent: 'center'}}>
+      {tv && item.length && <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontVariant: ['tabular-nums']}]}>{item.length}</Text>}
+      {more && !tv && <Focusable accessibilityLabel={t('card.more', {title: item.title})} onPress={() => more(anchor)} style={{width: row.more, height: row.more, alignItems: 'center', justifyContent: 'center'}}>
         <Icon name="i-more" size={row.moreIcon} color={theme.colors.textTertiary}/></Focusable>}
     </>}
   </CardFrame></View>;
@@ -83,13 +99,15 @@ export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item:
 /** A page's list of titles inside a music scroller (`musicScroller`: an author's or a series' books, collections 41b/41c):
  * its `TitleListRow`s, only the ones in view mounted, a hairline between them from the words on, and a heading drawn
  * with them as one section. A list read as a `WindowedCollection` takes `titleRowsScroller` instead. */
-export function TitleRowWindow({heading, rows, testID}: Readonly<{heading?: Readonly<{title: string; trailing?: string}>;
-  rows: readonly (TitleListItem & Readonly<{id: string}>)[]; testID?: string}>) {
+export function TitleRowWindow({heading, rows, testID, inset = true}: Readonly<{heading?: Readonly<{title: string; trailing?: string}>;
+  rows: readonly (TitleListItem & Readonly<{id: string}>)[]; testID?: string;
+  /** TV: false for a list already in its column (`TitleFrame`'s `beside`, an author's books beside their circle). */
+  inset?: boolean}>) {
   // One stride for the list: room for a kicker line on every row when any row carries one (a series' books).
   const theme = useTheme(), kicker = rows.some(item => !!item.kicker);
   return <View testID={testID}>
-    {heading && <PanelBlock><PanelHeading title={heading.title} trailing={heading.trailing}/></PanelBlock>}
-    <PanelBlock><MusicWindow items={rows} itemHeight={titleListRowHeight(theme, kicker)} renderItem={(item, index) => <View>
+    {heading && <PanelBlock inset={!theme.isTV || inset}><PanelHeading title={heading.title} trailing={heading.trailing}/></PanelBlock>}
+    <PanelBlock inset={!theme.isTV || inset}><MusicWindow items={rows} itemHeight={titleListRowHeight(theme, kicker)} renderItem={(item, index) => <View>
       {index > 0 && <View pointerEvents="none" style={{position: 'absolute', top: 0, right: 0, left: titleListArt(theme, item.square) + row.gap, height: theme.space.hairline, backgroundColor: theme.colors.line}}/>}
       <TitleListRow item={item} kickerRoom={kicker}/></View>}/></PanelBlock>
   </View>;
