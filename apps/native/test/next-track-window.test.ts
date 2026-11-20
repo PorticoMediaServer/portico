@@ -13,7 +13,7 @@ const nodes = (value: any): Node[] => Array.isArray(value) ? value.flatMap(nodes
 
 async function window(props: Record<string, unknown>) {
   const {TrackWindow} = await screenModule(new URL('../src-next/kit/music/TrackWindow.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View'}, '../browse': {TrackRow: 'TrackRow', trackRowHeight: () => 54},
+    react, 'react-native': {View: 'View'}, '../browse': {TrackRow: 'TrackRow', trackRowHeight: (_theme: unknown, _variant: string, current?: boolean) => current ? 76 : 54},
     '../frames/title-parts': {PanelBlock: 'PanelBlock', PanelHeading: 'PanelHeading'}, '../selection': {SelectionCircle: 'SelectionCircle'},
     '../theme': {useTheme: () => ({platform: 'phone', fontScale: 1, textScale: 1})}, './MusicWindow': {MusicWindow: 'MusicWindow'}});
   const tree = TrackWindow(props) as Node;
@@ -41,7 +41,7 @@ test('a row\'s place in the selection: Select from its menu enters it, and once 
   assert.ok(now.renderControl(rows[1], true), 'a selecting row draws its circle');
 });
 
-test('the focused row is reported to the page, and a title is drawn over the rows as one section', async () => {
+test('the focused row is reported to the page, a heading is drawn over the rows as one section, and the current chapter is taller', async () => {
   const calls: string[] = [];
   const focus = await window({rows, variant: 'top-songs', onPlay() {}, onFocusRow: (id: string) => calls.push(`focus ${id}`), onBlurRow: (id: string) => calls.push(`blur ${id}`)});
   const host = focus.host(0);
@@ -49,7 +49,12 @@ test('the focused row is reported to the page, and a title is drawn over the row
   assert.deepEqual(calls, ['focus s1', 'blur s1']);
   assert.equal(focus.list.props.itemHeight, 54);
   assert.equal(nodes(focus.tree).some(node => node.type === 'PanelHeading'), false, 'no title, no heading');
-  const titled = await window({rows, variant: 'top-songs', title: 'Top songs', onPlay() {}});
+  const titled = await window({rows, variant: 'top-songs', heading: {title: 'Top songs', quiet: true}, onPlay() {}});
   const heading = nodes(titled.tree).find(node => node.type === 'PanelHeading')!;
   assert.deepEqual([heading.props.title, heading.props.quiet], ['Top songs', true]);
+  // A book's chapters: a section heading with its count at the end (collections 41a), the chapter you are in drawn taller.
+  const chapters = await window({rows: [{...rows[0]}, {...rows[1], current: true}], variant: 'chapters', heading: {title: 'Chapters', trailing: '17'}, onPlay() {}});
+  const loud = nodes(chapters.tree).find(node => node.type === 'PanelHeading')!;
+  assert.deepEqual([loud.props.quiet, loud.props.trailing], [undefined, '17']);
+  assert.equal(chapters.list.props.expanded.index, 1);
 });

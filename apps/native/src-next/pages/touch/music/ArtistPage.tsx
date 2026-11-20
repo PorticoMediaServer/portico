@@ -24,7 +24,7 @@ export function ArtistPage(props: ArtistPageProps) {
       {icon: 'i-more', label: t('card.more', {title: view.title}), onPress: view.more, testID: 'artist-menu'}]}
     scroller={musicScroller({testID: 'artist-scroll'})}>
     {view.state && <PanelBlock><StateRow {...view.state}/></PanelBlock>}
-    {songs && <TrackWindow title={songs.title} rows={songs.rows} variant="top-songs" select={songs.select} onPlay={songs.onPlay} onMore={songs.onMore}/>}
+    {songs && <TrackWindow heading={{title: songs.title, quiet: true}} rows={songs.rows} variant="top-songs" select={songs.select} onPlay={songs.onPlay} onMore={songs.onMore}/>}
     {view.releases.map(row => <PosterRow key={row.testID} {...row}/>)}
     <PanelBlock><MusicSectionControls id="artist-releases" section={pages.section} next={pages.next} previous={pages.previous} retry={pages.retry} refresh={pages.refresh}/></PanelBlock>
     {view.similar && <PosterRow {...view.similar}/>}

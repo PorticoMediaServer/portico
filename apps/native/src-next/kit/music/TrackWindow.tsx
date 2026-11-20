@@ -9,9 +9,10 @@ import {useTheme} from '../theme';
 import {MusicWindow} from './MusicWindow';
 
 export type TrackWindowProps = Readonly<{
-  /** A quiet heading over the rows, drawn with them as one section (phone-app frame 15b's "Top songs"). */
-  title?: string;
-  rows: readonly TrackRowData[]; variant: Extract<TrackVariant, 'album' | 'top-songs'>;
+  /** A heading over the rows, drawn with them as one section: quiet (phone-app frame 15b's "Top songs") or a section heading
+   * with muted words at its end (collections 41a's "Chapters  17"). */
+  heading?: Readonly<{title: string; quiet?: boolean; trailing?: string}>;
+  rows: readonly TrackRowData[]; variant: Extract<TrackVariant, 'album' | 'top-songs' | 'chapters'>;
   /** A row's place in the page's selection, when the page has one. */
   select?: (id: string) => CardSelection | undefined;
   onPlay: (id: string) => void; onMore?: (id: string, anchor?: RefObject<View | null>) => void;
@@ -19,16 +20,19 @@ export type TrackWindowProps = Readonly<{
   onFocusRow?: (id: string) => void; onBlurRow?: (id: string) => void;
 }>;
 
-/** An album's songs inside a music scroller (`musicScroller`; phone-app frame 13): its track rows, only the ones in view
+/** An album's songs or a book's chapters inside a music scroller (`musicScroller`; phone-app frame 13, collections 41a): its track rows, only the ones in view
  * mounted, as the old album screen windowed them. A row taller at a larger text size gets the room it needs. */
-export function TrackWindow({title, rows, variant, select, onPlay, onMore, onFocusRow, onBlurRow}: TrackWindowProps) {
+export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onFocusRow, onBlurRow}: TrackWindowProps) {
   const theme = useTheme(), scale = Math.max(1, theme.fontScale * theme.textScale);
   // Built on every draw: a row's place in the selection changes without the rows changing.
   const selection: TrackSelection = {active: rows.some(row => select?.(row.id)?.active),
     isSelected: id => select?.(id)?.selected === true, onToggle: id => select?.(id)?.onToggle(), onEnter: id => select?.(id)?.onEnter(),
     renderControl: (row, selected) => <SelectionCircle selected={selected} selecting accessibilityLabel={row.text.title} variant="row" interactive={false}/>};
-  const window = <MusicWindow items={rows} itemHeight={Math.ceil(trackRowHeight(theme, variant) * scale)}
+  // The chapter you are in is drawn taller (its progress under its title); the rows after it move down.
+  const current = variant === 'chapters' ? rows.findIndex(row => row.current) : -1, height = Math.ceil(trackRowHeight(theme, variant) * scale);
+  const window = <MusicWindow items={rows} itemHeight={height}
+    expanded={current >= 0 ? {index: current, extra: Math.ceil(trackRowHeight(theme, variant, true) * scale) - height} : undefined}
     renderItem={(row, index) => <View onFocus={() => onFocusRow?.(row.id)} onBlur={() => onBlurRow?.(row.id)}>
       <TrackRow row={row} variant={variant} index={index} selection={selection} onPlay={onPlay} onMore={onMore}/></View>}/>;
-  return title ? <View><PanelBlock><PanelHeading quiet title={title}/></PanelBlock>{window}</View> : window;
+  return heading ? <View><PanelBlock><PanelHeading quiet={heading.quiet} title={heading.title} trailing={heading.trailing}/></PanelBlock>{window}</View> : window;
 }
