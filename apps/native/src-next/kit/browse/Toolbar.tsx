@@ -153,7 +153,7 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, res
   const filters = <FiltersButton count={model.applied.length} matches={!tv && model.applied.length > 0 ? resultTotal : undefined} open={filtersOpen} onPress={onFilters}/>;
   const quick = model.quick.map(item => <FocusItem key={item.id} focusId={`quick:${item.id}`}><QuickToggle checked={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle></FocusItem>);
   const style = {zIndex: sticky ? theme.layers.sticky : undefined, backgroundColor: sticky ? alpha(theme.colors.ink, .86) : undefined, paddingTop: phone ? 10 : sticky ? 12 : 20, paddingBottom: sticky || phone ? 10 : 0};
-  const chips = <>{applied.length > 0 && <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)}/>}{quick}{children}</>;
+  const chips = <>{applied.length > 0 && <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)}/>}{applied.length > 0 && onClearFilters && <Button focusId="clear" variant="text" size="small" onPress={onClearFilters}>{t('next.browse.native.clearAll')}</Button>}{quick}{children}</>;
   if (!tv) return <View testID={testID} accessibilityLabel={t('next.browse.native.toolbar')} style={style}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, paddingHorizontal: theme.gutter}}>
       {phone ? <ChipRail>{filters}{sort}{chips}</ChipRail> : <>{filters}{sort}<ChipRail>{chips}</ChipRail></>}

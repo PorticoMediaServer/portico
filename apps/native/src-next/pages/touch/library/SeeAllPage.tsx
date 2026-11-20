@@ -18,7 +18,7 @@ export function SeeAllPage(props: SeeAllProps) {
       intro: view.intro, ambient: view.ambient && <AmbientArt source={view.ambient} treatment="library" visible={active}/>,
       actions: view.playable ? <><Button icon="i-play" onPress={() => onPlay(false)}>{t('entry.play')}</Button>
         <Button variant="glass" icon="i-shuffle" onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></> : undefined}}
-    state={view.failure ?? (!view.ready ? {kind: 'loading'} : undefined)}
+    state={view.failure ?? (!view.ready ? {kind: 'loading', message: view.slow ? view.t('next.states.stillLoading') : undefined} : undefined)}
     toolbar={view.model ? <BrowseToolbar testID="home-see-all-toolbar" model={view.model} labels={view.labels} resultCount={undefined} resultTotal={view.total}
       onFilters={onFilters} onSortChange={controller.setSort} onReshuffle={onReshuffle} onQuickChange={view.onQuickChange} applied={view.applied} onRemoveFilter={view.remove}
       view={{value: view.view, onValueChange: view.setView}}>
@@ -26,14 +26,14 @@ export function SeeAllPage(props: SeeAllProps) {
     </BrowseToolbar> : undefined}
     grid={view.gridFailure ? <StateView {...view.gridFailure} variant="centered"/> : view.empty ? <FilteredEmpty onClearFilters={view.clear}/>
       : <BrowseGrid cardSizePercent={runtime.appearanceCardSizePercent} shape={list ? 'list' : 'poster'} testID={list ? 'home-see-all-list' : 'home-see-all-grid'} collection={controller.collection}
-        getKey={item => item.membershipId} selection={selection} renderItem={(item, cell, width) => {
+        getKey={item => item.membershipId} selection={selection} renderItem={(item, cell, width, onCaptionLayout) => {
           const current = () => view.isCurrent(item, cell.index);
           const open = () => {if (current()) onOpen(item.entry, current);};
           const play = () => {if (current()) onPlayEntry(item.entry, current);};
           if (list) return <LibraryListRow entry={item.entry} width={width} runtime={runtime} actions={{open, play,
             menu: (_entry, anchor) => {if (anchor && current()) onMenu?.(item.entry, anchor);}, saveView: () => {}}}
             focusId={item.membershipId} onFocus={cell.onFocus} onBlur={cell.onBlur} disabled={!active}/>;
-          return <HomeRowCard entry={item.entry} width={width} runtime={runtime} onOpen={open} onPlay={play}
+          return <HomeRowCard onCaptionLayout={onCaptionLayout} entry={item.entry} width={width} runtime={runtime} onOpen={open} onPlay={play}
             onMenu={onMenu && (anchor => {if (current()) onMenu(item.entry, anchor);})}
             onFocus={cell.onFocus} onBlur={cell.onBlur}/>;
         }}/>}/>;
