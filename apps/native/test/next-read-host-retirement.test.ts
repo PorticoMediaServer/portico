@@ -85,11 +85,7 @@ test(`actual live host with its presentation binding fences original close on ${
   navigation.open(route, authority);
   const presentation = navigation.presentationStack().at(-1)!;
   const binding = navigation.bindPresentation(presentation, {current: context.current, subscribe: context.subscribeAuthority}); assert.ok(binding);
-  const readerStatusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
-    react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
-    '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
-  });
-  const {ReadNativeHost} = await readerFixtureModule('Host', {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
+  const {ReadNativeHost} = await readerFixtureModule('Host', {...stackSlotFixture,
     react: {...React, default: React}, 'react-native': {View: 'View', AppState: {addEventListener: () => ({remove() {}})}, useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/client-core/src': {preferenceValue: () => undefined, ReadingError: class extends Error {}},

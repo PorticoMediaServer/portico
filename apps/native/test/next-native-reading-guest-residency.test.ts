@@ -37,16 +37,17 @@ test('twenty original sessions can evict and restore real guest components witho
     '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => async () => 'cancelled'},
     '../../screens/read/asset-origin': {readerNavigationAllowed, readerDelivery}, '../../screens/read/startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
-  const readerStatusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
-    react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
-    '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
+  const coverage = await screenModule(new URL('../src-next/kit/focus/CoveredLayer.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {View: 'View', TVFocusGuideView: 'TVFocusGuideView'},
+    '../theme': {useTheme: () => ({isTV: false})},
   });
-  const {NativeReadingGuestHost} = await readerFixtureModule('Guest', {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
+  const {NativeReadingGuestHost, ReaderFrame} = await readerFixtureModule('Guest', {...stackSlotFixture,
     react: {...React, default: React}, 'react-native': {View: 'View', NativeModules: {PorticoReaderAssets: {bundle: async () => ({url: appleReaderEntry})}}, useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'}, '../../kit/controls/Button': {Button: 'Button'},
-    '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
+    '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/focus/CoveredLayer': coverage,
+    '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
     './asset-origin': {readerAssetEntry}, './ReadingGuestView': {ReadingGuestView, createReadingGuestBridge},
   });
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'a'.repeat(64)};
@@ -73,7 +74,13 @@ test('twenty original sessions can evict and restore real guest components witho
   let residenceElement: any, residenceTree: any, residence: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
   const rows = () => {const children = residenceTree.props.children; return (Array.isArray(children) ? children : [children]).filter((value: any) => value?.type === 'LogicalReadHost');};
   const mount = async (index: number, active: boolean, onGuestState: (present: boolean, incarnation: object) => void) => {
-    let tree: unknown, isActive = active; const host = createFabricHookHost(() => {tree = NativeReadingGuestHost({owner: owners[index], active: isActive, preferences, onBack() {}, onSettings() {}, onGuestState});});
+    let tree: unknown, isActive = active;
+    const host = createFabricHookHost(() => {
+      const guest = NativeReadingGuestHost({owner: owners[index], active: isActive, preferences, onBack() {}, onSettings() {}, onGuestState});
+      const layer = ReaderFrame(guest.props);
+      assert.equal(layer.type, coverage.CoveredLayer);
+      tree = coverage.CoveredLayer(layer.props);
+    });
     await act(async () => {await host.mount(); await new Promise<void>(resolve => setImmediate(resolve));});
     const boundary = find(tree, ReadingGuestView); assert.ok(boundary);
     const webview = ReadingGuestView(boundary!.props); assert.equal(webview.type, 'WebView');
@@ -103,7 +110,13 @@ test('twenty original sessions can evict and restore real guest components witho
       else await mount(index, row.props.active, row.props.onGuestState);
     }
     assert.ok(mounted.size <= 2);
-    assert.equal([...mounted.values()].filter(item => {const props = (item.tree() as Node).props as {active?: boolean}; return props.active === true;}).length, navigation.getSnapshot().route.kind === 'read' ? 1 : 0);
+    const route = navigation.getSnapshot().route;
+    for (const [index, item] of mounted) {
+      const {pointerEvents, accessibilityElementsHidden} = (item.tree() as Node).props;
+      const active = route.kind === 'read' && route.itemId === `item-${index}`;
+      assert.equal(pointerEvents, active ? 'auto' : 'none');
+      assert.equal(accessibilityElementsHidden, !active);
+    }
   };
   try {
     for (let index = 0; index < 20; index++) {

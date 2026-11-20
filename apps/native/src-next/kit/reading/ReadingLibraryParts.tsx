@@ -1,4 +1,4 @@
-import React, {type ReactNode} from 'react';
+import React, {useState, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
@@ -18,6 +18,7 @@ import {Icon} from '../Icon';
 import {StateView} from '../states';
 import {WindowedGrid} from '../layout';
 import {TVRow} from '../layout/TVRow';
+import {usePageWidth} from '../layout/page-inset';
 import {useTheme} from '../theme';
 
 /** Where a Continue card's book is (SRV-A2): its page for a page book, nothing for an EPUB. */
@@ -34,21 +35,34 @@ const authorPart = (item: ReadingItem) => item.author ? [{id: 'author', text: it
 
 type LibraryView = ReturnType<typeof useBooksLibrary>;
 
+export function useReadingLibraryLayout() {
+  const theme = useTheme(), pageWidth = usePageWidth();
+  const [paneWidth, setPaneWidth] = useState<number>(), [captionHeight, setCaptionHeight] = useState(44);
+  const tablet = !theme.isTV && theme.platform !== 'phone';
+  const columns = tablet ? 4 : 3, gap = 16;
+  const width = Math.max(96, ((paneWidth ?? pageWidth) - theme.gutter * 2 - gap * (columns - 1)) / columns);
+  return {width, gap, columns, captionHeight, tablet,
+    reportWidth: (measured: number) => {const next = Math.round(measured); if (next > 0) setPaneWidth(next);},
+    reportCaptionHeight: (height: number) => setCaptionHeight(current => Math.max(current, height))};
+}
+
+type ReadingLibraryLayout = ReturnType<typeof useReadingLibraryLayout>;
+
 export function ReadingLibraryBody({id, onWidth, children}: {id: string; onWidth: (width: number) => void; children: ReactNode}) {
   return <View testID={`native-reading-library-${id}`} style={{flex: 1}} onLayout={event => onWidth(event.nativeEvent.layout.width)}>{children}</View>;
 }
 
-export function ReadingLibraryLoading({metrics}: {metrics: LibraryView['metrics']}) {
+export function ReadingLibraryLoading({metrics}: {metrics: ReadingLibraryLayout}) {
   const theme = useTheme();
   return <ReadingLoading ready={false} style={{flex: 1, minHeight: 480}} skeleton={<ReadingGridSkeleton width={metrics.width} columns={metrics.columns} gap={metrics.gap} gutter={theme.gutter}/>}/>;
 }
 
-export function ReadingDiscovery({model, runtime}: {model: LibraryView; runtime: NativeShellRuntime}) {
+export function ReadingDiscovery({model, runtime, metrics}: {model: LibraryView; runtime: NativeShellRuntime; metrics: ReadingLibraryLayout}) {
   const insets = useSafeAreaInsets(), {discoveryState, openDiscover, readingOffer, readingActions, showBooks, pageMore} = model;
-  const {tablet} = model.metrics;
+  const {tablet} = metrics;
   return <ScrollView testID="reading-discover" contentContainerStyle={{paddingBottom: insets.bottom + 40}}>
     {discoveryState.phase === 'error' ? <StateView testID="reading-library-error" variant="inline" {...runtime.error(discoveryState.error, model.retry, 'library')}/> : null}
-    {discoveryState.phase === 'loading' && !discoveryState.continueItems.length && !discoveryState.recent.length ? <ReadingLibraryLoading metrics={model.metrics}/> : null}
+    {discoveryState.phase === 'loading' && !discoveryState.continueItems.length && !discoveryState.recent.length ? <ReadingLibraryLoading metrics={metrics}/> : null}
     {discoveryState.continueItems.length ? <DiscoveryRow first title={defaultI18n.t('next.cards.read')}>
       {discoveryState.continueItems.map(row => <ReadingMenuAnchor key={row.item.id}>{anchorRef => {const offered = readingOffer(row.item, 'discover'); return <ReadResumeCard testID={`reading-continue-${row.item.id}`} width={tablet ? 392 : 296} height={tablet ? 176 : 150}
         title={row.item.title} caption={authorPart(row.item)} detail={resumeDetail(row.progress)}
@@ -70,10 +84,10 @@ export function ReadingDiscovery({model, runtime}: {model: LibraryView; runtime:
   </ScrollView>;
 }
 
-export function ReadingFallbackGrid({model, runtime}: {model: LibraryView; runtime: NativeShellRuntime}) {
+export function ReadingFallbackGrid({model, runtime, metrics}: {model: LibraryView; runtime: NativeShellRuntime; metrics: ReadingLibraryLayout}) {
   const theme = useTheme(), insets = useSafeAreaInsets();
   const {booksState, booksWindow, openBooks, readingOffer, readingActions} = model;
-  const {width, columns, gap, captionHeight} = model.metrics;
+  const {width, columns, gap, captionHeight} = metrics;
   return <View style={{flex: 1}}>
     {booksState.phase === 'error' ? <StateView testID="reading-library-error" variant="inline" {...runtime.error(booksState.error, model.retry, 'library')}/> : null}
     <ReadingLoading ready={booksState.items.length > 0 || booksState.phase === 'ready' || booksState.phase === 'error'} style={{flex: 1}}
@@ -83,7 +97,7 @@ export function ReadingFallbackGrid({model, runtime}: {model: LibraryView; runti
         header={booksState.phase === 'ready' && !booksState.items.length ? <StateView testID="reading-library-empty" variant="inline" title={defaultI18n.t('library.emptyLibrary')} body={defaultI18n.t('library.emptyLibraryBody')}/> : undefined}
         renderPlaceholder={() => <ReadingGridSkeleton width={width} columns={1} gutter={0} rows={1}/>}
         renderItem={item => <DiscoveryCoverCard item={item} artwork={runtime.artwork(item.coverUrl)} width={width} onOpen={openBooks} offer={readingOffer(item, 'books')} actions={readingActions}
-          onCaptionLayout={model.reportCaptionHeight}/>}/>
+          onCaptionLayout={metrics.reportCaptionHeight}/>}/>
     </ReadingLoading>
   </View>;
 }
