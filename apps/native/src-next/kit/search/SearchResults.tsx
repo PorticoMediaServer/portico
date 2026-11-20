@@ -134,11 +134,11 @@ export function SearchResultShelf({entries, group, title, count, runtime, action
   const width = Math.max(1, Math.floor((frame.width - frame.gutter - frame.rightGutter - (columns - 1) * gap) / columns));
   const footer = failure ? <View style={{width: width * 2, paddingLeft: gap}}><StateView {...failure}/></View> : loading
     ? <LoadingPaint ready={false} style={{marginLeft: gap}} skeleton={<SkeletonBlock width={width} height={group === 'movies' || group === 'shows' ? 1.5 * width : width}/>}/> : null;
-  return <SearchSection title={title} detail={count}><FlatList horizontal testID={`search-shelf-${group}`} data={entries}
+  return <SearchSection title={title} detail={count}><TVRow><FlatList horizontal testID={`search-shelf-${group}`} data={entries}
     contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter, gap}}
     keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}
     keyExtractor={entry => nativeSearchEntryKey(group, entry)} initialNumToRender={columns}
     onEndReached={onMore} onEndReachedThreshold={1} ListFooterComponent={footer}
     renderItem={({item}) => <SearchGridCard entry={item} group={group} runtime={runtime} actions={actions}
-      selection={selection?.item(item, group)} width={width} titleLines={0}/>}/></SearchSection>;
+      selection={selection?.item(item, group)} width={width} titleLines={0}/>}/></TVRow></SearchSection>;
 }
