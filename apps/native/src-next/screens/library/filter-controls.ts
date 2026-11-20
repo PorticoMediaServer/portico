@@ -10,6 +10,18 @@ const targets = (field: BrowseFieldCapability) => new Set([field.id, filterValue
 const belongs = (node: BrowseNode, ids: ReadonlySet<string>) => {const fields = browseFields([node]); return fields.length > 0 && fields.every(id => ids.has(id));};
 const scalarList = (value: BrowseScalar | readonly BrowseScalar[] | null) => value === null ? [] : Array.isArray(value) ? value : [value];
 
+export function libraryYearDecades(node: BrowseNode): readonly number[] {
+  const ranges = 'any' in node ? node.any : [node];
+  const years: number[] = [];
+  for (const range of ranges) {
+    if (!('field' in range) || range.field !== 'year' || range.operator !== 'between' || !Array.isArray(range.value)) return [];
+    const [start, end] = range.value;
+    if (typeof start !== 'number' || start % 10 !== 0 || end !== start + 9) return [];
+    years.push(start);
+  }
+  return years;
+}
+
 /** UI projections keep the published query whole. Editing a field replaces only
  * that field's conditions; cross-field alternatives and immutable tab predicates
  * survive without flattening an OR into an AND. */
@@ -33,12 +45,7 @@ export function libraryFilterField(field: BrowseFieldCapability, predicates: rea
   for (const node of mine) {
     const negative = 'not' in node, leaf = negative ? node.not : node;
     if (field.id === 'year') {
-      const decades = ('any' in leaf ? leaf.any : [leaf]).flatMap(range => {
-        if (!('field' in range) || range.field !== 'year' || range.operator !== 'between' || !Array.isArray(range.value)) return [];
-        const [from, to] = range.value;
-        return typeof from === 'number' && from % 10 === 0 && to === from + 9 ? [String(from)] : [];
-      });
-      (negative ? excluded : included).push(...decades);
+      (negative ? excluded : included).push(...libraryYearDecades(leaf).map(String));
     }
     if (!('field' in leaf)) continue;
     if (!['equals', 'in', 'contains-any', 'contains-all', 'not-in', 'not-equals'].includes(leaf.operator)) continue;

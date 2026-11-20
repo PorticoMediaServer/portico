@@ -4,6 +4,7 @@ import {appliedFilterLabel} from '../../../../../packages/client-core/src/presen
 import {filterValueName, namedFilterFields} from '../../../../../packages/client-core/src/filter-value-names';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {BrowseLabels} from '../../kit/browse';
+import {libraryYearDecades} from './filter-controls';
 
 /** One chip keeps its actual whole predicate identity. Unsupported expression
  * trees remain in the query and in the full Filters editor; never flatten OR. */
@@ -12,7 +13,12 @@ export function libraryAppliedFilters(nodes: readonly BrowseNode[], capabilities
   const inverse: Partial<Record<BrowseOperator, BrowseOperator>> = {equals: 'not-equals', 'not-equals': 'equals', in: 'not-in', 'not-in': 'in',
     'contains-any': 'not-in', 'is-present': 'is-missing', 'is-missing': 'is-present', 'less-than': 'at-least', 'at-least': 'less-than', 'greater-than': 'at-most', 'at-most': 'greater-than'};
   for (const node of nodes) {
-    const leaf = 'field' in node ? node : 'not' in node && 'field' in node.not && inverse[node.not.operator] ? {...node.not, operator: inverse[node.not.operator]!} : undefined;
+    const negative = 'not' in node, expression = negative ? node.not : node;
+    const decades = libraryYearDecades(expression);
+    const leaf = decades.length ? {field: 'decade', operator: negative ? 'not-in' as const : 'in' as const, value: decades}
+      : 'field' in node ? node
+      : negative && 'field' in expression && inverse[expression.operator] ? {...expression, operator: inverse[expression.operator]!}
+      : undefined;
     if (!leaf) continue;
     const field = capabilities.fields.find(value => value.id === (leaf.field === 'decade' ? 'year' : leaf.field)) ?? capabilities.fields.find(value => value.id === leaf.field);
     if (!field) continue;

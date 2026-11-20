@@ -42,10 +42,10 @@ export function LibraryPage(props: LibraryProps) {
         {view.rows.map((row, index) => <React.Fragment key={row.id}><LibraryShelf key={row.id} title={row.title} items={row.entries}
           shape={row.shape === 'landscape' ? 'wide' : row.shape ?? 'poster'}
           getKey={nativeLibraryEntryKey} onVisibleRange={row.onVisibleRange} onSeeAll={row.onSeeAll}
-          renderItem={(entry, cell, width) => {
+          renderItem={(entry, cell, width, onCaptionLayout) => {
             const selected = shelfSelection?.item(entry);
             return <LibraryCard entry={entry} family={state.library.kind} width={width} wide={row.shape === 'landscape'} runtime={runtime} actions={actions}
-              focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter}/>;
+              focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} onCaptionLayout={onCaptionLayout}/>;
           }}/>{index === 0 ? mixes : null}</React.Fragment>)}
         {!view.rows.length ? mixes : null}
       </BrowseFrame>}

@@ -11,7 +11,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import {homeCardText} from '../../screens/home/model';
 import type {NativeLibraryActions} from '../../screens/library/LibraryScreen';
 
-export function LibraryCard({entry, family, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; /** The grid's own library kind (the server does not put it on each entry); the shared shape rule's family. */ family?: string; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
+export function LibraryCard({entry, family, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect, onCaptionLayout}: {entry?: ContentEntry; /** The grid's own library kind (the server does not put it on each entry); the shared shape rule's family. */ family?: string; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void; onCaptionLayout?: CardProps['onCaptionLayout']}) {
   const menuAnchorRef = useRef<View>(null);
   const theme = useTheme();
   const adapter = entry ? runtime.playback : undefined;
@@ -37,7 +37,7 @@ export function LibraryCard({entry, family, width, wide = false, placeholderHeig
   }
   const text = homeCardText(entry, false, runtime.text);
   const playingAlbum = entry.kind === 'album' && playing?.entry?.album?.id === entry.id;
-  const props = {focusId, disabled, title: entry.displayTitle || entry.title, width, titleLines: 2 as const, caption: text.caption, artwork: runtime.artwork(entry.posterUrl), watched: entry.watched, playing: playingAlbum,
+  const props = {focusId, disabled, title: entry.displayTitle || entry.title, width, titleLines: 2 as const, onCaptionLayout, caption: text.caption, artwork: runtime.artwork(entry.posterUrl), watched: entry.watched, playing: playingAlbum,
     onNavigate: () => actions.open(entry), onPlay: entry.playback ? () => actions.play(entry) : undefined, onMore: () => actions.menu(entry, menuAnchorRef, onSelect), selection: selected,
     menuAnchorRef, moreExpanded: actions.isMenuOpen?.(entry), onFocus, onBlur};
   // A landscape shelf keeps the 16:9 art and puts its title and time left in the caption.
