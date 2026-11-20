@@ -157,7 +157,7 @@ function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, t
   const tabs = tabItems?.region ? <FocusRegion {...tabItems.region} orientation="horizontal" entry={tabItems.value}>{strip}</FocusRegion> : strip;
   const theme = useTheme();
   if (form === 'tv' && tabs && !switcher && !back && !intro && !actions) {
-    return <LibraryHeader name={title} menu={trailing}>{tabs}</LibraryHeader>;
+    return <LibraryHeader name={title} switcher={undefined} menu={trailing}>{tabs}</LibraryHeader>;
   }
   if (!switcher) return <>
     <PageHeader title={title} back={back} trailing={trailing} showTVBack/>
