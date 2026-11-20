@@ -1,8 +1,9 @@
-import type {RefObject} from 'react';
+import {createElement, type RefObject} from 'react';
 import type {View} from 'react-native';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {cardText} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import type {TrackRowData} from '../../../kit/browse';
+import {Artwork} from '../../../kit/artwork';
 import type {CardSelection, PosterRowProps} from '../../../kit/layout';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeEntryActions} from '../../../screens/destinations/entry-actions';
@@ -20,8 +21,10 @@ export function songList({songs, number, playingId, controller, runtime, actions
 }>): SongList {
   const byId = new Map(songs.map(song => [song.id, song]));
   return {
-    rows: songs.map((value, index) => ({id: value.id, number: number(value, index), playing: playingId === value.id,
-      text: cardText({id: value.id, kind: 'song', title: value.displayTitle ?? value.title, artist: value.artist?.name, album: value.album?.name, durationSeconds: value.duration}, 'song-row', runtime.text)})),
+    // Its cover and a favourite's heart, drawn where the form draws them (a TV row: tv-more frames 6 and 8; not a phone's).
+    rows: songs.map((value, index) => {const art = runtime.artwork(value.posterUrl); return {id: value.id, number: number(value, index), playing: playingId === value.id,
+      ...(value.favorite === true ? {favorite: true} : {}), artwork: art ? createElement(Artwork, {source: art, width: 56, height: 56}) : undefined,
+      text: cardText({id: value.id, kind: 'song', title: value.displayTitle ?? value.title, artist: value.artist?.name, album: value.album?.name, durationSeconds: value.duration}, 'song-row', runtime.text)};}),
     select: id => {const value = byId.get(id); return value ? selection?.item(value) : undefined;},
     onPlay: id => {void controller.play(id).catch(runtime.reportError);},
     onMore: (id, anchor) => {const value = byId.get(id); if (value) actions.menu(value, anchor, selection?.item(value)?.onEnter);},

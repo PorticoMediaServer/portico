@@ -19,7 +19,7 @@ async function album(over: Record<string, unknown> = {}, props: Record<string, u
   const calls: unknown[][] = [], h = hooks();
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]); return Promise.resolve();};
   // The shared song rows load for real, with the card text they read stubbed.
-  const rows = await screenModule(new URL('../src-next/pages/shared/music/music-rows.ts', import.meta.url), {react: h.react,
+  const rows = await screenModule(new URL('../src-next/pages/shared/music/music-rows.ts', import.meta.url), {react: h.react, '../../../kit/artwork': {Artwork: 'Artwork'},
     '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: (model: any) => ({id: model.id, title: model.title, caption: [], detail: []})}});
   const {useAlbum} = await screenModule(new URL('../src-next/pages/shared/music/useAlbum.ts', import.meta.url), {
     react: h.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/errors': errors,

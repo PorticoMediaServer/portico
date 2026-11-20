@@ -17,7 +17,7 @@ const similar = [{id: 'x1', kind: 'artist', title: 'Prince', libraryId: 'music',
 async function artist(over: Record<string, unknown> = {}) {
   const calls: unknown[][] = [], h = hooks();
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]); return Promise.resolve();};
-  const rows = await screenModule(new URL('../src-next/pages/shared/music/music-rows.ts', import.meta.url), {react: h.react,
+  const rows = await screenModule(new URL('../src-next/pages/shared/music/music-rows.ts', import.meta.url), {react: h.react, '../../../kit/artwork': {Artwork: 'Artwork'},
     '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: (model: any) => ({id: model.id, title: model.title, caption: [], detail: []})}});
   const {useArtist} = await screenModule(new URL('../src-next/pages/shared/music/useArtist.ts', import.meta.url), {
     react: h.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/errors': errors,
@@ -25,13 +25,14 @@ async function artist(over: Record<string, unknown> = {}) {
     '../../../screens/destinations/music/use-playing-item': {usePlayingItem: () => 's3'}});
   const releases = {phase: 'ready', items: [after, single], offset: 0};
   const snapshot = {phase: 'ready', songs, songPage: {phase: 'ready', items: songs, offset: 0}, songTotal: 4, albums: [after, single], releases, similar,
-    similarBySound: false, favorite: false, artistDetails: {albumCount: 1}, ...over};
+    similarBySound: false, favorite: false, artistDetails: {albumCount: 1}, allSongs: {phase: 'idle', items: [], songs: [], offset: 0}, ...over};
   const entries = new Map<unknown, any>();
   let current = true;
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, play: record('play'), load: record('load'),
     nextReleases: record('next'), previousReleases: record('previous'), retryReleases: record('retry'), refreshReleases: record('refresh'),
     releaseEntry: (row: any) => {if (!entries.has(row)) entries.set(row, {...row, kind: 'album'}); return entries.get(row);}, contains: () => current,
-    similarPage: () => undefined, similarCurrent: () => current};
+    similarPage: () => undefined, similarCurrent: () => current, toggleFavorite: record('favorite'), loadAllSongs: record('all'),
+    nextAllSongs: record('all-next'), focusAllSong: (...args: unknown[]) => {calls.push(['all-focus', ...args]);}};
   const picked = {active: false, selected: false, onToggle: () => {}, onEnter: () => {}};
   const view = h.render(() => useArtist({controller, entry, runtime: {artwork: (path?: string) => path ? {uri: path} : undefined, ambient: (path?: string) => path ? {url: path} : undefined,
     text: {locale: 'en-US'}, reportError: record('error')}, actions: {menu: (...args: unknown[]) => {calls.push(['menu', ...args]);}},
@@ -80,4 +81,20 @@ test('similar artists are circles of their covers with the server\'s reason; a f
   const failed = await artist({phase: 'error', error: {code: 'unavailable', message: 'x', retryable: true}});
   failed.view.state.action.onPress(); assert.deepEqual(failed.calls.at(-1), ['load']);
   assert.equal((await artist({similar: []})).view.similar, undefined);
+});
+
+test('TV: the longer facts line, the heart, Details, and All songs read when asked for (tv-more frame 8, the old TV page)', async () => {
+  const {view, calls} = await artist({favorite: true, songTotal: 4,
+    artistDetails: {albumCount: 1, genres: ['R&B'], country: 'Canada', activeBeginYear: 2009, overview: 'A singer.', overviewSource: 'Wikipedia', artistType: 'Person'}});
+  assert.deepEqual(view.factsTV.map((fact: any) => [fact.id, fact.text]), [['genre', 'R&B'], ['country', 'Canada'], ['years', defaultI18n.t('title.activeSince', {year: '2009'})],
+    ['count', defaultI18n.t('music.onServer', {albums: 1, songs: 4})]]);
+  assert.equal(view.favorite.on, true); view.favorite.toggle(); assert.deepEqual(calls.at(-1), ['favorite']);
+  assert.deepEqual(view.details.rows.map((row: any) => row.values[0].text), ['Canada', defaultI18n.t('title.activeSince', {year: '2009'}), 'Person']);
+  assert.deepEqual([view.details.overview, view.details.source], ['A singer.', defaultI18n.t('title.fromSource', {source: 'Wikipedia'})]);
+  assert.deepEqual(view.releases.map((row: any) => row.group), ['albums', 'singles']);
+  assert.equal(view.allSongs.list, undefined, 'All songs is not read until asked for'); view.allSongs.load(); assert.deepEqual(calls.at(-1), ['all']);
+  const read = await artist({allSongs: {phase: 'ready', items: songs, songs, offset: 20, total: 40}});
+  assert.deepEqual(read.view.allSongs.list.rows.map((row: any) => row.number), songs.map((_song: unknown, index: number) => 21 + index), 'numbered from the page offset');
+  assert.equal(read.view.allSongs.total, defaultI18n.t('title.songCount', {count: 40}));
+  read.view.allSongs.focus(songs[0].id); assert.equal(read.calls.at(-1)![0], 'all-focus');
 });

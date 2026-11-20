@@ -31,17 +31,27 @@ export type ArtistView = Readonly<{
   /** The page wash: from their first album's cover, else the artist's own art. */
   glow?: AmbientArtSource;
   facts: readonly FactPart[];
+  /** The longer line on TV (tv-more frame 8): the first genre, the country, the active years and "1 album and 4 songs on
+   * your server", each only when the read has it. */
+  factsTV: readonly FactPart[];
   play: () => void; shuffle: () => void; more: () => void;
+  /** Whether this viewer favourites the artist, and the toggle (the old TV page's heart). */
+  favorite: Readonly<{on: boolean; toggle: () => void}>;
+  /** Country, active years and type, then what the server says about them and where that is from (the old TV page's Details). */
+  details: Readonly<{rows: readonly Readonly<{label: string; values: readonly Readonly<{text: string}>[]}>[]; overview?: string; source?: string}>;
   /** The read failed: Try again reads the artist again (the old screen's error view). */
   state?: StateRowProps;
   /** Top songs, ranked (frame 15b: 1, 2, 3, the playing one with bars). */
   topSongs?: SongList & Readonly<{title: string}>;
   /** Their releases as rows of square covers, one per kind (Albums, Singles & EPs, Compilations, Appears on). */
-  releases: readonly PosterRowProps[];
+  releases: readonly (PosterRowProps & Readonly<{group: string}>)[];
   /** Next, previous, Try again and Refresh for the server's pages of releases. */
   releasePages: Readonly<{section: MusicSection<MusicAlbumRow>; next: () => void; previous: () => void; retry: () => void; refresh: () => void}>;
   /** Similar artists as circles, with the server's reason. */
   similar?: PosterRowProps; similarState?: StateRowProps;
+  /** Every song of theirs, read only when asked for (the old TV page's All songs) and paged by the server. */
+  allSongs: Readonly<{list?: SongList; total?: string; loading: boolean; load: () => void; section: MusicSection<ContentEntry>;
+    next: () => void; previous: () => void; retry: () => void; refresh: () => void; focus: (id: string) => void}>;
 }>;
 
 export function useArtist({controller, entry, runtime, actions, selection, openEntry}: ArtistPageProps): ArtistView {
@@ -57,6 +67,13 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
   if (about.albumCount !== undefined) facts.push({id: 'albums', text: t('title.albumCount', {count: about.albumCount}), role: 'context'});
   if (snapshot.songTotal) facts.push({id: 'songs', text: t('title.songCount', {count: snapshot.songTotal}), role: 'context'});
   if (entry.genres?.[0]) facts.push({id: 'genre', text: entry.genres[0], role: 'context'});
+  const years = about.activeBeginYear === undefined ? undefined : about.activeEndYear !== undefined
+    ? `${year(about.activeBeginYear)}–${year(about.activeEndYear)}` : t('title.activeSince', {year: year(about.activeBeginYear)});
+  const genre = about.genres?.[0] ?? entry.genres?.[0];
+  const factsTV: FactPart[] = [...(genre ? [{id: 'genre', text: genre, role: 'identity' as const}] : []),
+    ...(about.country ? [{id: 'country', text: about.country, role: 'context' as const}] : []), ...(years ? [{id: 'years', text: years, role: 'context' as const}] : []),
+    ...(about.albumCount !== undefined && snapshot.songTotal !== undefined ? [{id: 'count', text: t('music.onServer', {albums: about.albumCount, songs: snapshot.songTotal}), role: 'context' as const}] : [])];
+  const all = snapshot.allSongs, byId = new Map(all.songs.map(song => [song.id, song]));
   const retryRead = {label: t('action.tryAgain'), onPress: () => run(controller.load())};
   const release = (album: MusicAlbumRow): PosterRowItem => {
     // A release opens and offers its menu only while it is still on this page (the old page's guard).
@@ -69,10 +86,14 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
     title: entry.displayTitle ?? entry.title, initials: [...entry.title.trim()][0] ?? '', covers,
     glow: runtime.ambient(snapshot.albums[0]?.posterUrl ?? entry.posterUrl ?? entry.backdropUrl), facts,
     play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)), more: () => actions.menu(entry),
+    factsTV, favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())},
+    details: {rows: [...(about.country ? [{label: t('title.country'), values: [{text: about.country}]}] : []), ...(years ? [{label: t('title.activeYears'), values: [{text: years}]}] : []),
+      {label: t('title.albumType'), values: [{text: about.artistType ?? t('title.kind', {kind: 'artist'})}]}],
+      overview: about.overview || undefined, source: about.overview && about.overviewSource ? t('title.fromSource', {source: about.overviewSource}) : undefined},
     state: snapshot.phase === 'error' ? {kind: 'error', icon: 'i-warn', title: presentError(snapshot.error, 'detail').title, action: retryRead} : undefined,
     topSongs: snapshot.songs.length ? {title: t('music.topSongs'),
       ...songList({songs: snapshot.songs, number: (_value, index) => index + 1, playingId, controller, runtime, actions, selection})} : undefined,
-    releases: groups.map((group): PosterRowProps => ({title: t(group.label), shape: 'square', testID: `music-releases-${group.id}`, items: group.entries.map(release)})),
+    releases: groups.map(group => ({group: group.id, title: t(group.label), shape: 'square', testID: `music-releases-${group.id}`, items: group.entries.map(release)})),
     releasePages: {section: releases, next: () => run(controller.nextReleases(releases)), previous: () => run(controller.previousReleases(releases)),
       retry: () => run(controller.retryReleases(releases)), refresh: () => run(controller.refreshReleases(releases))},
     // Only artists (the similar feed for an artist), each opened only while it is still this page's row, paging on as it scrolls.
@@ -84,6 +105,11 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
         onMore: anchor => {if (controller.similarCurrent(snapshot, value)) actions.menu(value, anchor, selection?.item(value)?.onEnter);}})),
       ...similarPaging(controller, snapshot)} : undefined,
     similarState: snapshot.similarError ? {kind: 'error', icon: 'i-warn', title: presentError(snapshot.similarError, 'detail').title, action: retryRead} : undefined,
+    allSongs: {list: all.songs.length ? songList({songs: all.songs, number: (_value, index) => all.offset + index + 1, playingId, controller, runtime, actions, selection}) : undefined,
+      total: all.total === undefined || all.totalIsLowerBound ? undefined : t('title.songCount', {count: all.total}), loading: all.phase === 'loading',
+      load: () => run(controller.loadAllSongs()), section: all, next: () => run(controller.nextAllSongs(all)), previous: () => run(controller.previousAllSongs(all)),
+      retry: () => run(controller.retryAllSongs(all)), refresh: () => run(controller.refreshAllSongs(all)),
+      focus: id => {const value = byId.get(id); if (value) controller.focusAllSong(value, all);}},
   };
 }
 
