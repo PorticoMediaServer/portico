@@ -65,7 +65,8 @@ export function ProgrammePanel({channel, programme, now, runtime, favorite, busy
     {programme && <ProgrammeDetails programme={programme} now={now} runtime={runtime}/>}
     {theme.isTV && laterRows}
     {reason && <Banner testID="live-sheet-reason" placement="inline" variant="quiet" tone="warning" icon="i-alert" message={reason}/>}
-    {actions.map(({id, buttons}) => group(id, buttons.map(action => <ProgrammeButton key={action.id} action={action}/>), !theme.isTV && buttons.length > 1))}
+    {/* A lone action spans the sheet; side by side they share it equally (mock-programme: Watch live, then Record and Record series). */}
+    {actions.map(({id, buttons}) => group(id, buttons.map(action => <ProgrammeButton key={action.id} action={action} share={!theme.isTV && buttons.length > 1}/>), !theme.isTV && buttons.length > 1))}
     {!theme.isTV && laterRows}
     {recordError && group('record-error', recordError, true)}
     {preferenceError && group('preference-error', preferenceError, true)}
@@ -87,10 +88,9 @@ export function ProgrammePanel({channel, programme, now, runtime, favorite, busy
   </Dialog>;
 }
 
-function ProgrammeButton({action, compact}: {action: Action; compact?: boolean}) {
-  const theme = useTheme();
+function ProgrammeButton({action, compact, share}: {action: Action; compact?: boolean; share?: boolean}) {
   return <Button ref={action.opener} testID={action.id} icon={action.icon} size={compact ? 'small' : undefined} iconOnly={compact}
-    variant={compact ? 'text' : action.primary ? 'primary' : 'glass'} align={theme.isTV && !compact ? 'stretch' : undefined}
+    variant={compact ? 'text' : action.primary ? 'primary' : 'glass'} align={compact ? undefined : 'stretch'} style={share ? {flex: 1} : undefined}
     accessibilityLabel={action.label} accessibilityState={{selected: action.selected}} disabled={action.disabled} loading={action.loading}
     focusableWhenDisabled={!compact} onPress={action.onPress}>{compact ? undefined : action.label}</Button>;
 }
