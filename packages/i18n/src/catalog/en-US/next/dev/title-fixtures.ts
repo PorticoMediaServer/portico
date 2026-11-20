@@ -327,6 +327,9 @@ export const titleFixtureMessages = {
   'next.title.fixture.authorValue': 'J.K. Rowling',
   'next.title.fixture.narrator': 'Narrator',
   'next.title.fixture.narratorValue': 'Stephen Fry',
+  'next.title.fixture.bookAuthor': 'Andy Weir',
+  'next.title.fixture.bookMartian': 'The Martian',
+  'next.title.fixture.bookMartianNarrator': 'R. C. Bray',
   'next.title.fixture.published': 'Published',
   'next.title.fixture.publishedValue': '1997',
 

@@ -8,7 +8,9 @@ import type {CardSelection} from '../layout/types';
 import {Focusable} from '../controls';
 import {Icon} from '../Icon';
 import {SelectionCircle} from '../selection';
+import {MusicWindow} from '../music/MusicWindow';
 import {fontFamilies, textLine, useTheme} from '../theme';
+import {PanelBlock, PanelHeading} from './title-parts';
 
 const row = frameSpec.hero.title.parts.listRow;
 
@@ -22,8 +24,14 @@ export function titleListRowHeight(theme: ReturnType<typeof useTheme>): number {
 
 /** One title in a phone's list of titles: what the page knows about it, never how big it is. */
 export type TitleListItem = Readonly<{title: string;
-  /** Its year and length, drawn apart ("1995  1 h 21 min"). */
+  /** A small accent line over the title (a book's place in its series, collections 41c "Book 1"). */
+  kicker?: string;
+  /** Its year and length, drawn apart ("1995  1 h 21 min"), or who read a book. */
   facts: readonly string[];
+  /** Strong accent words at the end of the facts line (a book's time left, collections 41b "4 h 34 min left"). */
+  note?: string;
+  /** A square cover (a book) in place of a poster. */
+  square?: boolean;
   watched?: boolean;
   /** How far in (0 to 1), drawn as a short bar with `remaining` ("1 h 2 min left"). */
   progress?: number; remaining?: string;
@@ -42,11 +50,13 @@ export function TitleListRow({item}: Readonly<{item: TitleListItem}>) {
     selection={item.selection} style={{flex: 1}} pressableStyle={{flex: 1, flexDirection: 'row', alignItems: 'center', gap: row.gap}}>
     {() => <>
       {item.selection?.active && <SelectionCircle selected={item.selection.selected} selecting interactive={false} variant="row" size={theme.space.md} accessibilityLabel={t('card.select', {title: item.title})}/>}
-      <Artwork source={item.artwork} width={row.poster} height={row.poster * 1.5} style={{borderRadius: theme.radii.artwork}}/>
+      <Artwork source={item.artwork} width={item.square ? row.square : row.poster} height={item.square ? row.square : row.poster * 1.5} style={{borderRadius: theme.radii.artwork}}/>
       <View style={{flex: 1, minWidth: 0, gap: theme.space.hairline * 2}}>
+        {item.kicker && <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.accentStrong}]}>{item.kicker}</Text>}
         <Text style={[theme.type.episodeTitle, {color: theme.colors.text}]}>{item.title}</Text>
-        {item.facts.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: theme.space.controlGap}}>
-          {item.facts.map(fact => <Text key={fact} style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{fact}</Text>)}</View>}
+        {(item.facts.length > 0 || item.note) && <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: theme.space.controlGap}}>
+          {item.facts.map(fact => <Text key={fact} style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{fact}</Text>)}
+          {item.note && <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.accentStrong}]}>{item.note}</Text>}</View>}
         {(item.watched || item.progress !== undefined) && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight, marginTop: theme.space.tight}}>
           {item.watched ? <Icon name="i-check" size={row.check} color={theme.colors.accentStrong}/>
             : <View style={{width: row.bar, height: theme.spec.card.progress.height[theme.column], borderRadius: theme.space.hairline * 2, backgroundColor: theme.colors.raisedBright}}>
@@ -58,4 +68,18 @@ export function TitleListRow({item}: Readonly<{item: TitleListItem}>) {
         <Icon name="i-more" size={row.moreIcon} color={theme.colors.textTertiary}/></Focusable>}
     </>}
   </CardFrame></View>;
+}
+
+/** A page's list of titles inside a music scroller (`musicScroller`: an author's or a series' books, collections 41b/41c):
+ * its `TitleListRow`s, only the ones in view mounted, a hairline between them from the words on, and a heading drawn
+ * with them as one section. A list read as a `WindowedCollection` takes `titleRowsScroller` instead. */
+export function TitleRowWindow({heading, rows, testID}: Readonly<{heading?: Readonly<{title: string; trailing?: string}>;
+  rows: readonly (TitleListItem & Readonly<{id: string}>)[]; testID?: string}>) {
+  const theme = useTheme();
+  return <View testID={testID}>
+    {heading && <PanelBlock><PanelHeading title={heading.title} trailing={heading.trailing}/></PanelBlock>}
+    <PanelBlock><MusicWindow items={rows} itemHeight={titleListRowHeight(theme)} renderItem={(item, index) => <View>
+      {index > 0 && <View pointerEvents="none" style={{position: 'absolute', top: 0, right: 0, left: (item.square ? row.square : row.poster) + row.gap, height: theme.space.hairline, backgroundColor: theme.colors.line}}/>}
+      <TitleListRow item={item}/></View>}/></PanelBlock>
+  </View>;
 }
