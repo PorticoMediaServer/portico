@@ -1,5 +1,7 @@
 import React, {useRef, useSyncExternalStore} from 'react';
 import type {View} from 'react-native';
+import {generatedCoverTint} from '@portico/design';
+import {GeneratedArt} from '../artwork';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {shapeFor, type ShapeFamily} from '../../../../../packages/client-core/src/presentation/card-shape';
@@ -22,10 +24,15 @@ export function LibraryCard({entry, family, width, wide = false, placeholderHeig
     <TVPendingCardPaint height={placeholderHeight ?? width * 1.5}/>
   </TVSparseCardFrame>;
   // All live variants delegate only paint; the one outer native CardFrame survives a fill/kind change.
-  if (entry.kind === 'radio' && entry.radioSeed) return renderCard(SquareCard, {focusId, disabled,
-    title: defaultI18n.t('music.radioNamed', {name: entry.title}), width, titleLines: 2, onCaptionLayout,
-    caption: [{id: 'radio', role: 'value' as const, text: defaultI18n.t('music.radio')}],
-    artwork: runtime.artwork(entry.posterUrl), onNavigate: () => actions.play(entry), onFocus, onBlur});
+  if (entry.kind === 'radio' && entry.radioSeed) {
+    const artwork = runtime.artwork(entry.posterUrl);
+    return renderCard(SquareCard, {focusId, disabled,
+      title: defaultI18n.t('music.radioNamed', {name: entry.title}), width, titleLines: 2, onCaptionLayout,
+      caption: [{id: 'radio', role: 'value' as const, text: defaultI18n.t('music.radio')}], artwork,
+      artworkFallback: artwork ? undefined : <GeneratedArt glyph={Array.from(entry.title.trim())[0] ?? ''}
+        palette={generatedCoverTint(entry.title)} width={width} height={width}/>,
+      onNavigate: () => actions.play(entry), onFocus, onBlur});
+  }
   if (entry.kind === 'playlist' || entry.kind === 'category' && entry.navigation?.browse?.pivot === 'albums') {
     const covers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
     // A playlist counts its songs; a genre the albums that carry it (the tile opens Albums filtered to it).
