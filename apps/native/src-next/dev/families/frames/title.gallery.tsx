@@ -327,7 +327,7 @@ function PhoneArtist() {
     title={f('artist')} metadata={<HeroMetadata facts={[{id: 'albums', text: t('title.albumCount', {count: 1}), role: 'context'}, {id: 'songs', text: t('title.songCount', {count: 4}), role: 'context'}, {id: 'genre', text: 'Rock', role: 'context'}]}/>}
     primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, split: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}>
-    <TrackWindow title={t('music.topSongs')} rows={rows} variant="top-songs" onPlay={none} onMore={none}/>
+    <TrackWindow heading={{title: t('music.topSongs'), quiet: true}} rows={rows} variant="top-songs" onPlay={none} onMore={none}/>
     <PosterRow shape="square" title={t('title.albums')} items={artistAlbums.map(item => ({key: item[0], title: item[1], year: item[2], artwork: asset(item[0]), onNavigate: none}))}/>
     <PosterRow shape="circle" title={t('music.similarArtists')} subtitle={t('music.moreLikeThisBySound')} items={similarArtists.map(item => ({key: item[1], title: item[1], covers: [asset(item[0])], onNavigate: none}))}/>
   </TitleFrame></Page>;
@@ -343,7 +343,30 @@ function Artist() {
     <PanelBlock><PanelHeading title={f('topSongs')}/><Songs ranked rows={songs(['artistSong1', 'artistSong2', 'artistSong3', 'artistSong4'], f('abbeyRoad')).map(row => ({...row, artwork: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} width={40} height={40}/>}))}/></PanelBlock>
   </TitleFrame></Page>;
 }
+/** An audiobook on a phone (collections 41a): its cover over a glow from it, the series over the title, the author as a link
+ * under it, who reads it and how long, Resume with Finished and Download, the book's progress and the time left on one
+ * line, the description with Read more, and its chapters (the finished ones checked, the one you are in taller). */
+function PhoneBook() {
+  const t = defaultI18n.t, [expanded, setExpanded] = useState(false);
+  const rows: TrackRowData[] = (['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6', 'chapter7'] as const).map((name, index) => ({id: name, number: index + 1,
+    text: {id: name, title: f(name), caption: [], detail: index === 5 ? [{id: 'remaining', text: t('next.kit.remaining', {time: '17 min'}), role: 'context' as const}] : []},
+    duration: {id: 'duration', text: ['27:43', '22:15', '25:10', '26:38', '39:47', '35:19', '27:29'][index]!, role: 'context'}, done: index < 5, current: index === 5, progress: index === 5 ? .52 : undefined}));
+  return <Page destination={{kind: 'library', libraryId: 'audiobook'}}><TitleFrame testID="frames-title-book" back={back}
+    topAction={{icon: 'i-more', label: f('more'), onPress: none}} scroller={musicScroller({})}
+    // The served ambient image is not available to the gallery (artwork.gallery.tsx); the cover's palette stands in for the glow.
+    art={<AmbientArt treatment="library" palette={{first: '#5b4a86', second: '#2a2238'}}/>}
+    cover={{shape: 'square', node: <Artwork source={asset('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} style={{width: '100%', height: '100%'}}/>}}
+    kicker={{label: f('bookSeries'), detail: f('bookSeriesDetail'), onPress: none}} title={f('book')} byline={{text: f('authorValue'), onPress: none}}
+    // The author is the byline: the facts are who reads it, how long and how many chapters.
+    metadata={<Meta text={f('bookFacts').split(' · ').slice(1).join(' · ')}/>}
+    primary={{icon: 'i-play', label: f('resumeChapter'), progress: .32, remaining: f('bookLeft'), onPress: none}}
+    actions={[{icon: 'i-check', label: f('watched'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}]}
+    synopsis={f('bookAbout')} readMore={{label: t(expanded ? 'web.person.showLess' : 'web.person.readMore'), expanded, onPress: () => setExpanded(value => !value)}}>
+    <TrackWindow heading={{title: f('chapters'), trailing: '17'}} rows={rows} variant="chapters" onPlay={none}/>
+  </TitleFrame></Page>;
+}
 function Book() {
+  if (useFrameMetrics().form === 'phone') return <PhoneBook/>;
   const rows: TrackRowData[] = (['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6', 'chapter7'] as const).map((name, index) => ({id: name, number: index + 1, text: {id: name, title: f(name), caption: [], detail: []},
     duration: {id: 'duration', text: ['27:43', '22:15', '25:10', '26:38', '39:47', '35:19', '27:29'][index]!, role: 'context'}, done: index < 5, current: index === 5, progress: index === 5 ? .52 : undefined}));
   return <Page destination={{kind: 'library', libraryId: 'audiobook'}}><TitleFrame testID="frames-title-book" back={back} cover={{shape: 'square', node: <Artwork source={asset('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} style={{width: '100%', height: '100%'}}/>}}
