@@ -1,6 +1,6 @@
 import React from 'react';
 import {generatedCoverTint} from '@portico/design';
-import {GeneratedCover} from '../../kit/artwork';
+import {GeneratedCover} from './Generated';
 
 /** mock.html "No artwork": a title without a poster draws its generated cover (ink, two tinted
  * glows, the oversized initial and the title), as on web, never a blank card. */

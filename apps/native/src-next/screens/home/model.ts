@@ -1,14 +1,12 @@
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {HomeDocument, HomeRow} from '../../../../../packages/client-core/src/home';
 import {homeRowPresentation} from '../../../../../packages/client-core/src/presentation/home-spotlight';
-import {cardText, type CardSubject, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {contentEntrySubject} from '../../../../../packages/client-core/src/presentation/content-entry-subject';
+import {cardText, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {homeCardText, homePlayTarget, homeSubject} from '../../../../../packages/client-core/src/presentation/home-card';
 import type {ShellAuthority} from '../../shell/model';
 
-/** SIM-01: the canonical subject (date-based, absolute, air-date-only, special, seasonal). */
-export const homeSubject: (entry: ContentEntry) => CardSubject = contentEntrySubject;
-
-export const homeCardText = (entry: ContentEntry, continuation: boolean, env: TextEnvironment) => cardText(homeSubject(entry), continuation ? 'continuation' : 'ordinary', env);
+// The Home card's words and play target live in client-core so the kit's Home rows can use them.
+export {homeCardText, homePlayTarget, homeSubject};
 /** A Saved card names what the title is: "1982 · Movie", "Show · 1 season" (W2-A13). */
 export const savedCardText = (entry: ContentEntry, env: TextEnvironment) => cardText(homeSubject(entry), 'saved', env);
 /** A native search card: TV Search (tv.html f5) draws a show's year, with the season count as a
@@ -44,12 +42,6 @@ export function homeRowHasContent(row: HomeRow): boolean {
   if (row.collection) return true;
   if (row.live) return row.live.channels.length > 0;
   return homeRowPresentation(row).cards.length > 0;
-}
-
-/** A continuation may be a show with an explicit server-selected episode target. */
-export function homePlayTarget(row: HomeRow, entry: ContentEntry): ContentEntry | undefined {
-  const target = row.resumes?.find(resume => resume.entryId === entry.id)?.target ?? entry;
-  return target.playback && target.available !== false && !target.missing ? target : undefined;
 }
 
 export function initialHomeFocus(rows: readonly HomeRow[]): Readonly<{rowId: string; entryId: string}> | undefined {

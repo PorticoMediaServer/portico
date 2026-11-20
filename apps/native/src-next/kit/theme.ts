@@ -56,6 +56,12 @@ export function nativeType(style: TypeStyle, textScale = 1, lineFloor = measured
   };
 }
 
+/** A row's sub-line: an upright phone draws it at 13 (phone-app.html `.phone .row-head .sub`), the caption role; every
+ * other form keeps the shared rowSubtitle role. */
+export function rowSubtitleRole(theme: Pick<Theme, 'layoutMode' | 'type'>) {
+  return theme.layoutMode === 'phone' ? theme.type.caption : theme.type.rowSubtitle;
+}
+
 /** One form's column of a form-scale table: `pick(formScale.card, 'expanded').poster` is 150. */
 type Picked<T> = T extends ByForm<infer V> ? V : {[K in keyof T]: Picked<T[K]>};
 function pick<T>(table: T, form: FrameForm): Picked<T> {
