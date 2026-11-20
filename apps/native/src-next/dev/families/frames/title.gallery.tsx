@@ -323,7 +323,7 @@ function PhoneArtist() {
     topAction={{icon: 'i-more', label: f('more'), onPress: none}} scroller={musicScroller({})}
     // The served ambient image is not available to the gallery (artwork.gallery.tsx); the cover's palette stands in for the glow.
     art={<AmbientArt treatment="library" palette={{first: '#6b5a3a', second: '#2a2418'}}/>}
-    cover={{shape: 'circle', node: size => <ArtistCircle covers={[asset('pool/albums/abbey-road-2019-mix.jpg')]} rings={[3]} initials="TB" alt={f('artist')} size={size} visible/>}}
+    cover={{shape: 'circle', large: true, node: size => <ArtistCircle covers={[asset('pool/albums/abbey-road-2019-mix.jpg')]} rings={[3]} initials="TB" alt={f('artist')} size={size} visible/>}}
     title={f('artist')} metadata={<HeroMetadata facts={[{id: 'albums', text: t('title.albumCount', {count: 1}), role: 'context'}, {id: 'songs', text: t('title.songCount', {count: 4}), role: 'context'}, {id: 'genre', text: 'Rock', role: 'context'}]}/>}
     primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, split: true, onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}>

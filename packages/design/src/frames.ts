@@ -104,9 +104,10 @@ export const frame = {
        * (desktop-detail f8 56 / 106, phone 56, TV 140); Previous / Next's still (desktop-detail f5, 112 wide, 16:9); a
        * choice row's label and the narrowest its choices go (desktop-detail f4 120 / 200). */
       // coverCirclePhone: a native phone's cover circle (phone-detail d3 frame 7's person, 96); the web keeps `cover.circle`.
+      // coverCircleLargePhone: a native phone's large cover circle (phone-app frame 15b's artist, about 40 % of the width: 164).
       // listRow: a title in a phone's list of titles (phone-detail d3 frame 8's films in a collection): poster 56 wide, the
       // watched bar 72, the ⋯ target 44.
-      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, listRow: {poster: 56, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
+      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, listRow: {poster: 56, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
         /** An episode row's still from a tablet up (tablet f7, 210) and the narrowest a Previous / Next card goes before the pair stacks (desktop-detail f5). */
         episodeArt: 210, neighbourMin: 220,
         /** The opened episode's plate (phone-detail d2 frame 4 `.epo`): 12 in from the page's edge, 8 inside (14 at its foot), corners 18 (its still's 12),
