@@ -22,7 +22,10 @@ import {useTVPlayPauseOwner} from '../platform/tv-play-pause-owner';
 import {StartingDock} from '../kit/dock/StartingDock';
 import {StartTimedOut} from './StartTimedOut';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {ListeningPageBackground, ListeningPagePreview, NowPlayingScreen, TVListeningRoute, type NowPlayingScreenProps} from '../screens/destinations/music/NowPlayingScreen';
+import {ListeningPageBackground, ListeningPagePreview} from '../kit/player/ListeningSurface';
+import {AudioPlayerPage} from '../pages/touch/player/AudioPlayerPage';
+import {TVListeningRoute} from '../pages/tv/player/ListeningRoute';
+import type {NowPlayingScreenProps} from '../pages/shared/player/audio-player';
 import {NowPlayingLyrics} from '../screens/destinations/music/NowPlayingLyrics';
 import type {LyricsTarget} from '../../../../packages/client-core/src/lyrics';
 import {musicSignalView} from '../screens/destinations/music/MusicSignal';
@@ -128,7 +131,8 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     // have no paint owner when the mini closes, expands or changes occupant.
     exitImages.retireUnconsumed(keep);
   }, [exitImages, snapshot.retired, snapshot.pictureInPicture?.active, local]);
-  const listeningOpen = !theme.isTV && local?.expanded === true && (local.kind === 'music' || local.kind === 'audiobook');
+  const listeningOpen = local?.expanded === true && (local.kind === 'music' || local.kind === 'audiobook');
+  const returnedListening = useRef<PlaybackFence | undefined>(undefined);
   const listeningOpenRef = useRef(listeningOpen); listeningOpenRef.current = listeningOpen;
   // The page this opening belongs to: captured when the surface opens, so a route change aborts
   // the lease and only returning to that same page renews it (with a fresh controller).
@@ -147,6 +151,13 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     isCurrent: () => alive.current && listeningOpenRef.current && !listeningLease.controller.signal.aborted
       && sameAuthority(authority, listeningLease.authority) && navigation?.getSnapshot().revision === listeningLease.revision} : undefined,
     [listeningLease, authority, navigation]);
+  const listeningFence = listeningOpen && local.kind === 'music' && sameAuthority(snapshot.authority, authority) ? local.fence : undefined;
+  const listeningSongCurrent = useCallback(() => {
+    if (!listeningLifetime || !listeningFence) return false;
+    const live = adapter.getSnapshot();
+    return listeningLifetime.isCurrent() && sameFence(live.fence, listeningFence);
+  }, [adapter, listeningFence, listeningLifetime]);
+  const listeningSong = useListeningSong(runtime.listeningSongDetail, listeningFence, listeningLifetime, listeningSongCurrent);
   const layoutCapture = useRef<number | undefined>(undefined), layoutCaptureRevision = useRef(0);
   const capture = useMemo(() => new NativeVideoSnapshotCapture({capture: (fence, options) => adapter.captureVideoSnapshot(fence, options), reportError: runtime.reportError,
     changed: (owner, image) => {if (alive.current) {
@@ -228,7 +239,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
   }});
   const audioFence = !theme.isTV && !snapshot.dock.remote && fence && local && (local.kind === 'music' || local.kind === 'audiobook') && sameFence(local.fence, fence) ? fence : undefined;
   const coverOpening = useRef<ListeningPaintOpening<typeof navigationState> | undefined>(undefined);
-  coverOpening.current = captureListeningOpening(coverOpening.current, listeningOpen, navigationState);
+  coverOpening.current = captureListeningOpening(coverOpening.current, !theme.isTV && listeningOpen, navigationState);
   const coverOpeningKey = coverOpening.current.key, coverScope = coverOpening.current.scope;
   const coverCurrent = useCallback(() => {
     if (runtime.retirementSignal?.aborted) return false;
@@ -484,13 +495,20 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     ...(listeningPorts ?? {}),
     onAddToPlaylist: theme.isTV && runtime.listeningPlaylist?.canOpen(nowPlaying.playback.fence) ? () => runtime.listeningPlaylist?.open(nowPlaying.playback.fence) : undefined,
     queuePolicy: runtime.listeningQueuePolicy, signal,
+    song: {token: listeningSong.song, pending: listeningSong.pending, favorite: listeningSong.favorite},
     sleepAtMs: snapshot.playback.listeningDeadlines?.sleepAtMs ?? null,
     sleepEnd: adapter.sleepEnd?.(nowPlaying.playback.fence),
     notice: snapshot.playback.listeningNotice ? listeningNoticeKey(snapshot.playback.listeningNotice) : undefined, reportError: runtime.reportError,
     lyrics: lyricsOffered && lyricsTarget && runtime.lyrics ? <NowPlayingLyrics read={runtime.lyrics} target={lyricsTarget}
       positionSeconds={playbackPosition(nowPlaying)} playing={nowPlaying.playback.playing}
       onSeek={seconds => {const current = adapter.getSnapshot(); if (current.fence && sameFence(current.fence, nowPlaying.playback.fence)) void adapter.seek(current.fence, seconds).catch(runtime.reportError);}}/> : undefined,
-    onClose: () => {const current = adapter.getSnapshot(); if (current.dock.local?.expanded && current.fence && sameFence(current.fence, nowPlaying.playback.fence)) void adapter.onTransition(adapter.dock.collapse(current.fence)).catch(runtime.reportError);},
+    onClose: () => {
+      const current = adapter.getSnapshot();
+      if (!current.dock.local?.expanded || !current.fence || !sameFence(current.fence, nowPlaying.playback.fence)) return;
+      // Apple TV can restore the mini card itself. That return focus should not reopen the player.
+      if (theme.isTV) returnedListening.current = current.fence;
+      void adapter.onTransition(adapter.dock.collapse(current.fence)).catch(runtime.reportError);
+    },
   } : undefined;
   return <View ref={host} collapsable={false} onLayout={() => {setHostLayout(++hostLayoutNow.current); if (slot.current) onSlot(slot.current); measureExpandedSlot();}} pointerEvents="box-none" testID="native-persistent-playback" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player}}><DockVideoExitProvider>
     <Animated.View pointerEvents="box-none" style={[{position: 'absolute', inset: 0}, dockMotion]}>
@@ -505,7 +523,12 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
       <View pointerEvents="box-none" onTouchStart={touchStart} onTouchEnd={touchEnd} onTouchCancel={touchEnd} style={{position: 'absolute', inset: 0}}>
         {(!theme.isTV || !nowPlaying) && <DockHost testID={theme.isTV && fence ? focusTestID(tvFocusIds(authority).surface('playback'), JSON.stringify(fence)) : undefined} dock={adapter.dock} snapshot={snapshot.dock} presentation={{local: presentation,remote:remotePresentation}} castView={castView} morph={morph} onVideoSlot={onSlot} takeVideoExit={exitImages.take} contentInset={contentInset}
           visible={snapshot.pictureInPicture?.active !== true}
-          tvExpanded={!!dockedLocal?.expanded} onTVExpandedChange={open => {if (fence) void action({type: open ? 'expand' : 'collapse', fence}).catch(runtime.reportError);}}
+          tvExpanded={!!dockedLocal?.expanded} returningFromPlayer={!!fence && !!returnedListening.current && sameFence(fence, returnedListening.current)}
+          onTVExpandedChange={open => {
+            if (!fence) return;
+            if (open) returnedListening.current = undefined;
+            void action({type: open ? 'expand' : 'collapse', fence}).catch(runtime.reportError);
+          }}
           onAction={command => {void action(command).catch(runtime.reportError);}}/>}
         {/* O-159: an accepted Play is drawn at once; the real dock replaces this in place. */}
         {snapshot.starting && !snapshot.dock.local && !snapshot.retired && sameAuthority(snapshot.authority, authority) && <StartingDock key={snapshot.starting.key}
@@ -516,9 +539,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
         {!nowPlaying && dockedLocal?.expanded !== true && snapshot.playback.listeningNotice && <NativeListeningNotice key={snapshot.playback.listeningNotice}
           notice={listeningNoticeKey(snapshot.playback.listeningNotice)} bottomOffset={insets.bottom + (theme.platform === 'web' ? 100 : theme.platform === 'tablet' ? 66 : 62) + 10}/>}
         {previewListening && <ListeningPagePreview occupant={previewListening} queue={snapshot.queue?.view ?? undefined} sidePane={!!(snapshot.queue?.view || lyricsOffered)} width={width} height={height} topInset={insets.top} bottomInset={insets.bottom}/>}
-        {theme.isTV ? <TVListeningRoute value={listeningView} scope={authorityKey(authority)} onPresenceChange={onTVListeningPresenceChange}/> : listeningView && <ListeningSongOpening adapter={adapter} detail={runtime.listeningSongDetail}
-          fence={listeningView.occupant.playback.fence} lifetime={listeningLifetime}>{song => <NowPlayingScreen {...listeningView}
-            song={{token: song.song, pending: song.pending, favorite: song.favorite}}/>}</ListeningSongOpening>}
+        {theme.isTV ? <TVListeningRoute value={listeningView} scope={authorityKey(authority)} onPresenceChange={onTVListeningPresenceChange}/> : listeningView && <AudioPlayerPage {...listeningView}/>}
         {theme.isTV && nowPlaying && runtime.listeningPlaylist?.render(runtime)}
       </View>
     </Animated.View>
@@ -556,24 +577,6 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
         runtime.openServers('consent-kind'); runtime.playOn?.close();
       }}/>}
   </DockVideoExitProvider></View>;
-}
-
-/** Conditional presentation mounts a child whose own hook order is fixed. The
- * authority gate above stays before all listening presentation and reader work. */
-function ListeningSongOpening({adapter, detail, fence, lifetime, children}: {
-  adapter: NativeShellPlaybackAdapter;
-  detail: Parameters<typeof useListeningSong>[0];
-  fence: PlaybackFence;
-  lifetime: Parameters<typeof useListeningSong>[2];
-  children: (song: ReturnType<typeof useListeningSong>) => React.ReactNode;
-}) {
-  const current = useCallback(() => {
-    if (!lifetime) return false;
-    const live = adapter.getSnapshot();
-    return lifetime.isCurrent() && !!live.fence && sameFence(live.fence, fence);
-  }, [adapter, lifetime, fence]);
-  const song = useListeningSong(detail, fence, lifetime, current);
-  return <>{children(song)}</>;
 }
 
 /** The current song's lyric target, as a stable key string: the queue fence's session

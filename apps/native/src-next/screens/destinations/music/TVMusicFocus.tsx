@@ -7,6 +7,7 @@ import type {DockCommand, DockOccupant} from '../../../kit/dock/types';
 import {playbackPosition, seekBounds, seekTo} from '../../../kit/dock/model';
 import {Focusable} from '../../../kit/controls';
 import {FocusRegion, type FocusRegionProps} from '../../../kit/focus';
+import {PlayerScrubBar} from '../../../kit/player/parts';
 import {useTheme} from '../../../kit/theme';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useDestinationEntryFocus} from '../../destinations/useEntryFocus';
@@ -44,7 +45,7 @@ export function TVMusicFocus({id, visible, interactive = true, entry, onClose, c
 /** F-MUSIC-15/16: the actual seek window is a D-pad stop between Pause and
  * Signal path. The adapter still validates every command's captured fence. */
 export function TVMusicSeek({occupant, onAction, enabled, testID}: {occupant: DockOccupant; onAction: (command: DockCommand) => void; enabled: boolean; testID: string}) {
-  const theme = useTheme(), node = useRef<View>(null), live = useRef(false), focused = useRef(false);
+  const node = useRef<View>(null), live = useRef(false), focused = useRef(false);
   const [host, setHost] = useState<number>(), latest = useRef({occupant, onAction, enabled}); latest.current = {occupant, onAction, enabled};
   useLayoutEffect(() => {live.current = true; setHost(findNodeHandle(node.current) ?? undefined); return () => {live.current = false; focused.current = false;};}, []);
   const seekPosition = useRef<number | undefined>(undefined), seekFence = useRef(occupant.presentation.fence);
@@ -88,6 +89,6 @@ export function TVMusicSeek({occupant, onAction, enabled, testID}: {occupant: Do
     }}
     {...(host ? {nextFocusLeft: host, nextFocusRight: host} : {})} onFocus={() => {focused.current = true;}} onBlur={() => {focused.current = false; repeat.stop(); seekPosition.current = undefined;}}
     style={{height: 28, justifyContent: 'center'}}>
-    <View style={{height: 8, borderRadius: 8, backgroundColor: 'rgba(237,245,250,.2)'}}><View style={{width: `${fraction * 100}%`, height: 8, borderRadius: 8, backgroundColor: theme.colors.text}}/></View>
+    <PlayerScrubBar value={fraction} tone="white"/>
   </Focusable>;
 }

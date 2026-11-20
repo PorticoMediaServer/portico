@@ -22,12 +22,13 @@ export type NowPlayingCardProps = DockRenderProps & {
   expanded?: boolean;
   onExpandedChange: (expanded: boolean) => void;
   returnFocusRef?: React.RefObject<View | null>;
+  returningFromPlayer?: boolean;
 };
 
 // Page-local glass surfaces, verbatim tv-player.html:75 and351; all brand colours use Theme.
 const sourceSurfaces = {quiet: '#09131b', expanded: '#0f1d28'} as const;
 
-export function NowPlayingCard({occupant, onAction, expanded = false, onExpandedChange, returnFocusRef, visible = true, style, testID}: NowPlayingCardProps) {
+export function NowPlayingCard({occupant, onAction, expanded = false, onExpandedChange, returnFocusRef, returningFromPlayer = false, visible = true, style, testID}: NowPlayingCardProps) {
   const theme = useTheme(), motion = useMotion(), t = defaultI18n.t;
   const opener = useRef<View>(null), pause = useRef<View>(null);
   const registry = useOptionalFocusRegistry();
@@ -42,7 +43,7 @@ export function NowPlayingCard({occupant, onAction, expanded = false, onExpanded
   const fade = useSharedValue(1);
   const {presentation: p, playback} = occupant;
   const progress = progressOf(occupant);
-  const wasExpanded = useRef(false), restoringOpener = useRef(false);
+  const wasExpanded = useRef(false), restoringOpener = useRef(returningFromPlayer);
   const fold = useCallback(() => onExpandedChange(false), [onExpandedChange]);
   useEffect(() => {
     const leaving = wasExpanded.current && !expanded;
@@ -96,7 +97,7 @@ export function NowPlayingCard({occupant, onAction, expanded = false, onExpanded
       onFocus={() => {if (restoringOpener.current) restoringOpener.current = false; else open();}} onPress={open} style={[s.tvQuiet, {backgroundColor: alpha(sourceSurfaces.quiet, .8), borderWidth: 1, borderColor: alpha(theme.colors.text, .1)}]}>
       {glassRecipe().nativeBlur && <BlurView pointerEvents="none" style={s.fill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={sourceSurfaces.quiet}/>}
       <Artwork source={p.artwork} width={64} height={64} visible={visible} priority style={{borderRadius: 10, overflow: 'hidden'}}/>
-      <View style={s.text}><Text numberOfLines={1} ellipsizeMode="tail" style={[dockType(theme, 24, 700, -.01), {color: theme.colors.text}]}>{p.identity.title}</Text>
+      <View style={s.text}><Text style={[dockType(theme, 24, 700, -.01), {color: theme.colors.text}]}>{p.identity.title}</Text>
         <View style={{marginTop: 3}}><DockFacts parts={p.identity.subtitle} gap={16} style={{...dockType(theme, 20, 600), color: theme.colors.textSecondary}}/></View>
       </View>
       <View style={[s.center, {width: 28}]}>{playback.playing ? <LevelMeter large/> : <Icon name="i-pause" size={22} color={theme.colors.textTertiary}/>}</View>
@@ -121,7 +122,7 @@ export function NowPlayingCard({occupant, onAction, expanded = false, onExpanded
         <Artwork source={p.artwork} width={168} height={168} visible={visible} priority style={{borderRadius: 16, overflow: 'hidden'}}/>
         <View style={{flex: 1, minWidth: 0}}>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8}}>{playback.playing ? <LevelMeter large/> : <Icon name="i-pause" size={20} color={theme.colors.accentStrong}/>}<Text style={[dockType(theme, 20, 700), {color: theme.colors.accentStrong}]}>{t(playback.playing ? 'player.miniPlaying' : 'player.miniPaused')}</Text></View>
-          <Text numberOfLines={1} ellipsizeMode="tail" style={[dockType(theme, 52, 800, -.04, 52), {color: theme.colors.text}]}>{p.identity.title}</Text>
+          <Text style={[dockType(theme, 52, 800, -.04, 52), {color: theme.colors.text}]}>{p.identity.title}</Text>
           <View style={{marginTop: 10}}><DockFacts parts={p.identity.subtitle} style={{...dockType(theme, 26, 700), color: theme.colors.textSecondary}}/></View>
           {p.album?.length ? <View style={{marginTop: 6}}><DockFacts parts={p.album} gap={16} style={{...dockType(theme, 22, 400), color: theme.colors.textTertiary}}/></View> : null}
         </View>

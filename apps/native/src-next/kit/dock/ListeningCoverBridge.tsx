@@ -2,6 +2,7 @@ import React, {createContext, useCallback, useContext, useEffect, useLayoutEffec
 import {View, type StyleProp, type ViewStyle} from 'react-native';
 import {Gesture, GestureDetector, type PanGesture} from 'react-native-gesture-handler';
 import Animated, {cancelAnimation, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay, withTiming, type SharedValue} from 'react-native-reanimated';
+import {frameSpec} from '@portico/design';
 import {sameFence, type PlaybackFence} from '../../../../../packages/player-core/src';
 import type {ArtworkSource} from '../artwork';
 import {useMotion} from '../useMotion';
@@ -315,6 +316,8 @@ export function ListeningSeekPaint({fence, fraction, span, seconds, label, testI
   useLayoutEffect(() => {if (!context && mode.interactive) at.value = fraction;}, [context, mode.interactive, at, fraction]);
   useLayoutEffect(() => {if (live && channel && width.value > 0) channel.travel.value = width.value;}, [live, channel, width]);
   const fill = useAnimatedStyle(() => ({transform: [{translateX: -(1 - at.value) * width.value / 2}, {scaleX: at.value}]}));
+  const knobSize = frameSpec.player.knob[theme.form];
+  const knob = useAnimatedStyle(() => ({transform: [{translateX: at.value * width.value - knobSize / 2}]}), [knobSize]);
   const disabled = useMemo(() => Gesture.Pan().enabled(false), []);
   const gesture = live ? channel?.gesture ?? fallbackGesture ?? disabled : disabled;
   const adjustable = live && span > 0 && !!(channel?.adjust ?? fallbackAdjust);
@@ -335,6 +338,7 @@ export function ListeningSeekPaint({fence, fraction, span, seconds, label, testI
     }} style={{height: 28, justifyContent: 'center'}}>
     <View style={{height: 4, borderRadius: 2, backgroundColor: 'rgba(237,245,250,.18)'}}>
       <Animated.View style={[{position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 2, backgroundColor: theme.colors.accentStrong}, fill]}/>
+      <Animated.View pointerEvents="none" style={[{position: 'absolute', top: 2 - knobSize / 2, left: 0, width: knobSize, height: knobSize, borderRadius: knobSize / 2, backgroundColor: theme.colors.white}, knob]}/>
     </View>
   </View></GestureDetector>;
 }

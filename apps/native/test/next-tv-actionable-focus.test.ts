@@ -405,18 +405,22 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   let motionReady = true;
   const b = await bindings(), o = await overlayBindings(b), dock = await import('../src-next/kit/dock/model');
   const text = await import('../../../packages/client-core/src/presentation/kit-model/text');
-  const {TVNowPlayingScreen} = await screenModule(new URL('../src-next/screens/destinations/music/TVNowPlayingScreen.tsx', import.meta.url), {
+  const playerBindings = {
     react: b.react, 'react-native': b.native, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/kit-model/text': text,
     '../../../../../../packages/player-core/src': {sameFence: (a: any, c: any) => a === c}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'},
-    '../../../kit/controls': {Button: o.Button}, '../../../kit/focus': {requestNativeFocus: registryModule.requestNativeFocus, provideTVLayerClaim: (key: string, claim: () => boolean) => {provided.push({key, claim}); return () => {released.push(claim);};}}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
+    '../../../kit/frames': {AudioPlayerFrame: 'TVAudioPlayerPage'}, '../../../kit/player/TVAudioSurface': {TVAudioCanvas: 'TVAudioCanvas', TVAudioLyrics: o.surface.SidePanel, TVAudioEqualizer: 'TVAudioEqualizer', TVAudioSurface: 'TVAudioSurface'}, '../../../kit/focus': {requestNativeFocus: registryModule.requestNativeFocus, provideTVLayerClaim: (key: string, claim: () => boolean) => {provided.push({key, claim}); return () => {released.push(claim);};}}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel},
     '../../../kit/theme': {useTheme: () => b.theme, nativeType}, '../../../kit/dock/model': dock,
     '../../../shell/model': {shellLayout: () => ({width: 1920, height: 1080, left: 0, top: 0, scale: 1})},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {supported: true}; return () => snapshot;})()}},
-    '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'},
-    './MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'}, './ListeningNotice': {NativeListeningNotice: 'Notice'},
-    './NowPlayingQueue': {NowPlayingQueue: 'Queue', nowPlayingQueueRows: () => [], nowPlayingQueueFocusScope: () => '', nowPlayingQueueEditPort: () => undefined},
-    './TVMusicFocus': {MusicFocusRegion: b.focus.FocusRegion, TVMusicFocus: 'MusicFocus', TVMusicSeek: 'Seek'}, './TVQueuePolicy': {useTVQueuePolicy: () => ({})},
-    '../../../tv/layout/TVPageMotion': {TVPageGroup: 'PageGroup', TVPageTransition: 'Transition', useTVPageMotion: () => ({open: true, ready: motionReady})}});
+    '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../../screens/watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'},
+    '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'}, '../../../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'Notice'},
+    '../../../screens/destinations/music/NowPlayingQueue': {nowPlayingSource: () => undefined, NowPlayingQueue: 'Queue', nowPlayingQueueRows: () => [], nowPlayingQueueFocusScope: () => '', nowPlayingQueueEditPort: () => undefined},
+    '../../../screens/destinations/music/ListeningSongActions': {listeningSongFavorite: () => undefined}, '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: b.focus.FocusRegion, TVMusicFocus: 'MusicFocus', TVMusicSeek: 'Seek'}, '../../../screens/destinations/music/TVQueuePolicy': {useTVQueuePolicy: () => ({})},
+    '../../../tv/layout/TVPageMotion': {TVPageGroup: 'PageGroup', TVPageTransition: 'Transition', useTVPageMotion: () => ({open: true, ready: motionReady})}};
+  const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTVAudioPlayer.ts', import.meta.url), playerBindings);
+  const {TVAudioPlayerPage: TVNowPlayingScreen} = await screenModule(new URL('../src-next/pages/tv/player/AudioPlayerPage.tsx', import.meta.url), {
+    ...playerBindings, '../../shared/player/useTVAudioPlayer': playerHook,
+  });
   const props: any = {occupant: {mode: 'music', playback: {fence: {}, kind: 'music', queue: null, positionSeconds: 5, playing: true},
     presentation: {identity: {title: 'Song', subtitle: []}, durationSeconds: 100, capabilities: {play: true, pause: true, previous: false, next: true}}},
     width: 1920, height: 1080, artwork: () => undefined, onAction() {}, onQueuePlay() {}, onClose() {}, lyrics: React.createElement('Lyrics'), equalizerCopy: {}};
@@ -428,9 +432,12 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   globalThis.requestAnimationFrame = ((callback: () => void) => frames.push(callback)) as never;
   t.after(() => {globalThis.requestAnimationFrame = realFrame;});
   const source = createFabricHookHost(() => {tree = wrap.type(wrap.props);}); await source.mount();
-  const button = (name: string) => nodes(tree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`);
+  const button = (name: string, from = tree) => {
+    const frame = nodes(from).find(node => node.type === 'TVAudioPlayerPage').props;
+    return [...frame.transport, frame.lyrics, frame.playlist, frame.more].find(control => control?.testID === `now-playing-${name}`);
+  };
   const claimed: string[] = [];
-  for (const name of ['toggle', 'next', 'previous', 'lyrics']) button(name).props.ref.current = {requestTVFocus() {claimed.push(name);}};
+  for (const name of ['toggle', 'next', 'previous', 'lyrics']) button(name).anchorRef.current = {requestTVFocus() {claimed.push(name);}};
   assert.equal(provided.length, 1); assert.equal(provided[0]!.key, 'listening');
   assert.equal(provided[0]!.claim(), true, 'a request was sent');
   assert.deepEqual(claimed, ['toggle'], 'the player opens with focus on Play/Pause, off the covered page underneath');
@@ -441,7 +448,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   const endedWrap = TVNowPlayingScreen(ended).props.children; let endedTree: any;
   const endedHost = createFabricHookHost(() => {endedTree = endedWrap.type(endedWrap.props);}); await endedHost.mount();
   const endedClaims: string[] = [];
-  for (const name of ['toggle', 'next', 'previous', 'lyrics']) nodes(endedTree).find(node => node.type === o.Button && node.props.testID === `now-playing-${name}`).props.ref.current = {requestTVFocus() {endedClaims.push(name);}};
+  for (const name of ['toggle', 'next', 'previous', 'lyrics']) button(name, endedTree).anchorRef.current = {requestTVFocus() {endedClaims.push(name);}};
   provided.at(-1)!.claim();
   assert.deepEqual(endedClaims, ['lyrics'], 'a disabled Play/Pause, Next and Previous are skipped');
   const endedClaim = provided.at(-1)!.claim;
@@ -453,7 +460,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   const retryClaim = provided.at(-1)!.claim;
   assert.equal(retryClaim(), false, 'nothing attached yet: no request sent');
   const retryClaims: string[] = [];
-  nodes(retryTree).find(node => node.type === o.Button && node.props.testID === 'now-playing-toggle').props.ref.current = {requestTVFocus() {retryClaims.push('toggle');}};
+  button('toggle', retryTree).anchorRef.current = {requestTVFocus() {retryClaims.push('toggle');}};
   assert.equal(retryClaim(), true); assert.deepEqual(retryClaims, ['toggle']);
   await retryHost.unmount();
   // Reviewer (#577): while the page is still moving in (not ready) the claim declines even with its views attached;
@@ -463,7 +470,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   const movingWrap = TVNowPlayingScreen(props).props.children; let movingTree: any;
   const movingHost = createFabricHookHost(() => {movingTree = movingWrap.type(movingWrap.props);}); await movingHost.mount();
   const movingClaim = provided.at(-1)!.claim, movingClaims: string[] = [];
-  nodes(movingTree).find(node => node.type === o.Button && node.props.testID === 'now-playing-toggle').props.ref.current = {requestTVFocus() {movingClaims.push('toggle');}};
+  button('toggle', movingTree).anchorRef.current = {requestTVFocus() {movingClaims.push('toggle');}};
   assert.equal(movingClaim(), false, 'not ready: no request, even attached');
   assert.deepEqual(movingClaims, []);
   motionReady = true; await movingHost.rerender();
@@ -472,15 +479,15 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
   await movingHost.unmount();
   const another = createFabricHookHost(() => {second = wrap.type(wrap.props);}); await another.mount();
   frames.length = 0;
-  const ref = button('more').props.ref; let restored = 0; ref.current = {nativeTag: 701, requestTVFocus() {restored++;}};
-  button('more').props.onPress(); await source.rerender();
+  const ref = button('more').anchorRef; let restored = 0; ref.current = {nativeTag: 701, requestTVFocus() {restored++;}};
+  button('more').onPress(); await source.rerender();
   const menu = () => nodes(tree).find(node => node.type === o.menu.Menu).props;
   const mounted = await mountActualMenu(b, o, menu);
   try {
     assert.ok(menu().testID.endsWith('.more')); assert.notEqual(menu().testID, nodes(second).find(node => node.type === o.menu.Menu).props.testID);
     assert.equal(menu().returnFocusRef, ref); t.mock.timers.tick(160); assert.equal(mounted.targets[0]!.calls, 1);
     assert.equal([...o.back][0]!(), true); await source.rerender(); await mounted.refresh(); t.mock.timers.tick(500); await mounted.refresh(); assert.equal(restored, 1);
-    button('lyrics').props.onPress(); await source.rerender();
+    button('lyrics').onPress(); await source.rerender();
     const lyrics = nodes(tree).find(node => node.type === o.surface.SidePanel);
     assert.equal(lyrics.props.testID, menu().testID.replace(/\.more$/, '.lyrics'));
     let panel: any; const driver = createFabricHookHost(() => {panel = o.surface.SidePanel(lyrics.props);}); await driver.mount();
