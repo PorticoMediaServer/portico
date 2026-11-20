@@ -43,6 +43,7 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
   });
   const sparse = await screenModule(new URL('../src-next/kit/cards/TVSparseCardFrame.tsx', import.meta.url), {react, './primitives': primitives});
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
     react, 'react-native': nativeModule, 'react-native-svg': {default: 'RCTSvg', Text: 'RCTSvgText'},
     '../../../../../packages/i18n/src/index': {defaultI18n}, '../theme': {useTheme: () => theme},
     '../artwork/index': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), MediaArt: 'RCTMediaArt', CircleArt: 'RCTCircleArt', PersonCircle: 'RCTPersonArt', GeneratedCoverClearance: {Provider: 'Provider'}, missingArt: () => undefined},
