@@ -11,6 +11,7 @@ export async function settingsFixture(previous) {
           : path.startsWith('./') ? path.replace('./', '../../../screens/settings-live/') : path;
     modules[revised] = value;
   }
+  modules['react-native'] = {Keyboard: {dismiss() {}}, ...modules['react-native']};
   const react = modules.react;
   const e = react.createElement ?? react.default.createElement;
   const FocusRegion = modules['../../../kit/focus'].FocusRegion;

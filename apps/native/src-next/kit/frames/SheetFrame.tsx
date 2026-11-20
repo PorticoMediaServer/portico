@@ -4,8 +4,10 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec, overlayForm, popoverWidth, type OverlayBar, type OverlayFoot, type OverlayTask} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Button} from '../controls/Button';
+import {Focusable} from '../controls/Focusable';
 import {BackCloseHints} from '../controls/KeyHints';
-import {TopBar, type TopBarBack} from '../layout/TopBar';
+import {Icon} from '../Icon';
+import type {TopBarBack} from '../layout/TopBar';
 import {BottomSheet} from '../overlays/BottomSheet';
 import {Popover} from '../overlays/Menu';
 import {Dialog, OverlayFootRow} from '../overlays/surface';
@@ -26,12 +28,19 @@ export type SheetBarProps = Readonly<{
   action?: Readonly<{label: string; onPress: () => void; disabled?: boolean; testID?: string}>;
 }>;
 
-/** Rule 3, the compact bar of a full-height sheet, 56 high: Back, the title centred at 17/700, one text action. */
+/** Rule 3, the compact bar of a full-height sheet. Long headings can grow above the rows. */
 export function SheetBar({title, back, action}: SheetBarProps) {
-  const theme = useTheme(), frame = useFrameMetrics();
-  return <View style={{height: frameSpec.header.bar, justifyContent: 'center'}}>
-    <TopBar safeArea={false} back={back} center={<Text accessibilityRole="header" numberOfLines={1} style={[theme.type.barTitle, {color: theme.colors.text}]}>{title}</Text>}
-      trailing={action && <Button variant="text" size="small" textStyle={{color: theme.colors.accentStrong}} disabled={action.disabled} onPress={action.onPress} testID={action.testID}>{action.label}</Button>}/>
+  const theme = useTheme();
+  return <View style={{minHeight: frameSpec.header.bar, flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.space.sm, paddingVertical: theme.space.xs}}>
+    <View style={{flex: 1, alignItems: 'flex-start'}}>{back && <Focusable testID={back.testID} disabled={back.disabled}
+      accessibilityRole="button" accessibilityLabel={back.label} onPress={back.onPress}
+      style={{minHeight: theme.targets.touch, flexDirection: 'row', alignItems: 'center'}}>
+      <Icon name="i-left" size={theme.type.rowHeading.fontSize} color={theme.colors.textSecondary}/>
+      <Text style={[theme.type.rowLabel, {flexShrink: 1, color: theme.colors.textSecondary}]}>{back.label}</Text>
+    </Focusable>}</View>
+    <Text accessibilityRole="header" style={[theme.type.barTitle, {maxWidth: '55%', textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
+    <View style={{flex: 1, alignItems: 'flex-end'}}>{action && <Button variant="text" size="small"
+      textStyle={{color: theme.colors.accentStrong}} disabled={action.disabled} onPress={action.onPress} testID={action.testID}>{action.label}</Button>}</View>
   </View>;
 }
 
