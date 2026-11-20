@@ -25,7 +25,7 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import * as pageBack from '../src-next/screens/destinations/tv-page-back';
 import * as homeModel from '../src-next/screens/home/model';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
-import {withHomeCards} from './helpers/home-cards-stub.mjs';
+import {expandHome, withHomeCards} from './helpers/home-cards-stub.mjs';
 import {expandFrames} from './helpers/browse-frame-stub.mjs';
 
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
@@ -123,11 +123,12 @@ test('the confirmed Appearance card size and backdrop switch reach the drawn Hom
     const hero = descendants(render(appearance)).find(node => node.type === 'Hero');
     return hero.props.renderArtwork(hero.props.candidates[0], {visible: true});
   };
-  assert.equal(artwork({}).props.foreground.uri, 'art:/backdrop.jpg', 'the drawn hero keeps its picture');
-  assert.equal(artwork({appearanceShowBackdrops: true}).props.foreground.uri, 'art:/backdrop.jpg');
+  // The phone draws the kit's HomeHeroArt: `picture` over its `ambient` wash.
+  assert.equal(artwork({}).props.picture.uri, 'art:/backdrop.jpg', 'the drawn hero keeps its picture');
+  assert.equal(artwork({appearanceShowBackdrops: true}).props.picture.uri, 'art:/backdrop.jpg');
   const off = artwork({appearanceShowBackdrops: false});
-  assert.equal(off.props.foreground, undefined, 'backdrops off leaves only the atmosphere');
-  assert.equal(off.props.source.uri, 'ambient:/backdrop.jpg', 'the wash stays, so the surface keeps a colour');
+  assert.equal(off.props.picture, undefined, 'backdrops off leaves only the atmosphere');
+  assert.equal(off.props.ambient.uri, 'ambient:/backdrop.jpg', 'the wash stays, so the surface keeps a colour');
 });
 
 test('a row with nothing under its heading is not drawn at all', async () => {
@@ -187,7 +188,7 @@ test('the drawn phone facts badge is 9 px padding, .28 border and a 700 year; TV
 
 async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), rows: readonly any[], react: any = {...React, default: React}, registry = createFocusRegistry(), bindings: Record<string, any> = {}) {
   // Phone and tablet Home draw on the frame: read its parts in scroller(hero + rows) order (helpers/browse-frame-stub).
-  const module = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  const module = expandHome(await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react: {...react, useLayoutEffect: react.useLayoutEffect ?? react.useEffect}, '@portico/design': {heroSpec},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
@@ -218,7 +219,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, './TvHomeRecovery': {TvHomeRecovery: 'Recovery'}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})},
     ...bindings,
-  }));
+  })));
   return {...module, HomeScreen: (props: any) => expandFrames(module.HomeScreen(props))};
 }
 
@@ -264,17 +265,18 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
   let currentTheme = phoneTheme;
   const {HomeScreen} = await homeModule(() => currentTheme, rows, h.react);
   const tree = h.render(() => HomeScreen({runtime, authority, bottomInset: 84}));
-  const wrappers = descendants(tree).filter(node => node.type === 'View' && node.props.onLayout);
+  // Each mounted row sits in the kit's HomeRowPlace, which reports its measured box.
+  const wrappers = descendants(tree).filter(node => node.props?.onLayout && node.type !== 'BrowseFrameRows');
   assert.equal(wrappers.length, 2);
   // The frame owns the space between rows (and the first row's offset under the hero): a row adds no margin of its own.
   for (const wrapper of wrappers) assert.equal(wrapper.props.style, undefined, 'the frame spaces the rows (frameSpec rhythm.rowSection)');
-  assert.equal(descendants(tree).filter(node => node.type === 'View' && node.props.style?.height === 560).length, 0, 'no spotlight: no empty 560 px hero block');
+  assert.equal(descendants(tree).filter(node => node.type === 'Hero').length, 0, 'no spotlight: no empty 560 px hero');
   assert.equal(descendants(tree).find(node => node.type === 'BrowseFrameRows').props.children[0], null, 'no spotlight: no hero; the frame starts the rows under the bar');
   // With a spotlight the hero comes back at its drawn 560 px (final3-phone-01).
   const lit = hooks(), litHome = (await homeModule(() => currentTheme, rows, lit.react)).HomeScreen;
   const litRuntime = {...runtime, home: {...runtime.home, getSnapshot: () => ({document: {rows, spotlight: [{entry, reason: 'Because you watched'}], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'})}};
   const litTree = lit.render(() => litHome({runtime: litRuntime, authority, bottomInset: 84}));
-  assert.equal(descendants(litTree).filter(node => node.type === 'View' && node.props.style?.height === 560).length, 1, 'with a spotlight: the 560 px hero block');
+  assert.equal(descendants(litTree).filter(node => node.type === 'Hero' && node.props.height === 560).length, 1, 'with a spotlight: the 560 px hero');
   const scroller = descendants(tree).find(node => node.type === 'ScrollView');
   assert.equal(scroller.props.contentContainerStyle.paddingBottom, 84, 'the frame\'s bottom clearance (0 in the stand-in) over the 84 px bar');
   const row = descendants(tree).find(node => node.type === 'Row');
