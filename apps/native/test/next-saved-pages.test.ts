@@ -27,3 +27,16 @@ test('Downloads keeps the device inventory and returns to Saved', async () => {
   frame.props.header.back.onPress();
   assert.equal(returned, true);
 });
+
+test('TV Saved keeps tab focus and the real content side by side with the rail', async () => {
+  const h = hooks();
+  const {TVSavedPage} = await screenModule(new URL('../src-next/pages/tv/saved/SavedPage.tsx', import.meta.url), {
+    react: h.react, '../../../kit/frames': {BrowseFrame: 'BrowseFrame'},
+  });
+  const tabs = {items: [{value: 'favorites', label: 'Favorites'}], value: 'favorites',
+    region: {id: 'saved-tabs', edges: {left: 'rail', down: 'saved-grid'}}};
+  const frame = h.render(() => TVSavedPage({title: 'Saved', tabs, body: 'Favorites'}));
+  assert.equal(frame.props.header.title, 'Saved');
+  assert.equal(frame.props.header.tabs, tabs);
+  assert.equal(frame.props.grid, 'Favorites');
+});

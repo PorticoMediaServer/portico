@@ -19,7 +19,8 @@ import type {NativeDestinationActivationPort} from '../focus';
 import {nativeDestinationFocusIds} from '../focus';
 import type {NativeEntryActions} from '../entry-actions';
 import {TVFocusGrid} from '../../../tv/layout/TVFocusGrid';
-import {SavedTVTabs} from '../../saved/SavedTVTabs';
+import {useSavedTVTabs} from '../../saved/useSavedTVTabs';
+import {TVSavedPage} from '../../../pages/tv/saved/SavedPage';
 import {SavedConfirmSheet} from '../../saved/SavedForms';
 import {LibraryJumpSheet} from '../../../kit/browse/LibraryJumpSheet';
 import {useTVPageBack} from '../useTVPageBack';
@@ -335,7 +336,7 @@ export function TVSavedScreen({controller, runtime, actions, activation, authori
     .filter(option => (savedListFilters as readonly string[]).includes(option.id));
   const quickFilters = publishedFilters.filter(option => option.id !== 'all');
   // tv-more1/3 and collections 15: the page opens on its first title or tile; an empty page
-  // keeps the tab as the entry (SavedTVTabs), so focus never lands nowhere.
+  // keeps the tab as the entry, so focus never lands nowhere.
   const firstPlaylist = (snapshot.playlists?.sections ?? []).flatMap(section => section.entries).find(entry => entry.kind === 'playlist');
   // A card's focus child is its testID, whose id is URI-encoded; a tile's focus id is not.
   const firstChild = tab === 'watchlist' || tab === 'favorites'
@@ -352,6 +353,7 @@ export function TVSavedScreen({controller, runtime, actions, activation, authori
     ? focusTestID('saved-empty', JSON.stringify(['action', 'browse-home'])) : undefined;
   const entryChild = firstChild ?? emptyEntry;
   const firstRegion = directoryView ? `${ids.savedGrid}.cards` : firstSection ?? ids.savedGrid;
+  const tabs = useSavedTVTabs({destination: tabsDestination, reportError: runtime.reportError, authority, activation, contentRegionId: ids.savedGrid});
   useDestinationEntryFocus(active, entryChild ? {regionId: firstRegion, childId: entryChild} : undefined);
   useTVPageBack(runtime, {kind: 'saved'}, theme.isTV, {
     registerTop: true, scope: JSON.stringify([active.revision, tab, sort, filter, period]),
@@ -362,10 +364,7 @@ export function TVSavedScreen({controller, runtime, actions, activation, authori
   });
   const sortLabel = sorts.find(value => value.id === sort)?.label ?? 'web.saved.sort.added';
   return <View testID="native-tv-saved" style={{flex: 1}}>
-    <ScrollView ref={page} onContentSizeChange={(_width, height) => setContentHeight(height)} onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16} contentContainerStyle={{paddingBottom: 64}} showsVerticalScrollIndicator={false}><View ref={contentRoot} collapsable={false}>
-      {/* LibraryHeader already carries the page's 200 inset; collections.html 15-17 draw the
-          tabs row from there, with the six tab labels 34 apart. */}
-      <SavedTVTabs destination={tabsDestination} reportError={runtime.reportError} authority={authority} activation={activation} contentRegionId={ids.savedGrid}/>
+    <TVSavedPage title={t('saved.title')} tabs={tabs} body={<ScrollView ref={page} onContentSizeChange={(_width, height) => setContentHeight(height)} onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} onScroll={event => setScrollY(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16} contentContainerStyle={{paddingBottom: 64}} showsVerticalScrollIndicator={false}><View ref={contentRoot} collapsable={false}>
       {directoryView ? <View style={{height: 860, paddingTop: 12}}>
         <SavedTVDirectory view={directoryView} destination={controller.source(directoryView)} runtime={runtime} libraries={runtime.getSnapshot().libraries}
           pageRef={directoryPage} enabled={active.visible} activation={activation} regionId={ids.savedGrid} edges={{up: ids.savedTabs, left: ids.rail}} select={route => {if (route.view === 'playlists') run(controller.select('playlists', {sort: route.sort, direction: route.direction, filter: route.filter}));}}
@@ -397,7 +396,7 @@ export function TVSavedScreen({controller, runtime, actions, activation, authori
         edges={{up: ids.savedToolbar, left: ids.rail}} onLayout={event => {measurement.body = event.nativeEvent.layout.y;}}
         style={{paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight, paddingTop: 38, minHeight: 520}}>{body}</FocusRegion>
       </View>}
-    </View></ScrollView>
+    </View></ScrollView>}/>
     <Menu testID={`${ids.savedGrid}.sort-menu`} open={sortOpen} onOpenChange={setSortOpen} anchorRef={sortAnchor} title={t('saved.sort')} placement="bottom-start" items={sorts.map(value => ({id: value.id, label: t(value.label), selected: value.id === sort,
       onSelect: () => {setSort(value.id); run(controller.select(tab, {sort: value.id, filter, period}));}}))}/>
     <Menu testID={`${ids.savedGrid}.filter-menu`} open={filterOpen} onOpenChange={setFilterOpen} anchorRef={filterAnchor} title={t('filter.title')} placement="bottom-start" items={publishedFilters.length
