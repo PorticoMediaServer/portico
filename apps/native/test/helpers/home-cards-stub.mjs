@@ -20,19 +20,33 @@ export async function withHomeCards(stubs) {
   kit['../../../../../packages/client-core/src/presentation/home-card'] ??= {homeCardText: model.homeCardText, homePlayTarget: model.homePlayTarget};
   // The drawing's Home sizes are real data: a test's `@portico/design` stub keeps its own keys and gains `homeRowsSpec`.
   kit['@portico/design'] = {homeRowsSpec: (await import('@portico/design')).homeRowsSpec, ...kit['@portico/design']};
+  const theme = kit['../theme'].useTheme;
+  const design = await import('@portico/design');
+  const dimensions = () => stubs['react-native'].useWindowDimensions?.() ?? {width: 390, height: 844};
+  const layout = {useFrameMetrics: () => ({form: theme().form ?? 'phone', width: dimensions().width, gutter: theme().gutter,
+    rightGutter: theme().gutter})};
+  kit['../frames/metrics'] = layout;
+  kit['../focus'] ??= {};
   const rows = await screenModule(new URL('../../src-next/kit/home/HomeRows.tsx', import.meta.url), kit);
   const facts = await screenModule(new URL('../../src-next/kit/home/HeroFacts.tsx', import.meta.url), kit);
   const parts = await screenModule(new URL('../../src-next/kit/home/HomeParts.tsx', import.meta.url), kit);
   const metrics = await screenModule(new URL('../../src-next/kit/home/metrics.ts', import.meta.url), {...kit, './HomeRows': rows});
-  const home = {...rows, ...facts, ...parts, ...metrics};
+  const home = {...rows, ...facts, ...parts, ...metrics, HomeSpotlight: 'Hero'};
   // The upright phone's page (pages/touch/home) and its hook (pages/shared/home) sit one folder deeper than HomeScreen.
   const deeper = key => key.replace(/^\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\//, '../../../../../../packages/')
     .replace(/^\.\.\/\.\.\/(kit|platform|shell)(\/|$)/, '../../../$1$2').replace(/^\.\.\/destinations\//, '../../../screens/destinations/')
     .replace(/^\.\/([\w-]+)$/, '../../../screens/home/$1');
-  const page = {...Object.fromEntries(Object.entries(stubs).map(([key, value]) => [deeper(key), value])), '../../../kit/home': home};
+  const page = {...Object.fromEntries(Object.entries(stubs).map(([key, value]) => [deeper(key), value])),
+    '@portico/design': {...design, ...stubs['@portico/design']}, '../../../kit/home': home, '../../../kit/frames/metrics': layout,
+    '../../../kit/home/HomeTVParts': {TVHomeSpotlight: 'TVHomeSpotlight',
+      TVHomeRow: 'TVHomeRow', TVHomeCustomize: 'TVHomeCustomize'},
+    '../../../kit/cards/primitives': {Parts: 'Parts'}};
+  const useTVHome = await screenModule(new URL('../../src-next/pages/shared/home/useTVHome.ts', import.meta.url), page);
+  const tvHomePage = await screenModule(new URL('../../src-next/pages/tv/home/HomePage.tsx', import.meta.url), {...page,
+    '../../shared/home/useTVHome': useTVHome});
   const useHome = await screenModule(new URL('../../src-next/pages/shared/home/useHome.ts', import.meta.url), page);
   const homePage = await screenModule(new URL('../../src-next/pages/touch/home/HomePage.tsx', import.meta.url), {...page, '../../shared/home/useHome': useHome});
-  return {...stubs, '../../kit/home': home, '../../pages/touch/home/HomePage': homePage};
+  return {...stubs, '../../kit/home': home, '../../pages/touch/home/HomePage': homePage, '../../pages/tv/home/HomePage': tvHomePage};
 }
 
 /** HomeScreen is a switch (an upright phone draws HomePage, other forms HomeScreenForms); tests that call it as a

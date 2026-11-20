@@ -1,3 +1,4 @@
+import {PreviewText} from '../layout/PreviewText';
 import React, {Children, isValidElement, useEffect, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, TVFocusGuideView, Text, View, useWindowDimensions, type FocusGuideMethods, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
@@ -256,6 +257,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     {name.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={name.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .35)}}>{name.text}</Text> : name.text}</Text>);
   // The synopsis reads from the left on every form, under a centred title on a phone too (detail-phone d1 frames 1 and 3,
   // as the web page at phone width). Loading keeps the loaded page's boxes (rule 12): the synopsis's lines, so the tabs and the panel do not move when the words arrive.
+  const synopsisStyle = [theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}];
   const words = loading ? <View style={{gap: spec.creditsGap}}>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
   </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || quote !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : tv ? theme.spec.hero.copy.titleWidth.tv : spec.copyWidth}}>
@@ -263,7 +265,9 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       <Icon name="i-info" size={frameSpec.hero.title.parts.listRow.check} color={theme.colors.textTertiary}/>
       <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textTertiary}]}>{note}</Text></View>}
     {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
-    {synopsis !== undefined && <Text numberOfLines={readMore?.expanded ? undefined : readMore ? spec.readMoreLines[form] : spec.synopsisLines[form]} style={[theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}]}>{synopsis}</Text>}
+    {synopsis !== undefined && (readMore && !readMore.expanded
+      ? <PreviewText text={synopsis} lines={spec.readMoreLines[form]} style={synopsisStyle}/>
+      : <Text style={synopsisStyle}>{synopsis}</Text>)}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
       {/* A phone's is a plain bold link under the paragraph (frame 7); wider forms keep the chevron. */}
       <Button variant={form === 'phone' ? 'link' : 'text'} size="xs" trailingIcon={form === 'phone' ? undefined : readMore.expanded ? 'i-chup' : 'i-chdown'} textStyle={form === 'phone' ? {color: theme.colors.text} : undefined}

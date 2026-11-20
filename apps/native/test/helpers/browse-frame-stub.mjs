@@ -6,6 +6,7 @@ export const browseFrameStub = {BrowseFrame: 'BrowseFrame'};
 export function expandFrames(node) {
   if (Array.isArray(node)) {const next = node.map(expandFrames); return next.every((child, index) => child === node[index]) ? node : next;}
   if (!node || typeof node !== 'object' || !('props' in node)) return node;
+  if (node.type === 'TVHomeSpotlight') return {...node, props: {...node.props, children: [node.props.hero, node.props.preview]}};
   if (node.type === 'BrowseFrame') {
     const {state, notice, foot, scroll} = node.props;
     // A failure keeps the top and draws the page state; the frame's own regions (notice, foot, scroller) as it orders them.

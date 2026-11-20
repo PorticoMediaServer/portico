@@ -36,6 +36,6 @@ export function FocusPreviewHero<T extends HeroCandidate>({focusedEntry, repeati
   const staged = focusedEntry && settled?.id === focusedEntry.id ? focusedEntry : settled;
   return <View testID={testID} style={[{height: height ?? heroSpec.homeHeight.tv, position: 'relative'}, style]}>
     <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}, coverStyle]}/>
-    <HeroSurface {...props} onArtworkReady={ready} entry={staged} variant="tv" copyTop={props.copyTop ?? 150} renderActions={renderHint} fade="slow" onArtworkError={onPreviewError} />
+    <HeroSurface {...props} onArtworkReady={ready} entry={staged} variant="tv" copyTop={props.copyTop ?? heroSpec.tvHome.previewCopyTop} renderActions={renderHint} fade="slow" onArtworkError={onPreviewError} />
   </View>;
 }

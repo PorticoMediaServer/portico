@@ -6,10 +6,12 @@ import {screenModule} from './helpers/screen-harness.mjs';
 
 // The Home page's kit parts (desk, #4604 round 1: a page passes data and kit parts, never layout of its own).
 const theme = createTheme({isTV: false, width: 390});
-const parts = () => screenModule(new URL('../src-next/kit/home/HomeParts.tsx', import.meta.url), {
+const parts = (current = theme) => screenModule(new URL('../src-next/kit/home/HomeParts.tsx', import.meta.url), {
   react: {...React, default: React}, 'react-native': {View: 'View'},
+  'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})},
+  '../layout': {Hero: 'Hero'}, '../layout/TopBar': {roundBarSize: 38}, '../focus': {FocusRegion: 'FocusRegion'},
   '../artwork': {AmbientArt: 'AmbientArt'}, '../controls': {Button: 'Button'}, '../states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock'},
-  '../theme': {useTheme: () => theme},
+  '../theme': {useTheme: () => current},
 });
 
 test('the spotlight buttons are drawn from data, side by side at the hero action gap', async () => {
@@ -37,9 +39,13 @@ test('a card slot holds its drawn size, grows only under larger text, and paints
 });
 
 test('a collection row puts the banner inside the gutters, as wide as the room between them', async () => {
-  const {HomeCollectionRow} = await parts();
-  let width = 0;
-  const row = HomeCollectionRow({width: 390, children: (banner: number) => {width = banner; return 'banner';}});
-  assert.equal(row.props.style.paddingHorizontal, theme.gutter);
-  assert.equal(width, 390 - theme.gutter * 2); assert.equal(row.props.children, 'banner');
+  for (const current of [theme, createTheme({isTV: true, width: 1920})]) {
+    const {HomeCollectionRow} = await parts(current);
+    const right = current.isTV ? current.layout.gutter.tvRight : current.gutter;
+    let width = 0;
+    const row = HomeCollectionRow({width: current.width, children: (banner: number) => {width = banner; return 'banner';}});
+    assert.deepEqual(row.props.style, {paddingLeft: current.gutter, paddingRight: right});
+    assert.equal(width, current.width - current.gutter - right);
+    assert.equal(row.props.children, 'banner');
+  }
 });
