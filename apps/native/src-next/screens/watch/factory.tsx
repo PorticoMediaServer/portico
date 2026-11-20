@@ -84,7 +84,9 @@ export type NativeWatchMenuEntry = Readonly<{
 export type NativeWatchMenuExtra = Pick<MenuAction, 'id' | 'label' | 'icon' | 'description' | 'disabled' | 'destructive' | 'tone' | 'onSelect'>;
 export type NativeWatchMenuActions = Readonly<{fileInfo: (detail?: DetailProjection) => Promise<void>; differentVersion?: () => Promise<void>; select?: () => void; entry?: NativeWatchMenuEntry; extraActions?: readonly NativeWatchMenuExtra[];
   /** Owner only, and only for a physical disc version the server measured. */
-  discTitles?: () => void}>;
+  discTitles?: () => void;
+  /** Opened from the title's own page (its ⋯), not from a card: touch draws phone-detail 9's grouped menu. */
+  page?: boolean}>;
 export type NativeVersionDestination = NativeVersionChooserController;
 /** One Versions opening, from the menu action or from a failed output's own entry.
  * Its identity outlives any overlay object, so awaited inventory cannot adopt itself
@@ -423,7 +425,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
         {itemId: entry.id, versionId: discVersion.id},
         {opening, owner: () => ports.title.owner === true, version: () => opening() ? discVersion.id : undefined}));
     } : undefined;
-    ports.openMenu(captured, {fileInfo: accepted => fileInfo(captured, accepted), ...(discTitles ? {discTitles} : {}), ...(select ? {select: () => {if (current(captured)) select();}} : {}), ...(hasVersions ? {differentVersion: () => versions(captured)} : {}), ...(menuEntry ? {entry: menuEntry} : {}),
+    ports.openMenu(captured, {fileInfo: accepted => fileInfo(captured, accepted), ...(onTitle ? {page: true} : {}), ...(discTitles ? {discTitles} : {}), ...(select ? {select: () => {if (current(captured)) select();}} : {}), ...(hasVersions ? {differentVersion: () => versions(captured)} : {}), ...(menuEntry ? {entry: menuEntry} : {}),
       ...(() => {
         // O-162: Share and Copy link for this item on this server, from client-core's one builder (touch only).
         const shared = ports.isTV ? [] : shareLinkActions(ports.shareScope?.(), 'item', {itemId: entry.id}, {notice: ports.notice, report: ports.title.reportError});
