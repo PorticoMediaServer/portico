@@ -29,7 +29,7 @@ export function SearchHistory({title, clear, items}: SearchHistoryProps) {
   return <View>
     <View style={[edge, {flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, marginBottom: phone ? 0 : frame.headingGap}]}>
       <Text accessibilityRole="header" style={[theme.type.rowHeading, {flex: 1, color: theme.colors.text}]}>{title}</Text>
-      <Button variant="text" size="small" disabled={clear.disabled} onPress={clear.onPress}>{clear.label}</Button>
+      <Button variant="text" size="small" textStyle={{color: theme.colors.textSecondary}} disabled={clear.disabled} onPress={clear.onPress}>{clear.label}</Button>
     </View>
     {phone ? items.map(item => <View key={item.query} style={[edge, {flexDirection: 'row', alignItems: 'center', minHeight: theme.targets.touch}]}>
       <Focusable testID={`search-recent-${encodeURIComponent(item.query)}`} accessibilityLabel={item.query} onPress={item.onPress} style={{flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, minHeight: theme.targets.touch}}>
