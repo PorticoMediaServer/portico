@@ -55,7 +55,7 @@ function fixture({rtl = false, reduced = false, offset = 100, sections = 1} = {}
   const step = async (at: number) => {now = at;const callbacks = [...frames.values()];frames.clear();for (const callback of callbacks) callback(now);for (let pending = 0; pending < 8; pending++) await Promise.resolve();};
   const touch = (kind: string, x: number, at: number) => {
     const event = new Event(kind, {cancelable: true});Object.defineProperty(event, 'timeStamp', {value: at});
-    Object.assign(event, {changedTouches: [{identifier: 1, screenX: x, screenY: 20}], touches: kind === 'touchend' ? [] : [{identifier: 1, screenX: x, screenY: 20}]});paginator.dispatchEvent(event);
+    Object.assign(event, {changedTouches: [{identifier: 1, screenX: x, screenY: 20, clientX: x, clientY: 20}], touches: kind === 'touchend' ? [] : [{identifier: 1, screenX: x, screenY: 20, clientX: x, clientY: 20}]});paginator.dispatchEvent(event);
   };
   return {paginator, view, frames, step, touch, context, document, get turns() {return turns;}};
 }
@@ -74,6 +74,13 @@ for (const rtl of [false, true]) test(`real touch ${rtl ? 'RTL' : 'LTR'} drags b
   f.touch('touchend', 50 + direction * 30, 60);
   for (let at = 0; at <= 3200; at += 16) await f.step(at);
   assert.equal(f.paginator.__fixtureRead().offset, rtl ? -200 : 200);assert.equal(f.turns, 1);assert.equal(f.paginator.__fixtureRead().locked, false);f.paginator.destroy();
+});
+
+test('a touch from the left edge (iOS back gesture) never drags or turns; the adapter shows the controls for it', async () => {
+  const f = fixture();f.touch('touchstart', 10, 0);f.touch('touchmove', 90, 50);
+  assert.equal(f.view.style.transform ?? '', '');f.touch('touchend', 90, 60);
+  for (let at = 0; at <= 1600; at += 16) await f.step(at);
+  assert.equal(f.paginator.__fixtureRead().offset, 100);assert.equal(f.turns, 0);f.paginator.destroy();
 });
 
 test('a short paused touch returns to its original page; canceled and destroyed turns never land', async () => {

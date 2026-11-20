@@ -959,6 +959,9 @@ export class Paginator extends HTMLElement {
             if (this.#locked || this.#destroyed || !this.#view?.element || !Number.isFinite(this.size) || this.size <= 0 || this.scrolled || e.touches?.length !== 1 ||
                 e.target?.closest?.('a[href],button,input,textarea,select,[contenteditable="true"]')) return
             const touch = e.changedTouches[0]
+            // Portico: a touch starting at the left edge is iOS's back gesture; the adapter shows the controls for it.
+            const box = this.getBoundingClientRect(), frame = e.target?.ownerDocument?.defaultView?.frameElement?.getBoundingClientRect?.()
+            if (touch.clientX + (frame && e.target?.ownerDocument !== document ? frame.left || 0 : 0) - (box.left || 0) <= 20) return
             this.#touchState = {identifier: touch.identifier, x: touch.screenX, y: touch.screenY,
                 startX: touch.screenX, startY: touch.screenY, t: e.timeStamp, vx: 0, vy: 0,
                 view: this.#view?.element, page: this.page, dragging: false}

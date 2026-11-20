@@ -154,13 +154,15 @@ export function ReaderChrome({title, subtitle, copy, chapter, pages, remainingIn
     if (hint) return;
     if (input.kind === 'turned') {if (!held && !textSelectionActive) setVisible(false);}
     else if (input.kind === 'tap') tap(input.fraction);
+    // iOS's back gesture from the left edge: the controls, which hold Close (a panel closes first).
+    else if (input.kind === 'edge') {if (panel) onPanelDismiss?.('outside'); else showControls();}
     else if (input.kind === 'swipe') {
       if (panel) {onPanelDismiss?.('outside'); return;}
       const turn = readTapTurn(input.direction === 'left' ? 1 : 0, direction);
       if ((turn === 'next' || turn === 'previous') && pageTurnsEnabled && !textSelectionActive) onTurn(turn);
     }
     else if (input.kind === 'key') key(input);
-  }), [hint, subscribeSurfaceInput, tap, key, panel, onPanelDismiss, direction, pageTurnsEnabled, textSelectionActive, onTurn, held]);
+  }), [hint, subscribeSurfaceInput, tap, key, panel, onPanelDismiss, direction, pageTurnsEnabled, textSelectionActive, onTurn, held, showControls]);
   const progress = observedProgress(progression);
   useReaderChromeMotion(root, shown, reducedMotion);
   const customFixedFooter = fixedPage && fixedPageFooter != null;

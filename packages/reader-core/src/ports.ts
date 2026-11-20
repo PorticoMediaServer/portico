@@ -157,6 +157,8 @@ export type ReaderSurfaceInput =
   | Readonly<{kind: 'tap'; fraction: number}>
   | Readonly<{kind: 'swipe'; direction: 'left' | 'right'}>
   | Readonly<{kind: 'activity'}>
+  /** A swipe in from the left edge (iOS's back gesture): show the controls, which hold Close; never a page turn. */
+  | Readonly<{kind: 'edge'}>
   /** A renderer already committed an original gesture turn. Never navigate again. */
   | Readonly<{kind: 'turned'}>
   | Readonly<{kind: 'key'; key: string; shift: boolean; alt: boolean; ctrl: boolean; meta: boolean; editable: boolean; preventDefault(): void}>;

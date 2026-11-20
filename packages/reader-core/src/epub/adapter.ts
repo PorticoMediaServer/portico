@@ -9,6 +9,7 @@ import {abortScope} from '../abort.ts';
 import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, ReaderMount,
   ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport, ReaderMark} from '../ports.ts';
 import {openEpubArchive, safeArchivePath} from './archive.ts';
+import {READER_EDGE, surfacePoint} from './surface-point.ts';
 import {resourceAssets} from './resources.ts';
 import {orUnreadable, unreadableEpubMember, unreadableEpubText, UnreadableSections, settleUnreadableSection} from '../unreadable.ts';
 import {epubLimits} from './limits.ts';
@@ -453,11 +454,14 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
       mount.onSelection({text:range.toString().slice(0,65536),location:{format:'epub',cfi:cfiAt(book,index,range),section:book.sections[index].id,progression:location?.progression??0},rects});
     };
     doc.addEventListener('selectionchange',selection,opts);
-    let down:{id:number;x:number;y:number;at:number}|null=null;
+    // Taps and swipes are judged in the reader's own box on screen (surfacePoint).
+    const onScreen=(clientX:number)=>{const frame=doc.defaultView?.frameElement?.getBoundingClientRect(),host=mount.container.getBoundingClientRect();
+      return surfacePoint(clientX,frame?.left??0,host.left,host.width||viewport.width);};
+    let down:{id:number;x:number;y:number;at:number;edge:boolean}|null=null;
     doc.addEventListener('pointerdown',event=>{
       const target=event.target as Element|null;
       if(!event.isPrimary||target?.nodeType===1&&target.closest('a[href],button,input,textarea,select,[contenteditable="true"]')){down=null;return;}
-      if(event.button===0)down={id:event.pointerId,x:event.clientX,y:event.clientY,at:performance.now()};
+      if(event.button===0)down={id:event.pointerId,x:event.clientX,y:event.clientY,at:performance.now(),edge:event.pointerType==='touch'&&onScreen(event.clientX).x<=READER_EDGE};
     },opts);
     doc.addEventListener('pointercancel',()=>{down=null;},opts);
     doc.addEventListener('pointerup',event=>{
@@ -469,12 +473,15 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
       // Touch dragging is already handled and committed by this paginator. A
       // second host swipe intent would advance twice. Mouse/keyboard retain
       // their original intent path.
+      // A swipe in from the left edge is iOS's back gesture: it shows the controls, which hold Close, and never turns a
+      // page (the paginator leaves an edge touch alone).
+      if(start.edge&&dx>=24&&Math.abs(dx)>Math.abs(dy)){mount.onSurfaceInput?.({kind:'edge'});return;}
       if(preferences.layout==='pages'&&event.pointerType==='touch'&&Math.hypot(dx,dy)>10)return;
       if(preferences.layout==='pages'&&elapsed<=600&&Math.abs(dx)>=48&&Math.abs(dx)>Math.abs(dy)*1.5) {
         mount.onSurfaceInput?.({kind:'swipe',direction:dx<0?'left':'right'});return;
       }
       if(Math.hypot(dx,dy)>10||elapsed>400)return;
-      mount.onSurfaceInput?.({kind:'tap',fraction:Math.max(0,Math.min(1,event.clientX/(doc.defaultView?.innerWidth??viewport.width)))});
+      mount.onSurfaceInput?.({kind:'tap',fraction:onScreen(event.clientX).fraction});
     },opts);
     doc.addEventListener('pointermove',event=>{if(event.pointerType==='mouse')mount.onSurfaceInput?.({kind:'activity'});},opts);
     doc.addEventListener('keydown',event=>mount.onSurfaceInput?.({kind:'key',key:event.key,shift:event.shiftKey,alt:event.altKey,ctrl:event.ctrlKey,meta:event.metaKey,
