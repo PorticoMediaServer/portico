@@ -12,7 +12,7 @@ function reactFixture(host: ReturnType<typeof hooks>) {
 }
 function nodes(node: any): any[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
-  return node?.props ? [node, ...nodes(node.props.children)] : [];
+  return node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.body)] : [];
 }
 
 test('TV Saved tabs have a mounted content target and return edges for every tab', async () => {
@@ -43,7 +43,8 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       '../../../kit/browse/presentation': {browseType: () => ({})},
       '../../../kit/theme': {useTheme: () => createTheme({isTV: true, width: 1920})},
       '../focus': {nativeDestinationFocusIds: () => ids},
-      '../../saved/SavedTVTabs': {SavedTVTabs: 'SavedTVTabs'},
+      '../../saved/useSavedTVTabs': {useSavedTVTabs: ({contentRegionId}: any) => ({region: {edges: {down: contentRegionId}}})},
+      '../../../pages/tv/saved/SavedPage': {TVSavedPage: 'TVSavedPage'},
       '../../saved/SavedTVDirectory': {SavedTVDirectory: 'SavedTVDirectory'},
     });
     const snapshot = {phase: 'ready', entries: [], resources: [],
@@ -58,10 +59,10 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
     };
     const render = () => nodes(host.render(() => TVSavedScreen(props as any)));
     const mounted = render();
-    const tabs = mounted.find(node => node.type === 'SavedTVTabs');
+    const tabs = mounted.find(node => node.type === 'TVSavedPage');
     const directory = mounted.find(node => node.type === 'SavedTVDirectory');
     if (directory) {
-      assert.equal(tabs.props.contentRegionId, directory.props.regionId);
+      assert.equal(tabs.props.tabs.region.edges.down, directory.props.regionId);
       assert.equal(directory.props.enabled, true);
       assert.deepEqual(directory.props.edges, {up: ids.savedTabs, left: ids.rail});
       visible = false;
@@ -69,7 +70,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       continue;
     }
     const region = mounted.find(node => node.type === 'FocusRegion' && node.props.id === ids.savedGrid);
-    assert.equal(tabs.props.contentRegionId, region.props.id, tab);
+    assert.equal(tabs.props.tabs.region.edges.down, region.props.id, tab);
     assert.deepEqual(region.props.edges, {up: ids.savedToolbar, left: ids.rail});
     assert.equal(mounted.find(node => node.props.id === ids.savedToolbar).props.edges.down, ids.savedGrid);
     assert.equal(region.props.enabled, true);

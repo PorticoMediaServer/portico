@@ -7,7 +7,7 @@ import {createNativeEntryActions} from '../../../src-next/screens/destinations/e
 import {nativeScreenServices} from '../../../src-next/screens/native-screen-services';
 import {createNativeSavedState} from '../../../src-next/screens/saved/state';
 import {NativeSavedViewDestination} from '../../../src-next/screens/saved/view-model';
-import type {NativeSavedTVTab} from '../../../src-next/screens/saved/SavedTVTabs';
+import type {NativeSavedTVTab} from '../../../src-next/screens/saved/useSavedTVTabs';
 import type {PersonalResource} from '../../../../../packages/client-core/src/personal-saved';
 import type {PlaylistCard} from '../../../../../packages/client-core/src/saved';
 import {openNativeSavedView} from '../../../src-next/screens/saved/navigation';
