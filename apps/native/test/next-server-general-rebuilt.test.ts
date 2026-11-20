@@ -49,7 +49,7 @@ test('General shows the rebuilt documents and saves a changed name with the revi
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime');
   const {createNativeSettingsPorts} = await import('../src-next/screens/settings-live/settings-ports');
   const {ThemeProvider} = await import('../src-next/kit/theme');
-  const {NativeServerGeneral} = await import('../src-next/screens/settings-live/server/GeneralPage');
+  const {ServerGeneralPage} = await import('../src-next/pages/shared/settings/ServerGeneralPage');
   const renderer = await fabricHost();
   let captured: NativeShellBootstrapContext | undefined;
   const runtime = await restoreNativeShellRuntime(context => {captured = context; return createNativeShellBindings(context);}, {onAuthorityEnded() {}});
@@ -61,7 +61,7 @@ test('General shows the rebuilt documents and saves a changed name with the revi
   const hosts = () => app.hosts() as any[];
   const byTestId = (id: string) => hosts().find(host => host.props?.testID === id);
   const pressable = (label: string) => hosts().find(host => host.name === 'Pressable' && app.nativeLabel(host) === label);
-  await renderer.render(React.createElement(ThemeProvider, {width: 390, children: React.createElement(NativeServerGeneral, {ports, runtime})}));
+  await renderer.render(React.createElement(ThemeProvider, {width: 390, children: React.createElement(ServerGeneralPage, {ports, runtime})}));
   await settle();
 
   assert.equal(byTestId('general.name')?.props.value, 'Portico Demo', 'the name comes from the general document');
