@@ -7,7 +7,7 @@ import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
 import {TrackWindow} from '../../../kit/music/TrackWindow';
-import {AboutTable, CastRow, ChoiceChips, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, ChoiceChips, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
@@ -367,6 +367,42 @@ function PhoneBook() {
     <TrackWindow heading={{title: f('chapters'), trailing: '17'}} rows={rows} variant="chapters" onPlay={none}/>
   </TitleFrame></Page>;
 }
+/** An author of audiobooks on a phone (collections 41b): their circle of covers over a glow, Resume the book they are in,
+ * their books (who read each and the time left), and Details. */
+function PhoneAuthor() {
+  const t = defaultI18n.t, martian = asset('pool/books/the-martian-unabridged.jpg');
+  return <Page destination={{kind: 'library', libraryId: 'audiobook'}}><TitleFrame testID="frames-title-author" back={back}
+    topAction={{icon: 'i-more', label: f('more'), onPress: none}} scroller={musicScroller({})}
+    art={<AmbientArt treatment="library" palette={{first: '#8a5a24', second: '#3a2414'}}/>}
+    cover={{shape: 'circle', large: true, node: size => <PersonCircle size={size} initials="AW" covers={[martian]} visible/>}}
+    kicker={{label: t('title.kind', {kind: 'author'}), accent: true}} title={f('bookAuthor')}
+    metadata={<HeroMetadata facts={[{id: 'books', text: t('next.kit.books', {count: 1}), role: 'identity'}, {id: 'length', text: durationText(39_200, t)!, role: 'context'}]}/>}
+    primary={{icon: 'i-play', label: t('next.browse.resume', {title: f('bookMartian')}), onPress: none}}>
+    <TitleRowWindow heading={{title: t('next.kit.booksHeading'), trailing: '1'}} rows={[{id: 'martian', square: true, title: f('bookMartian'), artwork: martian,
+      facts: [t('next.kit.readBy', {name: f('bookMartianNarrator')})], note: t('next.kit.remaining', {time: durationText(16_440, t)}), onNavigate: none, onMore: none}]}/>
+    <PanelBlock><PanelHeading title={t('title.details')}/><AboutTable rows={[{label: t('next.kit.narrators'), values: [{text: f('bookMartianNarrator')}]},
+      {label: t('next.kit.length'), values: [{text: durationText(39_200, t)!}]}]}/></PanelBlock>
+  </TitleFrame></Page>;
+}
+/** A series of audiobooks on a phone (collections 41c): its first book's cover over a glow, the author as a link, Resume
+ * with Start over, and its books in order with their place in the series. */
+function PhoneSeries() {
+  const t = defaultI18n.t, cover = asset('pool/books/harry-potter-and-the-philosopher-s-stone.jpg');
+  return <Page destination={{kind: 'library', libraryId: 'audiobook'}}><TitleFrame testID="frames-title-series" back={back}
+    topAction={{icon: 'i-more', label: f('more'), onPress: none}} scroller={musicScroller({})}
+    art={<AmbientArt treatment="library" palette={{first: '#5b4a86', second: '#2a2238'}}/>}
+    cover={{shape: 'square', node: <Artwork source={cover} style={{width: '100%', height: '100%'}}/>}}
+    kicker={{label: t('next.kit.seriesKind'), accent: true}} title={f('bookSeries')} byline={{text: f('authorValue'), onPress: none}}
+    metadata={<HeroMetadata facts={[{id: 'books', text: t('next.kit.books', {count: 2}), role: 'identity'}, {id: 'length', text: durationText(29_580, t)!, role: 'context'}]}/>}
+    primary={{icon: 'i-play', label: t('title.resumeChapterNumber', {number: 6}), onPress: none}}
+    actions={[{icon: 'i-restart', label: t('action.startSeriesOver'), onPress: none}]}>
+    {/* A finished book (its place, a two-line title, who read it and Watched) over the next: the list keeps one stride. */}
+    <TitleRowWindow heading={{title: t('next.kit.booksInSeries'), trailing: '2'}} rows={[{id: 'hp1', square: true, kicker: t('next.reader.bookNumber', {number: '1'}), title: f('book'), artwork: cover,
+      facts: [t('next.kit.readBy', {name: f('narratorValue')})], watched: true, onNavigate: none, onMore: none},
+      {id: 'hp2', square: true, kicker: t('next.reader.bookNumber', {number: '2'}), title: f('bookChamber'), artwork: cover,
+        facts: [t('next.kit.readBy', {name: f('narratorValue')})], note: f('bookLeft'), onNavigate: none, onMore: none}]}/>
+  </TitleFrame></Page>;
+}
 function Book() {
   if (useFrameMetrics().form === 'phone') return <PhoneBook/>;
   const rows: TrackRowData[] = (['chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6', 'chapter7'] as const).map((name, index) => ({id: name, number: index + 1, text: {id: name, title: f(name), caption: [], detail: []},
@@ -463,6 +499,8 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-title-album', title: 'next.platform.frame.titleAlbum', render: Album, ...whole},
   {id: 'frames-title-artist', title: 'next.platform.frame.titleArtist', render: Artist, ...whole},
   {id: 'frames-title-book', title: 'next.platform.frame.titleBook', render: Book, ...whole},
+  {id: 'frames-title-author', title: 'next.platform.frame.titleAuthor', render: PhoneAuthor, ...whole},
+  {id: 'frames-title-series', title: 'next.platform.frame.titleSeries', render: PhoneSeries, ...whole},
   {id: 'frames-title-missing', title: 'next.platform.frame.titleMissing', render: Missing, ...whole},
   {id: 'frames-title-loading', title: 'next.platform.frame.titleLoading', render: Loading, ...whole},
   {id: 'frames-title-versions', title: 'next.platform.frame.titleVersions', render: Versions, ...whole},

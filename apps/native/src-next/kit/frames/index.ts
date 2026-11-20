@@ -7,7 +7,7 @@ export {SettingsListFrame, SettingsPageFrame, type SettingsListFrameProps, type 
 export {EpisodeList, EpisodePlate, type EpisodeListProps, type EpisodeListItem, type EpisodePlateProps, type EpisodeNeighbourItem, type EpisodeCreditPerson} from './EpisodeList';
 export {SheetFrame, type SheetFrameProps, type SheetBarProps} from './SheetFrame';
 export {musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type PosterGridItem, type PosterGridScrollerProps, type TitleRowsScrollerProps} from './PosterGridScroller';
-export {TitleListRow, type TitleListItem} from './TitleListRow';
+export {TitleListRow, TitleRowWindow, type TitleListItem} from './TitleListRow';
 export {SignInFrame, type SignInFrameProps} from './SignInFrame';
 export {PlayerChromeFrame, type PlayerChromeFrameProps, type PlayerReadouts, type PlayerForm} from './PlayerChromeFrame';
 export {AudioPlayerFrame, type AudioPlayerFrameProps, type AudioControl, type AudioOption} from './AudioPlayerFrame';
