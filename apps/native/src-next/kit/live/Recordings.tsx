@@ -14,7 +14,8 @@ import {ListEdgeFade} from '../layout/ListEdgeFade';
 import {Focusable} from '../controls/Focusable';
 import {Icon} from '../Icon';
 import {useFrameMetrics} from '../frames/metrics';
-import {useTheme} from '../theme';
+import {useTheme, type Theme} from '../theme';
+import {useDockClearance} from '../dock/DockClearance';
 import {frameSpec} from '@portico/design';
 import {Flag, guideSpec, type GuideChannel} from './Guide';
 
@@ -129,9 +130,9 @@ export function ConflictCard({title, body, children, action}: ConflictCardProps)
 export function RecordingStorageSummary({title, used, free, remaining, fraction, onPress}: {
   title: string; used: string; free: string; remaining: string; fraction?: number; onPress: () => void;
 }) {
-  const theme = useTheme(), frame = useFrameMetrics();
+  const theme = useTheme(), frame = useFrameMetrics(), dock = useDockClearance();
   return <Focusable accessibilityRole="button" accessibilityLabel={[title, used, free, remaining].join(', ')} onPress={onPress}
-    style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.sm, padding: frame.cardPadding, gap: theme.space.xs,
+    style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.sm + dock, padding: frame.cardPadding, gap: theme.space.xs,
       borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
     <View style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
       <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{used}</Text>
@@ -141,6 +142,11 @@ export function RecordingStorageSummary({title, used, free, remaining, fraction,
     <Progress value={fraction} height={theme.space.tight}/>
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{remaining}</Text>
   </Focusable>;
+}
+
+export function recordingGridColumns({width, isTV}: Pick<Theme, 'width' | 'isTV'>): number {
+  const grid = frameSpec.live.recordedGrid;
+  return isTV ? grid.tv : width >= grid.wideMin ? grid.tablet : grid.phone;
 }
 
 export function RecordingList<Row>({listRef, columns, lead, fade, ...list}: ComponentProps<typeof FlatList<Row>> & {
@@ -206,5 +212,16 @@ function ProgrammeArt({title, seed, image, runtime, width}: {title: string; seed
 }
 export function RecordingCard({value, runtime, columns, onOpen, onFocus, onBlur}: {value: Group; columns: number; runtime: NativeShellRuntime; onOpen: () => void; onFocus: () => void; onBlur: () => void}) {
   const theme = useTheme(), t = defaultI18n.t, recording = value.recording;
-  return <View style={{width: theme.isTV ? 385 : (theme.width - (columns + 1) * theme.space.sm) / columns, gap: 12}}><Focusable onFocus={onFocus} onBlur={onBlur} focusId={value.key} testID={`recordings-group-${value.key}`} focusKind="card" onPress={onOpen} style={{aspectRatio: 16 / 9, borderRadius: 14, overflow: 'hidden'}}><ProgrammeArt title={value.title} seed={recording.occurrence.channelId} image={recording.programme.image} runtime={runtime} width={theme.isTV ? 385 : (theme.width - (columns + 1) * theme.space.sm) / columns}/><View style={{position: 'absolute', left: 16, right: 12, bottom: 16, gap: 8}}><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{recording.channel?.name}</Text><Text style={[theme.type.cardTitle, {color: theme.colors.text}]}>{value.title}</Text></View>{value.kept > 0 && <View style={{position: 'absolute', left: 16, top: 12}}><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('recordings.kept')}</Text></View>}{value.exceptions > 0 && <View style={{position: 'absolute', left: 16, top: value.kept > 0 ? 44 : 12}}><Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('web.dvr.state.incomplete')}</Text></View>}{recording.watched === false && value.recordings === 1 && <View style={{position: 'absolute', right: 16, top: 16, width: 14, height: 14, borderRadius: 7, backgroundColor: theme.colors.accentStrong}}/>}</Focusable><RecordingFacts items={[t(value.unwatched ? 'recordings.showCountUnwatched' : 'recordings.showCount', {count: value.recordings, unwatched: value.unwatched})]}/></View>;
+  const width = theme.isTV ? 385 : (theme.width - (columns + 1) * theme.space.sm) / columns;
+  const status = [value.kept > 0 ? t('recordings.kept') : undefined, value.exceptions > 0 ? t('web.dvr.state.incomplete') : undefined];
+  return <Focusable onFocus={onFocus} onBlur={onBlur} focusId={value.key} testID={`recordings-group-${value.key}`} focusKind="card"
+    onPress={onOpen} style={{width, gap: theme.space.xs}}>
+    <View style={{aspectRatio: 16 / 9, borderRadius: theme.radii.artwork, overflow: 'hidden'}}>
+      <ProgrammeArt title={value.title} seed={recording.occurrence.channelId} image={recording.programme.image} runtime={runtime} width={width}/>
+      {recording.watched === false && value.recordings === 1 && <View style={{position: 'absolute', right: theme.space.sm, top: theme.space.sm,
+        width: theme.space.xs, height: theme.space.xs, borderRadius: theme.space.xs, backgroundColor: theme.colors.accentStrong}}/>}
+    </View>
+    <Text style={[theme.type.cardTitle, {color: theme.colors.text}]}>{value.title}</Text>
+    <RecordingFacts items={[recording.channel?.name, ...status, t(value.unwatched ? 'recordings.showCountUnwatched' : 'recordings.showCount', {count: value.recordings, unwatched: value.unwatched})]}/>
+  </Focusable>;
 }

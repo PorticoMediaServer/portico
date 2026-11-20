@@ -4,7 +4,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {NativeScreenLifetime} from '../lifetime';
 import {createNativeSettingsPorts} from '../settings-ports';
 import {createNativeRecordingsController} from '../recordings-controller';
-import {RecordingsPage} from '../../../pages/shared/live/RecordingsPage';
+import {RecordingsPage as TouchRecordingsPage} from '../../../pages/touch/live/RecordingsPage';
+import {RecordingsPage as TVRecordingsPage} from '../../../pages/tv/live/RecordingsPage';
 import {NativeServerTroubleshooting} from './TroubleshootingPage';
 import {TopBar} from '../../../kit/layout/TopBar';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
@@ -43,6 +44,7 @@ export function createNativeServerFeedbackRenderer(context: NativeShellBootstrap
 }
 
 function RecordingsDestination({controller, ports, runtime, onGuide}: {controller: ReturnType<typeof createNativeRecordingsController>; ports: ReturnType<typeof createNativeSettingsPorts>; runtime: NativeShellRuntime; onGuide: () => void}) {
+  const RecordingsPage = Platform.isTV ? TVRecordingsPage : TouchRecordingsPage;
   return <RecordingsPage controller={controller} ports={ports} runtime={runtime} onGuide={onGuide}/>;
 }
 
