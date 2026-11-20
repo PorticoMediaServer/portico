@@ -349,7 +349,7 @@ test('TV chrome sends the full identity and focus routes to the player frame', a
     assert.equal(page.identity.accessory.props.edges.down, 'watch-seek-region');
     assert.equal(page.focus.transport.entry, 'watch-toggle');
     const option = find(page.trailing, 'watch-option-subtitles');
-    const value = descendants(option.props.children({focused: true})).find(node => node.props.children === 'A very long subtitle name');
+    const value = descendants(option.props.children({focused: true})).find((node: {props: {children: unknown}}) => node.props.children === 'A very long subtitle name');
     assert.equal(flattenStyle(value.props.style).color, 'white');
   } finally {f.close();}
 });
