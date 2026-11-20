@@ -235,9 +235,10 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
     const opened = openEpisode.entry?.kind === 'episode' ? openEpisode.entry : undefined, lease = () => controller.pageLease();
     const items = (snapshot.episodes ?? []).map(episode => {
       const copy = cardText({id: episode.id, kind: episode.kind, title: episode.displayTitle ?? episode.title, episode: numbering(episode), durationSeconds: episode.duration, positionSeconds: episode.progressSeconds}, 'in-show', text);
-      // phone-detail d2 frame 4: "Episode 4" under the title, then its length and air date apart ("46 min  Feb 5, 2023").
-      const length = [episode.duration ? durationText(episode.duration, t) : undefined, episode.airDate ? airDay(episode.airDate) : undefined].filter(Boolean).join('  ') || undefined;
-      return {key: episode.id, title: episode.displayTitle ?? episode.title, label: copy.caption, length, synopsis: episode.overview, progress: copy.progress, watched: episode.watched,
+      // phone-detail d2 frame 4: "Episode 4" under the title, then its length and air date apart ("46 min  Feb 5, 2023"); the kit
+      // places them per form (a tablet's length is on the picture and the date follows the number, tablet f7, f8).
+      const length = episode.duration ? durationText(episode.duration, t) : undefined, aired = episode.airDate ? airDay(episode.airDate) : undefined;
+      return {key: episode.id, title: episode.displayTitle ?? episode.title, label: copy.caption, length, aired, synopsis: episode.overview, progress: copy.progress, watched: episode.watched,
         status: episode.id === nextUp?.id ? t('player.queue') : undefined,
         artwork: props.artwork(episode.stillUrl ?? space.show.backdropUrl), backdropFallback: !episode.stillUrl, selection: props.selection?.(episode),
         onNavigate: () => controller.episode.open(episode), onMore: (anchor: React.RefObject<View | null>) => props.more(episode, anchor),
