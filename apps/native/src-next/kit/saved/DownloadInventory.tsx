@@ -204,7 +204,9 @@ function DownloadRow({entry, device, runtime, copy, separator, menuOpen, onMenu,
         {() => <>
           <Artwork source={artwork} width={metric ? 52 : 46} height={metric ? 78 : 69} zoom={backdrop ? 2.2 : 1} saturation={backdrop ? .55 : 1} brightness={backdrop ? .45 : 1} style={{borderRadius: metric ? 5 : 6}}/>
           <View style={{flex: 1, minWidth: 0}}><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{entry.title}</Text>
-            {!!text.metadata.length && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: metric ? 3 : 2}}>{text.metadata.map((value, index) => <Text key={index} style={[theme.type.rowHeading, {color: theme.colors.textTertiary}]}>{value}</Text>)}</View>}
+            {!!text.metadata.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 10, rowGap: 2, marginTop: metric ? 3 : 2}}>
+              {text.metadata.map((value, index) => <Text key={index} style={[theme.type.rowHeading, {maxWidth: '100%', color: theme.colors.textTertiary}]}>{value}</Text>)}
+            </View>}
             {!!text.reason && <Text style={[theme.type.rowHelp, {color: text.stopped ? theme.colors.record : text.warning ? theme.colors.amber : theme.colors.textTertiary, marginTop: 2}]}>{text.reason}</Text>}
             {entry.state === 'downloading' && !entry.waiting && progress !== undefined && <><Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginTop: 2}]}>{t(copy.downloading, {percent: Math.round(100 * progress)})}</Text><View style={{height: 3, backgroundColor: theme.colors.raisedBright, marginTop: metric ? 8 : 7, borderRadius: 2, overflow: 'hidden'}}><View style={{height: 3, width: `${100 * progress}%`, backgroundColor: theme.colors.accentStrong}}/></View></>}
             {text.stopped && <View style={{height: 37}}/>}
