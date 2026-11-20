@@ -1,4 +1,5 @@
 import React, {useState, type ReactNode} from 'react';
+import {GuideProgrammeTitle} from '../live/GuideProgrammeTitle';
 import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Text as SvgText} from 'react-native-svg';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
@@ -214,7 +215,9 @@ export function EpisodeTile(props: EpisodeTileProps) {
       {playingBars(t.colors.accentStrong)}</View>}
   </ArtFrame>;
   const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.column], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
-    <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+    {/* A touch tile is a grid card: two lines, then "…" on a whole word (owner, 20 Nov). */}
+    {!row && !t.isTV ? <View style={{flexDirection: 'row'}}><GuideProgrammeTitle title={props.title} lines={2} style={[t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}/></View>
+      : <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[t.type.episodeTitle, {color: props.selection?.selected || props.playing ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>}
     {/* A tablet row's length is on its picture, so its status leads the number's line ("Up next  Episode 3", tablet-play 2a);
         a phone's row keeps the status beside the length under the number (phone-player 4). */}
     {wide && props.status && !(props.playing || props.watched)

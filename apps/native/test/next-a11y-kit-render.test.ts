@@ -232,6 +232,7 @@ test('CardFrame announces presentation context and state while preserving named 
 test('specialized cards forward episode context and the same viewer/session facts as their visible face', async () => {
   const f = fixture();
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
     '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}}, '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
     './primitives': {CardFrame: 'CardFrame', Parts: 'Parts', titleStyle: () => ({})},
@@ -276,6 +277,7 @@ test('wide card and episode row titles take two lines on phone and one on TV', a
   for (const isTV of [false, true]) {
     const f = fixture(), theme = isTV ? createTheme({isTV: true, width: 1920, fontScale: 1}) : f.theme;
     const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
       ...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
       '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}, MediaArt: 'MediaArt', missingArt: () => undefined}, '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
       './primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame', Badge: 'Badge', Caption: 'Caption', CardAction: 'CardAction', Progress: 'Progress', Scrim: 'Scrim', Parts: 'Parts', titleStyle: () => ({})},
@@ -385,6 +387,7 @@ test('a square card draws a 2:3 cover whole in its own shape once the picture\'s
     const common = {...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}};
     const whole = await screenModule(new URL('../src-next/kit/artwork/WholeCover.tsx', import.meta.url), {...common, './Artwork': {Artwork: 'Artwork'}, './Surfaces': {AmbientArt: 'AmbientArt'}});
     const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
       ...common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
       '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}, MediaArt: 'MediaArt', missingArt: () => undefined, useWholeBox: whole.useWholeBox},
       '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
