@@ -38,13 +38,15 @@ export type LiveFrameProps = Readonly<{
   hints?: ReactNode;
   /** The whole page can't load. */
   state?: PageStateProps;
+  footer?: ReactNode;
+  overlay?: ReactNode;
   testID?: string;
 }>;
 
 /** Live TV (desktop-live, phone-guide, phone-app 10 to 12, tablet-play 6 and 7, final3-tv-10): the guide, the channel
  * list and Recordings share one frame. Fixed: the title row (title, the source picker, its facts and buttons), the tabs,
  * the chips and the toolbar. Flexible: the guide or the list under them. The details pane is `SplitFrame`'s. */
-export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, lead, toolbar, children, list, details, hints, state, testID}: LiveFrameProps) {
+export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, lead, toolbar, children, list, details, hints, state, footer, overlay, testID}: LiveFrameProps) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), {form} = frame;
   const edge = {paddingLeft: frame.gutter, paddingRight: frame.rightGutter};
   // On a phone the source picker heads the chips, so the title row keeps List | Guide beside the title (phone-guide g1, as the web).
@@ -73,7 +75,7 @@ export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, l
     {titleRow}
     {tabs}
     {chipsLine(false)}
-    {toolbar && form !== 'tv' && <View style={[edge, {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.xs}]}>{toolbar}</View>}
+    {toolbar && form !== 'tv' && <View style={[edge, {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: form === 'phone' ? 'space-between' : undefined, gap: theme.space.xs}]}>{toolbar}</View>}
   </View>;
   const page = <View testID={testID} style={{flex: 1}}>
     {header}
@@ -85,6 +87,8 @@ export function LiveFrame({title, back, switcher, facts, actions, tabs, chips, l
       {children}
       {hints && <View style={edge}>{hints}</View>}
     </ScrollView>}
+    {footer}
+    {overlay}
   </View>;
   return <SplitFrame pane={details}>{page}</SplitFrame>;
 }

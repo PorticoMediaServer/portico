@@ -2,7 +2,9 @@ import type {RecordingSpace} from '../../../../../packages/client-core/src/next-
 import {readCatalogueItemEncodedResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {FlatList, ScrollView, Text, View} from 'react-native';
+import {FlatList, ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {RecordingStorageSummary} from '../../kit/live/Recordings';
+import {RecordingsPage} from '../../pages/touch/live/RecordingsPage';
 import {ListEdgeFade} from '../../kit/layout/ListEdgeFade';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import {activeRecording, playableRecording, type DeletePreview, type DVRView, type Recording, type RecordingDetail, type RecordingGroups, type RecordingRule, type RuleConfig} from '../../../../../packages/client-core/src/dvr';
@@ -59,7 +61,8 @@ type OverlayOpening = {kind: 'menu' | 'details'; recording: Recording; query: st
 type DeleteAsk = Readonly<{opening: OverlayOpening; controller: NativeRecordingsController; recording: Recording}>;
 
 export function NativeRecordingsScreen({controller, ports, runtime, onGuide, owner}: {controller: NativeRecordingsController; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime; onGuide: () => void; owner?: NativeLiveOwnerController}) {
-  const theme = useTheme(), t = defaultI18n.t;
+  const theme = useTheme(), t = defaultI18n.t, window = useWindowDimensions();
+  const rebuiltPhone = theme.form === 'phone' && window.width < window.height;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), query = state.query;
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]), tabs = ids.surface('recordings.views'), body = ids.surface('recordings.page');
   const registry = useFocusRegistry(), bodyFocused = useRef(false);
@@ -207,7 +210,8 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
   // Local open-sheet/group state must not outlive an authoritative DVR access denial.
   const expandedTouch = !theme.isTV && theme.platform === 'web';
   if (state.accessDenied) return <Screen><StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')}/></Screen>;
-  return <Screen style={{paddingTop: theme.isTV ? 56 : 20}}>
+  const groupHeader = group && <View style={{marginBottom: 34, flexDirection: 'row', gap: 20}}><ScreenText secondary>{group.recording.channel?.name}</ScreenText><SpacedFacts text={t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched})}/></View>;
+  const header = <>
     {/* desktop-live, tablet-play6: at expanded touch widths Recordings is Live TV's second tab, so the page keeps
         Live TV's title and the Guide / Recordings pair in place of Back; a show's page keeps Back. */}
     {expandedTouch && !group ? <View style={{paddingHorizontal: 20}}><NativeLiveTabs value="recordings" t={t} onGuide={leaveGuide}>
@@ -218,8 +222,9 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
       {!group && state.storage && query.view !== 'storage' && <View style={{width: theme.isTV ? 360 : 160}}><StorageFacts storage={state.storage}/><Meter storage={state.storage}/></View>}
     </View>}
     {!group ? <FocusRegion id={tabs} entry={query.view} orientation="horizontal" edges={{left: ids.rail, down: body}} onLayout={entryRegion === tabs ? enter : undefined} style={{flexDirection: 'row', gap: 12, marginBottom: theme.isTV ? 42 : 24, paddingHorizontal: theme.isTV ? 0 : 20}}>{views.map(view => <Chip key={view} focusId={view} testID={`recordings-view-${view}`} selected={view === query.view} onFocus={() => {if (theme.isTV) select(view);}} onPress={() => select(view)} count={view === 'upcoming' || view === 'recorded' || view === 'rules' ? state.summary?.[view] : undefined}>{t(viewLabels[view])}</Chip>)}</FocusRegion>
-      : <View style={{marginBottom: 34, flexDirection: 'row', gap: 20}}><ScreenText secondary>{group.recording.channel?.name}</ScreenText><SpacedFacts text={t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched})}/></View>}
-    <FocusRegion id={body} entry={first} orientation="free" edges={{left: ids.rail, up: tabs}} onFocusChange={value => {bodyFocused.current = value;}} onLayout={entryRegion === body ? enter : undefined} style={{flex: 1, paddingHorizontal: theme.isTV ? 0 : 20}}>
+      : groupHeader}
+  </>;
+  const recordingsBody = <FocusRegion id={body} entry={first} orientation="free" edges={{left: ids.rail, up: tabs}} onFocusChange={value => {bodyFocused.current = value;}} onLayout={entryRegion === body ? enter : undefined} style={{flex: 1, paddingHorizontal: theme.isTV ? 0 : 20}}>
       {state.error !== undefined ? <StateView testID="recordings-error" {...runtime.error(state.error, () => {void controller.load(); void controller.loadFacts();}, 'live')}/>
         : query.view === 'storage' ? state.storage && <StorageView storage={state.storage} owner={ports.context.account.account.role === 'owner' && ports.context.account.account.primaryProfileId === controller.lifetime.authority.profileId}/>
         : state.loading && !state.page && !state.groups ? <Quiet><StateView title={t('recordings.loading')}/></Quiet>
@@ -237,7 +242,8 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
         {state.viewerWindow.chunks[0]?.cursor && <Button focusId="recordings-page-previous" testID="recordings-page-previous" onPress={() => {if (drawnCurrent() && state.viewerWindow) void controller.previousViewerPage(state.viewerWindow, viewerOpening);}}>{t('web.pager.previous')}</Button>}
         {(state.viewerWindow.nextCursor || state.viewerWindow.pending) && <Focusable key="recordings-page-next" focusId="recordings-page-next" testID="recordings-page-next" disabled={state.viewerWindow.pending} focusableWhenDisabled onFocus={() => {if (drawnCurrent() && state.viewerWindow) controller.focusViewerHost(state.viewerWindow);}} onPress={() => {if (drawnCurrent() && state.viewerWindow) void (state.viewerWindow.refreshRequired ? (restartViewer(state.viewerWindow), Promise.resolve()) : state.viewerWindow.error !== undefined ? controller.retryViewerPage(state.viewerWindow, viewerOpening) : controller.nextViewerPage(state.viewerWindow, viewerOpening));}}><ScreenText>{t(state.viewerWindow.error !== undefined || state.viewerWindow.refreshRequired ? 'next.states.tryAgain' : 'next.settings.loadMore')}</ScreenText></Focusable>}
       </>}
-    </FocusRegion>
+    </FocusRegion>;
+  const overlays = <>
     <Menu key={menu ? `${menu.recording.id}:${menu.recording.revision}` : 'recordings-menu'} open={menu !== undefined} onOpenChange={(value, reason) => {if (!value && menu) close(menu, reason === 'action' ? 'action' : 'user');}} title={menu?.recording.programme.title} returnFocusRef={opener} testID="recordings-menu" items={menu ? [
       ...(playableRecording(menu.recording) ? [{id: 'play', icon: 'i-play' as const, label: t('action.play'), disabled: state.busy, onSelect: () => {if (overlay.current === menu && askReady(menu)) run(() => play(menu.recording, menu));}}] : []),
       ...(!activeRecording(menu.recording) && playableRecording(menu.recording) ? [{id: 'keep', icon: 'i-bookmark' as const, label: t(menu.recording.keep ? 'web.dvr.stopKeeping' : 'web.dvr.keep'), disabled: state.busy, onSelect: () => {if (overlay.current === menu && askReady(menu)) run(() => controller.keep(menu.recording));}}] : []),
@@ -251,12 +257,28 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
     {/* TV viewers keep programme/series recording and rule editing; the administrative
         new-rule sheet is not a TV surface and never mounts here. */}
     {owner && !theme.isTV && <NewRuleSheet context={ports.context} runtime={runtime} open={newRule} onOpenChange={setNewRule} onSaved={() => {setNewRule(false); void controller.load({view: 'rules'});}}/>}
-  </Screen>;
+  </>;
+  if (rebuiltPhone) {
+    const storage = state.storage;
+    const [used = '', free = ''] = storage ? storageFacts(storage) : [];
+    const totalBytes = storage && storage.usedBytes !== undefined ? storage.usedBytes + storage.freeBytes : undefined;
+    return <RecordingsPage title={group?.title ?? t('recordings.title')}
+      back={{label: t(group ? 'recordings.title' : 'search.chip.liveTV'), onPress: group ? back : leaveGuide, testID: 'recordings-back'}}
+      tabs={groupHeader} choices={group ? undefined : {items: views.map(value => ({value, label: t(viewLabels[value])})), value: query.view, onValueChange: value => select(value as DVRView)}}
+      list={recordingsBody} overlay={overlays}
+      footer={!group && storage && query.view !== 'storage' && <RecordingStorageSummary title={t('recordings.storage')} used={used} free={free}
+        remaining={t('recordings.hoursLeft', {count: storage.hoursLeft})}
+        fraction={totalBytes && storage.usedBytes !== undefined ? storage.usedBytes / totalBytes : undefined} onPress={() => select('storage')}/>}/>;
+  }
+  return <Screen style={{paddingTop: theme.isTV ? 56 : 20}}>{header}{recordingsBody}{overlays}</Screen>;
 }
 
 function SpacedFacts({text}: {text: string}) {return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>{text.split(' · ').map((part, index) => <ScreenText key={index} secondary>{part}</ScreenText>)}</View>;}
+function storageFacts(storage: RecordingSpace) {
+  return defaultI18n.t('recordings.storageUsed', {used: storage.usedBytes === undefined ? '—' : defaultI18n.bytes(storage.usedBytes), free: defaultI18n.bytes(storage.freeBytes)}).split(' · ');
+}
 function StorageFacts({storage}: {storage: RecordingSpace}) {
-  const theme = useTheme(), facts = defaultI18n.t('recordings.storageUsed', {used: storage.usedBytes === undefined ? '—' : defaultI18n.bytes(storage.usedBytes), free: defaultI18n.bytes(storage.freeBytes)}).split(' · ');
+  const theme = useTheme(), facts = storageFacts(storage);
   return <View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: 10}}>{facts.map((part, index) => <Text key={index} style={[shellType(theme.isTV ? 22 : 12, index ? 400 : 700), {color: index ? theme.colors.textTertiary : theme.colors.text}]}>{part}</Text>)}</View>;
 }
 function Meter({storage}: {storage: RecordingSpace}) {const theme = useTheme(); if (storage.usedBytes === undefined) return null; const total = storage.usedBytes + storage.freeBytes; return <View style={{height: 8, marginTop: 10, borderRadius: 5, backgroundColor: theme.colors.line, overflow: 'hidden'}}><View style={{height: 8, width: `${total > 0 ? Math.min(100, storage.usedBytes / total * 100) : 0}%`, backgroundColor: theme.colors.accentStrong}}/></View>;}

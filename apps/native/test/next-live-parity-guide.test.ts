@@ -95,7 +95,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   const recordings: any = {getSnapshot: () => recordingSnapshot, lifetime, subscribe: (fn: () => void) => {recordingListeners.add(fn); return () => {recordingListeners.delete(fn);};},
     loadSummary: async () => {summaryReads.push(summaryReads.length);},
     schedule: async (draft: unknown, options: unknown) => {scheduled.push({draft, options}); return scheduleFails ? undefined : {value: {id: `rec-${scheduled.length}`, state: 'scheduled'}};}};
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {...liveTabsFixture(React), ...ownerTagFixture,
+  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {'../../pages/touch/live/GuidePage': {GuidePage: ({actions, tabs, toolbar, list, overlay}: any) => jsx('GuidePage', null, actions, tabs, toolbar, list, overlay)}, ...liveTabsFixture(React), ...ownerTagFixture,
     react: {...React, default: React}, 'react-native': native,
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Pattern: 'Pattern', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/dvr': dvr, '../../../../../packages/client-core/src/presentation/kit-model': kitModel,
