@@ -36,7 +36,9 @@ export type TitleCredit = Readonly<{label: string; names: string | readonly Abou
 export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: string; onPress?: () => void}>;
 /** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. The frame
  * sizes it per form; a picture that draws to a size (a person's initials) takes it as a function of the width. */
-export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNode); shape: 'poster' | 'square' | 'circle'}>;
+export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNode); shape: 'poster' | 'square' | 'circle';
+  /** A circle drawn large on a phone: an artist's (phone-app frame 15b), where a person's is small (phone-detail d3 frame 7). */
+  large?: boolean}>;
 /** Where the collapsed bar shows, for a page's own scroller (`MusicScrollView`'s `collapseAt` and `onCollapse`). */
 export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean) => void}>;
 export type TitleFrameProps = Readonly<{
@@ -271,7 +273,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
     {topControl ?? (topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>)}
   </View>;
   const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}</View></>}</View>;
-  const coverSize = cover?.shape === 'circle' && (split || form === 'phone') ? spec.parts.coverCirclePhone : spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
+  const coverSize = cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
+    : spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
     // A cover page reports where its name starts (the head is the page's first part, so that is a page offset): the compact
