@@ -42,7 +42,7 @@ async function fixture(book = false, width = 390) {
     '../../../kit/dock/model': {commandAllowed: () => true, dockCommand: (_occupant: unknown, type: string) => ({type}),
       playbackPosition: (occupant: any) => occupant.playback.positionSeconds, seekBounds: () => ({start: 0, end: 180}),
       seekTo: (_occupant: unknown, seconds: number) => ({type: 'seek', seconds: Math.max(0, Math.min(180, seconds))})},
-    './NowPlayingQueue': {NowPlayingQueue: 'QueuePublisher', nowPlayingQueueWindow: (view: any) => view.window,
+    '../../../pages/touch/player/AudioPlayerPage': {AudioPlayerPage: 'AudioPlayerPage'}, './NowPlayingQueue': {NowPlayingQueue: 'QueuePublisher', nowPlayingQueueWindow: (view: any) => view.window,
       nowPlayingQueueEntry: () => ({available: true, segmentId: 'segment'})},
     './ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'FavoritePaint', listeningSongFavorite: () => undefined},
     './TVMusicFocus': {MusicFocusRegion: 'MusicFocusRegion', TVMusicFocus: 'TVMusicFocus'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVScreen'},
@@ -63,29 +63,33 @@ async function fixture(book = false, width = 390) {
   const root = NowPlayingScreen(props);
   let tree: any;
   const render = () => tree = ui.render(() => root.type(props)); render();
+  const page = () => nodes(tree).find(node => node.type === 'AudioPlayerPage');
   return {render, props, commands, rates, sleeps, retire: () => {active = false;}, nodes: () => nodes(tree), tree: () => tree,
-    button: (id: string) => nodes(tree).find(node => node.props.testID === `now-playing-${id}`),
+    page,
+    button: (id: string) => {
+      const testID = `now-playing-${id}`;
+      const button = nodes(tree).find(node => node.props.testID === testID);
+      const data = page()?.props;
+      const item = data && [...data.transport, data.queue, data.lyrics, data.speed, data.sleep, data.chapters].find(value => value?.testID === testID);
+      return button ?? (item && {props: {...item, accessibilityLabel: item.label}});
+    },
     column: () => nodes(tree).find(node => node.type?.name === 'ListeningColumn')};
 }
 
-test('phone music uses full 24-point-gutter cover, prominent transport and remaining time', async () => {
+test('phone music supplies its cover, transport and remaining time to the audio frame', async () => {
   const f = await fixture();
-  assert.equal(f.column().props.cover, 342);
-  const header = nodes(f.column().props.header);
-  assert.equal(header.filter(node => node.type === 'Button').length, 2);
-  assert.equal(header.find(node => node.props.icon === 'i-down').props.style.height, 48);
-  assert.equal(f.button('toggle').props.style.width, 76);
-  assert.equal(f.button('previous').props.variant, 'text');
-  assert.equal(f.button('previous').props.style.width, 48);
-  assert.equal(f.button('close'), undefined);
-  assert.ok(f.nodes().some(node => node.type === 'Text' && text(node) === '-1:50'));
+  const page = f.page().props;
+  assert.equal(page.cover.props.source, f.props.occupant.presentation.artwork);
+  assert.equal(page.close.label, 'player.minimize');
+  assert.equal(page.transport[2].testID, 'now-playing-toggle');
+  assert.equal(page.times.end, '-1:50');
 });
 
 test('phone queue lives in a dismissible BottomSheet while the player stays mounted', async () => {
   const f = await fixture();
   f.button('queue-toggle').props.onPress(); f.render();
   const sheet = f.nodes().find(node => node.type === 'BottomSheet');
-  assert.equal(sheet.props.open, true); assert.ok(f.column());
+  assert.equal(sheet.props.open, true); assert.ok(f.page());
   // Detents are heights in points: fractions (.5, .94) made the sheet rise 1 point, a sliver under a dimmed screen.
   assert.deepEqual(sheet.props.detents, [422, 793]);
   assert.ok(nodes(sheet).some(node => node.type === 'QueuePaint'));
@@ -170,25 +174,18 @@ test('phone-app 15: on a phone the chapter line ends with the book\'s chapter co
   f.props.audiobook = {...f.props.audiobook, bookChapters: () => ({bookId: 'book', itemId: 'item', phase: 'ready', current: 2,
     chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('item:1', 'item', 3, 'Three', 0, 7200)]}), playBookChapter: async () => {}};
   f.render();
-  const line = text(f.nodes().find(node => node.props.testID === 'now-playing-chapter-line'));
+  const {label, of} = f.page().props.chapter;
+  const line = `${label} ${of}`;
   assert.ok(line.includes('Three')); assert.ok(line.endsWith('of 3'), line);
   assert.doesNotMatch(line, /\d+\/\d+|undefined/);
 });
 
-test('phone audiobook options use 54pt glass faces with the active ring and whole-book remaining line', async () => {
+test('phone audiobook passes the three options, open chapter state and whole-book remaining line', async () => {
   const f = await fixture(true);
-  const style = (node: any) => Object.assign({}, ...[node.props.style].flat().filter(Boolean));
-  for (const id of ['speed', 'sleep', 'chapters-toggle']) {
-    const option = f.button(id);
-    assert.equal(style(option).height, 54);
-    assert.equal(style(option).backgroundColor, '#edf5fa:0.12');
-    assert.equal(nodes(option).find(node => node.type === 'BlurView').props.blurAmount, 16);
-  }
-  assert.ok(f.button('book-remaining'));
+  for (const id of ['speed', 'sleep', 'chapters-toggle']) assert.ok(f.button(id), id);
+  assert.ok(f.page().props.times.middle);
   f.button('chapters-toggle').props.onPress(); f.render();
-  assert.equal(style(f.button('chapters-toggle')).backgroundColor, '#409fd4:0.22');
-  assert.equal(style(f.button('chapters-toggle')).borderWidth, 1);
-  assert.equal(style(f.button('chapters-toggle')).borderColor, '#5cb3e2:0.5');
+  assert.equal(f.button('chapters-toggle').props.active, true);
 });
 
 test('tablet audiobook ticks mark actual chapter boundaries within the full-book seek range', async () => {

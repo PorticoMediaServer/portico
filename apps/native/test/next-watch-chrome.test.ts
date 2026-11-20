@@ -33,7 +33,7 @@ const chromeModules = {
   'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'GestureDetector'},
   '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds},
   './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})},
-  './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'},
+  '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'},
   './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {}; return () => snapshot;})()},
   './live-actions': {noLiveActionsSubscription: () => () => {}, emptyLiveActions: (() => {const snapshot = {}; return () => snapshot;})()},
   '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})},
@@ -149,7 +149,13 @@ test('every genuine chrome child mounts the strict focus target hook with unique
   isTV = true;
 });
 
-const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : React.isValidElement(node) ? [node, ...descendants((node as any).props.children)] : [];
+const descendants = (node: any): any[] => {
+  if (Array.isArray(node)) return node.flatMap(descendants);
+  if (!React.isValidElement(node)) return [];
+  const props = (node as any).props;
+  const content = node.type === 'PlayerPage' ? [props.picture, props.tools, props.scrubber, props.transport, props.prompts, props.card] : props.children;
+  return [node, ...descendants(content)];
+};
 
 for (const kind of ['skip', 'undo', 'up-next']) for (const visible of [false, true]) test(`a ${kind} arrival with controls ${visible ? 'up preserves Quality' : 'hidden owns focus and Back stays in playback'}`, async () => {
   isTV = true;
@@ -276,12 +282,11 @@ test('a slow first frame never bypasses ordinary timer and toggle hiding after t
     for (const [id, timer] of [...timers]) if (timer.at <= now) {timers.delete(id); timer.callback();}
     await host.flush();
     assert.equal(controls.getSnapshot().visible, false);
-    const hidden = all(tree).find(node => node.type === 'Animated' && node.props.pointerEvents === 'none' && node.props.importantForAccessibility === 'no-hide-descendants');
-    assert.ok(hidden); assert.equal(hidden.props.style.at(-1).opacity, 0);
+    const page = () => all(tree).find(node => node.type === 'PlayerPage');
+    assert.equal(page().props.chromeVisible, false);
     assert.equal(paint.controls.value, 1, 'the initial presentation is still present and its entrance is already complete');
     controls.reveal(fence); await host.flush(); controls.toggleVisibility(fence); await host.flush();
-    const toggled = all(tree).find(node => node.type === 'Animated' && node.props.pointerEvents === 'none' && node.props.importantForAccessibility === 'no-hide-descendants');
-    assert.equal(toggled.props.style.at(-1).opacity, 0);
+    assert.equal(page().props.chromeVisible, false);
   } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
 });
 
@@ -367,12 +372,14 @@ test('a phone wait replaces the centre transport while leaving the edge controls
   try {
     const byId = (id: string) => descendants(tree).find(node => node.props.testID === id);
     for (const id of ['watch-toggle', 'watch-skip-back', 'watch-skip-forward']) assert.equal(byId(id), undefined, id);
-    assert.ok(byId('watch-minimize')); assert.ok(byId('watch-options')); assert.ok(byId('watch-option-quality'));
+    const page = descendants(tree).find(node => node.type === 'PlayerPage');
+    assert.equal(typeof page.props.onMinimize, 'function');
+    assert.equal(typeof page.props.onQuality, 'function');
+    assert.ok(byId('watch-options'));
     assert.ok(descendants(tree).some(node => node.type === 'Timeline'), 'progress remains');
-    const footer = byId('watch-picture-controls');
-    footer.props.onLayout({nativeEvent: {layout: {height: 46}}});
-    footer.props.onLayout({nativeEvent: {layout: {height: 90}}});
-    assert.deepEqual(measured, [54, 98], 'the waiting column clears the actual footer, including a taller text layout');
+    page.props.onControlsLayout(46);
+    page.props.onControlsLayout(90);
+    assert.deepEqual(measured, [46, 90], 'the waiting column clears the actual footer, including a taller text layout');
     waiting = false; await host.rerender();
     for (const id of ['watch-toggle', 'watch-skip-back', 'watch-skip-forward']) assert.ok(byId(id), id);
   } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}

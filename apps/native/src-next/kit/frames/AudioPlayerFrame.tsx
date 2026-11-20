@@ -16,7 +16,7 @@ import {AudioChoiceRow} from '../player/queue';
 import {ArtBox} from './parts';
 
 /** One control in a fixed place. A control the item doesn't support keeps its place with `disabled`, dimmed. */
-export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number; testID?: string}>;
+export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number; testID?: string; anchorRef?: React.Ref<View>}>;
 /** An audiobook's Speed, Sleep timer and Chapters. A phone draws each as a tile (its `value` over its label, outlined
  * in the accent when `active`); the wide forms draw Speed and Sleep timer as a row of their `choices` with `help`. */
 export type AudioOption = Omit<AudioControl, 'icon'> & Readonly<{icon?: IconName; value?: string; help?: string; choices?: readonly Readonly<{label: string; selected?: boolean; onPress: () => void}>[]}>;
@@ -129,7 +129,7 @@ function Times({times, loading, ends}: {times: AudioTimes; loading: boolean; end
 
 function Glyph({item, loading, size, disc = false}: {item: AudioControl; loading: boolean; size?: number; disc?: boolean}) {
   const theme = useTheme();
-  return <Button testID={item.testID} variant={disc ? 'glass' : 'text'} size="small" iconOnly icon={item.icon} iconSize={size} iconColor={item.active ? theme.colors.text : theme.colors.text} accessibilityLabel={item.label} accessibilityState={{selected: item.active}} disabled={item.disabled || loading} onPress={item.onPress}/>;
+  return <Button ref={item.anchorRef} testID={item.testID} variant={disc ? 'glass' : 'text'} size="small" iconOnly icon={item.icon} iconSize={size} iconColor={theme.colors.text} accessibilityLabel={item.label} accessibilityState={{selected: item.active}} disabled={item.disabled || loading} onPress={item.onPress}/>;
 }
 
 function ChapterLine({chapter, loading, wide}: {chapter: NonNullable<AudioPlayerFrameProps['chapter']>; loading: boolean; wide: boolean}) {
@@ -145,7 +145,7 @@ function ChapterLine({chapter, loading, wide}: {chapter: NonNullable<AudioPlayer
 function Slot({item, loading, tile = false, inline = false}: {item: AudioControl | AudioOption; loading: boolean; tile?: boolean; inline?: boolean}) {
   const theme = useTheme(), off = item.disabled || loading, value = 'value' in item ? item.value : undefined, tint = item.active ? theme.colors.accentStrong : theme.colors.text;
   const glyph = item.icon && <Icon name={item.icon} size={frameSpec.player.promptIcon} color={tile ? item.active ? theme.colors.accentStrong : theme.colors.textSecondary : tint}/>;
-  return <Focusable testID={item.testID} accessibilityRole="button" accessibilityLabel={value !== undefined ? `${item.label}, ${value}` : item.label} accessibilityState={{disabled: !!off, selected: item.active}} disabled={off} onPress={item.onPress} focusRadius={theme.baseRadii.control}
+  return <Focusable ref={item.anchorRef} testID={item.testID} accessibilityRole="button" accessibilityLabel={value !== undefined ? `${item.label}, ${value}` : item.label} accessibilityState={{disabled: !!off, selected: item.active}} disabled={off} onPress={item.onPress} focusRadius={theme.baseRadii.control}
     style={[{flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', gap: theme.space.tight, opacity: off ? theme.spec.button.disabledOpacity : 1}, inline && !tile && {flexDirection: 'row', gap: theme.space.xs},
       tile && {borderRadius: frameSpec.card.radius.phone, paddingHorizontal: theme.space.tight, backgroundColor: item.active ? alpha(theme.colors.accent, .24) : alpha(theme.colors.text, frameSpec.player.tint.pill), borderWidth: theme.space.hairline, borderColor: item.active ? alpha(theme.colors.accentStrong, .7) : 'transparent'}]}>
     {value !== undefined ? <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight}}>{glyph}<Text numberOfLines={1} style={[theme.type.rowLabel, {color: tile && item.active ? theme.colors.accentStrong : theme.colors.text, fontFamily: theme.type.pageTitle.fontFamily}]}>{value}</Text></View> : glyph}
