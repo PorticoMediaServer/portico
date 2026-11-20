@@ -49,7 +49,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './NativeApplePassthroughRow': {NativeApplePassthroughRow: 'NativeApplePassthroughRow'},
     '../../kit/settings/DeviceCapabilityRows': {DeviceCapabilityRows: 'DeviceCapabilityRows'},
     './DashboardScreen': {NativeDashboardScreen: 'NativeDashboardScreen'},
-    './server/RemoteAccessPage': {NativeRemoteAccessPage: 'NativeRemoteAccessPage'},
+    './ServerRemoteAccessPage': {ServerRemoteAccessPage: 'ServerRemoteAccessPage'},
     './NativeLossNoticesRow': {NativeLossNoticesRow: 'NativeLossNoticesRow', nativeLossNoticesFocusId: 'settings-device-loss-notices'},
     './NativeServerOfflineNoticeRow': {NativeServerOfflineNoticeRow: 'NativeServerOfflineNoticeRow'},
     react,

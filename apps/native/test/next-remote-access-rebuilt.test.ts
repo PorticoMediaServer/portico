@@ -23,11 +23,16 @@ const textOf = (value: unknown): string => Array.isArray(value) ? value.map(text
 
 test('Remote access shows the server status and saves a changed row at the revision it read', async t => {
   const saves: any[] = [];
+  let refuse = false;
   const app = await standardHomeApp({
     accountRole: 'owner', mountUI: false,
     nativeResponse: async (request: any) => {
       if (request.path === '/v1/admin/settings/remote-access' && request.method === 'GET') return {status: 200, headers: {ETag: '"4"'}, body: remoteAccess};
-      if (request.path === '/v1/admin/settings/remote-access' && request.method === 'PUT') {saves.push(request); return {status: 200, body: {}};}
+      if (request.path === '/v1/admin/settings/remote-access' && request.method === 'PUT') {
+        saves.push(request);
+        if (refuse) return {status: 409, body: {error: {code: 'would_refuse_this_route', message: 'This setting would block this device.'}}};
+        return {status: 200, body: {}};
+      }
       if (request.path === '/v1/admin/settings/network' && request.method === 'GET') return {status: 200, headers: {ETag: '"2"'}, body: network};
       if (request.path === '/v1/admin/remote-access') return {status: 200, body: status};
       if (request.path === '/v1/admin/blocked-networks') return {status: 200, body: {items: []}};
@@ -39,7 +44,7 @@ test('Remote access shows the server status and saves a changed row at the revis
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime');
   const {createNativeSettingsPorts} = await import('../src-next/screens/settings-live/settings-ports');
   const {ThemeProvider} = await import('../src-next/kit/theme');
-  const {NativeRemoteAccessPage} = await import('../src-next/screens/settings-live/server/RemoteAccessPage');
+  const {ServerRemoteAccessPage} = await import('../src-next/pages/shared/settings/ServerRemoteAccessPage');
   const renderer = await fabricHost();
   let captured: NativeShellBootstrapContext | undefined;
   const runtime = await restoreNativeShellRuntime(context => {captured = context; return createNativeShellBindings(context);}, {onAuthorityEnded() {}});
@@ -51,7 +56,7 @@ test('Remote access shows the server status and saves a changed row at the revis
   const hosts = () => app.hosts() as any[];
   const byTestId = (id: string) => hosts().find(host => host.props?.testID === id);
   const pressable = (label: string) => hosts().find(host => host.name === 'Pressable' && app.nativeLabel(host) === label);
-  await renderer.render(React.createElement(ThemeProvider, {width: 390, children: React.createElement(NativeRemoteAccessPage, {ports, runtime})}));
+  await renderer.render(React.createElement(ThemeProvider, {width: 390, children: React.createElement(ServerRemoteAccessPage, {ports, runtime})}));
   await settle();
 
   const text = hosts().map(host => textOf(host.children)).join('\n');
@@ -68,4 +73,19 @@ test('Remote access shows the server status and saves a changed row at the revis
   assert.equal(saves[0].body.findAtHome, false);
   assert.equal('interfaces' in saves[0].body, false, 'read-only facts are never sent back');
   assert.equal(pressable('Save'), undefined, 'a stored change leaves nothing to save');
+
+  refuse = true;
+  byTestId('remote.discovery').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  pressable('Save').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  const confirmation = byTestId('remote-access-confirm');
+  assert.ok(confirmation, 'a refusal needs its own confirmation');
+  assert.match(hosts().map(host => textOf(host.children)).join('\n'), /This setting would block this device/);
+  assert.equal(saves.length, 2);
+  assert.equal('confirmRefusal' in saves[1].body, false, 'the ordinary save never confirms a lockout risk');
+  pressable('Cancel').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(saves.length, 2, 'Cancel does not send a second write');
+  assert.ok(pressable('Save'), 'Cancel leaves the draft available');
 });

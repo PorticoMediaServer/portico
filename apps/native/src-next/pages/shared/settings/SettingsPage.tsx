@@ -18,7 +18,7 @@ import {NativeServerTroubleshooting} from '../../../screens/settings-live/server
 import {NativeServerStorage} from '../../../screens/settings-live/server/StoragePage';
 import {NativeServerIntegrations} from '../../../screens/settings-live/server/IntegrationsPage';
 import {NativeServerGeneral} from '../../../screens/settings-live/server/GeneralPage';
-import {NativeRemoteAccessPage} from '../../../screens/settings-live/server/RemoteAccessPage';
+import {ServerRemoteAccessPage} from './ServerRemoteAccessPage';
 import {NativeServerStreaming} from '../../../screens/settings-live/server/StreamingPage';
 import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
@@ -79,7 +79,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
-    : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/>
     : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
@@ -92,7 +91,8 @@ export function NativeSettingsPage(props: SettingsProps) {
     : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : undefined;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
-  const settingsPage = (!compact || pushed) && <SettingsPageFrame title={t(page.title)}
+  const settingsPage = (!compact || pushed) && (remoteAccessPage ? <ServerRemoteAccessPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
     intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
@@ -112,7 +112,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     </> : !custom && <SettingsRowTargetContext.Provider value={rowTargeting}>
       <SettingsPreferences key={page.id} {...preferenceProps} page={page} region={rows} column={column} aimedRow={aimed}/>
     </SettingsRowTargetContext.Provider>}
-  </SettingsPageFrame>;
+  </SettingsPageFrame>);
   const content = <SettingsListFrame bar={{title, action: {label: t('action.done'), onPress: closeSettings, testID: 'settings-sheet-done'}}}
     search={search} profile={profile} shortcuts={shortcuts} list={list} page={settingsPage || undefined} searching={tvSearch} closing={closing}
     hints={tv && !tvSearch ? <SettingsKeyHints t={t}/> : undefined}/>;
