@@ -100,7 +100,9 @@ function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativ
     const bounded = Math.max(0, Math.min(total - 1, Math.floor(index)));
     // An index/rail jump lands directly; traversing every intervening viewport
     // would ask the sparse collection for pages that the user never sees.
-    anchor.move(Math.max(0, Math.min(height - viewport.height, paddingTop + Math.floor(bounded / columns) * stride - stickyOffset)), true);
+    // The first row is the page's top, where it opens: the row arithmetic would stop short of it by the content's top padding.
+    const row = Math.floor(bounded / columns);
+    anchor.move(row === 0 ? 0 : Math.max(0, Math.min(height - viewport.height, paddingTop + row * stride - stickyOffset)), true);
   }, [anchor, columns, height, paddingTop, stickyOffset, stride, total, viewport.height]);
   const moveToOffset = useCallback((offset: number) => {
     if (Number.isFinite(offset)) anchor.move(Math.max(0, offset), true);
