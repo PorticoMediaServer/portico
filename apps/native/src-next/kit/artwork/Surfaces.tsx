@@ -177,7 +177,10 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
     {list.map((ambient, index) => <View key={ambient.cacheKey} style={[StyleSheet.absoluteFillObject, {
       left: person ? '-20%' : music ? '-25%' : wash && list.length > 1 ? `${(index * 0.68 - 0.25) * 100}%` : '-12%',
       top: person ? '-20%' : music ? '-25%' : wash ? '-30%' : cover ? '-50%' : '-12%', right: undefined, bottom: undefined,
-      width: person ? '140%' : music ? '150%' : wash && list.length > 1 ? '70%' : cover ? '130%' : '124%', height: person ? '140%' : music ? '150%' : cover ? '160%' : '124%',
+      width: person ? '140%' : music ? '150%' : wash && list.length > 1 ? '70%' : cover ? '130%' : '124%',
+      // A wash starts 30 % above its box, so it runs 130 % tall to reach the box's foot: at 124 % it stopped at 94 % and the
+      // page showed a hard line there, under the bottom fade's last 6 % (a person's page on a tablet on its side).
+      height: person ? '140%' : music ? '150%' : cover ? '160%' : wash ? '130%' : '124%',
       opacity: index === 1 && wash ? 0.34 : alpha,
     }]}>
       <Artwork source={ambient} visible={visible} sized priority={priority} arrivalDurationMs={arrivalDurationMs} onReady={decoded => {
@@ -212,6 +215,12 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
       </>}
     </View>;
   }
+  // A wash with no picture over it (a library's or Saved header, a person's page) fades out by alpha to its box's foot, as the
+  // phone's page wash does, so the page's own backdrop shows through below it. It faded to solid ink, and where the page under
+  // it is lighter than ink (the cinematic glow) that left a straight line at the box's foot (iPad, a person's page).
+  if (wash && !foreground) return <View pointerEvents="none" accessible={false} testID={testID} style={[StyleSheet.absoluteFillObject, {width, height}, style]}>
+    <ArtworkAlphaMask leftOpaqueAt={0} bottomOpaqueAt={theme.spec.hero.mask.bottomOpaqueAt}><View style={[StyleSheet.absoluteFillObject, {overflow: 'hidden'}]}>{fallback}{washes}</View></ArtworkAlphaMask>
+  </View>;
   return <View pointerEvents="none" accessible={false} testID={testID} style={[StyleSheet.absoluteFillObject, {overflow: 'hidden', width, height}, style]}>
     {fallback}{washes}
     {foreground ? <View style={[{position: 'absolute', top: 0, right: 0, height: '100%',
