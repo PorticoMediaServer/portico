@@ -57,6 +57,11 @@ int main(void){@autoreleasepool{
  NSDictionary *headers=[(NSHTTPURLResponse *)task.response allHeaderFields];
  check([headers[@"X-Content-Type-Options"] isEqual:@"nosniff"]&&[headers[@"Cache-Control"] isEqual:@"no-store"],"native origin response prevents sniffing and stale cache");
  check([headers[@"Content-Security-Policy"] containsString:@"default-src 'none'"]&&[headers[@"Content-Security-Policy"] containsString:@"worker-src 'self' blob:"],"local document has explicit script/worker isolation");
+ // A chapter is a blob: document that inherits this policy: it may be framed only by the reader's own origin, and the
+ // book's own stylesheets (blob: URLs the reader makes) may load; scripts stay as they were.
+ NSString *policy=headers[@"Content-Security-Policy"];
+ check([policy containsString:@"frame-ancestors portico-reader://bundle;"]&&![policy containsString:@"frame-ancestors 'none'"]&&[policy containsString:@"style-src 'self' 'unsafe-inline' blob:;"],"chapters may be framed by the reader and load their stylesheets");
+ check([policy containsString:@"script-src 'self' blob:;"]&&![policy containsString:@"unsafe-eval"]&&[policy rangeOfString:@"script-src[^;]*unsafe-inline" options:NSRegularExpressionSearch].location==NSNotFound,"script-src gains nothing");
  check(!headers[@"Access-Control-Allow-Credentials"]&&!headers[@"Set-Cookie"],"public bundle asset handler adds no credentials or cookies");
  [@"<!doctype html><script>window.testOnly=1;</script>" writeToURL:[root URLByAppendingPathComponent:@"inline.html"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
  ReaderTestTask *inlineTask=[ReaderTestTask new];inlineTask.request=[NSURLRequest requestWithURL:url(@"inline.html")];[handler webView:nil startURLSchemeTask:inlineTask];spin(^BOOL{return inlineTask.finished||inlineTask.error!=nil;});
