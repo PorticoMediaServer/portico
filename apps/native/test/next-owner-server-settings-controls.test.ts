@@ -79,13 +79,29 @@ test('the hardware group draws the rebuilt report in shared words and runs its t
 test('Segments exposes every Advanced control the segments document has (the per-kind library matrix is per library now), preserves review, and draws the bulk actions for the owner', async () => {
   const values = {mode: 'standard', viewerConfidencePercent: 50, automaticConfidencePercent: 85, useChapterNames: true, introWindow: 'usual', creditsWindow: 'usual', filmCreditsWindow: 'usual', shortestEpisodeMinutes: 2, shortestFilmMinutes: 10};
   const fixture = await formsFixture({segments: values}), host = hooks();
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/SegmentsPage.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView'}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
-    '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
-    './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../../../../packages/client-core/src/segment-review': {remeasureAllSegments: async () => ({}), retryUnreadableSegments: async () => ({})}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, './SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': {settingEnabled, settingsSummary}, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerSegments.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    '../../../../../../packages/client-core/src/segment-review': {remeasureAllSegments: async () => ({}), retryUnreadableSegments: async () => ({})},
+    '../../../screens/settings-live/lifetime': {}, '../../../screens/settings-live/server/settings-values': {settingEnabled, settingsSummary},
+    '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: (context: any) => context.current()},
+    '../../../screens/settings-live/server/storage/forms': fixture.hooks,
+  });
+  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerSegmentsPage.tsx', import.meta.url), {
+    react: host.react, './useServerSegments': model,
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/states': {StateView: 'StateView'},
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame', PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    '../../../kit/settings/SettingsParts': {SettingsHelp: 'SettingsHelp'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    '../../../screens/settings-live/server/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    '../../../screens/settings-live/server/SettingControl': {NativeSettingControl: 'Setting'},
   });
   const ports = {context: fixture.group.context, renderSettingsPanel: () => ({type: 'Review', props: {}})}, runtime = {text: {t}, reportError: assert.fail};
-  const render = () => host.render(() => {const outer = module.NativeServerSegments({ports, runtime});return outer.type(outer.props);});
+  const render = () => host.render(() => {
+    const frame = module.ServerSegmentsPage({ports, runtime});
+    const body = frame.props.children.find((node: any) => typeof node?.type === 'function');
+    return body.type(body.props);
+  });
   const tree = render(), controls = nodes(tree).filter((node: any) => node.type === 'Setting');
   assert.equal(controls.length, 9);assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);assert.equal(nodes(tree).filter((node: any) => node.type === 'Review').length, 1);
   assert.ok(!controls.some((node: any) => node.props.row.id === 'segments.keepOld'));

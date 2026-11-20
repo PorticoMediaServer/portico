@@ -92,7 +92,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './server/IntegrationsPage': {NativeServerIntegrations: 'NativeServerIntegrations'},
     './server/GeneralPage': {NativeServerGeneral: 'NativeServerGeneral'},
     './server/StreamingPage': {NativeServerStreaming: 'NativeServerStreaming'},
-    './server/SegmentsPage': {NativeServerSegments: 'NativeServerSegments'},
+    './ServerSegmentsPage': {ServerSegmentsPage: 'NativeServerSegments'},
     './server/PeoplePage': {NativeServerPeople: 'NativeServerPeople'},
     './server/SignInPage': {NativeServerSignIn: 'NativeServerSignIn'},
     './server/MetadataPage': {NativeServerMetadata: 'NativeServerMetadata'},

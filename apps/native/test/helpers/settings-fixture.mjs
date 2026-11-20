@@ -9,7 +9,7 @@ export async function settingsFixture(previous) {
       : path.startsWith('../../') ? '../' + path
         : path.startsWith('../') ? path.replace('../', '../../../screens/')
           : path.startsWith('./') ? path.replace('./', '../../../screens/settings-live/') : path;
-    modules[revised] = value;
+    modules[path === './ServerSegmentsPage' ? path : revised] = value;
   }
   modules['react-native'] = {Keyboard: {dismiss() {}}, ...modules['react-native']};
   const react = modules.react;
