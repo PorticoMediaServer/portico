@@ -14,7 +14,7 @@ import {useMotion} from '../useMotion';
 import type {DockCommand, DockHostProps, DockRect, DockRenderOccupant} from './types';
 
 /** Render an admitted core occupant or a validated remote view, without engine effects. */
-export function DockHost({dock, snapshot, presentation, castView, onAction, bottomInset, contentInset, visible = true, tvExpanded, onTVExpandedChange, returnFocusRef, onVideoSlot, morph, takeVideoExit, notice, onNoticeDismiss, style, testID}: DockHostProps) {
+export function DockHost({dock, snapshot, presentation, castView, onAction, bottomInset, contentInset, visible = true, tvExpanded, onTVExpandedChange, returnFocusRef, returningFromPlayer, onVideoSlot, morph, takeVideoExit, notice, onNoticeDismiss, style, testID}: DockHostProps) {
   const theme = useTheme(), motion = useMotion(), safe = useSafeAreaInsets(), frame = dockBarFrame(theme.platform, bottomInset, safe.bottom, contentInset);
   const [expanded, setExpanded] = useState(false), [menu, setMenu] = useState(false);
   const readOccupant=useCallback(():DockRenderOccupant|null=>castView?.isCurrent(castView.occupant.playback.fence)?castView.occupant:currentOccupant(dock,dock.getSnapshot(),presentation),[castView,dock,presentation]);
@@ -75,7 +75,7 @@ export function DockHost({dock, snapshot, presentation, castView, onAction, bott
     {theme.isTV
       ? tvOpen && <View pointerEvents="none" style={[dockStyles.fill, {backgroundColor: alpha(theme.colors.ink, .5)}]}/>
       : <Animated.View pointerEvents="none" style={[dockStyles.fill, dimStyle, {backgroundColor: alpha(theme.colors.ink, .5)}]}/>}
-    <Animated.View pointerEvents={wanted ? 'box-none' : 'none'} style={[dockStyles.fill, presence.style]}>{theme.isTV ? <NowPlayingCard testID={testID} occupant={shown} onAction={action} visible={!!wanted && visible} expanded={!!wanted && tvOpen} onExpandedChange={setTVExpanded} returnFocusRef={returnFocusRef}
+    <Animated.View pointerEvents={wanted ? 'box-none' : 'none'} style={[dockStyles.fill, presence.style]}>{theme.isTV ? <NowPlayingCard testID={testID} occupant={shown} onAction={action} visible={!!wanted && visible} expanded={!!wanted && tvOpen} onExpandedChange={setTVExpanded} returnFocusRef={returnFocusRef} returningFromPlayer={returningFromPlayer}
       style={{position: 'absolute', top: 44, right: theme.layout.gutter.tvRight}}/> :
       <MediaBar testID={testID} occupant={shown} onAction={action} visible={!!wanted && visible} onMenuOpenChange={setMenu} onVideoSlot={reportVideoSlot} slotAdmission={presence.slotAdmission} isCurrent={interactionCurrent} morph={morph} takeVideoExit={takeOriginalVideo}
         style={{position: 'absolute', left: frame.left, right: frame.right, bottom: frame.bottom, ...(frame.maxWidth ? {maxWidth: frame.maxWidth} : {})}}/>}</Animated.View>

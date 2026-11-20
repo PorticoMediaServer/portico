@@ -102,6 +102,7 @@ export type DockHostProps = {
   visible?: boolean;
   tvExpanded?: boolean;
   onTVExpandedChange?: (expanded: boolean) => void;
+  returningFromPlayer?: boolean;
   returnFocusRef?: React.RefObject<View | null>;
   onVideoSlot?: (rect: DockRect, sourceCurrent?: () => boolean) => void;
   morph?: PlayerMorphController;

@@ -411,7 +411,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
       book ? {icon: 'i-ffw', label: t('player.skipForwardSeconds', {seconds: skipForward}), testID: `${testID}-skip-forward`, skip: skipForward, disabled: !p.capabilities.seek || !bookReader, onPress: () => seekBook(position + skipForward)}
         : {icon: 'i-next', label: t('player.next'), testID: `${testID}-next`, disabled: !p.capabilities.next, onPress: () => act('next')},
       book ? {icon: 'i-next', label: t(byChapter ? 'next.dock.nextChapter' : 'player.next'), testID: `${testID}-next-chapter`, disabled: !p.capabilities.next, onPress: () => act('next')}
-        : {icon: 'i-repeat', label: t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne'), testID: `${testID}-repeat`, disabled: !policyReady, active: repeat !== 'off',
+        : {icon: 'i-repeat', label: t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne'), testID: `${testID}-repeat`, disabled: !policyReady, active: repeat !== 'off', repeatOne: repeat === 'one',
           onPress: () => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})},
     ]}
     next={upcoming ? {label: t('next.music.upNext'), title: upcoming} : undefined}
