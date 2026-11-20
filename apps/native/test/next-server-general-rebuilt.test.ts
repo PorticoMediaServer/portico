@@ -22,6 +22,7 @@ const textOf = (value: unknown): string => Array.isArray(value) ? value.map(text
 
 test('General shows the rebuilt documents and saves a changed name with the revision it read', async t => {
   const saves: any[] = [];
+  let restartRequests = 0;
   let refuse = false;
   const app = await standardHomeApp({
     accountRole: 'owner', mountUI: false,
@@ -40,6 +41,11 @@ test('General shows the rebuilt documents and saves a changed name with the revi
       }
       if (request.path === '/v1/admin/settings/remote-access' && request.method === 'GET') return {status: 200, headers: {ETag: '"4"'}, body: remoteAccess};
       if (request.path === '/v1/admin/background/pause') return {status: 200, body: {}};
+      if (request.path === '/v1/admin/updates/check') return {status: 500, body: {error: {code: 'internal', message: 'The update feed could not be checked.'}}};
+      if (request.path === '/v1/admin/restart') {
+        restartRequests++;
+        return {status: 500, body: {error: {code: 'internal', message: 'The server did not restart.'}}};
+      }
       if (request.path === '/v1/admin/updates') return {status: 200, body: {version: 'b4b19fd13dca', newer: false, install: 'systemd'}};
       return undefined;
     },
@@ -49,6 +55,7 @@ test('General shows the rebuilt documents and saves a changed name with the revi
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime');
   const {createNativeSettingsPorts} = await import('../src-next/screens/settings-live/settings-ports');
   const {ThemeProvider} = await import('../src-next/kit/theme');
+  const {SettingsListFrame} = await import('../src-next/kit/frames');
   const {ServerGeneralPage} = await import('../src-next/pages/shared/settings/ServerGeneralPage');
   const renderer = await fabricHost();
   let captured: NativeShellBootstrapContext | undefined;
@@ -93,4 +100,27 @@ test('General shows the rebuilt documents and saves a changed name with the revi
   assert.equal(saves[1].headers['if-match'], '"4"');
   assert.equal(byTestId('general.name')?.props.value, 'Den', 'the refused draft is kept');
   assert.ok(pressable('Save'), 'and can be saved again');
+
+  byTestId('server-general-check').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.match(hosts().map(host => textOf(host.children)).join('\n'), /b4b19fd13dca/, 'a failed check keeps the installed version visible');
+  assert.ok(pressable('Try again'), 'a failed check shows a retry while a version is known');
+  byTestId('server-general-restart-open').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  byTestId('server-general-restart-confirm').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(restartRequests, 1);
+  assert.ok(byTestId('server-general-restart-error'), 'a failed restart is shown inside its confirmation');
+  pressable('Cancel').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+
+  const children = React.createElement(SettingsListFrame, {
+    bar: {title: 'Settings'}, list: React.createElement(React.Fragment, null, 'Server index'),
+    page: React.createElement(ServerGeneralPage, {ports, runtime}), testID: 'tablet-settings',
+  });
+  await renderer.render(React.createElement(ThemeProvider, {width: 900, children}));
+  await settle();
+  const scrolls = hosts().filter(host => host.name === 'ScrollView');
+  assert.equal(scrolls.length, 2, 'the tablet has a scroll host for the index and another for the real General form');
+  assert.ok(byTestId('general.name'), 'the General form still loads beside the index');
 });

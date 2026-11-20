@@ -16,7 +16,7 @@ import type {NativeSettingsLivePorts} from '../ports';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import {SettingsGroup, SettingsRow} from '../../../kit/shell';
 import {SectionTitle} from '../owner-libraries/controls';
-import {NativeAdvancedSection} from './AdvancedSection';
+import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
 import {NativeTitleDatasetGroup} from './TitleDatasetGroup';
 import {NativeMetadataController, type MetadataPatch} from './metadata-controller';
 import {settingsPageHeading, settingsPageInset} from './page-layout';

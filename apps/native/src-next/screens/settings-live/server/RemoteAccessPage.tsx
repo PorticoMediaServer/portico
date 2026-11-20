@@ -16,8 +16,8 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {screenScopeEnded} from '../lifetime';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
-import {NativeAdvancedSection} from './AdvancedSection';
-import {NativeSettingControl} from './SettingControl';
+import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
+import {NativeSettingControl} from '../../../kit/settings/SettingControl';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
 
 type Translate = typeof defaultI18n.t;

@@ -22,7 +22,7 @@ async function fixture(forms = {}) {
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
     '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => theme},
-    './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './SettingControl': {NativeSettingControl: 'Setting'},
+    '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
     './storage/forms': forms, './people-source': {NativePeopleSource: class {constructor() {return source;}}}, './InvitationReadySheet': {InvitationReadySheet: 'InvitationReadySheet'}, './PeopleMemberProfiles': {PeopleMemberProfiles: 'PeopleMemberProfiles'},
   });
   const ports = {context, requestId: () => 'operation-fixture'};

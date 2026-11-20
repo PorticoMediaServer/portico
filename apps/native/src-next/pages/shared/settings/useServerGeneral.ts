@@ -24,7 +24,7 @@ export function useServerGeneral({ports, runtime}: {ports: NativeSettingsLivePor
   const settings = useMemo(() => new OwnerGeneralSettings(withGuardedRaw(api, context.api, () => {if (!lifetime.current()) throw screenScopeEnded();})), [api, context, lifetime]);
   const [configuration, setConfiguration] = useState<SettingsConfiguration>(), [loadError, setLoadError] = useState<unknown>();
   const [drafts, setDrafts] = useState<ReadonlyMap<string, unknown>>(new Map()), [saving, setSaving] = useState(false), [saveError, setSaveError] = useState<unknown>();
-  const [updates, setUpdates] = useState<ServerUpdates>(), [updateError, setUpdateError] = useState<unknown>(), [checking, setChecking] = useState(false);
+  const [updates, setUpdates] = useState<ServerUpdates>(), [updateError, setUpdateError] = useState<{cause: unknown; check: boolean}>(), [checking, setChecking] = useState(false);
   const [pausedUntil, setPausedUntil] = useState<string>(), [busy, setBusy] = useState(false), [problem, setProblem] = useState<string>();
   const [messageOpen, setMessageOpen] = useState(false), [restarting, setRestarting] = useState(false), [advanced, setAdvanced] = useState(false);
   const reread = useCallback(async () => {const next = await settings.readConfiguration(); if (lifetime.current()) setConfiguration(next);}, [settings, lifetime]);
@@ -37,7 +37,7 @@ export function useServerGeneral({ports, runtime}: {ports: NativeSettingsLivePor
     if (!lifetime.current()) return;
     setChecking(true); setUpdateError(undefined);
     void (check ? checkServerUpdates : readServerUpdates)(api).then(next => {if (lifetime.current()) setUpdates(next);})
-      .catch(error => {if (lifetime.current()) setUpdateError(error);}).finally(() => {if (lifetime.current()) setChecking(false);});
+      .catch(error => {if (lifetime.current()) setUpdateError({cause: error, check});}).finally(() => {if (lifetime.current()) setChecking(false);});
   }, [api, lifetime]);
   useEffect(() => {loadUpdates();}, [loadUpdates]);
 
@@ -84,7 +84,7 @@ export function useServerGeneral({ports, runtime}: {ports: NativeSettingsLivePor
     t, main, extra, configuration, loadError, load, saving, saveError, save, hasDrafts: drafts.size > 0,
     discard: () => {setDrafts(new Map()); setSaveError(undefined);},
     updates, versionFacts, updateError, checking, loadUpdates, paused, busy, pause, problem,
-    messageOpen, setMessageOpen, restarting, setRestarting, restart, advanced, setAdvanced, advancedSummary,
+    messageOpen, setMessageOpen, restarting, setRestarting, restart, openRestart: () => {setProblem(undefined); setRestarting(true);}, advanced, setAdvanced, advancedSummary,
     serverId: context.authority().serverId, value, change, enabled,
     hasSetting: (id: string) => settings.has(id) && settings.read(id) !== undefined,
     openCustom: (row: SpecRow) => {change(row, 'custom'); setAdvanced(true);},
