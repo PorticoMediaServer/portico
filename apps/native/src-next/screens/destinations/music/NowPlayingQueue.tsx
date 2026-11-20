@@ -1,5 +1,6 @@
 import React, {useCallback, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
+import {frameSpec} from '@portico/design';
 import type {QueuePlaybackView, QueuePlaybackWindow} from '../../../../../../packages/client-core/src/queue-controller';
 import type {QueueEntry, PlaybackFence} from '../../../../../../packages/player-core/src';
 import type {V1QueueEditIntent} from '../../../../../../packages/client-core/src/playback-v1/v1-queue-player';
@@ -17,7 +18,7 @@ import {browseType} from '../../../kit/browse/presentation';
 import {committedPaintScope, useCommittedPaintPublication} from '../../../kit/overlays/CommittedPaint';
 import {ListeningQueuePaint, type ListeningQueuePaintData, type ListeningQueuePaintRow} from './ListeningPanePaint';
 
-const t = defaultI18n.t;
+const t = defaultI18n.t, tvRowSpec = frameSpec.audio.tv;
 /** A queue run survives track fences but never another authority/run. */
 export const nowPlayingQueueFocusScope = (fence: PlaybackFence) => JSON.stringify(fence.playback);
 
@@ -195,15 +196,14 @@ export function NowPlayingQueue({view, onPlay, artwork, regionId, focusScopeKey,
     if (!rememberedRow.has(queueId) && rememberedRow.size >= 8) rememberedRow.delete(rememberedRow.keys().next().value!);
     rememberedRow.set(queueId, entryId);
   };
-  /** tv#7's row: 88 high, the album cover 72 squared and rounded 10, the title at 22, the artist
-   * at 19 and the duration at 19; held native rows keep their actual playing marker. */
+  /** Keep the album cover at its authored size as long titles and bylines wrap. */
   const tvRow = (value: Row) => {
     const source = artwork?.(value.posterUrl);
     const body = <>
-      {source ? <Artwork source={source} width={72} height={72} style={{borderRadius: 10, overflow: 'hidden', flexShrink: 0}}/> : null}
+      {source ? <Artwork source={source} width={tvRowSpec.rowArt} height={tvRowSpec.rowArt} style={{borderRadius: tvRowSpec.rowArtRadius, overflow: 'hidden', flexShrink: 0}}/> : null}
       <View style={{flex: 1, minWidth: 0}}>
-        <Text numberOfLines={1} style={[browseType(theme, 22, 700), {color: theme.colors.text}]}>{value.title}</Text>
-        {value.detail?.length ? <View style={{flexDirection: 'row', gap: 12, marginTop: 2}}>{value.detail.map((part, index) => <Text key={index} numberOfLines={1} style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part}</Text>)}</View> : null}
+        <Text style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{value.title}</Text>
+        {value.detail?.length ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{value.detail.join('  ')}</Text> : null}
       </View>
       {value.current && <Text style={[browseType(theme, 19, 600), {color: theme.colors.accentStrong}]}>{t('player.queueNowPlaying')}</Text>}
       {value.seconds ? <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{durationText(value.seconds, t)}</Text> : null}
@@ -214,7 +214,7 @@ export function NowPlayingQueue({view, onPlay, artwork, regionId, focusScopeKey,
     return <Focusable key={value.entryId} {...props} disabled={!interactive || !canPlay && !canHold} focusableWhenDisabled={interactive}
       onFocus={() => remember(value.entryId)} onPress={canPlay && interactive ? () => onPlay!(view.queue.id, value.entryId, view.queue.revision) : undefined}
       onLongPressAction={canHold ? () => songMenu.open(value) : undefined}
-      style={({focused}) => ({height: 88, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 18, borderRadius: 15,
+      style={({focused}) => ({minHeight: tvRowSpec.row, paddingVertical: theme.space.tight, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 18, borderRadius: 15,
         backgroundColor: focused ? theme.colors.raisedHigh : 'transparent'})}>{body}</Focusable>;
   };
   const paintSemantic = useMemo(() => committedPaintScope(paintOwner, paintScope, view.queue.id, view.queue.revision), [paintOwner, paintScope, view.queue.id, view.queue.revision]);

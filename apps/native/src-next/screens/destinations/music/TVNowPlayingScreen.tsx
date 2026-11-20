@@ -1,15 +1,12 @@
 import React, {useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {clockText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {sameFence} from '../../../../../../packages/player-core/src';
-import {AmbientArt, Artwork} from '../../../kit/artwork';
 import {Layer} from '../../../kit/shell/Layer';
-import {Button} from '../../../kit/controls';
+import {TVAudioPlayerPage} from '../../../pages/tv/player/AudioPlayerPage';
 import {provideTVLayerClaim, requestNativeFocus} from '../../../kit/focus';
-import {Icon} from '../../../kit/Icon';
 import {Menu, SidePanel} from '../../../kit/overlays';
-import {useTheme, nativeType} from '../../../kit/theme';
 import {commandAllowed, dockCommand, playbackPosition, seekBounds} from '../../../kit/dock/model';
 import {shellLayout} from '../../../shell/model';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
@@ -18,7 +15,7 @@ import {NativeWatchEqualizer, type NativeEqualizerCopy} from '../../watch/Equali
 import {MusicSignalLine, MusicSignalSheet} from './MusicSignal';
 import {NativeListeningNotice} from './ListeningNotice';
 import {NowPlayingQueue, nowPlayingQueueRows, nowPlayingQueueFocusScope, nowPlayingQueueEditPort} from './NowPlayingQueue';
-import {MusicFocusRegion, TVMusicFocus, TVMusicSeek} from './TVMusicFocus';
+import {TVMusicFocus, TVMusicSeek} from './TVMusicFocus';
 import type {NowPlayingScreenProps} from './NowPlayingScreen';
 import {useTVQueuePolicy} from './TVQueuePolicy';
 import {TVPageGroup, TVPageTransition, useTVPageMotion} from '../../../tv/layout/TVPageMotion';
@@ -32,7 +29,7 @@ export function TVNowPlayingScreen(props: NowPlayingScreenProps & {equalizerCopy
 
 function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction, onQueuePlay, onAddToPlaylist, queuePolicy, policyLifetime, queueEdit, onClose, signal, notice,
   reportError = () => {}, testID = 'now-playing', lyrics, equalizerCopy}: NowPlayingScreenProps & {equalizerCopy: NativeEqualizerCopy}) {
-  const theme = useTheme(), t = defaultI18n.t, id = useId(), canvas = shellLayout(width, height, true);
+  const t = defaultI18n.t, id = useId(), canvas = shellLayout(width, height, true);
   const page = useTVPageMotion();
   const [panel, setPanel] = useState<'signal' | 'eq' | 'lyrics' | null>(null), [more, setMore] = useState(false);
   const signalRef = useRef<View>(null), moreRef = useRef<View>(null), lyricsRef = useRef<View>(null);
@@ -58,13 +55,13 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
     return () => {releaseBack(); release();};
   }, [panel, closeEqualizer]);
   const {presentation: p, playback} = occupant;
-  const type = (size: number, weight: 400 | 600 | 700 | 800 = 400, tracking = 0) => nativeType({size, weight, tracking, lineHeight: 'normal'}, theme.textScale);
   const position = playbackPosition(occupant), bounds = seekBounds(occupant), span = bounds ? bounds.end - bounds.start : p.durationSeconds;
   const artist = p.identity.subtitle.filter(part => !!part.text);
   const album = (p.album ?? []).filter(part => !!part.text);
   // Right names a queue containing a real readable native focus stop.
   const queueRegion = queue && nowPlayingQueueRows(queue).some(row => !row.current) ? `${id}.queue` : undefined;
   const actionsRegion = lyrics || onAddToPlaylist || equalizer.supported ? `${id}.actions` : undefined;
+  const enabled = page.open && page.ready && !panel && !more;
   const currentEntry = queue?.queue.entries.find(entry => entry.id === queue.queue.currentEntryId);
   const currentItem = queue?.items.find(item => item.entryId === queue.queue.currentEntryId);
   // An album in the metadata alone does not say where this queue came from.
@@ -96,61 +93,45 @@ function TVNowPlayingContent({occupant, queue, artwork, width, height, onAction,
       <Layer kind="audio" art={p.ambient} style={{position: 'absolute', inset: 0}}/>
       <View style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height,
         transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
-        {fromAlbum && <TVPageGroup index={0} style={{position: 'absolute', left: 200, top: 124, flexDirection: 'row', alignItems: 'center', gap: 14}}>
-          <Icon name="i-music" size={26} color={theme.colors.textSecondary}/>
-          <Text style={[type(22), {color: theme.colors.textSecondary}]}>{t('next.music.playingFrom', {source: fromAlbum})}</Text>
-        </TVPageGroup>}
-        {p.artwork && <TVPageGroup index={0} style={{position: 'absolute', left: 200, top: 230}}><Artwork source={p.artwork} width={600} height={600} style={{borderRadius: 18,
-          borderWidth: 1, borderColor: 'rgba(237,245,250,.08)', boxShadow: [{offsetX: 0, offsetY: 60, blurRadius: 120, spreadDistance: -40, color: 'rgba(0,0,0,.9)'}]}}/></TVPageGroup>}
-        <ScrollView style={{position: 'absolute', left: 880, top: 280, width: 540, bottom: 96}} showsVerticalScrollIndicator={false}>
-        <TVPageGroup index={0} style={{minHeight: 230}}>
-          <Text accessibilityRole="header" style={[type(96, 800, -0.045), {lineHeight: 94.08 * theme.textScale, color: theme.colors.text, marginBottom: 18}]}>{p.identity.title}</Text>
-          {!!artist.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 8}}>{artist.map(part => <Text key={part.id} style={[type(34, part.role === 'identity' ? 700 : 600), {color: theme.colors.textSecondary}]}>{part.text}</Text>)}</View>}
-          {!!album.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>{album.map(part => <Text key={part.id} style={[type(24, part.role === 'identity' ? 700 : 400), {color: theme.colors.textTertiary}]}>{part.text}</Text>)}</View>}
+        <TVPageGroup index={0} style={{flex: 1}}>
+          <TVAudioPlayerPage title={p.identity.title} icon={occupant.mode === 'audiobook' ? 'i-book' : 'i-music'}
+            artwork={p.artwork ?? artwork?.(currentItem?.posterUrl)}
+            context={fromAlbum ? t('next.music.playingFrom', {source: ''}).trim() : undefined} source={fromAlbum}
+            byline={[artist.map(part => part.text).join(' '), album.map(part => part.text).join(' ') || currentItem?.album || '']} onClose={onClose}
+            more={equalizer.supported ? {icon: 'i-more', label: t('next.controls.more'), focusId: 'more', testID: `${testID}-more`,
+              anchorRef: moreRef, onPress: () => setMore(true)} : undefined}
+            signal={signal && <MusicSignalLine view={signal} focusRef={signalRef} onPress={() => setPanel('signal')}/>}
+            scrubber={<TVMusicSeek occupant={occupant} onAction={onAction} enabled={enabled} testID={`${testID}-scrubber`}/>}
+            times={{position: clockText(Math.max(0, position - (bounds?.start ?? 0))) ?? '', end: clockText(span) ?? ''}}
+            transport={[
+              policy.shuffle,
+              {icon: 'i-prev', label: t('player.previous'), focusId: 'previous', anchorRef: previousRef,
+                testID: `${testID}-previous`, disabled: !p.capabilities.previous, onPress: () => act('previous')},
+              {icon: playback.playing ? 'i-pause' : 'i-play', label: t(playback.playing ? 'action.pause' : 'action.play'),
+                focusId: 'toggle', anchorRef: toggleRef, testID: `${testID}-toggle`, disabled: playback.playing ? !p.capabilities.pause : !p.capabilities.play,
+                onPress: () => act(playback.playing ? 'pause' : 'play')},
+              {icon: 'i-next', label: t('player.next'), focusId: 'next', anchorRef: nextRef,
+                testID: `${testID}-next`, disabled: !p.capabilities.next, onPress: () => act('next')},
+              policy.repeat,
+            ]}
+            lyrics={lyrics ? {icon: 'i-lyrics', label: t('player.lyrics'), focusId: 'lyrics', testID: `${testID}-lyrics`,
+              anchorRef: lyricsRef, onPress: () => setPanel('lyrics')} : undefined}
+            playlist={onAddToPlaylist ? {icon: 'i-listplus', label: t('entry.addToPlaylist'), focusId: 'playlist',
+              testID: `${testID}-playlist`, anchorRef: playlistRef, onPress: onAddToPlaylist} : undefined}
+            tvFocus={{
+              signal: {id: `${id}.signal`, entry: 'music-signal-line', enabled, edges: {down: `${id}.progress`, right: queueRegion}},
+              seek: {id: `${id}.progress`, entry: 'seek', enabled, edges: {up: signal ? `${id}.signal` : undefined, down: `${id}.transport`, right: queueRegion}},
+              transport: {id: `${id}.transport`, entry: 'toggle', enabled, orientation: 'horizontal', edges: {up: `${id}.progress`, down: actionsRegion, right: queueRegion}},
+              actions: actionsRegion ? {id: actionsRegion, entry: lyrics ? 'lyrics' : onAddToPlaylist ? 'playlist' : 'more',
+                enabled, orientation: 'horizontal', edges: {up: `${id}.transport`, right: queueRegion}} : undefined,
+            }}
+            panelTitle={queue ? t('next.music.upNext') : undefined}
+            panel={queue && <NowPlayingQueue testID={`${testID}-queue`} view={queue} onPlay={onQueuePlay} artwork={artwork}
+              queueEdit={nowPlayingQueueEditPort(queue, occupant.playback.fence, queueEdit)}
+              menuScope={{fenceKey: JSON.stringify(occupant.playback.fence), lease: queueEdit?.lease ?? policyLifetime}}
+              interactive={enabled} focusScopeKey={nowPlayingQueueFocusScope(occupant.playback.fence)}
+              regionId={`${id}.queue`} edges={{left: `${id}.transport`}}/>}/>
         </TVPageGroup>
-        <TVPageGroup index={1}>
-        {signal && <MusicFocusRegion enabled={page.open && page.ready && !panel && !more} id={`${id}.signal`} entry="music-signal-line" edges={{down: `${id}.progress`, right: queueRegion}}
-          style={{height: 52, marginBottom: 18, maxWidth: 500}}>
-          <MusicSignalLine view={signal} focusRef={signalRef} onPress={() => setPanel('signal')}/>
-        </MusicFocusRegion>}
-        {!signal && <View style={{height: 70}}/>}
-        <MusicFocusRegion enabled={page.open && page.ready && !panel && !more} id={`${id}.progress`} entry="seek" edges={{up: signal ? `${id}.signal` : undefined, down: `${id}.transport`, right: queueRegion}}
-          style={{minHeight: 64, width: 500}}>
-          <TVMusicSeek occupant={occupant} onAction={onAction} enabled={page.ready && !panel && !more} testID={`${testID}-scrubber`}/>
-          <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 2}}>
-            <Text style={[type(20), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{clockText(Math.max(0, position - (bounds?.start ?? 0)))}</Text>
-            <Text style={[type(20), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{clockText(span)}</Text>
-          </View>
-        </MusicFocusRegion>
-        <MusicFocusRegion enabled={page.open && page.ready && !panel && !more} id={`${id}.transport`} entry="toggle" orientation="horizontal" edges={{up: `${id}.progress`, down: actionsRegion, right: queueRegion}}
-          style={{marginTop: 28, width: 500, height: 96, flexDirection: 'row', justifyContent: policy.shuffle ? 'space-between' : 'center', alignItems: 'center', gap: policy.shuffle ? 0 : 34}}>
-          {policy.shuffle}
-          <Button ref={previousRef} testID={`${testID}-previous`} variant="glass" iconOnly icon="i-prev" iconSize={34} style={{height: 72, width: 72, borderRadius: 36}}
-            accessibilityLabel={t('player.previous')} disabled={!p.capabilities.previous} onPress={() => act('previous')}/>
-          <Button ref={toggleRef} focusId="toggle" testID={`${testID}-toggle`} variant="primary" iconOnly icon={playback.playing ? 'i-pause' : 'i-play'} iconSize={44}
-            style={{height: 96, width: 96, borderRadius: 48}} accessibilityLabel={t(playback.playing ? 'action.pause' : 'action.play')}
-            disabled={playback.playing ? !p.capabilities.pause : !p.capabilities.play} onPress={() => act(playback.playing ? 'pause' : 'play')}/>
-          <Button ref={nextRef} testID={`${testID}-next`} variant="glass" iconOnly icon="i-next" iconSize={34} style={{height: 72, width: 72, borderRadius: 36}}
-            accessibilityLabel={t('player.next')} disabled={!p.capabilities.next} onPress={() => act('next')}/>
-          {policy.repeat}
-        </MusicFocusRegion>
-        {actionsRegion && <MusicFocusRegion enabled={page.open && page.ready && !panel && !more} id={actionsRegion} entry={lyrics ? 'lyrics' : onAddToPlaylist ? 'playlist' : 'more'} orientation="horizontal" edges={{up: `${id}.transport`, right: queueRegion}}
-          style={{marginTop: 38, flexDirection: 'row', flexWrap: 'wrap', gap: 16}}>
-          {lyrics && <Button ref={lyricsRef} focusId="lyrics" testID={`${testID}-lyrics`} variant="glass" size="small" icon="i-lyrics" iconSize={28} style={{height: 64, paddingHorizontal: 26}} textStyle={{fontSize: 22 * theme.textScale}}
-            onPress={() => setPanel('lyrics')}>{t('player.lyrics')}</Button>}
-          {onAddToPlaylist && <Button ref={playlistRef} focusId="playlist" testID={`${testID}-playlist`} variant="glass" size="small" icon="i-listplus" iconSize={28}
-            style={{height: 64, paddingHorizontal: 26}} textStyle={{fontSize: 22 * theme.textScale}} onPress={onAddToPlaylist}>{t('entry.addToPlaylist')}</Button>}
-          {equalizer.supported && <Button ref={moreRef} focusId="more" testID={`${testID}-more`} variant="glass" iconOnly icon="i-more" iconSize={28} style={{height: 64, width: 64, borderRadius: 32}}
-            accessibilityLabel={t('next.controls.more')} onPress={() => setMore(true)}/>}
-        </MusicFocusRegion>}
-        </TVPageGroup></ScrollView>
-        {queue && <TVPageGroup index={2} style={{position: 'absolute', left: 1440, right: 96, top: 230, height: 750}}>
-          <Text style={[type(32, 700, -0.019), {color: theme.colors.text, marginBottom: 6}]}>{t('next.music.upNext')}</Text>
-          <NowPlayingQueue testID={`${testID}-queue`} view={queue} onPlay={onQueuePlay} artwork={artwork}
-            queueEdit={nowPlayingQueueEditPort(queue, occupant.playback.fence, queueEdit)}
-            menuScope={{fenceKey: JSON.stringify(occupant.playback.fence), lease: queueEdit?.lease ?? policyLifetime}}
-            interactive={page.open && page.ready && !panel && !more} focusScopeKey={nowPlayingQueueFocusScope(occupant.playback.fence)} regionId={`${id}.queue`} edges={{left: `${id}.transport`}}/>
-        </TVPageGroup>}
       </View>
       <Menu testID={`${id}.more`} open={more} onOpenChange={setMore} title={t('next.controls.more')} presentation="sideSheet" returnFocusRef={moreRef} restoreFocus={panel !== 'eq'}
         items={equalizer.supported ? [{id: 'eq', label: t('next.media.eq.title'), icon: 'i-gauge', onSelect: () => {setMore(false); setPanel('eq');}}] : []}/>

@@ -33,3 +33,25 @@ test('the phone audio frame receives its seek surface and guarded transport acti
   frame.props.transport[0].onPress();
   assert.ok(paused);
 });
+
+test('TV video keeps the full title, remote focus and held-seek content in one frame', async () => {
+  const {TVPlayerPage} = await screenModule(new URL('../src-next/pages/tv/player/PlayerPage.tsx', import.meta.url), {
+    react, '../../../kit/frames': {PlayerChromeFrame: 'PlayerChromeFrame'}, '../../../kit/player': {PlayerTitle: 'PlayerTitle'},
+  });
+  const frame = TVPlayerPage({identity: {title: 'Full episode title'}, focus: {transport: {entry: 'watch-toggle'}}, scrubbing: true, hints: 'remote hints'}) as Node;
+  assert.equal(frame.props.form, 'tv');
+  assert.equal(frame.props.title.props.title, 'Full episode title');
+  assert.equal(frame.props.focus.transport.entry, 'watch-toggle');
+  assert.equal(frame.props.hints, 'remote hints');
+});
+
+test('TV music supplies Up next and lets the remote close the player', async () => {
+  const {TVAudioPlayerPage} = await screenModule(new URL('../src-next/pages/tv/player/AudioPlayerPage.tsx', import.meta.url), {
+    react, '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerFrame'}, '../../../../../../packages/i18n/src': {defaultI18n},
+  });
+  let folded = false;
+  const frame = TVAudioPlayerPage({title: 'Music', panel: 'queue', onClose: () => {folded = true;}}) as Node;
+  assert.equal(frame.props.panel, 'queue');
+  frame.props.close.onPress();
+  assert.ok(folded);
+});

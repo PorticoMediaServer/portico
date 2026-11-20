@@ -129,6 +129,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     exitImages.retireUnconsumed(keep);
   }, [exitImages, snapshot.retired, snapshot.pictureInPicture?.active, local]);
   const listeningOpen = !theme.isTV && local?.expanded === true && (local.kind === 'music' || local.kind === 'audiobook');
+  const returnedListening = useRef<PlaybackFence | undefined>(undefined);
   const listeningOpenRef = useRef(listeningOpen); listeningOpenRef.current = listeningOpen;
   // The page this opening belongs to: captured when the surface opens, so a route change aborts
   // the lease and only returning to that same page renews it (with a fresh controller).
@@ -490,7 +491,13 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
     lyrics: lyricsOffered && lyricsTarget && runtime.lyrics ? <NowPlayingLyrics read={runtime.lyrics} target={lyricsTarget}
       positionSeconds={playbackPosition(nowPlaying)} playing={nowPlaying.playback.playing}
       onSeek={seconds => {const current = adapter.getSnapshot(); if (current.fence && sameFence(current.fence, nowPlaying.playback.fence)) void adapter.seek(current.fence, seconds).catch(runtime.reportError);}}/> : undefined,
-    onClose: () => {const current = adapter.getSnapshot(); if (current.dock.local?.expanded && current.fence && sameFence(current.fence, nowPlaying.playback.fence)) void adapter.onTransition(adapter.dock.collapse(current.fence)).catch(runtime.reportError);},
+    onClose: () => {
+      const current = adapter.getSnapshot();
+      if (!current.dock.local?.expanded || !current.fence || !sameFence(current.fence, nowPlaying.playback.fence)) return;
+      // Apple TV can restore the mini card itself. That return focus should not reopen the player.
+      if (theme.isTV) returnedListening.current = current.fence;
+      void adapter.onTransition(adapter.dock.collapse(current.fence)).catch(runtime.reportError);
+    },
   } : undefined;
   return <View ref={host} collapsable={false} onLayout={() => {setHostLayout(++hostLayoutNow.current); if (slot.current) onSlot(slot.current); measureExpandedSlot();}} pointerEvents="box-none" testID="native-persistent-playback" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player}}><DockVideoExitProvider>
     <Animated.View pointerEvents="box-none" style={[{position: 'absolute', inset: 0}, dockMotion]}>
@@ -505,7 +512,12 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
       <View pointerEvents="box-none" onTouchStart={touchStart} onTouchEnd={touchEnd} onTouchCancel={touchEnd} style={{position: 'absolute', inset: 0}}>
         {(!theme.isTV || !nowPlaying) && <DockHost testID={theme.isTV && fence ? focusTestID(tvFocusIds(authority).surface('playback'), JSON.stringify(fence)) : undefined} dock={adapter.dock} snapshot={snapshot.dock} presentation={{local: presentation,remote:remotePresentation}} castView={castView} morph={morph} onVideoSlot={onSlot} takeVideoExit={exitImages.take} contentInset={contentInset}
           visible={snapshot.pictureInPicture?.active !== true}
-          tvExpanded={!!dockedLocal?.expanded} onTVExpandedChange={open => {if (fence) void action({type: open ? 'expand' : 'collapse', fence}).catch(runtime.reportError);}}
+          tvExpanded={!!dockedLocal?.expanded} returningFromPlayer={!!fence && !!returnedListening.current && sameFence(fence, returnedListening.current)}
+          onTVExpandedChange={open => {
+            if (!fence) return;
+            if (open) returnedListening.current = undefined;
+            void action({type: open ? 'expand' : 'collapse', fence}).catch(runtime.reportError);
+          }}
           onAction={command => {void action(command).catch(runtime.reportError);}}/>}
         {/* O-159: an accepted Play is drawn at once; the real dock replaces this in place. */}
         {snapshot.starting && !snapshot.dock.local && !snapshot.retired && sameAuthority(snapshot.authority, authority) && <StartingDock key={snapshot.starting.key}

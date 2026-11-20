@@ -28,6 +28,7 @@ const animation = (h: ReturnType<typeof watchHooks>) => ({default: {View: 'Anima
 
 async function timelineFixture(vega = false) {
   const h = watchHooks(), adapter = createTVKeyAdapter({source: vega ? 'vega' : 'native'}), controls = new NativeWatchControls(true);
+  let back: (() => boolean) | undefined;
   let key: (value: any) => void = () => {}, now = 0, serial = 0, touch: (value: any) => void = () => {}, touchListening = false;
   const timers = new Map<number, {at: number; callback: () => void}>(), seeks: unknown[] = [], previews: (number | undefined)[] = [];
   const clock = {now: () => now, schedule: (callback: () => void, ms: number) => {const id = ++serial; timers.set(id, {at: now + ms, callback}); return id;}, cancel: (id: unknown) => {timers.delete(id as number);}};
@@ -40,11 +41,12 @@ async function timelineFixture(vega = false) {
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': i18n,
     '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay', NativeScrubPreview: 'ScrubPreview', scrubCardCentre: (await import('../src-next/screens/watch/trickplay-frame.ts')).scrubCardCentre}, './landing-store': landingStoreModule, '../../kit/useMotion': {useMotion: () => ({timing: () => ({})})},
     '../../platform/tv-keys': {useTVKeyEvent: (handler: typeof key) => {key = handler;}},
+    '../../kit/navigation/back': {registerBack: (handler: () => boolean) => {back = handler; return () => {back = undefined;};}},
     '../../platform/siri-remote': {touchScrub, useSiriRemoteTouch: (enabled: boolean, handler: typeof touch) => {touchListening = enabled; touch = handler;}}, '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: any) => createTVSeekRepeat(step, clock)},
   });
   const draw = () => {props.source = source; h.render(() => NativeWatchTimeline(props)); return h.flush();};
   draw();
-  return {h, props, controls, seeks, previews, timers, draw, tree: () => h.flush(),
+  return {h, props, controls, seeks, previews, timers, draw, tree: () => h.flush(), back: () => back?.(),
     touch: (phase: string, x: number) => {touch({phase, x, y: 0}); h.flush();}, listening: () => touchListening,
     key: (eventType: string, eventKeyAction: number) => {const event = adapter.read({eventType, eventKeyAction}); if (event) key(event); h.flush();},
     advance: (ms: number) => {const end = now + ms; for (;;) {const due = [...timers.entries()].sort((a, b) => a[1].at - b[1].at)[0]; if (!due || due[1].at > end) break; now = due[1].at; timers.delete(due[0]); due[1].callback(); h.flush();} now = end;},
@@ -100,7 +102,7 @@ for (const change of ['blur', 'disabled', 'back', 'panel', 'fence', 'unmount'] a
     f.key('longRight', 0); assert.equal(f.timers.size, 1);
     if (change === 'blur') {f.props.focused = false; f.draw();}
     if (change === 'disabled') {f.props.enabled = false; f.draw();}
-    if (change === 'back') {f.controls.back(fence); f.h.flush();}
+    if (change === 'back') {assert.equal(f.back(), true); f.h.flush();}
     if (change === 'panel') {f.controls.open('options', fence);}
     if (change === 'fence') f.replace();
     if (change === 'unmount') f.h.unmount();
@@ -329,7 +331,7 @@ async function chromeFixture(live = false) {
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: () => () => {}}, './live-actions': {emptyLiveActions: () => ({}), noLiveActionsSubscription: () => () => {}},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => ''},
-    './TVMiniGuide': {NativeMiniGuide: 'MiniGuide'}, './TVLiveActions': {TVLiveActions: 'LiveActions'}, '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, './TVControlLabel': {TVControlLabel: 'Label'}, '../../platform/tv-keys': {useTVKeyEvent() {}},
+    './TVMiniGuide': {NativeMiniGuide: 'MiniGuide'}, './TVLiveActions': {TVLiveActions: 'LiveActions'}, '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, '../../pages/tv/player/PlayerPage': {TVPlayerPage: 'TVPlayerPage'}, './TVControlLabel': {TVControlLabel: 'Label'}, '../../platform/tv-keys': {useTVKeyEvent() {}},
   });
   controls.source(localFence, {expanded: true, autoHide: false, hiddenByPanel: false, paused: true, scrubbing: false, focusHeld: false});
   const props: any = {source, controls, playback: {getSnapshot: () => source}, width: 1920, height: 1080, compact: false, text: {locale: 'en-US'}, quality: 'Original', subtitle: 'A very long subtitle name', skipBackSeconds: 10, skipForwardSeconds: 30,
@@ -338,38 +340,28 @@ async function chromeFixture(live = false) {
   return {h, tree: () => h.flush(), close: () => {h.unmount(); controls.dispose();}};
 }
 
-test('TV chrome uses the scaled type, authored shadow layers, glass option states and shared identity row', async () => {
+test('TV chrome sends the full identity and focus routes to the player frame', async () => {
   const f = await chromeFixture();
   try {
-    let tree = f.tree(); const all = descendants(tree);
-    const title = all.find((node: any) => node.type === 'Text' && node.props.children === 'Title');
-    assert.equal(flattenStyle(title.props.style).fontSize, 52.8); assert.equal(flattenStyle(title.props.style).textShadowRadius, 24);
-    const episode = all.find((node: any) => node.type === 'Text' && node.props.children === 'Episode name');
-    assert.equal(flattenStyle(episode.props.style).fontFamily, 'weight-700'); assert.equal(flattenStyle(episode.props.style).color, 'white');
-    assert.equal(flattenStyle(episode.props.style).lineHeight, 38.4);
-    const shadows = all.filter((node: any) => node.type === 'Svg' && typeof node.props.height === 'number');
-    assert.deepEqual(shadows.map((node: any) => node.props.height), [400, 600]);
-    assert.deepEqual(shadows.map((node: any) => descendants(node).filter((child: any) => child.type === 'Stop').map((child: any) => child.props.stopOpacity)), [[.88, .6, .2, 0], [.96, .84, .46, 0]]);
-    const option = find(tree, 'watch-option-subtitles');
-    assert.equal(option.props.style({focused: false}).backgroundColor, 'rgba(237,245,250,.14)');
-    assert.equal(option.props.style({focused: true}).backgroundColor, 'rgba(237,245,250,.28)');
-    assert.equal(option.props.style({focused: true}).height, 64); assert.equal(option.props.style({focused: true}).maxWidth, 200); assert.equal(option.props.style({focused: true}).minWidth, 92);
-    const focusedValue = descendants(option.props.children({focused: true})).find((node: any) => node.props.children === 'A very long subtitle name');
-    assert.equal(flattenStyle(focusedValue.props.style).fontSize, 24); assert.equal(flattenStyle(focusedValue.props.style).color, 'white');
-    all.find((node: any) => node.type === 'GroupPill').props.onHost(44); tree = f.tree();
-    const row = descendants(tree).find((node: any) => Array.isArray(node.props.children) && node.props.children.some((child: any) => child?.props?.id === 'watch-group'));
-    assert.equal(row.props.style.flexDirection, 'row'); assert.equal(find(tree, 'watch-group').props.style.marginLeft, 28);
-    assert.equal(find(tree, 'watch-group').props.edges.down, 'watch-seek-region');
+    const page = find(f.tree(), 'watch-tv-frame').props;
+    assert.equal(page.identity.title, 'Title');
+    assert.match(page.identity.subtitle, /S1 E2.*Episode name/);
+    assert.equal(page.identity.accessory.props.edges.down, 'watch-seek-region');
+    assert.equal(page.focus.transport.entry, 'watch-toggle');
+    const option = find(page.trailing, 'watch-option-subtitles');
+    const value = descendants(option.props.children({focused: true})).find(node => node.props.children === 'A very long subtitle name');
+    assert.equal(flattenStyle(value.props.style).color, 'white');
   } finally {f.close();}
 });
 
 test('Live Record/More and Go Live have reciprocal paths to seek and transport without a group pill', async () => {
   const f = await chromeFixture(true);
   try {
-    const tree = f.tree(), seek = find(tree, 'watch-seek-region'), actions = find(tree, 'watch-live-actions'), edge = find(tree, 'watch-live-edge');
+    const page = find(f.tree(), 'watch-tv-frame').props;
+    const seek = page.scrubber, actions = page.tools, edge = page.timeAction;
     assert.equal(seek.props.stops.up, false); assert.equal(seek.props.edges.up, actions.props.id); assert.equal(actions.props.edges.down, seek.props.id);
     assert.equal(seek.props.edges.down, edge.props.id); assert.equal(edge.props.edges.up, seek.props.id); assert.equal(edge.props.edges.down, 'watch-transport');
-    assert.equal(find(tree, 'watch-transport').props.edges.up, edge.props.id);
+    assert.equal(page.focus.transport.edges.up, edge.props.id);
   } finally {f.close();}
 });
 
