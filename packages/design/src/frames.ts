@@ -115,6 +115,9 @@ export const frame = {
       parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, bylineCircle: 28, artistCircleTV: {size: 360, right: 280, ring: 80, top: 150, rings: [40, 80] as readonly number[]}, listRow: {poster: 56, square: 66, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
         /** An episode row's still from a tablet up (tablet f7, 210) and the narrowest a Previous / Next card goes before the pair stacks (desktop-detail f5). */
         episodeArt: 210, neighbourMin: 220,
+        /** A tablet on its side: the season's episodes are a sideways row of tiles this wide (tablet f7, three and a bit in view), and the
+         * opened episode's plate under the row puts its still this wide at the left, Previous and Next under it (tablet f7, desktop-detail f5). */
+        episodeTile: 264, plateStillWide: 280,
         /** The opened episode's plate (phone-detail d2 frame 4 `.epo`): 12 in from the page's edge, 8 inside (14 at its foot), corners 18 (its still's 12),
          * a fill and edge of the text colour at these alphas; its credits' label column; guests shown before Show all. */
         plate: {inset: 12, padding: 8, foot: 14, radius: 18, stillRadius: 12, fill: .045, edge: .06, badge: .65, labelColumn: 86, guests: 6}, castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112,

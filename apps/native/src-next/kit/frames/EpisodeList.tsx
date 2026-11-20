@@ -1,5 +1,5 @@
 import React, {useContext, useRef, useState} from 'react';
-import {Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {Artwork, type ArtworkSource} from '../artwork';
@@ -8,6 +8,7 @@ import type {CardSelection} from '../layout/types';
 import {ActionRow, Button, type RowAction, type RowPrimary} from '../controls';
 import {HeroMetadata} from '../layout/Hero';
 import {RoundBarButton} from '../layout/TopBar';
+import {TVRow} from '../layout/TVRow';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
 import {FrameReveal, useFrameMetrics} from './metrics';
@@ -17,7 +18,7 @@ import {StateRow, type StateRowProps} from './parts';
 const sizes = frameSpec.hero.title.parts, plateSpec = sizes.plate;
 
 /** One episode row: what a page knows about it, never how big it is. */
-export type EpisodeListItem = Readonly<{key: string; title: string; label: readonly FactPart[]; caption?: readonly FactPart[]; synopsis?: string; length?: string; status?: string;
+export type EpisodeListItem = Readonly<{key: string; title: string; label: readonly FactPart[]; caption?: readonly FactPart[]; synopsis?: string; length?: string; aired?: string; status?: string;
   artwork?: ArtworkSource; backdropFallback?: boolean; watched?: boolean; progress?: number; selection?: CardSelection;
   onNavigate: () => void; onMore?: (anchor: React.RefObject<View | null>) => void; onDownload?: () => void}>;
 export type EpisodeNeighbourItem = Readonly<{label: string; title: string; detail?: string; artwork?: ArtworkSource; onPress: () => void}>;
@@ -42,11 +43,18 @@ export type EpisodeListProps = Readonly<{items: readonly EpisodeListItem[];
   /** The opened episode: drawn in place of its row. */
   opened?: Readonly<{key: string} & EpisodePlateProps>; testID?: string}>;
 
-/** A season's episodes (phone-detail d2, tablet f7): rows at the panel's width with their still, code, length and
- * synopsis; the opened one becomes its plate. The frame spaces the list; a page passes episodes, never sizes. */
+/** A season's episodes (phone-detail d2, tablet f8): rows at the panel's width with their still, code, length and
+ * synopsis; the opened one becomes its plate. A tablet on its side (tablet f7, desktop-detail f5): a sideways row of tiles,
+ * the opened one marked, and its plate under the row. The frame spaces the list; a page passes episodes, never sizes. */
 export function EpisodeList({items, opened, testID}: EpisodeListProps) {
   const theme = useTheme(), frame = useFrameMetrics(), width = frame.width - frame.gutter - frame.rightGutter;
   const {key: openedKey, ...plate} = opened ?? {key: undefined};
+  if (frame.form === 'expanded') return <View testID={testID} style={{gap: frame.sectionGap}}>
+    <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter, gap: theme.space.sm}}>
+      {items.map(item => <EpisodeCard key={item.key} item={item} open={!!opened && openedKey === item.key}/>)}
+    </ScrollView></TVRow>
+    {opened && <View style={{marginHorizontal: frame.gutter}}><EpisodePlate {...(plate as EpisodePlateProps)}/></View>}
+  </View>;
   return <View testID={testID} style={{marginHorizontal: frame.gutter, gap: theme.space.sm}}>
     {items.map(item => opened && openedKey === item.key
       ? <EpisodePlate key={item.key} {...(plate as EpisodePlateProps)}/>
@@ -54,10 +62,17 @@ export function EpisodeList({items, opened, testID}: EpisodeListProps) {
   </View>;
 }
 
+function EpisodeCard({item, open}: Readonly<{item: EpisodeListItem; open: boolean}>) {
+  const anchor = useRef<View>(null), more = item.onMore;
+  return <EpisodeTile layout="tile" width={sizes.episodeTile} open={open} title={item.title} label={item.label} caption={item.caption} synopsis={item.synopsis}
+    length={item.length} aired={item.aired} status={item.status} artwork={item.artwork} backdropFallback={item.backdropFallback} watched={item.watched}
+    progress={item.progress} selection={item.selection} onNavigate={item.onNavigate} menuAnchorRef={anchor} onMore={more ? () => more(anchor) : undefined}/>;
+}
+
 function EpisodeRow({item, width}: Readonly<{item: EpisodeListItem; width: number}>) {
   const {form} = useFrameMetrics(), anchor = useRef<View>(null), more = item.onMore;
   return <EpisodeTile layout="row" width={width} artWidth={form === 'phone' ? undefined : sizes.episodeArt} title={item.title} label={item.label} caption={item.caption}
-    synopsis={item.synopsis} length={item.length} status={item.status} artwork={item.artwork} backdropFallback={item.backdropFallback} watched={item.watched}
+    synopsis={item.synopsis} length={item.length} aired={item.aired} status={item.status} artwork={item.artwork} backdropFallback={item.backdropFallback} watched={item.watched}
     progress={item.progress} selection={item.selection} onNavigate={item.onNavigate} onDownload={item.onDownload}
     menuAnchorRef={anchor} onMore={more ? () => more(anchor) : undefined}/>;
 }
@@ -65,40 +80,51 @@ function EpisodeRow({item, width}: Readonly<{item: EpisodeListItem; width: numbe
 export function EpisodePlate({still, length, code, title, facts, synopsis, primary, actions, credits, showAll, previous, next, close, state, reveal, testID}: EpisodePlateProps) {
   const theme = useTheme(), frame = useFrameMetrics(), [all, setAll] = useState(false);
   const revealPage = useContext(FrameReveal), box = useRef<View>(null), revealed = useRef(false);
+  // A tablet (tablet f7, desktop-detail f5): two columns, the still with Previous and Next under it at the left, the words,
+  // buttons and credits at the right. On its side the plate is under the tile row on the page's own background, under a
+  // rule; upright it stays in place of its row, raised as the phone's. A phone: one raised column (`.epo`).
+  const wide = frame.form === 'medium' || frame.form === 'expanded', underRow = frame.form === 'expanded';
   // The plate sits `inset` from the page's edges, wider than the list's gutter; its words sit a little inside its own padding (`.epo` 6).
-  const stillWidth = frame.width - 2 * plateSpec.inset - 2 * plateSpec.padding, words = {marginHorizontal: theme.space.tight};
+  const stillWidth = wide ? sizes.plateStillWide : frame.width - 2 * plateSpec.inset - 2 * plateSpec.padding, words = {marginHorizontal: wide ? 0 : theme.space.tight};
   // Neighbours with a still keep a width each (desktop-detail f5); the phone's small cards share the row (frame 4).
   const pictured = !!(previous?.artwork || next?.artwork);
-  return <View ref={box} testID={testID} onLayout={() => {if (reveal && revealPage && !revealed.current) {revealed.current = true; revealPage(box.current);}}} style={{marginHorizontal: plateSpec.inset - frame.gutter, padding: plateSpec.padding, paddingBottom: plateSpec.foot, gap: theme.space.sm,
-    borderRadius: plateSpec.radius, backgroundColor: alpha(theme.colors.text, plateSpec.fill), borderWidth: 1, borderColor: alpha(theme.colors.text, plateSpec.edge)}}>
-    <View style={{width: stillWidth, height: stillWidth * 9 / 16, borderRadius: plateSpec.stillRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-      {still && <Artwork source={still} width={stillWidth} height={stillWidth * 9 / 16}/>}
-      {length !== undefined && <View style={{position: 'absolute', top: theme.space.controlGap, right: theme.space.controlGap, paddingHorizontal: theme.space.xs, borderRadius: theme.space.tight, backgroundColor: alpha(theme.colors.ink, plateSpec.badge)}}>
-        <Text style={[theme.type.badge, {color: theme.colors.text}]}>{length}</Text></View>}
-      <View style={{position: 'absolute', right: theme.space.xs, bottom: theme.space.xs}}><RoundBarButton icon="i-up" label={close.label} onPress={close.onPress}/></View>
-    </View>
-    <View style={[words, {gap: theme.space.tight}]}>
-      {code !== undefined && <Text style={[theme.type.episodeCode, {color: theme.colors.textTertiary}]}>{code}</Text>}
-      <Text accessibilityRole="header" style={[theme.type.episodePlateTitle, {color: theme.colors.text}]}>{title}</Text>
-      {facts.length > 0 && <HeroMetadata facts={facts}/>}
-      {synopsis !== undefined && <Text style={[theme.type.episodeBody, {color: theme.colors.textSecondary}]}>{synopsis}</Text>}
-    </View>
-    {state && <StateRow {...state}/>}
-    {(primary || actions?.length) ? <View style={words}><ActionRow primary={primary} actions={actions}/></View> : null}
-    {credits && credits.length > 0 && <View style={[words, {gap: theme.space.tight}]}>{credits.map(row => {
-      const shown = all ? row.people : row.people.slice(0, plateSpec.guests);
-      return <View key={row.label} style={{flexDirection: 'row', gap: theme.space.controlGap}}>
-        <Text style={[theme.type.captionStrong, {width: plateSpec.labelColumn, color: theme.colors.textTertiary}]}>{row.label}</Text>
-        <View style={{flex: 1, minWidth: 0}}>
-          {shown.map((person, index) => <Text key={index} accessibilityRole={person.onPress ? 'link' : undefined} onPress={person.onPress} style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>
-            {person.name}{person.role ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{'  '}{person.role}</Text> : null}</Text>)}
-          {!all && row.people.length > shown.length && showAll && <Button variant="link" size="xs" align="start" onPress={() => setAll(true)}>{showAll(row.people.length)}</Button>}
-        </View>
-      </View>;
-    })}</View>}
-    {(previous || next) && <View style={[words, {flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm}]}>
-      {previous && <View style={{flex: 1, minWidth: pictured ? sizes.neighbourMin : 0}}><EpisodeNeighbour direction="previous" {...previous}/></View>}
-      {next && <View style={{flex: 1, minWidth: pictured ? sizes.neighbourMin : 0}}><EpisodeNeighbour direction="next" {...next}/></View>}
-    </View>}
+  const stillBox = <View style={{width: stillWidth, height: stillWidth * 9 / 16, borderRadius: plateSpec.stillRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
+    {still && <Artwork source={still} width={stillWidth} height={stillWidth * 9 / 16}/>}
+    {length !== undefined && <View style={{position: 'absolute', top: theme.space.controlGap, right: theme.space.controlGap, paddingHorizontal: theme.space.xs, borderRadius: theme.space.tight, backgroundColor: alpha(theme.colors.ink, plateSpec.badge)}}>
+      <Text style={[theme.type.badge, {color: theme.colors.text}]}>{length}</Text></View>}
+    <View style={{position: 'absolute', right: theme.space.xs, bottom: theme.space.xs}}><RoundBarButton icon="i-up" label={close.label} onPress={close.onPress}/></View>
+  </View>;
+  const wordsBlock = <View style={[words, {gap: theme.space.tight}]}>
+    {code !== undefined && <Text style={[theme.type.episodeCode, {color: theme.colors.textTertiary}]}>{code}</Text>}
+    <Text accessibilityRole="header" style={[theme.type.episodePlateTitle, {color: theme.colors.text}]}>{title}</Text>
+    {facts.length > 0 && <HeroMetadata facts={facts}/>}
+    {synopsis !== undefined && <Text style={[theme.type.episodeBody, {color: theme.colors.textSecondary}]}>{synopsis}</Text>}
+  </View>;
+  const buttons = (primary || actions?.length) ? <View style={words}><ActionRow primary={primary} actions={actions}/></View> : null;
+  const creditRows = credits && credits.length > 0 ? <View style={[words, {gap: theme.space.tight}]}>{credits.map(row => {
+    const shown = all ? row.people : row.people.slice(0, plateSpec.guests);
+    return <View key={row.label} style={{flexDirection: 'row', gap: theme.space.controlGap}}>
+      <Text style={[theme.type.captionStrong, {width: plateSpec.labelColumn, color: theme.colors.textTertiary}]}>{row.label}</Text>
+      <View style={{flex: 1, minWidth: 0}}>
+        {shown.map((person, index) => <Text key={index} accessibilityRole={person.onPress ? 'link' : undefined} onPress={person.onPress} style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>
+          {person.name}{person.role ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{'  '}{person.role}</Text> : null}</Text>)}
+        {!all && row.people.length > shown.length && showAll && <Button variant="link" size="xs" align="start" onPress={() => setAll(true)}>{showAll(row.people.length)}</Button>}
+      </View>
+    </View>;
+  })}</View> : null;
+  const neighbours = (previous || next) ? <View style={[words, wide ? {gap: theme.space.sm} : {flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm}]}>
+    {previous && <View style={wide ? undefined : {flex: 1, minWidth: pictured ? sizes.neighbourMin : 0}}><EpisodeNeighbour direction="previous" {...previous}/></View>}
+    {next && <View style={wide ? undefined : {flex: 1, minWidth: pictured ? sizes.neighbourMin : 0}}><EpisodeNeighbour direction="next" {...next}/></View>}
+  </View> : null;
+  const onLayout = () => {if (reveal && revealPage && !revealed.current) {revealed.current = true; revealPage(box.current);}};
+  const raised = {marginHorizontal: plateSpec.inset - frame.gutter, padding: plateSpec.padding, paddingBottom: plateSpec.foot,
+    borderRadius: plateSpec.radius, backgroundColor: alpha(theme.colors.text, plateSpec.fill), borderWidth: 1, borderColor: alpha(theme.colors.text, plateSpec.edge)};
+  if (wide) return <View ref={box} testID={testID} onLayout={onLayout} style={[{flexDirection: 'row', alignItems: 'flex-start', gap: underRow ? theme.space.xl : theme.space.md},
+    underRow ? {paddingTop: frame.sectionGap, borderTopWidth: 1, borderTopColor: theme.colors.line} : raised]}>
+    <View style={{width: stillWidth, gap: theme.space.sm}}>{stillBox}{neighbours}</View>
+    <View style={{flex: 1, minWidth: 0, gap: theme.space.sm}}>{wordsBlock}{state && <StateRow {...state}/>}{buttons}{creditRows}</View>
+  </View>;
+  return <View ref={box} testID={testID} onLayout={onLayout} style={[raised, {gap: theme.space.sm}]}>
+    {stillBox}{wordsBlock}{state && <StateRow {...state}/>}{buttons}{creditRows}{neighbours}
   </View>;
 }
