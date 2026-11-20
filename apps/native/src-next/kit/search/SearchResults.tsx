@@ -26,11 +26,11 @@ export function SearchSection({title, detail, action, children}: {
 }) {
   const theme = useTheme(), frame = useFrameMetrics();
   return <View style={{gap: frame.rowHeadingGap}}>
-    <View style={{marginHorizontal: frame.gutter, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: theme.space.xs}}>
+    <View style={{marginHorizontal: frame.gutter, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.xs}}>
       <Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text>
       {detail && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{detail}</Text>}
       <View style={{flex: 1}}/>
-      {action && <Button variant="text" size="small" onPress={action.onPress}>{action.label}</Button>}
+      {action && <Button variant="text" size="small" textStyle={{color: theme.colors.textSecondary}} onPress={action.onPress}>{action.label}</Button>}
     </View>
     {children}
   </View>;
