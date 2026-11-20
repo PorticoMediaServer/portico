@@ -83,7 +83,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     '../../shell/chrome': {setNativeScreenChromeHidden: () => {}},
     '../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
     './owner-libraries/OwnerLibrariesPanel': {NativeOwnerLibrariesPanel: 'NativeOwnerLibrariesPanel'},
-    './LiveOwnerScreen': {NativeLiveOwnerScreen: 'NativeLiveOwnerScreen'},
+    './ServerLiveOwnerPage': {ServerLiveOwnerPage: 'NativeLiveOwnerScreen'},
     './live-owner-controller': {NativeLiveOwnerController: function NativeLiveOwnerController() {}},
     './recordings-controller': {createNativeRecordingsController: () => ({dispose: () => {}})},
     '../../platform/server-connections': {nativeRouteCrypto: {random: (size: number) => new Uint8Array(size)}},

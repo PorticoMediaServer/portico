@@ -51,6 +51,7 @@ export async function liveGuideModule(previous, shallow = false) {
   });
   const inputs = {
     ...bindings, '../../shared/live/useLiveGuide': hook, '../../../kit/live/GuideContent': content,
+    '../settings/ServerLiveOwnerPage': previous['./ServerLiveOwnerPage'],
     './RecordingsPage': {RecordingsPage: previous['./RecordingsScreen']?.NativeRecordingsScreen},
     '../../../kit/frames': {LiveFrame: frame},
   };
