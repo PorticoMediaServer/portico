@@ -47,7 +47,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     '../../platform/playback/passthrough-formats': {passthroughFormats},
     './NativePassthroughRow': {NativePassthroughRow: 'NativePassthroughRow', nativePassthroughFocusId: 'settings-device-audio-passthrough'},
     './NativeApplePassthroughRow': {NativeApplePassthroughRow: 'NativeApplePassthroughRow'},
-    './NativeCapabilityRows': {NativeCapabilityRows: 'NativeCapabilityRows'},
+    '../../kit/settings/DeviceCapabilityRows': {DeviceCapabilityRows: 'DeviceCapabilityRows'},
     './DashboardScreen': {NativeDashboardScreen: 'NativeDashboardScreen'},
     './server/RemoteAccessPage': {NativeRemoteAccessPage: 'NativeRemoteAccessPage'},
     './NativeLossNoticesRow': {NativeLossNoticesRow: 'NativeLossNoticesRow', nativeLossNoticesFocusId: 'settings-device-loss-notices'},

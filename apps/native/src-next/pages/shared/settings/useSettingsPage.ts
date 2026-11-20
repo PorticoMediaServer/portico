@@ -3,7 +3,7 @@ import {readServerUpdates, updatePillShown} from '../../../../../../packages/cli
 import {useTVVoiceSearch} from '../../../screens/settings-live/use-tv-voice-search';
 import {tvGroupEdges, tvSettingsResultGroups} from '../../../screens/settings-live/tv-settings-focus';
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {AppState, NativeModules, Platform, type ScrollView, type View} from 'react-native';
+import {AppState, Keyboard, NativeModules, Platform, type ScrollView, type View} from 'react-native';
 import {settingsStructure, settingsRowId, searchSettings, findSettingsPage, type SettingsPage} from '../../../../../../packages/client-core/src/presentation/settings-structure';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 import {useTheme} from '../../../kit/theme';
@@ -163,7 +163,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const [restoreRevision, setRestoreRevision] = useState(0);
   const [target, setTarget] = useState<Readonly<{opening: object; page: string; rowId: string; serial: number}>>();
   const targetSerial = useRef(0), aimedCovered = useRef<number | undefined>(undefined), covered = useCovered();
-  const pageScroll = useRef<ScrollView>(null), pageViewport = useRef<Readonly<{page: string; height: number}> | undefined>(undefined);
+  const pageScroll = useRef<ScrollView>(null), pageViewport = useRef<Readonly<{scroll: ScrollView | null; height: number}> | undefined>(undefined);
   const liveControllers = useMemo(() => {
     if (!managesServer || theme.isTV) return undefined;
     const lifetime = controller.lifetime;
@@ -183,6 +183,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     const found = findSettingsPage(searchable, address);
     if (!found || !viewCurrent()) return;
     if (theme.isTV) {setSearching(false); setQuery('');}
+    else Keyboard.dismiss();
     choose(found.page.id);
     if (rowId) setTarget({opening, page: found.page.id, rowId, serial: ++targetSerial.current});
   };
@@ -209,7 +210,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const reveal = useCallback((row: View, serial: number) => {
     if (revealedSerial.current === serial) return true;
     const aim = committedAim.current, scroll = pageScroll.current, host = scroll?.getNativeScrollRef?.(), viewport = pageViewport.current;
-    if (aim?.serial !== serial || !scroll || !host || viewport?.page !== aim.page || !(viewport.height > 0)) {waitingRow.current = {row, serial}; return false;}
+    if (aim?.serial !== serial || !scroll || !host || viewport?.scroll !== scroll || !(viewport.height > 0)) {waitingRow.current = {row, serial}; return false;}
     revealedSerial.current = serial; waitingRow.current = undefined;
     row.measureLayout(host, (_x, y, _width, height) => {
       if (committedAim.current !== aim || aim.opening !== openingRef.current || pageScroll.current !== scroll) return;
@@ -222,7 +223,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     if (waiting && waiting.serial === aim?.serial) reveal(waiting.row, waiting.serial); else waitingRow.current = undefined;
   }, [reveal]);
   useLayoutEffect(() => {committedAim.current = aimed; revealWaiting();}, [aimed, revealWaiting]);
-  const pageScrollLayout = useCallback((pageId: string, height: number) => {pageViewport.current = {page: pageId, height}; revealWaiting();}, [revealWaiting]);
+  const pageScrollLayout = useCallback((height: number) => {pageViewport.current = {scroll: pageScroll.current, height}; revealWaiting();}, [revealWaiting]);
   const rowTargeting = useMemo<SettingsRowTargeting>(() => !aimed ? {} : theme.isTV ? {highlight: aimed.rowId}
     : {flash: {rowId: aimed.rowId, serial: aimed.serial, reveal}}, [aimed, theme.isTV, reveal]);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);

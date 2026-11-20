@@ -22,6 +22,7 @@ export const settingsMessages = {
 
   'settings.page.profile': 'Profile & account',
   'settings.page.playback': 'Playback',
+  'settings.playback.deviceIntro': 'These settings follow you to every device you sign in on. Changes you make in the player last until you stop watching.',
   'settings.page.audioSubtitles': 'Audio & subtitles',
   'settings.page.quality': 'Quality & data',
   'settings.page.music': 'Music',
