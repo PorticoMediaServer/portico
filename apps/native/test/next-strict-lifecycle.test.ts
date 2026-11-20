@@ -4,7 +4,7 @@ import * as layerStack from '../src-next/kit/focus/layer-stack.ts';
 import * as pageModal from '../src-next/kit/focus/tv-page-modal.ts';
 import * as homeStart from '../src-next/screens/home/home-start';
 import {listeningCoverFixture, stackSlotFixture} from './helpers/screen-harness.mjs';
-import {withHomeCards} from './helpers/home-cards-stub.mjs';
+import {expandHome, withHomeCards} from './helpers/home-cards-stub.mjs';
 import {homeActionDiagnostics} from '../src-next/platform/home-action-diagnostics.ts';
 import {focusTestID, createFocusRegistry} from '../src-next/kit/focus/registry.ts';
 import {tvFocusIds, tvHomeRegionMap, sameDestination} from '../src-next/shell/tv-focus';
@@ -379,6 +379,8 @@ test('replacing a shell runtime in the same authority retires its pending openin
 });
 
 test('Home scroll registration follows the move function and runtime rather than the transient anchor object', async () => {
+  // The upright phone's Home page reads the real theme's sizes (its hero is 560 tall, as the hand-made theme said).
+  const phoneHomeTheme = createTheme({isTV: false, width: 390});
   const registry = createFocusRegistry();
   const state = lifecycle(), moves: string[] = [], events: string[] = [];
   const a = (offset: number) => moves.push(`a:${offset}`), b = (offset: number) => moves.push(`b:${offset}`);
@@ -401,7 +403,7 @@ test('Home scroll registration follows the move function and runtime rather than
     react: state.react, 'react-native': state.native,
     '../../../../../packages/client-core/src/presentation/errors': errorPresentation, '../../shell/model': shellModel,
   });
-  const {HomeScreen} = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  const {HomeScreen} = expandHome(await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react: state.react, 'react-native': state.native, 'react-native-reanimated': state.animated,
     '@portico/design': {heroSpec}, '../../../../../packages/client-core/src/presentation/errors': errorPresentation,
@@ -419,10 +421,10 @@ test('Home scroll registration follows the move function and runtime rather than
     '../../kit/focus': {useFocusRegistry: () => registry}, '../../shell/tv-focus': {tvFocusIds, tvHomeRegionMap}, './tv-presentation': {tvHomeRows}, '../../shell/home-paging': {NativeHomePaging},
     '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {}, '../../kit/controls': {}, '../../kit/cards': {}, '../../kit/layout': {}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, '../../kit/layout/types': {},
     '../../kit/layout/FocusAnchor': {useFocusAnchor: () => anchor}, '../../kit/states': {LoadingPaint: 'LoadingPaint', HomeSkeleton: 'HomeSkeleton'},
-    '../../platform/home-action-diagnostics': {homeActionDiagnostics}, '../../kit/theme': {useTheme: () => ({isTV: false, layoutMode: 'phone', platform: 'phone', spec: {hero: {homeHeight: {phone: 560}}}})},
+    '../../platform/home-action-diagnostics': {homeActionDiagnostics}, '../../kit/theme': {useTheme: () => phoneHomeTheme},
     '../../shell/model': shellModel, './HomeHeroFacts': {HomeHeroFacts: 'HomeHeroFacts', HomeRemoteHint: 'HomeRemoteHint'},
     './model': homeModel,
-  }));
+  })));
   const first = port('first'), second = port('second'), home = await mount(HomeScreen, {runtime: first.runtime, authority});
   try {
     first.top(); anchor = {move: a, offset: {value: 0}}; await home.update({runtime: first.runtime, authority});
