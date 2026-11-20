@@ -93,6 +93,7 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
     assert.equal(tree.type, 'PhoneProfilePIN', 'the protected profile uses the shared phone PIN screen');
     assert.equal(typeof tree.props.onForgot, 'function', 'it offers Forgot PIN');
+    const retiredPIN = tree.props;
 
     await act(() => tree.props.onForgot());
     assert.equal(tree.type, 'Recovery');
@@ -110,6 +111,9 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     assert.equal(tree.type, 'PhoneProfilePIN');
     assert.equal(tree.props.value, '');
     assert.equal(disposed, 1, 'closing recovery retires its controller');
+    await act(() => {retiredPIN.onChange('1234'); retiredPIN.onSubmit('1234');});
+    assert.equal(tree.props.value, '', 'callbacks from the PIN form before recovery cannot edit its successor');
+    assert.equal(complete, 0, 'the retired form cannot submit its PIN');
 
     await act(() => tree.props.onForgot());
     const successor = tree.props;
@@ -152,8 +156,10 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
   } finally {await host.unmount();}
 });
 
-test('a wrong profile PIN uses the profile error context and clears the boxes', async () => {
+for (const tv of [false, true]) test(`a wrong profile PIN uses its own error and retires its old input on ${tv ? 'TV' : 'phone'}`, async t => {
   const back = backOwner(), contexts: string[] = [];
+  const platform = {isTV: false};
+  let currentTheme = theme, attempts = 0;
   class SignIn {
     async inspect() {return {id: 'server', name: 'Verified server', signIn: 'local'};}
     needsIdentityCode() {return false;}
@@ -161,7 +167,7 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     async confirmLocal() {}
     serverDescriptor() {return {id: 'server', name: 'Verified server', signIn: 'local'};}
     async signInLocal() {return {kind: 'profiles', profiles: [profile]};}
-    async chooseProfile() {throw new Error('profile_pin_invalid');}
+    async chooseProfile() {attempts++; throw new Error('profile_pin_invalid');}
     profileRecovery() {throw new Error('unexpected');}
     dispose() {}
   }
@@ -177,7 +183,7 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     '../../platform/qr-scanner': qrScanner,
     './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
     react: {...React, default: React},
-    'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: back.api, Platform: {isTV: false}, Dimensions: {get: () => ({width: 390, height: 844})}, NativeModules: {}, View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
+    'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: back.api, Platform: platform, Dimensions: {get: () => ({width: 390, height: 844})}, NativeModules: {}, View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
     'react-native-qrcode-svg': {default: 'QR'},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src': {},
@@ -186,12 +192,12 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (_: unknown, context: string) => {contexts.push(context); return {body: `${context} failure`, silent: false};}},
-    '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},
+    '../../kit/theme': {useTheme: () => currentTheme}, '../../kit/states': {StateLayout: 'Layout'},
     '../../kit/controls': {FormError, Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn},
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
-    '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../tv/auth': {},
+    '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../tv/auth': {TVWhosWatching: 'TVProfiles', TVProfilePINForm: 'TVPIN'},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
     './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
     './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
@@ -210,11 +216,39 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     await act(() => tree.props.onContinue());
     await act(() => {tree.props.onUsernameChange('person'); tree.props.onPasswordChange('test password');});
     await act(() => tree.props.onSignIn());
-    await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
+    const select = parts(tree).find(n => n.type === 'Picker').props.onSelect;
+    if (tv) {
+      platform.isTV = true;
+      currentTheme = createTheme({isTV: true, width: 1920});
+      t.mock.timers.enable({apis: ['setTimeout']});
+    }
+    await act(() => select(profile.id));
+    assert.equal(tree.type, tv ? 'TVPIN' : 'PhoneProfilePIN');
+    const old = tree.props, setCode = tv ? 'onCodeChange' : 'onChange', code = tv ? 'code' : 'value';
+    await act(() => old[setCode]('9999'));
     await act(() => tree.props.onSubmit('9999'));
     assert.equal(contexts.at(-1), 'profiles', 'the picker PIN failure is not presented as a generic sign-in failure');
-    assert.ok(nodes(tree.props.status).some(n => (n.type === 'Text' || n.type === FormError) && n.props.children === 'profiles failure'), 'said in the PIN screen\'s status line');
-    assert.equal(tree.props.value, '');
-    assert.equal(tree.props.rejected, true);
+    assert.ok(nodes(tv ? tree.props.error : tree.props.status)
+      .some(n => (n.type === 'Text' || n.type === FormError) && n.props.children === 'profiles failure'));
+    if (tv) {
+      assert.equal(tree.props.code, '9999', 'TV briefly leaves the refused boxes filled');
+      await act(() => tree.props.onCodeChange('1'));
+      await act(() => t.mock.timers.tick(400));
+      assert.equal(tree.props.code, '1', 'a new digit survives the old refusal deadline');
+      await act(() => tree.props.onCodeChange('9999'));
+      await act(() => tree.props.onSubmit('9999'));
+      await act(() => t.mock.timers.tick(400));
+      assert.equal(tree.props.code, '', 'untouched refused boxes still clear');
+    } else {
+      assert.equal(tree.props.value, '');
+      assert.equal(tree.props.rejected, true);
+    }
+    await act(() => tree.props.onBack());
+    const picker = tv ? nodes(tree.props.children) : parts(tree);
+    await act(() => picker.find(node => node.type === 'Picker').props.onSelect(profile.id));
+    const before = attempts;
+    await act(() => {old[setCode]('1234'); old.onSubmit('1234'); old.onBack();});
+    assert.equal(attempts, before, 'a previous form cannot submit to the same profile reopened on the same server');
+    assert.equal(tree.props[code], '', 'the current form stays on its untouched PIN boxes');
   } finally {await host.unmount();}
 });

@@ -76,6 +76,7 @@ export type NativeAccountEntryStage = 'welcome' | 'tv-move-handoff' | 'ended-sig
 type AccountIntent = Readonly<{kind: 'provider'; id: 'apple' | 'google'} | {kind: 'continue' | 'forgot' | 'create'}>;
 type MemberMove = Awaited<ReturnType<NativeServerSignIn['createMemberMove']>>;
 type MemberMoveSnapshot = ReturnType<MemberMove['getSnapshot']>;
+type ProfilePINOpening = Readonly<{profile: ManagedProfile; operation: NativeServerSignIn}>;
 type PINRecovery = {controller: NativeProfileRecovery; profile: ManagedProfile; operation: NativeServerSignIn; retired: boolean};
 type RequiredSetup = Readonly<{kind: 'required-setup'; requirement: 'password' | 'two-step'; serverName: string; serverOrigin: string}>;
 type Result = {kind: 'profiles'; profiles: readonly ManagedProfile[]; canRemember?: boolean} | {kind: 'challenge'; expiresAt: string} | {kind: 'complete'} | RequiredSetup;
@@ -165,6 +166,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const [nearbyStatus, setNearbyStatus] = useState<'loading' | 'ready' | 'failed'>('loading'), [nearbyRefresh, setNearbyRefresh] = useState(0);
   const nearbySource = useRef<{active: boolean} | undefined>(undefined);
   const lifetime = useRef(true), directoryAttempt = useRef(0), retryDelay = useRef(20), operation = useRef<NativeServerSignIn | undefined>(undefined), account = useRef<NativePorticoSignIn | undefined>(undefined);
+  const pinOpening = useRef<ProfilePINOpening | undefined>(undefined);
   const pinRecoveryRef = useRef<PINRecovery | undefined>(undefined), profileRef = useRef(profile);
   profileRef.current = profile;
   const retireRecovery = useCallback((expected = pinRecoveryRef.current) => {
@@ -345,25 +347,36 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     }).catch(() => {if (current() && !abort.signal.aborted) setNearbyStatus('failed');});
     return () => {ticket.active = false; abort.abort(); for (const probe of probes) probe.dispose();};
   }, [stage, nearbyRefresh]);
+  const stillPIN = useCallback((opening: ProfilePINOpening) => lifetime.current && pinOpening.current === opening
+    && operation.current === opening.operation && stageRef.current === 'profile-pin', []);
+  const openPIN = (next: ManagedProfile, source: NativeServerSignIn) => {
+    pinOpening.current = {profile: next, operation: source};
+    stageRef.current = 'profile-pin';
+    setProfile(next); setCode(''); setError(undefined); setStage('profile-pin');
+  };
   // The runner's identity carries the exact busy, stage and recovery it drew with; effects that
   // drive it read the port of the commit that drew them rather than a newer render's runner.
   const run = useCallback(async (work: () => Promise<void>) => {
     if (busy || acting.current || adoptingTV.current || tvOpening.current?.pending() || !lifetime.current) return; acting.current = true; setBusy(true); setError(undefined); setAccountEnded(false);
     const startedInvitationEpoch = invitationEpoch.current;
-    try {await work();} catch (failure) {if (lifetime.current && invitationEpoch.current === startedInvitationEpoch) {
+    const startedPIN = stage === 'profile-pin' ? pinOpening.current : undefined;
+    try {await work();} catch (failure) {if (lifetime.current && invitationEpoch.current === startedInvitationEpoch && (!startedPIN || stillPIN(startedPIN))) {
       if (endedTarget.current) {setPassword(''); setCode('');}
       if (failure instanceof MFARequiredError) {factorKind.current = 'portico'; setCode(''); setRecovery(false); setStage('factor');}
       else {
         // TV: the filled boxes stay in the error colour for 400 ms (F-PROFILE-28) before they empty; focus stays.
         if (stage === 'profile-pin' && Platform.isTV || (Platform.isTV && stage === 'factor' && !recovery)) {
           if (wrongCodeTimer.current) clearTimeout(wrongCodeTimer.current);
-          wrongCodeTimer.current = setTimeout(() => {wrongCodeTimer.current = undefined; if (lifetime.current && stageRef.current === stage) setCode('');}, 400);
+          wrongCodeTimer.current = setTimeout(() => {
+            wrongCodeTimer.current = undefined;
+            if (startedPIN ? stillPIN(startedPIN) : lifetime.current && stageRef.current === stage) setCode('');
+          }, 400);
         } else if (stage === 'profile-pin') setCode('');
         setError(failure);
       }
     }} finally {if (invitationEpoch.current === startedInvitationEpoch) {acting.current = false; if (lifetime.current) setBusy(adoptingTV.current || tvOpening.current?.pending() === true);}}
-  }, [busy, recovery, stage]);
-  const reset = useCallback(() => {retireTVOpening(true); retireAccountWorkspace(); retireInvitationEntry(); retireInvitationSwitch(); invitationIntent.current = undefined; retireInvitation(); ownerResetIntent.current = undefined; endedTarget.current = undefined; retireOwnerRecoveryContact(); retireOwnerReset(); setDirectoryList('idle'); memberFactorOperation.current = undefined; stopMemberMove(); retireRecovery(); stopRetry(); targetRef.current = undefined; stageRef.current = initialStage; ++directoryAttempt.current; acting.current = false; preparedAuthSource.current = undefined; operation.current?.dispose(); operation.current = undefined; account.current?.dispose(); account.current = undefined;
+  }, [busy, recovery, stage, stillPIN]);
+  const reset = useCallback(() => {pinOpening.current = undefined; retireTVOpening(true); retireAccountWorkspace(); retireInvitationEntry(); retireInvitationSwitch(); invitationIntent.current = undefined; retireInvitation(); ownerResetIntent.current = undefined; endedTarget.current = undefined; retireOwnerRecoveryContact(); retireOwnerReset(); setDirectoryList('idle'); memberFactorOperation.current = undefined; stopMemberMove(); retireRecovery(); stopRetry(); targetRef.current = undefined; stageRef.current = initialStage; ++directoryAttempt.current; acting.current = false; preparedAuthSource.current = undefined; operation.current?.dispose(); operation.current = undefined; account.current?.dispose(); account.current = undefined;
     // A retired attempt never clears busy itself (its finally sees a newer attempt), so the reset does.
     setBusy(false); setAccountEnded(false); setPassword(''); setSetupPasswordConfirm(''); setCode(''); setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined; setTarget(undefined); setError(undefined); retryDelay.current = 20; setRetryIn(20); setStage(initialStage);},
   [initialStage, retireAccountWorkspace, retireInvitation, retireInvitationEntry, retireInvitationSwitch, retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, stopMemberMove, stopRetry, retireTVOpening]);
@@ -438,11 +451,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (stage === 'tv-move-handoff') {setStage('uses-portico'); return;}
     if (pinRecoveryRef.current) {retireRecovery(); setCode(''); return;}
     if (stage === 'servers' && target) {cancelDirectory(); return;}
-    if (stage === 'profile-forgot-pin') {setCode(''); setError(undefined); setStage('profile-pin'); return;}
+    if (stage === 'profile-forgot-pin' && profile && operation.current) {openPIN(profile, operation.current); return;}
     // Account help returns to the Portico Account form that opened it, not the front door.
     if (stage === 'forgot' || stage === 'forgot-sent') {setPassword(''); setError(undefined); setStage('portico'); return;}
     // "‹ Profiles" (phone, frame 14) and TV Back both return to Who's watching.
-    if (stage === 'profile-pin') {setCode(''); setProfile(undefined); setError(undefined); setStage('profiles'); return;}
+    if (stage === 'profile-pin') {
+      pinOpening.current = undefined; stageRef.current = 'profiles';
+      setCode(''); setProfile(undefined); setError(undefined); setStage('profiles'); return;
+    }
     if (Platform.isTV && (stage === 'tv-credentials' || stage === 'factor' || stage === 'tv-required-setup')) {void run(returnToTVCode); return;}
     if (stage === initialStage) onBack?.(); else reset();
   };
@@ -1715,11 +1731,20 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   }
   if (stage === 'profiles') {
     const originalOperation = operation.current!;
+    const currentPicker = () => lifetime.current && operation.current === originalOperation && stageRef.current === 'profiles'
+      && !busyRef.current && !acting.current;
+    const selectProfile = (id: string) => {
+      if (!currentPicker()) return;
+      const selected = profiles.find(item => item.id === id);
+      if (!selected) return;
+      if (!theme.isTV) afterEntry.clear();
+      if (selected.pinRequired) openPIN(selected, originalOperation); else void run(() => choose(id));
+    };
     // TV (F-PROFILE-7): one centred row of faces and nothing else; Back is the remote key.
     if (theme.isTV) return <TVWhosWatching testID="accounts-entry">
       <ProfilePicker focusScope={`tv.auth.profiles.${server!.id}`} focusBusy={busy} title={t('accounts.profiles.onServer', {server: server!.name})} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy}))} preferredProfileId={profileFocus.get(originalOperation)}
         onFocusChange={id => {if (id && operation.current === originalOperation) profileFocus.set(originalOperation, id);}}
-        onSelect={id => {const value = profiles.find(item => item.id === id)!; if (value.pinRequired) {setProfile(value); setCode(''); setStage('profile-pin');} else void run(() => choose(id));}}/>
+        onSelect={selectProfile}/>
       {canRemember && <TVPickerRememberRow checked={remember} onChange={setRemember} busy={busy}/>}
       {status}
       <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/>
@@ -1727,15 +1752,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     // Add profile and Manage profiles open Profiles from the main profile, after its PIN if it has one (rules 25 and 27).
     const main = profiles.find(value => value.primary);
     const openManagement = () => {
-      if (busy || !main) return;
+      if (!currentPicker() || !main) return;
       afterEntry.request({kind: 'profiles'}, main.id);
-      if (main.pinRequired) {setProfile(main); setCode(''); setStage('profile-pin');} else void run(() => choose(main.id));
+      if (main.pinRequired) openPIN(main, originalOperation); else void run(() => choose(main.id));
     };
     const profileManagement = main ? {onManage: openManagement, ...(profiles.length < 8 ? {onAdd: openManagement} : {})} : {};
     return <ProfilesPage testID="accounts-entry" onBack={backAction ? back : undefined} backDisabled={busy}
       picker={<ProfilePicker focusScope={`tv.auth.profiles.${server!.id}`} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy}))} preferredProfileId={theme.isTV ? profileFocus.get(originalOperation) : undefined}
       onFocusChange={id => {if (id && operation.current === originalOperation) profileFocus.set(originalOperation, id);}} title={t('auth.whosWatching')} {...profileManagement} description={t('accounts.profiles.serverContext', {server: server!.name})}
-      onSelect={id => {afterEntry.clear(); const value = profiles.find(item => item.id === id)!; if (value.pinRequired) {setProfile(value); setCode(''); setStage('profile-pin');} else void run(() => choose(id));}}/>}>
+      onSelect={selectProfile}/>}>
     {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/>}
     {status}
     <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></ProfilesPage>;
@@ -1744,18 +1769,48 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     url={new URL('/sign-in', operation.current!.inspectedOrigin()).href} onBack={back}/>;
   if (theme.isTV && stage === 'profile-forgot-pin') return <TVForgotPINHandoff profileName={profile!.name}
     serverAddress={operation.current!.serverOrigin()} server={{id: server!.id, signIn: server!.signIn}} onBack={back}/>;
-  if (theme.isTV && stage === 'profile-pin') return <TVProfilePINForm
-    profile={{id: profile!.id, name: profile!.name, initial: [...profile!.name][0] ?? '', color: profile!.art, primary: profile!.primary, pinRequired: true}}
-    code={code} onCodeChange={setCode} busy={busy} error={status} onBack={back}
-    {...(canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
-    hints={busy ? <BootWaitLine active serverName={server?.name} testID="accounts-profile-wait"/> : undefined}
-    onSubmit={value => {void run(() => choose(profile!.id, value));}}
-    onForgotPIN={() => {if (!busy) {setCode(''); setError(undefined); setStage('profile-forgot-pin');}}}/>;
-  if (stage === 'profile-pin') return <ProfilePINPage testID="accounts-entry" profile={{name: profile!.name, face: {initial: [...profile!.name][0] ?? '', color: profile!.art}}}
-    value={code} onChange={setCode} onSubmit={value => {void run(() => choose(profile!.id, value));}} busy={busy} rejected={!!error} status={status}
-    remember={canRemember ? <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/> : undefined}
-    hints={<BootWaitLine active={busy} serverName={server?.name} testID="accounts-profile-wait"/>} onBack={back}
-    onForgot={() => {if (busy || !profile || !operation.current) return; try {setError(undefined); retireRecovery(); const next: PINRecovery = {profile, operation: operation.current, controller: operation.current.profileRecovery(profile.id), retired: false}; pinRecoveryRef.current = next; setPinRecovery(next);} catch (failure) {setError(failure);}}}/>;
+  if (stage === 'profile-pin' && pinOpening.current) {
+    const opening = pinOpening.current, {profile: target, operation: source} = opening;
+    const allowed = () => stillPIN(opening) && !pinRecoveryRef.current && !busyRef.current && !acting.current;
+    const changePIN = (value: string) => {
+      if (!allowed()) return;
+      // Once the viewer edits the boxes, the previous refusal must not clear the new input.
+      if (wrongCodeTimer.current) {clearTimeout(wrongCodeTimer.current); wrongCodeTimer.current = undefined;}
+      setCode(value);
+    };
+    const submitPIN = (value: string) => {
+      if (!allowed()) return;
+      void run(async () => {
+        await source.chooseProfile(target.id, value, canRemember && remember);
+        if (stillPIN(opening)) onComplete();
+      });
+    };
+    const backPIN = () => {if (allowed()) back();};
+    if (theme.isTV) return <TVProfilePINForm
+      profile={{id: target.id, name: target.name, initial: [...target.name][0] ?? '', color: target.art, primary: target.primary, pinRequired: true}}
+      code={code} onCodeChange={changePIN} busy={busy} error={status} onBack={backPIN}
+      {...(canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
+      hints={busy ? <BootWaitLine active serverName={server?.name} testID="accounts-profile-wait"/> : undefined}
+      onSubmit={submitPIN}
+      onForgotPIN={() => {
+        if (!allowed()) return;
+        pinOpening.current = undefined; stageRef.current = 'profile-forgot-pin';
+        setCode(''); setError(undefined); setStage('profile-forgot-pin');
+      }}/>;
+    return <ProfilePINPage testID="accounts-entry" profile={{name: target.name, face: {initial: [...target.name][0] ?? '', color: target.art}}}
+      value={code} onChange={changePIN} onSubmit={submitPIN} busy={busy} rejected={!!error} status={status}
+      remember={canRemember ? <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/> : undefined}
+      hints={<BootWaitLine active={busy} serverName={server?.name} testID="accounts-profile-wait"/>} onBack={backPIN}
+      onForgot={() => {
+        if (!allowed()) return;
+        try {
+          setError(undefined);
+          const next: PINRecovery = {profile: target, operation: source, controller: source.profileRecovery(target.id), retired: false};
+          pinOpening.current = {...opening};
+          pinRecoveryRef.current = next; setPinRecovery(next);
+        } catch (failure) {setError(failure);}
+      }}/>;
+  }
   const consentBody = tvKind === 'local' && server
     ? tvState.verificationUri ? t('accounts.consent.local', {server: server.name, address: tvState.verificationUri}) : undefined
     : t('accounts.consent.portico');
