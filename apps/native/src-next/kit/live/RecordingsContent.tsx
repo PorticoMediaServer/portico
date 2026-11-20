@@ -1,30 +1,30 @@
 import React from 'react';
-import {activeRecording, playableRecording, type DVRView} from '../../../../../../packages/client-core/src/dvr';
-import {programmeTimeRange} from '../../../../../../packages/client-core/src/presentation/kit-model';
-import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {Button, Chip} from '../../../kit/controls';
-import {LiveFrame} from '../../../kit/frames';
-import {ConflictCard, RecordingRow as KitRecordingRow, RecordingCard, RecordingFacts, RecordingList, RecordingResults, RecordingSection, RecordingSpaceFacts, RecordingStorageSummary, RecordingViewTabs, RuleCard} from '../../../kit/live/Recordings';
-import {Menu} from '../../../kit/overlays';
-import {Quiet, StateView} from '../../../kit/states';
-import {NewRuleSheet} from '../../../screens/settings-live/LiveRecordingOwner';
-import {NativeLiveTabs} from '../../../kit/live/LiveTabs';
-import {keepLabel, ruleFacts, ruleKeep, ruleNext, ruleScope} from '../../../screens/settings-live/recording-rule-presentation';
+import {activeRecording, playableRecording, type DVRView} from '../../../../../packages/client-core/src/dvr';
+import {programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {serverNow} from '../../../../../packages/client-core/src/server-clock';
+import {defaultI18n} from '../../../../../packages/i18n/src';
+import {Button, Chip} from '../controls';
+import type {LiveFrameProps} from '../frames';
+import {ConflictCard, RecordingRow as KitRecordingRow, RecordingCard, recordingGridColumns, RecordingFacts, RecordingList, RecordingResults, RecordingSection, RecordingSpaceFacts, RecordingStorageSummary, RecordingViewTabs, RuleCard} from './Recordings';
+import {Menu} from '../overlays';
+import {Quiet, StateView} from '../states';
+import {NewRuleSheet} from '../../screens/settings-live/LiveRecordingOwner';
+import {NativeLiveTabs} from './LiveTabs';
+import {keepLabel, ruleFacts, ruleKeep, ruleNext, ruleScope} from '../../screens/settings-live/recording-rule-presentation';
 
-import {RecordingConfirm, RecordingDetails, RuleEditor} from '../../../kit/live/RecordingDialogs';
-import {keptOrWatched, reasonLabels, sortLabels, stateLabels, storageFacts, useRecordings, viewLabels, views, type RecordingsProps} from './useRecordings';
+import {RecordingConfirm, RecordingDetails, RuleEditor} from './RecordingDialogs';
+import {keptOrWatched, reasonLabels, sortLabels, stateLabels, storageFacts, viewLabels, views, type useRecordings, type RecordingsProps} from '../../pages/shared/live/useRecordings';
 
-export function RecordingsPage(props: RecordingsProps) {
+export function recordingsFrame(props: RecordingsProps, model: ReturnType<typeof useRecordings>): LiveFrameProps {
   const {controller, ports, runtime, onGuide, owner} = props;
   const {theme, t, state, query, ids, tabs, body, bodyFocused, group, setGroup, menu, detail, rule, confirm, setConfirm,
     newRule, setNewRule, sortOpen, setSortOpen, opener, cancel, list, alive, viewerOpening, overlay,
     drawnCurrent, closeConfirm, retire, groups, rules, first, emptyGuide, entryRegion, enter, select, sort,
     selectSort, leaveGuide, back, open, close, askReady, run, play, askDelete, rowData, restartViewer, isEmpty, emptyTitle,
-    emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent} = useRecordings(props);
+    emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent} = model;
   // Local open-sheet/group state must not outlive an authoritative DVR access denial.
   const expandedTouch = theme.form === 'expanded';
-  if (state.accessDenied) return <LiveFrame title={t('recordings.title')} list={<StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')}/>}/>;
+  if (state.accessDenied) return {title: t('recordings.title'), list: <StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')}/>};
   const groupHeader = group && <RecordingFacts items={[group.recording.channel?.name,
     t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched})]}/>;
   const headerStorage = !group && state.storage && query.view !== 'storage' ? state.storage : undefined;
@@ -35,7 +35,7 @@ export function RecordingsPage(props: RecordingsProps) {
     choices={views.map(view => ({value: view, label: t(viewLabels[view]),
       count: view === 'upcoming' || view === 'recorded' || view === 'rules' ? state.summary?.[view] : undefined}))}
     value={query.view} onChange={view => select(view as DVRView)}/>;
-  const columns = theme.isTV ? 4 : theme.width >= 700 ? 3 : 2;
+  const columns = recordingGridColumns(theme);
   const isGroupGrid = query.view === 'recorded' && !query.group;
   const entries = isGroupGrid ? <RecordingList key={`groups:${columns}`} {...scroll} columns={columns} fade={theme.isTV} data={groups}
     keyExtractor={value => value.key}
@@ -133,11 +133,11 @@ export function RecordingsPage(props: RecordingsProps) {
         new-rule sheet is not a TV surface and never mounts here. */}
     {owner && !theme.isTV && <NewRuleSheet context={ports.context} runtime={runtime} open={newRule} onOpenChange={setNewRule} onSaved={() => {setNewRule(false); void controller.load({view: 'rules'});}}/>}
   </>;
-  return <LiveFrame title={group?.title ?? t(expandedTouch ? 'search.chip.liveTV' : 'recordings.title')}
-    back={theme.isTV || expandedTouch && !group ? undefined : {label: t(group ? 'recordings.title' : 'search.chip.liveTV'), onPress: group ? back : leaveGuide, testID: 'recordings-back'}}
-    actions={expandedTouch && !group ? <NativeLiveTabs value="recordings" t={t} onGuide={leaveGuide}/> : undefined}
-    facts={storageHeader} tabs={viewsHeader} list={recordingsBody} overlay={overlays}
-    footer={!theme.isTV && usage && headerStorage && <RecordingStorageSummary title={t('recordings.storage')} {...usage}
-      remaining={t('recordings.hoursLeft', {count: headerStorage.hoursLeft})} onPress={() => select('storage')}/>}
-    testID={theme.isTV ? 'tv-live-recordings' : 'phone-live-recordings'}/>;
+  return {title: group?.title ?? t(expandedTouch ? 'search.chip.liveTV' : 'recordings.title'),
+    back: theme.isTV || expandedTouch && !group ? undefined : {label: t(group ? 'recordings.title' : 'search.chip.liveTV'), onPress: group ? back : leaveGuide, testID: 'recordings-back'},
+    actions: expandedTouch && !group ? <NativeLiveTabs value="recordings" t={t} onGuide={leaveGuide}/> : undefined,
+    facts: storageHeader, tabs: viewsHeader, list: recordingsBody, overlay: overlays,
+    footer: !theme.isTV && usage && headerStorage && <RecordingStorageSummary title={t('recordings.storage')} {...usage}
+      remaining={t('recordings.hoursLeft', {count: headerStorage.hoursLeft})} onPress={() => select('storage')}/>,
+    testID: theme.isTV ? 'tv-live-recordings' : 'phone-live-recordings'};
 }
