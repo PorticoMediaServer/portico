@@ -39,13 +39,15 @@ func askOwnerReset(t *testing.T, s *Server) string {
 
 func TestOwnerResetSessionPreservesTheServer(t *testing.T) {
 	s, owner, member := porticoServer(t)
+	// The Services worker updates the link's sync state independently of recovery.
+	s.link.stop()
+	<-s.link.done
 	memberProfiles := get[Page[Profile]](t, s, member, "/v1/profiles")
 	var memberSession Session
 	call(t, s, "POST", "/v1/profiles/"+memberProfiles.Items[0].ID+"/select", member, ProfileSelect{}, &memberSession)
 	member = memberSession.AccessToken
 	ctx := context.Background()
 	before := get[SignInState](t, s, owner, "/v1/admin/sign-in")
-	link, _, _ := s.db.Link(ctx)
 	profiles := get[Page[Profile]](t, s, owner, "/v1/profiles")
 	main := profiles.Items[0].ID
 	if got := status(t, s, "PUT", "/v1/profiles/"+main+"/pin", owner, ProfilePIN{PIN: "1234"}); got != 200 {
@@ -57,6 +59,10 @@ func TestOwnerResetSessionPreservesTheServer(t *testing.T) {
 	var old SignInResponse
 	call(t, s, "POST", "/v1/auth/portico/exchange", "", PorticoExchange{Challenge: challenge, Identity: identity, Device: device(8)}, &old)
 	s.hosted = &fakeHosted{t: t, fail: true}
+	link, linked, err := s.db.Link(ctx)
+	if err != nil || !linked {
+		t.Fatalf("reading the Portico link before recovery: linked=%t, err=%v", linked, err)
+	}
 	now := time.Now().Truncate(time.Millisecond)
 	s.setClock(func() time.Time { return now })
 	code := askOwnerReset(t, s)
@@ -89,7 +95,7 @@ func TestOwnerResetSessionPreservesTheServer(t *testing.T) {
 	if after := get[SignInState](t, s, token, "/v1/admin/sign-in"); !reflect.DeepEqual(before, after) {
 		t.Fatal("recovery changed sign-in kind, owner, or waiting members")
 	}
-	if after, _, _ := s.db.Link(ctx); !reflect.DeepEqual(link, after) {
+	if after, linked, err := s.db.Link(ctx); err != nil || !linked || !reflect.DeepEqual(link, after) {
 		t.Fatal("recovery changed the Portico link")
 	}
 	if id, _ := s.db.PorticoAccountID(ctx, 1); id != "pa_1" {
