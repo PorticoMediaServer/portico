@@ -23,7 +23,7 @@ const textOf = (value: unknown): string => Array.isArray(value) ? value.map(text
 
 test('Remote access shows the server status and saves a changed row at the revision it read', async t => {
   const saves: any[] = [];
-  let refuse = false, failReadback = false, revision = 4, configuration = remoteAccess;
+  let refuse = false, failReadback = false, failNextSaveReadback = false, revision = 4, configuration = remoteAccess;
   let releaseConfiguration!: () => void;
   const waiting = new Promise<void>(resolve => {releaseConfiguration = resolve;});
   const app = await standardHomeApp({
@@ -39,7 +39,10 @@ test('Remote access shows the server status and saves a changed row at the revis
         if (refuse && request.body.confirmRefusal !== true) return {status: 409, body: {error: {code: 'would_refuse_this_route', message: 'This setting would block this device.'}}};
         configuration = {...configuration, findAtHome: request.body.findAtHome, dlna: request.body.dlna};
         revision++;
-        if (request.body.confirmRefusal === true) failReadback = true;
+        if (request.body.confirmRefusal === true || failNextSaveReadback) {
+          failReadback = true;
+          failNextSaveReadback = false;
+        }
         return {status: 200, body: {}};
       }
       if (request.path === '/v1/admin/settings/network' && request.method === 'GET') return {status: 200, headers: {ETag: '"2"'}, body: network};
@@ -128,4 +131,26 @@ test('Remote access shows the server status and saves a changed row at the revis
   assert.equal(saves[4].headers['if-match'], '"6"');
   assert.equal(saves[4].body.dlna, true, 'Save submits the edit left after confirmation');
   assert.equal(pressable('Save'), undefined);
+
+  failNextSaveReadback = true;
+  byTestId('remote.discovery').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  byTestId('remote.dlna').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  pressable('Save').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(saves.length, 6);
+  assert.equal(saves[5].body.findAtHome, false);
+  assert.equal(saves[5].body.dlna, true, 'ordinary Save stops after the failed readback');
+  failReadback = false;
+  pressable('Try again').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(saves.length, 6, 'Retry only refreshes the configuration');
+  assert.equal(pressable('Try again'), undefined, 'the recovered read cannot offer another write');
+  pressable('Save').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(saves.length, 7);
+  assert.equal(saves[6].headers['if-match'], '"8"');
+  assert.equal(saves[6].body.dlna, false);
+  assert.equal(pressable('Save'), undefined);
+
 });

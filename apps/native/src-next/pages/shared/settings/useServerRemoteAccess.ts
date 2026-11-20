@@ -27,8 +27,19 @@ export function useServerRemoteAccess({ports, runtime}: {ports: NativeSettingsLi
   const [drafts, setDrafts] = useState<ReadonlyMap<string, unknown>>(new Map()), [saving, setSaving] = useState(false), [saveError, setSaveError] = useState<unknown>();
   const confirmationTarget = useRef<{source: OwnerRemoteSettings; id: string} | undefined>(undefined);
   const [own, setOwn] = useState<OwnAddress>(), [advanced, setAdvanced] = useState(false);
-  const reread = useCallback(async () => {await source.readConfiguration(); if (lifetime.current()) {setLoaded(true); setRevision(value => value + 1);}}, [source, lifetime]);
-  const load = useCallback(() => {void reread().then(() => {if (lifetime.current()) setLoadError(undefined);}, error => {if (lifetime.current()) setLoadError(error);});}, [reread, lifetime]);
+  const reread = useCallback(async () => {
+    try {await source.readConfiguration();}
+    catch (error) {
+      if (lifetime.current()) setLoadError(error);
+      return false;
+    }
+    if (!lifetime.current()) return false;
+    setLoadError(undefined);
+    setLoaded(true);
+    setRevision(value => value + 1);
+    return true;
+  }, [source, lifetime]);
+  const load = useCallback(() => {void reread();}, [reread]);
   useEffect(load, [load]);
   const value = (id: string) => drafts.has(id) ? drafts.get(id) : source.read(id)?.current;
   const enabled = (row: SpecRow) => {
@@ -45,23 +56,23 @@ export function useServerRemoteAccess({ports, runtime}: {ports: NativeSettingsLi
   });
   const save = async () => {
     if (blocked || !lifetime.current()) return;
-    let writing: string | undefined;
     setSaving(true); setSaveError(undefined);
     try {
       for (const row of [...main, ...extra].flatMap(function all(group: Group | SpecRow): SpecRow[] {return 'rows' in group ? group.rows.flatMap(all) : [group, ...(group.children ?? []).flatMap(all)];})) {
         if (!drafts.has(row.id)) continue;
-        writing = row.id;
-        await source.save(row.id, drafts.get(row.id));
-        if (lifetime.current()) removeDraft(row.id);
-        writing = undefined;
-        await reread();
+        try {await source.save(row.id, drafts.get(row.id));}
+        catch (error) {
+          if (lifetime.current()) {
+            if (source.getSnapshot().confirmation) confirmationTarget.current = {source, id: row.id};
+            else setSaveError(error);
+            await reread();
+          }
+          return;
+        }
+        if (!lifetime.current()) return;
+        removeDraft(row.id);
+        if (!await reread()) return;
       }
-    } catch (error) {
-      if (lifetime.current()) {
-        if (writing && source.getSnapshot().confirmation) confirmationTarget.current = {source, id: writing};
-        else setSaveError(error);
-      }
-      await reread().catch(() => {});
     } finally {if (lifetime.current()) setSaving(false);}
   };
 
@@ -113,7 +124,7 @@ export function useServerRemoteAccess({ports, runtime}: {ports: NativeSettingsLi
     ownChanged: JSON.stringify(ownDraft) !== JSON.stringify(savedOwn), advanced, setAdvanced, saving, save, saveError, confirm, cancelConfirmation,
     hasDrafts: drafts.size > 0, discard: () => {setDrafts(new Map()); setSaveError(undefined);},
     outsideTitle, outsideFacts, outsideTone, notes,
-    refreshError: state.needsRefresh ? loadError ?? state.error ?? saveError : undefined,
+    refreshError: state.needsRefresh ? loadError ?? state.error : undefined,
     actionError: state.error !== undefined && !state.confirmation && !state.needsRefresh ? presentError(state.error, 'server-console', {operation: 'action'}).body : undefined,
   };
 }
