@@ -274,3 +274,28 @@ test('the restored TV PIN page captures native Menu until Back returns to the la
     assert.equal(g.selects.length, 0, 'Back submits no PIN and changes no saved sign-in');
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });
+
+
+for (const tv of [false, true]) test(`a retired ${tv ? 'TV' : 'phone'} lifecycle PIN form cannot act on the same profile reopened`, async () => {
+  const g = await gate(false, tv);
+  const open = async () => {
+    const picker = (tv ? nodes(g.tree().props.children) : parts(g.tree())).find(node => node.type === 'Picker');
+    await act(async () => {picker.props.onSelect('alex'); await settle();});
+  };
+  const input = tv ? 'onCodeChange' : 'onChange', value = tv ? 'code' : 'value';
+  try {
+    await open();
+    const retired = g.tree().props;
+    await act(() => retired[input]('12'));
+    await act(() => retired.onBack());
+    await open();
+    await act(async () => {
+      retired[input]('1234'); retired.onSubmit('1234'); retired.onBack(); await settle();
+    });
+    assert.equal(g.tree().props[value], '', 'retired input cannot fill the current boxes');
+    assert.equal(g.lifecycle.getSnapshot().state.kind, 'enteringPin', 'retired Back cannot close the new prompt');
+    assert.equal(g.selects.length, 0, 'retired submit cannot contact the server');
+    await act(async () => {g.tree().props.onSubmit('1234'); await settle();});
+    assert.equal(g.selects.length, 1, 'the current form still submits to the server');
+  } finally {await g.host.unmount(); g.lifecycle.dispose();}
+});
