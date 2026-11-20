@@ -12,7 +12,7 @@ import {nativeDestinationFocusIds} from '../../screens/destinations/focus';
 import {homeSubject} from '../../screens/home/model';
 import {nativeSearchEntryKey} from '../../screens/search/model';
 import {TVSearchSection} from '../../screens/search/TVSearchSection';
-import type {NativeTVSearchScreenProps} from '../../screens/search/TVSearchScreen';
+import type {NativeTVSearchPageProps} from '../../pages/shared/search/useTVSearch';
 import type {NativeSearchGenre, NativeSearchSelectionPort} from '../../screens/search/types';
 import {nativeSearchGenreTiles} from '../../screens/search/genre-tiles';
 import type {useSearch} from '../../pages/shared/search/useSearch';
@@ -75,7 +75,7 @@ export function TVSearchVoice({focus, title, description, busy, onPress}: {
   </FocusRegion>;
 }
 
-export function TVSearchResults({view, destination, runtime, explore, actions, selection, ids, keyboard, keyboardKey, scroll}: Pick<NativeTVSearchScreenProps, 'destination' | 'runtime' | 'explore' | 'actions' | 'selection'> & {
+export function TVSearchResults({view, destination, runtime, explore, actions, selection, ids, keyboard, keyboardKey, scroll}: Pick<NativeTVSearchPageProps, 'destination' | 'runtime' | 'explore' | 'actions' | 'selection'> & {
   view: ReturnType<typeof useSearch>; ids: ReturnType<typeof nativeDestinationFocusIds>; keyboard: string; keyboardKey?: string; scroll: RefObject<ScrollView | null>;
 }) {
   const theme = useTheme(), frame = useFrameMetrics(), focusRoom = frameSpec.search.tvFocusRoom;
@@ -154,7 +154,7 @@ export function TVSearchTag({children}: {children: React.ReactNode}) {
   </View>;
 }
 
-export function TVSearchTopResult({entry, group, runtime, actions, selection, disabled}: Pick<NativeTVSearchScreenProps, 'runtime' | 'actions'> & {entry: SearchEntry; group: SearchGroup; selection?: ReturnType<NativeSearchSelectionPort['item']>; disabled: boolean}) {
+export function TVSearchTopResult({entry, group, runtime, actions, selection, disabled}: Pick<NativeTVSearchPageProps, 'runtime' | 'actions'> & {entry: SearchEntry; group: SearchGroup; selection?: ReturnType<NativeSearchSelectionPort['item']>; disabled: boolean}) {
   // tv.html#f5 calls a show a "TV show"; the shared kind label keeps "Show".
   const theme = useTheme(), anchor = useRef<View>(null), content = media(entry) ? entry : undefined,
     kind = group === 'shows' ? 'next.search.tvShow' : topResultKindLabel(group);
@@ -176,4 +176,9 @@ export function TVSearchTopResult({entry, group, runtime, actions, selection, di
           {resume && <Text style={[browseType(theme, 20, 700), {color: theme.colors.text}]}>{resume.text}</Text>}</View>}
         <Parts parts={text?.detail} style={theme.type.intro} fit="wrap"/></View></>}
   </CardFrame>;
+}
+
+export function TVSearchSelectionArtwork({runtime, path}: {runtime: NativeTVSearchPageProps['runtime']; path?: string}) {
+  const source = runtime.artwork(path);
+  return source ? <Artwork source={source} width={48} height={48}/> : null;
 }

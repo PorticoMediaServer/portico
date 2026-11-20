@@ -20,7 +20,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeSearchCardText} from '../home/model';
 import {NativeSearchDestination, nativeSearchEntryKey} from './model';
 import {SearchGridCard} from './SearchGridCard';
-import {TVSearchScreen} from './TVSearchScreen';
+import {TVSearchPage} from '../../pages/tv/search/SearchPage';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeSearchActions, NativeSearchExplorePort, NativeSearchGenre, NativeSearchSelectionPort, NativeSearchTVCopy} from './types';
 import {nativeSearchGenreTiles} from './genre-tiles';
@@ -156,7 +156,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
     return shown.map((entry, index) => ({entry, group: group.id, heading: index === 0 ? {more, shown: shown.length, total: group.totalCountExact ? group.totalCount : undefined} : undefined}));
   });
   const active = groups.find(group => group.id === state.group), wideSearch = theme.layoutMode === 'desktop' && !theme.isTV;
-  if (theme.isTV) return <TVSearchScreen focusScope={focusScope} destination={destination} runtime={runtime} activation={activation} explore={explore} actions={actions} selection={selection} copy={tvCopy}/>;
+  if (theme.isTV) return <TVSearchPage focusScope={focusScope} destination={destination} runtime={runtime} activation={activation} explore={explore} actions={actions} selection={selection} copy={tvCopy}/>;
   return <View testID="native-search-screen" pointerEvents={activeRoute.visible ? 'auto' : 'none'} accessibilityElementsHidden={!activeRoute.visible}
     importantForAccessibility={activeRoute.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}>
     {fields}

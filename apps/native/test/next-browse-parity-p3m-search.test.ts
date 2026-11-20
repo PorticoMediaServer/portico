@@ -39,7 +39,7 @@ async function mountSearch({hasLiveTV, onNow, typed = false, at = now}: {hasLive
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme},
     '../home/model': {homeCardText, nativeSearchCardText: () => ({})}, './model': {NativeSearchDestination: class {}, nativeSearchEntryKey: (_group: string, entry: any) => entry.id},
-    './genre-tiles': {nativeSearchGenreTiles}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, './TVSearchScreen': {TVSearchScreen: 'TVSearchScreen'},
+    './genre-tiles': {nativeSearchGenreTiles}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, '../../pages/tv/search/SearchPage': {TVSearchPage: 'TVSearchPage'},
     '../../../../../packages/client-core/src/presentation/kit-model': {channelTint, programmeTimeRange},
   });
   const snapshot = {text: typed ? 'matrix' : '', group: 'all', search: idle, groups: [], clearing: false, recent: [], paging: {}, problem: undefined};

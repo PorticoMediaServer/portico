@@ -70,32 +70,30 @@ async function screen(react: unknown) {
       SEARCH_CHIPS: [{id: 'all', label: 'search.chip.all'}, {id: 'movies', label: 'search.chip.movies'}]},
     '../../../../../../packages/client-core/src/timer': {repeat: () => ({stop() {}})},
   });
+  const {useTVSearch} = await screenModule(new URL('../src-next/pages/shared/search/useTVSearch.ts', import.meta.url), {
+    react, '../../../kit/focus': {useFocusRegistry: () => createFocusRegistry()}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../kit/focus/recognizer-return': {retainRecognizerReturn}, '../../../shell/model': {sameAuthority},
+    './useSearch': {useSearch}, '../../../screens/destinations/focus': {nativeDestinationFocusIds},
+    '../../../screens/settings-live/use-tv-voice-search': {useTVVoiceSearch: () => ({busy: false})},
+  });
   const {TVSearchPage} = await screenModule(new URL('../src-next/pages/tv/search/SearchPage.tsx', import.meta.url), {
     react, '../../../kit/frames': {SearchFrame: 'SearchFrame'}, '../../../kit/search/TVSearchContent': content,
+    '../../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
   });
-  const {TVSearchScreen, renderResults} = await screenModule(new URL('../src-next/screens/search/TVSearchScreen.tsx', import.meta.url), {
-    react, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/search/TVSearchContent': content,
-    '../../kit/focus': {useFocusRegistry: () => createFocusRegistry()}, '../../kit/theme': {useTheme: () => theme},
-    '../../kit/focus/recognizer-return': {retainRecognizerReturn}, '../../shell/model': {sameAuthority},
-    '../../pages/shared/search/useSearch': {useSearch}, '../../pages/tv/search/SearchPage': {TVSearchPage},
-    '../destinations/focus': {nativeDestinationFocusIds}, './TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
-    '../settings-live/use-tv-voice-search': {useTVVoiceSearch: () => ({busy: false})},
-  });
-  return {...content, TVSearchScreen, renderResults: resultHost.render};
+  return {...content, TVSearchPage, renderResults: resultHost.render};
 }
 
 function renderSearch(render: (fn: () => any) => any, renderResults: (fn: () => any) => any, screen: () => Element) {
-  const page = render(screen);
-  const frame = render(() => page.type(page.props));
+  const frame = render(screen);
   const {field, keyboard, list} = frame.props;
   return [render(() => field.type(field.props)), keyboard, renderResults(() => list.type(list.props))];
 }
 
 test('the TV Search page keeps its full query, keyboard and first result region together', async () => {
-  const host = hooks(), {TVSearchScreen, renderResults} = await screen({...host.react, useId: () => 'gradient'});
+  const host = hooks(), {TVSearchPage, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
   landing = {phase: 'ready', genres};
-  const tree = renderSearch(host.render, renderResults, () => TVSearchScreen(screenProps()));
+  const tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const query = textNode(tree, 'the l')!;
   assert.equal(query.props.numberOfLines, undefined);
   const keyboard = elements(tree).find(node => node.type === 'NativeTVKeyboard')!;
@@ -150,11 +148,11 @@ test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as
 });
 
 test('the drawn empty page is states.html#f18 and its genre tiles keep the drawn ring outside the clip', async () => {
-  const host = hooks(), {TVSearchScreen, TVSearchGenre, renderResults} = await screen({...host.react, useId: () => 'gradient'});
+  const host = hooks(), {TVSearchPage, TVSearchGenre, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'casablanca', group: 'all', groups: [{id: 'movies' as const, status: 'success' as const, items: [], totalCount: 0, totalCountExact: true}],
     search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: [{q: 'severance'}]};
   landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
-  const tree = renderSearch(host.render, renderResults, () => TVSearchScreen(screenProps()));
+  const tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const noMatches = style(textNode(tree, defaultI18n.t('next.states.noMatches', {query: 'casablanca'}))!.props.style);
   assert.deepEqual(noMatches, {...theme.type.pageTitle, color: colors.text, marginBottom: theme.space.sm});
   const body = style(textNode(tree, defaultI18n.t('next.states.noMatchesBody'))!.props.style);
@@ -232,15 +230,15 @@ test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and 
 });
 
 test('Left from a result returns to the last keyboard row, and that key returns Right to the same card', async () => {
-  const host = hooks(), {TVSearchScreen, renderResults} = await screen({...host.react, useId: () => 'gradient'});
+  const host = hooks(), {TVSearchPage, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
   landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
-  let tree = renderSearch(host.render, renderResults, () => TVSearchScreen(screenProps()));
+  let tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const results = () => elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchResults)!;
   assert.equal(results().props.edges.left, ids.searchKeyboardRow(0));
   // F-SEARCH-4/27: the keyboard remembers its key, so the results point Left at the row that held it.
   elements(tree).find(node => node.type === 'NativeTVKeyboard')!.props.onRowFocus(`${ids.searchKeyboard}.row.1`);
-  tree = renderSearch(host.render, renderResults, () => TVSearchScreen(screenProps()));
+  tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   assert.equal(results().props.edges.left, `${ids.searchKeyboard}.row.1`);
   // F-SEARCH-28: the results region remembers its own element, so Right from that key returns to it.
   assert.equal(results().props.entryRegion, ids.searchSection('movies'));
@@ -248,10 +246,10 @@ test('Left from a result returns to the last keyboard row, and that key returns 
 });
 
 test('result chips keep their natural width so no label is ellipsised or blanked', async () => {
-  const host = hooks(), {TVSearchScreen, renderResults} = await screen({...host.react, useId: () => 'gradient'});
+  const host = hooks(), {TVSearchPage, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
   landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
-  const tree = renderSearch(host.render, renderResults, () => TVSearchScreen(screenProps()));
+  const tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const chips = elements(tree).filter(node => node.type === 'Chip');
   assert.ok(chips.length >= 2);
   for (const chip of chips) {
