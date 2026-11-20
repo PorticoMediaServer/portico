@@ -6,7 +6,7 @@ import type {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Select, Switch, TextField} from '../controls';
 import {SettingsRow} from '../shell';
 import {useTheme} from '../theme';
-import {FolderExplorer} from '../../screens/settings-live/owner-libraries/FolderExplorer';
+import {FolderExplorer} from './libraries/FolderExplorer';
 import {settingNumber} from '../../screens/settings-live/server/settings-values';
 
 type Props = {row: SpecRow; value: unknown; disabled?: boolean; first?: boolean; insetField?: boolean; t: typeof defaultI18n.t; onChange: (value: unknown) => void; onValidity?: (valid: boolean) => void; onCustom?: () => void; api?: LibraryContentApi};

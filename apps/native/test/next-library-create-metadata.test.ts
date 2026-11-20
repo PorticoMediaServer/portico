@@ -34,19 +34,32 @@ function fixture() {
 
 async function editor(f = fixture(), firstRun = true) {
   const core = '../../../../../../packages/client-core/src/';
-  const app = await screenModule(new URL('../src-next/screens/settings-live/owner-libraries/AddLibraryPage.tsx', import.meta.url), {
-    react: f.h.react, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
-    [core + 'owner-library-requests']: {readOwnerKindMetadataAgents}, [core + 'server-admin/metadata-agent']: {parseKindMetadataAgents, localMetadataChoices},
+  const i18n = {defaultI18n: {t: (key: string) => key}};
+  const state = await screenModule(new URL('../src-next/pages/shared/settings/useAddOwnerLibrary.ts', import.meta.url), {
+    react: f.h.react,
+    [core + 'owner-library-requests']: {readOwnerKindMetadataAgents},
+    [core + 'server-admin/metadata-agent']: {parseKindMetadataAgents, localMetadataChoices},
+    '../../../../../../packages/i18n/src/index': i18n,
+    '../../../screens/settings-live/owner-libraries/presentation': {ownerLibraryKind: (kind: string) => ({label: kind})},
+  });
+  const metadataChoice = await screenModule(new URL('../src-next/kit/settings/libraries/MetadataAgentChoice.tsx', import.meta.url), {
+    react: f.h.react, 'react-native': {Text: 'Text', View: 'View'},
+    '../../controls/Focusable': {Focusable: 'Focusable'},
+    '../../theme': {useTheme: () => ({colors: {}, type: {rowLabel: {}, rowHelp: {}}})},
+  });
+  const app = await screenModule(new URL('../src-next/pages/shared/settings/AddLibraryPage.tsx', import.meta.url), {
+    react: f.h.react,
     [core + 'presentation/errors']: {presentError},
     [core + 'presentation/language-list']: {languageName: (code: string) => code},
-    '../../../../../../packages/i18n/src/index': {defaultI18n: {t: (key: string) => key}},
-    '../../../kit/theme': {useTheme: () => ({colors: {}})}, '../../../kit/shell/visual': {shellType: () => ({})},
-    '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Focusable': {Focusable: 'Focusable'},
-    '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/controls/Select': {Select: 'Select'},
-    '../../../kit/controls/FormError': {FormError: 'FormError'}, '../../../platform/keyboard': {FormScrollView: 'FormScrollView'},
-    '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'}, './controls': {SectionTitle: 'SectionTitle'},
-    './LibraryKindTiles': {LibraryKindTiles: 'LibraryKindTiles'}, './FolderSourcePicker': {FolderSourcePicker: 'FolderSourcePicker'},
-    './presentation': {ownerLibraryKind: (kind: string) => ({label: kind})},
+    '../../../../../../packages/i18n/src': i18n,
+    '../../../kit/controls': {Button: 'Button', TextField: 'TextField', Select: 'Select', FormError: 'FormError'},
+    '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', SettingsPageFrame: ({children, footer}: any) => f.h.react.createElement('SettingsPageFrame', null, children, footer)},
+    '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    '../../../kit/settings/libraries/MetadataAgentChoice': metadataChoice,
+    '../../../kit/settings/libraries/LibraryKindTiles': {LibraryKindTiles: 'LibraryKindTiles'},
+    '../../../kit/settings/libraries/FolderSourcePicker': {FolderSourcePicker: 'FolderSourcePicker'},
+    './useAddOwnerLibrary': state,
   });
   const onCreate = (input: any) => f.service.createLibrary(input), onCancel = () => {};
   const paint = () => tree(f.h.render(() => app.AddLibraryPage({api: f.api, serverName: 'Fixture', onCreate, onCancel, busy: false, firstRun})));

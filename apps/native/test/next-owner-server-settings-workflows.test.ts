@@ -90,7 +90,7 @@ async function backupsFixture() {
     '../../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
     '../../../../../../../packages/i18n/src': {defaultI18n},
     '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
-    '../../owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    '../../../../kit/settings/libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
     '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, './space-source': {nativeStorageOwner: () => true},
   });
   const ports = {context: {api: {request: async () => ({})}}};

@@ -7,7 +7,7 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {NativeScreenLifetime} from '../settings-live/lifetime';
 import {NativeOwnerLibrariesController} from '../settings-live/owner-libraries/controller';
 import {viewerQueriesFor} from '../../shell/freshness';
-import {AddLibraryPage} from '../settings-live/owner-libraries/AddLibraryPage';
+import {AddLibraryPage} from '../../pages/shared/settings/AddLibraryPage';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {useTheme} from '../../kit/theme';
 
