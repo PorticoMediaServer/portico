@@ -120,9 +120,11 @@ export function ServerRemoteAccessPage({ports, runtime, retry, ...frame}: Frame 
         {remote.actionError && <PanelBlock><FormError placement="inline">{remote.actionError}</FormError></PanelBlock>}
         {remote.hasDrafts && <SectionCard><OverlayFootRow layout="halves">
           <Button testID="remote-access-discard" variant="glass" disabled={remote.saving} onPress={remote.discard}>{t('action.discard')}</Button>
-          <Button testID="remote-access-save" loading={remote.saving} disabled={!!state.confirmation} onPress={remote.save}>{t('action.save')}</Button>
+          <Button testID="remote-access-save" loading={remote.saving} disabled={blocked} onPress={remote.save}>{t('action.save')}</Button>
         </OverlayFootRow></SectionCard>}
-        {remote.saveError !== undefined && <StateView variant="inline" {...runtime.error(remote.saveError, remote.save, 'server-console')}/>}
+        {remote.refreshError !== undefined
+          ? <StateView variant="inline" {...runtime.error(remote.refreshError, remote.load, 'server-console')}/>
+          : remote.saveError !== undefined && <StateView variant="inline" {...runtime.error(remote.saveError, remote.save, 'server-console')}/>}
       </> : <StateView title={t('status.loading')}/>}
     </SettingsPageFrame>
     <BottomSheet open={!!state.confirmation} onOpenChange={open => {if (!open && !state.busy) remote.cancelConfirmation();}}

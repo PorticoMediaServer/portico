@@ -37,7 +37,7 @@ export function useServerRemoteAccess({ports, runtime}: {ports: NativeSettingsLi
     return (!rule.in || rule.in.includes(current)) && (!rule.notIn || !rule.notIn.includes(current));
   };
   const change = (id: string, next: unknown) => {if (!saving) {setSaveError(undefined); setDrafts(current => new Map(current).set(id, next));}};
-  const blocked = saving || state.busy || !!state.confirmation;
+  const blocked = saving || state.busy || !!state.confirmation || !!state.needsRefresh;
   const removeDraft = (id: string) => setDrafts(current => {
     const next = new Map(current);
     next.delete(id);
@@ -113,6 +113,7 @@ export function useServerRemoteAccess({ports, runtime}: {ports: NativeSettingsLi
     ownChanged: JSON.stringify(ownDraft) !== JSON.stringify(savedOwn), advanced, setAdvanced, saving, save, saveError, confirm, cancelConfirmation,
     hasDrafts: drafts.size > 0, discard: () => {setDrafts(new Map()); setSaveError(undefined);},
     outsideTitle, outsideFacts, outsideTone, notes,
-    actionError: state.error !== undefined && !state.confirmation ? presentError(state.error, 'server-console', {operation: 'action'}).body : undefined,
+    refreshError: state.needsRefresh ? loadError ?? state.error ?? saveError : undefined,
+    actionError: state.error !== undefined && !state.confirmation && !state.needsRefresh ? presentError(state.error, 'server-console', {operation: 'action'}).body : undefined,
   };
 }

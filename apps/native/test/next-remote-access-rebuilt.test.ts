@@ -23,7 +23,7 @@ const textOf = (value: unknown): string => Array.isArray(value) ? value.map(text
 
 test('Remote access shows the server status and saves a changed row at the revision it read', async t => {
   const saves: any[] = [];
-  let refuse = false, revision = 4, configuration = remoteAccess;
+  let refuse = false, failReadback = false, revision = 4, configuration = remoteAccess;
   let releaseConfiguration!: () => void;
   const waiting = new Promise<void>(resolve => {releaseConfiguration = resolve;});
   const app = await standardHomeApp({
@@ -31,6 +31,7 @@ test('Remote access shows the server status and saves a changed row at the revis
     nativeResponse: async (request: any) => {
       if (request.path === '/v1/admin/settings/remote-access' && request.method === 'GET') {
         await waiting;
+        if (failReadback) return {status: 503, body: {error: {code: 'unavailable', message: 'Readback unavailable.'}}};
         return {status: 200, headers: {ETag: '"' + revision + '"'}, body: configuration};
       }
       if (request.path === '/v1/admin/settings/remote-access' && request.method === 'PUT') {
@@ -38,6 +39,7 @@ test('Remote access shows the server status and saves a changed row at the revis
         if (refuse && request.body.confirmRefusal !== true) return {status: 409, body: {error: {code: 'would_refuse_this_route', message: 'This setting would block this device.'}}};
         configuration = {...configuration, findAtHome: request.body.findAtHome, dlna: request.body.dlna};
         revision++;
+        if (request.body.confirmRefusal === true) failReadback = true;
         return {status: 200, body: {}};
       }
       if (request.path === '/v1/admin/settings/network' && request.method === 'GET') return {status: 200, headers: {ETag: '"2"'}, body: network};
@@ -113,7 +115,13 @@ test('Remote access shows the server status and saves a changed row at the revis
   assert.equal(saves[3].body.findAtHome, true);
   assert.equal(saves[3].body.dlna, false, 'only the refused edit gets confirmed');
   assert.ok(pressable('Save'), 'the separate edit still needs saving');
+  assert.equal(pressable('Save').props.accessibilityState.disabled, true, 'Save waits for a readable revision');
+  assert.equal(saves.length, 4, 'the failed readback sends no further write');
+  failReadback = false;
   refuse = false;
+  pressable('Try again').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(saves.length, 4, 'Retry reads the document without repeating the accepted write');
   pressable('Save').props.onPress({nativeEvent: {}, stopPropagation() {}});
   await settle();
   assert.equal(saves.length, 5);
