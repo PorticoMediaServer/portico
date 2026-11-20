@@ -455,7 +455,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
         onScroll={event => {
           const {contentOffset: {y}, contentSize, layoutMeasurement} = event.nativeEvent;
           scrollY.current = y;
-          if (!tv) {setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(y);}
+          // An overscroll past the top (an iOS bounce, a fling as the window turns) reports a negative offset: the page remembers 0.
+          if (!tv) {setPassed(y > barAt); setTabsPinned(y > tabsY - barHeight); scrollMemory?.onOffset(Math.max(0, y));}
           if (onEnd && contentSize.height - y - layoutMeasurement.height < layoutMeasurement.height) onEnd();
         }}><FrameReveal.Provider value={revealTouch}>{page}</FrameReveal.Provider></ScrollView>}
     {band}
