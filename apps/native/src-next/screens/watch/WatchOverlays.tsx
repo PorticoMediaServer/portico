@@ -167,7 +167,9 @@ export function NativeWatchOverlays({presenters, runtime, common}: {presenters: 
   // TV follows tv-more.html 2 ("Add to collection…, Select, Details, File info") and 3 ("Select, Go to artist, File info"),
   // with tv-detail.html 7's "Play a different version…" directly above File info. Disc titles are undrawn and keep their place after Select.
   const surface = (tv ? [select, artist, discs] : [version, select, fileInfo, discs]).filter((item): item is MenuAction => !!item);
-  const items = titleMenuItems(groups, {tv, run, busy: value.busy, afterPlay: radio ? [radio] : undefined, related: season ? [season] : undefined, surface, afterDetails: tv ? [version, fileInfo].filter((item): item is MenuAction => !!item) : undefined, trailing: extras});
+  // The title's own ⋯ on its page is phone-detail 9's grouped menu; a card's menu stays select.html 1's list.
+  const page = !tv && value.actions?.page === true;
+  const items = titleMenuItems(groups, {tv, page, run, busy: value.busy, afterPlay: radio ? [radio] : undefined, related: season ? [season] : undefined, surface, afterDetails: tv ? [version, fileInfo].filter((item): item is MenuAction => !!item) : undefined, trailing: extras});
   // tv-detail.html frame 7 and playback-info.html frame 17 draw the side sheet's
   // small context line above the title, from the entry's own facts only.
   const series = tv && entry.kind === 'episode' ? entry.show?.name : undefined;
@@ -189,6 +191,7 @@ export function NativeWatchOverlays({presenters, runtime, common}: {presenters: 
   return <RetainedOverlay key={overlayPaintKey(value.capture)} permit={watchPaintPermit(value, presenters, runtime)} allowedTypes={paintTypes}><Menu open testID="watch-title-menu" title={subject} items={items} touchContext={!Platform.isTV} anchorRef={value.anchorRef} returnFocusRef={value.anchorRef} context={context}
     description={tv && entry.kind === 'movie' && entry.duration ? durationText(entry.duration, t) : undefined}
     descriptionTextStyle={tv ? {fontSize: 22, lineHeight: 31.9} : undefined}
+    form={page ? 'groups' : 'list'} secondaryTitle={page && entry.year !== undefined ? defaultI18n.number(entry.year, {useGrouping: false}) : undefined}
     touchHeader={<TouchMenuHeader title={subject} artwork={art ? <Artwork source={art} width={40} height={60}/> : undefined} kind={kindKey ? t(kindKey) : undefined} year={entry.year === undefined ? undefined : defaultI18n.number(entry.year, {useGrouping: false})}/>}
     onOpenChange={open => {if (!open) presenters.closeMenu(value);}}/></RetainedOverlay>;
 }
