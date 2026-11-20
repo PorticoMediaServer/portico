@@ -6,7 +6,6 @@ import {readLibrarySummaries, type LibrarySummary} from '../../../../../../packa
 import {authorPredicate, libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../../packages/client-core/src/presentation/library-tabs';
 import type {BrowseLabels} from '../../../kit/browse';
 import {useTheme} from '../../../kit/theme';
-import {usePageWidth} from '../../../kit/layout/page-inset';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {useReadingActions} from '../../../screens/read/ReadingActions';
@@ -29,7 +28,7 @@ export type BooksPageProps = Readonly<{
 }>;
 
 export function useBooksLibrary(props: BooksPageProps) {
-  const {context, runtime, libraryId, title} = props, theme = useTheme(), pageWidth = usePageWidth();
+  const {context, runtime, libraryId, title} = props, theme = useTheme();
   const library = context.libraries().find(value => value.id === libraryId);
   const navigation = useSyncExternalStore(context.navigation.subscribe, context.navigation.getSnapshot);
   const {route: renderedRoute, revision: renderedRevision} = navigation;
@@ -58,7 +57,6 @@ export function useBooksLibrary(props: BooksPageProps) {
   useEffect(() => () => downloads.dispose(), [downloads]);
   const downloadMenu = useSyncExternalStore(downloads.subscribe, downloads.getSnapshot);
   const offerDownload = (offer: NativeReadingDownloadOffer) => {downloads.offer(() => offer); downloads.select(downloads.getSnapshot());};
-  const [paneWidth, setPaneWidth] = useState<number>();
   // tablet-read#1b: the wide header carries the count of the view the grid is
   // showing, tagged with the library and the mount that published it. A line is
   // drawn only for this library, and only its own owner can retire it, so no
@@ -71,7 +69,6 @@ export function useBooksLibrary(props: BooksPageProps) {
       return Object.freeze({owner, opening, libraryId, text});
     });
   }, [libraryId, opening]);
-  const tablet = !theme.isTV && theme.platform !== 'phone'; // Medium, tablet and native web windows share the wide surface.
   const [summary, setSummary] = useState<Readonly<{opening: NativeReadingPageOpening; value?: LibrarySummary}>>();
   /** Root §3: the server's own reading pivots decide the Books grid; undefined means this server
    * publishes none, and the authored pair keeps the bounded Reading list on every width. */
@@ -144,9 +141,6 @@ export function useBooksLibrary(props: BooksPageProps) {
   const pivots: Readonly<Record<string, string>> = {book: 'books', ebook: 'books', comic: 'titles', magazine: 'titles', newspaper: 'titles'};
   const counts = (summary?.opening === opening ? summary?.value?.counts ?? [] : []).filter(part => pivots[part.kind]).map(part =>
     defaultI18n.t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: pivots[part.kind]!}));
-  const columns = tablet ? 4 : 3, gap = 16, width = Math.max(96, ((paneWidth ?? pageWidth) - theme.gutter * 2 - gap * (columns - 1)) / columns);
-  const [captionHeight, setCaptionHeight] = useState(44);
-  const reportWidth = (width: number) => {const next = Math.round(width); if (next > 0) setPaneWidth(next);};
   const openLibrary = (id: string) => {if (id !== libraryId) runtime.onDestination({kind: 'library', libraryId: id});};
   const selectAuthor = gridSelected?.id === 'authors' && opening ? (personId: string) => {
     if (opening.isCurrent()) {setAuthorOpen({opening, personId}); setTab('browse');}
@@ -155,7 +149,7 @@ export function useBooksLibrary(props: BooksPageProps) {
   const grid = !theme.isTV && opening && gridTab && library ? {
     key: `${(gridSelected ?? gridTab).id}:${currentAuthor ?? ''}`,
     context: scopedContext, opening, runtime, library, tab: gridSelected ?? gridTab, labels: props.labels,
-    owner: context.session()?.viewer.role === 'owner', onCount: tablet ? projectGridCount : undefined,
+    owner: context.session()?.viewer.role === 'owner', onCount: projectGridCount,
     onDownload: offerDownload, onAuthor: selectAuthor,
     startQuery: (gridSelected ?? gridTab).id === 'browse' && currentAuthor ? [authorPredicate(currentAuthor)] : undefined,
   } : undefined;
@@ -164,8 +158,7 @@ export function useBooksLibrary(props: BooksPageProps) {
     waiting: !opening || tab !== 'discover' && !theme.isTV && !capability, showSelection: !gridTab || tab === 'discover',
     discoveryState, booksState, readingActions, booksWindow, openDiscover, openBooks, readingOffer,
     retry: tab === 'discover' ? retryDiscover : retryBooks, pageMore: (row: 'recent' | 'short-reads') => {void discovery.more(row).catch(runtime.reportError);},
-    showBooks: () => setTab('browse'), metrics: {width, gap, columns, captionHeight, tablet}, reportWidth,
-    reportCaptionHeight: (height: number) => setCaptionHeight(current => Math.max(current, height)),
+    showBooks: () => setTab('browse'),
     downloadMenu, downloadOpen: !!downloadMenu && downloadMenu.opening === opening && downloadMenu.lifetime.isCurrent(),
     dismissDownload: () => downloads.dismiss(downloadMenu), startDownload: () => downloads.select(downloadMenu)};
 }
