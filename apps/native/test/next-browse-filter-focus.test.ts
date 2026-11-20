@@ -21,7 +21,7 @@ const text = (node: Node | string | number): string => typeof node === 'object' 
 // Only native hosts/animation/blur/theme are replaced; no D-pad/layout claim.
 async function fixture(isTV: boolean) {
   const theme = createTheme({isTV, width: isTV ? 1920 : 390});
-  const react = {...React, default: React}, native = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', Pressable: React.forwardRef(({children, ...props}: any, ref: any) => React.createElement('Pressable', {...props, ref}, typeof children === 'function' ? children({pressed: false, hovered: false}) : children)), TextInput: 'TextInput', TVFocusGuideView: 'TVFocusGuideView',
+  const react = {...React, default: React}, native = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', useTVEventHandler: () => {}, Pressable: React.forwardRef(({children, ...props}: any, ref: any) => React.createElement('Pressable', {...props, ref}, typeof children === 'function' ? children({pressed: false, hovered: false}) : children)), TextInput: 'TextInput', TVFocusGuideView: 'TVFocusGuideView',
     ActivityIndicator: 'ActivityIndicator', Platform: {OS: 'android', isTV}, findNodeHandle: (host: any) => host?.tag ?? null,
     StyleSheet: {create: (value: any) => value, flatten: (value: any): any => Array.isArray(value) ? Object.assign({}, ...value.map(native.StyleSheet.flatten)) : value ?? {}, absoluteFill: {position: 'absolute', inset: 0}}};
   const themeModule = {useTheme: () => theme, fontFamilies};
