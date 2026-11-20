@@ -65,7 +65,7 @@ export type BrowseFrameProps = Readonly<{
   filters?: BrowseFiltersProps;
   /** The whole page is loading for the first time, or can't load. Loading keeps the header, tabs and toolbar and draws the
    * grid's or rows' boxes; a failure keeps the header. */
-  state?: Readonly<{kind: 'loading'}> | PageStateProps;
+  state?: Readonly<{kind: 'loading'; message?: string}> | PageStateProps;
   /** A focused TV empty state can stay over the grid as newly scanned titles arrive. */
   gridState?: PageStateProps;
   testID?: string;
@@ -118,14 +118,16 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
   const top = header ? <BrowseHeader {...header}/> : hero ? <HeroWordsTop.Provider value={wordsTop}>{hero}</HeroWordsTop.Provider>
     : <View style={{height: form === 'tv' ? frame.titleTop : insets.top + frameSpec.header.wordmarkBar}}/>;
   if (failure) return <View testID={testID} style={{flex: 1}}>{top}<PageStateFrame {...failure}/></View>;
-  const rows = <FrameRhythm.Provider value><View onLayout={onRowsLayout} style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <RowsSkeleton/> : <>
+  const loadingMessage = state && 'message' in state && state.message ?
+    <Text accessibilityLiveRegion="polite" style={[theme.type.caption, {color: theme.colors.textSecondary, paddingHorizontal: frame.gutter}]}>{state.message}</Text> : null;
+  const rows = <FrameRhythm.Provider value><View onLayout={onRowsLayout} style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <><RowsSkeleton/>{loadingMessage}</> : <>
     {notice ? <View style={{paddingHorizontal: frame.gutter}}>{notice}</View> : null}
     {children}
     {foot ? <BrowseFoot {...foot}/> : null}
   </>}</View></FrameRhythm.Provider>;
   const body = grid || (loading && toolbar)
     ? <View style={{flex: 1, marginTop: frameSpec.browse.gridGap[form]}}>
-      {loading ? <GridSkeleton/> : grid}
+      {loading ? <><GridSkeleton/>{loadingMessage}</> : grid}
       {gridState && <View style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}}><PageStateFrame {...gridState}/></View>}
       {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>

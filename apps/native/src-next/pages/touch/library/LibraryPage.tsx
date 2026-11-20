@@ -63,7 +63,7 @@ function LibraryCatalogue(props: LibraryProps & {
   const list = grid.view.value === 'list', alphabet = grid.hasAlphabet && !list;
   const toolbar = <>{notice}<BrowseToolbar model={grid.model} labels={labels} onFilters={view.openFilters} filtersOpen={filters?.open}
     resultCount={undefined} resultTotal={grid.data.total} onQuickChange={destination.setQuick} onSortChange={grid.setSort} onReshuffle={grid.reshuffle}
-    applied={grid.appliedChips} onRemoveFilter={grid.remove}
+    applied={grid.appliedChips} onRemoveFilter={grid.remove} onClearFilters={grid.clear}
     selection={grid.selected?.active && grid.selection?.render(path => path && <Artwork source={runtime.artwork(path)}/>)}
     view={{value: grid.view.value, onValueChange: grid.onValueChange}}/>
     {grid.data.status === 'error' && <StateView {...runtime.error(grid.data.error, destination.retry, 'library')}/>}</>;
@@ -75,9 +75,9 @@ function LibraryCatalogue(props: LibraryProps & {
       testID={list ? 'library-list' : 'library-grid'} shape={list ? 'list' : grid.shape} alphabet={alphabet}
       collection={grid.collection} getKey={nativeLibraryEntryKey} selection={grid.selected}
       onVisibleRange={grid.onVisibleRange} onScrollOffset={grid.onScrollOffset} refreshControl={grid.refresh}
-      initialIndex={grid.initialIndex} renderItem={(entry, cell, width) => {
+      initialIndex={grid.initialIndex} renderItem={(entry, cell, width, onCaptionLayout) => {
         const item = {entry, width, runtime, actions, focusId: cell.focusId ?? nativeLibraryEntryKey(entry), onFocus: cell.onFocus, onBlur: cell.onBlur,
           selected: cell.selection, onSelect: cell.selection?.onEnter ?? grid.selection?.start, disabled: !view.active.visible};
-        return list ? <LibraryListRow {...item}/> : <LibraryCard {...item} family={state.library.kind}/>;
+        return list ? <LibraryListRow {...item}/> : <LibraryCard {...item} family={state.library.kind} onCaptionLayout={onCaptionLayout}/>;
       }}/>}/>;
 }

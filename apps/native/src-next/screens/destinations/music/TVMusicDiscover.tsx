@@ -1,4 +1,4 @@
-import React, {useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode} from 'react';
+import React, {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
@@ -30,7 +30,7 @@ const noRowSelection: LayoutSelection = {active: false, isSelected: () => false,
 export function TVMusicDiscover({destination, state, runtime, active, anchor, onEntered, renderEntry}: {
   destination: NativeLibraryDestination; state: NativeLibrarySnapshot; runtime: NativeShellRuntime;
   active: NativeDestinationActivation; anchor?: boolean; onEntered?: () => void;
-  renderEntry: (entry: ContentEntry, width: number, context: LayoutItemContext) => ReactNode;
+  renderEntry: (entry: ContentEntry, width: number, context: LayoutItemContext, onCaptionLayout?: (height: number) => void) => ReactNode;
 }) {
   const theme = useTheme(), registry = useFocusRegistry(), scroll = useRef<ScrollView>(null);
   const mixes = useSyncExternalStore(runtime.mixes?.subscribe ?? noSubscribe, runtime.mixes?.getSnapshot ?? noMixes);
@@ -42,6 +42,10 @@ export function TVMusicDiscover({destination, state, runtime, active, anchor, on
   const hasMixes = mixes?.phase === 'ready' && mixes.rows.length > 0;
   const regions = [...(recent ? [`${prefix}.${recent.id}`] : []), ...(hasMixes ? [mixRegion] : []),
     ...ordered.filter(section => section !== recent).map(section => `${prefix}.${section.id}`)];
+  const [captions, setCaptions] = useState<Record<string, number>>({});
+  const reserveCaption = (id: string, height: number) => {
+    setCaptions(previous => height > (previous[id] ?? 0) ? {...previous, [id]: height} : previous);
+  };
   const measured = useRef(new Map<string, number>());
   const firstChild = (region: string) => region === mixRegion ? `music-mix:${mixes!.rows[0]!.id}`
     : ordered.find(section => `${prefix}.${section.id}` === region)?.entries[0]?.id;
@@ -80,12 +84,13 @@ export function TVMusicDiscover({destination, state, runtime, active, anchor, on
         <View onLayout={event => measured.current.set(id, event.nativeEvent.layout.y)} style={{marginTop: section === ordered[0] ? 0 : 44}}>
           <Text accessibilityRole="header" style={[browseType(theme, 32, 700, -.019), {color: theme.colors.text, marginHorizontal: theme.gutter, marginBottom: 22}]}>{serverTextLabel(defaultI18n, section.heading)}</Text>
           <Row title={serverTextLabel(defaultI18n, section.heading)} showHeading={false} items={section.entries} getKey={entryId}
-            itemWidth={width} itemHeight={cell.art} captionHeight={cell.caption} gap={28} gutter={theme.gutter} selection={noRowSelection}
+            itemWidth={width} itemHeight={cell.art + Math.max(cell.caption, captions[id] ?? 0)} captionHeight={cell.caption} gap={28} gutter={theme.gutter} selection={noRowSelection}
             focus={{id, enabled: active.visible, entry: section.entries[0]!.id, edges: edges(id)}}
             onVisibleRange={(_first, last) => {
               if (active.visible && section.nextCursor && last >= section.entries.length - 10) void destination.nextDiscover(section.id).catch(runtime.reportError);
             }}
-            renderItem={(entry, context) => renderEntry(entry, width, {...context, onFocus: () => {context.onFocus(); focused(id, entry.id);}})}/>
+            renderItem={(entry, context) => renderEntry(entry, width, {...context, onFocus: () => {context.onFocus(); focused(id, entry.id);}},
+              cell.caption ? height => reserveCaption(id, height) : undefined)}/>
         </View>
         {section === recent && mixNode}
       </React.Fragment>;

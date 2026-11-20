@@ -22,6 +22,13 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
   useEffect(() => {void controller.load();}, [controller]);
   const retry = () => {void controller.load();};
   const row = state.row, ready = !!row && !!state.capabilities && !!state.sort;
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (ready || !active || state.phase === 'error') return;
+    const timer = setTimeout(() => setSlow(true), 8000);
+    return () => clearTimeout(timer);
+  }, [ready, active, state.phase]);
   const title = row ? serverTextLabel(catalog, row.titleText, row.title) : t('next.home.seeAll');
   const reason = row?.reason?.text ?? row?.why ?? row?.subtitleText;
   const intro = reason ? serverTextLabel(catalog, reason) : undefined;
@@ -54,7 +61,7 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
     grid: {id: `${focusId}.grid`, enabled: active, edges: {up: applied.length ? `${focusId}.applied` : `${focusId}.toolbar`},
       count: data.total, screenStart: {regionId: focusId, childId: playable ? 'play' : 'back'}},
   } : undefined;
-  return {t, title, intro, focus, clear, remove, applied, view, setView, ready, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
+  return {t, title, intro, focus, clear, remove, applied, view, setView, ready, slow, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
     model: model && {...model, applied: state.filters, quick: model.quick.filter(quick => homeSeeAllQuickOrder(quick.id, isTV))},
     failure: state.phase === 'error' ? browseFailure(runtime.error(state.error, retry, 'home')) : undefined,
     gridFailure: data.status === 'error' ? runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home') : undefined,
