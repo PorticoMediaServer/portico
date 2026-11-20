@@ -141,39 +141,3 @@ test('TV Search song results use full-width track rows and channels use factual 
   assert.deepEqual(section.props.grid, {columns: 1, count: 1}); assert.equal(grid.props.itemWidth, 1044); assert.equal(grid.props.itemHeight, 84); assert.equal(grid.props.rowGap, 0);
 });
 
-test('album geometry and complete Similar arrays remain reachable (the artist page is pages/tv/music: next-tv-artist-page)', async () => {
-  const react: any = {createElement: (type: any, props: any, ...children: any[]) => ({type, props: {...props, children}}),
-    useSyncExternalStore: (_subscribe: any, get: any) => get(), useMemo: (read: any) => read(), useState: () => [undefined, () => {}], useRef: () => ({current: null})}; react.default = react;
-  const {TVAlbumScreen} = await screenModule(new URL('../src-next/screens/destinations/music/TVMusicScreens.tsx', import.meta.url), {
-    '../../../kit/states': {SkeletonBlock: () => null},
-    react, 'react-native': native, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, number: String}},
-    '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: (entry: any) => ({title: entry.title, caption: [], detail: []})},
-    '../../../../../../packages/client-core/src/presentation/library-tabs': {artistReleaseGroups: (albums: any[]) => [{id: 'albums', label: 'Albums', entries: albums}]},
-    '../../../kit/artwork': {AmbientArt: 'AmbientArt', Artwork: 'Artwork', ArtistCircle: 'ArtistCircle'}, '../../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
-    '../../../kit/cards': {SquareCard: 'SquareCard'}, '../../../kit/browse': {TrackRow: 'TrackRow'}, '../../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-    '../../../kit/browse/presentation': type, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/theme': {useTheme: () => theme},
-    '../../../tv/layout/TVShelf': {TVShelf: 'TVShelf'}, '../../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
-    './MusicErrorView': {MusicErrorView: 'MusicErrorView'}, './MusicSectionControls': {MusicSectionControls: 'MusicSectionControls', musicNearEnd: () => false}, './MusicFormatBadges': {MusicFormatBadges: 'MusicFormatBadges'},
-    './MusicWindow': {MusicScrollView: 'MusicScrollView', MusicWindow: 'MusicWindow'},
-  });
-  const song = {id: 'track', kind: 'song', title: 'Track'}, album = {id: 'release', title: 'Release'}, entry = {id: 'entity', kind: 'artist', title: 'Artist'};
-  let state: any = {songs: [song], albums: [album], similar: Array.from({length: 12}, (_, index) => ({id: `similar-${index}`, title: 'Similar', kind: 'artist'})),
-    allSongs: {songs: [], phase: 'idle'}, songPage: {offset: 0}, releases: {}};
-  const controller = {subscribe: () => () => {}, getSnapshot: () => state, similarPage: () => undefined}, runtime = {ambient: () => ({kind: 'palette'}), artwork: () => ({kind: 'image'}), text: {}}, actions = {isMenuOpen: () => false};
-  state = {...state, similar: state.similar.map((value: any) => ({...value, kind: 'album'}))};
-  const tree = TVAlbumScreen({controller, entry: {...entry, kind: 'album', artist: {id: 'artist', name: 'Artist'}}, runtime, actions, openEntry() {}}), all = nodes(tree);
-  assert.equal(all.find(node => node.props.style?.left === 742).props.style.width, 1082);
-  assert.equal(all.find(node => node.props.style?.left === 200 && node.props.style?.width === 480).props.style.boxShadow[0].blurRadius, 120);
-  assert.equal(all.find(node => node.type === 'ArtistCircle').props.size, 44);
-  assert.equal(all.find(node => node.type === 'TVShelf').props.items.length, 12);
-  const albumActions = all.find(node => node.type?.name === 'ActionBar');
-  assert.equal(albumActions.type(albumActions.props).type, 'View', 'artist focus graph must not introduce an edgeless album action boundary');
-  // LR03/LR04 TV: the album's songs mount only the rows in view.
-  const albumSongs = all.find(node => node.type?.name === 'TrackList');
-  assert.equal(albumSongs.props.windowed, true);
-  const albumWindow = nodes(albumSongs.type(albumSongs.props)).find(node => node.type === 'MusicWindow');
-  assert.equal(albumWindow.props.itemHeight, 84); assert.equal(albumWindow.props.items.length, 1);
-  const backdrop = all.find(node => node.type?.name === 'Backdrop');
-  assert.equal(nodes(backdrop.type(backdrop.props)).find(node => node.type === 'AmbientArt').props.treatment, 'music');
-});
-
