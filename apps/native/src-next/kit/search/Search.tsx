@@ -10,7 +10,6 @@ import {Icon} from '../Icon';
 import {useFrameMetrics} from '../frames/metrics';
 import {useTheme} from '../theme';
 import type {CardSelection} from '../cards';
-import {browseType} from '../browse/presentation';
 import {ArtFrame, CardFrame} from '../cards/primitives';
 import {SelectionCircle} from '../selection';
 
@@ -86,8 +85,8 @@ export function TopResult({eyebrow, title, facts, details, synopsis, artwork, ac
       {state => <><ArtFrame width={art} height={artHeight} radius={14} focused={state.focused} hovered={state.hovered} holding={state.holding} selected={selection?.selected}>
         <Artwork source={artwork} width={art} height={artHeight} fallback={artwork ? undefined : missingArt({title, shape: 'wide', width: art, height: artHeight})}/>
       </ArtFrame><View style={{flex: 1}}>
-        <Text style={[browseType(theme, 20, 700), {color: theme.colors.accentStrong, marginBottom: 10}]}>{eyebrow}</Text>
-        <Text accessibilityRole="header" style={[browseType(theme, 52, 800, -.04, 52), {color: theme.colors.text, marginBottom: 14}]}>{title}</Text>
+        <Text style={[theme.type.listLabel, {color: theme.colors.accentStrong, marginBottom: 10}]}>{eyebrow}</Text>
+        <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: 14}]}>{title}</Text>
         {facts}{details}
       </View></>}
     </CardFrame>;

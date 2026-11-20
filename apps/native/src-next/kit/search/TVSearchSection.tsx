@@ -8,7 +8,6 @@ import {FocusItem, FocusRegion, useCovered, useFocusRegistry, type FocusAddress}
 import {useRowPageBoundary} from '../focus/page-boundary';
 import {useReplacementRefocus} from '../focus/replacement-refocus';
 import {LoadingPaint, SkeletonBlock, StateView} from '../states';
-import {browseType} from '../browse/presentation';
 import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {Row} from '../layout/Row';
@@ -59,8 +58,8 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   const failure = paging?.error ? runtime.error(paging.error, retry, 'search') : undefined;
   const groupFailure = group.status === 'error' ? runtime.error({code: group.errorCode}, paging?.error ? retry : () => {void destination.retry().catch(runtime.reportError);}) : undefined;
   const edges = {left: keyboardRegion, ...(previousRegion ? {up: previousRegion} : {}), ...(nextRegion ? {down: nextRegion} : {})};
-  const heading = <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 14}}><Text accessibilityRole="header" style={[browseType(theme, 32, 700, -.019), {color: theme.colors.text}]}>{defaultI18n.t(searchGroupLabel(group.id))}</Text>
-    {group.totalCountExact && <Text style={[browseType(theme, 20, 600), {color: theme.colors.textTertiary}]}>{group.totalCount}</Text>}</View>;
+  const heading = <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 14}}><Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text}]}>{defaultI18n.t(searchGroupLabel(group.id))}</Text>
+    {group.totalCountExact && <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{group.totalCount}</Text>}</View>;
   if (drawnAsRow) {
     const waitingId = tailId ?? paging?.fulfilled?.waitingId;
     return <View style={{marginTop: 46}}>{heading}<Row<Cell> title="" showHeading={false} style={{marginTop: 30, marginLeft: -focusRoom}}
@@ -89,7 +88,7 @@ export function TVSearchSection({group, destination, runtime, actions, selection
             accessibilityRole={failure ? 'button' : undefined} accessibilityLabel={typeof failure?.title === 'string' ? failure.title : defaultI18n.t('saved.loading')}
             onFocus={() => {position.onFocus(); if (paging?.error?.retryable) retry(); else request();}} onPress={paging?.error?.retryable ? retry : undefined}
             style={{width: cardWidth, height, borderRadius: 12, justifyContent: 'center'}}>
-            {failure ? <Text style={[browseType(theme, 20, 600), {color: theme.colors.textSecondary}]}>{failure.title}</Text>
+            {failure ? <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{failure.title}</Text>
               : <LoadingPaint ready={false} style={{width: cardWidth, height}} skeleton={<SkeletonBlock width={cardWidth} height={height} radius={12}/>}/>}
           </Focusable>}
       </FocusItem>}/>
