@@ -62,12 +62,14 @@ test('a phone page with no backdrop of its own (album, artist) draws only the ki
   assert.ok(nodes(wash).some(node => node.type === 'View' && flat(node.props.style).opacity === spec.wash.alpha));
 });
 
-// Desk B on #3428: the real theme lays a tablet out as handheld too (layoutMode 'phone', platform 'tablet'). The phone washes
-// are the phone frames', so a tablet keeps its own: tested with the real theme builder.
-test('a tablet (handheld layout, tablet platform) keeps its own title and page treatment', async () => {
-  for (const [treatment, backdrop] of [['title', true], ['page', false]] as const) {
-    const {all, theme} = await render(820, treatment, backdrop);
-    assert.deepEqual([theme.layoutMode, theme.platform], ['phone', 'tablet']);
-    assert.equal(all.some(node => node.props?.testID === 'hero-wash'), false, treatment);
-  }
+// Desk B on #3428: the real theme lays a tablet out as handheld too (layoutMode 'phone', platform 'tablet'). Since ruling 6 an
+// upright tablet's title page is the phone's column, so its art fades as the phone's does (the generic art ended in solid
+// ink: a hard line where the backdrop began under it, tablet lane 20 Nov). Its page wash (album, artist) keeps its own.
+test("an upright tablet's title fades as the phone's; its page wash keeps its own", async () => {
+  const title = await render(820, 'title', true);
+  assert.deepEqual([title.theme.layoutMode, title.theme.platform, title.theme.form], ['phone', 'tablet', 'medium']);
+  assert.ok(title.all.some(node => node.props?.testID === 'hero-wash'), 'title: the phone wash');
+  assert.equal(title.all.some(node => node.type === 'LinearGradient' && node.props.id === 'art-bottom'), false, 'title: no ink bottom scrim');
+  const page = await render(820, 'page', false);
+  assert.equal(page.all.some(node => node.props?.testID === 'hero-wash'), false, 'page');
 });
