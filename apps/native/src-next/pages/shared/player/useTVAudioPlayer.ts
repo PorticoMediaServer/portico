@@ -24,25 +24,23 @@ export function useTVAudioPlayer({occupant, queue, width, height, onAction, onAd
   const signalRef = useRef<View>(null), moreRef = useRef<View>(null), lyricsRef = useRef<View>(null);
   const equalizer = useSyncExternalStore(nativeEqualizer.subscribe, nativeEqualizer.getSnapshot);
   const policy = useTVQueuePolicy({fence: occupant.playback.fence, queue, policy: queuePolicy, reportError, testID});
-  const restoreFrame = useRef<number | undefined>(undefined), latest = useRef({panel, fence: occupant.playback.fence, visible: page.open && page.ready});
-  latest.current = {panel, fence: occupant.playback.fence, visible: page.open && page.ready};
-  const closeEqualizer = useCallback(() => {
-    const fence = occupant.playback.fence;
+  const returnFocus = useRef<{fence: typeof occupant.playback.fence; id: string} | undefined>(undefined);
+  const latest = useRef({panel, fence: occupant.playback.fence});
+  latest.current = {panel, fence: occupant.playback.fence};
+  const close = useCallback(() => {
+    if (!panel || latest.current.panel !== panel || !sameFence(latest.current.fence, occupant.playback.fence)) return false;
+    returnFocus.current = {fence: occupant.playback.fence, id: panel === 'lyrics' ? 'lyrics' : panel === 'signal' ? 'music-signal-line' : 'more'};
     setPanel(null);
-    if (restoreFrame.current !== undefined) cancelAnimationFrame(restoreFrame.current);
-    restoreFrame.current = requestAnimationFrame(() => {
-      if (latest.current.visible && latest.current.panel === null && sameFence(latest.current.fence, fence))
-        (moreRef.current as unknown as {requestTVFocus?: () => void} | null)?.requestTVFocus?.();
-    });
     return true;
-  }, [occupant.playback.fence]);
-  useEffect(() => () => {if (restoreFrame.current !== undefined) cancelAnimationFrame(restoreFrame.current);}, []);
+  }, [panel, occupant.playback.fence]);
+  const startFocus = !panel && !more && page.open && page.ready && returnFocus.current
+    && sameFence(returnFocus.current.fence, occupant.playback.fence) ? returnFocus.current.id : undefined;
   useEffect(() => {
     if (panel !== 'eq') return;
-    const releaseBack = registerBack(closeEqualizer, {scope: 'overlay'});
-    const release = registerOverlayKeys(key => key === 'escape' || key === 'menu' ? closeEqualizer() : false);
+    const releaseBack = registerBack(close, {scope: 'overlay'});
+    const release = registerOverlayKeys(key => key === 'escape' || key === 'menu' ? close() : false);
     return () => {releaseBack(); release();};
-  }, [panel, closeEqualizer]);
+  }, [panel, close]);
   const {presentation: p, playback} = occupant;
   const position = playbackPosition(occupant), bounds = seekBounds(occupant), span = bounds ? bounds.end - bounds.start : p.durationSeconds;
   const artist = p.identity.subtitle.filter(part => !!part.text);
@@ -74,8 +72,7 @@ export function useTVAudioPlayer({occupant, queue, width, height, onAction, onAd
     return false;
   }), []);
   const act = (action: Parameters<typeof dockCommand>[1]) => {if (page.open && page.ready && !panel && !more && commandAllowed(occupant, action)) onAction(dockCommand(occupant, action));};
-  const close = () => setPanel(null);
-  return {id, canvas, page, panel, setPanel, more, setMore, signalRef, moreRef, lyricsRef, equalizer, policy, closeEqualizer,
+  return {id, canvas, page, panel, setPanel, more, setMore, signalRef, moreRef, lyricsRef, equalizer, policy,
     position, bounds, span, artist, album, queueRegion, favourite, actionsRegion, enabled, currentItem, playingFrom,
-    previousRef, toggleRef, nextRef, playlistRef, act, close};
+    previousRef, toggleRef, nextRef, playlistRef, act, close, startFocus};
 }

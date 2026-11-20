@@ -26,12 +26,12 @@ function Entry({region, visible, child}: {region: string; visible: boolean; chil
 
 /** F-MUSIC-1: opening starts on Pause. Track changes never request focus again.
  * Back folds this occupant; its parent retains the original playback fence. */
-export function TVMusicFocus({id, visible, interactive = true, entry, onClose, children}: {id: string; visible: boolean; interactive?: boolean; entry: string; onClose: () => void; children: React.ReactNode}) {
-  const theme = useTheme(), latest = useRef({visible, onClose}); latest.current = {visible, onClose};
+export function TVMusicFocus({id, visible, covered = false, interactive = true, entry, onClose, children}: {id: string; visible: boolean; covered?: boolean; interactive?: boolean; entry: string; onClose: () => void; children: React.ReactNode}) {
+  const theme = useTheme(), latest = useRef({visible, covered, onClose}); latest.current = {visible, covered, onClose};
   useLayoutEffect(() => {
     if (!theme.isTV) return;
     const releaseBack = registerBack(() => {
-      if (!latest.current.visible) return false;
+      if (!latest.current.visible || latest.current.covered) return false;
       latest.current.onClose(); return true;
     }, {scope: 'overlay'});
     return () => releaseBack();

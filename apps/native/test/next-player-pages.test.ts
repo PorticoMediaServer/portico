@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {defaultI18n} from '../../../packages/i18n/src';
-import {screenModule} from './helpers/screen-harness.mjs';
+import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 type Node = {type: string; props: Record<string, any>};
 const react = {default: {Fragment: 'Fragment', createElement: (type: string, props: object, ...children: Node[]): Node => ({type, props: {...props, children}})}};
@@ -66,4 +66,31 @@ test('audio keeps its page scroll, wide panel actions, and TV lyrics focus retur
   const action = render().find(node => node.props.testID === 'lyrics');
   assert.equal(action?.props.focusId, 'lyrics');
   assert.equal(action?.props.ref, ref);
+});
+
+test('closing TV Lyrics returns focus to its opener without starting at Play again', async () => {
+  const host = hooks();
+  const {useTVAudioPlayer} = await screenModule(new URL('../src-next/pages/shared/player/useTVAudioPlayer.ts', import.meta.url), {
+    react: {...host.react, useId: () => 'now-playing', useLayoutEffect: () => {}},
+    '../../../../../../packages/player-core/src': {sameFence: (left: unknown, right: unknown) => left === right},
+    '../../../kit/focus': {}, '../../../kit/dock/model': {playbackPosition: () => 12, seekBounds: () => undefined},
+    '../../../shell/model': {shellLayout: () => ({})},
+    '../../../platform/playback/equalizer': {nativeEqualizer: {getSnapshot: () => ({supported: false})}},
+    '../../../platform/overlay-keys': {}, '../../../screens/destinations/music/ListeningSongActions': {},
+    '../../../screens/destinations/music/NowPlayingQueue': {nowPlayingSource: () => undefined},
+    '../../../screens/destinations/music/TVQueuePolicy': {useTVQueuePolicy: () => ({})},
+    '../../../tv/layout/TVPageMotion': {useTVPageMotion: () => ({open: true, ready: true})}, '../../../kit/navigation/back': {},
+  });
+  let fence = {};
+  const view = () => host.render(() => useTVAudioPlayer({lyrics: 'lyrics',
+    occupant: {playback: {fence}, presentation: {identity: {subtitle: []}, capabilities: {}}}}));
+  const opening = view();
+  assert.equal(opening.startFocus, undefined);
+  opening.setPanel('lyrics');
+  const lyrics = view();
+  assert.equal(lyrics.startFocus, undefined);
+  assert.equal(lyrics.close(), true);
+  assert.equal(view().startFocus, 'lyrics');
+  fence = {};
+  assert.equal(view().startFocus, undefined);
 });

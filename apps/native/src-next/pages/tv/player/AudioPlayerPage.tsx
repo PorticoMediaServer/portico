@@ -21,13 +21,13 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
   const {occupant, queue, artwork, onAction, onQueuePlay, onAddToPlaylist, policyLifetime, queueEdit, song, onClose, signal, notice,
     reportError = () => {}, testID = 'now-playing', lyrics, equalizerCopy} = props;
   const t = defaultI18n.t, {presentation: p, playback} = occupant;
-  const {id, canvas, page, panel, setPanel, more, setMore, signalRef, moreRef, lyricsRef, equalizer, policy, closeEqualizer,
+  const {id, canvas, page, panel, setPanel, more, setMore, signalRef, moreRef, lyricsRef, equalizer, policy,
     position, bounds, span, artist, album, queueRegion, favourite, actionsRegion, enabled, currentItem, playingFrom,
-    previousRef, toggleRef, nextRef, playlistRef, act, close} = useTVAudioPlayer(props);
-  return <TVMusicFocus id={id} visible={page.open && !panel && !more} interactive={page.ready} entry="toggle" onClose={onClose}>
+    previousRef, toggleRef, nextRef, playlistRef, act, close, startFocus} = useTVAudioPlayer(props);
+  return <TVMusicFocus id={id} visible={page.open} covered={!!panel || more} interactive={page.ready} entry="toggle" onClose={onClose}>
     <TVAudioSurface testID={testID} ready={page.ready} ambient={p.ambient}>
       <TVAudioCanvas canvas={canvas}>
-      <AudioPlayerFrame title={p.identity.title} icon={occupant.mode === 'audiobook' ? 'i-book' : 'i-music'}
+      <AudioPlayerFrame startFocus={startFocus} title={p.identity.title} icon={occupant.mode === 'audiobook' ? 'i-book' : 'i-music'}
         artwork={p.artwork ?? artwork?.(currentItem?.posterUrl)}
         context={playingFrom ? t('web.player.playingFromLabel') : t('player.queueNowPlaying')} source={playingFrom}
         byline={[artist.map(part => part.text).join(' '), album.map(part => part.text).join(' ') || currentItem?.album || '']} close={{icon: 'i-down', label: t('player.minimize'), onPress: onClose}}
@@ -71,9 +71,9 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
       <Menu testID={`${id}.more`} open={more} onOpenChange={setMore} title={t('next.controls.more')} presentation="sideSheet" returnFocusRef={moreRef} restoreFocus={panel !== 'eq'}
         items={equalizer.supported ? [{id: 'eq', label: t('next.media.eq.title'), icon: 'i-gauge', onSelect: () => {setMore(false); setPanel('eq');}}] : []}/>
       {panel === 'signal' && signal && <MusicSignalSheet view={signal} contextTitle={p.identity.title} onClose={close} returnFocusRef={signalRef}/>}
-      {panel === 'lyrics' && lyrics && <TVAudioLyrics testID={`${id}.lyrics`} open title={t('player.lyrics')} onOpenChange={open => {if (!open) close();}} returnFocusRef={lyricsRef}>{lyrics}</TVAudioLyrics>}
+      {panel === 'lyrics' && lyrics && <TVAudioLyrics testID={`${id}.lyrics`} open title={t('player.lyrics')} onOpenChange={open => {if (!open) close();}} returnFocusRef={lyricsRef} restoreFocus={false}>{lyrics}</TVAudioLyrics>}
       {panel === 'eq' && <TVAudioEqualizer canvas={canvas}>
-        <NativeWatchEqualizer focusScope={`${id}.eq`} onBack={closeEqualizer}
+        <NativeWatchEqualizer focusScope={`${id}.eq`} onBack={close}
           copy={equalizerCopy} reportError={reportError} store={nativeEqualizer}/>
       </TVAudioEqualizer>}
       {notice && <NativeListeningNotice notice={notice} persistent/>}
