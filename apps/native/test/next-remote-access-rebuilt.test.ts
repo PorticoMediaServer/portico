@@ -23,18 +23,27 @@ const textOf = (value: unknown): string => Array.isArray(value) ? value.map(text
 
 test('Remote access shows the server status and saves a changed row at the revision it read', async t => {
   const saves: any[] = [];
-  let refuse = false;
+  let refuse = false, revision = 4, configuration = remoteAccess;
+  let releaseConfiguration!: () => void;
+  const waiting = new Promise<void>(resolve => {releaseConfiguration = resolve;});
   const app = await standardHomeApp({
     accountRole: 'owner', mountUI: false,
     nativeResponse: async (request: any) => {
-      if (request.path === '/v1/admin/settings/remote-access' && request.method === 'GET') return {status: 200, headers: {ETag: '"4"'}, body: remoteAccess};
+      if (request.path === '/v1/admin/settings/remote-access' && request.method === 'GET') {
+        await waiting;
+        return {status: 200, headers: {ETag: '"' + revision + '"'}, body: configuration};
+      }
       if (request.path === '/v1/admin/settings/remote-access' && request.method === 'PUT') {
         saves.push(request);
-        if (refuse) return {status: 409, body: {error: {code: 'would_refuse_this_route', message: 'This setting would block this device.'}}};
+        if (refuse && request.body.confirmRefusal !== true) return {status: 409, body: {error: {code: 'would_refuse_this_route', message: 'This setting would block this device.'}}};
+        configuration = {...configuration, findAtHome: request.body.findAtHome, dlna: request.body.dlna};
+        revision++;
         return {status: 200, body: {}};
       }
       if (request.path === '/v1/admin/settings/network' && request.method === 'GET') return {status: 200, headers: {ETag: '"2"'}, body: network};
-      if (request.path === '/v1/admin/remote-access') return {status: 200, body: status};
+      if (request.path === '/v1/admin/remote-access') return {status: 200, body: {...status, outside: {
+        checkedAt: '2026-11-19T13:00:00Z', addresses: [{address: '192.0.2.4', port: 32500, reachable: false}],
+      }}};
       if (request.path === '/v1/admin/blocked-networks') return {status: 200, body: {items: []}};
       return undefined;
     },
@@ -57,9 +66,13 @@ test('Remote access shows the server status and saves a changed row at the revis
   const byTestId = (id: string) => hosts().find(host => host.props?.testID === id);
   const pressable = (label: string) => hosts().find(host => host.name === 'Pressable' && app.nativeLabel(host) === label);
   await renderer.render(React.createElement(ThemeProvider, {width: 390, children: React.createElement(ServerRemoteAccessPage, {ports, runtime})}));
+  const hasLoadingLabel = hosts().some(host => host.props?.accessibilityRole === 'header' && /Loading/.test(textOf(host.children)));
+  releaseConfiguration();
+  assert.ok(hasLoadingLabel, 'the loading state has readable text');
   await settle();
 
   const text = hosts().map(host => textOf(host.children)).join('\n');
+  assert.match(text, /Not reachable from outside/i, 'a failed outside check is stated separately from the security warning');
   assert.match(text, /may use plain HTTP/, 'the server\'s own warning is shown');
   assert.match(text, /C3HX-J9VK-QVV4/, 'the identity code is the server\'s');
   const discovery = byTestId('remote.discovery');
@@ -88,4 +101,23 @@ test('Remote access shows the server status and saves a changed row at the revis
   await settle();
   assert.equal(saves.length, 2, 'Cancel does not send a second write');
   assert.ok(pressable('Save'), 'Cancel leaves the draft available');
+
+  byTestId('remote.dlna').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  pressable('Save').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  pressable('Save anyway').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(saves.length, 4);
+  assert.equal(saves[3].body.confirmRefusal, true);
+  assert.equal(saves[3].body.findAtHome, true);
+  assert.equal(saves[3].body.dlna, false, 'only the refused edit gets confirmed');
+  assert.ok(pressable('Save'), 'the separate edit still needs saving');
+  refuse = false;
+  pressable('Save').props.onPress({nativeEvent: {}, stopPropagation() {}});
+  await settle();
+  assert.equal(saves.length, 5);
+  assert.equal(saves[4].headers['if-match'], '"6"');
+  assert.equal(saves[4].body.dlna, true, 'Save submits the edit left after confirmation');
+  assert.equal(pressable('Save'), undefined);
 });

@@ -105,14 +105,14 @@ export function ServerRemoteAccessPage({ports, runtime, retry, ...frame}: Frame 
       {retry}
       {remote.loaded ? <>
         <SectionCard>
-          <Banner testID="remote-access-status" placement="inline" variant="notice" tone={remote.reachable ? 'success' : 'info'}
-            icon={remote.reachable ? 'i-check' : 'i-info'} message={remote.outsideTitle}/>
+          <Banner testID="remote-access-status" placement="inline" variant="notice" tone={remote.outsideTone}
+            icon={remote.outsideTone === 'success' ? 'i-check' : remote.outsideTone === 'warning' ? 'i-warn' : 'i-info'} message={remote.outsideTitle}/>
           {remote.outsideFacts.map((label, index) => <SettingsRow key={index} first={index === 0} label={label}/>)}
           <Button testID="remote-access-check" size="compact" variant="glass" align="stretch" loading={state.checking}
             disabled={!status || blocked} onPress={() => {void source.check();}}>{t('next.settingsSpec.server.general.groups.1.rows.2.control.label')}</Button>
         </SectionCard>
-        {remote.notes.map((message, index) => <Banner key={index} testID="remote-access-warning" placement="inline" variant="notice"
-          tone="warning" icon="i-warn" message={message}/>)}
+        {remote.notes.length > 0 && <SectionCard>{remote.notes.map((message, index) => <Banner key={index}
+          testID="remote-access-warning" placement="inline" variant="notice" tone="warning" icon="i-warn" message={message}/>)}</SectionCard>}
         {remote.main.map(renderGroup)}
         {remote.extra.length > 0 && <NativeAdvancedSection testID="remote-access-advanced" open={remote.advanced} onOpenChange={remote.setAdvanced}>
           {remote.extra.map(renderGroup)}
@@ -123,13 +123,16 @@ export function ServerRemoteAccessPage({ports, runtime, retry, ...frame}: Frame 
           <Button testID="remote-access-save" loading={remote.saving} disabled={!!state.confirmation} onPress={remote.save}>{t('action.save')}</Button>
         </OverlayFootRow></SectionCard>}
         {remote.saveError !== undefined && <StateView variant="inline" {...runtime.error(remote.saveError, remote.save, 'server-console')}/>}
-      </> : <SectionCard><StateRow kind="loading"/></SectionCard>}
+      </> : <StateView title={t('status.loading')}/>}
     </SettingsPageFrame>
-    <BottomSheet open={!!state.confirmation} onOpenChange={open => {if (!open && !state.busy) source.cancelConfirmation();}}
-      testID="remote-access-confirm" title={t('next.remoteOwner.confirm')} description={state.confirmation?.message} children={null}
+    <BottomSheet open={!!state.confirmation} onOpenChange={open => {if (!open && !state.busy) remote.cancelConfirmation();}}
+      testID="remote-access-confirm" title={t('next.remoteOwner.confirm')} description={state.confirmation?.message} fitContent
+      dismissOnBack={!state.busy} dismissOnGesture={!state.busy} dismissOnOutsidePress={!state.busy}
       footer={<>
-        <Button variant="glass" disabled={state.busy} onPress={source.cancelConfirmation}>{t('action.cancel')}</Button>
-        <Button variant="danger" loading={state.busy} onPress={remote.confirm}>{t('next.remoteOwner.saveAnyway')}</Button>
-      </>}/>
+        <Button variant="glass" disabled={state.busy} onPress={remote.cancelConfirmation}>{t('action.cancel')}</Button>
+        <Button variant="danger" loading={state.busy} onPress={() => {void remote.confirm();}}>{t('next.remoteOwner.saveAnyway')}</Button>
+      </>}>
+      {state.confirmation && state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, remote.confirm, 'server-console')}/>}
+    </BottomSheet>
   </>;
 }
