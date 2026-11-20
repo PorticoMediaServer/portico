@@ -255,7 +255,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // as the web page at phone width). Loading keeps the loaded page's boxes (rule 12): the synopsis's lines, so the tabs and the panel do not move when the words arrive.
   const words = loading ? <View style={{gap: spec.creditsGap}}>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
-  </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || quote !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
+  </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || quote !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : tv ? theme.spec.hero.copy.titleWidth.tv : spec.copyWidth}}>
     {note !== undefined && <View style={{alignSelf: 'stretch', flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.controlGap}}>
       <Icon name="i-info" size={frameSpec.hero.title.parts.listRow.check} color={theme.colors.textTertiary}/>
       <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textTertiary}]}>{note}</Text></View>}
@@ -323,14 +323,6 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
     : <><View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
       <View ref={artRef} collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill}>{!tv && art}
-        {/* A tablet's words are over the picture, so the picture is shaded behind them (a phone's words are under its picture and a TV's art has its own). */}
-        {!stacked && !tv && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={StyleSheet.absoluteFill}>
-          <Defs>
-            <LinearGradient id="title-shade-side" x1="0" y1="0" x2="1" y2="0">{spec.shade.side.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
-            <LinearGradient id="title-shade-foot" x1="0" y1="1" x2="0" y2="0">{spec.shade.foot.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#title-shade-side)"/><Rect width="100%" height="100%" fill="url(#title-shade-foot)"/>
-        </Svg>}
       </View>
       {split && discs}
       {/* Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */}
@@ -400,9 +392,10 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     </> : <View style={{minHeight: barHeight, paddingTop: insets.top, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
       <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
       <Text accessibilityRole="header" style={[theme.type.barTitle, {color: theme.colors.text, paddingRight: theme.space.md, borderRightWidth: 1, borderRightColor: theme.colors.line}]}>{title}</Text>
-      <View style={{flex: 1, minWidth: 0}}>{tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange}/>}</View>
-      {primary && <Button variant="primary" size="small" icon={primary.icon} disabled={primary.disabled || loading} onPress={primary.onPress}>{primary.label}</Button>}
-      {pinned.map(action => <Button key={action.label} variant="glass" size="small" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} disabled={action.disabled || loading} onPress={action.onPress}/>)}
+      {/* The tabs stand on the bar's lower edge, so their rule is the bar's own and the selected underline meets it (desktop-detail f3). */}
+      <View style={{flex: 1, minWidth: 0, alignSelf: 'flex-end'}}>{tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} contentContainerStyle={{paddingHorizontal: 0}}/>}</View>
+      {primary && <Button variant="primary" size="small" align="center" icon={primary.icon} disabled={primary.disabled || loading} onPress={primary.onPress}>{primary.label}</Button>}
+      {pinned.map(action => <Button key={action.label} variant="glass" size="small" align="center" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} disabled={action.disabled || loading} onPress={action.onPress}/>)}
     </View>}
   </View>;
 
