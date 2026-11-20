@@ -26,8 +26,8 @@ export function HomeHeroActions({actions, focus}: Readonly<{actions: readonly Ho
 
 /** One Home card's box: its drawn size (it may grow under larger text), holding the card's own skeleton while the row's
  * page is still arriving. */
-export function HomeCardSlot({width, height, waiting, children}: Readonly<{width: number; height: number; waiting: boolean; children: ReactNode}>) {
-  const theme = useTheme(), grows = theme.fontScale > 1 || theme.textScale > 1;
+export function HomeCardSlot({width, height, waiting, grow, children}: Readonly<{width: number; height: number; waiting: boolean; grow?: boolean; children: ReactNode}>) {
+  const theme = useTheme(), grows = grow || theme.fontScale > 1 || theme.textScale > 1;
   return <View style={grows ? {width, minHeight: height} : {width, height}}>
     <LoadingPaint ready={!waiting} immediate={!waiting} skeleton={<View style={{backgroundColor: theme.colors.ink}}><SkeletonBlock width={width} height={height}/></View>}>{children}</LoadingPaint>
   </View>;

@@ -45,9 +45,9 @@ export function HomePage({mixes, toolbar, ...props}: HomeProps & Readonly<{mixes
         onItemFocus={() => {}} current={home.current} viewportWidth={home.width} tabletMedium={false} scrollMemory={model.scrollMemory}/>
       : row.collection ? <HomeCollectionRow width={home.width}>{bannerWidth => <HomeCollectionCard row={row} runtime={runtime} width={bannerWidth} visible={model.shown} current={home.current} onFocus={() => {}}/>}</HomeCollectionRow>
       : <Row title={title} subtitle={home.rowSubtitle(row) || undefined} items={model.presentation.cards} getKey={item => item.entry.id} getFocusId={home.cardFocusId} initialViewportWidth={home.width}
-        scrollMemory={model.scrollMemory} itemWidth={model.itemWidth} itemHeight={model.itemHeight} captionHeight={model.captionHeight}
+        scrollMemory={model.scrollMemory} itemWidth={model.itemWidth} itemHeight={model.itemHeight} growItems={row.id === 'continue_books'} captionHeight={model.captionHeight}
         selection={runtime.selection(row.id)} onVisibleRange={model.onRange} onVisibleKeys={model.onVisibleKeys} onSeeAll={home.seeAll(row, title)}
-        renderItem={(item, context) => <HomeCardSlot width={model.itemWidth} height={model.itemHeight} waiting={!!context.waiting}>
+        renderItem={(item, context) => <HomeCardSlot width={model.itemWidth} height={model.itemHeight} grow={row.id === 'continue_books'} waiting={!!context.waiting}>
           <HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context} width={model.itemWidth} rowIndex={index} visible={model.shown} preferred={false} current={home.current}/>
         </HomeCardSlot>}/>;
     return <HomeWindow key={row.id} runtime={runtime} row={source} sectionOrder={index} visible={model.shown}><HomeRowPlace onLayout={model.onLayout}>{body}</HomeRowPlace></HomeWindow>;

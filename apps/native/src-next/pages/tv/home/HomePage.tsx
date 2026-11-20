@@ -64,10 +64,10 @@ export function TVHomePage(props: TVHomeProps) {
                 onFocus={() => model.onItemFocus(row.collection!.collection.id)}/>}</HomeCollectionRow></FocusItem>
           </FocusRegion> : <Row title={model.title} subtitle={model.subtitle} items={model.presentation.cards} getKey={item => item.entry.id}
             getFocusId={home.cardFocusId} focus={model.focus} initialViewportWidth={home.width} testID={home.ids.row(row.id)}
-            itemWidth={model.itemWidth} itemHeight={model.itemHeight} captionHeight={model.captionHeight} selection={runtime.selection(row.id)}
+            itemWidth={model.itemWidth} itemHeight={model.itemHeight} growItems={row.id === 'continue_books'} captionHeight={model.captionHeight} selection={runtime.selection(row.id)}
             paging={model.paging} onVisibleRange={model.onRange} onVisibleKeys={model.onVisibleKeys} onSeeAll={model.seeAll}
             onRepeatingChange={home.setRepeating} onItemFocus={item => model.onItemFocus(item.entry.id)}
-            renderItem={(item, context) => <HomeCardSlot width={model.itemWidth} height={model.itemHeight} waiting={!!context.waiting}>
+            renderItem={(item, context) => <HomeCardSlot width={model.itemWidth} height={model.itemHeight} grow={row.id === 'continue_books'} waiting={!!context.waiting}>
               <HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context} width={model.itemWidth}
                 rowIndex={index} visible={model.shown} preferred={false} current={home.current}/>
             </HomeCardSlot>}/>;

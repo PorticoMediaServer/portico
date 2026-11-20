@@ -1,5 +1,5 @@
 import React, {useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {Pressable, Text, View, type StyleProp, type TextStyle, type ViewStyle} from 'react-native';
+import {Pressable, Text, View, type StyleProp, type TextStyle, type ViewProps, type ViewStyle} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Animated, {runOnJS, useAnimatedScrollHandler, useSharedValue} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -35,6 +35,8 @@ export type RowProps<T> = {
   renderItem: (item: T, context: LayoutItemContext) => ReactNode;
   itemWidth: number;
   itemHeight: number;
+  /** Keep space for the tallest measured card in a shelf whose contents wrap. */
+  growItems?: boolean;
   /** Caption allowance at OS fontScale 1; artwork remains unscaled. */
   captionHeight?: number;
   gap?: number;
@@ -86,9 +88,15 @@ export function Row<T>(props: RowProps<T>) {
   return <FocusProvider><RowContent {...props} /></FocusProvider>;
 }
 
-function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items, getKey, getFocusId = getKey, isFocusable, renderItem, itemWidth, itemHeight: authoredItemHeight, captionHeight = 0, gap, gutter, rightGutter, onSeeAll, selection, onVisibleRange, onVisibleKeys, onItemFocus, onRepeatingChange, style, testID, focus, paging, refocus: ownRefocus, initialViewportWidth = 0, scrollMemory}: RowProps<T>) {
+function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items, getKey, getFocusId = getKey, isFocusable, renderItem, itemWidth, itemHeight: authoredItemHeight, growItems, captionHeight = 0, gap, gutter, rightGutter, onSeeAll, selection, onVisibleRange, onVisibleKeys, onItemFocus, onRepeatingChange, style, testID, focus, paging, refocus: ownRefocus, initialViewportWidth = 0, scrollMemory}: RowProps<T>) {
   const theme = useTheme();
-  const itemHeight = captionItemHeight(authoredItemHeight, captionHeight, theme.fontScale);
+  const [measured, setMeasured] = useState<{layout: string; height: number}>();
+  const layout = `${itemWidth}:${theme.fontScale}:${theme.textScale}`;
+  const itemHeight = Math.max(captionItemHeight(authoredItemHeight, captionHeight, theme.fontScale), growItems && measured?.layout === layout ? measured.height : 0);
+  const measureCard: ViewProps['onLayout'] = ({nativeEvent}) => {
+    const height = nativeEvent.layout.height;
+    setMeasured(previous => previous?.layout === layout && previous.height >= height ? previous : {layout, height});
+  };
   const initialOffset = useRef(scrollMemory?.offset ?? 0);
   const [width, setWidth] = useState(initialViewportWidth), [offset, setOffset] = useState(initialOffset.current), [hovered, setHovered] = useState(false), [focused, setFocused] = useState<string>();
   const publishOffset = useCallback((value: number) => {if (scrollMemory) scrollMemory.offset = value; setOffset(value);}, [scrollMemory]);
@@ -263,7 +271,8 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
         {visible.map(slot => {
           const {item, id, focusId, waiting, position} = slot;
           const itemTestID = focus ? focusTestID(focus.id, focusId) : testID ? `${testID}-item-${encodeURIComponent(focusId)}` : undefined;
-          return <MotionItem key={focusId} enter={!!seen.current && !seen.current.has(focusId)} style={{position: 'absolute', left: leading + position * stride, top, width: itemWidth, height: itemHeight}}>
+          return <MotionItem key={focusId} enter={!!seen.current && !seen.current.has(focusId)} onLayout={growItems ? measureCard : undefined}
+            style={{position: 'absolute', left: leading + position * stride, top, width: itemWidth, height: growItems ? undefined : itemHeight}}>
             <FocusItem focusId={focusId} testID={itemTestID} waiting={waiting}>{card(slot, itemTestID)}</FocusItem>
           </MotionItem>;
         })}

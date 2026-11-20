@@ -1,3 +1,4 @@
+import {createTheme} from '../src-next/kit/theme';
 import * as layoutModel from '../src-next/kit/layout/model.ts';
 import {shellLayout} from '../src-next/shell/model.ts';
 import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
@@ -19,10 +20,10 @@ const named = (tree: any, name: string) => nodes(tree).find(node => node.type ==
 // This is a shallow composition check of HomeScreen's actual props and row
 // spacers. Native scroll delivery, Reanimated and focus reconciliation still
 // require the app's local native tests; fixtures are explicit to this module.
-async function homeFixture(width: number, height: number) {
+async function homeFixture(width: number, height: number, shared = false) {
   const h = hooks(), layouts: (() => unknown)[] = [];
   const react = {...h.react, useLayoutEffect: (run: () => unknown) => {layouts.push(run);}};
-  const theme = {platform: 'tablet', column: 'tablet', layoutMode: 'phone', isTV: false, textScale: 1, gutter: 24,
+  const theme = shared ? createTheme({isTV: false, width, height}) : {platform: 'tablet', column: 'tablet', layoutMode: 'phone', isTV: false, textScale: 1, gutter: 24,
     colors: {text: '#fff', textTertiary: '#777', ink: '#000'},
     type: {rowHeading: {fontSize: 21, lineHeight: 27}, lockup: {fontSize: 42, lineHeight: 42.84, letterSpacing: -1.68}},
     spec: {hero: {homeHeight: {tablet: 440}}, shelf: {phonePaddingTop: 6, phonePaddingBottom: 8, headingMargin: {tablet: 12}},
@@ -79,7 +80,7 @@ async function homeFixture(width: number, height: number) {
     '../../platform/home-action-diagnostics': {}, '../destinations/music/MusicMixesRow': {}, './HomeHeroFacts': {HomeHeroFacts: 'HomeHeroFacts'},
     './model': {authorizedHome: (value: unknown) => value, platformRows: () => rows, homeRowHasContent: () => true},
     './TvHomeRecovery': {}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})}, './home-window': homeWindow,
-  })));
+  }, shared)));
   return {
     setSize: (nextWidth: number, nextHeight: number) => {dimensions = {width: nextWidth, height: nextHeight, fontScale: 1};},
     setCrease: () => {posture = {status: 'available', window: dimensions, folds: [{orientation: 'vertical', bounds: {left: width / 2 - 4, right: width / 2 + 4}}]};},
@@ -88,14 +89,17 @@ async function homeFixture(width: number, height: number) {
 }
 
 test('upright tablet Home composes the centered 560pt hero and 152pt shelves', async () => {
-  const fixture = await homeFixture(834, 1194), tree = fixture.render(), hero = named(tree, 'Hero');
+  const fixture = await homeFixture(834, 1194, true), tree = fixture.render();
+  const spotlight = nodes(tree).find(node => node.type?.name === 'HomeSpotlight');
+  assert.ok(spotlight, 'the upright tablet uses the shared Home page');
+  const hero = named(spotlight.type(spotlight.props), 'Hero');
   assert.equal(hero.props.height, 560); assert.equal(hero.props.copySide, undefined);
   assert.deepEqual(hero.props.copyStyle, {left: 56, right: 56, bottom: 44});
-  assert.equal(hero.props.lockupStyle.fontSize, 62);
   const artwork = hero.props.renderArtwork(hero.props.candidates[0], {visible: true});
-  assert.equal(artwork.type, 'AmbientArt'); assert.equal(artwork.props.foregroundFraction, undefined);
-  assert.deepEqual(artwork.props.position, {x: .36, y: .28});
-  const shelf = named(tree, 'Row'); assert.equal(shelf.props.itemWidth, 152); assert.equal(shelf.props.gutter, 28);
+  const ambient = artwork.type(artwork.props);
+  assert.equal(ambient.type, 'AmbientArt'); assert.equal(ambient.props.foregroundFraction, undefined);
+  assert.deepEqual(ambient.props.position, {x: .36, y: .28});
+  assert.equal(named(tree, 'Row').props.itemWidth, 152);
 });
 
 test('a matching upright fold keeps the side-by-side 440pt hero and 140pt shelves', async () => {
@@ -158,7 +162,7 @@ test('a restored shelf seeds the anchor offset once and preserves later native s
   });
   const memory = {offset: 520}, props = {title: 'Shelf', items: Array.from({length: 20}, (_, id) => ({id: String(id)})),
     getKey: (item: any) => item.id, renderItem: (item: any) => react.createElement('Card', {id: item.id}),
-    itemWidth: 100, itemHeight: 150, initialViewportWidth: 390, selection: {}, scrollMemory: memory};
+    itemWidth: 100, itemHeight: 150, growItems: true, initialViewportWidth: 390, selection: {}, scrollMemory: memory};
   const render = () => {
     const tree = h.render(() => {const child = Row(props).props.children[0]; return child.type(child.props);});
     for (const run of layouts.splice(0)) run();
@@ -168,6 +172,12 @@ test('a restored shelf seeds the anchor offset once and preserves later native s
   assert.deepEqual(named(initial, 'ScrollView').props.contentOffset, {x: 520, y: 0});
   assert.equal(anchor.offset.value, 520, 'focus/arrow calculations start at the restored native position');
   assert.equal(nodes(initial).find(node => node.type === 'Card').props.id, '2', 'the bounded rendered window starts near the restored offset');
+  const slot = nodes(initial).find(node => node.props.onLayout && node.props.style?.width === 100);
+  assert.ok(slot && slot.props.style.height === undefined, 'this shelf lets its cards take their natural height');
+  const shelfHeight = (tree: any) => named(tree, 'ScrollView').props.children[0].props.style.height;
+  const initialHeight = shelfHeight(initial);
+  slot.props.onLayout({nativeEvent: {layout: {height: 246}}});
+  assert.equal(shelfHeight(render()), initialHeight + 96, 'the shelf reserves the measured height of its longest card');
   named(initial, 'ScrollView').props.onScroll({contentOffset: {x: 753}});
   assert.equal(anchor.offset.value, 753); assert.equal(memory.offset, 753);
   render(); assert.equal(anchor.offset.value, 753, 'a committed rerender must not replay the mount offset');

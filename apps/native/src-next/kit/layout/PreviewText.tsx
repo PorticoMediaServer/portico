@@ -19,7 +19,8 @@ export function PreviewText({text, lines, style}: {text: string; lines: number; 
             remaining -= word.length;
             words.push(word);
           }
-          next = words.join(' ');
+          // The native line breaker finds boundaries in scripts that don't use spaces.
+          next = words.join(' ') || visible.slice(0, lines).map(line => line.text ?? '').join('').trim();
         }
         if (next !== value) setPreview({text, lines, value: next});
       }}>{text}</Text>

@@ -141,7 +141,7 @@ export function CardFrame({children, overlay, frame: _frame, title, titleMargin:
 
 /** Geometry belongs to the art, so focusing a poster never outlines its caption. */
 export function ArtFrame({children, width, height, radius, focused, selected, hovered = false, holding = false, hoverScale, circle = false, style}: {
-  children: ReactNode; width?: number; height: number; radius?: number; focused: boolean; selected?: boolean; hovered?: boolean; holding?: boolean; hoverScale?: number; circle?: boolean; style?: StyleProp<ViewStyle>;
+  children: ReactNode; width?: number; height?: number; radius?: number; focused: boolean; selected?: boolean; hovered?: boolean; holding?: boolean; hoverScale?: number; circle?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   const waiting = useFocusWaiting();
   const t = useTheme(), motion = useMotion(), scale = useSharedValue(1), focusOpacity = useSharedValue(0), selectionOpacity = useSharedValue(0);
@@ -153,10 +153,10 @@ export function ArtFrame({children, width, height, radius, focused, selected, ho
   const artStyle = useAnimatedStyle(() => ({transform: [{scale: scale.value}]}));
   const focusStyle = useAnimatedStyle(() => ({opacity: focusOpacity.value}));
   const selectionStyle = useAnimatedStyle(() => ({opacity: selectionOpacity.value}));
-  const r = circle ? height / 2 : radius ?? t.spec.card.radius[t.column];
+  const r = circle && height !== undefined ? height / 2 : radius ?? t.spec.card.radius[t.column];
   const offset = t.spec.focus.offsetOuter[t.column], ring = t.spec.focus.ringWidth[t.column];
   return <Animated.View style={[{width, height, borderRadius: r, backgroundColor: t.colors.raised}, style, artStyle]}>
-    <View style={[StyleSheet.absoluteFill, {overflow: 'hidden', borderRadius: r}]}>{waiting ? <View style={[StyleSheet.absoluteFill, {backgroundColor: t.colors.raisedHigh}]} /> : children}</View>
+    <View style={[height === undefined ? undefined : StyleSheet.absoluteFill, {overflow: 'hidden', borderRadius: r}]}>{waiting ? <View style={[StyleSheet.absoluteFill, {backgroundColor: t.colors.raisedHigh}]} /> : children}</View>
     <Animated.View pointerEvents="none" style={[{position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: r + 3, borderWidth: 3, borderColor: holding ? t.colors.text : t.colors.accentStrong,
       ...(holding ? {shadowColor: t.colors.ink, shadowOpacity: 0.9, shadowOffset: {width: 0, height: 24}, shadowRadius: 20, elevation: 8} : {})}, selectionStyle]} />
     <Animated.View pointerEvents="none" style={[{position: 'absolute', top: -offset - ring, left: -offset - ring, right: -offset - ring, bottom: -offset - ring, borderRadius: r + offset + ring, borderWidth: ring, borderColor: t.colors.focus,
