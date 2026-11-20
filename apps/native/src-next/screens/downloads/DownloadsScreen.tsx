@@ -18,7 +18,7 @@ import {useDownloadArtwork} from './useDownloadArtwork';
 import {useReadingFacts} from './useReadingFacts';
 import {SavedConfirmSheet} from '../saved/SavedForms';
 import {createDownloadInventory, createDownloadViewport, downloadWindow} from './inventory';
-import {TopBar} from '../../kit/layout/TopBar';
+import {DownloadsPage} from '../../pages/touch/saved/DownloadsPage';
 
 const t = defaultI18n.t;
 const emptyRequests: readonly TrackedDownloadRequest[] = Object.freeze([]);
@@ -188,8 +188,7 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
   const openMenu = useCallback((entry: OfflineEntry, anchor: RefObject<View | null>) => setEntryMenu({entry, anchor}), []);
   const playEntry = useCallback((entry: OfflineEntry) => {if (device.openOffline) run(() => device.openOffline!(entry));}, [device, run]);
   const retryEntry = useCallback((entry: OfflineEntry) => run(() => device.resume(entry)), [device, run]);
-  return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>
-    {!inline && <TopBar surface back={{label: t('saved.title'), onPress: back, testID: 'downloads-back'}} title={t('downloads.title')}/>}
+  const body = <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>
     <ScrollView ref={scroll} style={{flex: 1}} scrollEventThrottle={64}
       onLayout={event => viewport.update({...viewport.getSnapshot(), height: event.nativeEvent.layout.height})}
       onScroll={event => viewport.update({...viewport.getSnapshot(), offset: event.nativeEvent.contentOffset.y})} contentContainerStyle={{paddingTop: inline ? 8 : 0, paddingBottom: 28}}>
@@ -274,6 +273,7 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
       body={removing?.title ? t('confirm.removeDownload.body', {title: removing.title}) : t('confirm.removeDownload.bodyUntitled')}
       testID="downloads-remove-confirm" onClose={() => setRemoving(undefined)} onConfirm={() => {const entry = removing; setRemoving(undefined); if (entry) run(() => device.remove(entry));}}/>
   </View>;
+  return inline ? body : <DownloadsPage title={t('downloads.title')} back={{label: t('saved.title'), onPress: back, testID: 'downloads-back'}} body={body}/>;
 }
 
 function readingEntry(entry: OfflineEntry): boolean {

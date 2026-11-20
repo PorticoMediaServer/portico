@@ -1,6 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {PinnedResource} from '../../../../../packages/client-core/src/library-pins';
@@ -11,7 +10,7 @@ import {PosterCard, SquareCard, type CardSelection} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {Artwork} from '../../kit/artwork';
-import {Chip, Focusable, Tabs} from '../../kit/controls';
+import {Chip, Focusable} from '../../kit/controls';
 import {Menu} from '../../kit/overlays';
 import {SelectionCircle} from '../../kit/selection';
 import {StateView} from '../../kit/states';
@@ -31,6 +30,7 @@ import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import {registerBack} from '../../kit/navigation/back';
 import {TVRow} from '../../kit/layout/TVRow';
+import {SavedPage} from '../../pages/touch/saved/SavedPage';
 
 const t = defaultI18n.t;
 const content = (entry: SavedEntry): entry is ContentEntry => entry.kind !== 'playlist' && entry.kind !== 'playlist_entry';
@@ -71,7 +71,7 @@ export type NativeSavedScreenProps = Readonly<{
 export function SavedScreen({destination, runtime, device, actions, selection, onThisPhone, downloadsCopy, activation, downloads, tabBody}: NativeSavedScreenProps) {
   useSyncExternalStore(selection?.subscribe ?? (() => () => {}), selection?.getSnapshot ?? (() => 0));
   useSyncExternalStore(actions.menuState?.subscribe ?? (() => () => {}), actions.menuState?.getSnapshot ?? (() => 0));
-  const theme = useTheme(), insets = useSafeAreaInsets(), scroll = useRef<ScrollView>(null);
+  const theme = useTheme(), scroll = useRef<ScrollView>(null);
   const snapshot = useSyncExternalStore(destination.subscribe, destination.getSnapshot);
   const deviceState = useSyncExternalStore(device.subscribe, device.getSnapshot);
   const active = useSyncExternalStore(activation.subscribe, activation.getSnapshot);
@@ -181,18 +181,12 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
   const pinKind = (kind: PinnedResource['kind']) => kind === 'view' ? t('title.savedView') : t('title.kind', {kind});
   return <View testID="native-saved-screen" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>
-    {tablet && <View style={{paddingTop: Math.max(insets.top, 10)}}>
-      <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: theme.gutter}]}>{t('saved.title')}</Text>
-      <Tabs items={tabItems} value={savedTab} onValueChange={chooseTab} accessibilityLabel={t('saved.title')} testID="saved-tablet-tabs" style={{marginTop: 8}}/>
-    </View>}
-    {downloadsOpen ? <View style={{flex: 1}}>{downloads(runtime)}</View>
-      : otherTab ? <View style={{flex: 1}}>{tabBody?.(otherTab, runtime)}</View>
+    <SavedPage title={t('saved.title')} tabs={tablet ? {items: tabItems, value: savedTab, onValueChange: chooseTab} : undefined}
+      body={downloadsOpen ? downloads(runtime)
+      : otherTab ? tabBody?.(otherTab, runtime)
       : <ScrollView ref={scroll} refreshControl={pull} onLayout={event => {viewport.current.height = event.nativeEvent.layout.height; nextPosters();}}
         onContentSizeChange={(_width, height) => {viewport.current.extent = height; nextPosters();}}
-        onScroll={event => {viewport.current.offset = event.nativeEvent.contentOffset.y; nextPosters();}} scrollEventThrottle={64} contentContainerStyle={{paddingTop: tablet ? 8 : Math.max(58, insets.top), paddingBottom: 28}}>
-      {!tablet && <View style={{paddingHorizontal: theme.gutter, paddingBottom: 12}}>
-        <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text}]}>{t('saved.title')}</Text>
-      </View>}
+        onScroll={event => {viewport.current.offset = event.nativeEvent.contentOffset.y; nextPosters();}} scrollEventThrottle={64} contentContainerStyle={{paddingBottom: 28}}>
       {documentFacts && (theme.isTV || !transportFailure || !retainedDocument) && <StateView variant="inline" title={t('saved.loadFailed')} body={documentFacts.body}
         primaryAction={{id: 'retry', label: t('saved.retry'), onPress: () => {void destination.load().catch(report);}}}/>}
       {tablet ? <View style={{marginTop: 12}}>
@@ -260,7 +254,7 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
         {snapshot.pins.map((pin, index) => <SavedLink key={JSON.stringify([pin.kind, pin.id])} testID={`saved-pin-${pin.kind}-${encodeURIComponent(pin.id)}`} label={pin.name} caption={pinKind(pin.kind)}
           icon={pin.kind === 'playlist' ? 'i-queue' : pin.kind === 'collection' ? 'i-stack' : 'i-filter'} separator={index > 0} onPress={() => actions.openPin(pin)}/>)}
       </View>}
-    </ScrollView>}
+    </ScrollView>}/>
     {!downloadsOpen && !otherTab && admitted && selection?.render()}
     <Menu testID="saved-my-list-filter-menu" open={admitted && filterOpen} onOpenChange={setFilterOpen} anchorRef={filterRef} returnFocusRef={filterRef} title={t('filter.title')} items={filterItems}/>
     <Menu testID="saved-my-list-sort-menu" open={admitted && sortOpen} onOpenChange={setSortOpen} anchorRef={sortRef} returnFocusRef={sortRef} title={t('next.browse.native.sort')} items={sortItems}/>
