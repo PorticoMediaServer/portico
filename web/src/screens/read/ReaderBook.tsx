@@ -90,6 +90,9 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const {controller, publication, authority, title} = book;
   const mark = useReaderTitleMark(title, () => authority.isCurrent(), reportError), [versions, setVersions] = useState(false);
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot), width = useShellWidth(), height = useWindowHeight();
+  // In the app, a book the engine can't read hands the reader back to the app's own page (clear of the status bar, Back and
+  // Try again); the page below has neither, and its bar is hidden while the book fails.
+  useEffect(() => {if (environment === 'native' && snapshot.status === 'error') reportError({code: 'reading_unavailable'});}, [environment, snapshot.status, reportError]);
   const [panel, updatePanel] = useState<'display' | 'contents' | 'search'>(), [query, setQuery] = useState('');
   const [fixedMenu, setFixedMenu] = useState<'zoom' | 'direction' | 'more'>();
   const [fixedPane, updateFixedPane] = useState<'contents' | 'pages' | 'bookmarks' | 'highlights'>('contents');

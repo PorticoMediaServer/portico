@@ -141,6 +141,9 @@ export function createReadingHost({session, channel, preferences, initialProgres
           || !validReadingIndexedSearchQuery(data.args.query)) fail();
       } else if (message.length > 16384) fail();
     } catch {return;}
+    // The Reader could not start or read the book: the host closes and the app shows its own page, clear of the status bar
+    // with Back and Try again (the Reader's page inside the view has neither, and would trap the reader).
+    if (data.kind === 'failed') {if (valid()) {dispose(); onUnavailable?.();} return;}
     if (data.kind === 'ready') {
       if (started || !valid()) return;
       if (capturedContentsTarget && data.contentsTarget !== true) {dispose(); onUnavailable?.(); return;}
@@ -274,7 +277,8 @@ export type ReadingGuest = Readonly<{
   back: () => Promise<void>; openSettings: () => Promise<void>; dispose: () => void;
 }>;
 /** Bundled browser side: structural source ports only, no selected-server API. */
-export function connectReadingHost(transport: ReadingHostTransport): Readonly<{ready: Promise<ReadingGuest>; dispose: () => void}> {
+/** `failed` tells the host the Reader could not start or read the book, so the app shows its own way out. */
+export function connectReadingHost(transport: ReadingHostTransport): Readonly<{ready: Promise<ReadingGuest>; dispose: () => void; failed: () => void}> {
   const life = new AbortController(), waiting = new Map<number, {resolve: (value: unknown) => void; reject: (error: unknown) => void}>();
   const listeners = new Set<() => void>(), activeListeners = new Set<(active: boolean) => void>();
   let cancelSequential: ((reason: unknown) => void) | undefined;
@@ -441,5 +445,6 @@ export function connectReadingHost(transport: ReadingHostTransport): Readonly<{r
   });
   const startDeadline = setTimeout(() => dispose(new ReadingError('reading_unavailable')), 30000);
   transport.send(JSON.stringify({v: 1, kind: 'ready', contentsTarget: true}));
-  return Object.freeze({ready, dispose});
+  const failed = () => {try {transport.send(JSON.stringify({v: 1, kind: 'failed'}));} catch { /* the host is already gone */ } dispose();};
+  return Object.freeze({ready, dispose, failed});
 }
