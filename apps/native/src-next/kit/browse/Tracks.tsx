@@ -131,7 +131,8 @@ function columnStyle(column: TrackColumn, variant: TrackVariant) {
 /** A track row's resting height, at the system text size: a list that windows its rows (`TrackWindow`) steps by it. */
 export function trackRowHeight(theme: Pick<ReturnType<typeof useTheme>, 'platform'>, variant: TrackVariant, current?: boolean): number {
   // The chapter you are in is taller on every form: its own progress and the time left in it sit under its title.
-  return variant === 'chapters' && current ? 76 : theme.platform === 'phone' ? 54 : variant === 'songs' ? 56 : 60;
+  // A TV row is at least 84 (`TVTrackRow`, tv-more frames 6 and 8): a window must not stack them closer.
+  return theme.platform === 'tv' ? 84 : variant === 'chapters' && current ? 76 : theme.platform === 'phone' ? 54 : variant === 'songs' ? 56 : 60;
 }
 
 export function TrackRow({row, variant, columns = defaultColumns[variant], selection, onPlay, onMore, onToggleFavorite, isMenuOpen, focusId, testID, onFocus, onBlur, disabled, index, previousFocused}: TrackActions & TVTrackFocus & {row: TrackRowData; variant: TrackVariant; columns?: readonly TrackColumn[]; selection: TrackSelection}) {
