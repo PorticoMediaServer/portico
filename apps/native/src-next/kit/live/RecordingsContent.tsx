@@ -42,7 +42,7 @@ export function recordingsFrame(props: RecordingsProps, model: ReturnType<typeof
     lead={theme.isTV && state.summary && <RecordingSection
       title={t('next.live.recordedHead', {shows: state.summary.groups, recordings: state.summary.recorded, unwatched: state.summary.unwatched})}
       action={<Chip focusId="recordings-sort" testID="recordings-sort" onPress={() => setSortOpen(true)}>{`${t('next.browse.sort')} · ${t(sortLabels[sort])}`}</Chip>}/>}
-    renderItem={({item, index}) => <RecordingCard value={item} runtime={runtime} columns={columns} {...watchFocus(item.key, index, groups.length)}
+    renderItem={({item, index}, width) => <RecordingCard value={item} runtime={runtime} width={width} {...watchFocus(item.key, index, groups.length)}
       onOpen={() => {
         if (!drawnCurrent() || !window || controller.getSnapshot().viewerWindow !== window || !window.items.some(row => row.kind === 'group' && row.value.key === item.key)) return;
         setGroup(item); retire();

@@ -167,8 +167,12 @@ test('a server that cannot record shows its unavailable state inside Recordings'
 
 // phone-app's Recordings frame draws no Sort and no per-row ⋯ (the lead's call: undrawn web parity is left out).
 // TV keeps its drawn header, Sort and hold-OK menu; touch rows keep tap (details) and long press (the same menu).
-for (const isTV of [false, true]) test(`${isTV ? 'TV' : 'phone'} Recorded: ${isTV ? 'the header and Sort open its side sheet' : 'no header Sort, as the frame draws'}`, async () => {
-  const f = await fixture({isTV, role: 'member', canManage: false, width: 360}); try {
+for (const {isTV, width, pane} of [
+  {isTV: false, width: 360, pane: 320},
+  {isTV: false, width: 1024, pane: 736},
+  {isTV: true, width: 1920, pane: 0},
+]) test(`${isTV ? 'TV' : width === 360 ? 'phone' : 'tablet'} Recorded: ${isTV ? 'the header and Sort open its side sheet' : 'cards fit the pane without header Sort'}`, async () => {
+  const f = await fixture({isTV, role: 'member', canManage: false, width}); try {
     const group = {key: 'show', title: 'Show', recordings: 2, unwatched: 1, kept: 0, exceptions: 0, recording: row()};
     f.recordingState.query = {view: 'recorded'}; f.recordingState.summary = summary; f.recordingState.page = {recordings: [], rules: [], captureAvailable: true};
     f.recordingState.viewerWindow = {...windowOf([]), items: [{kind: 'group', value: group}]};
@@ -176,13 +180,16 @@ for (const isTV of [false, true]) test(`${isTV ? 'TV' : 'phone'} Recorded: ${isT
     const sort = f.all().find(node => node.type === 'Chip' && node.props.testID === 'recordings-sort');
     if (!isTV) {
       assert.equal(sort, undefined);
+      const viewport = f.all().find(node => node.type === 'View' && typeof node.props.onLayout === 'function')!;
+      viewport.props.onLayout({nativeEvent: {layout: {width: pane}}});
+      await f.host.settle();
       const list = f.all().find(node => node.type === 'FlatList')!;
-      const region = f.all().find(node => node.type === 'Region' && node.props.style?.paddingHorizontal)!;
       const card = list.props.renderItem({item: group, index: 0});
       const button = elements(card.type(card.props)).find(node => node.props.testID === 'recordings-group-show')!;
       const columns = list.props.numColumns;
+      assert.equal(columns, width === 360 ? 2 : 3);
       const rowWidth = columns * button.props.style.width + (columns - 1) * list.props.columnWrapperStyle.gap;
-      assert.equal(rowWidth + 2 * region.props.style.paddingHorizontal, 360);
+      assert.equal(rowWidth, pane);
       return;
     }
     assert.ok(sort, 'Sort chip');
