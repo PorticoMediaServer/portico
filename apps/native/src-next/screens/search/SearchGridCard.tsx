@@ -30,7 +30,7 @@ export function SearchGridCard({entry, group, runtime, actions, selection, width
     onPlay={() => {if (!disabled) actions.play(entry, group);}} onMore={props.onMore} selected={selection?.selected} onEnter={() => selection?.onEnter()}
     onSelectionChange={selection?.active ? () => selection.onToggle() : undefined}
     selection={selection?.active ? <SelectionCircle selected={selection.selected} selecting interactive={false} variant="row" accessibilityLabel={entry.title}/> : undefined}/></View>;
-  if (theme.isTV && group === 'live-tv') return <ChannelCard {...props} subtitle={entry?.subtitle} artwork={runtime.artwork(entry?.posterUrl)}/>;
+  if (theme.isTV && group === 'live-tv') return <ChannelCard {...props} onCaptionLayout={onCaptionLayout} subtitle={entry?.subtitle} artwork={runtime.artwork(entry?.posterUrl)}/>;
   if (group === 'movies' || group === 'shows') return <PosterCard {...props} artwork={runtime.artwork(entry?.posterUrl)}/>;
   if (group === 'episodes') return <EpisodeTile {...props} label={text?.caption ?? []} layout="tile" artwork={runtime.artwork(content?.stillUrl ?? content?.backdropUrl ?? entry?.posterUrl)}/>;
   if (group === 'people') return <CircleCard {...props} person art={{source: runtime.artwork(entry?.posterUrl), initials: nameInitials(entry?.title ?? '')}}/>;
@@ -41,13 +41,19 @@ export function SearchGridCard({entry, group, runtime, actions, selection, width
 
 /** Search's channel projection has a name and optional logo, not a programme or
  * an authoritative monogram. Keep the channel shape without inventing either. */
-function ChannelCard({subtitle, artwork, ...props}: CardFrameSurfaceProps & {subtitle?: string; artwork?: ReturnType<NativeShellRuntime['artwork']>}) {
+function ChannelCard({subtitle, artwork, onCaptionLayout, ...props}: CardFrameSurfaceProps & {
+  subtitle?: string; artwork?: ReturnType<NativeShellRuntime['artwork']>; onCaptionLayout?: (height: number) => void;
+}) {
   const theme = useTheme();
-  return <CardFrame {...props}>{state => <ArtFrame width={props.width} height={225} radius={12} focused={state.focused} hovered={state.hovered} holding={state.holding}>
-    <View style={{flex: 1, padding: 22, backgroundColor: theme.colors.raised, gap: 18, justifyContent: 'space-between'}}>
-      <View style={{width: 64, height: 64, alignItems: 'center', justifyContent: 'center'}}>{artwork ? <Artwork source={artwork} width={64} height={64} fit="contain"/> : <Icon name="i-tv" size={42} color={theme.colors.textSecondary}/>}</View>
-      <View><Text numberOfLines={2} style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{props.title}</Text>
-        {!!subtitle && <Text numberOfLines={1} style={[browseType(theme, 20), {color: theme.colors.textTertiary, marginTop: 4}]}>{subtitle}</Text>}</View>
+  return <CardFrame {...props}>{state => <>
+    <ArtFrame width={props.width} height={225} radius={12} focused={state.focused} hovered={state.hovered} holding={state.holding}>
+      <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.raised}}>
+        {artwork ? <Artwork source={artwork} width={112} height={112} fit="contain"/> : <Icon name="i-tv" size={64} color={theme.colors.textSecondary}/>}
+      </View>
+    </ArtFrame>
+    <View onLayout={onCaptionLayout && (event => onCaptionLayout(event.nativeEvent.layout.height))} style={{paddingTop: theme.space.tight, gap: theme.space.hairline}}>
+      <Text style={[theme.type.rowHeading, {color: theme.colors.text}]}>{props.title}</Text>
+      {!!subtitle && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{subtitle}</Text>}
     </View>
-  </ArtFrame>}</CardFrame>;
+  </>}</CardFrame>;
 }

@@ -37,9 +37,9 @@ test('the actual TV Search caller binds genuine query, navigation activation and
     react: resultHost.react, 'react-native': {ScrollView: 'ScrollView', View: 'View', Text: 'Text'}, 'react-native-svg': {default: 'Svg'},
     '../../../../../packages/client-core/src/presentation/kit-model': {}, '../../../../../packages/client-core/src/presentation/search-model': {},
     '../../../../../packages/i18n/src': {defaultI18n}, '../frames/metrics': {useFrameMetrics: () => ({width: 1140, rightGutter: 96})},
-    '../artwork': {}, '../controls': {}, '../cards/primitives': {}, '../focus': {FocusRegion: 'FocusRegion'}, '../Icon': {}, '../states': {},
+    './Search': {TopResult: 'TopResult'}, '../artwork': {}, '../controls': {}, '../cards/primitives': {}, '../focus': {FocusRegion: 'FocusRegion'}, '../Icon': {}, '../states': {},
     '../browse/presentation': {}, '../theme': {useTheme: () => theme}, '../../screens/home/model': {}, '../../screens/search/model': {nativeSearchEntryKey},
-    '../../screens/search/TVSearchSection': {TVSearchSection: 'TVSearchSection'}, '../../screens/search/genre-tiles': {nativeSearchGenreTiles},
+    './TVSearchSection': {TVSearchSection: 'TVSearchSection'}, '../../screens/search/genre-tiles': {nativeSearchGenreTiles},
   });
   const {useSearch} = await screenModule(new URL('../src-next/pages/shared/search/useSearch.ts', import.meta.url), {
     react, '../../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups: (groups: unknown) => groups, SEARCH_CHIPS: []},

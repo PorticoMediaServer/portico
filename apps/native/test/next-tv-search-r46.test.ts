@@ -49,6 +49,13 @@ const screenProps = () => ({destination: {subscribe() {}, getSnapshot: () => sta
 
 async function screen(react: unknown) {
   const resultHost = hooks();
+  const {TopResult} = await screenModule(new URL('../src-next/kit/search/Search.tsx', import.meta.url), {
+    react: {...resultHost.react, useId: () => 'gradient'}, 'react-native': reactNative, 'react-native-svg': {},
+    '../artwork': {Artwork: 'Artwork', missingArt: () => undefined}, '../controls/Button': {Button: 'Button'}, '../controls/Chip': {Chip: 'Chip'},
+    '../controls/Focusable': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme},
+    '../frames/metrics': {useFrameMetrics: () => ({form: 'tv', width: 1140, cardInset: 0, cardRadius: 14})},
+    '../browse/presentation': presentation, '../cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame'}, '../selection': {},
+  });
   const content = await screenModule(new URL('../src-next/kit/search/TVSearchContent.tsx', import.meta.url), {
     react: {...resultHost.react, useId: () => 'gradient'}, 'react-native': reactNative, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/client-core/src/library-content': {}, '../../../../../packages/client-core/src/search': {}, '../../shell/runtime': {}, './types': {},
@@ -59,9 +66,9 @@ async function screen(react: unknown) {
       searchGroupLabel: () => 'search.chip.movies', topResultKindLabel: () => 'search.kind.show'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', missingArt: () => undefined}, '../controls': {Chip: 'Chip', Focusable: 'Focusable'},
     '../cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame', Parts: 'Parts', Progress: 'Progress'}, '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()},
-    '../Icon': {Icon: 'Icon'}, '../states': {StateView: 'StateView'}, '../browse/presentation': presentation,
+    './Search': {TopResult}, '../Icon': {Icon: 'Icon'}, '../states': {StateView: 'StateView'}, '../browse/presentation': presentation,
     '../theme': {useTheme: () => theme}, '../destinations/focus': {nativeDestinationFocusIds}, '../../screens/home/model': {homeSubject: (content: unknown) => content},
-    '../../screens/search/model': {nativeSearchEntryKey}, '../../screens/search/TVSearchSection': {TVSearchSection: 'TVSearchSection'},
+    '../../screens/search/model': {nativeSearchEntryKey}, './TVSearchSection': {TVSearchSection: 'TVSearchSection'},
     '../../screens/search/genre-tiles': {nativeSearchGenreTiles},
     '../frames/metrics': {useFrameMetrics: () => ({width: 1140, rightGutter: 96, bottomClear: 72, sectionGap: 44, headingGap: 22})},
   });
@@ -108,7 +115,9 @@ test('the TV Search page keeps its full query, keyboard and first result region 
 test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as .tag and 160px progress', async () => {
   const host = hooks(), {TVSearchTopResult, TVSearchTag} = await screen({...host.react, useId: () => 'gradient'});
   modelProgress = .22;
-  const card = host.render(() => TVSearchTopResult({entry: show, group: 'shows', runtime, actions: {}, disabled: false}));
+  const top = () => TVSearchTopResult({entry: show, group: 'shows', runtime, actions: {}, disabled: false});
+  const element = top();
+  const card = host.render(() => element.type(element.props));
   assert.deepEqual(style(card.props.style), {marginTop: 44, transformOrigin: 'left center'});
   assert.deepEqual(style(card.props.pressableStyle), {flexDirection: 'row', gap: 36, alignItems: 'center'});
   const renderRow = (Array.isArray(card.props.children) ? card.props.children[0] : card.props.children) as (state: any) => any;
@@ -141,7 +150,8 @@ test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as
   assert.deepEqual(style(bar.props.style), {width: 160});
   assert.equal(elements(row).find(node => node.type === 'Progress')!.props.value, .22);
   modelProgress = 0;
-  const freshCard = host.render(() => TVSearchTopResult({entry: show, group: 'shows', runtime, actions: {}, disabled: false}));
+  const freshTop = top();
+  const freshCard = host.render(() => freshTop.type(freshTop.props));
   const renderFresh = (Array.isArray(freshCard.props.children) ? freshCard.props.children[0] : freshCard.props.children) as (state: any) => any;
   const fresh = host.render(() => renderFresh({focused: false, hovered: false, pressed: false, holding: false}));
   assert.equal(elements(fresh).find(node => node.type === 'Progress'), undefined);
