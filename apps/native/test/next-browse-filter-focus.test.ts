@@ -95,8 +95,10 @@ for (const isTV of [true, false]) test(`${isTV ? 'TV' : 'phone'} real FilterBuil
     assert.ok(tree.controls.length > 16, 'all field control kinds and nested rare fields must mount');
     ids = tree.controls.map(node => node.props.testID);
     assert.ok(ids.every(id => typeof id === 'string' && id.length > 0)); assert.equal(new Set(ids).size, ids.length);
-    assert.equal(registry.order(prefix).length, tree.controls.filter(node => !node.props.disabled).length, 'every enabled actual native host registers exactly once');
-    for (const id of registry.order(prefix)) assert.ok(registry.child({regionId: prefix, childId: id}));
+    // On TV each field's chips are their own region, entered on the chosen chip or the first (F-FILT-5).
+    const regions = [prefix, ...(isTV ? Object.keys(data.value.fields).map(id => JSON.stringify([JSON.stringify([prefix, 'field', id]), 'facets'])) : [])];
+    assert.equal(regions.reduce((sum, id) => sum + registry.order(id).length, 0), tree.controls.filter(node => !node.props.disabled).length, 'every enabled actual native host registers exactly once');
+    for (const regionId of regions) for (const id of registry.order(regionId)) assert.ok(registry.child({regionId, childId: id}));
     const facet = tree.controls.find(node => node.props.accessibilityRole === 'checkbox' && text(node).startsWith('Shared value'))!;
     facet.props.onPress({defaultPrevented: false});
     assert.deepEqual(data.calls.at(-1), ['change', 'genre', {kind: 'values', mode: 'any', included: ['same/value'], excluded: []}]);
@@ -140,8 +142,9 @@ test('retained selected chips keep their native focus hosts while loading and af
   try{
     await render();
     const original=nodes().find(node=>node.type==='Pressable'&&node.props.accessibilityRole==='checkbox'&&text(node).startsWith('Shared value'))!;
-    const childId=registry.order(prefix).find(id=>{const [owner,...identity]=JSON.parse(id);return registryModule.focusTestID(owner,JSON.stringify(identity))===original.props.testID;})!;
-    assert.ok(childId);const address={regionId:prefix,childId},originalHost=registry.child(address);
+    const chips=JSON.stringify([JSON.stringify([prefix,'field','genre']),'facets']);
+    const childId=registry.order(chips).find(id=>{const [owner,...identity]=JSON.parse(id);return registryModule.focusTestID(owner,JSON.stringify(identity))===original.props.testID;})!;
+    assert.ok(childId);const address={regionId:chips,childId},originalHost=registry.child(address);
     assert.ok(originalHost,'selected chip has no registered native focus host');
     for(const status of ['loading','error'] as const){
       await render(status);
