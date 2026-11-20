@@ -90,7 +90,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './server/TroubleshootingPage': {NativeServerTroubleshooting: 'NativeServerTroubleshooting'},
     './server/StoragePage': {NativeServerStorage: 'NativeServerStorage'},
     './server/IntegrationsPage': {NativeServerIntegrations: 'NativeServerIntegrations'},
-    './server/GeneralPage': {NativeServerGeneral: 'NativeServerGeneral'},
+    './ServerGeneralPage': {ServerGeneralPage: 'ServerGeneralPage'},
     './server/StreamingPage': {NativeServerStreaming: 'NativeServerStreaming'},
     './server/SegmentsPage': {NativeServerSegments: 'NativeServerSegments'},
     './server/PeoplePage': {NativeServerPeople: 'NativeServerPeople'},
@@ -175,7 +175,7 @@ test('N5-5: phone and tablet Settings search finds a Server page this owner has,
   const match = results.props.matches.find((value: {address: string}) => value.address === 'server-general');
   assert.ok(match, 'the Server page is in the results');
   results.props.onNavigate(match.address); tree = f.render();
-  assert.ok(nodes(tree).some(node => node.type === 'NativeServerGeneral'), 'and its result opens that page');
+  assert.ok(nodes(tree).some(node => node.type === 'ServerGeneralPage'), 'and its result opens that page');
 });
 
 test('N5-5: a member\'s search finds no Server page they can\'t open', async () => {
