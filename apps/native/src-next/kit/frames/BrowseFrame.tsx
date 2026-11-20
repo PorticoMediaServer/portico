@@ -66,6 +66,8 @@ export type BrowseFrameProps = Readonly<{
   /** The whole page is loading for the first time, or can't load. Loading keeps the header, tabs and toolbar and draws the
    * grid's or rows' boxes; a failure keeps the header. */
   state?: Readonly<{kind: 'loading'}> | PageStateProps;
+  /** A focused TV empty state can stay over the grid as newly scanned titles arrive. */
+  gridState?: PageStateProps;
   testID?: string;
   /** The rows form's scroller, where the page keeps its own (Home's scroll handler drives its row window, scrolled header and
    * pull to refresh). The frame still places the hero, the rows and their gaps and the bottom clearance: it hands the
@@ -106,7 +108,7 @@ export function BrowseFrame({startFocus, focus, ...props}: BrowseFrameProps) {
     {focus ? <FocusRegion {...focus} style={{flex: 1}}>{page}</FocusRegion> : page}
   </StartFocusScope>;
 }
-function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, children, testID, scroller, onRowsLayout, notice, foot, scroll}: Omit<BrowseFrameProps, 'startFocus' | 'focus'>) {
+function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, gridState, children, testID, scroller, onRowsLayout, notice, foot, scroll}: Omit<BrowseFrameProps, 'startFocus' | 'focus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), form = frame.form;
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   // A library's header and toolbar stay put while its grid or rows scroll under them; a plain page's title scrolls away.
@@ -124,6 +126,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, chil
   const body = grid || (loading && toolbar)
     ? <View style={{flex: 1, marginTop: frameSpec.browse.gridGap[form]}}>
       {loading ? <GridSkeleton/> : grid}
+      {gridState && <View style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}}><PageStateFrame {...gridState}/></View>}
       {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>
     : scroll && !loading ? <Animated.ScrollView ref={scroll.ref} testID={scroll.testID ?? (testID ? `${testID}-scroll` : undefined)} style={scroll.style} scrollEventThrottle={16}

@@ -14,13 +14,15 @@ export function LibraryShelf<T>({title, items, shape, getKey, onVisibleRange, on
   title: string; items: readonly T[]; shape: 'wide' | 'square' | 'poster'; getKey: (item: T) => string;
   focus?: RowProps<T>['focus'];
   onVisibleRange: (first: number, last: number) => void; onSeeAll?: () => void;
-  renderItem: (item: T, context: LayoutItemContext, width: number) => ReactNode;
+  renderItem: (item: T, context: LayoutItemContext, width: number, onCaptionLayout?: (height: number) => void) => ReactNode;
 }) {
   const theme = useTheme(), card = theme.spec.card, width = card.width[shape][theme.column];
-  const caption = cardCaptionHeight(theme, 2);
+  const [measuredCaption, setMeasuredCaption] = React.useState(0);
+  const onCaptionLayout = React.useCallback((height: number) => setMeasuredCaption(previous => Math.max(previous, height)), []);
+  const caption = Math.max(cardCaptionHeight(theme, 2), measuredCaption);
   return <Row title={title} items={items} selection={noSelection} itemWidth={width} itemHeight={width / card.aspect[shape] + caption} captionHeight={caption}
     getKey={getKey} focus={focus} onVisibleRange={onVisibleRange} onSeeAll={onSeeAll}
-    renderItem={(item, context) => renderItem(item, context, width)}/>;
+    renderItem={(item, context) => renderItem(item, context, width, onCaptionLayout)}/>;
 }
 
 export function useLibraryMixAnchor(scroll: AnimatedRef<Animated.ScrollView>, enabled: boolean) {

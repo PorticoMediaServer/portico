@@ -203,10 +203,10 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
     if (restore) gridRef.current?.scrollToIndex(startingIndex);
     else top();
   }, [gridRef, top, restore, startingIndex]);
-  useDestinationEntryFocus({...active, intent: resource && active.intent === 'restore' ? 'enter' : active.intent}, address || undefined, requested);
+  useDestinationEntryFocus({...active, intent: resource && active.intent === 'restore' ? 'enter' : active.intent}, view.emptyState ? undefined : address || undefined, requested);
   useTVPageBack(runtime, {kind: 'library', libraryId: source.library.id}, true, {
     registerTop: true, scope: JSON.stringify([active.revision, source.queryRevision, source.tab.id]),
-    current: () => activation.getSnapshot().visible && !jumpOpen && !view.filters?.getSnapshot().open,
+    current: () => activation.getSnapshot().visible && !view.emptyState && !jumpOpen && !view.filters?.getSnapshot().open,
     start: () => {
       const first = grid.collection.itemAt(0);
       return first ? registry.entityAddress(regionId, nativeLibraryEntryKey(first)) ?? {regionId, childId: nativeLibraryEntryKey(first)} : undefined;
@@ -277,8 +277,18 @@ export function useTVLibrary(props: LibraryProps) {
   const view = useLibrary(props, true), {state, active} = view;
   const ids = nativeDestinationFocusIds(props.runtime.getSnapshot().authority);
   const id = state.library.id, tabsId = ids.libraryTabs(id), toolbarId = ids.libraryToolbar(id);
-  const gridId = ids.libraryGrid(id, state.tab.id), switcherId = `${tabsId}.switcher`, stateId = `${tabsId}.state`;
+  const gridId = ids.libraryGrid(id, state.tab.id), switcherId = `${tabsId}.switcher`, stateId = `${gridId}.state`;
   const registry = useFocusRegistry(), [retryEpoch, setRetryEpoch] = useState(0), retryPressed = useRef(false);
+  const subscribeStateFocus = useCallback((listener: () => void) => registry.subscribeRegion(stateId, listener), [registry, stateId]);
+  const stateFocused = useCallback(() => registry.attachedFocus()?.regionId === stateId, [registry, stateId]);
+  const emptyFocused = useSyncExternalStore(subscribeStateFocus, stateFocused, stateFocused);
+  const lastEmpty = useRef<{id: string; state: PageStateProps} | undefined>(undefined);
+  if (view.emptyState) lastEmpty.current = {id: stateId, state: view.emptyState};
+  // A first scan can populate the grid while its empty-page action owns focus.
+  const heldEmpty = !view.failure && active.visible && lastEmpty.current?.id === stateId && emptyFocused
+    ? lastEmpty.current.state : undefined;
+  const emptyState = view.emptyState ?? heldEmpty;
+  if (!emptyState) lastEmpty.current = undefined;
   useEffect(() => {
     if (!active.visible) retryPressed.current = false;
     else if (state.phase === 'error' && retryPressed.current) {
@@ -296,16 +306,17 @@ export function useTVLibrary(props: LibraryProps) {
     retryPressed.current = true;
     retry.onPress(event);
   }}} : view.failure;
-  const firstAction = (failure ?? view.emptyState)?.primaryAction?.id;
+  const firstAction = (failure ?? emptyState)?.primaryAction?.id;
   useDestinationEntryFocus(active, firstAction ? {regionId: stateId, childId: firstAction} : undefined, undefined, request);
   const rowId = (index: number) => `${gridId}.row.${index}`;
-  return {...view, failure, gridId, toolbarId, tabsId, stateId,
+  return {...view, failure, emptyState, gridId, toolbarId, tabsId, stateId,
     switcher: {id: switcherId, enabled: active.visible, edges: {left: ids.rail, right: tabsId, down: tabsId}},
     tabs: {...view.tabs, region: {id: tabsId, enabled: active.visible, edges: {left: switcherId, up: switcherId,
       down: firstAction ? stateId : state.collection ? toolbarId : view.rows.length && !props.tvMusicDiscover ? rowId(0) : undefined}},
       itemProps: (item: {value: string}) => ({focusId: item.value, onFocus: () => {if (state.tab.id !== item.value) view.tabs.onValueChange(item.value);}})},
     shelves: view.rows.map((row, index) => ({...row, focus: {id: rowId(index), enabled: active.visible,
       edges: {left: ids.rail, up: index ? rowId(index - 1) : tabsId, down: index + 1 < view.rows.length ? rowId(index + 1) : undefined}}})),
-    pageState: firstAction ? {id: stateId, entry: firstAction, edges: {left: ids.rail, up: tabsId}} : undefined,
+    pageState: firstAction ? {id: stateId, entry: firstAction,
+      edges: {left: ids.rail, up: tabsId, ...(!view.emptyState && heldEmpty && state.collection ? {down: gridId, right: gridId} : {})}} : undefined,
   };
 }
