@@ -71,6 +71,11 @@ export function MusicWindow<T extends {id: string}>({items, itemHeight, columns 
   const extra = taller?.extra ?? 0;
   const at = (index: number) => Math.floor(index / columns) * stride + (taller && index > taller.index ? extra : 0);
   // The taller row shifts the rest by less than a row; one more overscan row covers it.
+  // Without a music scroller (a TV title page scrolls by its sections) there is no window to keep: a single column's rows are
+  // drawn in flow, each at least its height, so a row whose title takes a second line grows instead of being cut (no cut text).
+  if (!viewport && columns === 1) return <View ref={root} collapsable={false} style={{gap}}>
+    {items.map((item, index) => <View key={item.id} style={{minHeight: itemHeight + (taller?.index === index ? extra : 0)}}>{renderItem(item, index)}</View>)}
+  </View>;
   const indices = viewport ? musicWindow(items.length, columns, stride, top + (extra ? stride : 0), viewport.offset, viewport.height + (extra ? stride : 0), pin) : ids.map((_, index) => index);
   return <View ref={root} collapsable={false} onLayout={measure} style={{height: Math.max(0, Math.ceil(items.length / columns) * stride - gap + extra), width: columnWidth ? columns * columnWidth + (columns - 1) * gap : '100%'}}>
     {indices.map(index => {

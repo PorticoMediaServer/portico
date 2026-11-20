@@ -10,8 +10,9 @@ import {MusicWindow} from './MusicWindow';
 
 export type TrackWindowProps = Readonly<{
   /** A heading over the rows, drawn with them as one section: quiet (phone-app frame 15b's "Top songs") or a section heading
-   * with muted words at its end (collections 41a's "Chapters  17"). */
-  heading?: Readonly<{title: string; quiet?: boolean; trailing?: string}>;
+   * with muted words at its end (collections 41a's "Chapters  17"), or its count right after the title (collections 43's TV
+   * "Chapters 17"). */
+  heading?: Readonly<{title: string; quiet?: boolean; trailing?: string; count?: string}>;
   rows: readonly TrackRowData[]; variant: Extract<TrackVariant, 'album' | 'top-songs' | 'chapters'>;
   /** A row's place in the page's selection, when the page has one. */
   select?: (id: string) => CardSelection | undefined;
@@ -40,5 +41,6 @@ export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onF
       <TrackRow row={row} variant={variant} index={index} selection={selection} onPlay={onPlay} onMore={onMore} opens={opens}/></View>}/>;
   // On TV the rows sit in the page's gutter under their heading (tv-more frame 8); a phone row carries its own padding.
   const placed = theme.isTV && inset ? <PanelBlock>{window}</PanelBlock> : window;
-  return heading ? <View><PanelBlock><PanelHeading quiet={heading.quiet} title={heading.title} trailing={heading.trailing}/></PanelBlock>{placed}</View> : placed;
+  // The heading sits where the rows do: in the page's gutter, or in the column beside a cover (`inset={false}`).
+  return heading ? <View><PanelBlock inset={!theme.isTV || inset}><PanelHeading quiet={heading.quiet} title={heading.title} count={heading.count} trailing={heading.trailing}/></PanelBlock>{placed}</View> : placed;
 }
