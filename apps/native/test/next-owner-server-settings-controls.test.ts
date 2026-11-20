@@ -46,9 +46,18 @@ test('download rows and confirmations always lead with account username', () => 
 
 test('backup chosen days, whole hour and keep count form one draft for the rebuilt backup source', async () => {
   const host = hooks(), settings = {days: [0,1,2,3,4,5,6], hour: 3, keep: 7, folder: '', includeArtwork: false}, saved: unknown[] = [];
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupSchedule.tsx', import.meta.url), {
-    react: host.react, 'react-native': {View: 'View'}, '../../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
-    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../kit/controls': {Button: 'Button'}, '../../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
+  const schedule = await screenModule(new URL('../src-next/pages/shared/settings/useBackupSchedule.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
+  });
+  const module = await screenModule(new URL('../src-next/pages/shared/settings/StorageBackups.tsx', import.meta.url), {
+    react: host.react, './useBackupSchedule': schedule, './useServerBackups': {},
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    '../../../../../../packages/client-core/src/server-admin/console-words': {}, '../../../../../../packages/i18n/src': {},
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard'},
+    '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'}, '../../../kit/settings/AdvancedSection': {},
+    '../../../kit/settings/SettingsParts': {}, '../../../kit/settings/StorageParts': {}, '../../../kit/shell': {},
+    '../../../kit/overlays': {}, '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'},
+    '../../../screens/settings-live/owner-libraries/FolderExplorer': {},
   });
   const render = () => host.render(() => module.NativeBackupSchedule({settings, saving: false, t, onSave: (value: unknown) => saved.push(value)}));
   const field = (id: string) => nodes(render()).find((node: any) => node.props.row?.id === id)!;

@@ -23,14 +23,21 @@ test('Storage keeping reads only notices and saves their revision, with Messages
   const storage = await import('../../../packages/client-core/src/server-admin/server-storage.ts'), host = lifecycleHooks(), reads: string[] = [], writes: any[] = [], opened: string[] = [];
   const api = {request: async (path: string) => {reads.push(path);return {etag: '"4"', values: {keepDays: 30}};}, requestRaw: async (path: string, method: string, options: unknown) => {writes.push({path, method, options});return {status: 200, headers: {}, body: {}};}};
   const lifetime = {current: () => true};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/KeepRows.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../../packages/client-core/src/server-admin/server-storage': storage,
-    '../../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (value: unknown) => value},
-    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification,
-    '../../../../kit/controls': {Select: 'Select'}, '../../../../kit/shell': {SettingsRow: 'SettingsRow'},
-    '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme},
-    '../../lifetime': {screenScopeEnded: () => new Error('ended')}, '../../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime})},
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerStorage.ts', import.meta.url), {
+    react: host.react,
+    '../../../../../../packages/client-core/src/server-admin/server-storage': storage,
+    '../../../../../../packages/client-core/src/server-admin/cache-source': {},
+    '../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (value: unknown) => value},
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../screens/settings-live/lifetime': {screenScopeEnded: () => new Error('ended')},
+    '../../../screens/settings-live/server/storage/space-source': {},
+    '../../../screens/settings-live/use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime})},
+  });
+  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerStoragePage.tsx', import.meta.url), {
+    react: host.react, './useServerStorage': model, './StorageBackups': {},
+    '../../../kit/controls': {Select: 'Select', FormError: 'FormError'}, '../../../kit/frames': {SectionCard: 'SectionCard', PanelBlock: 'PanelBlock'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/overlays': {}, '../../../kit/overlays/surface': {},
+    '../../../kit/settings/SettingsParts': {}, '../../../kit/settings/StorageParts': {},
   });
   const render = () => host.render(() => module.StorageKeepRows({context: {api}, t, onOpenPage: (page: string) => opened.push(page)}));
   render();host.flush();await settle();
@@ -76,25 +83,27 @@ async function backupsFixture() {
     restart = async () => {calls.push(['restart']); return true;};
     cancelRestore = async () => {calls.push(['cancelRestore']);};
   }
-  const schedule = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupSchedule.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View'},
-    '../../../../../../../packages/client-core/src/presentation/settings-bindings': await import('../../../packages/client-core/src/presentation/settings-bindings.ts'),
-    '../../../../../../../packages/client-core/src/presentation/settings-spec': await import('../../../packages/client-core/src/presentation/settings-spec.ts'),
-    '../../../../kit/controls': {Button: 'Button'}, '../../../../kit/settings/SettingControl': {NativeSettingControl: 'SettingControl'},
+  const schedule = await screenModule(new URL('../src-next/pages/shared/settings/useBackupSchedule.ts', import.meta.url), {
+    react, '../../../../../../packages/client-core/src/presentation/settings-bindings': await import('../../../packages/client-core/src/presentation/settings-bindings.ts'),
   });
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupsTab.tsx', import.meta.url), {
-    './BackupSchedule': schedule,
-    react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../../packages/client-core/src/server-admin/server-backups': {...real, ServerBackupSource: Source},
-    '../../../../../../../packages/client-core/src/server-admin/restore-gate': await import('../../../packages/client-core/src/server-admin/restore-gate.ts'),
-    '../../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
-    '../../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
-    '../../owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
-    '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, './space-source': {nativeStorageOwner: () => true},
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerBackups.ts', import.meta.url), {
+    react, '../../../../../../packages/client-core/src/server-admin/server-backups': {...real, ServerBackupSource: Source},
+    '../../../../../../packages/client-core/src/server-admin/restore-gate': await import('../../../packages/client-core/src/server-admin/restore-gate.ts'),
+    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: () => true},
+  });
+  const module = await screenModule(new URL('../src-next/pages/shared/settings/StorageBackups.tsx', import.meta.url), {
+    react, './useBackupSchedule': schedule, './useServerBackups': model,
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    '../../../../../../packages/client-core/src/server-admin/console-words': {when: String}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/controls': {Button: 'Button', FormError: 'FormError', Switch: 'Switch', TextField: 'TextField'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'},
+    '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
+    '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../kit/settings/SettingControl': {NativeSettingControl: 'SettingControl'},
+    '../../../kit/settings/SettingsParts': {SettingsHelp: 'Text'}, '../../../kit/settings/StorageParts': {StorageLocation: 'Path'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../screens/settings-live/owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'},
   });
   const ports = {context: {api: {request: async () => ({})}}};
-  const render = () => expand(host.render(() => {const outer = module.BackupsTab({ports, runtime, t, advancedContent: {type: 'Limits', props: {}}}); return outer ? outer.type(outer.props) : null;}));
+  const render = () => expand(host.render(() => module.StorageBackups({ports, runtime, advancedContent: {type: 'Limits', props: {}}})));
   render(); host.flush(); render(); host.flush();
   const sheet = (title: string) => nodes(render()).find((node: any) => node.type === 'BottomSheet' && node.props.title === title);
   const footerButton = (title: string, label: string) => nodes(sheet(title).props.footer).find((node: any) => node.type === 'Button' && content(node) === label);
@@ -103,7 +112,8 @@ async function backupsFixture() {
 }
 
 test('Backups lists what the rebuilt server says and keeps typed deletion behind the row menu', async () => {
-  const f = await backupsFixture(), copy = content(nodes(f.render()));
+  const f = await backupsFixture(), rendered = nodes(f.render());
+  const copy = [content(rendered), ...rendered.flatMap((node: any) => [node.props.path, ...(node.props.description ?? [])])].filter(Boolean).join(' ');
   for (const text of ['/backups', 'web.maintenance.backupKindScheduled', 'server.backups.madeBy', 'server.backups.protected']) assert.ok(copy.includes(text), text);
   assert.equal(nodes(f.render()).filter((node: any) => node.type === 'Advanced').length, 1);
   nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-backup-1').props.onPress();
@@ -141,7 +151,7 @@ test('A restore waiting for a restart asks the server first, then restarts; Canc
   const f = await backupsFixture();
   f.state.backups = {...f.state.backups, pendingRestore: {backup: 'one.ptb', stagedAt: '2026-10-02T00:00:00Z'}};
   f.render(); f.host.flush(); await settle();
-  const pending = () => nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-pending');
+  const pending = () => nodes(f.render()).find((node: any) => node.type === 'SectionCard' && node.props.label === 'server.backups.pending');
   nodes(pending()).find((node: any) => node.type === 'Button' && content(node) === 'server.backups.restartNow').props.onPress(); await settle();
   f.footerButton('server.backups.restartTitle', 'server.backups.restartNow').props.onPress(); await settle();
   assert.ok(f.calls.some(call => call[0] === 'restart'));
