@@ -1,3 +1,4 @@
+import {readerFixtureModule} from './helpers/reader-fixture.mjs';
 import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -55,13 +56,17 @@ test(`remembered ${format} composition: ${mixed ? 'mixed' : 'publication only'},
     '../screens/accounts/downloads-entry-model': {noAccountDownloads: {available: false}},
     '../platform/device-platform': {nativeDeviceClass: 'mobile'},
   });
-  const {ReadingGuestView, createReadingGuestBridge} = await screenModule(new URL('../src-next/screens/read/ReadingGuestView.tsx', import.meta.url), {
+  const {ReadingGuestView, createReadingGuestBridge} = await screenModule(new URL('../src-next/kit/reading/ReadingGuestView.tsx', import.meta.url), {
     react: {...fabricReact, default: fabricReact}, 'react-native-webview': {default: 'WebView'}, '../../../../../packages/client-core/src': {createReadingHost},
     '../../../../../packages/client-core/src/route-identity': {routeBase64}, '../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24).fill(7)}},
     '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => async () => 'cancelled'},
-    './asset-origin': {readerNavigationAllowed, readerDelivery}, './startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
+    '../../screens/read/asset-origin': {readerNavigationAllowed, readerDelivery}, '../../screens/read/startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
-  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const readerStatusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
+    '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
+  });
+  const {NativeReadingGuestHost} = await readerFixtureModule('Guest', {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react: {...fabricReact, default: fabricReact}, 'react-native': {View: 'View', NativeModules: {PorticoReaderAssets: {bundle: async () => ({url: appleReaderEntry})}}, useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../kit/controls/Button': {Button: 'Button'},
@@ -73,7 +78,7 @@ test(`remembered ${format} composition: ${mixed ? 'mixed' : 'publication only'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../kit/overlays/surface': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../read/NativeReadingGuestHost': {NativeReadingGuestHost: 'NativeReadingGuestHost'},
+    '../../pages/touch/reading/ReaderGuestPage': {ReaderGuestPage: 'NativeReadingGuestHost'},
   });
   let opened: any;
   const original = await createRememberedDownloadsOpening({current: () => root}, {signal: new AbortController().signal, isCurrent: () => root,

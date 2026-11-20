@@ -1,9 +1,9 @@
 import React, {useEffect, useState, type ReactNode} from 'react';
 import {Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {LoadingBoundary, SkeletonBlock, skeletonTiming} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {LoadingBoundary, SkeletonBlock, skeletonTiming} from '../states';
+import {browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
 
 /** A page-shaped quiet load, followed by the shared eight-second notice. */
 export function ReadingLoading({ready, skeleton, children, style}: {ready: boolean; skeleton: ReactNode; children?: ReactNode; style?: StyleProp<ViewStyle>}) {

@@ -1,3 +1,4 @@
+import {readerFixtureModule} from './helpers/reader-fixture.mjs';
 import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
 import {HttpLocalApi, connectReadingHost, createReadingHost, preferenceValue, ReadingError} from '../../../packages/client-core/src';
@@ -86,21 +87,25 @@ test(`actual retained Read components cap guest residency and restore original s
     }, []);
     return React.createElement('RCTWebView', {...props, testID: 'reading-webview'});
   });
-  const {ReadingGuestView, createReadingGuestBridge} = await screenModule(new URL('../src-next/screens/read/ReadingGuestView.tsx', import.meta.url), {
+  const {ReadingGuestView, createReadingGuestBridge} = await screenModule(new URL('../src-next/kit/reading/ReadingGuestView.tsx', import.meta.url), {
     react, 'react-native-webview': {default: WebView}, '../../../../../packages/client-core/src': {createReadingHost},
     '../../../../../packages/client-core/src/route-identity': {routeBase64}, '../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24).fill(7)}},
-    '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => async () => 'cancelled'}, './asset-origin': {readerNavigationAllowed, readerDelivery},
-    './startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
+    '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => async () => 'cancelled'}, '../../screens/read/asset-origin': {readerNavigationAllowed, readerDelivery},
+    '../../screens/read/startup-diagnostics': {readerStartupDiagnostic: () => undefined, readerStartupProbe: ''},
   });
   const native = {View: 'RCTView', AppState: {addEventListener: () => ({remove() {}})}, NativeModules: {PorticoReaderAssets: {bundle: async () => ({url: appleReaderEntry})}},
     useWindowDimensions: () => ({width: 390, height: 844})};
-  const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const readerStatusPage = await screenModule(new URL('../src-next/pages/touch/reading/ReaderStatusPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/frames': {PageStateFrame: 'StateView'},
+    '../../../kit/reading/ReaderBack': {ReaderBack: 'ReaderBack'},
+  });
+  const {NativeReadingGuestHost} = await readerFixtureModule('Guest', {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react, 'react-native': native, 'react-native-webview': {default: WebView}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/states': {LoadingPaint: ({children}: any) => children, SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, './asset-origin': {readerAssetEntry}, './ReadingGuestView': {ReadingGuestView, createReadingGuestBridge},
   });
-  const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {...stackSlotFixture, 
+  const {ReadNativeHost} = await readerFixtureModule('Host', {'../../pages/touch/reading/ReaderStatusPage': readerStatusPage, ...stackSlotFixture,
     react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/client-core/src': {preferenceValue, ReadingError}, '../../../../../packages/i18n/src': {defaultI18n},
     '../downloads/device': {createNativeDownloadsDevice: () => {throw new Error('unexpected offline device');}}, '../../../platform/offline-downloads': {offlineDownloads: {}},
