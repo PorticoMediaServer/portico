@@ -11,10 +11,11 @@ const type = {browseType: (_theme: unknown, fontSize: number) => ({fontSize})};
 
 test('Jump mounts separate held-panel and letter regions and restores its actual selected child', async () => {
   const h = hooks(), registry = createFocusRegistry(), focused: string[] = [];
-  const {LibraryJumpSheet} = await screenModule(new URL('../src-next/screens/library/LibraryJumpSheet.tsx', import.meta.url), {
+  const {LibraryJumpSheet} = await screenModule(new URL('../src-next/kit/browse/LibraryJumpSheet.tsx', import.meta.url), {
+    '@portico/design': {frameSpec: {browse: {filtersWidth: {tv: 680}}}},
     react: h.react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
-    '../../kit/overlays': {SidePanel: 'SidePanel'}, '../../kit/browse/presentation': {...type, alpha: () => ''}, '../../kit/theme': {useTheme: () => theme},
+    '../controls': {Focusable: 'Focusable'}, '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
+    '../overlays': {SidePanel: 'SidePanel'}, './presentation': {...type, alpha: () => ''}, '../theme': {useTheme: () => theme},
   });
   const tree = h.render(() => LibraryJumpSheet({open: true, panelId: 'library.jump', letters: [{key: 'A'}, {key: 'M'}], selected: 'M', onSelect() {}, onClose() {}}));
   const region = nodes(tree).find(node => node.type === 'FocusRegion');

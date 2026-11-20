@@ -20,7 +20,8 @@ test('a toolbar with a view toggle and Save draws no bare text between them', as
       react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width})},
       '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
       '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
-      '../controls': {Button: 'Button', Chip: 'Chip', Segmented: 'Segmented', Focusable: 'Focusable'}, '../overlays': {MenuRow: 'MenuRow', Popover: 'Popover'},
+      '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion'}, '../controls/control-model': {chipGeometry: () => ({height: 34})},
+    '../controls': {Button: 'Button', Chip: 'Chip', Segmented: 'Segmented', Focusable: 'Focusable'}, '../overlays': {MenuRow: 'MenuRow', Popover: 'Popover'},
       '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
       'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
       './presentation': {alpha: (color: string) => color, browsePlatform: () => (width < 600 ? 'phone' : 'desktop'), browseType: () => ({})},
@@ -44,6 +45,7 @@ test('a tablet toolbar puts its quick chips in a sideways rail that fades at its
     react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
     '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
+    '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion'}, '../controls/control-model': {chipGeometry: () => ({height: 34})},
     '../controls': {Button: 'Button', Chip: 'Chip', Segmented: 'Segmented', Focusable: 'Focusable'}, '../overlays': {MenuRow: 'MenuRow', Popover: 'Popover'},
     '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
@@ -72,7 +74,8 @@ test('SMALL-FAULTS 29: the chip rail fades out from the end of the last whole ch
   const {chipRailCut} = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {
     react: hooks().react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
-    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {}, '../layout/TVRow': {}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
+    '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion'}, '../controls/control-model': {chipGeometry: () => ({height: 34})},
+    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {useTheme: () => createTheme({width: 390, isTV: false})}, '../layout/TVRow': {}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, './presentation': {},
   });
   // Chips end at 90, 190, 300 in a 140-wide rail: only the first fits whole, so the rail is clear from 90 on.
@@ -88,7 +91,8 @@ test('the native chip rail is drawn only with room for its first chip whole (lea
   const module = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {
     react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
-    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
+    '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion'}, '../controls/control-model': {chipGeometry: () => ({height: 34})},
+    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {useTheme: () => createTheme({width: 390, isTV: false})}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, './presentation': {},
   });
   const draw = () => elements(host.render(() => module.ChipRail({children: ['Unplayed', 'In progress']})));
@@ -110,7 +114,8 @@ test('two chip rails on screen at once each fade with their own gradient (a rail
   const module = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {
     react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 820})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'alpha'},
-    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
+    '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion'}, '../controls/control-model': {chipGeometry: () => ({height: 34})},
+    '../controls': {}, '../overlays': {}, '../Icon': {}, '../theme': {useTheme: () => createTheme({width: 390, isTV: false})}, '../layout/TVRow': {TVRow: 'TVRow'}, '@react-native-masked-view/masked-view': {default: 'MaskedView'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, './presentation': {},
   });
   const ids = [hooks(), hooks()].map(h => {

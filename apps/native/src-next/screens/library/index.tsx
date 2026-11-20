@@ -1,5 +1,5 @@
 import React from 'react';
-import {Platform} from 'react-native';
+import {Platform, useWindowDimensions} from 'react-native';
 import type {BrowseLabels} from '../../kit/browse';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {sameAuthority} from '../../shell/model';
@@ -7,6 +7,15 @@ import type {NativeRouteRenderer} from '../../shell/route-registry';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import type {NativeSelection} from '../selection/native-selection';
+import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
+import {frameForm} from '@portico/design';
+import {CoveredLayer} from '../../kit/focus';
+import {homeSeeAllRoute} from '../../shell/routes';
+import {LibraryPage} from '../../pages/touch/library/LibraryPage';
+import {LibraryCard} from '../../kit/browse/LibraryCard';
+import {TVMusicDiscover} from '../destinations/music/TVMusicDiscover';
+import {LibraryPage as TVLibraryPage} from '../../pages/tv/library/LibraryPage';
+import type {LibraryProps} from '../../pages/shared/library/useLibrary';
 import {LibraryScreen, type NativeLibraryActions, type NativeLibrarySelectionPort} from './LibraryScreen';
 import {NativeLibraryDestination} from './model';
 import {NativeLibraryDirectory} from './directory';
@@ -125,9 +134,10 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
           actions: Platform.isTV ? nativeTVLibraryActions(actions, tvNamingStore(), destination) : actions,
           selection: ports.selection?.(destination), shelfSelection};
       }
-      const page = <LibraryScreen key={id} destination={selected.destination} runtime={runtime} directory={directory} libraries={context.libraries()}
+      const page = <LibrarySurface key={id} destination={selected.destination} runtime={runtime} directory={directory} libraries={context.libraries()}
         activation={ports.activation(id)} labels={ports.labels} actions={selected.actions} selection={selected.selection} shelfSelection={selected.shelfSelection}
-        owner={context.session()?.viewer.role === 'owner'} firstScan={context.session()?.viewer.role === 'owner' ? ownerFirstScan() : undefined} mixAnchor={route.destination.anchor === 'mixes'}/>;
+        owner={context.session()?.viewer.role === 'owner'} firstScan={context.session()?.viewer.role === 'owner' ? ownerFirstScan() : undefined} mixAnchor={route.destination.anchor === 'mixes'}
+        onSeeAll={(target, title) => {if (current()) context.navigation.open(homeSeeAllRoute(target, title), context.authority());}}/>;
       return tvNaming ? <NativeTVLibrarySurface key={id} library={page} naming={tvNaming} panelId={nativeTVNamingPanelId(context.authority(), id)}/> : page;
     },
     dispose() {if (disposed) return; disposed = true; retireSelected(); pivots.clear(); tvNaming?.dispose(); tvNaming = undefined; directory.dispose();},
@@ -137,3 +147,23 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
 export type {NativeLibraryActions, NativeLibrarySelectionPort} from './LibraryScreen';
 export type {NativeLibraryViewDraft} from './model';
 export {createNativeLibraryPlaySelection};
+
+function LibrarySurface(props: LibraryProps) {
+  const {width, height} = useWindowDimensions();
+  const active = React.useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot);
+  const state = React.useSyncExternalStore(props.destination.subscribe, props.destination.getSnapshot);
+  if (Platform.isTV) {
+    const tvMusicDiscover = state.library.kind === 'music' && state.tab.id === 'discover' && state.phase === 'ready' ?
+      <TVMusicDiscover destination={props.destination} state={state} runtime={props.runtime} active={active} anchor={props.mixAnchor}
+        renderEntry={(entry, width, cell) => {
+          const selected = props.shelfSelection?.item(entry);
+          return <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={props.runtime} actions={props.actions}
+            focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} disabled={!active.visible}/>;
+        }}/> : undefined;
+    return <TVLibraryPage {...props} tvMusicDiscover={tvMusicDiscover}/>;
+  }
+  if (width >= height || frameForm(width, false, height) !== 'phone') return <LibraryScreen {...props}/>;
+  return <CoveredLayer covered={!active.visible} testID={`native-library-${encodeURIComponent(state.library.id)}`} style={{flex: 1}}><LibraryPage {...props} mixes={state.library.kind === 'music' && props.runtime.mixes ? events =>
+    <MusicMixesRow {...events} port={props.runtime.mixes!} artwork={props.runtime.artwork} reportError={props.runtime.reportError}
+      active={active.visible} focusScope={`library:${state.library.id}.mixes`}/> : undefined}/></CoveredLayer>;
+}

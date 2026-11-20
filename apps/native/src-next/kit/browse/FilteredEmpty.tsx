@@ -2,6 +2,7 @@ import React, {useId, type ReactNode} from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
+import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Button, Chip} from '../controls';
 import {useTheme} from '../theme';
 import {alpha, browseType} from './presentation';
@@ -19,9 +20,9 @@ export function RelaxSuggestions({suggestions, label}: {suggestions: readonly Re
 }
 
 /** Suggestions and the exact constraint sentence are supplied from the bounded browse model. */
-export function FilteredEmpty({description, onClearFilters, suggestions = [], suggestionsLabel, testID}: {description?: ReactNode; onClearFilters: () => void; suggestions?: readonly RelaxSuggestion[]; suggestionsLabel?: ReactNode; testID?: string}) {
+export function FilteredEmpty({description, onClearFilters, suggestions = [], suggestionsLabel, testID, focus}: {description?: ReactNode; onClearFilters: () => void; suggestions?: readonly RelaxSuggestion[]; suggestionsLabel?: ReactNode; testID?: string; focus?: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>}) {
   const theme = useTheme(), id = useId().replace(/:/g, '');
-  return <View testID={testID} style={{alignItems: 'center', paddingTop: 70, paddingHorizontal: theme.gutter}}>
+  const body = <View testID={testID} style={{alignItems: 'center', paddingTop: 70, paddingHorizontal: theme.gutter}}>
     <View accessible={false} importantForAccessibility="no-hide-descendants" style={{width: 220, height: 150, marginBottom: 30}}>
       {[-1, 1, 0].map(position => {
         const centre = position === 0, width = centre ? 92 : 84, height = centre ? 138 : 126, gradient = `${id}-${position}`;
@@ -35,4 +36,5 @@ export function FilteredEmpty({description, onClearFilters, suggestions = [], su
     <Button focusId="clear-filters" align="center" variant="primary" size="hero" onPress={onClearFilters} style={{height: theme.isTV ? 72 : 50}}>{t('next.browse.native.clearFilters')}</Button>
     <RelaxSuggestions suggestions={suggestions} label={suggestionsLabel}/>
   </View>;
+  return focus ? <FocusRegion {...focus} entry="clear-filters">{body}</FocusRegion> : body;
 }

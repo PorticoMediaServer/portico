@@ -6,6 +6,9 @@ import {isRecommendationRow, notInterestedTarget, setNotInterested} from '../../
 import {ToastHost} from '../../kit/overlays';
 import {useDockClearance} from '../../kit/dock/DockClearance';
 import {defaultI18n} from '../../../../../packages/i18n/src';
+import {frameForm} from '@portico/design';
+import {SeeAllPage} from '../../pages/touch/library/SeeAllPage';
+import {SeeAllPage as TVSeeAllPage} from '../../pages/tv/library/SeeAllPage';
 import {HomeSeeAll} from './HomeSeeAll';
 import {HomeRowFilters} from './HomeRowFilters';
 import {NativeHomeRowController} from './row-controller';
@@ -166,6 +169,8 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
   onOpen: React.ComponentProps<typeof HomeSeeAll>['onOpen']; onPlayEntry: React.ComponentProps<typeof HomeSeeAll>['onPlayEntry'];
   onNotInterested: (entry: ContentEntry, value: boolean) => Promise<boolean>; kindLabel: (id: string) => string;
 }) {
+  const {width, height} = useWindowDimensions();
+  const Page = Platform.isTV ? TVSeeAllPage : width < height && frameForm(width, false, height) === 'phone' ? SeeAllPage : HomeSeeAll;
   const shown = useRef(active); shown.current = active;
   const place = useNativeStackPlacement(source.route), stacked = useNativeStackHosted();
   const row = useSyncExternalStore(source.controller.subscribe, source.controller.getSnapshot).row;
@@ -178,7 +183,7 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
   const [filters, setFilters] = useState(false);
   return place(<CoveredLayer covered={!active}
     style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
-    <HomeSeeAll controller={source.controller} runtime={runtime} active={active && !filters} onBack={onBack} onPlay={onPlay} onOpen={onOpen} onPlayEntry={onPlayEntry}
+    <Page controller={source.controller} runtime={runtime} active={active && !filters} onBack={onBack} onPlay={onPlay} onOpen={onOpen} onPlayEntry={onPlayEntry}
       onMenu={(entry, anchor) => source.actions.menu(entry, anchor, undefined, recommendation ? [{id: 'not-interested', label: defaultI18n.t('entry.notInterested'), icon: 'i-eyeoff', onSelect: () => {
         const opening = ++toastOpening.current;
         displayedUndo.current = undefined;
