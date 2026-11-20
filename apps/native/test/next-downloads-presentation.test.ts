@@ -164,15 +164,16 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
 });
 
 test('Downloads rows use the shared hold/menu boundary with their actual native anchor and current playability', async () => {
-  const theme = createTheme({width: 390, isTV: false});
-  const current = entry(), calls: unknown[] = [];
+  const theme = createTheme({width: 320, isTV: false});
+  const current = entry({kind: 'comic'}), calls: unknown[] = [];
   let opened = 0;
   const snapshot = {supported: true, ready: true, entries: [current], settings: {}, usedBytes: 1, freeBytes: 100, otherBytes: 0};
   const device = {getSnapshot: () => snapshot, subscribe: () => () => {}, open: async () => {opened++;},
-    playabilityReason: () => null};
+    playabilityReason: () => null,
+    readingFacts: async () => ({format: 'cbz', pageCount: 456, location: {format: 'cbz', pageIndex: 122}})};
   const {DownloadsScreen} = await savedFixture('Downloads', {
     '../../pages/touch/saved/DownloadsPage': {DownloadsPage: 'DownloadsPage'},
-    react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
+    react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 320})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
@@ -200,7 +201,15 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
     const row = nodes(liveScreen.tree).find(node => node.type?.name === 'DownloadRow');
     const rowScreen = await mount(row.type, {...row.props, menuOpen: true, onMenu: (value: unknown) => calls.push(value), onPlay: () => calls.push('local-play')});
     try {
+      await rowScreen.host.rerender();
       const card = nodes(rowScreen.tree).find(node => node.type === 'CardFrame');
+      const body = [card.props.children].flat()[0]();
+      const metadata = nodes(body).find(node => node.props.style?.flexWrap === 'wrap');
+      assert.ok(metadata, 'the format, file size and reading position can wrap beside the Read action');
+      assert.deepEqual(nodes(metadata.props.children).map(node => [node.props.children].flat()[0]), [
+        'CBZ', defaultI18n.bytes(current.bytes), defaultI18n.t('next.reader.pageOf', {page: 123, count: 456}),
+      ]);
+      assert.ok(nodes(metadata.props.children).every(node => node.props.style[1].maxWidth === '100%'));
       assert.equal(card.props.moreExpanded, true);
       const nativeHost = {actual: 'download-card'}; card.props.menuAnchorRef.current = nativeHost;
       holdCard(card.props, false); assert.equal(calls[0], card.props.menuAnchorRef); assert.equal((calls[0] as any).current, nativeHost);
