@@ -27,16 +27,16 @@ function Resume({read = false, kind = 'book', ...props}: ReadResumeCardProps & {
   const width = props.width ?? (t.isTV ? 560 : 296), height = props.height ?? (t.isTV ? 216 : 150), pad = t.isTV ? 20 : 14;
   const coverHeight = height - pad * 2, coverWidth = read ? coverHeight * (kind === 'book' ? 2 / 3 : 3 / 4) : coverHeight;
   return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
-    {s => <ArtFrame height={height} radius={14} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1.02} selected={props.selection?.selected}>
+    {s => <ArtFrame style={{minHeight: height}} radius={14} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1.02} selected={props.selection?.selected}>
       <AmbientArt source={props.ambient} palette={props.palette} treatment="cover" visible={props.visible} priority={props.priority} />
-      <View style={{flex: 1, flexDirection: 'row', gap: 14, padding: pad, paddingRight: 16}}>
+      <View style={{minHeight: height, flexDirection: 'row', gap: 14, padding: pad, paddingRight: 16}}>
         <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind={read ? kind : 'square'} source={props.artwork} fallback={props.artworkFallback} width={coverWidth} height={coverHeight} style={{borderRadius: read ? 5 : 8}} />
         <View style={{flex: 1, minWidth: 0, paddingTop: 6}}>
           <Text style={[titleStyle(t, t.isTV ? 26 : 16, 800, -0.01), {lineHeight: (t.isTV ? 31.2 : 19.2) * t.textScale, color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
-          <View style={{marginTop: 3}}><Parts parts={props.caption} style={{color: t.colors.textSecondary}} /></View>
+          <View style={{marginTop: 3}}><Parts parts={props.caption} fit="wrap" lines={0} style={{color: t.colors.textSecondary}} /></View>
           {/* The facts share one line when they fit; when they do not, the second takes a line of its own, so neither is cut
             ("Chapter 3" over "3 h 34 min left" on a narrow card). The no-cut rule. */}
-          <View style={{marginTop: 'auto', flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2, justifyContent: 'space-between'}}>{props.detail?.map(part => <View key={part.id} style={{flexShrink: part.id === 'remaining' ? 0 : 1, minWidth: 0}}><Parts parts={[part]} strong style={titleStyle(t, t.isTV ? 20 : 12.5, part.id === 'remaining' ? 600 : 700)} /></View>)}</View>
+          <View style={{marginTop: 'auto', flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2, justifyContent: 'space-between'}}>{props.detail?.map(part => <View key={part.id} style={{flexShrink: 1, minWidth: 0, maxWidth: '100%'}}><Parts parts={[part]} fit="wrap" lines={0} strong style={titleStyle(t, t.isTV ? 20 : 12.5, part.id === 'remaining' ? 600 : 700)} /></View>)}</View>
           <Progress value={props.progress} height={t.isTV ? 6 : 4} style={{marginTop: 7, marginBottom: 4}} />
         </View>
       </View>

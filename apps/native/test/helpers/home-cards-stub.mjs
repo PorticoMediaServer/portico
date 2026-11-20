@@ -12,7 +12,7 @@ const defaults = {
   '../../platform/home-action-diagnostics': {homeActionDiagnostics: {action() {}}}, '../../../../../packages/client-core/src/server-clock': {serverNow: () => Date.now()},
 };
 
-export async function withHomeCards(stubs) {
+export async function withHomeCards(stubs, actualSpotlight = false) {
   const kit = {...defaults, ...Object.fromEntries(Object.entries(stubs).map(([key, value]) => [rekey(key), value]))};
   if (kit['../artwork'] && !kit['../artwork'].generatedPoster) kit['../artwork'] = {...kit['../artwork'], generatedPoster: () => null};
   // The card words and play target come from client-core in the kit; a test's own HomeScreen `./model` stub supplies them.
@@ -31,7 +31,7 @@ export async function withHomeCards(stubs) {
   const facts = await screenModule(new URL('../../src-next/kit/home/HeroFacts.tsx', import.meta.url), kit);
   const parts = await screenModule(new URL('../../src-next/kit/home/HomeParts.tsx', import.meta.url), kit);
   const metrics = await screenModule(new URL('../../src-next/kit/home/metrics.ts', import.meta.url), {...kit, './HomeRows': rows});
-  const home = {...rows, ...facts, ...parts, ...metrics, HomeSpotlight: 'Hero'};
+  const home = {...rows, ...facts, ...parts, ...metrics, HomeSpotlight: actualSpotlight ? parts.HomeSpotlight : 'Hero'};
   // The upright phone's page (pages/touch/home) and its hook (pages/shared/home) sit one folder deeper than HomeScreen.
   const deeper = key => key.replace(/^\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\//, '../../../../../../packages/')
     .replace(/^\.\.\/\.\.\/(kit|platform|shell)(\/|$)/, '../../../$1$2').replace(/^\.\.\/destinations\//, '../../../screens/destinations/')
