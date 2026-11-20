@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {createTheme} from '../src-next/kit/theme';
-import {screenModule} from './helpers/screen-harness.mjs';
+import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 // The Home page's kit parts (desk, #4604 round 1: a page passes data and kit parts, never layout of its own).
 const theme = createTheme({isTV: false, width: 390});
@@ -48,4 +48,17 @@ test('a collection row puts the banner inside the gutters, as wide as the room b
     assert.equal(width, current.width - current.gutter - right);
     assert.equal(row.props.children, 'banner');
   }
+});
+
+test('a synopsis written without word spaces still previews its first measured lines', async () => {
+  const host = hooks();
+  const {PreviewText} = await screenModule(new URL('../src-next/kit/layout/PreviewText.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
+  });
+  const text = '春が来た。新しい冒険が始まる。旅の続き。';
+  const render = () => host.render(() => PreviewText({text, lines: 2, style: {}}));
+  render().props.children[1].props.onTextLayout({nativeEvent: {lines: [
+    {text: '春が来た。'}, {text: '新しい冒険が始まる。'}, {text: '旅の続き。'},
+  ]}});
+  assert.equal(render().props.children[0].props.children[0], '春が来た。新しい冒険が始まる。');
 });
