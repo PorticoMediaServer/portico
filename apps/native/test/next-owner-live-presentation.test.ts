@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus.ts';
+import {createTheme} from '../src-next/kit/theme.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children)] : [];
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.list)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 const colors = new Proxy({}, {get: (_target, key) => String(key)});
 const theme = {isTV: false, width: 1180, platform: 'web', colors};
@@ -76,7 +77,7 @@ test('Move playback announces the same readable position it submits and clamps a
 });
 
 async function guideFixture(width = 1180, screenReader = false, facts: Readonly<{source?: Record<string, unknown>; channel?: Record<string, unknown>; role?: string}> = {}) {
-  const host = fixture(), viewTheme = {...theme, width};
+  const host = fixture(), viewTheme = {...createTheme({width, isTV: false}), ...theme, width};
   let activeHost = host;
   const react: any = {...host.react};
   for (const name of ['useState', 'useRef', 'useMemo', 'useCallback', 'useEffect', 'useSyncExternalStore'] as const) react[name] = (...args: any[]) => (activeHost.react[name] as (...values: any[]) => any)(...args);
