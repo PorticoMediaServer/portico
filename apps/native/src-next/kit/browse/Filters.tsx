@@ -76,7 +76,7 @@ function FieldControl({id, label, state, platform, onChange, onSearch, onShowAll
   return <>
     {state.kind === 'values' && <>
       {state.showMatchMode && <MatchMode focusPrefix={focusPrefix} value={state.mode} allowAll={state.allowAll} allowNone={state.allowNone} onValueChange={mode => onChange({kind: 'values', mode, included: state.included, excluded: state.excluded})}/>}
-      {state.search !== undefined && platform !== 'tv' && <TextField {...focusProps(focusPrefix, 'search')} variant="search" leadingIcon="i-search" accessibilityLabel={state.searchLabel ?? t('next.browse.native.find', {field: label.toLocaleLowerCase('en-US')})} placeholder={state.searchLabel ?? t('next.browse.native.find', {field: label.toLocaleLowerCase('en-US')})} value={state.search} onChangeText={onSearch} fieldStyle={{height: platform === 'phone' ? 38 : 40, minHeight: platform === 'phone' ? 38 : 40}}/>}
+      {state.search !== undefined && platform !== 'tv' && <TextField {...focusProps(focusPrefix, 'search')} variant="search" leadingIcon="i-search" accessibilityLabel={state.searchLabel ?? t('next.browse.native.find', {field: label.toLocaleLowerCase('en-US')})} placeholder={state.searchLabel ?? t('next.browse.native.find', {field: label.toLocaleLowerCase('en-US')})} value={state.search} onChangeText={onSearch} fieldStyle={{height: platform === 'phone' ? 38 : 40, minHeight: platform === 'phone' ? 38 : 40, ...(platform === 'phone' ? {backgroundColor: theme.colors.raisedBright} : {})}}/>}
       {id === 'year' && help && <Text style={[browseType(theme, platform === 'tv' ? 20 : 12.5, 500), {color: theme.colors.textTertiary}]}>{help}</Text>}
       {(!status || state.values.length > 0) && <FacetChips focusPrefix={focusPrefix} platform={platform} values={state.values} included={state.included} excluded={state.excluded} preferredFocusValue={state.preferredFocusValue} cycleExclusion={state.cycleExclusion ?? platform === 'phone'} onValueChange={(value, choice) => onChange({kind: 'values', mode: state.mode, ...changeFacetSelection(value, choice, state.included, state.excluded)})}
         trailing={onShowAll && state.showAllLabel ? <Button {...focusProps(focusPrefix, 'show-all')} variant="text" size="small" onPress={onShowAll}>{state.showAllLabel}</Button> : undefined}/>}
@@ -94,20 +94,21 @@ function FieldControl({id, label, state, platform, onChange, onSearch, onShowAll
 /** Content only. SidePanel/BottomSheet supplies title, dismissal, focus, footer and detents. */
 export function FilterBuilder({model, labels, platform, focusPrefix, openFields, onFieldOpenChange, fields, onFieldChange, onSearchChange, onShowAll, onRetry, more, children, testID}: FilterBuilderProps) {
   const theme = useTheme(), target = browsePlatform(theme, platform), tv = target === 'tv', desktop = target === 'desktop';
-  const renderField = (field: BrowseToolbarModel['groups'][number]['fields'][number]) => {
+  // Rows are divided by a line between them; the first row in a group draws none (its top is the group's rounded edge).
+  const renderField = (field: BrowseToolbarModel['groups'][number]['fields'][number], first = false) => {
     const state = fields[field.id];
     if (!state) throw new Error(`Missing controlled browse field: ${field.id}`);
     const open = openFields.includes(field.id), name = labels.field(field);
     const fieldPrefix = focusPrefix === undefined ? undefined : JSON.stringify([focusPrefix, 'field', field.id]);
     const summary = state.summary ?? (state.kind === 'values' && state.included.length + state.excluded.length > 0 ? t('next.browse.native.chosen', {count: state.included.length + state.excluded.length}) : undefined);
     const control = <FieldControl id={field.id} focusPrefix={fieldPrefix} label={name} state={state} platform={target} onChange={value => onFieldChange(field.id, value)} onSearch={query => onSearchChange(field.id, query)} onShowAll={onShowAll ? () => onShowAll(field.id) : undefined} onRetry={onRetry ? () => onRetry(field.id) : undefined}/>;
-    if (state.kind === 'toggle' && !desktop) return <View key={field.id} style={{minHeight: tv ? 64 : 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: tv ? 20 : 14, gap: 8, borderTopWidth: tv ? 0 : 1, borderTopColor: alpha(theme.colors.lineStrong, .5)}}>
+    if (state.kind === 'toggle' && !desktop) return <View key={field.id} style={{minHeight: tv ? 64 : 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: tv ? 20 : 14, gap: 8, borderTopWidth: tv || first ? 0 : 1, borderTopColor: alpha(theme.colors.lineStrong, .5)}}>
       <Text style={[browseType(theme, tv ? 24 : 15), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text><View style={{marginLeft: 'auto'}}>{control}</View>
     </View>;
     // H10: on large screens a field opens in a popover anchored to its tile, so the two-column grid never reflows.
     if (desktop) return <DesktopField key={field.id} label={name} open={open} onOpenChange={next => onFieldOpenChange(field.id, next)}
       tile={<FieldTile focusPrefix={fieldPrefix} label={name} summary={summary} active={state.active} open={false} onOpenChange={() => onFieldOpenChange(field.id, !open)} platform={target}/>}>{control}</DesktopField>;
-    return <View key={field.id} style={{width: '100%', borderTopWidth: !desktop && !tv ? 1 : 0, borderTopColor: alpha(theme.colors.lineStrong, .5)}}><FieldTile focusPrefix={fieldPrefix} label={name} summary={summary} active={state.active} open={open} onOpenChange={next => onFieldOpenChange(field.id, next)} platform={target}>{control}</FieldTile></View>;
+    return <View key={field.id} style={{width: '100%', borderTopWidth: !desktop && !tv && !first ? 1 : 0, borderTopColor: alpha(theme.colors.lineStrong, .5)}}><FieldTile focusPrefix={fieldPrefix} label={name} summary={summary} active={state.active} open={open} onOpenChange={next => onFieldOpenChange(field.id, next)} platform={target}>{control}</FieldTile></View>;
   };
   const content = <ScrollView testID={testID} style={{flex: 1}} contentContainerStyle={{paddingBottom: tv ? 120 : 20}} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
     {model.groups.map((group, index) => {
@@ -115,8 +116,8 @@ export function FilterBuilder({model, labels, platform, focusPrefix, openFields,
       return <View key={group.id} style={{marginTop: tv ? index === 0 ? 0 : 22 : 14}}>
         <Text accessibilityRole="header" style={[browseType(theme, tv ? 20 : desktop ? 15 : 14, 700), {color: tv || !desktop ? theme.colors.textTertiary : theme.colors.text, marginBottom: tv ? 8 : 8, marginHorizontal: tv ? 20 : desktop ? 0 : 20}]}>{t(groupLabels[group.id])}</Text>
         <View style={{marginHorizontal: desktop || tv ? 0 : 16, borderRadius: 14, backgroundColor: !desktop && !tv ? theme.colors.raisedHigh : undefined, flexDirection: desktop ? 'row' : 'column', flexWrap: desktop ? 'wrap' : undefined, gap: desktop ? 10 : 0}}>
-          {primary.map(renderField)}
-          {rare && secondary.length > 0 && <View style={{width: '100%'}}><FieldTile focusPrefix={focusPrefix === undefined ? undefined : JSON.stringify([focusPrefix, 'more', group.id])} label={t('next.browse.native.more')} summary={rare.summary} open={rare.open} onOpenChange={rare.onOpenChange} platform={target} more>{secondary.map(renderField)}</FieldTile></View>}
+          {primary.map((field, fieldIndex) => renderField(field, fieldIndex === 0))}
+          {rare && secondary.length > 0 && <View style={{width: '100%'}}><FieldTile focusPrefix={focusPrefix === undefined ? undefined : JSON.stringify([focusPrefix, 'more', group.id])} label={t('next.browse.native.more')} summary={rare.summary} open={rare.open} onOpenChange={rare.onOpenChange} platform={target} more>{secondary.map(field => renderField(field))}</FieldTile></View>}
         </View>
       </View>;
     })}
