@@ -24,6 +24,7 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import * as pageBack from '../src-next/screens/destinations/tv-page-back';
 import * as homeModel from '../src-next/screens/home/model';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {expandHome, withHomeCards} from './helpers/home-cards-stub.mjs';
 import {expandFrames} from './helpers/browse-frame-stub.mjs';
 
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
@@ -179,7 +180,7 @@ test('the drawn phone facts badge is 9 px padding, .28 border and a 700 year; TV
 
 async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), rows: readonly any[], react: any = {...React, default: React}, registry = createFocusRegistry(), bindings: Record<string, any> = {}) {
   // Phone and tablet Home draw on the frame: read its parts in scroller(hero + rows) order (helpers/browse-frame-stub).
-  const module = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  const module = expandHome(await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react: {...react, useLayoutEffect: react.useLayoutEffect ?? react.useEffect}, '@portico/design': {heroSpec},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
@@ -193,7 +194,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({playable: true, details: true, watchlisted: false})},
     '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel},
-    '../../../../../packages/client-core/src/presentation/kit-model': {},
+    '../../../../../packages/client-core/src/presentation/kit-model': await import('../../../packages/client-core/src/presentation/kit-model/index.ts'),
     '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {AmbientArt: 'AmbientArt', ArtworkArrivalContext: React.createContext(undefined)}, '../../kit/controls': {Button: 'Button'},
     '../../kit/cards': {CollectionBanner: 'CollectionBanner', LiveCard: 'LiveCard', PosterCard: 'PosterCard', RankedCard: 'RankedCard', SquareCard: 'SquareCard', WideCard: 'WideCard', wideDetailHeight: () => 0},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
@@ -210,7 +211,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, './TvHomeRecovery': {TvHomeRecovery: 'Recovery'}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})},
     ...bindings,
-  });
+  })));
   return {...module, HomeScreen: (props: any) => expandFrames(module.HomeScreen(props))};
 }
 
@@ -240,7 +241,8 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
     {id: 'continue', kind: 'continue', artworkShape: 'landscape', title: 'Continue Watching', subtitleText: {fallback: 'In progress'}, entries: [entry], nextCursor: '', total: 1, start: 0, limit: 1},
     {id: 'on_now', kind: 'live', artworkShape: 'landscape', title: 'On now', subtitleText: {fallback: 'Synthetic Live TV'}, entries: [], nextCursor: '', total: 0, start: 0, limit: 0,
       live: {revision: 'live-1', sort: 'favorites', group: '', groups: [], observedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3_600_000).toISOString(), channels: [
-        {channel: {id: 'channel-1', sourceId: 'source-1', name: 'Channel One', number: 1, mark: {}, programmes: []}, source: {name: 'Synthetic Live TV'}},
+        {channel: {id: 'channel-1', sourceId: 'source-1', name: 'Channel One', number: 1, mark: {}, programmes: [
+          {title: 'Midday Report', start: new Date(Date.now() - 600_000).toISOString(), end: new Date(Date.now() + 1_200_000).toISOString(), flags: {}}]}, source: {name: 'Synthetic Live TV'}},
       ]}},
   ];
   const h = hooks(), authority = {serverId: 'actual', viewerFence: 'viewer'};
@@ -278,6 +280,24 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
   const liveRow = liveElement.type(liveElement.props);
   assert.deepEqual(labels(liveRow.props.subtitle), ['Synthetic Live TV']);
   assert.equal(liveRow.props.subtitle.props.style[0].fontSize, 13);
+  // phone-app.html frame 2: on a phone the channel card says the channel's name (no number or source line) and when the
+  // programme ends, not the time left and the range; a tablet and TV keep their lines.
+  const channelCard = (theme: typeof phoneTheme) => {
+    currentTheme = theme;
+    const item = rows[1]!.live!.channels[0]!, element = liveElement.type(liveElement.props).props.renderItem(item, {testID: 'live', onFocus() {}, onBlur() {}});
+    return element.type(element.props);
+  };
+  const phoneCard = channelCard(phoneTheme);
+  assert.equal(phoneCard.props.title, 'Midday Report');
+  assert.equal(phoneCard.props.number, undefined); assert.equal(phoneCard.props.sourceName, undefined); assert.equal(phoneCard.props.range, undefined);
+  assert.equal(phoneCard.props.caption.length, 1); assert.match(phoneCard.props.caption[0].text, /^Ends /);
+  const tabletCard = channelCard(tabletTheme);
+  assert.equal(tabletCard.props.number, 1); assert.equal(tabletCard.props.sourceName, 'Synthetic Live TV'); assert.ok(tabletCard.props.range);
+  assert.equal(tabletCard.props.caption[0]?.id, 'remaining');
+  currentTheme = phoneTheme;
+  // Customize Home sits centred over its description (it drew at the left on a phone).
+  const customize = descendants(tree).find(node => node.type === 'Button' && labels(node).includes(defaultI18n.t('home.customize.action')));
+  assert.equal(customize.props.style.alignSelf, 'center');
   for (const theme of [tabletTheme, desktopTheme, tvTheme]) {
     currentTheme = theme;
     assert.equal(liveElement.type(liveElement.props).props.subtitle, undefined, `${theme.layoutMode} Live row retains no subtitle`);
@@ -423,7 +443,7 @@ test('an actionless Home keeps the original independent mixes reader mounted and
 });
 
 test('libraries that did not load show one quiet banner with Try again, never the empty state (P2-61 HOME-RESILIENCE)', async () => {
-  const h = hooks(), authority = {serverId: 'actual', viewerFence: 'viewer'};
+  const authority = {serverId: 'actual', viewerFence: 'viewer'};
   const document = {rows: [], spotlight: [], serverId: authority.serverId, viewerFence: authority.viewerFence};
   const emptyCopy = {type: 'EmptyCopy', props: {}};
   let retried = 0;
@@ -435,7 +455,8 @@ test('libraries that did not load show one quiet banner with Try again, never th
     renderHomeEmpty: () => emptyCopy, error: () => ({}), retryLibraries: () => {retried++;},
   });
   for (const theme of [tvTheme, phoneTheme]) {
-    const {HomeScreen} = await homeModule(theme, [], h.react);
+    // TV draws HomeScreen's own forms and a phone the rebuilt page: each has its own hook order, so its own host.
+    const h = hooks(), {HomeScreen} = await homeModule(theme, [], h.react);
     const unknown = h.render(() => HomeScreen({runtime: runtime(true), authority}));
     assert.equal(descendants(unknown).includes(emptyCopy), false, 'no first-library or member empty state while the libraries are unknown');
     const banner = descendants(unknown).find(node => node.type === 'Banner');

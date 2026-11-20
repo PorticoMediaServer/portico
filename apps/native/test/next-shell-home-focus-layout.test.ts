@@ -14,6 +14,7 @@ import {tvHomeRows} from '../src-next/screens/home/tv-presentation';
 import * as homeStart from '../src-next/screens/home/home-start';
 import {createTheme, nativeType} from '../src-next/kit/theme';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {expandHome, withHomeCards} from './helpers/home-cards-stub.mjs';
 
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
 
@@ -33,7 +34,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     const vertical = {scrollRef: {}, offset: {value: 146}, repeating: false, stop() {}, move() {}, anchor: (...args: number[]) => anchors.push(args)};
     const runtime = {home: {subscribe() {}, getSnapshot: () => ({document, phase: 'ready'})}, playback: {},
       getSnapshot: () => ({authority: currentAuthority, libraries: [], selectionActive: false}), selection: () => ({}), text: {t: (key: string) => key, locale: 'en-US'}};
-    const {HomeScreen} = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+    const {HomeScreen} = expandHome(await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
       react: {...h.react, useLayoutEffect: h.react.useEffect}, '@portico/design': {heroSpec},
       'react-native': {AppState: {currentState: 'active'}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
@@ -56,7 +57,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
       '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},
       '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, './TvHomeRecovery': {TvHomeRecovery: 'Recovery'}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})},
       './HomeHeroFacts': {}, './model': {authorizedHome: (value: unknown) => value, platformRows: () => [row], homeRowHasContent: () => true, initialHomeFocus: () => ({rowId: row.id, entryId: entry.id}), homeCardText: () => ({title: entry.title}), homePlayTarget: () => entry},
-    });
+    })));
     const render = (props = {}) => h.render(() => HomeScreen({runtime, authority, ...props}));
     // TV rows are wrapped by the row-shift frame (motion.html 4.1), which forwards the same row layout.
     const rowBox = (tree: any) => descendants(tree).find(node => (node.type === 'View' || node.type?.name === 'TVHomeRowShift') && node.props.onLayout);

@@ -1,4 +1,3 @@
-import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {noteHomeRead} from '../../shell/home-read-log';
 import {liveRereadPlan, type LiveRereadMemory} from './live-expiry';
@@ -10,18 +9,13 @@ import Animated, {cancelAnimation, runOnJS, useAnimatedScrollHandler, useAnimate
 import {useMotion} from '../../kit/useMotion';
 import {heroSpec} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {HomeChannel, HomeRow} from '../../../../../packages/client-core/src/home';
+import type {HomeRow} from '../../../../../packages/client-core/src/home';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {homeCollectionCaption, homeRowPresentation, homeSpotlightModels, homeTitleFactParts} from '../../../../../packages/client-core/src/presentation/home-spotlight';
-import {homeContinuationCard, homeContinuationSource} from '../../../../../packages/client-core/src/presentation/home-continuation';
-import {homeEntryCapabilities} from '../../../../../packages/client-core/src/home-selection';
+import {homeRowPresentation, homeSpotlightModels, homeTitleFactParts} from '../../../../../packages/client-core/src/presentation/home-spotlight';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
-import {programmeFactParts, programmeTimeRange, type FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {ArtworkPlacementContext} from '../../platform/ArtworkPipeline';
 import {usePlatformPosture} from '../../platform/platformPosture';
-import {AmbientArt, Artwork, ArtworkArrivalContext} from '../../kit/artwork';
-import {generatedPoster} from './generated-poster';
+import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {useTVPageBack} from '../destinations/useTVPageBack';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
@@ -33,17 +27,14 @@ import {tvFocusIds, tvHomeRegionMap} from '../../shell/tv-focus';
 import {NativeHomePaging} from '../../shell/home-paging';
 import {tvHomeRows} from './tv-presentation';
 import {homeMixesFocusRow as mixesFocusRow, homeSpotlightFocusActions, homeStartModel, resolveTVHomeStart} from './home-start';
-import {CollectionBanner, LiveCard, PosterCard, RankedCard, ReadResumeCard, ResumeCard, SquareCard, WideCard, wideDetailHeight, type CardProps} from '../../kit/cards';
+import {wideDetailHeight} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
-import {continueBookFacts} from '../../../../../packages/client-core/src/presentation/continue-books';
 import {Hero, FocusPreviewHero, Row, type HeroCandidate} from '../../kit/layout';
 import {useFocusAnchor} from '../../kit/layout/FocusAnchor';
-import type {ArtworkRenderContext, LayoutItemContext} from '../../kit/layout/types';
-import {itemSelection} from '../../kit/layout/types';
+import type {ArtworkRenderContext} from '../../kit/layout/types';
 import {LoadingPaint, StateView, HomeSkeleton, SkeletonBlock, skeletonTiming} from '../../kit/states';
 import {Banner} from '../../kit/overlays';
 import {nativeType, useTheme, type Theme} from '../../kit/theme';
-import {homeActionDiagnostics} from '../../platform/home-action-diagnostics';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
 import {phoneHeaderGeometry, sameAuthority, shellLayout, type ShellAuthority, type ShellLayout} from '../../shell/model';
@@ -52,14 +43,15 @@ import {authorizedHome, homeCardText, homePlayTarget, homeRowHasContent, pageAtV
 import {TvHomeRecovery} from './TvHomeRecovery';
 import {useTvHomeRecovery} from './useTvHomeRecovery';
 import {homeMountedRows, homeVisibleRange, type HomeRowBox} from './home-window';
+import {HomeCard, HomeCollectionCard, HomeLiveRow, HomePendingRow, HomeWindow, booksCardSize, homeRowSubtitle, mediumCardType, mediumHeadingStyle} from '../../pages/shared/home/home-cards';
+export {homeRowSubtitle, mediumCardType, mediumHeadingStyle};
+import {HomePage} from '../../pages/touch/home/HomePage';
 
 type HomeCandidate = HeroCandidate & {entry: ContentEntry; target?: ContentEntry; primaryLabel?: string};
 const noMixesSubscription = () => () => {};
 const noMixesSnapshot = () => undefined;
 type HomeCardModel = ReturnType<typeof homeRowPresentation>['cards'][number];
 const homeCardKey = (item: HomeCardModel) => item.entry.id;
-const homeChannelKey = (item: HomeChannel) => JSON.stringify([item.channel.sourceId, item.channel.id]);
-const homeChannelFocusId = (item: HomeChannel) => JSON.stringify(['channel', item.channel.sourceId, item.channel.id]);
 
 /**
  * Phone Home measurements the drawn frame states outside the shared kit:
@@ -109,15 +101,6 @@ export const mediumCardWidth = (wide: boolean, tablet = false): number => wide ?
 /** tablet.html#2 draws a 28 pt gutter upright; foldable.html#7 keeps 24. */
 export const mediumUprightTablet = (width: number, height: number): boolean => width < height && width >= 768;
 export const mediumHomeGutter = (width: number, height: number): number => mediumUprightTablet(width, height) ? 28 : 24;
-/** foldable.html `.phone.md .card .t{font-size:14px}` and `.card .s{font-size:12.5px}`. */
-export const mediumCardType = {title: {fontSize: 14}, caption: {fontSize: 12.5}} as const;
-/** foldable.html `.phone.md .row-head h2{font-size:21px}`; the row heading role carries 19. */
-export const mediumHeadingStyle = {fontSize: 21} as const;
-
-/** The drawn phone row sub-line is 13 px; the shared rowSubtitle role carries 14. */
-export function homeRowSubtitle(theme: Theme) {
-  return theme.layoutMode === 'phone' ? theme.type.caption : theme.type.rowSubtitle;
-}
 
 /** kit.css draws the phone scroll 96 px deep over an 84 px bar; other platforms keep their padding. */
 export function homeContentBottom(theme: Theme, bottomInset: number): number {
@@ -143,8 +126,19 @@ function TVHomeRowShift({heroDelta, style, onLayout, children}: {heroDelta: numb
   return <Animated.View collapsable={false} layout={layout} onLayout={onLayout} style={[style, position]}>{children}</Animated.View>;
 }
 
+type HomeScreenProps = Parameters<typeof HomeScreenForms>[0];
+
+/** An upright phone draws the rebuilt Home page (phone-app.html 1, 2); a tablet, a phone on its side, a desktop window
+ * and TV keep this screen's forms until their pages are rebuilt. */
+export function HomeScreen(props: HomeScreenProps) {
+  const theme = useTheme();
+  return !theme.isTV && theme.platform === 'phone' && theme.layoutMode === 'phone'
+    ? <HomePage runtime={props.runtime} authority={props.authority} active={props.active} heroObscured={props.heroObscured} bottomInset={props.bottomInset} onScrolledChange={props.onScrolledChange}/>
+    : <HomeScreenForms {...props}/>;
+}
+
 /** Server-authored Home only. No whole-library reads, local ranking or metadata inference. */
-export function HomeScreen({runtime, authority, playOnHidden = false, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
+function HomeScreenForms({runtime, authority, playOnHidden = false, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
   runtime: NativeShellRuntime; authority: ShellAuthority;
   /** The shell hides Play on while Home is selecting or its chrome is hidden. */
   playOnHidden?: boolean; active?: boolean; heroObscured?: boolean; railExpanded?: boolean; bottomInset?: number; onScrolledChange?: (scrolled: boolean) => void;
@@ -561,143 +555,6 @@ export function HomeScreen({runtime, authority, playOnHidden = false, active = t
   </>, {paddingBottom: homeContentBottom(theme, bottomInset)})}</LoadingPaint>;
 }
 
-/** A deferred row is real descriptor data, not a Home response: its title, shape and
- * policy are already known, while its preview is still being read. Skeletons stay
- * non-focusable, so focus only ever lands on a card that actually arrived. */
-function HomePendingRow({row, labels, viewportWidth}: {row: HomeRow; labels: Parameters<typeof serverTextLabel>[0]; viewportWidth: number}) {
-  const theme = useTheme(), presentation = homeRowPresentation(row), title = serverTextLabel(labels, presentation.title);
-  const wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
-  const width = wide ? theme.spec.card.width.wide[theme.column] : square ? theme.spec.card.width.square[theme.column] : theme.spec.card.width.poster[theme.column];
-  const height = wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : width * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
-  const gap = theme.isTV ? 28 : 10, count = Math.max(1, Math.ceil(Math.max(0, viewportWidth - theme.gutter) / (width + gap)) + 1);
-  return <View testID={`home-pending-${row.id}`} style={theme.isTV ? {marginBottom: 30} : undefined}>
-    <View style={{paddingHorizontal: theme.gutter, marginBottom: theme.isTV ? 22 : 12}}><Text style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text></View>
-    <LoadingPaint ready={false} style={{height, flexGrow: 0, flexShrink: 0, flexBasis: 'auto'}} skeleton={<View style={{flexDirection: 'row', gap, paddingLeft: theme.gutter, overflow: 'hidden'}}>{Array.from({length: count}, (_, index) =>
-      <SkeletonBlock key={index} width={width} height={height} radius={theme.isTV ? 14 : 8} shine={index === 0}/>)}</View>}/>
-  </View>;
-}
-
 function HomeRegion({focus, children}: {focus?: Omit<FocusRegionProps, 'children'>; children: React.ReactNode}) {
   return focus ? <FocusRegion {...focus}>{children}</FocusRegion> : <>{children}</>;
 }
-
-function HomeWindow({runtime, row, sectionOrder, visible, physicalIds, retainedIds, range, children}: {runtime: NativeShellRuntime; row: HomeRow; sectionOrder: number; visible: boolean; physicalIds?: readonly string[]; retainedIds?: readonly string[]; range?: {first: number; last: number; keys?: readonly string[]}; children: React.ReactNode}) {
-  const {isTV} = useTheme(), rowId = row.id, latest = useRef({row, sectionOrder});
-  latest.current = {row, sectionOrder};
-  // Updating a measured range is not an unmount. Cleanup belongs only to this
-  // row's lifetime; otherwise registration publishes recursively recreate it.
-  useEffect(() => {
-    if (isTV) return;
-    runtime.setHomeWindow(row, sectionOrder, 0, Math.min(127, (row.live?.channels.length ?? row.entries.length) - 1), visible);
-  }, [isTV, runtime, row, sectionOrder, visible]);
-  useEffect(() => {
-    if (!isTV) return;
-    runtime.setHomeWindow(row, sectionOrder, range?.first ?? 0, range?.last ?? (row.collection ? 0 : -1), visible, physicalIds, retainedIds, range?.keys);
-  }, [isTV, runtime, row, sectionOrder, visible, physicalIds, retainedIds, range]);
-  // An unmount never throws (P2-74 E-tv-30); the runtime reports a registration failure itself.
-  useEffect(() => () => {const current = latest.current; try {runtime.setHomeWindow(current.row, current.sectionOrder, 0, -1, false);} catch { /* reported by the runtime */ }}, [runtime, rowId]);
-  return children;
-}
-
-const noPictureInPictureStore = () => () => {};
-
-function HomeCard({runtime, row, entry, rank, context, width, rowIndex, visible, preferred, medium = false, current}: {
-  runtime: NativeShellRuntime; row: HomeRow; entry: ContentEntry; rank?: number; context: LayoutItemContext; width: number; rowIndex: number; visible: boolean; preferred: boolean; medium?: boolean; current: () => boolean;
-}) {
-  const theme = useTheme(), anchor = useRef<View>(null), target = homePlayTarget(row, entry);
-  // HM-4: Continue Listening (and Continue your books) draw the continuation from the row's own
-  // resume target, as web does; native passed `ordinary` for Continue Listening.
-  const resume = row.resumes?.find(value => value.entryId === entry.id)?.target ?? entry;
-  const text = homeContinuationCard(row.id, homeCardText(entry, row.kind === 'continue', runtime.text), homeCardText(homeContinuationSource(entry, resume), true, runtime.text));
-  // The admitted PiP fact only names the Continue row's own card when the same entry and a
-  // current fence are playing; a matching title in a new or recommendation shelf stays quiet.
-  const continueRow = row.kind === 'continue';
-  const pictureInPicture = useSyncExternalStore(runtime.playback?.subscribe ?? noPictureInPictureStore, () => {
-    if (!continueRow) return '';
-    const playback = runtime.playback?.getSnapshot();
-    if (playback?.pictureInPicture?.active !== true || !playback.fence || !playback.entry) return '';
-    return playback.entry.kind === entry.kind && playback.entry.libraryId === entry.libraryId && playback.entry.id === entry.id
-      ? runtime.text.t('next.player.playingInPictureInPicture') : '';
-  }, () => '');
-  const cardText = pictureInPicture ? {...text, caption: [...text.caption, {id: 'picture-in-picture', text: pictureInPicture, role: 'status' as const}]} : text;
-  const navigate = () => {if (current()) runtime.actions.navigate(entry);};
-  const offers = homeEntryCapabilities(entry, {platform: theme.isTV ? 'tv' : 'phone-app', playbackAvailable: !!runtime.playback});
-  const play = offers.playable && target?.playback ? () => {homeActionDiagnostics.action('home-card', 'primary-play'); if (current()) runtime.actions.play(entry, target.playback!);} : undefined;
-  const actions = play && (theme.isTV || row.kind === 'continue') ? {primaryAction: 'play' as const, onPlay: play, onNavigate: navigate}
-    : {primaryAction: 'navigate' as const, onNavigate: navigate, ...(play ? {onPlay: play} : {})};
-  const props: CardProps = {...cardText, ...actions, width, visible, onFocus: context.onFocus, onBlur: context.onBlur, selection: context.selection, preferredFocus: preferred, testID: context.testID,
-    ...(medium ? {titleTextStyle: mediumCardType.title, captionTextStyle: mediumCardType.caption, titleMargin: 9} : {}),
-    menuAnchorRef: anchor, moreExpanded: runtime.selection(row.id).isMenuOpen?.(entry.id),
-    accessibilityState: {expanded: !!runtime.selection(row.id).isMenuOpen?.(entry.id)},
-    onMore: () => {if (current()) runtime.actions.more(entry, row.id, anchor);}};
-  const art = runtime.artwork(row.artworkShape === 'landscape' ? entry.backdropUrl ?? entry.posterUrl : entry.posterUrl);
-  if (row.id === 'continue_books') {
-    // Continue your books (Q24): the Read lane's resume card. A book, comic or magazine opens
-    // through the Reading entry; an audiobook resumes. Tapping is the action, so no play button.
-    // An audiobook's chapter and time left follow the shared Home continuation rule (HM-4).
-    const facts = continueBookFacts(entry, runtime.text.t, homeCardText(homeContinuationSource(entry, resume), true, runtime.text)), author = entry.author ?? (facts.reading ? undefined : entry.subtitle);
-    const card = {title: entry.displayTitle ?? entry.title, caption: author ? [{id: 'author', text: author, role: 'identity' as const}] : [],
-      detail: [...(facts.where ? [{id: 'where', text: facts.where, role: 'context' as const}] : []), ...(facts.left ? [{id: 'left', text: facts.left, role: 'context' as const}] : [])],
-      progress: facts.progress, width, height: Math.round(booksCardSize(theme).height * (width / booksCardSize(theme).width)),
-      visible, onFocus: context.onFocus, onBlur: context.onBlur, selection: context.selection, testID: context.testID, artwork: art,
-      primaryAction: 'navigate' as const, onNavigate: !facts.reading && play ? play : navigate,
-      menuAnchorRef: anchor, moreExpanded: runtime.selection(row.id).isMenuOpen?.(entry.id), onMore: () => {if (current()) runtime.actions.more(entry, row.id, anchor);},
-      artworkFallback: generatedPoster(entry.title, width)};
-    return facts.reading ? <ReadResumeCard {...card} kind={facts.shape === 'magazine' ? 'periodical' : facts.shape === 'newspaper' ? 'newspaper' : 'book'}/> : <ResumeCard {...card}/>;
-  }
-  // BOOT-014: Home card art fades in over the approved 240 ms.
-  return <ArtworkPlacementContext.Provider value={{row: rowIndex + 1, column: context.index, group: row.id}}><ArtworkArrivalContext.Provider value={240}>
-    {rank ? <RankedCard {...props} rank={rank} artwork={art} isNew={entry.new} watched={entry.watched}/>
-      : row.artworkShape === 'landscape' ? <WideCard {...props} artwork={art} progress={cardText.progress} watched={entry.watched}/>
-      : row.artworkShape === 'square' ? <SquareCard {...props} artwork={art} progress={cardText.progress} watched={entry.watched} isNew={entry.new}/>
-      : <PosterCard {...props} artwork={art} watched={entry.watched} isNew={entry.new} artworkFallback={generatedPoster(entry.title, width)}/>}
-  </ArtworkArrivalContext.Provider></ArtworkPlacementContext.Provider>;
-}
-
-/** The Continue your books card's drawn size: the resume card's own size per form (kit ResumeCard: 560 x 216 on TV, where
- * its type is TV-sized), the Reading library's on a tablet (392 x 176) and the phone's elsewhere (296 x 150). */
-function booksCardSize(theme: Theme) {
-  return theme.isTV ? {width: 560, height: 216} : theme.platform === 'tablet' ? {width: 392, height: 176} : {width: 296, height: 150};
-}
-
-function HomeCollectionCard({row, runtime, width, visible, current, onFocus}: {row: HomeRow; runtime: NativeShellRuntime; width: number; visible: boolean; current: () => boolean; onFocus: () => void}) {
-  const anchor = useRef<View>(null), collection = row.collection!, t = runtime.text.t;
-  return <CollectionBanner onFocus={onFocus} title={collection.collection.name} kindLabel={t('next.home.collection')}
-    covers={collection.members.flatMap(entry => {const artwork = runtime.artwork(entry.posterUrl); return artwork ? [artwork] : [];})}
-    body={homeCollectionCaption(collection, runtime.text)[0]?.text} width={width} backdrop={runtime.artwork(collection.backdropUrl)} ambient={runtime.ambient(collection.backdropUrl)} visible={visible}
-    menuAnchorRef={anchor} moreExpanded={runtime.selection(row.id).isMenuOpen?.(collection.collection.id)} accessibilityState={{expanded: !!runtime.selection(row.id).isMenuOpen?.(collection.collection.id)}}
-    selection={itemSelection(runtime.selection(row.id), collection.collection.id)} onMore={() => {if (current()) runtime.actions.collectionMore(collection, row.id, anchor);}}
-    primaryAction="navigate" onNavigate={() => {if (current()) runtime.actions.openCollection(collection);}}/>;
-}
-
-function HomeLiveRow({row, runtime, visible, itemWidth, onRange, onVisibleKeys, onItemFocus, current, focus, viewportWidth, tabletMedium, scrollMemory}: {row: HomeRow; runtime: NativeShellRuntime; visible: boolean; itemWidth: number; onRange: (first: number, last: number) => void; onVisibleKeys: (keys: readonly string[]) => void; onItemFocus: (item: HomeChannel) => void; current: () => boolean; focus?: Omit<FocusRegionProps, 'children' | 'order' | 'orientation'>; viewportWidth: number; tabletMedium: boolean; scrollMemory?: {offset: number}}) {
-  const theme = useTheme(), live = row.live!, labels = {t: runtime.text.t, has: defaultI18n.has}, medium = theme.platform === 'tablet' && !theme.isTV, mediumGutter = tabletMedium ? 28 : 24;
-  // Projection time, expiry and server-issued marks define the bounded row. No lineup scan.
-  const observed = Date.parse(live.observedAt);
-  if (serverNow() >= Date.parse(live.expiresAt)) return null;
-  // The drawn live row carries its server-authored sub-line ("Synthetic Live TV").
-  const subtitle = serverTextLabel(labels, row.subtitleText);
-  const rowSubtitle = subtitle && theme.layoutMode === 'phone' && theme.platform === 'phone'
-    ? <Text numberOfLines={1} style={[homeRowSubtitle(theme), {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text>
-    : undefined;
-  const title = serverTextLabel(labels, row.titleText, row.title);
-  return <Row title={title} subtitle={rowSubtitle} items={live.channels} getKey={homeChannelKey} getFocusId={homeChannelFocusId} focus={focus} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory}
-    itemWidth={itemWidth} itemHeight={theme.isTV ? 225 : theme.layoutMode === 'desktop' ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone} selection={runtime.selection(row.id)} onVisibleRange={onRange} onVisibleKeys={onVisibleKeys} onItemFocus={onItemFocus}
-    gutter={medium ? mediumGutter : undefined} rightGutter={medium ? mediumGutter : undefined} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined}
-    onSeeAll={row.seeAll ? () => {if (current()) runtime.actions.seeAll(row.seeAll!, title);} : undefined}
-    renderItem={(item: HomeChannel, context) => <HomeChannelCard rowId={row.id} item={item} context={context} runtime={runtime} current={current} visible={visible} observed={observed} width={itemWidth}/>}/>;
-}
-
-function HomeChannelCard({rowId, item, context, runtime, current, visible, observed, width}: {rowId: string; item: HomeChannel; context: LayoutItemContext; runtime: NativeShellRuntime; current: () => boolean; visible: boolean; observed: number; width: number}) {
-  const anchor = useRef<View>(null), channel = item.channel, programme = channel.programmes.find(value => Date.parse(value.start) <= observed && Date.parse(value.end) > observed);
-  const parts: readonly FactPart[] = programme ? programmeFactParts({startMs: Date.parse(programme.start), endMs: Date.parse(programme.end), subtitle: programme.subtitle, flags: programme.flags, recording: !!programme.recordingId}, runtime.text, observed) : [];
-  const range = programme && programmeTimeRange(Date.parse(programme.start), Date.parse(programme.end), runtime.text);
-  return <LiveCard testID={context.testID} title={programme?.title ?? channel.name} channel={channel.name} number={channel.number} sourceName={item.source.name}
-    mark={{id: channel.id, sourceId: channel.sourceId, ...channel.mark}} logo={runtime.artwork(channel.logoPath)} width={width} visible={visible}
-    flags={parts.filter(part => part.role === 'status')} caption={parts.filter(part => part.id === 'remaining')} range={range?.text}
-    progress={programme ? (observed - Date.parse(programme.start)) / (Date.parse(programme.end) - Date.parse(programme.start)) : undefined}
-    menuAnchorRef={anchor} moreExpanded={runtime.selection(rowId).isMenuOpen?.(JSON.stringify([item.channel.sourceId, item.channel.id]))} accessibilityState={{expanded: !!runtime.selection(rowId).isMenuOpen?.(JSON.stringify([item.channel.sourceId, item.channel.id]))}}
-    primaryAction="navigate" onNavigate={() => {if (current()) runtime.actions.channel(item);}} onMore={() => {if (current()) runtime.actions.channelMore(item, anchor);}}
-    onFocus={context.onFocus} onBlur={context.onBlur} selection={context.selection}/>;
-}
-
