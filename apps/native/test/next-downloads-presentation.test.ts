@@ -115,6 +115,7 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
   const device = {getSnapshot: () => snapshot, subscribe: () => () => {}, open: async () => {opened++;},
     playabilityReason: () => null, remove: async (value: unknown) => {removed.push(value);}};
   const {DownloadsScreen} = await screenModule(new URL('../src-next/screens/downloads/DownloadsScreen.tsx', import.meta.url), {
+    '../../pages/touch/saved/DownloadsPage': {DownloadsPage: 'DownloadsPage'},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch'},
@@ -131,7 +132,7 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);
-    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children)] : [];
+    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children), ...nodes(node.props.body)] : [];
   }
   const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
   try {
@@ -162,6 +163,7 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
   const device = {getSnapshot: () => snapshot, subscribe: () => () => {}, open: async () => {opened++;},
     playabilityReason: () => null};
   const {DownloadsScreen} = await screenModule(new URL('../src-next/screens/downloads/DownloadsScreen.tsx', import.meta.url), {
+    '../../pages/touch/saved/DownloadsPage': {DownloadsPage: 'DownloadsPage'},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch'},
@@ -178,7 +180,7 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);
-    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children)] : [];
+    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children), ...nodes(node.props.body)] : [];
   }
   const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
   try {

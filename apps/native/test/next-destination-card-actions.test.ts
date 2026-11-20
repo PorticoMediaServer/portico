@@ -18,7 +18,7 @@ import {openNativeSavedDownload} from '../src-next/screens/downloads/playback.ts
 type Element = {type: any; props: Record<string, any>};
 function elements(node: any): Element[] {
   if (Array.isArray(node)) return node.flatMap(elements);
-  return node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children)] : [];
+  return node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children), ...elements(node.props.body)] : [];
 }
 const runtime = {text: defaultI18n, artwork: () => undefined, reportError() {}};
 const theme = createTheme({width: 390, isTV: false});
@@ -124,6 +124,7 @@ test('Saved preview cards preserve inactive selection and the actual native menu
   const actions = {menuEntry: (...args: any[]) => calls.push(args), isMenuOpen: (value: any) => value === entry};
   let registered = 0, retired = 0;
   const {SavedScreen} = await screenModule(new URL('../src-next/screens/saved/SavedScreen.tsx', import.meta.url), {
+    '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'},
     '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, './SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'},
     './paging': {savedNearEnd: () => false},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
