@@ -23,7 +23,7 @@ export function LibraryCard({entry, family, width, wide = false, placeholderHeig
   </TVSparseCardFrame>;
   // All live variants delegate only paint; the one outer native CardFrame survives a fill/kind change.
   if (entry.kind === 'radio' && entry.radioSeed) return renderCard(SquareCard, {focusId, disabled,
-    title: defaultI18n.t('music.radioNamed', {name: entry.title}), width, titleLines: 2,
+    title: defaultI18n.t('music.radioNamed', {name: entry.title}), width, titleLines: 2, onCaptionLayout,
     caption: [{id: 'radio', role: 'value' as const, text: defaultI18n.t('music.radio')}],
     artwork: runtime.artwork(entry.posterUrl), onNavigate: () => actions.play(entry), onFocus, onBlur});
   if (entry.kind === 'playlist' || entry.kind === 'category' && entry.navigation?.browse?.pivot === 'albums') {
@@ -32,7 +32,7 @@ export function LibraryCard({entry, family, width, wide = false, placeholderHeig
     const caption = entry.count === undefined ? [] : [{id: 'count', role: 'value' as const,
       text: defaultI18n.t(entry.countIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: entry.count, pivot: entry.kind === 'playlist' ? 'songs' : 'albums'})}];
     const resource = {focusId, disabled, width, title: entry.title, caption, covers, onNavigate: () => actions.open(entry), onFocus, onBlur};
-    return entry.kind === 'playlist' ? renderCard(PlaylistMosaic, {...resource, titleLines: 2})
+    return entry.kind === 'playlist' ? renderCard(PlaylistMosaic, {...resource, titleLines: 2, onCaptionLayout})
       : renderCard(GenreTile, {...resource, variant: 'music' as const, height: theme.isTV ? 180 : 84});
   }
   const text = homeCardText(entry, false, runtime.text);

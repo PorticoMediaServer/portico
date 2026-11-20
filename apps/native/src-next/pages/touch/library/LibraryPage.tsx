@@ -78,6 +78,6 @@ function LibraryCatalogue(props: LibraryProps & {
       initialIndex={grid.initialIndex} renderItem={(entry, cell, width, onCaptionLayout) => {
         const item = {entry, width, runtime, actions, focusId: cell.focusId ?? nativeLibraryEntryKey(entry), onFocus: cell.onFocus, onBlur: cell.onBlur,
           selected: cell.selection, onSelect: cell.selection?.onEnter ?? grid.selection?.start, disabled: !view.active.visible};
-        return list ? <LibraryListRow {...item}/> : <LibraryCard {...item} family={state.library.kind} onCaptionLayout={onCaptionLayout}/>;
+        return list ? <LibraryListRow {...item} onCaptionLayout={onCaptionLayout}/> : <LibraryCard {...item} family={state.library.kind} onCaptionLayout={onCaptionLayout}/>;
       }}/>}/>;
 }

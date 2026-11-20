@@ -120,14 +120,14 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
   if (failure) return <View testID={testID} style={{flex: 1}}>{top}<PageStateFrame {...failure}/></View>;
   const loadingMessage = state && 'message' in state && state.message ?
     <Text accessibilityLiveRegion="polite" style={[theme.type.caption, {color: theme.colors.textSecondary, paddingHorizontal: frame.gutter}]}>{state.message}</Text> : null;
-  const rows = <FrameRhythm.Provider value><View onLayout={onRowsLayout} style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <><RowsSkeleton/>{loadingMessage}</> : <>
+  const rows = <FrameRhythm.Provider value><View onLayout={onRowsLayout} style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <>{loadingMessage}<RowsSkeleton/></> : <>
     {notice ? <View style={{paddingHorizontal: frame.gutter}}>{notice}</View> : null}
     {children}
     {foot ? <BrowseFoot {...foot}/> : null}
   </>}</View></FrameRhythm.Provider>;
   const body = grid || (loading && toolbar)
     ? <View style={{flex: 1, marginTop: frameSpec.browse.gridGap[form]}}>
-      {loading ? <><GridSkeleton/>{loadingMessage}</> : grid}
+      {loading ? <>{loadingMessage}<GridSkeleton/></> : grid}
       {gridState && <View style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}}><PageStateFrame {...gridState}/></View>}
       {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>
