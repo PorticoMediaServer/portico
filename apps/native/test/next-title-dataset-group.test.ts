@@ -17,17 +17,35 @@ async function fixture(on: boolean | undefined, tv = false, saving = false) {
   const saves: Record<string, unknown>[] = [];
   const titleData = {getSnapshot: () => ({saving: false}), set: (change: (value: Record<string, unknown>) => Record<string, unknown>) => {draft = change(draft);}};
   const group = {mount: 1, forms: {titleData}, set: {save: async () => {saves.push(draft);}}};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/TitleDatasetGroup.tsx', import.meta.url), {
-    react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsRowIndex},
-    '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/shell/visual': {shellType: () => ({})},
-    '../../../kit/theme': {useTheme: () => ({colors: {textTertiary: '#999', raised: '#222'}})},
-    '../owner-libraries/controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
-    './storage/forms': {useStorageForms: (_ports: unknown, ids: readonly string[]) => {assert.deepEqual(ids, ['titleData']);return group;}, useFormState: () => ({draft}), useStorageSet: () => ({saving})},
-    './TVSettingRows': {TVSwitchRow: 'TVSwitchRow'},
-  });
+  const forms = {useStorageForms: (_ports: unknown, ids: readonly string[]) => {assert.deepEqual(ids, ['titleData']);return group;},
+    useFormState: () => ({draft}), useStorageSet: () => ({saving})};
   const props = {ports: {}, runtime: {text: {t}, reportError() {}}, tv};
-  const element = outer.render(() => module.NativeTitleDatasetGroup(props)) as Node;
+  let element: Node;
+  if (tv) {
+    const legacy = await screenModule(new URL('../src-next/screens/settings-live/server/TitleDatasetGroup.tsx', import.meta.url), {
+      react, 'react-native': {Text: 'Text', View: 'View'},
+      '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsRowIndex},
+      '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/shell/visual': {shellType: () => ({})},
+      '../../../kit/theme': {useTheme: () => ({colors: {textTertiary: '#999', raised: '#222'}})},
+      '../owner-libraries/controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
+      './storage/forms': forms, './TVSettingRows': {TVSwitchRow: 'TVSwitchRow'},
+    });
+    element = outer.render(() => legacy.NativeTitleDatasetGroup(props));
+  } else {
+    const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerMetadata.ts', import.meta.url), {
+      react, '../../../../../../packages/client-core/src/metadata-settings': {},
+      '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec: [], settingsRowIndex},
+      '../../../../../../packages/i18n/src': {}, '../../../screens/settings-live/server/metadata-controller': {},
+      '../../../screens/settings-live/server/storage/forms': forms, '../../../screens/settings-live/use-settings-request-scope': {},
+    });
+    const page = await screenModule(new URL('../src-next/pages/shared/settings/ServerMetadataPage.tsx', import.meta.url), {
+      react, '../../../../../../packages/client-core/src/metadata-settings': {}, './useServerMetadata': model,
+      '../../../kit/controls': {Switch: 'Switch'}, '../../../kit/frames': {SectionCard: 'SectionCard'},
+      '../../../kit/overlays': {}, '../../../kit/overlays/surface': {}, '../../../kit/settings/AdvancedSection': {},
+      '../../../kit/settings/SettingsParts': {}, '../../../kit/states': {}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    });
+    element = outer.render(() => page.TitleDatasetGroup(props));
+  }
   return {saves, render: () => {active = inner; return inner.render(() => element.type(element.props));}};
 }
 
@@ -56,7 +74,7 @@ test('the switch shows the owner setting, on when never saved, and saves a chang
     const control = byId(tree, 'metadata.titleDataset')!;
     assert.equal(control.type, 'Switch');
     assert.equal(control.props.checked, shown, `stored ${stored}`);
-    assert.ok(nodes(tree).some(value => value.type === 'SectionTitle'), 'the Recommendations heading');
+    assert.ok(nodes(tree).some(value => value.type === 'SectionCard' && !!value.props.label), 'the Recommendations heading');
     assert.ok(nodes(tree).some(value => value.type === 'SettingsRow' && value.props.label === row.label && value.props.description === row.help));
   }
   const f = await fixture(true);
