@@ -193,8 +193,10 @@ function FiltersSurface({filters, testID}: {filters: BrowseFiltersProps; testID?
   const show = <Button focusId="apply" variant="primary" disabled={filters.canApply === false} onPress={filters.onDone} style={{flex: 1}}>{filters.count ? t('next.browse.native.showResults', {results: filters.count}) : t('next.controls.done')}</Button>;
   if (form === 'medium') return over ? <FiltersOver open={filters.open} onDismiss={filters.onClose} onExited={() => setOver(false)}><Pane filters={filters}/></FiltersOver> : null;
   if (form === 'expanded') return null;
+  const panel = frameSpec.browse.filtersPanelTV;
   if (form === 'tv') return <SidePanel testID={testID} open={filters.open} onOpenChange={close} title={t('next.browse.native.filters')} description={filters.count && t('next.browse.native.resultsMatch', {results: filters.count})}
-    width={frameSpec.browse.filtersWidth.tv} topInset={0} showClose={false}
+    width={frameSpec.browse.filtersWidth.tv} topInset={0} showClose={false} style={{paddingTop: panel.top}}
+    headerStyle={{paddingTop: 0, paddingBottom: panel.belowCount}} descriptionTextStyle={{marginTop: panel.countGap, color: theme.colors.textTertiary}}
     footer={<View style={{flexDirection: 'row', gap: theme.space.sm}}>{show}<Button focusId="clear" variant="glass" onPress={filters.onClear}>{t('next.browse.native.clearAll')}</Button></View>}>{filters.children}</SidePanel>;
   return <BottomSheet testID={testID} open={filters.open} onOpenChange={close} title={t('next.browse.native.filters')} showClose={false} scrollable={false} detents={frameSpec.browse.phoneFilterDetents.map(detent => detent * height)} defaultDetent={1}
     headerAction={<Button focusId="clear" variant="text" textStyle={{color: theme.colors.textSecondary}} onPress={filters.onClear}>{t('next.browse.native.clearAll')}</Button>}

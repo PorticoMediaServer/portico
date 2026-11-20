@@ -133,7 +133,7 @@ export function Dialog(props: DialogProps) {
 function useScrimStyle(progress: {value: number}) {
   return useAnimatedStyle(() => ({opacity: progress.value}));
 }
-export function SidePanel({open, onOpenChange, title, headerContext, description, children, footer, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, width, topInset = 76, closeOnOutsidePress = false, dismissOnBack = true, showClose = true, logicalCanvas}: SidePanelProps) {
+export function SidePanel({open, onOpenChange, title, headerContext, description, children, footer, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, width, topInset = 76, closeOnOutsidePress = false, dismissOnBack = true, showClose = true, headerStyle, logicalCanvas}: SidePanelProps) {
   const theme = useTheme(), paint = useOverlayPaintMode();
   const frame = useOverlayFrame();
   const viewport = useWindowDimensions();
@@ -159,7 +159,7 @@ export function SidePanel({open, onOpenChange, title, headerContext, description
   const content = <>{theme.isTV && <PanelBackground/>}
       <FocusBoundary modal testID={region} layer={layer} style={styles.root}>
         {headerContext}
-        <SurfaceHeader side title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} action={showClose ? <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" onPress={() => dismiss('close-button')}>{defaultI18n.t('action.close')}</Button> : undefined}/>
+        <SurfaceHeader side title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} style={headerStyle} action={showClose ? <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" onPress={() => dismiss('close-button')}>{defaultI18n.t('action.close')}</Button> : undefined}/>
         <View style={[styles.root, contentStyle]}>{children}</View>
         {footer != null && <View style={{paddingHorizontal: theme.isTV ? 0 : 20, paddingTop: 16, gap: theme.isTV ? 0 : 10}}>{footer}</View>}
       </FocusBoundary></>;

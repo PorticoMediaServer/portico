@@ -53,6 +53,8 @@ export type SidePanelProps = SurfaceProps & {
   closeOnOutsidePress?: boolean;
   dismissOnBack?: boolean;
   showClose?: boolean;
+  /** The title block's own spacing, where a panel is drawn as another kind of side panel than a menu sheet. */
+  headerStyle?: StyleProp<ViewStyle>;
   /** TV-only authored canvas; style applies inside its uniformly scaled physical portal. */
   logicalCanvas?: {width: number; height: number};
 };

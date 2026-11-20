@@ -163,6 +163,9 @@ export const frame = {
     /** Phone 6: the sheet fills this share of an upright window at each stop. */
     phoneFilterDetents: [.69, .83] as const,
     filtersWidth: {...forms(0, 420, 380, 680), web: 520},
+    /** TV Filters is a `.panel-r` (tv.html frame 4), not a menu `.sheet`: 60 above the title, the count line 8 under it and
+     * 30 from the count line to the first group. */
+    filtersPanelTV: {top: 60, countGap: 8, belowCount: 30},
   },
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing.
    * The phone (phone-app 14 and 15) is one column; the wide forms (desktop-listen "now" and "book-player", tablet-play
