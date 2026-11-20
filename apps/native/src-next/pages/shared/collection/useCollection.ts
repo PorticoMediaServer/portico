@@ -5,7 +5,7 @@ import {collectionCaptionParts, type FactPart} from '../../../../../../packages/
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
-import {posterGridScroller, titleRowsScroller, type PosterGridItem, type PosterGridScrollerProps, type StateRowProps, type TitleCollapse} from '../../../kit/frames';
+import {titleRowsScroller, type PosterGridItem, type PosterGridScrollerProps, type StateRowProps, type TitleCollapse} from '../../../kit/frames';
 import type {MenuEntry} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
@@ -84,7 +84,8 @@ export type CollectionView = Readonly<{
   /** The read's sorts, when it offers more than one; Select on a tablet (a phone selects from a row's menu). */
   sort?: Readonly<{label: string; open: () => void}>; select?: Readonly<{label: string; onPress: () => void}>;
   state?: StateRowProps;
-  /** The members, windowed: rows on a phone (frame 8), posters on a tablet (the old screen's grid). */
+  /** The members, windowed, as rows on every touch form: phone-detail d3 frame 8, and desktop-detail f8's films in order
+   * for a tablet on its side (the old screen's poster grid on a tablet is gone). */
   scroller: (content: ReactNode, style: ViewStyle, collapse: TitleCollapse) => ReactNode;
   sortMenu: Menu; pageMenu: Menu;
   /** TV (tv-detail frame 11): the lede under the facts (the read's overview, else composed from the films as Home's banner
@@ -108,6 +109,7 @@ export function useCollection({state, runtime, actions, selection, onPlay, onShu
   const retry = {label: t('action.tryAgain'), onPress: onRetry};
   const more = (entry: ContentEntry) => actions ? (anchor: Parameters<NonNullable<typeof actions>['menu']>[1]) => actions.menu(entry, anchor, selection?.item(entry)?.onEnter) : undefined;
   const select = selection?.start ? () => selection.start?.() : undefined;
+  // TV's one row of posters.
   const poster = (entry: ContentEntry): PosterGridItem => ({title: entry.displayTitle || entry.title,
     caption: entry.year === undefined ? undefined : String(entry.year), artwork: runtime.artwork(entry.posterUrl), watched: entry.watched,
     progress: entry.duration && entry.progressSeconds ? Math.min(1, entry.progressSeconds / entry.duration) : undefined,
@@ -128,15 +130,13 @@ export function useCollection({state, runtime, actions, selection, onPlay, onShu
       : failed ? {kind: 'error', icon: 'i-warn', title: presentError(state.error, 'detail').title, action: retry}
       : empty ? {kind: 'empty', icon: 'i-layers', title: t('next.collection.empty')}
       : state.error ? {kind: 'error', icon: 'i-warn', title: presentError(state.error, 'detail').title, action: retry} : undefined,
-    scroller: phone
-      ? titleRowsScroller({collection: state.collection, getKey: keyOf, testID: 'collection-list', item: entry => {
+    scroller: titleRowsScroller({collection: state.collection, getKey: keyOf, testID: 'collection-list', item: entry => {
         const progress = entry.duration && entry.progressSeconds ? Math.min(1, entry.progressSeconds / entry.duration) : undefined;
         // Lengths read as on every title page ("1 h 21 min", durationText), not the Saved list's short form.
         return {title: entry.displayTitle || entry.title, facts: [entry.year === undefined ? undefined : String(entry.year), length(entry.duration)].filter((fact): fact is string => !!fact),
           watched: entry.watched, progress, remaining: progress !== undefined ? t('next.kit.remaining', {time: length(Math.max(0, (entry.duration ?? 0) - (entry.progressSeconds ?? 0))) ?? ''}) : undefined,
           artwork: runtime.artwork(entry.posterUrl), selection: selection?.item(entry), onNavigate: () => onOpen(entry), onMore: more(entry), testID: `collection-item-${entry.id}`};
-      }})
-      : posterGridScroller({collection: state.collection, getKey: keyOf, testID: 'collection-grid', item: poster}),
+      }}),
     sortMenu: {title: t('web.filters.sortBy'), open: sortOpen, onOpenChange: setSortOpen,
       items: state.sorts.map(value => ({id: value.id, label: sortName(value), selected: value.id === state.sort, onSelect: () => onSort(value.id, value.directions[0] ?? 'asc')}))},
     pageMenu: {title: state.title, open: pageOpen, onOpenChange: setPageOpen, items: [

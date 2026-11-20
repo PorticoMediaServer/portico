@@ -11,7 +11,7 @@ import {useCollection, type CollectionPageProps} from '../../shared/collection/u
 const t = defaultI18n.t;
 
 /** A collection's page on a phone and a tablet (phone-detail d3 frame 8): `TitleFrame` with Play all, Shuffle and ⋯, the
- * note when Portico made it, the count with the sort, and its films windowed: rows on a phone, posters on a tablet. */
+ * note when Portico made it, the count with the sort, and its films windowed as rows (desktop-detail f8 on a tablet on its side). */
 export function CollectionPage(props: CollectionPageProps) {
   const view = useCollection(props);
   return <>
@@ -20,7 +20,7 @@ export function CollectionPage(props: CollectionPageProps) {
       art={<AmbientArt treatment="title" source={view.ambient} foreground={view.backdrop}/>}
       kicker={{label: view.kicker}} title={view.title} metadata={<HeroMetadata facts={view.facts}/>}
       primary={{icon: 'i-play', label: t('next.cards.playAll'), onPress: view.play, testID: 'collection-play-all'}}
-      actions={[{icon: 'i-shuffle', label: t('title.shuffle'), onPress: view.shuffle, testID: 'collection-shuffle'},
+      actions={[{icon: 'i-shuffle', label: t('title.shuffle'), labelled: true, onPress: view.shuffle, testID: 'collection-shuffle'},
         {icon: 'i-more', label: t('card.more', {title: view.title}), onPress: () => view.pageMenu.onOpenChange(true), testID: 'collection-menu'}]}
       note={view.note} scroller={view.scroller}>
       <PanelBlock>

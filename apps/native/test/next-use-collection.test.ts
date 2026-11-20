@@ -47,7 +47,7 @@ test('a collection shows its count, years and genres, the automatic note, and it
   view.shuffle(); assert.deepEqual(calls.at(-1), ['shuffle']);
 });
 
-test('the sort offers the read\'s sorts; the page menu holds Play all, Shuffle and Select; a tablet draws posters and leads with Select', async () => {
+test('the sort offers the read\'s sorts; the page menu holds Play all, Shuffle and Select; a tablet draws the rows too (desktop-detail f8) and leads with Select', async () => {
   const {view, calls} = await collection();
   // The read's sort keys are not sort names in the catalogue (`sort.title` is "Sort by"): the page names each sort.
   assert.equal(view.sort.label, t('sort.releaseDate'));
@@ -57,7 +57,7 @@ test('the sort offers the read\'s sorts; the page menu holds Play all, Shuffle a
   assert.equal(view.select, undefined, 'a phone selects from a row\'s menu');
   assert.equal((await collection({sorts: [{id: 'release', labelKey: 'x', directions: ['asc']}]})).view.sort, undefined, 'one sort is no choice');
   const tablet = await collection({}, 'expanded');
-  assert.equal(tablet.view.scroller, 'grid');
+  assert.equal(tablet.view.scroller, 'rows');
   tablet.view.select.onPress(); assert.deepEqual(tablet.calls.at(-1), ['select']);
 });
 

@@ -14,7 +14,7 @@ import {useTheme} from '../theme';
 import {browseGridCard} from './BrowseFrame';
 import {useFrameMetrics} from './metrics';
 import type {TitleCollapse} from './TitleFrame';
-import {TitleListRow, titleListRowHeight, type TitleListItem} from './TitleListRow';
+import {TitleListRow, titleListArt, titleListRowHeight, type TitleListItem} from './TitleListRow';
 import {MusicScrollView} from '../music/MusicWindow';
 import {PanelBlock, PanelHeading} from './title-parts';
 
@@ -97,7 +97,7 @@ export function titleRowsScroller<T>(props: TitleRowsScrollerProps<T>) {
 }
 
 function TitleRowsScroller<T>({collection, getKey, item, testID, content, style, collapse}: TitleRowsScrollerProps<T> & Readonly<{content: ReactNode; style: ViewStyle; collapse: TitleCollapse}>) {
-  const theme = useTheme(), frame = useFrameMetrics(), row = frameSpec.hero.title.parts.listRow;
+  const theme = useTheme(), frame = useFrameMetrics();
   const width = frame.width - frame.gutter - frame.rightGutter, height = titleListRowHeight(theme);
   const bottom = typeof style.paddingBottom === 'number' ? style.paddingBottom : 0, top = typeof style.paddingTop === 'number' ? style.paddingTop : 0;
   const latest = useRef(collapse);
@@ -106,7 +106,7 @@ function TitleRowsScroller<T>({collection, getKey, item, testID, content, style,
   return <WindowedGrid testID={testID} collection={collection} getKey={getKey} header={content} style={{flex: 1}}
     itemWidth={width} itemHeight={height} gap={0} rowGap={0} gutter={frame.gutter} rightGutter={frame.rightGutter} paddingTop={top + frame.headingGap} paddingBottom={bottom}
     onScrollOffset={onOffset}
-    renderPlaceholder={() => <SkeletonBlock width={row.poster} height={row.poster * 1.5} radius={theme.radii.artwork}/>}
+    renderPlaceholder={() => <SkeletonBlock width={titleListArt(theme)} height={titleListArt(theme) * 1.5} radius={theme.radii.artwork}/>}
     renderItem={value => <TitleListRow item={item(value)}/>}/>;
 }
 
