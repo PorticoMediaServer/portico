@@ -21,19 +21,21 @@ export function LibraryPage(props: LibraryProps) {
       onValueChange={id => runtime.onDestination({kind: 'library', libraryId: id})}/>};
   const notice = view.summaryError && <Banner placement="inline" variant="notice" tone="warning" icon="i-alert"
     message={t('next.browse.librarySummariesUnavailable')} action={{label: t('next.states.tryAgain'), onPress: view.retrySummaries}}/>;
-  if (state.collection && !view.failure && !view.emptyState) return <TVCatalogue {...props} view={view} header={header} filters={filters} notice={notice}/>;
+  if (state.collection && !view.failure) return <TVCatalogue {...props} view={view} header={header} filters={filters} notice={notice}/>;
   const loading = state.phase === 'loading' || state.phase === 'idle';
   const pageState = view.failure ?? view.emptyState;
-  return <BrowseFrame testID="library-frame" header={header} notice={notice} state={pageState ? {...pageState, focus: view.pageState} : loading ? {kind: 'loading'} : undefined}
+  const shelfBar = shelfSelection?.render(path => path && <Artwork source={runtime.artwork(path)}/>);
+  return <BrowseFrame testID="library-frame" header={header} notice={notice} toolbar={props.tvMusicDiscover ? shelfBar : undefined}
+    state={pageState ? {...pageState, focus: view.pageState} : loading ? {kind: 'loading'} : undefined}
     grid={props.tvMusicDiscover ?? (loading && state.tab.shows !== 'rows')}>
-    {shelfSelection?.render(path => path && <Artwork source={runtime.artwork(path)}/>)}
+    {!props.tvMusicDiscover && shelfBar}
     {state.discover.error ? <StateView {...runtime.error(state.discover.error, destination.retry, 'library')}/> : null}
     {view.shelves.map(row => <LibraryShelf key={row.id} title={row.title} items={row.entries}
       shape={row.shape === 'landscape' ? 'wide' : row.shape ?? 'poster'} focus={row.focus} getKey={nativeLibraryEntryKey} onVisibleRange={row.onVisibleRange}
-      renderItem={(entry, cell, width) => {
+      renderItem={(entry, cell, width, onCaptionLayout) => {
         const selected = shelfSelection?.item(entry);
         return <LibraryCard entry={entry} family={state.library.kind} width={width} wide={row.shape === 'landscape'} runtime={runtime} actions={actions}
-          focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} disabled={!active.visible}/>;
+          focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>;
       }}/>)}
   </BrowseFrame>;
 }
@@ -50,7 +52,8 @@ function TVCatalogue(props: LibraryProps & {
     save={{canSave: view.canSave, onSave: view.save}}
     selection={grid.selected?.active && grid.selection?.render(path => path && <Artwork source={runtime.artwork(path)}/>)}/>
     {grid.data.status === 'error' && <StateView {...runtime.error(grid.data.error, destination.retry, 'library')}/>}</>;
-  return <BrowseFrame testID="library-frame" header={header} toolbar={toolbar} filters={filters}
+  return <BrowseFrame testID="library-frame" header={header} toolbar={view.emptyState ? undefined : toolbar} filters={filters}
+    gridState={view.emptyState && {...view.emptyState, focus: view.pageState}}
     grid={<>
       {grid.filteredEmpty ? <FilteredEmpty onClearFilters={grid.clear} focus={grid.region}/>
         : <BrowseGrid gridRef={grid.grid} testID="library-grid" shape={grid.shape} region={grid.region} initialIndex={grid.initialIndex}

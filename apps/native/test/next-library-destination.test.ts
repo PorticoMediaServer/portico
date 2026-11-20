@@ -95,6 +95,13 @@ test('Applied Library chips retain semantic predicate IDs and never flatten a cr
   assert.equal(chips[1].id, JSON.stringify(negative));
   assert.deepEqual(libraryAppliedFilters([negative, decade], filterCapabilities, labels).map(chip => chip.id), [chips[1].id, chips[0].id]);
   assert.equal(JSON.stringify(alternative), before, 'a complex condition remains whole for the actual query/editor');
+  const decades: BrowseNode = {variant: 'group', any: [
+    {variant: 'predicate', field: 'year', operator: 'between', value: [1950, 1959]},
+    {variant: 'predicate', field: 'year', operator: 'between', value: [1980, 1989]},
+  ]};
+  const [rangeChip] = libraryAppliedFilters([decades], filterCapabilities, labels);
+  assert.equal(rangeChip.id, JSON.stringify(decades));
+  assert.equal(rangeChip.label, 'Year: 1950s, 1980s');
 });
 
 // P2-61 HOME-RESILIENCE: a FIRST page refused as stale (412 while a library imports) is read once

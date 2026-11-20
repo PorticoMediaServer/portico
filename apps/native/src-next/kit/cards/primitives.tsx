@@ -25,6 +25,8 @@ export type CardNativeProps = Omit<PressableProps, 'children' | 'style' | 'onPre
   title: string;
   /** The caller's authored title allowance, shared by square, circle and mosaic cards. */
   titleLines?: 1 | 2;
+  /** Shelves that reserve room for the complete title receive the caption’s laid-out height. */
+  onCaptionLayout?: (height: number) => void;
   /** The line under the title may take two lines: a cast member's role is a name, never cut (detail-tv-4, phone-detail d1). */
   captionLines?: 1 | 2;
   caption?: readonly FactPart[];
@@ -64,7 +66,7 @@ export type CardFrameProps = CardFrameSurfaceProps & {children: (state: Interact
   focusScale?: number};
 
 /** One root TV focus target. Images and secondary affordances never register Menu. */
-export function CardFrame({children, overlay, frame: _frame, title, titleMargin: _titleMargin, caption, detail, accessibilityDetails = [], watched, isNew, playing, progress, primaryAction, onNavigate, onPlay, onMore, selection, width, style, onFocus, onBlur, disabled, accessibilityLabel, testID, focusId, focusable, moreExpanded, pressableStyle, menuAnchorRef, preferredFocus = false, focusScale, ...native}: CardFrameProps) {
+export function CardFrame({children, overlay, frame: _frame, title, titleMargin: _titleMargin, onCaptionLayout: _onCaptionLayout, caption, detail, accessibilityDetails = [], watched, isNew, playing, progress, primaryAction, onNavigate, onPlay, onMore, selection, width, style, onFocus, onBlur, disabled, accessibilityLabel, testID, focusId, focusable, moreExpanded, pressableStyle, menuAnchorRef, preferredFocus = false, focusScale, ...native}: CardFrameProps) {
   const theme = useTheme(), motion = useMotion(), covered = useCovered(), layerCovered = useLayerCovered();
   const eligible = !disabled && focusable !== false;
   const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: !eligible, ref: menuAnchorRef, preferred: theme.isTV && preferredFocus, preferredBlocked: covered});
@@ -191,14 +193,17 @@ export function Parts({parts = [], style, gap = 8, strong = false, fit = 'cut', 
 /** A fact line's height as a share of its size in `drop` mode: room for a bold, status or fallback-font (CJK, emoji) fact. */
 const factLineRatio = 1.4;
 
-export function Caption({title, titleLines, captionLines, caption, detail, density, titleTextStyle, titleMargin, captionTextStyle, selected, centered, focused, tvRestingSecondary, lines = titleLines ?? 1}: Pick<CardProps, 'title' | 'titleLines' | 'captionLines' | 'caption' | 'detail' | 'density' | 'titleTextStyle' | 'titleMargin' | 'captionTextStyle'> & {selected?: boolean; centered?: boolean; focused?: boolean; tvRestingSecondary?: boolean; lines?: number}) {
+export function Caption({title, titleLines, onCaptionLayout, captionLines, caption, detail, density, titleTextStyle, titleMargin, captionTextStyle, selected, centered, focused, tvRestingSecondary, lines = titleLines ?? 1}: Pick<CardProps, 'title' | 'titleLines' | 'onCaptionLayout' | 'captionLines' | 'caption' | 'detail' | 'density' | 'titleTextStyle' | 'titleMargin' | 'captionTextStyle'> & {selected?: boolean; centered?: boolean; focused?: boolean; tvRestingSecondary?: boolean; lines?: number}) {
   const t = useTheme(), waiting = useFocusWaiting();
   const compact = density === 'grid' && !t.isTV, slot = t.scale.card.caption, top = titleMargin ?? (compact ? 7 : slot.gap);
   // R5: a reserved slot. The title and the line under it keep their boxes when the card has no second line (and when a
   // title that may take two lines takes one), so the cards of a row line up and the row's height includes its captions.
   const reserved = compact ? undefined : Math.ceil((slot.titleLine * lines + slot.subtitleLine) * t.fontScale) + slot.subtitleGap;
-  return <View accessibilityElementsHidden={waiting} importantForAccessibility={waiting ? 'no-hide-descendants' : 'auto'} style={{opacity: waiting ? 0 : 1, marginTop: top, minHeight: reserved, gap: slot.subtitleGap, alignItems: centered ? 'center' : undefined}}>
-    <Text numberOfLines={lines} ellipsizeMode="tail" style={[t.type.cardTitle, compact ? titleStyle(t, 12.5, 600) : {lineHeight: slot.titleLine}, {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' : 'left'}, titleTextStyle]}>{title}</Text>
+  return <View accessibilityElementsHidden={waiting} importantForAccessibility={waiting ? 'no-hide-descendants' : 'auto'}
+    onLayout={onCaptionLayout && (event => onCaptionLayout(event.nativeEvent.layout.height + top))}
+    style={{opacity: waiting ? 0 : 1, marginTop: top, minHeight: reserved, gap: slot.subtitleGap, alignItems: centered ? 'center' : undefined}}>
+    <Text numberOfLines={onCaptionLayout ? undefined : lines} ellipsizeMode="tail"
+      style={[t.type.cardTitle, compact ? titleStyle(t, 12.5, 600) : {lineHeight: slot.titleLine}, {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' : 'left'}, titleTextStyle]}>{title}</Text>
     <Parts parts={caption} fit={captionLines === 2 ? 'wrap' : t.isTV ? 'cut' : 'drop'} lines={captionLines} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
   </View>;
 }
