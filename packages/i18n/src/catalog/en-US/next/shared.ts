@@ -29,6 +29,7 @@ export const shared = {
   'next.kit.books': '{count, plural, one {# book} other {# books}}',
   'next.kit.booksHeading': 'Books',
   'next.kit.booksInSeries': 'Books in this series',
+  'next.kit.seriesKind': 'Series',
   'next.kit.narrators': 'Narrators',
   'next.kit.items': '{count, plural, one {# item} other {# items}}',
   'next.kit.itemsAtLeast': '{count, number}+ items',

@@ -46,6 +46,8 @@ export const platformMessages = {
   'next.platform.frame.titleAlbum': 'Title page: an album',
   'next.platform.frame.titleArtist': 'Title page: an artist',
   'next.platform.frame.titleBook': 'Title page: an audiobook',
+  'next.platform.frame.titleAuthor': 'Title page: an author of audiobooks',
+  'next.platform.frame.titleSeries': 'Title page: a series of audiobooks',
   'next.platform.frame.settingsList': 'Settings list',
   'next.platform.frame.settingsPage': 'Settings page and in-section states',
   'next.platform.frame.sheet': 'Sheet',

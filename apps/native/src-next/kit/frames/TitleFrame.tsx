@@ -33,7 +33,9 @@ export type TitlePrimary = Omit<RowPrimary, 'focusId'>;
 /** One part of the credits line: "Directed by" and the names; a name with `onPress` opens its page. */
 export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
-export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: string; onPress?: () => void}>;
+export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: string; onPress?: () => void;
+  /** In the accent though it is not a link: an author's or a series' kind over their name (collections 41b, 41c). */
+  accent?: boolean}>;
 /** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. The frame
  * sizes it per form; a picture that draws to a size (a person's initials) takes it as a function of the width. */
 export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNode); shape: 'poster' | 'square' | 'circle';
@@ -208,7 +210,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
   const centre = stacked ? 'center' as const : 'flex-start' as const;
 
   const kickerWords = kicker && <>
-    <Text accessibilityRole={kicker.onPress && !tv ? 'link' : undefined} onPress={tv ? undefined : kicker.onPress} style={[theme.type.rowHelp, {color: kicker.onPress || kicker.icon ? theme.colors.accentStrong : theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>
+    <Text accessibilityRole={kicker.onPress && !tv ? 'link' : undefined} onPress={tv ? undefined : kicker.onPress} style={[theme.type.rowHelp, {color: kicker.onPress || kicker.icon || kicker.accent ? theme.colors.accentStrong : theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>
       {kicker.icon ? <><Icon name={kicker.icon} size={tv ? theme.scale.icon.tertiary.size : 16} color={theme.colors.accentStrong}/>{' '}</> : null}{kicker.label}</Text>
     {kicker.detail !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{kicker.detail}</Text>}
   </>;
