@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
+import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import {FormError} from '../../kit/controls';
 import {ProfilePicker} from '../../kit/artwork';
@@ -42,6 +42,14 @@ export function LifecycleProfileGate() {
   const [code, setCode] = useState(''), [remember, setRemember] = useState(true), [forgot, setForgot] = useState(false);
   const [recovery, setRecovery] = useState<{controller: NativeProfileRecovery; id: string; name: string}>();
   const state = snapshot.state;
+  // A callback belongs to the committed prompt and the exact lifecycle state that supplied it.
+  const presented = useMemo(() => ({state, forgot, recovery}), [state, forgot, recovery]);
+  const committed = useRef<typeof presented | undefined>(undefined);
+  useLayoutEffect(() => {
+    committed.current = presented;
+    return () => {committed.current = undefined;};
+  }, [presented]);
+  const currentPIN = () => committed.current === presented && lifecycle.getSnapshot().state === state;
   const profileId = state.kind === 'enteringPin' ? state.profile.id : undefined;
   // A new PIN screen starts empty; the tick is the person's and carries from the picker to the PIN page and back.
   useEffect(() => {setCode(''); setForgot(false);}, [profileId]);
@@ -53,18 +61,22 @@ export function LifecycleProfileGate() {
   useEffect(() => {
     if (!refused) return;
     const refusedCode = codeNow.current;
-    const timer = setTimeout(() => setCode(current => current === refusedCode ? '' : current), 400);
+    const timer = setTimeout(() => {
+      if (lifecycle.getSnapshot().state === refused) setCode(current => current === refusedCode ? '' : current);
+    }, 400);
     return () => clearTimeout(timer);
-  }, [refused]);
+  }, [lifecycle, refused]);
   const choosing = state.kind === 'choosingProfile' || state.kind === 'enteringPin';
   useEffect(() => {if (!choosing) setRemember(true);}, [choosing]);
   useEffect(() => () => recovery?.controller.dispose(), [recovery]);
   const back = () => {
+    if (state.kind === 'enteringPin' && !currentPIN()) return;
+    if (state.kind === 'enteringPin') committed.current = undefined;
     afterEntry.clear();
     if (recovery) {recovery.controller.dispose(); setRecovery(undefined); return;}
     if (forgot) {setForgot(false); return;}
     // Leaving the PIN page forgets its refusal, so a PIN page opened again starts with no message.
-    if (state.kind === 'enteringPin') {lifecycle.actions.submitPin.reset(); lifecycle.otherProfiles();}
+    if (state.kind === 'enteringPin') {setCode(''); lifecycle.actions.submitPin.reset(); lifecycle.otherProfiles();}
     else if (state.kind === 'choosingProfile' && state.switching) lifecycle.cancelSwitch();
   };
   const handlesBack = state.kind === 'enteringPin' || !!recovery || forgot || state.kind === 'choosingProfile' && state.switching;
@@ -104,9 +116,15 @@ export function LifecycleProfileGate() {
   }
 
   const profile = state.profile;
-  const send = (value: string) => {if (/^\d{4}$/.test(value) && !busy) lifecycle.actions.submitPin.start(value, remember && state.canRemember);};
+  const ready = () => currentPIN() && lifecycle.actions.pickProfile.getSnapshot().phase !== 'working'
+    && lifecycle.actions.submitPin.getSnapshot().phase !== 'working';
+  const changeCode = (value: string) => {if (ready()) setCode(value);};
+  const changeRemember = (value: boolean) => {if (ready()) setRemember(value);};
+  const send = (value: string) => {
+    if (/^\d{4}$/.test(value) && ready()) lifecycle.actions.submitPin.start(value, remember && state.canRemember);
+  };
   const openRecovery = () => {
-    if (!connection || busy) return;
+    if (!connection || !ready()) return;
     const session = connection.session, pin = connection.api.getRouteConnection()?.pin;
     if (!pin) return;
     const authorityCurrent = () => {
@@ -114,7 +132,7 @@ export function LifecycleProfileGate() {
       return (now.kind === 'enteringPin' || now.kind === 'choosingProfile') && now.viewer.familyId === session.sessionFamilyId
         && !!live && live.serverId === pin.serverId && live.publicKey === pin.publicKey && live.fingerprint === pin.fingerprint;
     };
-    setRecovery({id: profile.id, name: profile.name, controller: new NativeProfileRecovery({api: connection.api, snapshot: connection.account, profileId: profile.id,
+    const next = {id: profile.id, name: profile.name, controller: new NativeProfileRecovery({api: connection.api, snapshot: connection.account, profileId: profile.id,
       selectedFamilyId: session.sessionFamilyId, kind: state.server.signIn, authorityCurrent,
       temporary: grant => temporaryRecoveryApi(connection.api, grant),
       portico: async () => {
@@ -123,20 +141,28 @@ export function LifecycleProfileGate() {
         if (!account) throw new Error('Sign in to your Portico Account first.');
         return {hosted: new HttpHostedApi(hostedUrl, account.accessToken, nativeNetworkFetch), origin: hostedUrl,
           accountCurrent: () => {const live = credentials.getSnapshot().session; return !!live && live.account.id === account.account.id && live.familyId === account.familyId;}};
-      }})});
+      }})};
+    committed.current = undefined; setRecovery(next);
   };
   if (recovery && connection) return <PhoneProfileRecovery controller={recovery.controller} profileName={recovery.name} username={connection.account.account.username}
-    onOpen={value => {recovery.controller.dispose(); setRecovery(undefined); setCode(value); send(value);}}
-    onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setCode('');}}/>;
+    onOpen={value => {
+      if (!ready()) return;
+      send(value); committed.current = undefined;
+      recovery.controller.dispose(); setRecovery(undefined); setCode(value);
+    }}
+    onClose={() => {
+      if (!currentPIN()) return;
+      committed.current = undefined; recovery.controller.dispose(); setRecovery(undefined); setCode('');
+    }}/>;
   if (theme.isTV && forgot && connection) return <TVForgotPINHandoff profileName={profile.name}
     serverAddress={connection.api.baseUrl} server={{id: state.server.serverId, signIn: state.server.signIn}} onBack={back}/>;
   // Under the boxes in a line of its own height (TVCodeErrorLine): no margin of its own, so nothing moves when it shows.
   const pinStatus = failure && !failure.silent ? <Text style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(failed) ?? failure.body}</Text> : undefined;
-  if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={pinStatus}
-    {...(state.canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
-    hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (!busy) {setCode(''); setForgot(true);}}}/>;
+  if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={changeCode} busy={busy} error={pinStatus}
+    {...(state.canRemember ? {remember: {checked: remember, onChange: changeRemember}} : {})}
+    hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (ready()) {committed.current = undefined; setCode(''); setForgot(true);}}}/>;
   return <ProfilePINPage testID="lifecycle-profile-pin" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: art(profile.id)}}}
-    value={code} onChange={setCode} onSubmit={send} busy={busy} rejected={!!state.rejected} status={status}
-    remember={state.canRemember ? <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/> : undefined}
+    value={code} onChange={changeCode} onSubmit={send} busy={busy} rejected={!!state.rejected} status={status}
+    remember={state.canRemember ? <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={changeRemember} disabled={busy}/> : undefined}
     hints={wait} onForgot={openRecovery} forgotDisabled={!connection} onBack={back}/>;
 }
