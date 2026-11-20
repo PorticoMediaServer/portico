@@ -7,7 +7,7 @@ import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
 import {TrackWindow} from '../../../kit/music/TrackWindow';
-import {AboutTable, CastRow, ChoiceChips, QuoteBlock, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, ChoiceChips, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
@@ -373,7 +373,7 @@ function PhoneBook() {
  * their initials, the facts, Continue reading with its progress, the version and where the reader is, the description,
  * the first lines, and Contents / Details (the chapters: the finished ones checked, the one being read with its place). */
 function PhoneRead() {
-  const t = defaultI18n.t, [tab, setTab] = useState('contents');
+  const t = defaultI18n.t, [tab, setTab] = useState('contents'), [more, setMore] = useState(false);
   const rows: TrackRowData[] = (['readChapter1', 'readChapter2', 'readChapter3', 'readChapter4'] as const).map((name, index) => ({id: name, number: index + 1,
     text: {id: name, title: f(name), caption: [], detail: index === 1 ? [{id: 'remaining', text: t('next.kit.remaining', {time: durationText(42 * 60, t)}), role: 'context' as const}] : []},
     duration: {id: 'duration', text: durationText([5_400, 13_800, 6_000, 1_800][index]!, t)!, role: 'context'}, done: index < 1, current: index === 1, progress: index === 1 ? .4 : undefined}));
@@ -387,11 +387,11 @@ function PhoneRead() {
     primary={{icon: 'i-book', label: t('next.cards.read'), progress: .46, onPress: none}}
     actions={[{icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}]}
     place={{version: {label: t('next.reader.version'), value: 'EPUB', onPress: none}, facts: [t('next.reader.pageOf', {page: 248, count: 535}), t('next.kit.remaining', {time: durationText(25_200, t)!})]}}
-    synopsis={f('readDuneAbout')}
+    synopsis={f('readDuneAbout')} readMore={{label: t(more ? 'web.person.showLess' : 'web.person.readMore'), expanded: more, onPress: () => setMore(value => !value)}}
+    quote={{label: t('next.reader.firstLines'), text: f('readDuneFirstLines')}}
     tabs={{value: tab, onValueChange: setTab, items: [{value: 'contents', label: t('next.reader.contents')}, {value: 'details', label: t('next.reader.details')}]}}>
-    <PanelBlock><QuoteBlock label={t('next.reader.firstLines')} text={f('readDuneFirstLines')}/></PanelBlock>
     {/* A phone draws the chosen tab's panel only. */}
-    {tab === 'contents' ? <TrackWindow rows={rows} variant="chapters" onPlay={none}/>
+    {tab === 'contents' ? <TrackWindow rows={rows} variant="chapters" opens onPlay={none}/>
       : <PanelBlock><AboutTable rows={[{label: t('next.reader.format'), values: [{text: 'EPUB'}]}, {label: t('next.reader.pagesStrip'), values: [{text: '535'}]}]}/></PanelBlock>}
     {/* The rest of the series, See all at its heading, each volume's place under its title; one the server can't serve now is drawn but inert. */}
     <PosterRow title={t('next.reader.restOfSeries')} subtitle={t('next.reader.seriesInOrder', {series: f('readDune')})} onSeeAll={none}

@@ -22,7 +22,7 @@ import {FocusWithin, StartFocusScope} from '../focus';
 import {useMotion} from '../useMotion';
 import {FrameReveal, useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
-import {seasonColumn, type AboutValue} from './title-parts';
+import {QuoteBlock, seasonColumn, type AboutValue} from './title-parts';
 
 /** A title page's buttons: the kit `ActionRow`'s (round on a phone and an upright tablet, labelled where `labelled` says
  * so on a tablet on its side and TV). */
@@ -93,6 +93,8 @@ export type TitleFrameProps = Readonly<{
   synopsis?: string;
   /** A quiet note under the buttons with ⓘ (phone-detail d3 frame 8: how Portico made an automatic collection). */
   note?: string;
+  /** A passage set apart under the description, over the tabs (a book's first lines, drawn as `QuoteBlock`). */
+  quote?: Readonly<{label: string; text: string}>;
   /** A biography's Read more and where it is from ("Biography from TMDB"). */
   /** `expanded`: the whole paragraph shows and the link reads Show less (the old person screen's biography). */
   readMore?: Readonly<{label: string; onPress: () => void; note?: string; expanded?: boolean}>;
@@ -145,7 +147,7 @@ export function TitleSection({children}: Readonly<{tab: string; children?: React
 const titlePrimaryId = 'title-primary';
 /** How far the folded head's words fade: almost away, never to zero (tvOS will not focus a transparent view). */
 const tvFoldedCopy = .03;
-function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, place, title, metadata, picker, primary, actions = [], tagline, synopsis, note, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
+function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, place, title, metadata, picker, primary, actions = [], tagline, synopsis, note, quote, readMore, credits, cast, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
@@ -252,7 +254,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // as the web page at phone width). Loading keeps the loaded page's boxes (rule 12): the synopsis's lines, so the tabs and the panel do not move when the words arrive.
   const words = loading ? <View style={{gap: spec.creditsGap}}>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
-  </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
+  </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || quote !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : theme.spec.hero.copy.titleWidth[tv ? 'tv' : 'web']}}>
     {note !== undefined && <View style={{alignSelf: 'stretch', flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.controlGap}}>
       <Icon name="i-info" size={frameSpec.hero.title.parts.listRow.check} color={theme.colors.textTertiary}/>
       <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textTertiary}]}>{note}</Text></View>}
@@ -264,6 +266,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
         accessibilityState={readMore.expanded !== undefined ? {expanded: readMore.expanded} : undefined} testID="title-read-more" onPress={readMore.onPress}>{readMore.label}</Button>
       {readMore.note !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{readMore.note}</Text>}
     </View>}
+    {quote && <QuoteBlock label={quote.label} text={quote.text}/>}
     {!stacked && credits && credits.length > 0 && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>
       {credits.map((credit, index) => <Text key={credit.label}>{index > 0 ? '    ' : ''}{credit.label} <Text style={{color: theme.colors.textSecondary}}>{names(credit.names)}</Text></Text>)}</Text>}
   </View> : null;
