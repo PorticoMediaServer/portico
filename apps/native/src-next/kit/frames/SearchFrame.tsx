@@ -47,7 +47,8 @@ export function SearchFrame({title, field, cancel, keyboard, scopes, notice, non
   const results = list ?? <ScrollView ref={scrollRef} style={{flex: 1}} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingTop: tv ? frame.headingGap : frame.sectionGap / 2, paddingBottom: frame.bottomClear, gap: frame.sectionGap}}>
     {notice && <View style={edge}>{notice}</View>}
     {none && <View testID={none.testID} style={[edge, {gap: frame.headingGap}]}>
-      <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text}]}>{none.title}</Text>
+      {/* A phone's line is a step under the page title (states 17a `.pmt h2`); wider forms keep the large line (desktop-search s-none). */}
+      <Text accessibilityRole="header" style={[frame.form === 'phone' ? theme.type.title : theme.type.pageTitle, {color: theme.colors.text}]}>{none.title}</Text>
       {none.body !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{none.body}</Text>}
       {none.action}
     </View>}
