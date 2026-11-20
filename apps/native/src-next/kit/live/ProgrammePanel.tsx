@@ -53,7 +53,8 @@ export function ProgrammePanel({channel, programme, now, runtime, favorite, busy
   const laterRows = later.length > 0 && <View style={{gap: theme.space.xs}} testID="live-later">
     <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{t('guide.laterOn', {channel: channel.name})}</Text>
     {later.map(airing => group(`later:${airing.id}`, <>
-      <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, minWidth: theme.targets.touch}]}>{airing.clock}</Text>
+      {/* The time column of a list of airings (frameSpec.guide.timeColumn), so every title lines up under the last. */}
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, width: frameSpec.guide.timeColumn[theme.form]}]}>{airing.clock}</Text>
       <View style={{flex: 1, minWidth: 0}}>
         <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{[airing.episode, airing.title].filter(Boolean).join('  ')}</Text>
         {airing.range && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{airing.range}</Text>}
