@@ -68,7 +68,7 @@ test('Feedback opens the shared Message everyone sheet with the same original po
     '../../../../../../../packages/client-core/src/server-admin/feedback-source': {},
     '../../../../../../../packages/client-core/src/server-admin/console-catalogue': {},
     '../../../../../../../packages/client-core/src/server-admin/console-words': {},
-    '../BroadcastSheet': {NativeBroadcastSheet: 'BroadcastSheet'},
+    '../../../../pages/shared/settings/ServerBroadcastSheet': {ServerBroadcastSheet: 'BroadcastSheet'},
   });
   const render = () => {let tree = host.render(() => NativeFeedback({group, ports, runtime})); if (effects.length) {effects.splice(0).forEach(effect => effect()); tree = host.render(() => NativeFeedback({group, ports, runtime}));} return tree;};
   const sheet = () => nodes(render()).find(node => node.type === 'BroadcastSheet')!;

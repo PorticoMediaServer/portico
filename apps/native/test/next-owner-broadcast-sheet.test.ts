@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {lifecycleHooks, nodes, content, t, theme} from './helpers/owner-server-settings.mjs';
+import {lifecycleHooks, nodes, content, t} from './helpers/owner-server-settings.mjs';
 import * as serverApi from '../../../packages/client-core/src/query/server-api.ts';
 
 const panelLogic = await screenModule(new URL('../../../packages/client-core/src/server-admin/panel-logic.ts', import.meta.url), {
@@ -31,15 +31,19 @@ async function fixture() {
   };
   let owner = makeOwner(), ports = {context: owner.context, requestId: () => `operation-${++operation}`};
   const runtime = {text: {t}, retirementSignal: retirement.signal};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/BroadcastSheet.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../packages/client-core/src/server-admin/panel-logic': panelLogic,
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerBroadcast.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/server-admin/panel-logic': panelLogic,
     '../../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown) => {errors.push(error);return {body: 'Fixture error'};}},
-    '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'},
-    '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
-    '../use-settings-request-scope': {useSettingsRequestScope: (context: object) => scopes.get(context)}, './storage/space-source': ownerGuard,
+    '../../../screens/settings-live/use-settings-request-scope': {useSettingsRequestScope: (context: object) => scopes.get(context)},
+    '../../../screens/settings-live/server/storage/space-source': ownerGuard,
   });
-  const render = () => host.render(() => module.NativeBroadcastSheet({ports, runtime, open, onOpenChange: (next: boolean) => {closes.push(next);open = next;}}));
+  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerBroadcastSheet.tsx', import.meta.url), {
+    react: host.react, './useServerBroadcast': model,
+    '../../../kit/controls': {Button: 'Button', TextField: 'TextField', FormError: 'FormError'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/frames': {SectionCard: 'SectionCard'},
+    '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+  });
+  const render = () => host.render(() => module.ServerBroadcastSheet({ports, runtime, open, onOpenChange: (next: boolean) => {closes.push(next);open = next;}}));
   const commit = (next = open) => {open = next;render();host.flush();return render();};
   const fill = (message = 'Message') => {field(render(), 'web.broadcast.message').props.onChangeText(message);return render();};
   return {render, commit, fill, requests, closes, errors, dispose: host.dispose,
