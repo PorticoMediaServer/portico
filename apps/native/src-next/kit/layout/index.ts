@@ -7,7 +7,7 @@ export type {HeroProps} from './Hero';
 export {FocusPreviewHero} from './FocusPreviewHero';
 export type {FocusPreviewHeroProps} from './FocusPreviewHero';
 export {Row, Shelf, SeeAllLink} from './Row';
-export {PosterRow} from './PosterRow';
+export {PosterColumn, PosterRow} from './PosterRow';
 export type {PosterRowItem, PosterRowProps} from './PosterRow';
 export type {RowProps, RowPage, SeeAllLinkProps} from './Row';
 export {FlowSections} from './FlowSections';

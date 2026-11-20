@@ -43,7 +43,8 @@ export function ArtistCircle({rings, ...props}: ArtistCircleProps) {
   const size = props.size ?? 100;
   return <View style={{width: size, height: size}}>
     <CircleArt {...props}/>
-    {rings?.map(inset => <View key={inset} pointerEvents="none" style={[StyleSheet.absoluteFillObject, {inset: -inset, borderRadius: (size + inset * 2) / 2, borderWidth: 1.5, borderColor: colors.text, opacity: 0.08}]}/>)}
+    {/* Each ring's own edges: `absoluteFillObject`'s top/left/right/bottom of 0 win over an `inset`, which drew every ring on the circle's edge. */}
+    {rings?.map(inset => <View key={inset} pointerEvents="none" style={[StyleSheet.absoluteFillObject, {top: -inset, left: -inset, right: -inset, bottom: -inset, borderRadius: (size + inset * 2) / 2, borderWidth: 1.5, borderColor: colors.text, opacity: 0.08}]}/>)}
   </View>;
 }
 

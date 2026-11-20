@@ -41,7 +41,8 @@ export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: str
 /** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. The frame
  * sizes it per form; a picture that draws to a size (a person's initials) takes it as a function of the width. */
 export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNode); shape: 'poster' | 'square' | 'circle';
-  /** A circle drawn large on a phone: an artist's (phone-app frame 15b), where a person's is small (phone-detail d3 frame 7). */
+  /** An artist's circle: drawn large on a phone (phone-app frame 15b), where a person's is small (phone-detail d3 frame 7);
+   * on TV at the right, as on touch, with room for its rings (tv-more frame 8), where a person's is at the left. */
   large?: boolean}>;
 /** Where the collapsed bar shows, for a page's own scroller (`MusicScrollView`'s `collapseAt` and `onCollapse`). */
 export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean) => void;
@@ -50,8 +51,8 @@ export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean)
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`. The frame gives it the box. */
   art?: ReactNode;
-  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right; on TV a circle is
-   * at the left too, level with the top of the words, as tv-detail frame 10 draws a person). Given both,
+  /** In place of `art`: the cover beside the words (a poster or square at the left, a circle at the right; on TV a person's
+   * circle is at the left too, level with the top of the words, as tv-detail frame 10 draws a person). Given both,
    * `art` is the glow behind a cover's head on touch (phone-detail d3 frame 7: a person's films behind the circle). */
   cover?: TitleCover;
   /** A glass disc over the art. Not drawn on TV, where the remote's Back leaves the page. */
@@ -302,16 +303,21 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     {topControl ?? (topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>)}
   </View>;
   const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{placeRow}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}{placeRow}</View></>}</View>;
-  const coverSize = cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
+  // An artist's circle on TV is at the right with its rings drawn around it (tv-more frame 8).
+  const artistTV = tv && cover?.shape === 'circle' && !!cover.large, ring = spec.parts.artistCircleTV;
+  const coverSize = artistTV ? ring.size : cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
     : spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
-  const coverBox = cover && <View style={{width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
+  // Its box holds the rings' room around the circle (a parent clips what is drawn outside it): the circle stays 280 from the
+  // screen's edge and level with the words.
+  const coverBox = cover && <View style={artistTV ? {width: coverSize + 2 * ring.ring, height: coverSize + 2 * ring.ring, padding: ring.ring, marginVertical: -ring.ring, marginRight: ring.right - ring.ring - frame.rightGutter}
+    : {width: coverSize, height: cover.shape === 'poster' ? coverSize * 1.5 : coverSize, borderRadius: cover.shape === 'circle' ? coverSize / 2 : frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>{typeof cover.node === 'function' ? cover.node(coverSize) : cover.node}</View>;
   const head = cover ? stacked
     // A cover page reports where its name starts (the head is the page's first part, so that is a page offset): the compact
     // bar, which carries the name, takes over as the name reaches it, so the name never runs under Back and the top action.
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View>
       {/* A cover page with no buttons and no words (a person without a biography) ends at its name: no empty gap. */}
       {(primary || actions.length > 0 || words || picker) && <View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View>}</View>
-    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && !tv ? 'row-reverse' : 'row', alignItems: cover.shape === 'circle' && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
+    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: artistTV ? ring.top : tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && (!tv || artistTV) ? 'row-reverse' : 'row', alignItems: cover.shape === 'circle' && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
       {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View></View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).

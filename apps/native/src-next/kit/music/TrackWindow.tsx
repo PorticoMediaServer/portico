@@ -36,5 +36,7 @@ export function TrackWindow({heading, rows, variant, select, onPlay, onMore, onF
     expanded={current >= 0 ? {index: current, extra: Math.ceil(trackRowHeight(theme, variant, true) * scale) - height} : undefined}
     renderItem={(row, index) => <View onFocus={() => onFocusRow?.(row.id)} onBlur={() => onBlurRow?.(row.id)}>
       <TrackRow row={row} variant={variant} index={index} selection={selection} onPlay={onPlay} onMore={onMore} opens={opens}/></View>}/>;
-  return heading ? <View><PanelBlock><PanelHeading quiet={heading.quiet} title={heading.title} trailing={heading.trailing}/></PanelBlock>{window}</View> : window;
+  // On TV the rows sit in the page's gutter under their heading (tv-more frame 8); a phone row carries its own padding.
+  const placed = theme.isTV ? <PanelBlock>{window}</PanelBlock> : window;
+  return heading ? <View><PanelBlock><PanelHeading quiet={heading.quiet} title={heading.title} trailing={heading.trailing}/></PanelBlock>{placed}</View> : placed;
 }
