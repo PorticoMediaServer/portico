@@ -75,6 +75,7 @@ test('phone See all draws on the library frame: its header regions, one toolbar 
     '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({})},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../kit/browse': {BrowseToolbar: 'BrowseToolbar', FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SortMenu: 'SortMenu', ViewToggle: 'ViewToggle'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/artwork': {generatedPoster: () => null, StandardBackdrop: 'StandardBackdrop', MediaArt: 'MediaArt', AmbientArt: 'AmbientArt'},
+    '../../kit/browse/HomeRowCard': {HomeRowCard: 'HomeRowCard'},
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({subscribe: () => () => {}, getSnapshot: () => 0})},
     '../../kit/layout': {WindowedGrid: 'WindowedGrid'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', LoadingBoundary: 'LoadingBoundary', LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/theme': {nativeType: type, useTheme: () => theme}, '../../shell/model': {authorityKey: () => 'authority'}, './browse-label': {homeBrowseLabel: t}, './see-all-model': seeAllModel,
@@ -195,7 +196,9 @@ test('a superseded or dismissed See all Undo callback is revoked before the next
     dispose() {}
   }
   const {createNativeHomeRows} = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, 
-    react, 'react-native': {AccessibilityInfo: {}, Platform: {isTV: false}, View: 'View'},
+    react, 'react-native': {AccessibilityInfo: {}, Platform: {isTV: false}, View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
+    '@portico/design': {frameForm: () => 'phone'},
+    '../../pages/touch/library/SeeAllPage': {SeeAllPage: 'SeeAllPage'}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'TVSeeAllPage'},
     '../../kit/focus': {useFocusRegistry: () => ({})}, '../../kit/dock/DockClearance': {useDockClearance: () => 84},
     '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: any) => entry.id,
@@ -212,7 +215,7 @@ test('a superseded or dismissed See all Undo callback is revoked before the next
   const rows = createNativeHomeRows(context, runtime.reportError); rows.reconcile();
   const retained = rows.render(runtime)[0];
   const render = () => h.render(() => retained.type(retained.props));
-  const mark = (tree: any, entry: any) => {nodes(tree).find(node => node.type === 'HomeSeeAll').props.onMenu(entry); extra.onSelect();};
+  const mark = (tree: any, entry: any) => {nodes(tree).find(node => node.type === 'SeeAllPage').props.onMenu(entry); extra.onSelect();};
   const toast = (tree: any) => nodes(tree).find(node => node.type === 'ToastHost');
   mark(render(), first); requests[0].resolve(); await new Promise(resolve => setImmediate(resolve));
   const firstTree = render(), firstUndo = toast(firstTree).props.toast.action.onPress;
