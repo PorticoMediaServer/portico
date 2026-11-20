@@ -85,7 +85,7 @@ export type BrowseFrameProps = Readonly<{
     /** The page's animated ref (`useAnimatedRef`), which its scroll anchoring reads. */
     ref?: AnimatedRef<Animated.ScrollView>; style?: React.ComponentProps<typeof Animated.ScrollView>['style'];
     onScroll?: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | object; onScrollBeginDrag?: () => void;
-    refresh?: Readonly<{refreshing: boolean; onRefresh: () => void}>; bottomInset?: number;
+    refresh?: Readonly<{refreshing: boolean; onRefresh: () => void}>; bottomInset?: number; onContentHeight?: (height: number) => void;
   }>;
   /** Where the rows start in the scrolled content, for a page that measures its rows against the scroll offset. */
   onRowsLayout?: (event: LayoutChangeEvent) => void;
@@ -132,6 +132,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
       {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>
     : scroll && !loading ? <Animated.ScrollView ref={scroll.ref} testID={scroll.testID ?? (testID ? `${testID}-scroll` : undefined)} style={scroll.style} scrollEventThrottle={16}
+      onContentSizeChange={scroll.onContentHeight && ((_width, height) => scroll.onContentHeight?.(height))}
       onScroll={scroll.onScroll as never} onScrollBeginDrag={scroll.onScrollBeginDrag} showsVerticalScrollIndicator={false}
       refreshControl={scroll.refresh ? <RefreshControl refreshing={scroll.refresh.refreshing} tintColor={theme.colors.text} onRefresh={scroll.refresh.onRefresh}/> : undefined}
       contentContainerStyle={{paddingBottom: frame.bottomClear + (scroll.bottomInset ?? 0)}}>{!pinned && top}{rows}</Animated.ScrollView>

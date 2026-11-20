@@ -441,7 +441,7 @@ test('an actionless Home keeps the original independent mixes reader mounted and
     assert.equal(descendants(f.tree()).some(node => node.type === 'EmptyCopy'), false);
     const offered = descendants(f.tree()).find(node => node.type === 'MusicMixesRow'); assert.equal(offered.props.port, port);
     assert.equal(offered.props.focus.id, tvFocusIds(f.authority).row(homeStart.homeMixesFocusRow));
-    assert.equal(descendants(f.tree()).some(node => node.type === 'Button' && node.props.focusId === 'customize'), true, 'real nonempty content retains its existing footer');
+    assert.equal(descendants(f.tree()).some(node => node.type === 'TVHomeCustomize' && !node.props.disabled), true, 'real nonempty content retains its existing footer');
   } finally {await f.host.unmount();}
 });
 

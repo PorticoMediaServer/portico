@@ -8,6 +8,7 @@ import * as React from 'react';
 import {pathToFileURL} from 'node:url';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {expandFrames} from './helpers/browse-frame-stub.mjs';
 import {expandHome, withHomeCards} from './helpers/home-cards-stub.mjs';
 import {heroSpec} from '@portico/design';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
@@ -100,7 +101,7 @@ async function fixture() {
     async foreign() {await act(async () => {currentAuthority = {...authority, epoch: 'different'}; await host.rerender();});},
     async selection(value: boolean) {await act(async () => {selectionActive = value; await host.rerender();});},
     async mountGuide() {
-      const hero = nodes(tree).find(node => node.type === 'Hero');
+      const hero = nodes(expandFrames(tree)).find(node => node.type === 'Hero');
       const candidate = hero.props.candidates[0];
       assert.equal(candidate.overview, entry.overview, 'genuine server overview reaches Hero unchanged');
       assert.notEqual(hero.props.showOverview, false, 'Home never suppresses the available overview');

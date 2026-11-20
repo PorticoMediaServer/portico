@@ -14,6 +14,7 @@ import {tvHomeRows} from '../src-next/screens/home/tv-presentation';
 import * as homeStart from '../src-next/screens/home/home-start';
 import {createTheme, nativeType} from '../src-next/kit/theme';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {expandFrames} from './helpers/browse-frame-stub.mjs';
 import {expandHome, withHomeCards} from './helpers/home-cards-stub.mjs';
 
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
@@ -58,15 +59,20 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
       '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, './TvHomeRecovery': {TvHomeRecovery: 'Recovery'}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})},
       './HomeHeroFacts': {}, './model': {authorizedHome: (value: unknown) => value, platformRows: () => [row], homeRowHasContent: () => true, initialHomeFocus: () => ({rowId: row.id, entryId: entry.id}), homeCardText: () => ({title: entry.title}), homePlayTarget: () => entry},
     })));
-    const render = (props = {}) => h.render(() => HomeScreen({runtime, authority, ...props}));
-    // TV rows are wrapped by the row-shift frame (motion.html 4.1), which forwards the same row layout.
-    const rowBox = (tree: any) => descendants(tree).find(node => (node.type === 'View' || node.type?.name === 'TVHomeRowShift') && node.props.onLayout);
+    const render = (props = {}) => expandFrames(h.render(() => HomeScreen({runtime, authority, ...props})));
+    const rowBox = (tree: any) => descendants(tree).find(node => node.type === 'TVHomeRow');
+    const rowsBox = (tree: any) => descendants(tree).find(node => node.type === 'BrowseFrameRows');
+    const layout = (y: number, height = 300) => ({nativeEvent: {layout: {y, height}}});
     let tree = render();
     const hero = descendants(tree).find(node => node.type === 'Hero');
     const candidate = {entry, target: {...entry, playback: {itemId: entry.id}}};
-    let actions = descendants(hero.props.renderActions(candidate)).filter(node => node.type === 'Button');
     const wrapper = hero.props.renderActions(candidate);
     const nativeRegion = wrapper.type(wrapper.props);
+    const spotlightActions = (tree: any) => {
+      const actions = descendants(tree).find(node => node.type === 'Hero').props.renderActions(candidate);
+      return descendants(actions.type(actions.props)).filter(node => node.type === 'Button');
+    };
+    let actions = spotlightActions(tree);
     assert.equal(nativeRegion.props.style?.flexDirection, 'row', 'real native guide lays out the actual controls horizontally');
     assert.equal(nativeRegion.props.style.gap, createTheme({isTV: true, width: 1920}).spec.hero.actions.gap.tv);
     assert.equal(nativeRegion.props.orientation, 'horizontal');
@@ -76,16 +82,17 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     assert.equal(descendants(renderedRow.props.renderItem({entry}, {index: 0})).find(node => node.props.preferred !== undefined).props.preferred, false);
     actions[0].props.onFocus();
     tree = render();
-    actions = descendants(descendants(tree).find(node => node.type === 'Hero').props.renderActions(candidate)).filter(node => node.type === 'Button');
+    actions = spotlightActions(tree);
     assert.equal(actions[0].props.preferredFocus, undefined, 'late content cannot reissue preferred focus after entry');
-    rowBox(tree).props.onLayout({nativeEvent: {layout: {y: 820, height: 300}}});
+    rowsBox(tree).props.onLayout(layout(820));
+    rowBox(tree).props.onLayout(layout(0));
     descendants(tree).find(node => node.type === 'Row').props.onItemFocus({entry});
     frames.shift()!(0); // Focus may see the old, expanded hero box.
     assert.equal(anchors.at(-1)?.[0], 820);
     tree = render();
     assert.ok(descendants(tree).some(node => node.type === 'Hero'), 'spotlight controls stay mounted as the native Up destination');
     assert.ok(descendants(tree).some(node => node.type === 'FocusPreviewHero'));
-    rowBox(tree).props.onLayout({nativeEvent: {layout: {y: 588, height: 300}}});
+    rowsBox(tree).props.onLayout(layout(588));
     assert.deepEqual(anchors.at(-1), [588, 300, 1080, 1080, 588, 96]);
     // A TV row (492) never fits between the 588 preview hero and a 96 bottom margin; kept merely visible, focus arriving
     // from below (the first landing) left Home 96 px higher than focus arriving from above.
@@ -95,9 +102,9 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     tree = render();
     descendants(tree).find(node => node.type === 'Row').props.onItemFocus({entry});
     const pendingRowTree = render();
-    descendants(pendingRowTree).find(node => node.type === 'Hero').props.renderActions(candidate).props.children[0].props.onFocus();
+    spotlightActions(pendingRowTree)[0].props.onFocus();
     const beforeUpSettled = anchors.length;
-    rowBox(pendingRowTree).props.onLayout({nativeEvent: {layout: {y: 820, height: 300}}});
+    rowsBox(pendingRowTree).props.onLayout(layout(820));
     frames.shift()!(0);
     assert.equal(anchors.length, beforeUpSettled, 'obsolete row layout and delayed row scroll cannot undo newer Spotlight focus');
     tree = render();
@@ -105,9 +112,9 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     frames.shift()!(0);
     tree = render();
     const count = anchors.length;
-    for (const props of [{railExpanded: true}, {active: false}]) rowBox(render(props)).props.onLayout({nativeEvent: {layout: {y: 820, height: 300}}});
+    for (const props of [{railExpanded: true}, {active: false}]) rowsBox(render(props)).props.onLayout(layout(820));
     currentAuthority = {...authority, serverId: 'foreign'};
-    rowBox(render()).props.onLayout({nativeEvent: {layout: {y: 588, height: 300}}});
+    rowsBox(render()).props.onLayout(layout(588));
     assert.equal(anchors.length, count, 'rail, hidden Home and stale authorities cannot move the focused page');
   } finally {globalThis.requestAnimationFrame = previousFrame;}
 });
