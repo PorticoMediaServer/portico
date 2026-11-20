@@ -27,7 +27,7 @@ export type SavedTVDirectoryHandle = Readonly<{scrollTop: () => void; atTop: () 
 export type NativeSavedTVDirectoryView = 'playlists' | 'collections' | 'views';
 
 /** The TV landing's three directory bodies (collections.html 15–17). The TV
- * landing owner renders SavedTVTabs above this; it registers no route and owns
+ * landing owner renders the Saved tabs above this; it registers no route and owns
  * no destination. */
 export type NativeSavedTVDirectoryProps = Readonly<{
   view: NativeSavedTVDirectoryView;

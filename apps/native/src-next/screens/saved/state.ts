@@ -5,7 +5,7 @@ import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {createNativeEntryActions} from '../destinations/entry-actions';
 import {createNativeDownloadsDevice} from '../downloads/device';
 import {nativeScreenServices} from '../native-screen-services';
-import type {NativeSavedActions} from './SavedScreen';
+import type {NativeSavedActions} from '../../pages/shared/saved/useSavedPage';
 import {createNativeSavedViewSelection} from './selection';
 import {createNativeSavedHubController, createNativeSavedViewController, type NativeSavedRouteTarget} from './navigation';
 import {createNativeSavedViewSummaryOwner, type NativeSavedViewSummaryOwner} from './view-summary-owner';

@@ -8,7 +8,7 @@ import type {CardSelection, PosterRowProps} from '../../../kit/layout';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeEntryActions} from '../../../screens/destinations/entry-actions';
 import type {NativeTVMusicController, NativeTVMusicSnapshot} from '../../../screens/destinations/music/model';
-import type {NativeSavedSelectionPort} from '../../../screens/saved/SavedScreen';
+import type {NativeSavedSelectionPort} from '../saved/useSavedPage';
 
 /** A music page's songs as `TrackWindow` takes them: the rows (numbered by `number`, the playing one marked) and what each
  * control does: a song plays, its ⋯ opens its menu with Select, and Select marks it. Shared by the album and artist pages. */

@@ -1,4 +1,5 @@
 // @fabric-react
+import {savedFixture} from './helpers/saved-fixture.mjs';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import test from 'node:test';
@@ -18,7 +19,7 @@ import {openNativeSavedDownload} from '../src-next/screens/downloads/playback.ts
 type Element = {type: any; props: Record<string, any>};
 function elements(node: any): Element[] {
   if (Array.isArray(node)) return node.flatMap(elements);
-  return node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children)] : [];
+  return node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children), ...elements(node.props.body), ...elements(node.props.grid)] : [];
 }
 const runtime = {text: defaultI18n, artwork: () => undefined, reportError() {}};
 const theme = createTheme({width: 390, isTV: false});
@@ -123,7 +124,8 @@ test('Saved preview cards preserve inactive selection and the actual native menu
     summary: {myList: {posters: 1, squares: 0}, favorites: {posters: 0, squares: 0}, playlists: 0, collections: 0, savedViews: 0}};
   const actions = {menuEntry: (...args: any[]) => calls.push(args), isMenuOpen: (value: any) => value === entry};
   let registered = 0, retired = 0;
-  const {SavedScreen} = await screenModule(new URL('../src-next/screens/saved/SavedScreen.tsx', import.meta.url), {
+  const {SavedScreen} = await savedFixture('Saved', {
+    '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'},
     '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, './SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'},
     './paging': {savedNearEnd: () => false},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
@@ -142,7 +144,10 @@ test('Saved preview cards preserve inactive selection and the actual native menu
   try {
     const tree = screen.tree;
     assert.equal(registered, 1, 'the committed screen effect registered the actual selection port');
-    assert.equal(tree.props.pointerEvents, 'none'); assert.equal(tree.props.accessibilityElementsHidden, true, 'a retained hidden Saved screen has no active pointer or accessibility targets');
+    const surface = await mount(tree.type, tree.props);
+    assert.equal(surface.tree.props.pointerEvents, 'none');
+    assert.equal(surface.tree.props.accessibilityElementsHidden, true, 'a retained hidden Saved screen has no active pointer or accessibility targets');
+    await surface.host.unmount();
     const child = elements(tree).find(node => node.type?.name === 'SavedMyListCard')!;
     const cardScreen = await mount(child.type, child.props);
     try {

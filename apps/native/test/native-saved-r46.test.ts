@@ -1,4 +1,5 @@
 // @fabric-react
+import {savedFixture} from './helpers/saved-fixture.mjs';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,11 +10,10 @@ import {createTheme, fontFamilies} from '../src-next/kit/theme.ts';
 import {browseType} from '../src-next/kit/browse/presentation.ts';
 
 type Element = {type: any; props: Record<string, any>};
-const elements = (node: any): Element[] => Array.isArray(node) ? node.flatMap(elements) : node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children)] : [];
+const elements = (node: any): Element[] => Array.isArray(node) ? node.flatMap(elements) : node && typeof node === 'object' && 'props' in node ? [node, ...elements(node.props.children), ...elements(node.props.body), ...elements(node.props.grid)] : [];
 const flat = (style: any): Record<string, any> => Array.isArray(style) ? style.reduce((out, part) => Object.assign(out, flat(part)), {}) : {...(style ?? {})};
 const text = (node: Element | undefined): string => ([] as any[]).concat(node?.props.children ?? []).join('');
 const theme = createTheme({width: 390, isTV: false});
-const childrenOf = (node: Element): any[] => ([] as any[]).concat(node.props.children ?? []);
 
 /** Mounts one shallow component under the real hook driver. React's own hook
  * dispatcher runs the screen's effects, so layout effects commit and unmount runs
@@ -25,8 +25,6 @@ async function mount(component: (props: any) => any, props: any) {
   return {host, get tree() {return tree;}};
 }
 const drawn = {
-  largeTitle: 32,
-  largeTitleLine: 36.8,
   trackPadTop: 8,
   trackPadBottom: 10,
   trackGap: 12,
@@ -48,7 +46,8 @@ async function savedScreen() {
     pins: [{kind: 'collection', id: 'toy', name: 'Toy Story', pinRevision: 4}],
     summary: {myList: {posters: 1, squares: 0}, favorites: {posters: 24, squares: 0}, playlists: 3, collections: 1, savedViews: 2}};
   const downloads = {supported: true, entries: [], usedBytes: 3.4e9};
-  const {SavedScreen} = await screenModule(new URL('../src-next/screens/saved/SavedScreen.tsx', import.meta.url), {
+  const {SavedScreen} = await savedFixture('Saved', {
+    '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'},
     '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, './SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'},
     './paging': {savedNearEnd: () => false},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
@@ -74,26 +73,20 @@ async function savedScreen() {
   return {screen, tree: screen.tree, entry, opened};
 }
 
-test('Saved phone body keeps the drawn large title, shelf and track rhythm', async () => {
+test('Saved phone body keeps the page title, shelf and track rhythm', async () => {
   const {screen, tree} = await savedScreen();
   const mounted: Array<Awaited<ReturnType<typeof mount>>> = [];
   try {
-    const scroll = elements(tree).find(node => node.type === 'ScrollView' && node.props.contentContainerStyle?.paddingTop !== undefined)!;
-    assert.equal(scroll.props.contentContainerStyle.paddingTop, 58, 'phone-app9 .lt starts 58 below the top');
-    const title = elements(tree).find(node => node.type === 'Text' && node.props.accessibilityRole === 'header' && text(node) === 'saved.title')!;
-    const titleStyle = flat(title.props.style);
-    assert.equal(titleStyle.fontSize, drawn.largeTitle, '.lt h1 is 32');
-    assert.equal(titleStyle.letterSpacing, -.035 * drawn.largeTitle);
-    // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
-    assert.equal(titleStyle.lineHeight, Math.max(drawn.largeTitleLine, Math.ceil(drawn.largeTitle * 1.36)), '.lt h1 line-height, at the measured floor');
-    const titleBlock = elements(tree).find(node => node.type === 'View' && childrenOf(node).some(child => child === title))!;
-    assert.deepEqual({paddingHorizontal: flat(titleBlock.props.style).paddingHorizontal, paddingBottom: flat(titleBlock.props.style).paddingBottom}, {paddingHorizontal: 20, paddingBottom: 12});
+    assert.equal(elements(tree).find(node => node.type === 'SavedPage')?.props.header.title, 'saved.title');
 
     const drawnSections = elements(tree).filter(node => node.type?.name === 'SavedSection');
     const sections = await Promise.all(drawnSections.map(async node => {const rendered = await mount(node.type, node.props); mounted.push(rendered); return flat(rendered.tree.props.style);}));
     assert.deepEqual(sections.map(style => style.marginTop), [drawn.firstRowMargin, drawn.rowMargin], 'My List follows the title by 2; Downloads is a 28 shelf');
 
-    const tracks = elements(tree).filter(node => node.type === 'ScrollView' && node.props.horizontal === true);
+    const shelves = elements(tree).filter(node => node.type?.name === 'SavedShelf');
+    const shelvesMounted = await Promise.all(shelves.map(node => mount(node.type, node.props)));
+    mounted.push(...shelvesMounted);
+    const tracks = shelvesMounted.flatMap(value => elements(value.tree)).filter(node => node.type === 'ScrollView' && node.props.horizontal === true);
     assert.equal(tracks.length, 1, 'the drawn My List track');
     assert.deepEqual({paddingHorizontal: tracks[0].props.contentContainerStyle.paddingHorizontal, paddingTop: tracks[0].props.contentContainerStyle.paddingTop,
       paddingBottom: tracks[0].props.contentContainerStyle.paddingBottom, gap: tracks[0].props.contentContainerStyle.gap},

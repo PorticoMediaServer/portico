@@ -11,7 +11,7 @@ import {useTheme} from '../../../kit/theme';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import type {NativeCollectionSort, NativeCollectionState} from '../../../screens/collections/controller';
 import type {NativeEntryMenuState} from '../../../screens/destinations/entry-actions';
-import type {NativeSavedSelectionPort} from '../../../screens/saved/SavedScreen';
+import type {NativeSavedSelectionPort} from '../saved/useSavedPage';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 
 const t = defaultI18n.t;

@@ -10,7 +10,7 @@ import type {NativeShellRoute} from '../../shell/routes';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 import {useTheme} from '../../kit/theme';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {SavedScreen} from './SavedScreen';
+import {SavedPage} from '../../pages/touch/saved/SavedPage';
 import {SavedDirectoryScreen, type NativeSavedDirectoryRoute} from './SavedDirectoryScreen';
 import {SavedListScreen, type NativeSavedListRoute} from './SavedListScreen';
 import {SavedResourceScreen} from './SavedResourceScreen';
@@ -71,7 +71,7 @@ export function createNativeSavedModule(context: NativeShellBootstrapContext): N
       if (!current()) return null;
       if (route.kind !== 'shell' || route.destination.kind !== 'saved') return null;
       if (Platform.isTV) return null;
-      return <SavedScreen destination={state.source} runtime={runtime} device={state.offline} actions={state.actions} selection={savedSelection()}
+      return <SavedPage destination={state.source} runtime={runtime} device={state.offline} actions={state.actions} selection={savedSelection()}
         downloadsCopy={savedDownloadsCopy} onThisPhone={onThisPhone} activation={state.activation}
         downloads={Platform.isTV ? undefined : value => inlineDownloads().render(value, true)}
         tabBody={(tab, value) => <SavedInlineHost key={tab} tab={tab} context={context} runtime={value} activation={state.activation} open={open} changed={changed}/>}/>;

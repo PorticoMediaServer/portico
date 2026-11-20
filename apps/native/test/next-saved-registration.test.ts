@@ -33,7 +33,7 @@ async function load(isTV: boolean) {
     '../native-screen-services': {nativeScreenServices: () => ({reportError: () => {}})},
     './state': {createNativeSavedState: () => ({source: {}, offline: {}, actions: {}, activation: {subscribe: () => () => {}, getSnapshot: () => ({visible: true, intent: 'enter', revision: 1})},
       view: () => undefined, dispose: () => {}})},
-    './SavedScreen': {SavedScreen: 'SavedScreen'}, './SavedDirectoryScreen': {SavedDirectoryScreen: 'SavedDirectoryScreen'},
+    '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'}, './SavedDirectoryScreen': {SavedDirectoryScreen: 'SavedDirectoryScreen'},
     './SavedListScreen': {SavedListScreen: 'SavedListScreen'}, './SavedResourceScreen': {SavedResourceScreen: 'SavedResourceScreen'},
     './navigation': {nativeSavedRouteTarget, openNativeSavedView: () => true},
     '../downloads/view': {createNativeDownloadsView: () => ({render: () => null, dispose: () => {}})},
@@ -51,7 +51,7 @@ test('phone registers the Saved destination and both pushed Saved routes once', 
   const context = {current: () => true, authority: () => ({serverId: 'server'}), navigation: {retainedRoutes: () => [], getSnapshot: () => ({route: {kind: 'shell', destination: {kind: 'saved'}}})}, libraries: () => []};
   const renderer = module.createNativeSavedModule(context);
   const screen = renderer.render({kind: 'shell', destination: {kind: 'saved'}}, {});
-  assert.equal(screen.type, 'SavedScreen');
+  assert.equal(screen.type, 'SavedPage');
   assert.equal(screen.props.onThisPhone, 'next.saved.phone.onThisPhone');
   assert.equal(renderer.render({kind: 'shell', destination: {kind: 'home'}}, {}), null);
   renderer.dispose();

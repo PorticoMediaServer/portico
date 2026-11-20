@@ -14,7 +14,7 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeEntryActions} from '../../../screens/destinations/entry-actions';
 import type {MusicAlbumRow, NativeTVMusicController} from '../../../screens/destinations/music/model';
 import {usePlayingItem} from '../../../screens/destinations/music/use-playing-item';
-import type {NativeSavedSelectionPort} from '../../../screens/saved/SavedScreen';
+import type {NativeSavedSelectionPort} from '../saved/useSavedPage';
 import {favoriteAction, similarPaging, songList, type SongList} from './music-rows';
 
 const t = defaultI18n.t;

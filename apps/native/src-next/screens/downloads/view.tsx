@@ -4,7 +4,7 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import {nativeEntryRoute} from '../../shell/routes';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {DownloadsScreen} from './DownloadsScreen';
+import {DownloadsPage} from '../../pages/touch/saved/DownloadsPage';
 import {createNativeDownloadsDevice} from './device';
 import type {NativeOfflineDownloadsDevice, OfflineEntry} from '../../platform/offline-downloads';
 import {openNativeReadingDetail, type NativeReadOrigin} from '../read/eligibility';
@@ -37,7 +37,7 @@ function leaseValid(context: NativeShellBootstrapContext, lease: DownloadsLease)
 }
 
 function DownloadsView({context, device, service, runtime, inline, back, onTitle}: Readonly<{
-  context: NativeShellBootstrapContext; device: NativeOfflineDownloadsDevice; service: Parameters<typeof DownloadsScreen>[0]['service'];
+  context: NativeShellBootstrapContext; device: NativeOfflineDownloadsDevice; service: Parameters<typeof DownloadsPage>[0]['service'];
   runtime: NativeShellRuntime; inline: boolean; back: () => void; onTitle: (entry: OfflineEntry, lease: DownloadsLease, runtime: NativeShellRuntime) => void;
 }>) {
   const snapshot = useSyncExternalStore(context.navigation.subscribe, context.navigation.getSnapshot);
@@ -59,7 +59,7 @@ function DownloadsView({context, device, service, runtime, inline, back, onTitle
     }));
     return () => {abort.abort();};
   }, [context, snapshot, inline]);
-  return <DownloadsScreen device={device} service={service} runtime={runtime} copy={nativeDownloadsCopy} inline={inline}
+  return <DownloadsPage device={device} service={service} runtime={runtime} copy={nativeDownloadsCopy} inline={inline}
     back={back} openTitle={entry => {if (lease) onTitle(entry, lease, runtime);}}/>;
 }
 
