@@ -1,6 +1,6 @@
 import React, {useId, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {Artwork, type ArtworkSource} from '../artwork';
+import {ArtistCircle, Artwork, type ArtworkSource} from '../artwork';
 import {CircleCard, CollectionBanner, CollectionTile, EpisodeTile, type CollectionCardProps, type EpisodeTileProps} from '../cards';
 import {cardCaptionHeight} from '../cards/caption-metrics';
 import {Button, Chip, Focusable, KeyHints, Segmented} from '../controls';
@@ -77,6 +77,29 @@ export function AboutTable({rows}: Readonly<{rows: readonly Readonly<{label: str
         {value.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={value.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .4), color: phone ? theme.colors.accentStrong : theme.colors.text}}>{value.text}</Text> : value.text}</Text>)}</Text>
     </View>)}
   </View>;
+}
+
+/** One part of a title page's side column (`TitleFrame`'s `aside`): its heading over what it holds (tv-more frame 8's
+ * Albums and Details). */
+export function AsideSection({title, children}: Readonly<{title: string; children: ReactNode}>) {
+  return <View><PanelHeading title={title}/>{children}</View>;
+}
+
+/** What the server says about a title or a person under its About or Details table, and where that is from (the old TV
+ * artist page's overview and "From Wikipedia"). */
+export function AboutNote({text, source}: Readonly<{text: string; source?: string}>) {
+  const theme = useTheme();
+  return <View style={{marginTop: theme.space.md, gap: theme.space.sm}}>
+    <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{text}</Text>
+    {source && <Text style={[theme.type.meta, {color: theme.colors.textTertiary}]}>{source}</Text>}
+  </View>;
+}
+
+/** An artist's circle as a title page's cover (`TitleFrame`'s `cover.node`): their albums' covers, or their initials,
+ * with the rings tv-more frame 8 draws round it on TV. */
+export function ArtistCover({covers, initials, alt, size}: Readonly<{covers: readonly ArtworkSource[]; initials: string; alt: string; size: number}>) {
+  const {isTV} = useTheme();
+  return <ArtistCircle covers={covers} rings={isTV ? sizes.artistCircleTV.rings : undefined} initials={initials} alt={alt} size={size} visible/>;
 }
 
 export type CastPerson = Readonly<{id: string; name: string; role?: string; portrait?: ArtworkSource; onPress?: () => void}>;

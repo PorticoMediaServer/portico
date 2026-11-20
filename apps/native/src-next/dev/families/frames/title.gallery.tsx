@@ -7,7 +7,7 @@ import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
 import {TrackWindow} from '../../../kit/music/TrackWindow';
-import {AboutTable, CastRow, ChoiceChips, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, ArtistCover, CastRow, ChoiceChips, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
@@ -337,7 +337,7 @@ function PhoneArtist() {
 function Artist() {
   const theme = useTheme();
   if (useFrameMetrics().form === 'phone') return <PhoneArtist/>;
-  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', large: true, node: size => <ArtistCircle covers={[asset('pool/albums/abbey-road-2019-mix.jpg')]} rings={[40, 80]} initials="TB" alt={f('artist')} size={size} visible/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', large: true, node: size => <ArtistCover covers={[asset('pool/albums/abbey-road-2019-mix.jpg')]} initials="TB" alt={f('artist')} size={size}/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
     metadata={<Meta text={f('artistFacts')}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('albums')}/><SquareCard title={f('abbeyRoad')} caption={[{id: 'year', text: '1969', role: 'context'}]} artwork={asset('pool/albums/abbey-road-2019-mix.jpg')} width={theme.spec.card.width.poster[theme.column] * 1.2} onNavigate={none}/></View>
