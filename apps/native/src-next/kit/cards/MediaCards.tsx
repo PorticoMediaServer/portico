@@ -170,6 +170,9 @@ export type EpisodeTileProps = CardProps & Media & {
   /** Canonical episodeLabel/cardText parts, including show context only where shows mix. */
   label: readonly FactPart[];
   length?: string;
+  /** When it aired ("Jan 22, 2023"): beside the length under the number on a phone's row; after the number elsewhere, so
+   * only the length is on the picture (tablet f7, f8). */
+  aired?: string;
   status?: string;
   synopsis?: string;
   layout?: 'tile' | 'row';
@@ -192,6 +195,7 @@ export function EpisodeTile(props: EpisodeTileProps) {
   // Where the length sits on the picture (a tile, a tablet row), Playing or Watched is a labelled chip at the picture's
   // top left (desktop-player f6, tablet-play 2a), so nothing shares the length's corner. A tile's own status keeps its badge.
   // A row's facts are the form's `meta` role at the row's weight (R2: by form, so a TV row is TV-sized).
+  const label = props.aired && !phoneRow ? [...props.label, {id: 'aired', text: props.aired, role: 'context' as const}] : props.label;
   const meta = (weight: 600 | 700) => {const {fontFamily, fontWeight} = titleStyle(t, 1, weight); return [phoneRow ? t.type.rowHelp : t.type.meta, {fontFamily, fontWeight}];};
   const pictured = !row || wide, playingBars = (color: string) => [.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: color}}/>);
   const chip = !pictured ? undefined : props.status && !row ? <Badge kind="new">{props.status}</Badge>
@@ -213,17 +217,17 @@ export function EpisodeTile(props: EpisodeTileProps) {
         a phone's row keeps the status beside the length under the number (phone-player 4). */}
     {wide && props.status && !(props.playing || props.watched)
       ? <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12, minWidth: 0}}><Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>
-        <View style={{flex: 1, minWidth: 0}}><Parts parts={props.label} fit="cut" style={meta(600)} /></View></View>
-      : <Parts parts={props.label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? [meta(600), phoneRow && {color: t.colors.textTertiary}] : undefined} />}
-    {row && !wide && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
+        <View style={{flex: 1, minWidth: 0}}><Parts parts={label} fit="cut" style={meta(600)} /></View></View>
+      : <Parts parts={label} fit={row && !t.isTV ? 'wrap' : 'cut'} style={row ? [meta(600), phoneRow && {color: t.colors.textTertiary}] : undefined} />}
+    {row && !wide && (props.length || props.aired || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
       {props.status && <Text style={[meta(700), {color: t.colors.accentStrong}]}>{props.status}</Text>}
-      {props.length && <Text style={[meta(600), {color: t.colors.textTertiary}]}>{props.length}</Text>}
+      {(props.length || props.aired) && <Text style={[meta(600), {color: t.colors.textTertiary}]}>{[props.length, props.aired].filter(Boolean).join('  ')}</Text>}
     </View>}
     <Parts parts={props.caption} /><Parts parts={props.detail} />
     {wide && props.synopsis && <Text numberOfLines={3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: 4}]}>{props.synopsis}</Text>}
   </View>;
   return <CardFrame {...props} width={width}
-    accessibilityDetails={[...(props.accessibilityDetails ?? []), ...props.label.map(part => part.text), props.status, props.length]}
+    accessibilityDetails={[...(props.accessibilityDetails ?? []), ...props.label.map(part => part.text), props.status, props.length, ...(props.aired ? [props.aired] : [])]}
     accessibilityActions={[...(props.accessibilityActions ?? []), ...(props.onDownload ? [{name: 'download', label: defaultI18n.t('next.cards.download')}] : [])]}
     onAccessibilityAction={event => event.nativeEvent.actionName === 'download' ? props.onDownload?.() : props.onAccessibilityAction?.(event)}
     overlay={s => row ? <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, top: 0, height}}>
