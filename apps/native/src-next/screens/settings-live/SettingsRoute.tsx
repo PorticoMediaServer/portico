@@ -11,10 +11,10 @@ import {createBoundNativeSettingsController} from './settings-controller';
 import {nativeDevicePreferences} from './device-preference-consumer';
 import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from './dashboard-controller';
 import {nativeServerAdmission} from './server/tv-server-reader';
-import {NativeTVServerScreen} from './server/TVServerScreen';
+import {ServerSettingsPage} from '../../pages/tv/settings/ServerSettingsPage';
 import {isTVServerPage} from './server/TVServerPageMenu';
 import {NativeEqualizerSettingsScreen} from './EqualizerSettingsScreen';
-import {NativeSettingsScreen} from './SettingsScreen';
+import {NativeSettingsPage} from '../../pages/shared/settings/SettingsPage';
 import {NativeDashboardScreen} from './DashboardScreen';
 import {createNativeSettingsPorts, nativeSettingsRequestId} from './settings-ports';
 import {createNativeSettingsDownloads} from './downloads-summary';
@@ -52,7 +52,7 @@ function createComposition(context: NativeShellBootstrapContext) {
       render: (route, runtime) => {
         lifetime.assert();
         if (route.kind !== 'shell' || route.destination.kind !== 'settings') throw new Error('native_settings_route_mismatch');
-        return <NativeSettingsScreen ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.destination.page}/>;
+        return <NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.destination.page}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,
@@ -61,15 +61,15 @@ function createComposition(context: NativeShellBootstrapContext) {
         lifetime.assert();
         if (route.kind !== 'server-settings') throw new Error('native_server_settings_route_mismatch');
         const allowed = admission();
-        const fallback = <NativeSettingsScreen ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>;
+        const fallback = <NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>;
         if (allowed === 'denied') return fallback;
         // A named server page opens on that page of Settings, which shows it only to a viewer who may
         // see it (N5-3: Review devices opens People & devices, not the Dashboard). No page is the Dashboard.
-        if (!Platform.isTV && route.page) return <NativeSettingsScreen key={route.page === 'live' ? route.channelId ?? 'live' : route.page} ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.page} initialChannelId={route.page === 'live' ? route.channelId : undefined}/>;
+        if (!Platform.isTV && route.page) return <NativeSettingsPage key={route.page === 'live' ? route.channelId ?? 'live' : route.page} ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.page} initialChannelId={route.page === 'live' ? route.channelId : undefined}/>;
         if (!Platform.isTV) return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
         const requested = isTVServerPage(route.page) ? route.page : undefined;
         const page = allowed === 'owner' ? requested ?? 'general' : requested === 'people' ? 'people' : 'dashboard';
-        return <NativeTVServerScreen ports={ports} runtime={runtime} dashboard={dashboard} initialPage={page}/>;
+        return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage={page}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,
@@ -77,9 +77,9 @@ function createComposition(context: NativeShellBootstrapContext) {
       render: (route, runtime) => {
         lifetime.assert();
         if (route.kind !== 'server-dashboard') throw new Error('native_server_dashboard_route_mismatch');
-        if (Platform.isTV && admission() !== 'denied') return <NativeTVServerScreen ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/>;
+        if (Platform.isTV && admission() !== 'denied') return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/>;
         return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime}
-          deniedFallback={<NativeSettingsScreen ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>}/>;
+          deniedFallback={<NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,

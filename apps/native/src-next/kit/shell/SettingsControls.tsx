@@ -79,10 +79,10 @@ export function SettingsRow({label, highlightQuery, description, scope, icon, na
   const readableStop = tv && !press && (readable || toggle !== undefined || value !== undefined);
   return (press || readableStop) && !control ? <Focusable testID={testID} accessibilityRole={toggle && !opens ? 'switch' : press ? 'button' : 'text'} accessibilityLabel={accessibilityLabel ?? label} accessibilityHint={typeof description === 'string' ? description : description?.join(', ')} accessibilityValue={value ? {text: value} : undefined} accessibilityState={toggle && !opens ? {checked: toggle.checked} : undefined} onPress={press} focusKind="row" focusRadius={tv ? 18 : 10} nextFocusLeft={nextFocusLeft} style={layout}>{content}</Focusable> : <View style={layout}>{content}</View>;
 }
-export function DefaultHint({value, onReset, changed, testID}: {testID?: string; value: string; onReset: () => void; changed: boolean}) {
+export function DefaultHint({value, onReset, changed, testID, inset}: {testID?: string; value: string; onReset: () => void; changed: boolean; inset?: boolean}) {
   const theme = useTheme();
   if (!changed) return null;
-  return <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}><Text style={[shellType(13, 400), {color: theme.colors.textTertiary}]}>{defaultI18n.t('next.shell.defaultHint', {value})}</Text><Focusable testID={controlID(testID, 'reset')} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.shell.reset')} onPress={onReset} hitSlop={12}><Text style={[shellType(13, 700), {color: theme.colors.accentStrong}]}>{defaultI18n.t('next.shell.reset')}</Text></Focusable></View>;
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingHorizontal: inset ? theme.space.md : undefined}}><Text style={[shellType(13, 400), {color: theme.colors.textTertiary}]}>{defaultI18n.t('next.shell.defaultHint', {value})}</Text><Focusable testID={controlID(testID, 'reset')} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.shell.reset')} onPress={onReset} hitSlop={12}><Text style={[shellType(13, 700), {color: theme.colors.accentStrong}]}>{defaultI18n.t('next.shell.reset')}</Text></Focusable></View>;
 }
 export type ChoiceMatrixRow = Readonly<{id: string; label: string; value: string; defaultHint?: ReactNode}>;
 export function ChoiceMatrix({rows, options, onChange, testID}: {testID?: string; rows: readonly ChoiceMatrixRow[]; options: readonly SelectOption[]; onChange: (id: string, value: string) => void}) {

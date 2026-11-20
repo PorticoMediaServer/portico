@@ -2,6 +2,7 @@
 // Sol 8 on #823 (r2): Fabric commits a child's layout effects before its parent's, so the aimed row asks to be revealed
 // before Settings has committed its aim. Real SettingsScreen and SettingsRowFlash on the production Fabric reconciler;
 // only native hosts and unrelated page contents are stand-ins.
+import {settingsFixture} from './helpers/settings-fixture.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {screenModule} from './helpers/screen-harness.mjs';
@@ -26,7 +27,7 @@ async function fixture() {
   const page=(id: string)=>({id,title:id,icon:'settings',sections:[]});
   const structure={headings:[{id:'account',pages:['profile','playback','region'].map(page)}]};
   const theme={isTV:false,width:800,platform:'tablet',colors:new Proxy({},{get:(_t,key)=>String(key)})};
-  const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
+  const {NativeSettingsScreen} = await settingsFixture({'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: reactNamespace,
     'react-native': {AppState: {addEventListener: () => ({remove(){}})}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})}, 'react-native-qrcode-svg': {default: 'QRCode'},
