@@ -1,15 +1,11 @@
-import React, {useCallback, useLayoutEffect, useRef, useState} from 'react';
-import {Text, View} from 'react-native';
+import {useCallback, useLayoutEffect, useRef, useState} from 'react';
 import {sendServerMessage, serverMessageCharacters, serverMessageLength, type ServerMessageAudience} from '../../../../../../packages/client-core/src/server-admin/panel-logic';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
-import {Button, TextField} from '../../../kit/controls';
-import {BottomSheet} from '../../../kit/overlays';
-import {shellType} from '../../../kit/shell/visual';
-import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import type {NativeSettingsLivePorts} from '../ports';
-import {useSettingsRequestScope} from '../use-settings-request-scope';
-import {nativeStorageOwner} from './storage/space-source';
+import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
+import {useSettingsRequestScope} from '../../../screens/settings-live/use-settings-request-scope';
+import {nativeStorageOwner} from '../../../screens/settings-live/server/storage/space-source';
+
 type BroadcastDraft = Readonly<{message: string; audience: ServerMessageAudience}>;
 type Opening = {
   readonly ports: NativeSettingsLivePorts;
@@ -23,8 +19,8 @@ type Opening = {
 const emptyDraft: BroadcastDraft = Object.freeze({message: '', audience: 'everyone'});
 
 /** General and Feedback share one "Message everyone" sheet (definition 12 rule 80): the words go into people's notifications. */
-export function NativeBroadcastSheet({ports, runtime, open, onOpenChange}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; open: boolean; onOpenChange: (open: boolean) => void}) {
-  const theme = useTheme(), t = runtime.text.t, {api, lifetime} = useSettingsRequestScope(ports.context);
+export function useServerBroadcast({ports, runtime, open, onOpenChange}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; open: boolean; onOpenChange: (open: boolean) => void}) {
+  const t = runtime.text.t, {api, lifetime} = useSettingsRequestScope(ports.context);
   const active = useRef<Opening | undefined>(undefined), choices = useRef<Pick<BroadcastDraft, 'audience'>>({audience: 'everyone'});
   const [, render] = useState(0), changed = () => render(value => value + 1);
   const allowed = useCallback(() => lifetime.current() && nativeStorageOwner(ports.context) && !runtime.retirementSignal?.aborted, [lifetime, ports.context, runtime.retirementSignal]);
@@ -70,18 +66,5 @@ export function NativeBroadcastSheet({ports, runtime, open, onOpenChange}: {port
       if (target.flight === request) {target.flight = undefined; if (current()) changed();}
     }
   };
-  return <BottomSheet open={open && current()} onOpenChange={next => {if (!next) close();}} testID="server-message-everyone" keyboardAvoiding
-    title={t('server.messageEveryone')} dismissOnBack={!busy} dismissOnGesture={!busy} dismissOnOutsidePress={!busy} showClose={!busy}
-    footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={busy} onPress={close}>{t('action.cancel')}</Button>
-      <Button loading={busy} disabled={busy || !length || tooLong} onPress={() => {void send();}}>{t('feedback.send')}</Button></View>}>
-    <View style={{gap: 12}}>
-      <TextField label={t('web.broadcast.message')} value={message} onChangeText={message => edit({message})} editable={!busy} multiline/>
-      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>
-        <Button size="compact" disabled={busy} variant={audience === 'everyone' ? 'primary' : 'glass'} onPress={() => edit({audience: 'everyone'})}>{t('web.together.everyone')}</Button>
-        <Button size="compact" disabled={busy} variant={audience === 'admins' ? 'primary' : 'glass'} onPress={() => edit({audience: 'admins'})}>{t('web.broadcast.adminOnly')}</Button>
-      </View>
-      {tooLong && <Text accessibilityRole="alert" style={[shellType(13, 600), {color: theme.colors.record}]}>{t('next.settings.general.messageTooLong', {count: length})}</Text>}
-      {problem && <Text accessibilityRole="alert" style={[shellType(13, 600), {color: theme.colors.record}]}>{problem}</Text>}
-    </View>
-  </BottomSheet>;
+  return {t, current: current(), message, audience, busy, problem, length, tooLong, close, send, edit};
 }

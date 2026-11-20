@@ -8,7 +8,7 @@ import {SettingsHelp} from '../../../kit/settings/SettingsParts';
 import {SettingsRow} from '../../../kit/shell';
 import {DetailsPanel, StateView} from '../../../kit/states';
 import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
-import {NativeBroadcastSheet} from '../../../screens/settings-live/server/BroadcastSheet';
+import {ServerBroadcastSheet} from './ServerBroadcastSheet';
 import {NativeSettingControl} from '../../../kit/settings/SettingControl';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -79,8 +79,8 @@ export function ServerGeneralPage({ports, runtime, retry, ...frame}: Frame & {
       </OverlayFootRow></SectionCard>}
       {general.saveError !== undefined && <StateView variant="inline" {...runtime.error(general.saveError, general.save, 'server-console')}/>}
     </SettingsPageFrame>
-    <NativeBroadcastSheet ports={ports} runtime={runtime} open={general.messageOpen} onOpenChange={general.setMessageOpen}/>
-    <BottomSheet open={general.restarting} onOpenChange={open => {if (!open && !general.busy) general.setRestarting(false);}} testID="server-general-restart"
+    <ServerBroadcastSheet ports={ports} runtime={runtime} open={general.messageOpen} onOpenChange={general.setMessageOpen}/>
+    <BottomSheet open={general.restarting} onOpenChange={open => {if (!open && !general.busy) general.setRestarting(false);}} testID="server-general-restart" fitContent
       title={t('web.maintenance.serverRestart')} description={t('server.restart.body')}
       footer={<>
         <Button variant="glass" align="stretch" disabled={general.busy} onPress={() => general.setRestarting(false)}>{t('action.cancel')}</Button>
