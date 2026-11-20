@@ -31,10 +31,10 @@ const f = (name: Name) => formatMessage(titleFixtureMessages[`next.title.fixture
 const none = () => {};
 const asset = (path: string): ArtworkSource => ({uri: `${referenceOrigin}/assets/${path}`, cacheKey: `frames-reference:${path}`});
 /** Facts as the server sends them: the first is the identity; a rating and a season count are outlined, a runtime on a title page is not (phone-detail d1). */
-function Meta({text, tags = []}: {text: string; tags?: string[]}) {
+function Meta({text, tags = [], children}: {text: string; tags?: string[]; children?: ReactNode}) {
   // The frame centres the facts on a stacked head (HeroFactsCentred): the gallery, like a page, passes facts only.
   return <HeroMetadata facts={[...text.split(' · ').map((part, index) => ({id: index === 0 ? 'year' : `fact-${index}`, text: part, role: index === 0 ? 'identity' as const : 'context' as const})),
-    ...tags.map(tag => ({id: / seasons?$/.test(tag) ? 'season-count' : 'content-rating', text: tag, role: 'context' as const}))]}/>;
+    ...tags.map(tag => ({id: / seasons?$/.test(tag) ? 'season-count' : 'content-rating', text: tag, role: 'context' as const}))]}>{children}</HeroMetadata>;
 }
 const back = {label: f('back'), onPress: none}, playOn = {icon: 'i-cast' as const, label: f('playOn'), onPress: none};
 const link = (text: string) => ({text, onPress: none});
@@ -291,11 +291,11 @@ function PhoneAlbum() {
     // The served ambient image is not available to the gallery (artwork.gallery.tsx); the cover's palette stands in for the glow.
     art={<AmbientArt treatment="library" palette={{first: '#8a5636', second: '#3b2418'}}/>}
     cover={{shape: 'square', node: <Artwork source={asset('pool/albums/after-hours.jpg')} style={{width: '100%', height: '100%'}}/>}}
-    title={f('album')} byline={{text: f('albumArtist'), onPress: none}} metadata={<Meta text={f('albumFacts')}/>}
+    title={f('album')} byline={{text: f('albumArtist'), onPress: none}}
+    // The album's notable formats, as the server sends them (a hi-res lossless album in Dolby Atmos), at the end of its facts.
+    metadata={<Meta text={f('albumFacts')}><MusicFormatBadges badges={[{variant: 'lossless', codec: 'flac', bitDepth: 24, sampleRate: 96_000}, {variant: 'atmos'}]} size="phone"/></Meta>}
     primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, split: true, onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}]}>
-    {/* The album's notable formats, as the server sends them (a hi-res lossless album in Dolby Atmos). */}
-    <MusicFormatBadges badges={[{variant: 'lossless', codec: 'flac', bitDepth: 24, sampleRate: 96_000}, {variant: 'atmos'}]} size="phone"/>
     <TrackWindow rows={rows} variant="album" onPlay={none} onMore={none}/>
     <PosterRow shape="square" title={f('moreLikeThis')} subtitle={defaultI18n.t('music.moreLikeThisBySound')} items={moreLikeAfterHours.map(item => ({key: item[0], title: item[1], year: item[2], artwork: asset(item[0]), onNavigate: none}))}/>
   </TitleFrame></Page>;

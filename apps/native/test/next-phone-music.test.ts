@@ -122,10 +122,10 @@ for (const kind of ['album', 'artist'] as const) {
   });
 }
 
-test('phone keeps its single header Back and no tablet floating control', async () => {
+test('phone keeps its single header Back and no tablet floating control (the phone artist page; a phone album is the rebuilt page)', async () => {
   const view = await tabletMusic('album', 'error');
   // The phone body is a separate projection; render it with the phone platform.
-  const {PhoneAlbumScreen} = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
+  const {PhoneArtistScreen} = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
     ...musicImports,
     react: {...React, default: React},
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
@@ -147,7 +147,7 @@ test('phone keeps its single header Back and no tablet floating control', async 
   let backs = 0, tree: unknown;
   const controller = {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {phase: 'ready', songs: [], albums: [], similar: [], favorite: false, error: undefined,songPage:{phase:'ready',items:[],offset:0,nextCursor:'',canNext:false,canPrevious:false},releases:{phase:'ready',items:[],offset:0,nextCursor:'',canNext:false,canPrevious:false}}; return () => snapshot;})(),
     load: () => Promise.resolve(), play: async () => {}, toggleFavorite: async () => {}};
-  const host = createFabricHookHost(() => {tree = PhoneAlbumScreen({controller, entry: {id: 'a', libraryId: 'music', kind: 'album', title: 'Album'},
+  const host = createFabricHookHost(() => {tree = PhoneArtistScreen({controller, entry: {id: 'a', libraryId: 'music', kind: 'artist', title: 'Artist'},
     runtime: {artwork: () => undefined, ambient: () => undefined, text: {locale: 'en-US'}, reportError() {}}, actions: {menu() {}}, openEntry() {},
     onBack: () => {backs++;}});});
   await host.mount();
@@ -175,7 +175,7 @@ test('phone keeps its single header Back and no tablet floating control', async 
     const collapsedHost = createFabricHookHost(() => {collapsedTree = (header!.type as Function)({...header!.props, collapsed: true});});
     await collapsedHost.mount();
     const collapsedBar = typed(collapsedTree, 'TopBar')[0];
-    assert.deepEqual([collapsedBar.props.surface, collapsedBar.props.title], [true, 'Album']);
+    assert.deepEqual([collapsedBar.props.surface, collapsedBar.props.title], [true, 'Artist']);
     await collapsedHost.unmount();
   } finally {
     // Release both hosts even when an assertion above fails.
