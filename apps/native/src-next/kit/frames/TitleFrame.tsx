@@ -154,7 +154,7 @@ const tvFoldedCopy = .03;
 function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, place, title, metadata, picker, primary, actions = [], tagline, synopsis, note, quote, readMore, credits, cast, beside, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
-  const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY);
+  const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY), [wordsTop, setWordsTop] = useState(Number.POSITIVE_INFINITY);
   // TV (detail-tv-3): focus moving into the panel folds the hero to the title and the tabs at the top, the art dims, and
   // the section that holds focus rises to just under them; focus back on the buttons unfolds it. The head stays laid out
   // (it scrolls under the band, its words faded), so Up from the first row finds the buttons again. `where` is the head or a section's index; focus
@@ -333,7 +333,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       </View>
       {split && discs}
       {/* Everything in the art box hangs from its bottom edge, so a longer title grows upward and the row below never moves. */}
-      <View pointerEvents="box-none" style={stacked ? {position: 'absolute', left: frame.gutter, right: frame.gutter, bottom: split ? 0 : spec.copyBottom[form]} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
+      {/* Where the kicker and title start (the art box is the page's first part, so a page offset): the bar takes over as they reach it. */}
+      <View pointerEvents="box-none" onLayout={event => setWordsTop(event.nativeEvent.layout.y)} style={stacked ? {position: 'absolute', left: frame.gutter, right: frame.gutter, bottom: split ? 0 : spec.copyBottom[form]} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>
         <View style={stacked || tv ? undefined : {maxWidth: theme.spec.hero.copy.titleWidth.web}}>{identity}</View>
         {/* The words keep the copy width; the action row takes the page's width, so its buttons stay on one line (tablet f6, detail-tv-2). */}
         {!stacked && <View style={{marginTop: theme.space.sm}}>{body}</View>}
@@ -379,7 +380,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // and an upright tablet: Back, the title centred and Play on, with the tabs under it; a tablet on its side: the title,
   // the tabs, the primary and the pinned actions. A cover page (no art box) shows it at its tabs.
   const barHeight = insets.top + 56; // R5 interim: rule 3's 56 bar under the status bar
-  const barAt = Math.min(heroEnd, tabsY) - barHeight;
+  // The bar takes over as the title reaches it, never after it has run under Back and the top action (looker, 20 Nov).
+  const barAt = Math.min(heroEnd, tabsY, wordsTop) - barHeight;
   const shown = !tv && !split && (collapsed ?? passed);
   // Held collapsed by the screen (a tab's content opened directly): the bar stands in place of the hero and the page's
   // tabs, and the panel starts under it (phone-detail d1 frame 2, desktop-detail f3).
