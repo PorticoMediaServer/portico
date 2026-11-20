@@ -146,6 +146,9 @@ export const frame = {
    * final3-tv-08). The regions are `frameRegions.browse`. R5 interim: these numbers move to the rules hand's rhythm table. */
   browse: {
     /** The toolbar's last line to the grid's first row. The toolbar's own top padding is the gap under the tabs' rule (kit `BrowseToolbar`). */
+    /** The page's foot under its rows (Home's Customize: phone-app notes, "not drawn but kept"): the action centred over
+     * one line of description, this far apart. */
+    foot: {gap: 12},
     gridGap: forms(12, 12, 26, 24), // R5: a phone's is the header gap (phone-app .pg: 12 under the bar); desktop-browse .pgrid 26
     /** The poster grid: the narrowest a column's card may be (the columns stretch to both gutters), and the gaps between
      * columns and rows (desktop-browse .pgrid 20 / 30; phone-app 5; tablet 4 and 5). Its loading boxes use the same. */

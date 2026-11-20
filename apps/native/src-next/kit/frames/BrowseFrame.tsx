@@ -1,5 +1,6 @@
 import React, {useState, type ReactNode} from 'react';
-import {ScrollView, Text, View, type LayoutChangeEvent, type ViewStyle} from 'react-native';
+import {RefreshControl, ScrollView, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type StyleProp, type ViewStyle} from 'react-native';
+import Animated from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -7,6 +8,7 @@ import {StartFocusScope} from '../focus';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {FiltersDock, FiltersOver, FiltersPane, LibraryExpandedHeader, LibraryHeader, LibraryMediumHeader, StickyBrowseHeader, libraryFiltersTabletPane} from '../browse';
 import {Button, Tabs, type TabItem} from '../controls';
+import type {IconName} from '../Icon';
 import {BottomSheet, SidePanel} from '../overlays';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {useTheme} from '../theme';
@@ -67,6 +69,17 @@ export type BrowseFrameProps = Readonly<{
    * pull to refresh). The frame still places the hero, the rows and their gaps and the bottom clearance: it hands the
    * scroller what to scroll and the content style to put on it. Without it the frame scrolls the rows itself. */
   scroller?: (content: ReactNode, contentContainerStyle: ViewStyle) => ReactNode;
+  /** One notice over the rows, inside the gutter (Home: "Some libraries didn't load" with Try again). */
+  notice?: ReactNode;
+  /** The page's foot under its rows: one action centred over a line of description (Home's Customize Home). */
+  foot?: Readonly<{action: Readonly<{label: string; icon: IconName; onPress: () => void}>; description?: string}>;
+  /** The rows form's own scroller, drawn by the frame (Home): the page's scroll handler and offset, which drive its row
+   * window and scrolled header, pull to refresh, and the room for the tab bar under the frame's bottom clearance. */
+  scroll?: Readonly<{
+    ref?: React.Ref<Animated.ScrollView>; style?: StyleProp<ViewStyle>;
+    onScroll?: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | object; onScrollBeginDrag?: () => void;
+    refresh?: Readonly<{refreshing: boolean; onRefresh: () => void}>; bottomInset?: number;
+  }>;
   /** Where the rows start in the scrolled content, for a page that measures its rows against the scroll offset. */
   onRowsLayout?: (event: LayoutChangeEvent) => void;
   /** TV: the `focusId` or `testID` of the control the page starts on (R1): Home's first Continue Watching card, a
@@ -84,8 +97,8 @@ export function BrowseFrame({startFocus, ...props}: BrowseFrameProps) {
   // While the TV Filters sheet is open the page starts in it, on its primary (Show 6 movies), never on a card behind it.
   return <StartFocusScope id={props.filters?.open ? 'apply' : startFocus}><BrowsePage {...props}/></StartFocusScope>;
 }
-function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, children, testID, scroller, onRowsLayout}: Omit<BrowseFrameProps, 'startFocus'>) {
-  const frame = useFrameMetrics(), insets = useSafeAreaInsets(), form = frame.form;
+function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, children, testID, scroller, onRowsLayout, notice, foot, scroll}: Omit<BrowseFrameProps, 'startFocus'>) {
+  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), form = frame.form;
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   // A library's header and toolbar stay put while its grid or rows scroll under them; a plain page's title scrolls away.
   const pinned = !!header && (!!header.switcher || !!toolbar || !!grid);
@@ -94,12 +107,20 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, chil
   const top = header ? <BrowseHeader {...header}/> : hero ? <HeroWordsTop.Provider value={wordsTop}>{hero}</HeroWordsTop.Provider>
     : <View style={{height: form === 'tv' ? frame.titleTop : insets.top + frameSpec.header.wordmarkBar}}/>;
   if (failure) return <View testID={testID} style={{flex: 1}}>{top}<PageStateFrame {...failure}/></View>;
-  const rows = <FrameRhythm.Provider value><View onLayout={onRowsLayout} style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <RowsSkeleton/> : children}</View></FrameRhythm.Provider>;
+  const rows = <FrameRhythm.Provider value><View onLayout={onRowsLayout} style={{gap: frame.rowSection, marginTop: hero ? frameSpec.hero.home.rowOffset[form] : header ? frame.headerGap : 0}}>{loading ? <RowsSkeleton/> : <>
+    {notice ? <View style={{paddingHorizontal: frame.gutter}}>{notice}</View> : null}
+    {children}
+    {foot ? <BrowseFoot {...foot}/> : null}
+  </>}</View></FrameRhythm.Provider>;
   const body = grid || (loading && toolbar)
     ? <View style={{flex: 1, marginTop: frameSpec.browse.gridGap[form]}}>
       {loading ? <GridSkeleton/> : grid}
       {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>
+    : scroll && !loading ? <Animated.ScrollView ref={scroll.ref} testID={testID ? `${testID}-scroll` : undefined} style={scroll.style} scrollEventThrottle={16}
+      onScroll={scroll.onScroll as never} onScrollBeginDrag={scroll.onScrollBeginDrag} showsVerticalScrollIndicator={false}
+      refreshControl={scroll.refresh ? <RefreshControl refreshing={scroll.refresh.refreshing} tintColor={theme.colors.text} onRefresh={scroll.refresh.onRefresh}/> : undefined}
+      contentContainerStyle={{paddingBottom: frame.bottomClear + (scroll.bottomInset ?? 0)}}>{!pinned && top}{rows}</Animated.ScrollView>
     : scroller && !loading ? scroller(<>{!pinned && top}{rows}</>, {paddingBottom: frame.bottomClear})
     : <ScrollView style={{flex: 1}} scrollEnabled={!loading} contentContainerStyle={{paddingBottom: frame.bottomClear}}>{!pinned && top}{rows}</ScrollView>;
   const page = <View style={{flex: 1}}>{pinned && top}{toolbar}{body}</View>;
@@ -156,6 +177,16 @@ function FiltersSurface({filters, testID}: {filters: BrowseFiltersProps; testID?
   return <BottomSheet testID={testID} open={filters.open} onOpenChange={close} title={t('next.browse.native.filters')} showClose={false} scrollable={false} detents={[580, 698]} defaultDetent={1}
     headerAction={<Button focusId="clear" variant="text" textStyle={{color: theme.colors.textSecondary}} onPress={filters.onClear}>{t('next.browse.native.clearAll')}</Button>}
     footer={<View style={{flexDirection: 'row', gap: theme.space.controlGap}}>{filters.save && <Button focusId="save-view" variant="glass" disabled={!filters.save.canSave} onPress={filters.save.onSave}>{t('next.browse.native.saveView')}</Button>}{show}</View>}>{filters.children}</BottomSheet>;
+}
+
+/** The page's foot: its one action centred over a line of description (Home's Customize Home). */
+function BrowseFoot({action, description}: NonNullable<BrowseFrameProps['foot']>) {
+  const theme = useTheme(), frame = useFrameMetrics();
+  return <View style={{marginHorizontal: frame.gutter, alignItems: 'center', gap: frameSpec.browse.foot.gap}}>
+    {/* 48 tall over 22 a side: the button size Customize Home always drew. */}
+    <Button variant="glass" size="episode" icon={action.icon} style={{alignSelf: 'center'}} onPress={action.onPress}>{action.label}</Button>
+    {description ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, textAlign: 'center'}]}>{description}</Text> : null}
+  </View>;
 }
 
 /** Loading holds the loaded page's boxes (rule 12): two rows, each a heading and a line of cards at their real size. */
