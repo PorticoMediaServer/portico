@@ -11,20 +11,24 @@ export async function readerFixtureModule(name, previous) {
   }));
   const load = (file, modules) => screenModule(new URL(`../../src-next/${file}`, import.meta.url), modules);
   const react = lookup('react');
-  const surface = await load('kit/reading/ReaderSurface.tsx', {
+  const back = await load('kit/reading/ReaderBack.tsx', {
+    react, 'react-native': lookup('react-native'), 'react-native-safe-area-context': lookup('react-native-safe-area-context'),
+    '../controls/Button': lookup('../../kit/controls/Button'),
+  });
+  const frame = await load('kit/frames/ReaderFrame.tsx', {
     react,
     '../navigation/stack-slot': lookup('../../kit/navigation/stack-slot'), '../shell/Layer': lookup('../../kit/shell/Layer'),
-    '../focus/CoveredLayer': {CoveredLayer: 'CoveredLayer'}, '../states': lookup('../../kit/states'),
+    '../focus/CoveredLayer': lookup('../../kit/focus/CoveredLayer') ?? {CoveredLayer: 'CoveredLayer'},
+    '../states': lookup('../../kit/states'), '../reading/ReaderBack': back, './PageStateFrame': {PageStateFrame: 'StateView'},
   });
   const isGuest = name === 'Guest';
   const hook = await load(`pages/shared/reading/useReader${isGuest ? 'Guest' : 'Session'}.ts`, {
     ...bindings, '../../../kit/reading/ReadingGuestView': lookup('./ReadingGuestView'),
   });
   const page = await load(`pages/touch/reading/Reader${isGuest ? 'Guest' : ''}Page.tsx`, {
-    ...bindings, '../../../kit/reading/ReaderSurface': surface, '../../../kit/reading/ReadingGuestView': lookup('./ReadingGuestView'),
-    './ReaderStatusPage': lookup('../../pages/touch/reading/ReaderStatusPage'),
+    ...bindings, '../../../kit/frames/ReaderFrame': frame, '../../../kit/reading/ReadingGuestView': lookup('./ReadingGuestView'),
     './ReaderGuestPage': {ReaderGuestPage: lookup('./NativeReadingGuestHost')?.NativeReadingGuestHost},
     '../../shared/reading/useReaderGuest': hook, '../../shared/reading/useReaderSession': hook,
   });
-  return isGuest ? {NativeReadingGuestHost: page.ReaderGuestPage} : {ReadNativeHost: page.ReaderPage};
+  return isGuest ? {NativeReadingGuestHost: page.ReaderGuestPage, ...frame} : {ReadNativeHost: page.ReaderPage, ...frame};
 }

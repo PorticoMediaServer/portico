@@ -50,7 +50,7 @@ colours. Names and values: `packages/design/src/scale.ts`, `index.ts` (`formScal
 | Saved: Downloads | `SplitFrame` with Rules as its pane from tablet width, around `BrowseFrame` (named use `downloads`) | the rows |
 | Music and Audiobooks libraries, Discover, Songs | `BrowseFrame` with `header` (named uses `music`, `audiobooks`) | the rows or grid |
 | A page with a second pane: a programme, a rule, Downloads' Rules | `SplitFrame` | the page |
-| The reader (books, comics, PDFs) | `ReaderFrame`: the web kit's, inside the reading guest's web view (`screens/read/NativeReadingGuestHost.tsx`); there is no native reader frame | the page |
+| The reader (books, comics, PDFs) | Native `ReaderFrame` owns the guest window, loading, and failure. The guest web view draws the reading controls and content. | the page |
 | A film, show, season, person, album, artist, book, collection | `TitleFrame` | the synopsis and the tab panel |
 | Settings (the list) | `SettingsListFrame` | the groups |
 | One settings or owner page, a form | `SettingsPageFrame` | the sections |
