@@ -11,12 +11,13 @@ import {SelectionCircle} from '../selection';
 import {MusicWindow} from '../music/MusicWindow';
 import {fontFamilies, textLine, useTheme} from '../theme';
 import {PanelBlock, PanelHeading} from './title-parts';
+import {isTabletForm} from './metrics';
 
 const row = frameSpec.hero.title.parts.listRow;
 /** The picture's width: a phone's list size (phone-detail d3 frame 8), a tablet's the numbered list's (desktop-detail f8, 106);
  * a square cover (a book) the same width as a tablet's poster. TV keeps the phone's sizes it had. */
 export function titleListArt(theme: ReturnType<typeof useTheme>, square?: boolean): number {
-  const tablet = theme.form === 'medium' || theme.form === 'expanded';
+  const tablet = isTabletForm(theme.form);
   return tablet ? frameSpec.hero.title.parts.numberedArt[theme.form] : square ? row.square : row.poster;
 }
 

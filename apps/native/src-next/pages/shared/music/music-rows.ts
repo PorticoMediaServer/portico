@@ -3,6 +3,7 @@ import type {View} from 'react-native';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {cardText} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import type {TrackRowData} from '../../../kit/browse';
+import type {TitleAction} from '../../../kit/frames';
 import type {CardSelection, PosterRowProps} from '../../../kit/layout';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeEntryActions} from '../../../screens/destinations/entry-actions';
@@ -41,4 +42,9 @@ export function similarPaging(controller: NativeTVMusicController, snapshot: Nat
   const paging = controller.similarPage(snapshot);
   return paging ? {paging: {hasMore: paging.hasMore, loading: paging.loading, failed: paging.failed, waitingId: paging.waitingId, fulfilled: paging.fulfilled,
     waitingItem: {key: paging.waitingId, title: '', onNavigate: () => {}}, requestNext: paging.requestNext}} : {};
+}
+
+/** The page's heart for an album or an artist: drawn beside Play and Shuffle on a tablet on its side, in ⋯ elsewhere (`wide`). */
+export function favoriteAction(on: boolean, toggle: () => void, testID: string, t: (key: 'next.browse.native.unfavorite' | 'next.browse.native.favorite') => string): TitleAction {
+  return {icon: on ? 'i-heart-f' : 'i-heart', label: t(on ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite'), active: on, wide: true, onPress: toggle, testID};
 }

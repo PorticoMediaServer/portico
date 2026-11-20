@@ -1,5 +1,6 @@
 import React, {useId, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, Text, View} from 'react-native';
+import {defaultI18n} from '../../../../../packages/i18n/src';
 import {ArtistCircle, Artwork, type ArtworkSource} from '../artwork';
 import {CircleCard, CollectionBanner, CollectionTile, EpisodeTile, type CollectionCardProps, type EpisodeTileProps} from '../cards';
 import {cardCaptionHeight} from '../cards/caption-metrics';
@@ -83,6 +84,12 @@ export function AboutTable({rows}: Readonly<{rows: readonly Readonly<{label: str
  * Albums and Details). */
 export function AsideSection({title, children}: Readonly<{title: string; children: ReactNode}>) {
   return <View><PanelHeading title={title}/>{children}</View>;
+}
+
+/** A page's Details beside its panel on a tablet on its side, under it otherwise (an album's, an artist's): the heading and
+ * the About table, at the side column's edge. */
+export function DetailsAside({rows}: Readonly<{rows: readonly Readonly<{label: string; values: readonly AboutValue[]}>[]}>) {
+  return <PanelBlock inset={false}><PanelHeading title={defaultI18n.t('title.details')}/><AboutTable rows={rows}/></PanelBlock>;
 }
 
 /** What the server says about a title or a person under its About or Details table, and where that is from (the old TV

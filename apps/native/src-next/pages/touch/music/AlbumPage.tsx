@@ -1,7 +1,7 @@
 import React from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {AmbientArt, Artwork, missingArt} from '../../../kit/artwork';
-import {AboutTable, musicScroller, PanelBlock, PanelHeading, StateRow, TitleFrame} from '../../../kit/frames';
+import {DetailsAside, musicScroller, PanelBlock, StateRow, TitleFrame} from '../../../kit/frames';
 import {HeroMetadata, PosterRow} from '../../../kit/layout';
 import {MusicFormatBadges} from '../../../kit/music/MusicFormatBadges';
 import {MusicSectionControls} from '../../../kit/music/MusicSectionControls';
@@ -25,10 +25,10 @@ export function AlbumPage(props: AlbumPageProps) {
     primary={{icon: 'i-play', label: t('entry.play'), onPress: view.play, testID: 'album-play'}}
     actions={[{icon: 'i-shuffle', label: t('title.shuffle'), labelled: true, split: true, onPress: view.shuffle, testID: 'album-shuffle'},
       // A tablet on its side: the heart and Add to playlist beside them (tablet-play 11); elsewhere they are in ⋯.
-      {icon: view.favorite.on ? 'i-heart-f' : 'i-heart', label: t(view.favorite.on ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite'), active: view.favorite.on, wide: true, onPress: view.favorite.toggle, testID: 'album-favorite'},
+      view.favoriteAction,
       ...(view.playlist ? [{icon: 'i-list-plus' as const, label: t('next.selection.addToPlaylist'), wide: true, onPress: view.playlist, testID: 'album-playlist'}] : []),
       ...(view.download ? [{icon: 'i-dl' as const, label: t('next.cards.download'), onPress: view.download, testID: 'album-download'}] : [])]}
-    aside={view.details && <PanelBlock inset={false}><PanelHeading title={t('title.details')}/><AboutTable rows={view.details}/></PanelBlock>}
+    aside={view.details && <DetailsAside rows={view.details}/>}
     scroller={musicScroller({onNearEnd: songs.onNearEnd, testID: 'album-scroll'})}>
     {view.state && <PanelBlock><StateRow {...view.state}/></PanelBlock>}
     <TrackWindow rows={songs.rows} variant="album" select={songs.select} onPlay={songs.onPlay} onMore={songs.onMore} onFavorite={songs.onFavorite} onFocusRow={songs.onFocusRow} onBlurRow={songs.onBlurRow}/>

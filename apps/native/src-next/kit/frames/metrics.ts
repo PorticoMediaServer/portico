@@ -1,6 +1,7 @@
 import {createContext, useContext} from 'react';
 import {useWindowDimensions} from 'react-native';
 import {frameSpec, type FrameForm} from '@portico/design';
+export {isTabletForm} from '@portico/design';
 import {useTheme} from '../theme';
 import {usePageWidth} from '../layout/page-inset';
 

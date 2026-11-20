@@ -5,8 +5,9 @@ import {presentError} from '../../../../../../packages/client-core/src/presentat
 import {artistReleaseGroups} from '../../../../../../packages/client-core/src/presentation/library-tabs';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
-import type {StateRowProps} from '../../../kit/frames';
+import type {StateRowProps, TitleAction} from '../../../kit/frames';
 import {useTheme} from '../../../kit/theme';
+import {isTabletForm} from '@portico/design';
 import type {PosterRowItem, PosterRowProps} from '../../../kit/layout';
 import type {MusicSection} from '../../../kit/music/section';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -14,7 +15,7 @@ import type {NativeEntryActions} from '../../../screens/destinations/entry-actio
 import type {MusicAlbumRow, NativeTVMusicController} from '../../../screens/destinations/music/model';
 import {usePlayingItem} from '../../../screens/destinations/music/use-playing-item';
 import type {NativeSavedSelectionPort} from '../../../screens/saved/SavedScreen';
-import {similarPaging, songList, type SongList} from './music-rows';
+import {favoriteAction, similarPaging, songList, type SongList} from './music-rows';
 
 const t = defaultI18n.t;
 const year = (value: number | undefined) => value === undefined ? undefined : defaultI18n.number(value, {useGrouping: false});
@@ -38,6 +39,8 @@ export type ArtistView = Readonly<{
   play: () => void; shuffle: () => void; more: () => void;
   /** Whether this viewer favourites the artist, and the toggle (the old TV page's heart). */
   favorite: Readonly<{on: boolean; toggle: () => void}>;
+  /** The same heart as a page action (`favoriteAction`). */
+  favoriteAction: TitleAction;
   /** Country, active years and type, then what the server says about them and where that is from (the old TV page's Details). */
   details: Readonly<{rows: readonly Readonly<{label: string; values: readonly Readonly<{text: string}>[]}>[]; overview?: string; source?: string}>;
   /** The read failed: Try again reads the artist again (the old screen's error view). */
@@ -65,7 +68,7 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
   const groups = useMemo(() => artistReleaseGroups(snapshot.albums), [snapshot.albums]);
   const covers = useMemo(() => snapshot.albums.flatMap(album => {const source = runtime.artwork(album.posterUrl); return source ? [source] : [];}), [snapshot.albums, runtime]);
   const about = snapshot.artistDetails ?? entry, releases = snapshot.releases;
-  const {form} = useTheme(), tablet = form === 'medium' || form === 'expanded';
+  const tablet = isTabletForm(useTheme().form);
   // The albums, the songs and the first genre (frame 15b: "1 album  4 songs  R&B/Soul"), each only when the read has it.
   const facts: FactPart[] = [];
   if (about.albumCount !== undefined) facts.push({id: 'albums', text: t('title.albumCount', {count: about.albumCount}), role: 'context'});
@@ -91,6 +94,7 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
     glow: runtime.ambient(snapshot.albums[0]?.posterUrl ?? entry.posterUrl ?? entry.backdropUrl), facts,
     play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)), more: () => actions.menu(entry),
     factsTV, favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())},
+    favoriteAction: favoriteAction(snapshot.favorite, () => run(controller.toggleFavorite()), 'artist-favorite', t),
     details: {rows: [...(about.country ? [{label: t('title.country'), values: [{text: about.country}]}] : []), ...(years ? [{label: t('title.activeYears'), values: [{text: years}]}] : []),
       {label: t('title.albumType'), values: [{text: about.artistType ?? t('title.kind', {kind: 'artist'})}]}],
       overview: about.overview || undefined, source: about.overview && about.overviewSource ? t('title.fromSource', {source: about.overviewSource}) : undefined},
