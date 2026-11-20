@@ -4,6 +4,8 @@
 #import <unistd.h>
 #import <mach/mach.h>
 #import <errno.h>
+// A book's address as the server signs it: `b.` and 118 base64url characters (server-next reading.go sign).
+#define GRANT_C "b.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWVw"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
@@ -52,7 +54,7 @@ static void pausedSource(uint64_t total,BOOL chunked,BOOL consumeFirst){
   shutdown(peer,SHUT_RDWR);close(peer);
  });
  NSObject *owner=[NSObject new];NSMutableDictionary *state=[NSMutableDictionary new];
- NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/reading/sessions/prefetch/source",ntohs(address.sin_port)];
+ NSString *url=[NSString stringWithFormat:@"http://127.0.0.1:%u/v1/media/" GRANT_C "/source",ntohs(address.sin_port)];
  uint64_t before=residentBytes();
  PorticoQueueRequest *request=PorticoReadingStreamRequest(NSUUID.UUID.UUIDString,url,@{},owner,
   ^(id value){@synchronized(state){state[@"headers"]=value;}},^(NSString *c,NSString *m,NSError *e){@synchronized(state){state[@"error"]=c;}});
