@@ -29,3 +29,25 @@ test('an upright recordings page preserves Back and changes the view without dis
   frame.props.back.onPress();
   assert.deepEqual(actions, ['recorded', 'guide']);
 });
+
+test('the TV guide keeps its focus controls outside the full-width grid', async () => {
+  const h = hooks();
+  const {TVGuidePage} = await screenModule(new URL('../src-next/pages/tv/live/GuidePage.tsx', import.meta.url), {
+    react: h.react, '../../../kit/frames': {LiveFrame: 'LiveFrame'},
+  });
+  const frame = h.render(() => TVGuidePage({title: 'Live TV', actions: 'Guide controls', tabs: 'Filters', list: 'TV grid'}));
+  assert.equal(frame.props.flushList, true);
+  assert.equal(frame.props.actions, 'Guide controls');
+  assert.equal(frame.props.list, 'TV grid');
+});
+
+test('TV Recordings keeps storage facts, view choices and the recorded list in one frame', async () => {
+  const h = hooks();
+  const {TVRecordingsPage} = await screenModule(new URL('../src-next/pages/tv/live/RecordingsPage.tsx', import.meta.url), {
+    react: h.react, '../../../kit/frames': {LiveFrame: 'LiveFrame'},
+  });
+  const frame = h.render(() => TVRecordingsPage({title: 'Recordings', facts: '19 GB free', tabs: 'Upcoming', list: 'Recorded list'}));
+  assert.equal(frame.props.facts, '19 GB free');
+  assert.equal(frame.props.tabs, 'Upcoming');
+  assert.equal(frame.props.list, 'Recorded list');
+});
