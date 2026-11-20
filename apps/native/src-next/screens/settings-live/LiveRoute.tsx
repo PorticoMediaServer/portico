@@ -1,4 +1,5 @@
 import React from 'react';
+import {Platform} from 'react-native';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 import {nativeRouteCrypto} from '../../platform/server-connections';
@@ -7,7 +8,8 @@ import {NativeLiveController} from './live-controller';
 import {nativeGuideMemory} from './guide-memory';
 import {nativeScreenServices} from '../native-screen-services';
 import {createNativeRecordingsController} from './recordings-controller';
-import {GuidePage} from '../../pages/shared/live/GuidePage';
+import {GuidePage as TouchGuidePage} from '../../pages/touch/live/GuidePage';
+import {GuidePage as TVGuidePage} from '../../pages/tv/live/GuidePage';
 import {NativeLiveOwnerController} from './live-owner-controller';
 import {withGuardedRaw} from '../../../../../packages/client-core/src/home-selection/list-destinations';
 import {nativeSettingsRequestId} from './settings-ports';
@@ -26,6 +28,7 @@ export function createNativeLiveRenderer(context: NativeShellBootstrapContext): 
     render: (route, runtime) => {
       lifetime.assert();
       if (route.kind !== 'shell' || route.destination.kind !== 'live') throw new Error('native_live_route_mismatch');
+      const GuidePage = Platform.isTV ? TVGuidePage : TouchGuidePage;
       return <GuidePage ports={{context, dvrRequestId, requestId: nativeSettingsRequestId}} controller={controller} recordings={recordings} owner={owner} runtime={runtime}/>;
     },
     dispose: () => {releaseWatch(); owner.dispose(); controller.dispose(); recordings.dispose(); lifetime.dispose();},

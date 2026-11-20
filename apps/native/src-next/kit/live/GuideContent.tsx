@@ -1,50 +1,43 @@
 import React from 'react';
-import {defaultRecordingOptions} from '../../../../../../packages/client-core/src/dvr';
-import {legacyChannel, legacyProgram, legacyProgramme, rulerTicks, SLOT_MS} from '../../../../../../packages/client-core/src/guide';
-import {episodeLabel, programmeTimeRange} from '../../../../../../packages/client-core/src/presentation/kit-model';
-import {channelUnavailableMessage} from '../../../../../../packages/client-core/src/presentation/live-availability';
-import {Button, Select} from '../../../kit/controls';
-import {FocusRegion} from '../../../kit/focus';
-import {LiveFrame} from '../../../kit/frames';
-import {GuideActionRow, GuideDayPicker, GuideFilterStrip, GuideNotices, GuideOnNow, GuideRecordingsButton, GuideSourcePicker, GuideViewport, GuideViewSwitch} from '../../../kit/live/GuideControls';
-import {NativeLivePhonePicker} from '../../../kit/live/LivePhonePicker';
-import {NativeGuideGrid} from '../../../kit/live/NativeGuideGrid';
-import {LiveRow} from '../../../kit/live/NativeGuideRow';
-import {ProgrammePanel, type LaterProgramme} from '../../../kit/live/ProgrammePanel';
-import {Menu, ToastHost} from '../../../kit/overlays';
-import {OwnerTag} from '../../../kit/shell/ServerIdentity';
-import {StateView} from '../../../kit/states';
-import {visibleGuideRows} from '../../../screens/settings-live/guide-pan-model';
-import {nativeChannelMenuEntries} from '../../../screens/settings-live/guide-presentation';
-import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
-import {NativeSeriesRuleSheet} from '../../../screens/settings-live/LiveSeriesRule';
-import {NativeLiveTabs} from '../../../kit/live/LiveTabs';
-import {RecordingsPage} from './RecordingsPage';
-import {guideFocusMoved, liveGuideEntry, tvProgrammeGroups} from '../../../screens/settings-live/tv-settings-focus';
-import {TVManagementHandoff} from '../../../tv/auth';
+import {defaultRecordingOptions} from '../../../../../packages/client-core/src/dvr';
+import {legacyChannel, legacyProgram, legacyProgramme, rulerTicks, SLOT_MS} from '../../../../../packages/client-core/src/guide';
+import {episodeLabel, programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {channelUnavailableMessage} from '../../../../../packages/client-core/src/presentation/live-availability';
+import {Button, Select} from '../controls';
+import {FocusRegion} from '../focus';
+import type {LiveFrameProps} from '../frames';
+import {GuideActionRow, GuideDayPicker, GuideFilterStrip, GuideNotices, GuideOnNow, GuideRecordingsButton, GuideSourcePicker, GuideViewport, GuideViewSwitch} from './GuideControls';
+import {NativeLivePhonePicker} from './LivePhonePicker';
+import {NativeGuideGrid} from './NativeGuideGrid';
+import {LiveRow} from './NativeGuideRow';
+import {ProgrammePanel, type LaterProgramme} from './ProgrammePanel';
+import {Menu, ToastHost} from '../overlays';
+import {OwnerTag} from '../shell/ServerIdentity';
+import {StateView} from '../states';
+import {visibleGuideRows} from '../../screens/settings-live/guide-pan-model';
+import {nativeChannelMenuEntries} from '../../screens/settings-live/guide-presentation';
+import {NativeSeriesRuleSheet} from '../../screens/settings-live/LiveSeriesRule';
+import {NativeLiveTabs} from './LiveTabs';
+import {guideFocusMoved, liveGuideEntry, tvProgrammeGroups} from '../../screens/settings-live/tv-settings-focus';
 
-import {useLiveGuide, type GuidePageProps} from './useLiveGuide';
+import type {useLiveGuide, GuidePageProps} from '../../pages/shared/live/useLiveGuide';
 
-export function GuidePage(props: GuidePageProps) {
-  const {controller, recordings, owner, ports, runtime} = props;
+export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLiveGuide>): LiveFrameProps {
+  const {controller, recordings, ports, runtime} = props;
   const {theme, t, dockTop, serverName, state, guide, data, ids, compact, screenReader, landscape, phone, phoneChrome, expandedTouch,
     insetLeft, insetRight, now, start, view, setView, selected, setSelected, channelMenu, setChannelMenu, channelMenuBusy,
     channelMenuError, setChannelMenuError, channelMenuAnchor, content, setMeasuredWidth, measureContent, contentWidth,
     recording, setRecording, recordError, setRecordError, series, setSeries, toast, setToast, reminders, later,
     laterRecordings, laterRecording, guideReentry, guideReentryRef, tvRegistry, reentryBaseline, scopeKey, reentry,
-    management, managementActive, closeManagement, ownerOpen, setOwnerOpen, initialOwnerAction, setInitialOwnerAction,
-    recordingsOpen, setRecordingsOpen, setRecordingsReturn, recordingsReturn, managementReturn, opener, selectedOpener,
+    setRecordingsOpen, recordingsReturn, managementReturn, opener, selectedOpener,
     list, visible, guideOffset, pull, channelWidth, paneLeft, guideEnd, twoPane, width, rowHeight, rowGap, px, end,
     tvRange, revealTVCell, pan, panPosition, panActive, rulerShift, nowShift, nowPillShift, pastShade, earlierNow, laterNow,
     overscan, clock, goNow, nowX, inNowSpan, open, openChannelMenu, changeChannel, remind, recordLater, askSeries, favorite,
     watch, select, chooseSource, sourceOptions, chooseDay, shortDate, fullDate, dayName, dayTrailing, dayNote, days, daysCount,
     today, currentDay, sortOptions, chooseSort, controls, grid, filters, empty, filterEmpty, filterChips,
-    managesServer, hasRecordings, conflicts, recordingsLabel, managementUrl, openManagement, serverWide, stale} = useLiveGuide(props);
+    managesServer, hasRecordings, conflicts, recordingsLabel, managementUrl, openManagement, serverWide, stale} = model;
   const guideNotices = <GuideNotices reason={serverWide && {title: t(serverWide.title), body: t(serverWide.body)}} stale={stale ? t('guide.stale') : undefined}/>;
 
-  if (managementActive && management) return <TVManagementHandoff url={management.url} onBack={closeManagement}/>;
-  if (ownerOpen && !theme.isTV) return <NativeLiveOwnerScreen controller={owner} recordings={recordings} ports={ports} runtime={runtime} initialAction={initialOwnerAction} onClose={() => {setInitialOwnerAction(undefined); setOwnerOpen(false); setRecordingsReturn(value => value + 1);}}/>;
-  if (recordingsOpen) return <RecordingsPage controller={recordings} ports={ports} runtime={runtime} owner={theme.isTV ? undefined : owner} onGuide={() => {setRecordingsReturn(value => value + 1); setRecordingsOpen(false);}}/>;
   // A later programme leads with Record and offers Remind me; Watch live appears once it is on.
   const onNowProgramme = selected?.program !== undefined && selected.program.start <= now && selected.program.end > now;
   const showTVWatch = !!selected?.channel.tuneAvailable && (onNowProgramme || !selected.program);
@@ -179,7 +172,7 @@ export function GuidePage(props: GuidePageProps) {
             earlierLabel: t('guide.nowEarlier'), laterLabel: t('guide.nowLater'), onPress: goNow} : undefined}
           rows={{refreshControl: pull, data: null, getItem: (_, index) => index, getItemCount: () => data.total ?? 12, keyExtractor: index => String(index),
             initialNumToRender: 12, maxToRenderPerBatch: 12, windowSize: 5, removeClippedSubviews: false,
-            getItemLayout: (_, index) => ({index, length: rowHeight + rowGap, offset: index * (rowHeight + rowGap)}),
+            getItemLayout: view === 'list' && !theme.isTV ? undefined : (_, index) => ({index, length: rowHeight + rowGap, offset: index * (rowHeight + rowGap)}),
             onLayout: () => list.current?.scrollToOffset({offset: guideOffset.current, animated: false}),
             onScroll: event => {guideOffset.current = event.nativeEvent.contentOffset.y;}, scrollEventThrottle: 16,
             onViewableItemsChanged: ({viewableItems}) => {
@@ -200,8 +193,7 @@ export function GuidePage(props: GuidePageProps) {
   const overlays = <>
     {selected && <ProgrammePanel channel={selected.channel} programme={selected.program} now={now} runtime={runtime}
       favorite={favorite} busy={state.mutating} paneLeft={twoPane ? paneLeft : undefined}
-      placement={theme.isTV || landscape || theme.width >= 700 ? 'side' : undefined}
-      width={theme.isTV ? 640 : landscape ? 376 : theme.width >= 700 ? 400 : undefined}
+      landscape={landscape}
       region={programmeRegion} groups={programmeGroups} later={laterOn} actions={programmeActions} reason={sheetReason && t(sheetReason)}
       onClose={() => setSelected(undefined)} opener={theme.isTV || selected.channel.tuneAvailable || selected.channel.recordAvailable && selected.program ? opener : undefined}
       returnFocus={selectedOpener}
@@ -218,12 +210,12 @@ export function GuidePage(props: GuidePageProps) {
       onCreated={() => {setSelected(undefined); setSeries(undefined); guide.invalidate(); if (!theme.isTV) void recordings.loadSummary(); setToast({id: `series-${Date.now()}`, message: t('guide.seriesSet'), icon: 'i-rec'});}}/>
     <ToastHost toast={toast} onDismiss={() => setToast(null)} bottomOffset={phone ? 96 : 0} obstructionTop={dockTop}/>
   </>;
-  return <LiveFrame title={t('search.chip.liveTV')} switcher={expandedTouch ? sourcePicker : undefined}
-    actions={theme.isTV ? controlsRow : expandedTouch ? undefined : phoneActions}
-    tabs={landscape ? undefined : <>{expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts}
-      onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>{viewSwitch}</NativeLiveTabs>}{channelFilters}</>}
-    chips={landscape ? channelFilters : undefined} toolbar={theme.isTV ? undefined : phoneChrome ? phoneToolbar : timeRow}
-    list={guideView} overlay={overlays} flushList={theme.isTV} testID={theme.isTV ? 'tv-live-guide' : 'phone-live-guide'}/>;
+  return {title: t('search.chip.liveTV'), switcher: expandedTouch ? sourcePicker : undefined,
+    actions: theme.isTV ? controlsRow : expandedTouch ? undefined : phoneActions,
+    tabs: landscape ? undefined : <>{expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts}
+      onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>{viewSwitch}</NativeLiveTabs>}{channelFilters}</>,
+    chips: landscape ? channelFilters : undefined, toolbar: theme.isTV ? undefined : phoneChrome ? phoneToolbar : timeRow,
+    list: guideView, overlay: overlays, flushList: theme.isTV, testID: theme.isTV ? 'tv-live-guide' : 'phone-live-guide'};
 }
 
 /** A scheduled airing says its state where Record was; an unscheduled one says Record. */

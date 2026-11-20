@@ -42,21 +42,24 @@ export async function liveGuideModule(previous, shallow = false) {
   const controls = await load('kit/live/GuideControls.tsx', kit);
   const grid = await load('kit/live/NativeGuideGrid.tsx', kit);
   const programme = await load('kit/live/ProgrammePanel.tsx', kit);
-  const draw = parts => parts;
   bindings['../../../../../../packages/client-core/src/timer'] = await import('../../../../packages/client-core/src/timer.ts');
   const hook = await load('pages/shared/live/useLiveGuide.ts', bindings);
   const frame = ({actions, tabs, chips, toolbar, list, overlay}) => element('GuidePage', shallow ? {list, toolbar, overlay} : null, actions, tabs, chips, toolbar, list, overlay);
-  const page = await load('pages/shared/live/GuidePage.tsx', {
-    ...bindings,
-    './useLiveGuide': hook,
+  const content = await load('kit/live/GuideContent.tsx', {
+    ...liveContentBindings(bindings), './GuideControls': controls, './NativeGuideGrid': grid, './ProgrammePanel': programme,
+    './LivePhonePicker': previous['./LivePhonePicker'],
+  });
+  const inputs = {
+    ...bindings, '../../shared/live/useLiveGuide': hook, '../../../kit/live/GuideContent': content,
     './RecordingsPage': {RecordingsPage: previous['./RecordingsScreen']?.NativeRecordingsScreen},
     '../../../kit/frames': {LiveFrame: frame},
-    '../../../kit/live/GuideControls': controls,
-    '../../../kit/live/NativeGuideGrid': grid,
-    '../../../kit/live/ProgrammePanel': programme,
-    '../../../kit/live/LivePhonePicker': previous['./LivePhonePicker'],
-  });
-  return {NativeLiveScreen: shallow ? props => frame(page.GuidePage(props).props) : page.GuidePage};
+  };
+  const [touch, tv] = await Promise.all(['touch', 'tv'].map(form => load(`pages/${form}/live/GuidePage.tsx`, inputs)));
+  return {NativeLiveScreen: props => {
+    const page = bindings['../../../kit/theme'].useTheme().isTV ? tv : touch;
+    const result = page.GuidePage(props);
+    return shallow ? frame(result.props) : result;
+  }};
 }
 
 function livePageBindings(previous) {
@@ -72,6 +75,14 @@ function livePageBindings(previous) {
 }
 
 
+function liveContentBindings(bindings) {
+  return Object.fromEntries(Object.entries(bindings).map(([path, value]) => [path
+    .replace(/^\.\.\/\.\.\/\.\.\/kit\/live\//, './')
+    .replace(/^\.\.\/\.\.\/\.\.\/kit\//, '../')
+    .replace(/^\.\.\/\.\.\/\.\.\/(screens|tv)\//, '../../$1/')
+    .replace(/^\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\//, '../../../../../packages/'), value]));
+}
+
 export async function recordingsPageModule(previous) {
   const {screenModule} = await import('./screen-harness.mjs');
   const bindings = livePageBindings(previous), react = bindings.react;
@@ -81,6 +92,7 @@ export async function recordingsPageModule(previous) {
     react, 'react-native': bindings['react-native'],
     '../controls': previous['../../kit/controls'], '../controls/Button': {Button: previous['../../kit/controls'].Button},
     '../controls/Focusable': {Focusable: previous['../../kit/controls'].Focusable},
+    '../dock/DockClearance': {useDockClearance: () => 0},
     '../focus': previous['../../kit/focus'], '../theme': previous['../../kit/theme'],
     '../layout/TVRow': {TVRow: ({children}) => children}, '../layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade'},
     '../overlays': previous['../../kit/overlays'], '../states': previous['../../kit/states'], '../Icon': previous['../../kit/Icon'],
@@ -102,8 +114,13 @@ export async function recordingsPageModule(previous) {
   const sheets = await load('kit/live/RecordingDialogs.tsx', {
     ...kit, '../../pages/shared/live/useRecordingDialogs': dialogs, '../../pages/shared/live/useRecordings': state,
   });
-  const page = await load('pages/shared/live/RecordingsPage.tsx', {
-    ...bindings, './useRecordings': state, '../../../kit/live/RecordingDialogs': sheets, '../../../kit/live/Recordings': parts,
+  const content = await load('kit/live/RecordingsContent.tsx', {
+    ...liveContentBindings(bindings), '../../pages/shared/live/useRecordings': state,
+    './RecordingDialogs': sheets, './Recordings': parts,
+  });
+  const form = previous['../../kit/theme'].useTheme().isTV ? 'tv' : 'touch';
+  const page = await load(`pages/${form}/live/RecordingsPage.tsx`, {
+    ...bindings, '../../shared/live/useRecordings': state, '../../../kit/live/RecordingsContent': content,
     '../../../kit/frames': {LiveFrame: ({back, actions, tabs, facts, footer, list, overlay}) =>
       render('RecordingsPage', {}, back && render('Button', back), actions, tabs, facts, list, footer, overlay)},
   });
