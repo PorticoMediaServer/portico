@@ -18,7 +18,7 @@ export function ServerGroup({title, children}: {title: string; children: ReactNo
   return <View style={{gap: theme.space.xs}}>
     <Text accessibilityRole="header" style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{title}</Text>
     <View style={{borderRadius: theme.radii.artwork, backgroundColor: theme.colors.raised,
-      overflow: 'hidden', borderWidth: theme.space.hairline, borderColor: theme.colors.lineStrong}}>{children}</View>
+      overflow: theme.isTV ? undefined : 'hidden', borderWidth: theme.space.hairline, borderColor: theme.colors.lineStrong}}>{children}</View>
   </View>;
 }
 
