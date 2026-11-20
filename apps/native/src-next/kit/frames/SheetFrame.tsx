@@ -39,7 +39,7 @@ export function SheetBar({title, back, action}: SheetBarProps) {
       <Text style={[theme.type.rowLabel, {flexShrink: 1, color: theme.colors.textSecondary}]}>{back.label}</Text>
     </Focusable>}</View>
     <Text accessibilityRole="header" style={[theme.type.barTitle, {maxWidth: '55%', textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
-    <View style={{flex: 1, alignItems: 'flex-end'}}>{action && <Button variant="text" size="small"
+    <View style={{flex: 1, alignItems: 'flex-end'}}>{action && <Button variant="text" size="small" align="end"
       textStyle={{color: theme.colors.accentStrong}} disabled={action.disabled} onPress={action.onPress} testID={action.testID}>{action.label}</Button>}</View>
   </View>;
 }
