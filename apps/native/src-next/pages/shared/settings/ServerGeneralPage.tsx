@@ -1,5 +1,4 @@
 import React from 'react';
-import {Text} from 'react-native';
 import type {SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {Button, FormError} from '../../../kit/controls';
 import {PanelBlock, SectionCard, SettingsPageFrame, StateRow} from '../../../kit/frames';
@@ -7,8 +6,7 @@ import {BottomSheet} from '../../../kit/overlays/BottomSheet';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
 import {SettingsHelp} from '../../../kit/settings/SettingsParts';
 import {SettingsRow} from '../../../kit/shell';
-import {StateView} from '../../../kit/states';
-import {useTheme} from '../../../kit/theme';
+import {DetailsPanel, StateView} from '../../../kit/states';
 import {NativeAdvancedSection} from '../../../screens/settings-live/server/AdvancedSection';
 import {NativeBroadcastSheet} from '../../../screens/settings-live/server/BroadcastSheet';
 import {NativeSettingControl} from '../../../screens/settings-live/server/SettingControl';
@@ -22,8 +20,7 @@ type Group = ReturnType<typeof useServerGeneral>['main'][number];
 export function ServerGeneralPage({ports, runtime, retry, ...frame}: Frame & {
   ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; retry?: React.ReactNode;
 }) {
-  const general = useServerGeneral({ports, runtime}), {t} = general, theme = useTheme();
-  const identifier = [theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: 'monospace', flexShrink: 1}];
+  const general = useServerGeneral({ports, runtime}), {t} = general;
 
   const renderRow = (row: SpecRow, first: boolean): React.ReactNode => {
     switch (row.id) {
@@ -45,8 +42,8 @@ export function ServerGeneralPage({ports, runtime, retry, ...frame}: Frame & {
           onPress={() => general.setRestarting(true)}>{t('web.maintenance.serverRestart')}</Button>
       </React.Fragment>;
       case 'general.configFile': return general.configuration?.path
-        ? <SettingsRow key={row.id} first={first} label={t(row.label)} control={<Text selectable style={identifier}>{general.configuration.path}</Text>}/> : null;
-      case 'general.serverId': return <SettingsRow key={row.id} first={first} label={t(row.label)} control={<Text selectable style={identifier}>{general.serverId}</Text>}/>;
+        ? <DetailsPanel key={row.id} compact audience="owner" facts={[{id: row.id, label: t(row.label), value: general.configuration.path}]}/> : null;
+      case 'general.serverId': return <DetailsPanel key={row.id} compact audience="owner" facts={[{id: row.id, label: t(row.label), value: general.serverId}]}/>;
     }
     if (!general.hasSetting(row.id) || row.enableWhen?.hide && !general.enabled(row)) return null;
     return <NativeSettingControl key={row.id} row={row} value={general.value(row.id)} t={t} insetField
