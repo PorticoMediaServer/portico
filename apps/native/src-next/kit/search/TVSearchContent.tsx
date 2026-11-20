@@ -24,7 +24,7 @@ import {Icon} from '../Icon';
 import {TopResult} from './Search';
 import {TVRow} from '../layout/TVRow';
 import {StateView} from '../states';
-import {alpha, browseType} from '../browse/presentation';
+import {alpha} from '../browse/presentation';
 import {useTheme} from '../theme';
 import {useFrameMetrics} from '../frames/metrics';
 
@@ -138,8 +138,8 @@ export function TVSearchGenre({genre, runtime, width, disabled, onPress}: {genre
       <Artwork source={runtime.artwork(genre.backdropPath)} width={width} height={200}/>
       <Svg pointerEvents="none" width={width} height={200} style={{position: 'absolute', inset: 0}}><Defs><LinearGradient id={gradient} x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.88}/><Stop offset="0.55" stopColor={theme.colors.ink} stopOpacity={.5}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={.15}/></LinearGradient></Defs><Rect width={width} height={200} fill={`url(#${gradient})`}/></Svg>
     </View>
-    <View style={tvSearchR46.genreCopy}><Text style={[browseType(theme, 36, 800, -.025), {color: theme.colors.text}]}>{genre.name}</Text>
-      <Text style={[browseType(theme, 20, 400), {color: theme.colors.textSecondary, marginTop: 4}]}>{t('next.selection.titles', {count: genre.count})}</Text></View>
+    <View style={tvSearchR46.genreCopy}><Text style={[theme.type.rowHeading, {color: theme.colors.text}]}>{genre.name}</Text>
+      <Text style={[theme.type.caption, {color: theme.colors.textSecondary, marginTop: 4}]}>{t('next.selection.titles', {count: genre.count})}</Text></View>
   </Focusable>;
 }
 
@@ -161,13 +161,13 @@ export function TVSearchTopResult({entry, group, runtime, actions, selection, di
   return <TopResult focusId={tvTopResultFocusId(group, entry)} testID="tv-search-top-result" title={title} eyebrow={t('search.topResult')}
     disabled={disabled} selection={selection} artwork={topArt} menuOpen={actions.isMenuOpen?.(entry, group)}
     onPress={() => actions.open(entry, group)} onMenu={actions.canMenu?.(entry, group) === false ? undefined : anchor => actions.menu(entry, group, anchor)}
-    facts={<View style={tvSearchR46.meta}>{content?.year !== undefined && <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{content.year}</Text>}
-      {kind && <Text style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{t(kind)}</Text>}
+    facts={<View style={tvSearchR46.meta}>{content?.year !== undefined && <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{content.year}</Text>}
+      {kind && <Text style={[theme.type.meta, {color: theme.colors.textSecondary}]}>{t(kind)}</Text>}
       {caption.map(part => part.id === 'season-count' ? <TVSearchTag key={part.id}>{part.text}</TVSearchTag>
-        : <Text key={part.id} style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{part.text}</Text>)}</View>}
+        : <Text key={part.id} style={[theme.type.meta, {color: theme.colors.textSecondary}]}>{part.text}</Text>)}</View>}
     details={<>{((progress !== undefined && progress > 0) || resume) && <View style={tvSearchR46.resumeLine}>
       {progress !== undefined && progress > 0 && <View style={tvSearchR46.metaProgress}><Progress value={progress} height={6} radius={6}/></View>}
-      {resume && <Text style={[browseType(theme, 20, 700), {color: theme.colors.text}]}>{resume.text}</Text>}</View>}
+      {resume && <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{resume.text}</Text>}</View>}
       <Parts parts={text?.detail} style={theme.type.intro} fit="wrap"/></>}/>;
 }
 

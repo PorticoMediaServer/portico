@@ -125,18 +125,18 @@ test('the drawn top result keeps f5 meta at 24px with 26px gaps, season count as
   const art = elements(row).find(node => node.type === 'ArtFrame')!;
   assert.deepEqual({width: art.props.width, height: art.props.height, radius: art.props.radius}, {width: 480, height: 270, radius: 14});
   const label = style(textNode(row, defaultI18n.t('search.topResult'))!.props.style);
-  assert.deepEqual(label, {...browseType(theme, 20, 700), color: colors.accentStrong, marginBottom: 10});
+  assert.deepEqual(label, {...theme.type.listLabel, color: colors.accentStrong, marginBottom: 10});
   const titleNode = textNode(row, show.title)!;
   assert.equal(titleNode.props.numberOfLines, undefined);
   const title = style(titleNode.props.style);
-  assert.deepEqual(title, {...browseType(theme, 52, 800, -.04, 52), color: colors.text, marginBottom: 14});
+  assert.deepEqual(title, {...theme.type.pageTitle, color: colors.text, marginBottom: 14});
   // G2: a set line box is never under the measured floor (1.36 of the size) on any form.
-  assert.equal(title.lineHeight, Math.ceil(52 * 1.36));
+  assert.equal(title.lineHeight, Math.ceil(theme.type.pageTitle.fontSize! * 1.36));
   const meta = elements(row).find(node => style(node.props.style).rowGap === 10 && style(node.props.style).columnGap === 26)!;
   assert.deepEqual(style(meta.props.style), {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 26, rowGap: 10, marginBottom: 14});
   const facts = elements(meta).filter(node => node.type === 'Text').map(node => ({text: flatText(node.props.children), style: style(node.props.style)}));
-  assert.deepEqual(facts[0], {text: '2023', style: {...browseType(theme, 24, 700), color: colors.text}});
-  assert.deepEqual(facts[1], {text: defaultI18n.t('next.search.tvShow'), style: {...browseType(theme, 24, 400), color: colors.textSecondary}});
+  assert.deepEqual(facts[0], {text: '2023', style: {...theme.type.bodyStrong, color: colors.text}});
+  assert.deepEqual(facts[1], {text: defaultI18n.t('next.search.tvShow'), style: {...theme.type.meta, color: colors.textSecondary}});
   assert.equal(facts.filter(fact => fact.text === '2023').length, 1);
   // The season count is the drawn .tv .tag, drawn by the canonical tag spec.
   const tagElement = elements(meta).find(node => typeof node.type === 'function' && node.type.name === 'TVSearchTag')!;
@@ -185,9 +185,9 @@ test('the drawn empty page is states.html#f18 and its genre tiles keep the drawn
   assert.deepEqual(stops.map(node => [node.props.offset, node.props.stopOpacity, node.props.stopColor]), [[ '0', .88, colors.ink], ['0.55', .5, colors.ink], ['1', .15, colors.ink]]);
   const copy = elements(tile).find(node => style(node.props.style).left === 30 && style(node.props.style).bottom === 26)!;
   const [name, count] = elements(copy).filter(node => node.type === 'Text');
-  assert.deepEqual({text: flatText(name.props.children), style: style(name.props.style)}, {text: 'Crime', style: {...browseType(theme, 36, 800, -.025), color: colors.text}});
+  assert.deepEqual({text: flatText(name.props.children), style: style(name.props.style)}, {text: 'Crime', style: {...theme.type.rowHeading, color: colors.text}});
   assert.deepEqual({text: flatText(count.props.children), style: style(count.props.style)}, {text: defaultI18n.t('next.selection.titles', {count: 9}),
-    style: {...browseType(theme, 20, 400), color: colors.textSecondary, marginTop: 4}});
+    style: {...theme.type.caption, color: colors.textSecondary, marginTop: 4}});
   // f18 draws no voice hint and no type chips while the page has no matches; tv.html#f5 draws both with results.
   assert.equal(textOf(tree).includes('voice-title'), false);
   assert.equal(elements(tree).find(node => node.type === 'Chip'), undefined);
