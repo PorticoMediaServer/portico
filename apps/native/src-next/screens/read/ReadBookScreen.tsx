@@ -29,10 +29,8 @@ import type {NativeReadVersion} from './read-book-model';
 import {ReadOwnerEditSheet} from './ReadOwnerEditSheet';
 import {ReadCollectionSheet} from './ReadCollectionSheet';
 import {BookDetailActions} from './book-detail-actions';
-import {nativeReadingCollectionCapability, type NativeReadingCollectionKind} from './read-collection-capability';
-import {nativeScreenServices} from '../native-screen-services';
-import {isReadingLibraryKind} from './platform';
-import {linkNativeAbortSignals} from '../../platform/abort-signals';
+import type {NativeReadingCollectionKind} from './read-collection-capability';
+import {useReadingCollectionKind} from './use-reading-collection-kind';
 import {TopBar, RoundBarButton} from '../../kit/layout/TopBar';
 
 const {t} = defaultI18n;
@@ -64,7 +62,6 @@ export function ReadBookScreen({controller, route, comic, owner, context, runtim
   const [more, setMore] = useState(false), [tab, setTab] = useState('contents'), [heroHeight, setHeroHeight] = useState(0), [collapsed, setCollapsed] = useState(false);
   const [edit, setEdit] = useState<Readonly<{lease: NativeReadOwnerEditLease; owner: object; key: number}>>();
   const [collection, setCollection] = useState<Readonly<{lease: NativeReadOwnerEditLease; owner: object; key: number; kind: NativeReadingCollectionKind}>>();
-  const [collectionCapability, setCollectionCapability] = useState<Readonly<{lease: NativeReadOwnerEditLease; manifest: ReadingManifest; kind?: NativeReadingCollectionKind}>>();
   const editSeq = useRef(0);
   useLayoutEffect(() => {
     if (!controller.arm()) return;
@@ -84,29 +81,8 @@ export function ReadBookScreen({controller, route, comic, owner, context, runtim
   // The sheet lease is taken from this committed ready render; a retained menu
   // after Back cannot borrow the successor arm/life.
   const editLease = manifest ? controller.ownerEditLease(manifest) : undefined;
-  // The collection capability is asked of the exact item's Detail offer for
-  // this committed page under a real Reading library, never from a format or a
-  // library spelling; the producer's admitted ebook/comic kind is cached with
-  // that original lease and manifest.
-  const library = context.libraries().find(value => value.id === route.libraryId);
-  const leaseSignal = editLease?.signal, leaseOrigin = editLease?.origin;
-  useLayoutEffect(() => {
-    const lease = editLease;
-    if (!lease || !manifest || !library || !isReadingLibraryKind(library.kind) || !lease.isCurrent()) return;
-    const life = new AbortController(), linked = linkNativeAbortSignals([lease.signal, life.signal]);
-    const current = () => !linked.signal.aborted && lease.isCurrent() && context.current();
-    const services = (() => {try {return nativeScreenServices(context);} catch {return undefined;}})();
-    if (!services) return;
-    const scope = {serverId: lease.viewer.serverId, viewerId: JSON.stringify([lease.viewer.authority, lease.viewer.accountId, lease.viewer.profileId])};
-    void nativeReadingCollectionCapability({api: context.api, scope, requestId: services.requestId, signal: linked.signal,
-      isCurrent: current, itemId: controller.item.id, libraryId: route.libraryId})
-      .then(kind => {if (current()) setCollectionCapability({lease, manifest, kind});})
-      .catch(() => {if (current()) setCollectionCapability({lease, manifest});});
-    return () => {life.abort(); linked.dispose();};
-  }, [context, controller, manifest, route.libraryId, library?.id, library?.kind, leaseSignal, leaseOrigin]); // eslint-disable-line react-hooks/exhaustive-deps
-  const offeredKind = collectionCapability && editLease && library && isReadingLibraryKind(library.kind)
-    && collectionCapability.manifest === manifest && collectionCapability.lease.signal === editLease.signal
-    && collectionCapability.lease.isCurrent() ? collectionCapability.kind : undefined;
+  // Add to collection is offered only for the kind the item's own Detail offer admits under this page's lease.
+  const offeredKind = useReadingCollectionKind({context, controller, libraryId: route.libraryId, manifest, editLease});
   const menu: readonly MenuEntry[] = [
     ...(state.read ? [{id: 'read-mark', label: t(state.read.read ? 'next.reader.markUnread' : 'next.reader.markRead'), icon: 'i-check' as IconName,
       onSelect: () => {setMore(false); toggleRead(state.read!);}}] : []),

@@ -8,7 +8,7 @@ import {isReadingLibraryKind, readingRouteId} from './platform';
 import {NativeReadBook} from './read-book-model';
 import {NativeReadPeriodical} from './read-periodical-model';
 import {NativeReadSeries} from './read-series-model';
-import {ReadBookScreen} from './ReadBookScreen';
+import {ReadBookHost} from './ReadBookHost';
 import {ReadPeriodicalScreen} from './ReadPeriodicalScreen';
 import {ReadSeriesScreen} from './ReadSeriesScreen';
 
@@ -73,7 +73,7 @@ export function createNativeReadBookRenderer(context: NativeShellBootstrapContex
       const library = readingLibrary(context, route.libraryId);
       if (!library) return null;
       const role = context.session()?.viewer.role;
-      return <ReadBookScreen controller={controller} route={route} comic={library.kind === 'comic'} context={context}
+      return <ReadBookHost controller={controller} route={route} comic={library.kind === 'comic'} context={context}
         owner={role === 'owner'} runtime={runtime}
         onBack={() => {if (current() && context.navigation.getSnapshot().route === route) context.navigation.back(context.authority());}}
         onOpenSettings={() => {if (current() && context.navigation.getSnapshot().route === route) openNativeReadingSettings(context);}}/>;
