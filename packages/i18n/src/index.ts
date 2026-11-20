@@ -265,7 +265,7 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
   // The locale words the unit ("GB", "Go") where the runtime knows byte units; an engine that
   // does not keeps the English abbreviations.
   const byteUnits = [['byte', 'B'], ['kilobyte', 'KB'], ['megabyte', 'MB'], ['gigabyte', 'GB'], ['terabyte', 'TB']] as const;
-  let localizedUnits: boolean | undefined;
+  let localizedUnits: boolean | undefined, roundsUnits: boolean | undefined;
   const bytes = (value: number | undefined) => {
     if (value == null || !Number.isFinite(value) || value < 0) return '—';
     let v = value, i = 0;
@@ -273,7 +273,17 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
     while (v >= step && i < byteUnits.length - 1) { v /= step; i++; }
     const maximumFractionDigits = v < 10 && i > 0 ? 1 : 0;
     const [unit, abbreviation] = byteUnits[i]!;
-    if (localizedUnits !== false) {
+    if (roundsUnits === undefined) {
+      // Some engines (Hermes on iOS) accept unit formatting but ignore its rounding and spacing ("18.727GB"); use the
+      // plain number and abbreviation there (whole bytes still read "0 bytes": nothing to round).
+      try {
+        roundsUnits = new Intl.NumberFormat(region.formatLocale, {style: 'unit', unit: 'gigabyte', unitDisplay: 'short', maximumFractionDigits: 0})
+          .format(18.7).includes(number(19, {maximumFractionDigits: 0}));
+      } catch {
+        roundsUnits = false;
+      }
+    }
+    if (localizedUnits !== false && (roundsUnits || i === 0)) {
       try {
         // Whole bytes are spelled out ("512 bytes"): the short form in English is the bare word "byte".
         const text = new Intl.NumberFormat(region.formatLocale, {style: 'unit', unit, unitDisplay: i === 0 ? 'long' : 'short', maximumFractionDigits}).format(v);
