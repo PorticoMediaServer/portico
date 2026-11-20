@@ -13,7 +13,7 @@ export function SeeAllPage(props: SeeAllProps) {
   const {controller, runtime, active, onBack, onPlay, onOpen, onPlayEntry, onMenu, onFilters, onReshuffle, kindLabel, selection} = props;
   const view = useSeeAll(props), {t, focus} = view;
   return <BrowseFrame testID="home-see-all-frame" focus={focus?.header} startFocus={view.ready ? focus?.header.entry : undefined}
-    header={{title: view.title, back: {label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-back'},
+    header={{title: view.title, back: {label: view.backLabel, onPress: onBack, testID: 'home-see-all-back'},
       intro: view.intro, ambient: view.ambient && <AmbientArt source={view.ambient} treatment="library" visible={active}/>,
       actions: view.playable ? <><Button focusId="play" icon="i-play" size="hero" onPress={() => onPlay(false)}>{t('entry.play')}</Button>
         <Button focusId="shuffle" variant="glass" icon="i-shuffle" size="hero" onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></> : undefined}}

@@ -14,7 +14,7 @@ export function SeeAllPage(props: SeeAllProps) {
   const view = useSeeAll(props), {t} = view;
   const list = view.view === 'list';
   return <BrowseFrame testID="home-see-all-frame"
-    header={{title: view.title, back: {label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-back'},
+    header={{title: view.title, back: {label: view.backLabel, onPress: onBack, testID: 'home-see-all-back'},
       intro: view.intro, ambient: view.ambient && <AmbientArt source={view.ambient} treatment="library" visible={active}/>,
       actions: view.playable ? <><Button icon="i-play" onPress={() => onPlay(false)}>{t('entry.play')}</Button>
         <Button variant="glass" icon="i-shuffle" onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></> : undefined}}

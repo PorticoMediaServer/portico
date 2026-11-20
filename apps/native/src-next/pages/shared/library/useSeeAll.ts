@@ -61,7 +61,10 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
     grid: {id: `${focusId}.grid`, enabled: active, edges: {up: applied.length ? `${focusId}.applied` : `${focusId}.toolbar`},
       count: data.total, screenStart: {regionId: focusId, childId: playable ? 'play' : 'back'}},
   } : undefined;
-  return {t, title, intro, focus, clear, remove, applied, view, setView, ready, slow, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
+  // Back names the page under this one: the library it was opened from, or Home.
+  const origin = runtime.getSnapshot().destination;
+  const backLabel = origin.kind === 'library' ? runtime.getSnapshot().libraries.find(library => library.id === origin.libraryId)?.name ?? t('next.home.shell.home') : t('next.home.shell.home');
+  return {t, title, intro, focus, backLabel, clear, remove, applied, view, setView, ready, slow, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
     model: model && {...model, applied: state.filters, quick: model.quick.filter(quick => homeSeeAllQuickOrder(quick.id, isTV))},
     failure: state.phase === 'error' ? browseFailure(runtime.error(state.error, retry, 'home')) : undefined,
     gridFailure: data.status === 'error' ? runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home') : undefined,
