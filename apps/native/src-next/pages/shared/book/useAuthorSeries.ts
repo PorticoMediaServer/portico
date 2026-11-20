@@ -1,3 +1,5 @@
+import type {RefObject} from 'react';
+import type {View} from 'react-native';
 import {useSyncExternalStore} from 'react';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
@@ -33,7 +35,7 @@ export type AuthorSeriesView = Readonly<{
   primary: Readonly<{label: string; disabled: boolean; onPress: () => void}>;
   /** A series: Start the series over (opens its first book). */
   startOver?: () => void;
-  more: () => void;
+  more: (anchor?: RefObject<View | null>) => void;
   state?: StateRowProps; continuation?: StateRowProps;
   books: Readonly<{title: string; count: string; rows: readonly (TitleListItem & Readonly<{id: string}>)[]}>;
   /** An author: who read their books and how long they all are. */
@@ -76,7 +78,7 @@ export function useAuthorSeries({controller, entry, runtime, actions, openEntry}
       : t('next.browse.resume', {title: resume.title}), disabled: failed || !books.length,
       onPress: () => {if (resume) run(controller.resumeBook(resume)); else if (books[0]) openEntry(books[0]);}},
     startOver: series && books[0] ? () => openEntry(books[0]!) : undefined,
-    more: () => actions.menu(entity),
+    more: anchor => actions.menu(entity, anchor),
     state: readFailed ? {kind: 'error', icon: 'i-warn', title: readFailed.title, action: {label: readFailed.actionLabel ?? t('action.tryAgain'), onPress: () => run(controller.load())}} : undefined,
     continuation: more?.phase === 'loading' ? {kind: 'loading'}
       : moreFailed ? {kind: 'error', icon: 'i-warn', title: moreFailed.title, action: {label: moreFailed.actionLabel ?? t('action.tryAgain'), onPress: () => run(controller.recover())}} : undefined,

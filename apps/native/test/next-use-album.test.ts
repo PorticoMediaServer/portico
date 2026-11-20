@@ -51,7 +51,7 @@ test('an album shows its year, genre, songs and length, its badges, the artist a
   view.play(); assert.deepEqual(calls.at(-1), ['play']);
   view.shuffle(); assert.deepEqual(calls.at(-1), ['play', undefined, true]);
   view.download(); assert.deepEqual(calls.at(-1), ['download', entry]);
-  view.more(); assert.deepEqual(calls.at(-1), ['menu', entry]);
+  const anchor = {current: null}; view.more(anchor); assert.deepEqual(calls.at(-1), ['menu', entry, anchor], 'the menu is anchored to the button that opened it');
 });
 
 test('the songs are numbered from the read (or their place), the playing one marked; a song plays, its ⋯ opens its menu with Select, and focus reaches the pager', async () => {

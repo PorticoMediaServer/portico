@@ -1,4 +1,4 @@
-import React, {type Ref} from 'react';
+import React, {useRef, type Ref, type RefObject} from 'react';
 import {View} from 'react-native';
 import {frameSpec} from '@portico/design';
 import type {IconName} from '../Icon';
@@ -7,7 +7,9 @@ import {useTheme} from '../theme';
 import {Button, ResumeButton} from './Button';
 
 /** One button after the primary. */
-export type RowAction = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; testID?: string;
+export type RowAction = Readonly<{icon: IconName; label: string;
+  /** Called with the button itself, so a menu it opens can be anchored to it (a tablet's menus are anchored). */
+  onPress: (anchor?: RefObject<View | null>) => void; disabled?: boolean; testID?: string;
   /** Shown with its label where there is room (a tablet on its side and TV): Start over, My List, Shuffle. Round elsewhere. */
   labelled?: boolean;
   /** On (in My List, watched, a favourite): tinted in the accent (phone-detail d1 frame 3). */
@@ -22,7 +24,7 @@ export type RowAction = Readonly<{icon: IconName; label: string; onPress: () => 
   split?: boolean}>;
 /** The one flexible button. With `progress` it is drawn as Resume, the played part along its lower edge and the time
  * left beside its label; with `startOver` that is the button after it. */
-export type RowPrimary = Omit<RowAction, 'labelled' | 'pinned' | 'wide'> & Readonly<{progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>;
+export type RowPrimary = Omit<RowAction, 'labelled' | 'pinned' | 'wide' | 'onPress'> & Readonly<{onPress: () => void; progress?: number; remaining?: string; startOver?: Readonly<{label: string; onPress: () => void}>;
   /** The focus id the page starts on. */
   focusId?: string}>;
 export type ActionRowProps = Readonly<{primary?: RowPrimary; actions?: readonly RowAction[];
@@ -44,10 +46,8 @@ export type ActionRowProps = Readonly<{primary?: RowPrimary; actions?: readonly 
 export function ActionRow({primary, actions = [], loading = false, primaryRef}: ActionRowProps) {
   const theme = useTheme(), spec = frameSpec.actionRow, {form} = theme;
   const stacked = form === 'phone' || form === 'medium', height = theme.spec.button.hero.height[theme.column];
-  const side = (action: RowAction) => (action.split && stacked) || (action.labelled && !stacked && !(form === 'tv' && action.wide))
-    ? <Button key={action.label} variant="glass" size="hero" icon={action.icon} style={action.split && stacked ? shared : undefined} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}>{action.label}</Button>
-    : <Button key={action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
-      style={[{width: height, height}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, spec.activeEdge)}]}/>;
+  const side = (action: RowAction) => <SideButton key={action.label} action={action} labelled={(action.split && stacked) || (action.labelled && !stacked && !(form === 'tv' && action.wide))}
+    style={action.split && stacked ? shared : undefined} round={{width: height, height}} disabled={action.disabled || loading}/>;
   const width = spec.primaryWidth[form];
   // A split row (frames 13, 15b) halves its width between the primary and the split action, whatever their labels say.
   // No side padding on either: their words are centred, and padding would count towards one half (on Android a glass
@@ -63,4 +63,13 @@ export function ActionRow({primary, actions = [], loading = false, primaryRef}: 
     {primary?.startOver && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.filter(action => !action.wide || !stacked).map(side)}
   </View>;
+}
+
+/** One button after the primary; it hands itself to its action, so a menu it opens is anchored to it. */
+function SideButton({action, labelled, style, round, disabled}: Readonly<{action: RowAction; labelled: boolean; style?: object; round: {width: number; height: number}; disabled: boolean}>) {
+  const theme = useTheme(), spec = frameSpec.actionRow, ref = useRef<View>(null), press = () => action.onPress(ref);
+  return labelled
+    ? <Button ref={ref} variant="glass" size="hero" icon={action.icon} style={style} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={disabled} onPress={press} testID={action.testID}>{action.label}</Button>
+    : <Button ref={ref} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={disabled} onPress={press} testID={action.testID}
+      style={[round, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, spec.activeEdge)}]}/>;
 }

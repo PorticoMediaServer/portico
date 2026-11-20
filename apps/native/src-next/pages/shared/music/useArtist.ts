@@ -1,3 +1,5 @@
+import type {RefObject} from 'react';
+import type {View} from 'react-native';
 import {useMemo, useSyncExternalStore} from 'react';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
@@ -35,7 +37,7 @@ export type ArtistView = Readonly<{
   /** The longer line on TV (tv-more frame 8): the first genre, the country, the active years and "1 album and 4 songs on
    * your server", each only when the read has it. */
   factsTV: readonly FactPart[];
-  play: () => void; shuffle: () => void; more: () => void;
+  play: () => void; shuffle: () => void; more: (anchor?: RefObject<View | null>) => void;
   /** Whether this viewer favourites the artist, and the toggle (the old TV page's heart). */
   favorite: Readonly<{on: boolean; toggle: () => void}>;
   /** Country, active years and type, then what the server says about them and where that is from (the old TV page's Details). */
@@ -89,7 +91,7 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
   return {
     title: entry.displayTitle ?? entry.title, initials: [...entry.title.trim()][0] ?? '', covers,
     glow: runtime.ambient(snapshot.albums[0]?.posterUrl ?? entry.posterUrl ?? entry.backdropUrl), facts,
-    play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)), more: () => actions.menu(entry),
+    play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)), more: anchor => actions.menu(entry, anchor),
     factsTV, favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())},
     details: {rows: [...(about.country ? [{label: t('title.country'), values: [{text: about.country}]}] : []), ...(years ? [{label: t('title.activeYears'), values: [{text: years}]}] : []),
       {label: t('title.albumType'), values: [{text: about.artistType ?? t('title.kind', {kind: 'artist'})}]}],

@@ -53,7 +53,8 @@ export type TitleListItem = Readonly<{title: string;
  * Watched or how far in, and its ⋯ menu. Moved from the old collection screen's row (`CollectionRow`). */
 /** `kickerRoom`: the row is as tall as one with a kicker, so a list whose rows may carry one keeps one stride. */
 export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item: TitleListItem; kickerRoom?: boolean}>) {
-  const theme = useTheme(), anchor = useRef<View>(null), more = item.onMore, t = defaultI18n.t;
+  // The card's own anchor (a long press) and the ⋯'s: one ref on both left the ⋯'s menu at the row's left edge.
+  const theme = useTheme(), anchor = useRef<View>(null), dots = useRef<View>(null), more = item.onMore, t = defaultI18n.t;
   // The card fills the row's own height (CardFrame grows into its parent).
   return <View style={{height: titleListRowHeight(theme, kickerRoom)}}><CardFrame testID={item.testID} title={item.title} menuAnchorRef={anchor} onNavigate={item.onNavigate} onMore={more ? () => more(anchor) : undefined}
     // CardFrame's own wrapper takes `style`: it fills the row, so the card (which grows into it) has the row's height.
@@ -74,7 +75,7 @@ export function TitleListRow({item, kickerRoom = !!item.kicker}: Readonly<{item:
           <Text style={[theme.type.rowHelp, {fontFamily: fontFamilies[700], color: theme.colors.textSecondary}]}>{item.watched ? item.doneLabel ?? t('saved.watched') : item.remaining}</Text>
         </View>}
       </View>
-      {more && <Focusable accessibilityLabel={t('card.more', {title: item.title})} onPress={() => more(anchor)} style={{width: row.more, height: row.more, alignItems: 'center', justifyContent: 'center'}}>
+      {more && <Focusable ref={dots} accessibilityLabel={t('card.more', {title: item.title})} onPress={() => more(dots)} style={{width: row.more, height: row.more, alignItems: 'center', justifyContent: 'center'}}>
         <Icon name="i-more" size={row.moreIcon} color={theme.colors.textTertiary}/></Focusable>}
     </>}
   </CardFrame></View>;

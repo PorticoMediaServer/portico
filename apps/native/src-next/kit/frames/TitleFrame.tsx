@@ -162,6 +162,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // does not fold. Nor does a cover page (a person, tv-detail frame 10): its head is short, so the page moves only as far as
   // the control in focus needs and the head stays above the first row.
   const motion = useMotion(), [where, setWhere] = useState<'head' | number>('head');
+  const topRef = useRef<View>(null), barTopRef = useRef<View>(null);
   const folded = tv && !scroller && !cover && (collapsed ?? where !== 'head');
   const restored = useRef(false), scroll = useRef<ScrollView>(null), ys = useRef({content: 0, column: 0, sections: [] as number[]}), [bandHeight, setBandHeight] = useState(0);
   const fold = useSharedValue(0);
@@ -222,6 +223,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     <PageStateFrame {...failure}/>
   </View>;
   const height = split ? spec.height.phone : tv && shortHead ? spec.tvShortHeight : spec.height[form], lockup = cover ? spec.coverLockup[split ? 'phone' : form] : split ? spec.lockup.phone : spec.lockup[form];
+  // The top action's disc on the art and on the collapsed bar: a menu it opens is anchored to it (a tablet's menus are).
   const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
 
@@ -303,7 +305,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // The head: the art box with the words hanging from its bottom edge, or the cover beside them.
   const discs = !tv && <View pointerEvents="box-none" style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, right: theme.space.sm, top: discTop, flexDirection: 'row', justifyContent: 'space-between'}}>
     <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/>
-    {topControl ?? (topAction && <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress} disabled={topAction.disabled} testID={topAction.testID}/>)}
+    {topControl ?? (topAction && <RoundBarButton ref={topRef} icon={topAction.icon} label={topAction.label} onPress={() => topAction.onPress(topRef)} disabled={topAction.disabled} testID={topAction.testID}/>)}
   </View>;
   const body = <View style={{gap: theme.space.sm, alignItems: stacked ? 'center' : 'flex-start', alignSelf: 'stretch'}}>{stacked ? <>{row}{resumeLine}{placeRow}{words}{pickerRow}</> : <>{words}<View style={{marginTop: spec.actionGap[form] - theme.space.sm, gap: theme.space.sm}}>{row}{resumeLine}{placeRow}</View></>}</View>;
   // An artist's circle on TV is at the right with its rings drawn around it (tv-more frame 8).
@@ -396,7 +398,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       <View style={{height: barHeight, paddingTop: insets.top, paddingHorizontal: theme.space.sm, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
         <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
         <Text accessibilityRole="header" style={[theme.type.barTitle, {flex: 1, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
-        {topControl ?? (topAction ? <RoundBarButton icon={topAction.icon} label={topAction.label} onPress={topAction.onPress}/> : <View style={{width: roundBarSize}}/>)}
+        {topControl ?? (topAction ? <RoundBarButton ref={barTopRef} icon={topAction.icon} label={topAction.label} onPress={() => topAction.onPress(barTopRef)}/> : <View style={{width: roundBarSize}}/>)}
       </View>
       {(held || tabsPinned) && tabBar()}
     </> : <View style={{minHeight: barHeight, paddingTop: insets.top, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
@@ -406,7 +408,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       {/* The tabs stand on the bar's lower edge, so their rule is the bar's own and the selected underline meets it (desktop-detail f3). */}
       <View style={{flex: 1, minWidth: 0, alignSelf: 'flex-end'}}>{tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} contentContainerStyle={{paddingHorizontal: 0}}/>}</View>
       {primary && <Button variant="primary" size="small" align="center" icon={primary.icon} disabled={primary.disabled || loading} onPress={primary.onPress}>{primary.label}</Button>}
-      {pinned.map(action => <Button key={action.label} variant="glass" size="small" align="center" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} disabled={action.disabled || loading} onPress={action.onPress}/>)}
+      {pinned.map(action => <Button key={action.label} variant="glass" size="small" align="center" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} disabled={action.disabled || loading} onPress={() => action.onPress()}/>)}
     </View>}
   </View>;
 

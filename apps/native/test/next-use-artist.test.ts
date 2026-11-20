@@ -49,7 +49,7 @@ test('an artist shows the circle of their albums, the counts and genre, and the 
   assert.deepEqual(view.facts.map((fact: any) => fact.text), [t('title.albumCount', {count: 1}), t('title.songCount', {count: 4}), 'R&B/Soul']);
   view.play(); assert.deepEqual(calls.at(-1), ['play']);
   view.shuffle(); assert.deepEqual(calls.at(-1), ['play', undefined, true]);
-  view.more(); assert.deepEqual(calls.at(-1), ['menu', entry]);
+  const anchor = {current: null}; view.more(anchor); assert.deepEqual(calls.at(-1), ['menu', entry, anchor], 'the menu is anchored to the button that opened it');
 });
 
 test('Top songs are ranked, the playing one marked; a song plays and its ⋯ opens its menu with Select', async () => {

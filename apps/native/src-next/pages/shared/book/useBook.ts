@@ -1,3 +1,5 @@
+import type {RefObject} from 'react';
+import type {View} from 'react-native';
 import {useState, useSyncExternalStore} from 'react';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
@@ -40,7 +42,7 @@ export type BookView = Readonly<{
   finished: Readonly<{active: boolean; onPress: () => void}>;
   download?: () => void;
   /** The book's menu, with Start over in it. */
-  more: () => void;
+  more: (anchor?: RefObject<View | null>) => void;
   /** Start the book over from its first chapter (a TV page's own button, collections 43; a phone keeps it in the menu). */
   startOver: () => void;
   description?: Readonly<{text: string; readMore: Readonly<{label: string; expanded: boolean; onPress: () => void}>}>;
@@ -91,7 +93,7 @@ export function useBook({controller, entry, runtime, actions, openEntry}: BookPa
       onPress: () => run(canResume ? controller.resume() : controller.startOver())},
     finished: {active: snapshot.finished, onPress: () => run(controller.markFinished())},
     download: download ? () => askNativeDownload(download) : undefined,
-    more: () => actions.menu(entity, undefined, undefined, [{id: 'book-start-over', icon: 'i-restart', label: t('action.startOver'), onSelect: () => run(controller.startOver())}]),
+    more: anchor => actions.menu(entity, anchor, undefined, [{id: 'book-start-over', icon: 'i-restart', label: t('action.startOver'), onSelect: () => run(controller.startOver())}]),
     startOver: () => run(controller.startOver()),
     description: entity.overview ? {text: entity.overview,
       readMore: {label: t(expanded ? 'web.person.showLess' : 'web.person.readMore'), expanded, onPress: () => setExpanded(value => !value)}} : undefined,

@@ -1,3 +1,5 @@
+import type {RefObject} from 'react';
+import type {View} from 'react-native';
 import {useMemo, useState, useSyncExternalStore} from 'react';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
@@ -33,7 +35,7 @@ export type AlbumView = Readonly<{
   /** The album's artist under the title, a link to their page (the old tablet page's link; frame 13). */
   byline?: Readonly<{text: string; onPress: () => void}>;
   facts: readonly FactPart[]; badges: ContentEntry['badges'];
-  play: () => void; shuffle: () => void; download?: () => void; more: () => void;
+  play: () => void; shuffle: () => void; download?: () => void; more: (anchor?: RefObject<View | null>) => void;
   /** Whether this viewer favourites the album, and the toggle (the old TV album page's heart). */
   favorite: Readonly<{on: boolean; toggle: () => void}>;
   playlist?: () => void;
@@ -90,7 +92,7 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
     byline: artistName ? {text: artistName, onPress: () => {const artist = controller.artistEntry(); if (artist) openEntry(artist);}} : undefined,
     facts, badges: snapshot.albumDetails?.badges,
     play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)),
-    download: download ? () => download(entry) : undefined, more: () => actions.menu(entry),
+    download: download ? () => download(entry) : undefined, more: anchor => actions.menu(entry, anchor),
     favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())}, playlist: onPlaylist,
     details: details.length ? details : undefined,
     discs: discNumbers.length > 1 ? discNumbers.map(value => ({id: String(value), label: t('title.disc', {number: defaultI18n.number(value, {useGrouping: false})}),
