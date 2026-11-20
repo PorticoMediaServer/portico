@@ -205,3 +205,32 @@ test('the native guide says once that it is stale or that the server cannot play
   assert.equal(find(tree, 'live-sheet-reason').props.message, t('web.live.reason.sourceDown'));
   assert.equal(find(tree, 'live-watch'), undefined);
 });
+
+test('programme text keeps whole words and drops an incomplete time range', async () => {
+  let parent = hooks(), child = hooks(), renderer = parent;
+  const {GuideProgrammeTitle} = await screenModule(new URL('../src-next/kit/live/GuideProgrammeTitle.tsx', import.meta.url), {
+    react: {...parent.react, useState: (initial: unknown) => renderer.react.useState(initial)}, 'react-native': native,
+  });
+  const draw = (title: string, whole = false) => {
+    const props = {title, lines: 2, maxHeight: whole ? 22 : 44, whole, style: {}};
+    renderer = parent;
+    const tree = parent.render(() => GuideProgrammeTitle(props));
+    tree.props.onLayout({nativeEvent: {layout: {width: 65}}});
+    const wrapped = parent.render(() => GuideProgrammeTitle(props)).props.children[0];
+    renderer = child;
+    return child.render(() => wrapped.type(wrapped.props));
+  };
+  const measured = (tree: any, values: string[]) => {
+    nodes(tree).find(node => node.props?.onTextLayout).props.onTextLayout({nativeEvent: {
+      lines: values.map(text => ({text, width: 60, height: 20})),
+    }});
+  };
+  const visible = (tree: any) => nodes(tree).find(node => node.type === 'Text' && !node.props.onTextLayout)?.props.children.join('');
+  assert.equal(visible(draw('Market Watch')), '…');
+  measured(draw('Market Watch'), ['Market W', 'atch']);
+  measured(draw('Market Watch'), ['Market…']);
+  assert.equal(visible(draw('Market Watch')), 'Market…');
+  parent = hooks(); child = hooks();
+  measured(draw('2:30 PM – 3:00 PM', true), ['2:30 PM –', '3:00 PM']);
+  assert.equal(visible(draw('2:30 PM – 3:00 PM', true)), undefined);
+});
