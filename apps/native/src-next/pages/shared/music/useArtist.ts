@@ -6,6 +6,7 @@ import {artistReleaseGroups} from '../../../../../../packages/client-core/src/pr
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import type {StateRowProps} from '../../../kit/frames';
+import {useTheme} from '../../../kit/theme';
 import type {PosterRowItem, PosterRowProps} from '../../../kit/layout';
 import type {MusicSection} from '../../../kit/music/section';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -43,6 +44,8 @@ export type ArtistView = Readonly<{
   state?: StateRowProps;
   /** Top songs, ranked (frame 15b: 1, 2, 3, the playing one with bars). */
   topSongs?: SongList & Readonly<{title: string}>;
+  /** A tablet's Details beside the songs (the old tablet artist page: genres, country, active years); a phone has none. */
+  about?: readonly Readonly<{label: string; values: readonly Readonly<{text: string}>[]}>[];
   /** Their releases as rows of square covers, one per kind (Albums, Singles & EPs, Compilations, Appears on). */
   releases: readonly (PosterRowProps & Readonly<{group: string}>)[];
   /** Next, previous, Try again and Refresh for the server's pages of releases. */
@@ -62,6 +65,7 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
   const groups = useMemo(() => artistReleaseGroups(snapshot.albums), [snapshot.albums]);
   const covers = useMemo(() => snapshot.albums.flatMap(album => {const source = runtime.artwork(album.posterUrl); return source ? [source] : [];}), [snapshot.albums, runtime]);
   const about = snapshot.artistDetails ?? entry, releases = snapshot.releases;
+  const {form} = useTheme(), tablet = form === 'medium' || form === 'expanded';
   // The albums, the songs and the first genre (frame 15b: "1 album  4 songs  R&B/Soul"), each only when the read has it.
   const facts: FactPart[] = [];
   if (about.albumCount !== undefined) facts.push({id: 'albums', text: t('title.albumCount', {count: about.albumCount}), role: 'context'});
@@ -90,9 +94,11 @@ export function useArtist({controller, entry, runtime, actions, selection, openE
     details: {rows: [...(about.country ? [{label: t('title.country'), values: [{text: about.country}]}] : []), ...(years ? [{label: t('title.activeYears'), values: [{text: years}]}] : []),
       {label: t('title.albumType'), values: [{text: about.artistType ?? t('title.kind', {kind: 'artist'})}]}],
       overview: about.overview || undefined, source: about.overview && about.overviewSource ? t('title.fromSource', {source: about.overviewSource}) : undefined},
+    about: tablet ? [...(entry.genres?.length ? [{label: t('title.genres'), values: [{text: entry.genres.join(', ')}]}] : []),
+      ...(about.country ? [{label: t('title.country'), values: [{text: about.country}]}] : []), ...(years ? [{label: t('title.activeYears'), values: [{text: years}]}] : [])] : undefined,
     state: snapshot.phase === 'error' ? {kind: 'error', icon: 'i-warn', title: presentError(snapshot.error, 'detail').title, action: retryRead} : undefined,
     topSongs: snapshot.songs.length ? {title: t('music.topSongs'),
-      ...songList({songs: snapshot.songs, number: (_value, index) => index + 1, playingId, controller, runtime, actions, selection})} : undefined,
+      ...songList({songs: snapshot.songs, number: (_value, index) => index + 1, playingId, controller, runtime, actions, selection, table: tablet})} : undefined,
     releases: groups.map(group => ({group: group.id, title: t(group.label), shape: 'square', testID: `music-releases-${group.id}`, items: group.entries.map(release)})),
     releasePages: {section: releases, next: () => run(controller.nextReleases(releases)), previous: () => run(controller.previousReleases(releases)),
       retry: () => run(controller.retryReleases(releases)), refresh: () => run(controller.refreshReleases(releases))},
