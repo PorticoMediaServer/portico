@@ -74,6 +74,7 @@ export const readerMessages = {
   'next.reader.openedNear': 'Opened near where you left off',
   'next.reader.bulkLimit': 'Edit up to {count, number} books at a time.',
   'next.reader.bookNumber': 'Book {number}',
+  'next.reader.volumeUnavailable': 'The server can’t open this book right now',
   'next.reader.readNext': 'Read next',
   'next.reader.readVolume': 'Read volume {number}',
   'next.reader.volumeCount': '{count, plural, one {# volume} other {# volumes}}',

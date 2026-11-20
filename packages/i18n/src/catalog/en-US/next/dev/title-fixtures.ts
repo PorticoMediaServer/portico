@@ -335,6 +335,8 @@ export const titleFixtureMessages = {
   'next.title.fixture.readDuneAuthor': 'Frank Herbert',
   'next.title.fixture.readDuneAbout': 'On Arrakis, the desert planet that alone yields the spice the empire runs on, young Paul Atreides sees his family betrayed and must become something more than a duke’s son.',
   'next.title.fixture.readDuneFirstLines': 'In the week before their departure to Arrakis, when all the final scurrying about had reached a nearly unbearable frenzy, an old crone came to visit the mother of the boy, Paul.',
+  'next.title.fixture.readDuneMessiah': 'Dune Messiah',
+  'next.title.fixture.readChildrenOfDune': 'Children of Dune',
   'next.title.fixture.readChapter1': 'Book One: Dune',
   'next.title.fixture.readChapter2': 'Book Two: Muad’Dib',
   'next.title.fixture.readChapter3': 'Book Three: The Prophet',

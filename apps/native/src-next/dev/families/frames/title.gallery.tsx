@@ -393,6 +393,10 @@ function PhoneRead() {
     {/* A phone draws the chosen tab's panel only. */}
     {tab === 'contents' ? <TrackWindow rows={rows} variant="chapters" onPlay={none}/>
       : <PanelBlock><AboutTable rows={[{label: t('next.reader.format'), values: [{text: 'EPUB'}]}, {label: t('next.reader.pagesStrip'), values: [{text: '535'}]}]}/></PanelBlock>}
+    {/* The rest of the series, See all at its heading, each volume's place under its title; one the server can't serve now is drawn but inert. */}
+    <PosterRow title={t('next.reader.restOfSeries')} subtitle={t('next.reader.seriesInOrder', {series: f('readDune')})} onSeeAll={none}
+      items={[{key: 'messiah', title: f('readDuneMessiah'), caption: t('next.reader.bookNumber', {number: '2'}), artwork: asset('pool/movies/dune-part-two.jpg'), onNavigate: none, onMore: none},
+        {key: 'children', title: f('readChildrenOfDune'), caption: t('next.reader.bookNumber', {number: '3'}), unavailable: t('next.reader.volumeUnavailable'), onNavigate: none}]}/>
   </TitleFrame></Page>;
 }
 function PhoneAuthor() {
