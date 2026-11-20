@@ -27,7 +27,7 @@ import {NativeScreenLifetime} from '../settings-live/lifetime';
 import {ProfileColorPicker, ProfileRestrictionsFields} from '../settings-live/ProfileEditorFields';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
-import {TVAccountFields, TVAuthLayout} from '../../tv/auth/TVAuthLayout';
+import {TVAccountFields, TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 import {StateLayout, StateView} from '../../kit/states';
 import {ProfileFace, ProfilePicker} from '../../kit/artwork';
 import {Button, Focusable, TextField, FormError} from '../../kit/controls';
@@ -38,12 +38,12 @@ import {useTheme} from '../../kit/theme';
 import {AccountEntry} from './AccountEntry';
 import {createAccountDownloadsEntry, type AccountDownloadsEntry} from './downloads-entry';
 import {PhonePINEntry} from './PhonePINEntry';
-import {PhoneProfilePIN} from './PhoneProfilePIN';
+import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
 import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
-import {PhoneServerChooser} from './PhoneServerChooser';
+import {ServerChooserPage} from '../../pages/touch/accounts/ServerChooserPage';
 import {TVTrustedCertificates} from './TVTrustedCertificates';
-import {TVServerChooser} from './TVServerChooser';
+import {TVServerChooserPage} from '../../pages/tv/accounts/ServerChooserPage';
 import {removeCapturedServerDownloads} from './sign-out-downloads';
 import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage, TVWhosWatching} from '../../tv/auth';
 import {registerBack} from '../../kit/navigation/back';
@@ -386,7 +386,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
       </View>
       {problem && !managedId ? <FormError placement="inline">{problem}</FormError> : null}
       <BottomSheet open={!!managedId && !!active && manage} onOpenChange={open => {if (!open && !activeTicket.current && managementCurrent() && !retirement) {retireEditor(); setManagedId(undefined); closeDeletion();}}} title={active?.name} dismissOnBack={!actionBusy} dismissOnGesture={!actionBusy} dismissOnOutsidePress={!actionBusy}>{managementActions}</BottomSheet>
-    </View> : profile ? <PhoneProfilePIN testID="accounts-profile-switch" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: profile.art, source: avatarSource(profile.id)}}}
+    </View> : profile ? <ProfilePINPage testID="accounts-profile-switch" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: profile.art, source: avatarSource(profile.id)}}}
       value={pin} onChange={setPin} onSubmit={value => {void choose(profile.id, value);}} busy={busy} rejected={!!error}
       status={failureLine}
       onForgot={() => {void startRecovery();}} onBack={back}/>
@@ -663,7 +663,7 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
       <Text style={[theme.type.body, {color: theme.colors.text, flex: 1}]}>{t('settings.signOutConfirm.removeDownloads')}</Text>
     </Focusable>}
   </BottomSheet> : null;
-  if (!Platform.isTV) return <><PhoneServerChooser certificates={<TVTrustedCertificates context={context}/>} snapshot={servers} busy={busy} error={errorView} onBack={onBack ? cancel : undefined}
+  if (!Platform.isTV) return <><ServerChooserPage certificates={<TVTrustedCertificates context={context}/>} snapshot={servers} busy={busy} error={errorView} onBack={onBack ? cancel : undefined}
     onSelect={value => {void run(async () => {await nativeAccounts.switchServer(value.id); onComplete?.();});}}
     onSignOut={value => {void run(async () => {
       const state = await nativeAppSessions.read(), found = state.servers.find(item => item.connection.pin.serverId === value.id);
@@ -687,7 +687,7 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
         setAccountScope({accountId: session.account.id, familyId: session.familyId}); setPanel('sign-out-account');
       });}}>{t('accounts.signOut.portico')}</Button>}
     </View>}/>{signOutSheet}</>;
-  return <><TVServerChooser snapshot={servers} busy={busy} error={errorView} onBack={onBack ? cancel : undefined}
+  return <><TVServerChooserPage snapshot={servers} busy={busy} error={errorView} onBack={onBack ? cancel : undefined}
     owner={!!context && context.current() && context.account.serverId === servers?.selectedServerId && context.account.account.role === 'owner'}
     onSelect={value => {void run(async () => {await nativeAccounts.switchServer(value.id); onComplete?.();});}}
     onSignOut={value => {void run(async () => {

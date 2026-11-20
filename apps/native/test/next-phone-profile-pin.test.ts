@@ -7,18 +7,19 @@ const t = (key: string) => key;
 const theme = {colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', raised: '#111', raisedHigh: '#222', lineStrong: '#333'},
   type: {title: {}, body: {}, captionStrong: {}}, textScale: 1};
 const text = (node: any) => [node.props.children].flat().join('');
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.footer)] : [];
 
 async function screen(props: Record<string, unknown> = {}) {
   const host = hooks(), submitted: string[] = [];
   let value = '';
-  const {PhoneProfilePIN} = await screenModule(new URL('../src-next/screens/accounts/PhoneProfilePIN.tsx', import.meta.url), {
-    react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/artwork': {ProfileFace: 'Face', StandardBackdrop: 'Backdrop'},
-    '../../kit/controls': {Button: 'Button', NumberPad: 'Pad'}, '../../kit/layout/TopBar': {TopBar: 'TopBar'},
-    '../../kit/theme': {useTheme: () => theme}, './PhonePINEntry': {PhonePINEntry: 'PINEntry'},
+  const useProfilePIN = await screenModule(new URL('../src-next/pages/shared/accounts/useProfilePIN.ts', import.meta.url), {react: host.react});
+  const {ProfilePINPage} = await screenModule(new URL('../src-next/pages/touch/accounts/ProfilePINPage.tsx', import.meta.url), {
+    react: host.react, '../../../../../../packages/i18n/src': {defaultI18n: {t}},
+    '../../../kit/artwork': {ProfileFace: 'Face'}, '../../../kit/controls': {Button: 'Button', NumberPad: 'Pad'},
+    '../../../kit/frames': {SignInFrame: 'SignInFrame'}, '../../../kit/accounts/AccountParts': {AccountHint: 'Hint', profileFaceSize: {pin: 92}},
+    '../../shared/accounts/useProfilePIN': useProfilePIN, '../../../screens/accounts/PhonePINEntry': {PhonePINEntry: 'PINEntry'},
   });
-  const draw = () => nodes(host.render(() => PhoneProfilePIN({testID: 'pin', profile: {name: 'Alex', face: {initial: 'A'}}, busy: false, rejected: false,
+  const draw = () => nodes(host.render(() => ProfilePINPage({testID: 'pin', profile: {name: 'Alex', face: {initial: 'A'}}, busy: false, rejected: false,
     onBack: () => {}, onForgot: () => {}, ...props, value, onChange: (next: string) => {value = next;}, onSubmit: (pin: string) => {submitted.push(pin);}})));
   return {draw, submitted, value: () => value, find: (type: string) => draw().find(node => node.type === type)};
 }
@@ -64,13 +65,14 @@ test('a hardware keyboard or code autofill still types into the field, with the 
 test('the frame\'s words, a centred Forgot PIN, ‹ Profiles, and a pad that rests while the PIN is checked', async () => {
   let back = 0;
   const s = await screen({busy: true, onBack: () => {back++;}});
-  const texts = s.draw().filter(node => node.type === 'Text').map(text);
-  assert.deepEqual(texts, ['auth.enterProfilePin', 'Alex', 'pin.fourDigit']);
+  const page = s.find('SignInFrame');
+  assert.equal(page.props.title, 'auth.enterProfilePin');
+  assert.equal(page.props.lede, 'Alex');
+  assert.equal(text(s.find('Hint')), 'pin.fourDigit');
   const forgot = s.find('Button');
   assert.equal(forgot.props.align, 'center'); assert.equal(text(forgot), 'pin.forgot'); assert.equal(forgot.props.disabled, true);
   assert.equal(s.find('Pad').props.disabled, true);
-  const bar = s.find('TopBar');
-  assert.equal(bar.props.back.label, 'profiles.title'); bar.props.back.onPress(); assert.equal(back, 1);
+  assert.equal(page.props.back.label, 'profiles.title'); page.props.back.onPress(); assert.equal(back, 1);
 });
 
 test('the kit number pad: 1 to 9, then a blank, 0 and Delete, as the frame draws it; at rest it takes no presses', async () => {

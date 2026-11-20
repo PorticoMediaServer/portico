@@ -66,9 +66,10 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
   const rn={AppState:{currentState:'active',addEventListener:()=>({remove(){}})},BackHandler:{addEventListener:(_:string,fn:()=>boolean)=>{back.add(fn);return {remove:()=>back.delete(fn)};}},
     Platform:{isTV:false,OS:'ios'},NativeModules:{PorticoAccountAuth:bridge},Image:'Image',View:'View',Text:'Text',ScrollView:'ScrollView',
     Keyboard:{isVisible:()=>false,addListener:()=>({remove(){}})},KeyboardAvoidingView:'KeyboardAvoidingView',Linking:{openURL:async()=>{}}};
-  const phone=await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSignIn.tsx',import.meta.url),{'../../platform/keyboard':{FormScrollView:'ScrollView'},
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './ProviderButton': {ProviderButton: 'ProviderButton'}, react:{...React,default:React},'react-native':rn,'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0,left:0,right:0})},
-    '../../../../../packages/i18n/src':{defaultI18n},'../../kit/artwork':{ColourBackdrop:'Backdrop'},'../../kit/controls':{Button:'Button',TextField:'Field'},'../../kit/theme':{nativeType,useTheme:()=>theme},
+  const phone = await screenModule(new URL('../src-next/pages/touch/accounts/SignInPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/frames': {SignInFrame: 'SignInFrame'}, '../../../kit/accounts/AccountParts': {AccountDivider: 'Divider', AccountFields: 'Fields', AccountLinks: 'Links', AccountTerms: 'Terms'},
+    '../../../screens/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'},
   });
   const modules:any={react:{...React,default:React},'react-native':rn,'react-native-qrcode-svg':{default:'QR'},
     '../../../../../packages/i18n/src':{defaultI18n},'../../../../../packages/client-core/src':{HttpHostedApi:class {}},
@@ -79,7 +80,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
     '../../platform/account-work': accountWork, '../../platform/accounts':{nativeAccounts:accounts},'../../platform/server-sign-in':{NativeServerSignIn:Server},'../../platform/portico-sign-in':auth,
     '../../platform/server-connections':{browseNearby:async()=>[]},'../../platform/account-authority':{hostedUrl:'https://hosted.example'},
     '../../platform/qr-scanner':{qrScannerAvailable:()=>false},'../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}}, './tv-code-opening':tvOpening,'./directory-chooser':chooser,
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './ProviderButton': {ProviderButton: 'ProviderButton'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn':phone,'./directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
+    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './ProviderButton': {ProviderButton: 'ProviderButton'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage':phone,'./directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
     '../../platform/hosted-sign-in-unavailable':{HostedSignInUnavailable:class extends Error {}},
   };
   const ports=new Proxy(modules,{get:(obj,name)=>name in obj?obj[name]:new Proxy({},{get:(_,exported)=>(..._args:any[])=>{throw new Error('Unexpected port '+String(name)+'.'+String(exported));}})});
@@ -91,7 +92,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
   let tree:any,phoneTree:any,child:Awaited<ReturnType<typeof createFabricHookHost>>|undefined;
   const host=createFabricHookHost(()=>{tree=AccountEntry({incomingInvitation:incoming,onComplete:()=>{calls.complete++;}});});
   context.after(async ()=>{await child?.unmount();await host.unmount();});await act(()=>host.mount());
-  const phoneRender=async()=>{assert.equal(tree.type,phone.PhoneAccountSignIn);await child?.unmount();const props=tree.props;child=createFabricHookHost(()=>{phoneTree=phone.PhoneAccountSignIn(props);});await act(()=>child!.mount());return phoneTree;};
+  const phoneRender=async()=>{assert.equal(tree.type,phone.SignInPage);await child?.unmount();const props=tree.props;child=createFabricHookHost(()=>{phoneTree=phone.SignInPage(props);});await act(()=>child!.mount());return phoneTree;};
   return {calls,host,back,tree:()=>tree,phone:phoneRender,
     read:(work:()=>Promise<any>)=>{read=work;},options:(work:()=>Promise<any>)=>{options=work;},verify:(work:typeof verify)=>{verify=work;},
     retire:()=>{active=false;for(const fn of listeners)fn();},

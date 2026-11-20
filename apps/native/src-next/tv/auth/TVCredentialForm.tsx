@@ -6,7 +6,7 @@ import {Button, TextField} from '../../kit/controls';
 import {FocusProvider, FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {useDestinationEntryFocus} from '../../screens/destinations/useEntryFocus';
 import {useTVBusyEntryRevision} from './entry-revision';
-import {TVAccountFields, TVAuthLayout} from './TVAuthLayout';
+import {TVAccountFields, TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 
 export type TVCredentialFormProps = Readonly<{
   username: string; password: string;

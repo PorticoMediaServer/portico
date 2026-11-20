@@ -89,7 +89,7 @@ async function fixture(options: FixtureOptions) {
     './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
     // The layout and the approval sheet are real components here so their props stay inspectable and the form's
     // beforeActions children actually mount; every leaf they draw is still a string stub.
-    './PhoneAccountForm': {PhoneAccountForm: (props: any) => React.createElement('PhoneAccountForm', props, props.beforeActions)},
+    '../../kit/accounts/AccountForm': {AccountForm: (props: any) => React.createElement('PhoneAccountForm', props, props.beforeActions)},
     './PhoneSetupApproval': {PhoneSetupApproval: (props: any) => React.createElement('PhoneSetupApproval', props)},
   });
   const admitted: string[] = [], left: string[] = [];
