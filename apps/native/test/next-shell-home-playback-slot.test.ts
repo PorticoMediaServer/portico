@@ -11,7 +11,6 @@ import {authorityKey, sameAuthority} from '../src-next/shell/model';
 import {sameFence} from '../../../packages/player-core/src';
 import * as watchSlotLayout from '../src-next/shell/watch-slot-layout.ts';
 import * as dockModel from '../src-next/kit/dock/model.ts';
-import {useListeningSong} from '../src-next/shell/use-listening-song.ts';
 import {nativeEqualizer} from '../src-next/platform/playback/equalizer.ts';
 import {nativeShellBackTransition} from '../src-next/shell/playback.ts';
 import {listeningNoticeKey} from '../../../packages/client-core/src/audio-effects.ts';
@@ -44,8 +43,11 @@ test('actual playback layer converts measured window slot to its own origin and 
     '../../../kit/theme': {useTheme: () => theme, nativeType: () => ({})},
   });
   const {NativePlaybackLayer} = await screenModule(new URL('../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'../platform/tv-keys': {useTVKeyEvent() {}}, './StartTimedOut': {StartTimedOut: 'StartTimedOut'}, '../kit/dock/StartingDock': {StartingDock: 'StartingDock'}, 
+    './use-listening-song': {useListeningSong: () => ({song: undefined, pending: false, favorite() {}})},
     './listening-presentation': {captureListeningOpening, expandedListeningOccupant, localListeningOccupant},
-    '../screens/destinations/music/NowPlayingScreen': {NowPlayingScreen: 'NowPlayingScreen', ListeningPagePreview: 'ListeningPagePreview', ListeningPageBackground: 'ListeningPageBackground', TVListeningRoute: 'TVListeningRoute'},
+    '../kit/player/ListeningSurface': {ListeningPagePreview: 'ListeningPagePreview', ListeningPageBackground: 'ListeningPageBackground'},
+    '../pages/touch/player/AudioPlayerPage': {AudioPlayerPage: 'NowPlayingScreen'},
+    '../pages/tv/player/ListeningRoute': {TVListeningRoute: 'TVListeningRoute'},
     '../kit/dock/video-exit-paint': {DockVideoExitImages},
     '../kit/dock/DockHandover': {DockVideoExitProvider: 'DockVideoExitProvider', DockVideoExitCanvas: 'DockVideoExitCanvas'},
     '../kit/dock/InitialPicturePresentation': {InitialPicturePresentation: 'InitialPicturePresentation'},
@@ -64,7 +66,7 @@ test('actual playback layer converts measured window slot to its own origin and 
     '../screens/destinations/music/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
     '../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
     '../screens/destinations/music/MusicSignal': musicSignal, '../screens/destinations/music/signal-facts': signalFacts,
-    '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'}, './use-listening-song': {useListeningSong},
+    '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'},
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': {listeningNoticeKey},
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},

@@ -6,7 +6,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
-import {StartFocusScope} from '../focus';
+import {FocusRegion, StartFocusScope, type FocusRegionProps} from '../focus';
 import {useFrameMetrics, usePlayerUpright} from './metrics';
 
 /** The time read-outs; the frame places them for the form (under the scrubber, either side of it, or as one clock). */
@@ -15,6 +15,7 @@ export type PlayerReadouts = Readonly<{position: string; /** With a minus sign: 
 /** The video player's four drawn forms: upright (the 16:9 strip and the watch page), a phone on its side, the wide form
  * (tablet-play) and TV. */
 export type PlayerForm = 'upright' | 'sideways' | 'wide' | 'tv';
+type PlayerFocus = Pick<FocusRegionProps, 'id' | 'entry' | 'entryRegion' | 'orientation' | 'stops' | 'edges' | 'enabled'>;
 export type PlayerChromeFrameProps = Readonly<{
   /** The video surface, or the frozen frame when playback failed. */
   picture: ReactNode;
@@ -29,6 +30,11 @@ export type PlayerChromeFrameProps = Readonly<{
   /** The scrubber (`PlayerScrubBar`, inside the screen's own timeline). */
   scrubber: ReactNode;
   times: PlayerReadouts;
+  /** TV's seek markers take the clock row's place during a held seek. */
+  markers?: ReactNode;
+  /** Live TV: Go live takes the end clock's place when the viewer is behind. */
+  timeAction?: ReactNode;
+  focus?: Readonly<{controls: PlayerFocus; transport: PlayerFocus}>;
   /** Previous, back, Play or Pause, forward, next (`PlayerControl`s). In the middle of the bottom bar on a tablet and
    * TV; in the middle of the picture on a phone and in the upright form. */
   transport: ReactNode;
@@ -86,7 +92,7 @@ function Shade() {
 export function PlayerChromeFrame({startFocus, ...props}: PlayerChromeFrameProps) {
   return <StartFocusScope id={startFocus}><PlayerChromeFrameBody {...props}/></StartFocusScope>;
 }
-function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelWide = false, band, scrubbing = false, hints, body, testID, form: chosen, pane = false, onControlsLayout}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
+function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scrubber, times, markers, timeAction, focus, transport, leading, trailing, prompts, card, panel, panelWide = false, band, scrubbing = false, hints, body, testID, form: chosen, pane = false, onControlsLayout}: Omit<PlayerChromeFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), spec = frameSpec.player, {form} = frame;
   const windowUpright = usePlayerUpright();
   const drawn: PlayerForm = chosen ?? (form === 'tv' ? 'tv' : windowUpright ? 'upright' : form === 'phone' ? 'sideways' : 'wide');
@@ -114,18 +120,15 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
     <View style={[row, {justifyContent: 'center', gap: upright ? spec.transport.upright[form === 'phone' ? 'phone' : 'tablet'].gap : spec.transport.gap[form]}]}>{transport}</View>
   </View>;
   const top = <View pointerEvents={touch} style={[row, {position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'flex-start', gap: upright ? 0 : spec.titleGap[form],
-    paddingTop: upright ? spec.portrait.top : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, tv && panel ? {opacity: chromeVisible ? spec.panelDim : 0} : shown]}>
+    paddingTop: upright ? spec.portrait.top + (pane ? insets.top : 0) : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, tv && panel ? {opacity: chromeVisible ? spec.panelDim : 0} : shown]}>
     {!tv && close}<View style={{flex: 1, minWidth: 0, alignSelf: 'center'}}>{!upright && title}</View>{clock ?? <View style={[row, {gap: upright ? 0 : theme.space.controlGap}]}>{tools}</View>}
   </View>;
-  const stage = <View style={upright && !pane ? {aspectRatio: spec.portrait.aspect, overflow: 'hidden'} : {flex: 1, overflow: 'hidden'}}>
-    <View style={StyleSheet.absoluteFill}>{picture}</View>
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, banded ? undefined : shown]}>{upright ? <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.portrait.shade)}]}/> : <Shade/>}</View>
-    {tv && !!panel && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.panelDim)}]}/>}
-    {top}
-    {(phone || upright) && centre}
-    {!!card && !panel && <View pointerEvents="box-none" style={{position: 'absolute', right: edge, bottom: upright ? spec.portrait.bottom : Math.max(spec.cardBottom[form], insets.bottom), maxWidth: '100%'}}>{card}</View>}
-    {/* The prompt corner rides on the bar's box, which keeps its size while the chrome is hidden, so a prompt never moves. */}
-    <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, bottom: 0}}>
+  const controlRow = <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: spec.transport.primary[form]}, sideways && {minHeight: spec.pill.height[form]}]}>
+    {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: spec.transport.gap[form]}]}><PlayerNameTags.Provider value={form === 'tv'}>{transport}</PlayerNameTags.Provider></View>}
+    <View style={[row, {flexShrink: 0, gap: spec.endGap[form]}]}>{leading}</View>
+    <View style={[row, {flexShrink: 1, minWidth: 0, justifyContent: 'flex-end', gap: spec.endGap[form]}]}>{trailing}</View>
+  </View>;
+  const bottom = <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, bottom: 0}}>
       {!upright && !panel && !card && !banded && <View pointerEvents="box-none" style={{alignItems: 'flex-end', paddingHorizontal: edge, paddingBottom: theme.space.sm}}>{prompts}</View>}
       {upright ? <View pointerEvents="box-none" onLayout={measureBar}>
         <View pointerEvents="box-none" style={[row, {gap: theme.space.xs, paddingLeft: spec.portrait.timeInset, paddingRight: edge, paddingBottom: spec.portrait.bottom, minHeight: theme.targets.touch}]}>
@@ -135,21 +138,29 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
           <View pointerEvents="box-none" style={{flex: 1, minWidth: 0, alignItems: 'flex-end'}}>{!panel && !card && prompts}</View>
           <View pointerEvents={touch} style={[row, {gap: spec.endGap[form]}, shown]}>{trailing}</View>
         </View>
-        <View pointerEvents={touch} style={shown}>{scrubber}</View>
+        <View pointerEvents={touch} style={[shown, pane && {marginBottom: -(theme.targets.touch - spec.portrait.scrubber) / 2}]}>{scrubber}</View>
       </View> : <View pointerEvents={touch} onLayout={measureBar} style={[{paddingHorizontal: edge, paddingBottom: Math.max(spec.bottom[form], insets.bottom)}, shown]}>
         {sideways ? <View style={[row, {gap: theme.space.controlGap}]}>{position}<View style={{flex: 1}}>{scrubber}</View>{remaining}</View>
-          : <View style={{gap: spec.timesGap[form]}}>{scrubber}<View style={[row, {justifyContent: 'space-between'}, tv && scrubbing && {opacity: 0}]}>{position}{remaining}</View></View>}
+          : <View style={{gap: spec.timesGap[form]}}>{scrubber}
+            <View><View style={[row, {justifyContent: 'space-between'}, tv && scrubbing && {opacity: 0}]}>{position}{timeAction ?? remaining}</View>
+              {tv && scrubbing && markers !== undefined && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{markers}</View>}
+            </View>
+          </View>}
         {/* Three fixed places. The transport is centred on the bar itself, not between the ends, so it stays in the middle whatever each end holds. */}
         <View>
-          <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: spec.transport.primary[form]}, sideways && {minHeight: spec.pill.height[form]}]}>
-            {!phone && <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, row, {justifyContent: 'center', gap: spec.transport.gap[form]}]}><PlayerNameTags.Provider value={form === 'tv'}>{transport}</PlayerNameTags.Provider></View>}
-            <View style={[row, {flexShrink: 0, gap: spec.endGap[form]}]}>{leading}</View>
-            <View style={[row, {flexShrink: 1, minWidth: 0, overflow: 'hidden', justifyContent: 'flex-end', gap: spec.endGap[form]}]}>{trailing}</View>
-          </View>
+          {focus ? <FocusRegion {...focus.transport} accessibilityElementsHidden={scrubbing} importantForAccessibility={scrubbing ? 'no-hide-descendants' : 'auto'}
+            style={scrubbing ? {opacity: 0} : undefined}>{controlRow}</FocusRegion> : controlRow}
           {tv && scrubbing && hints !== undefined && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {justifyContent: 'center', marginTop: spec.controlsGap[form]}]}>{hints}</View>}
         </View>
       </View>}
-    </View>
+    </View>;
+  const controls = <>{top}{(phone || upright) && centre}{bottom}</>;
+  const stage = <View style={upright && !pane ? {aspectRatio: spec.portrait.aspect, overflow: 'hidden'} : {flex: 1, overflow: 'hidden'}}>
+    <View style={StyleSheet.absoluteFill}>{picture}</View>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, banded ? undefined : shown]}>{upright ? <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.portrait.shade)}]}/> : <Shade/>}</View>
+    {tv && !!panel && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.dim, spec.panelDim)}]}/>}
+    {focus ? <FocusRegion {...focus.controls} pointerEvents="box-none" style={StyleSheet.absoluteFill}>{controls}</FocusRegion> : controls}
+    {!!card && !panel && <View pointerEvents="box-none" style={{position: 'absolute', right: edge, bottom: upright ? spec.portrait.bottom : Math.max(spec.cardBottom[form], insets.bottom), maxWidth: '100%'}}>{card}</View>}
     {/* Over the hidden bar, so the band's tiles are what the remote reaches. */}
     {banded && <View style={{position: 'absolute', left: 0, right: 0, bottom: Math.max(spec.bottom[form], insets.bottom)}}>{band}</View>}
   </View>;

@@ -48,7 +48,7 @@ export const dockStyles = StyleSheet.create({
   expandedButton: {width: expandedDockMetrics.button, height: expandedDockMetrics.button, alignItems: 'center', justifyContent: 'center', borderRadius: expandedDockMetrics.button / 2},
   expandedPrimary: {width: expandedDockMetrics.primary, height: expandedDockMetrics.primary, alignItems: 'center', justifyContent: 'center', borderRadius: expandedDockMetrics.primary / 2},
   expandedScrub: {width: expandedDockMetrics.scrubWidth, marginTop: 4, height: 17, flexDirection: 'row', alignItems: 'center', gap: 8},
-  tvQuiet: {width: 440, height: 84, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 18, paddingLeft: 10, paddingRight: 24, overflow: 'hidden'},
+  tvQuiet: {width: 440, minHeight: 84, paddingVertical: 10, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 18, paddingLeft: 10, paddingRight: 24, overflow: 'hidden'},
   tvFlyout: {width: 700, padding: 30, borderRadius: 24, overflow: 'hidden'},
   tvButton: {width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center'},
   tvPrimary: {width: 88, height: 88, borderRadius: 44},

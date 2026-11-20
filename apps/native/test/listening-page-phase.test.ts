@@ -43,7 +43,7 @@ async function rig() {
       useAnimatedStyle: (read: any) => ({read}), cancelAnimation: (node: any) => {if (node.running) node.running.stopped = true;},
       withTiming: (to: any, config: any) => ({animation: true, to, config}), withDelay: (delay: number, inner: any) => ({delayed: true, delay, inner})},
     '../../../../../packages/player-core/src': {sameFence}, './model': {validRect},
-    '../theme': {useTheme: () => ({layers: {player: 30}, colors: {accentStrong: '#abc'}})},
+    '../theme': {useTheme: () => ({form: 'phone', layers: {player: 30}, colors: {accentStrong: '#abc'}})},
     '../useMotion': {useMotion: () => ({reduce, transforms: !reduce, timing: (kind: string) => ({duration: reduce ? 160 : kind === 'quick' ? 120 : 180, easing: reduce ? 'linear' : 'out'})})},
     '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive})}, './ListeningCoverPaint': {ListeningCoverPaint: 'ListeningCoverPaint'},
     '../overlays/CommittedPaint': {CommittedPaintProvider: 'CommittedPaintProvider'},
@@ -58,7 +58,7 @@ async function rig() {
     async mountSeek() {
       let seekTree: any;
       const host = createFabricHookHost(() => {seekTree = ListeningSeekPaint({fence, fraction: .1, span: 100, seconds: 10, label: 'Seek'});});await host.mount();
-      return {host, get tree() {return seekTree;}, view: () => seekTree.props.children, fill: () => seekTree.props.children.props.children.props.children.props.style[1].read()};
+      return {host, get tree() {return seekTree;}, view: () => seekTree.props.children, fill: () => seekTree.props.children.props.children.props.children[0].props.style[1].read()};
     },
     inert() {interactive = false;},
     async publishSame() {await act(() => tree.props.value.publish({...binding, opening: fullOpening, pageOpen: true}));step();},

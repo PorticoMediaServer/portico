@@ -15,17 +15,18 @@ import {useFrameMetrics} from '../frames/metrics';
 /** The title block at the top of the video player: the title, then the episode or the year under it. Live TV adds
  * the channel's mark before it, the red Live mark after the channel, and a third line (the airing's times and what
  * follows it). */
-export function PlayerTitle({title, lead, subtitle, mark, live, detail}: {title: string; /** Said first and brighter on the line under the title ("S1 E2"). */ lead?: string; subtitle?: string; /** `ChannelMark`. */ mark?: ReactNode; live?: string; detail?: string}) {
+export function PlayerTitle({title, lead, subtitle, mark, live, detail, accessory}: {title?: string; /** Said first and brighter on the line under the title ("S1 E2"). */ lead?: string; subtitle?: string; /** `ChannelMark`. */ mark?: ReactNode; live?: string; detail?: string; accessory?: ReactNode}) {
   const theme = useTheme(), second = [theme.type.playerSubtitle, {color: theme.colors.textSecondary}];
   return <View style={{flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>
     {mark}
-    <View style={{flex: 1, minWidth: 0}}>
-      <Text accessibilityRole="header" numberOfLines={1} style={[theme.type.playerTitle, {color: theme.colors.text}]}>{title}</Text>
-      {(lead !== undefined || subtitle !== undefined || live !== undefined) && <Text numberOfLines={1} style={second}>
+    <View style={{flexShrink: 1, minWidth: 0}}>
+      {title && <Text accessibilityRole="header" style={[theme.type.playerTitle, {color: theme.colors.text}]}>{title}</Text>}
+      {(lead !== undefined || subtitle !== undefined || live !== undefined) && <Text style={second}>
         {lead !== undefined && <Text style={{color: theme.colors.text, fontFamily: theme.type.button.fontFamily}}>{lead}  </Text>}{subtitle}
         {live !== undefined && <Text style={{color: theme.colors.record, fontFamily: theme.type.button.fontFamily}}>{subtitle !== undefined ? '  ' : ''}{'\u25CF'} {live}</Text>}</Text>}
-      {detail !== undefined && <Text numberOfLines={1} style={second}>{detail}</Text>}
+      {detail !== undefined && <Text style={second}>{detail}</Text>}
     </View>
+    {accessory}
   </View>;
 }
 
@@ -59,7 +60,7 @@ export type PlayerControlProps = Readonly<{
   spare?: boolean;
   /** TV: where Previous or Next goes, after the label in the focused control's name tag (player-tv 1: "Previous  The Fellowship of the Ring"). */
   detail?: string;
-  testID?: string;
+  testID?: string; focusId?: string; anchorRef?: React.Ref<View>;
 }>;
 /** R4 and R6: the transport's icon classes for this form (frameSpec.player.transport): the strip's own in the upright form. */
 function usePlayerTransport() {
@@ -71,7 +72,7 @@ function usePlayerTransport() {
  * others are plain white glyphs on a phone and a tablet, and sit on a disc only where the mock-ups draw one: a TV's
  * controls and a tablet's top bar. The 10 and 30 arrows are drawn larger than Previous and Next, with a legible
  * numeral (R6); a tool is the secondary class. A control the title doesn't support stays in its place with `disabled`. */
-export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, plain = false, tool = false, skip, busy = false, size: boxSize, iconSize, tone, open = false, spare = false, detail, testID}: PlayerControlProps) {
+export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, plain = false, tool = false, skip, busy = false, size: boxSize, iconSize, tone, open = false, spare = false, detail, testID, focusId, anchorRef}: PlayerControlProps) {
   const theme = useTheme(), {form} = useFrameMetrics(), compact = useContext(PlayerCompact), beside = useContext(PlayerBeside), classes = usePlayerTransport();
   const tags = useContext(PlayerNameTags) && !tool && !plain, [focused, setFocused] = useState(false), window = useWindowDimensions();
   if (spare && beside) return null;
@@ -79,7 +80,7 @@ export function PlayerControl({icon, label, onPress, disabled, active, primary =
   const top = onPicture || tool, size = boxSize ?? (top ? undefined : primary ? classes.primary : classes.control);
   const glyph = iconSize ?? (onPicture ? undefined : tool ? frameSpec.player.transport.toolIcon[form] : primary ? classes.primaryIcon : skip !== undefined ? classes.skipIcon : classes.stepIcon);
   const colour = primary ? undefined : active ? theme.colors.accentStrong : tone === 'secondary' || tool ? theme.colors.textSecondary : theme.colors.text;
-  const button = <Button testID={testID} variant={primary ? 'primary' : disc ? 'glass' : 'text'} size="transport" iconOnly icon={icon} loading={busy}
+  const button = <Button ref={anchorRef} focusId={focusId} testID={testID} variant={primary ? 'primary' : disc ? 'glass' : 'text'} size="transport" iconOnly icon={icon} loading={busy}
     iconSize={glyph} iconColor={colour} style={size === undefined ? undefined : {width: size, height: size, borderRadius: size / 2}} align="center"
     accessibilityLabel={label} accessibilityState={{selected: active, expanded: open || undefined}} disabled={disabled} onPress={onPress} focusableWhenDisabled={busy}
     onFocus={tags ? () => setFocused(true) : undefined} onBlur={tags ? () => setFocused(false) : undefined}/>;
