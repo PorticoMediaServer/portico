@@ -102,6 +102,7 @@ export function chipRailCut(box: number, offset: number, content: number, ends: 
   return whole === undefined ? 0 : Math.max(0, Math.min(box, whole - offset));
 }
 let chipRailSeq = 0;
+const chipRailGap = 8;
 export function ChipRail({children}: {children: ReactNode}) {
   // Each rail's mask has its own gradient id: an SVG id is shared across the window, and a rail still mounted under the page (the
   // library under See all) would otherwise lend this one its fade.
@@ -117,8 +118,9 @@ export function ChipRail({children}: {children: ReactNode}) {
   // Drawn only with room for its first chip whole (lead, 19 Nov); its choices are all in Filters too, so nothing is lost. Without
   // room it keeps its place (grid / list stays pinned) and keeps measuring, but is invisible, takes no touch and is not read.
   const room = ends[0] === undefined || ends[0] <= box + .5;
-  // Solid to 12 before the cut (a chip's own end padding), clear from the cut on.
-  const solid = cut === undefined || box <= 0 ? 1 : Math.max(0, cut - 12) / box, clear = cut === undefined || box <= 0 ? 1 : cut / box;
+  // Solid through the last whole chip, clear by the start of the next: the fade lies in the gap between them, so the last whole
+  // chip keeps its end (the sort control lost its corner on a phone) and the next chip is not drawn.
+  const solid = cut === undefined || box <= 0 ? 1 : cut / box, clear = cut === undefined || box <= 0 ? 1 : Math.min(box, cut + chipRailGap) / box;
   return <View testID="browse-chip-rail" style={{flex: 1, minWidth: 0, opacity: room ? 1 : 0}} pointerEvents={room ? 'auto' : 'none'}
     accessibilityElementsHidden={!room} importantForAccessibility={room ? 'auto' : 'no-hide-descendants'}>
     {/* The rail is as tall as its chips (their measured content): a flex height in this row came out shorter on the tablet and cut
@@ -127,7 +129,7 @@ export function ChipRail({children}: {children: ReactNode}) {
       <Stop offset={0} stopColor="#fff" stopOpacity={1}/><Stop offset={solid} stopColor="#fff" stopOpacity={1}/><Stop offset={clear} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
       <Stop offset={1} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
     </LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${gradient})`}/></Svg>}>
-      <TVRow><ScrollView horizontal scrollEnabled={room} showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, alignItems: 'center'}} scrollEventThrottle={32}
+      <TVRow><ScrollView horizontal scrollEnabled={room} showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: chipRailGap, alignItems: 'center'}} scrollEventThrottle={32}
         snapToOffsets={ends.length ? [0, ...ends.slice(0, -1).map(end => end + theme.space.xs)] : undefined}
         onLayout={event => setBox(event.nativeEvent.layout.width)} onContentSizeChange={(width, contentHeight) => {setContent(width); setHeight(contentHeight);}}
         onScroll={event => setOffset(event.nativeEvent.contentOffset.x)}>
