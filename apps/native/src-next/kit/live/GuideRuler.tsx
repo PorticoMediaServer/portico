@@ -39,11 +39,16 @@ function RulerMark({mark, nowAt, nowVisible, paneWidth, shift}: {
     const markerStart = Math.max(0, Math.min(now - pillWidth / 2, paneWidth - pillWidth));
     const nearNow = nowVisible && now >= 0 && now < paneWidth
       && left < markerStart + pillWidth + gap && left + labelWidth + gap * 2 > markerStart;
-    return {transform: [{translateX: left}], opacity: nearNow ? 0 : 1};
+    return {transform: [{translateX: shift.value}], opacity: nearNow ? 0 : 1};
   }, [nowAt, mark.left, nowVisible, paneWidth, labelWidth, gap, pillWidth]);
-  return <Animated.View style={[{position: 'absolute', left: 0, height: guideSpec.ruler, borderLeftWidth: 1,
-    borderLeftColor: theme.colors.line, paddingLeft: gap}, style]}>
-    <Text onLayout={event => setLabelWidth(event.nativeEvent.layout.width)}
-      style={[tv ? theme.type.rowHelp : theme.type.caption, {color: theme.colors.textSecondary}]}>{mark.label}</Text>
-  </Animated.View>;
+  const layout = {position: 'absolute' as const, left: mark.left, height: guideSpec.ruler, borderLeftWidth: theme.space.hairline,
+    borderLeftColor: theme.colors.line, paddingLeft: gap};
+  const label = <Text onLayout={event => setLabelWidth(event.nativeEvent.layout.width)}
+    style={[tv ? theme.type.rowHelp : theme.type.caption, {color: theme.colors.textSecondary}]}>{mark.label}</Text>;
+  if (tv) {
+    const markerStart = Math.max(0, Math.min(nowAt - pillWidth / 2, paneWidth - pillWidth));
+    const nearNow = nowVisible && mark.left < markerStart + pillWidth + gap && mark.left + labelWidth + gap * 2 > markerStart;
+    return mark.left >= 0 ? <View style={[layout, nearNow && {opacity: 0}]}>{label}</View> : null;
+  }
+  return <Animated.View style={[layout, style]}>{label}</Animated.View>;
 }
