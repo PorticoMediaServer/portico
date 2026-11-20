@@ -326,6 +326,10 @@ export type ScrimStop = Readonly<{at: number; alpha: number}>;
 /** Hero geometry follows the frames, independent of viewport height. kit.css:40–93,164–172,247–265. */
 export const hero = {
   mobileWeb: {homeHeight: 486, titleHeight: 330},
+  tvHome: {spotlight: 820, preview: 588, previewCopyTop: 150, artwork: 900, canvasWidth: 1920, canvasHeight: 1080, channelWidth: 400, channelHeight: 225, bottomClear: 96},
+  tabletHome: {landscapeHeight: 440, landscapeCopy: {inset: 32, width: 440, bottom: 118},
+    portraitCopy: {left: 56, right: 56, bottom: 44}, landscapeArtwork: .74, portraitArtwork: {x: .36, y: .28},
+    thumbnails: {width: 104, height: 58, labelSize: 11.5, bottom: 20, gap: 10, right: 32}},
   homeHeight: all(720, 560, 560, 1080), titleHeight: all(660, 396, 396, 1080),
   backdropWidth: all(1920, 800, 800, 1920), backdropOpacity: same(1, 1),
   backdrop: {widthFraction: all(0.76, 1, 1, 1500 / 1920), titleWidthFraction: all(0.72, 1, 1, 1500 / 1920), tvHeight: 900, position: {home: 'center 30%', title: '30% 25%', phoneHome: '38% 30%', phoneTitle: '44% 20%'}},

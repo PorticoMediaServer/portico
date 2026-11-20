@@ -228,7 +228,7 @@ async function heroModule(state: ReturnType<typeof lifecycle>, overlay = {open: 
     '../overlays/OverlayHost': {useOverlayOpen: () => overlay.open}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../frames/metrics': {useFrameMetrics: () => ({headerGap: 12})},
     react: state.react, 'react-native': state.native, 'react-native-reanimated': state.animated, '@portico/design': {heroSpec},
     '../theme': {useTheme: () => ({isTV: false, layoutMode: 'phone', platform: 'phone', colors: {text: '#edf5fa'}})}, '../useMotion': {useMotion: () => state.motion},
-    './Lockup': {Lockup: 'Lockup'}, './model': heroModel,
+    './Lockup': {Lockup: 'Lockup'}, './PreviewText': {PreviewText: 'PreviewText'}, './model': heroModel,
     '../controls/Focusable': {Focusable: 'Focusable'}, '../focus/registry': {focusTestID},
   });
 }

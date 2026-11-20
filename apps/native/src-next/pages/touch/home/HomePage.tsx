@@ -2,20 +2,20 @@ import React, {type ReactNode} from 'react';
 import {heroSpec} from '@portico/design';
 import {Artwork} from '../../../kit/artwork';
 import {BrowseFrame} from '../../../kit/frames';
-import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroActions, HomeHeroArt, HomeHeroFacts, HomeLiveRow, HomePendingRow, HomeRowPlace, HomeWindow} from '../../../kit/home';
-import {Hero, Row} from '../../../kit/layout';
+import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroActions, HomeHeroArt, HomeHeroFacts, HomeLiveRow, HomePendingRow, HomeRowPlace, HomeSpotlight, HomeWindow} from '../../../kit/home';
+import {Row} from '../../../kit/layout';
 import {Banner} from '../../../kit/overlays';
 import {HomeSkeleton, LoadingPaint} from '../../../kit/states';
 import {useHome, type HomeProps} from '../../shared/home/useHome';
 
 /**
- * Home on an upright phone (phone-app.html 1, 2), drawn by the library frame (`BrowseFrame`): the spotlight with its
+ * Home on a phone or tablet (phone-app.html 1, 2 and tablet.html 1, 2), drawn by the library frame (`BrowseFrame`): the spotlight with its
  * reason, title, facts, Play and My List and its dots; then the server's rows (Continue Watching, the shelves, On now,
  * Continue Listening, the ranked row, a collection) and Music's mixes; Customize Home at the foot (kept, not drawn:
  * notes/phone.md). The frame places everything and scrolls it; the page's scroll handler drives the row window, the
  * scrolled header and pull to refresh. `mixes` is Music's mixes row, handed in by the screen that owns it.
  */
-export function HomePage({mixes, ...props}: HomeProps & Readonly<{mixes?: ReactNode}>) {
+export function HomePage({mixes, toolbar, ...props}: HomeProps & Readonly<{mixes?: ReactNode; toolbar?: ReactNode}>) {
   const {runtime} = props;
   const home = useHome(props), {t} = home;
   if (!home.document) {
@@ -28,8 +28,8 @@ export function HomePage({mixes, ...props}: HomeProps & Readonly<{mixes?: ReactN
   if (!home.document.spotlight.length && !home.rows.length) return <LoadingPaint ready immediate={home.cachedAtMount} skeleton={null}>
     {notice ? <BrowseFrame testID="home-frame" hero={null} notice={notice}/> : runtime.renderHomeEmpty()}</LoadingPaint>;
 
-  const spotlight = home.noHero ? null : <Hero candidates={home.candidates} activeIndex={home.activeIndex} onIndexChange={home.setActiveIndex} heroFocused={false}
-    active={home.heroActive} visible={home.heroVisible} variant="phone-app" height={home.heroHeight}
+  const spotlight = home.noHero && !toolbar ? null : <HomeSpotlight toolbar={toolbar} candidates={home.candidates} activeIndex={home.activeIndex} onIndexChange={home.setActiveIndex} heroFocused={false}
+    active={home.heroActive} visible={home.heroVisible} height={home.heroHeight}
     renderArtwork={(candidate, context) => <HomeHeroArt ambient={runtime.ambient(candidate.entry.backdropUrl ?? candidate.entry.posterUrl)}
       picture={home.showBackdrops ? runtime.artwork(candidate.entry.backdropUrl ?? candidate.entry.posterUrl) : undefined} context={context} width={home.width} height={home.heroHeight} visible={home.visible}/>}
     renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []}/>} renderActions={candidate => <HomeHeroActions actions={home.heroActions(candidate)}/>}

@@ -32,7 +32,7 @@ function Resume({read = false, kind = 'book', ...props}: ReadResumeCardProps & {
       <View style={{flex: 1, flexDirection: 'row', gap: 14, padding: pad, paddingRight: 16}}>
         <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind={read ? kind : 'square'} source={props.artwork} fallback={props.artworkFallback} width={coverWidth} height={coverHeight} style={{borderRadius: read ? 5 : 8}} />
         <View style={{flex: 1, minWidth: 0, paddingTop: 6}}>
-          <Text numberOfLines={2} style={[titleStyle(t, t.isTV ? 26 : 16, 800, -0.01), {lineHeight: (t.isTV ? 31.2 : 19.2) * t.textScale, color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+          <Text style={[titleStyle(t, t.isTV ? 26 : 16, 800, -0.01), {lineHeight: (t.isTV ? 31.2 : 19.2) * t.textScale, color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
           <View style={{marginTop: 3}}><Parts parts={props.caption} style={{color: t.colors.textSecondary}} /></View>
           {/* The facts share one line when they fit; when they do not, the second takes a line of its own, so neither is cut
             ("Chapter 3" over "3 h 34 min left" on a narrow card). The no-cut rule. */}
