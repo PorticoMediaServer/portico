@@ -13,12 +13,12 @@ import {alpha} from '../shell/visual';
 import {stateSentenceParts} from '../states/sentence-parts';
 import {useTheme} from '../theme';
 
-export function SettingsPageLink({id, title, icon, selected, server, onPress, onFocus}: {
-  id: string; title: string; icon: IconName; selected: boolean; server?: boolean; onPress: () => void; onFocus?: () => void;
+export function SettingsPageLink({id, testID, title, icon, selected, server, onPress, onFocus}: {
+  id: string; testID?: string; title: string; icon: IconName; selected: boolean; server?: boolean; onPress: () => void; onFocus?: () => void;
 }) {
   const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone', tv = theme.isTV;
   const tint = server || selected ? theme.colors.accentStrong : theme.colors.textSecondary;
-  return <Focusable focusId={id} testID={`settings-page-${id}`} accessibilityRole="button" accessibilityLabel={title}
+  return <Focusable focusId={id} testID={testID ?? `settings-page-${id}`} accessibilityRole="button" accessibilityLabel={title}
     accessibilityState={{selected}} onFocus={onFocus} onPress={onPress} focusKind="row" focusRadius={frame.cardRadius}
     style={{minHeight: frameSpec.settings.navigationRow[frame.form], paddingVertical: theme.space.tight, paddingHorizontal: frame.cardPadding,
       gap: theme.space.controlGap, borderRadius: frame.cardRadius, flexDirection: 'row', alignItems: 'center',
@@ -88,9 +88,11 @@ export function SettingsKeyHints({t}: {t: NativeShellRuntime['text']['t']}) {
   </View>;
 }
 
-export function SettingsManagementCard({url, text}: {url: string; text: NativeShellRuntime['text']}) {
+export function SettingsManagementCard({url, text, server}: {url: string; text: NativeShellRuntime['text']; server?: boolean}) {
   const theme = useTheme(), frame = useFrameMetrics(), address = publicTVHandoffAddress(url), t = text.t;
   const qr = frameSpec.settings.managementQR;
+  const title = t(server ? 'tv.server.handoffTitle' : 'account.tvHandoffTitle');
+  const intro = t(server ? 'tv.server.handoffBody' : 'settings.openOnWeb', {url: '{url}'});
   return <View testID="settings-management-handoff" style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.lg,
     padding: frame.cardPadding, borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised,
     borderWidth: theme.space.hairline, borderColor: theme.colors.line}}>
@@ -98,8 +100,8 @@ export function SettingsManagementCard({url, text}: {url: string; text: NativeSh
       <QRCode value={address.url} size={qr}/>
     </View>
     <View style={{flex: 1, gap: theme.space.controlGap}}>
-      <Text style={[theme.type.rowHeading, {color: theme.colors.text}]}>{t('account.tvHandoffTitle')}</Text>
-      <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{stateSentenceParts(t('settings.openOnWeb', {url: '{url}'}), {url: address.display}, ['url']).map((part, index) =>
+      <Text style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text>
+      <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{stateSentenceParts(intro, {url: address.display}, ['url']).map((part, index) =>
         <Text key={index} style={part.strong ? [theme.type.captionStrong, {color: theme.colors.text}] : undefined}>{part.text}</Text>)}</Text>
     </View>
   </View>;

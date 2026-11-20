@@ -22,6 +22,7 @@ export type SettingsListFrameProps = Readonly<{
   /** The sheet's bar while the list shows (Settings, Done) on a phone; wider forms draw its title over the search, as the
    * page's title beside it (final3-tv-15, desktop-settings f1, tablet f12). */
   bar: SheetBarProps;
+  backdrop?: ReactNode;
   /** The list: search, the Account groups, then the Server band (`SettingsNav`). */
   list: ReactNode;
   /** The search field, over the list on every form (pass `SettingsNav` no `search` of its own). */
@@ -50,13 +51,14 @@ export type SettingsListFrameProps = Readonly<{
 export function SettingsListFrame({startFocus, ...props}: SettingsListFrameProps) {
   return <StartFocusScope id={startFocus}><SettingsListBody {...props}/></StartFocusScope>;
 }
-function SettingsListBody({bar, search, list, profile, shortcuts, page, hints, testID, searching, closing}: Omit<SettingsListFrameProps, 'startFocus'>) {
+function SettingsListBody({bar, backdrop, search, list, profile, shortcuts, page, hints, testID, searching, closing}: Omit<SettingsListFrameProps, 'startFocus'>) {
   const frame = useFrameMetrics(), {form} = frame, phone = form === 'phone', width = searching && form === 'tv' ? frameSpec.settings.tvSearchWidth : frameSpec.settings.listWidth[form];
   // A TV row's focus ring is drawn outside the row: the list's scroll box leaves it that room so it is never cut.
   const theme = useTheme(), column = useContext(FrameColumn), ring = form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
   // A phone shows one of the two columns; the other stays mounted, hidden.
   const shown = {flex: 1}, hidden = {display: 'none'} as const;
   return <View testID={testID} pointerEvents={closing ? 'none' : undefined} style={{flex: 1, flexDirection: phone ? 'column' : 'row', paddingLeft: phone ? 0 : frame.gutter, gap: phone ? 0 : frameSpec.settings.gap[form]}}>
+    {backdrop}
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
     <View style={phone ? page ? hidden : shown : {width}}>
       {phone && <SheetBar {...bar}/>}
@@ -134,13 +136,15 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     {children}
   </>;
   // A page shown alone on a tablet or TV is held to the page's column, as it is beside the list.
+  const ring = frame.form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
   const column = !beside && frame.form !== 'phone' && !inSheet ? {maxWidth: frameSpec.settings.pageMax + 2 * frame.gutter} : undefined;
   return <View testID={testID} style={[{flex: 1}, column]}>
     {beside && strip}
     {!hideHeader && header}
     {!beside && strip}
     {panel ?? (state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
-      style={{flex: 1}} contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
+      fadingEdgeLength={ring ? frame.bottomClear : undefined} style={{flex: 1, marginLeft: -ring}}
+      contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingLeft: ring, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
       {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One
           provider on every form, so a form change restyles the body and never remounts it. */}
       <FrameColumn.Provider value={beside || parentColumn}>{body}</FrameColumn.Provider>

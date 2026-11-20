@@ -11,7 +11,7 @@ import {createBoundNativeSettingsController} from './settings-controller';
 import {nativeDevicePreferences} from './device-preference-consumer';
 import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from './dashboard-controller';
 import {nativeServerAdmission} from './server/tv-server-reader';
-import {NativeTVServerScreen} from './server/TVServerScreen';
+import {ServerSettingsPage} from '../../pages/tv/settings/ServerSettingsPage';
 import {isTVServerPage} from './server/TVServerPageMenu';
 import {NativeEqualizerSettingsScreen} from './EqualizerSettingsScreen';
 import {NativeSettingsPage} from '../../pages/shared/settings/SettingsPage';
@@ -69,7 +69,7 @@ function createComposition(context: NativeShellBootstrapContext) {
         if (!Platform.isTV) return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
         const requested = isTVServerPage(route.page) ? route.page : undefined;
         const page = allowed === 'owner' ? requested ?? 'general' : requested === 'people' ? 'people' : 'dashboard';
-        return <NativeTVServerScreen ports={ports} runtime={runtime} dashboard={dashboard} initialPage={page}/>;
+        return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage={page}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,
@@ -77,7 +77,7 @@ function createComposition(context: NativeShellBootstrapContext) {
       render: (route, runtime) => {
         lifetime.assert();
         if (route.kind !== 'server-dashboard') throw new Error('native_server_dashboard_route_mismatch');
-        if (Platform.isTV && admission() !== 'denied') return <NativeTVServerScreen ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/>;
+        if (Platform.isTV && admission() !== 'denied') return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/>;
         return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime}
           deniedFallback={<NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>}/>;
       },
