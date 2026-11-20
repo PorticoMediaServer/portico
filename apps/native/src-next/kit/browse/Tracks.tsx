@@ -188,12 +188,13 @@ export function TrackRow({row, variant, columns = defaultColumns[variant], selec
   </View>;
 }
 
-function TrackHeader({variant, columns = defaultColumns[variant], sort, sortable = [], onSort}: Pick<TrackTableProps, 'variant' | 'columns' | 'sort' | 'sortable' | 'onSort'>) {
+export function TrackHeader({variant, columns = defaultColumns[variant], sort, sortable = [], onSort}: Pick<TrackTableProps, 'variant' | 'columns' | 'sort' | 'sortable' | 'onSort'>) {
   const theme = useTheme();
   const grow = theme.fontScale > 1 || theme.textScale > 1;
   if (theme.platform === 'phone' || theme.isTV || variant === 'chapters') return null;
   return <View style={{height: grow ? undefined : 42, minHeight: 42, paddingLeft: 8, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.line, marginBottom: 6}}>
-    {columns.map(column => <View key={column} style={columnStyle(column, variant)}>{column === 'number' ? <Text accessibilityLabel={t('next.browse.native.number')} style={[browseType(theme, 13), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.browse.native.numberSign')}</Text> : (onSort && sortable.includes(column) ? <Focusable accessibilityRole="button" focusKind="row" onPress={() => onSort(column)} style={{height: grow ? undefined : 42, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6}}><Text style={[browseType(theme, 13), {color: sort?.column === column ? theme.colors.text : theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>{sort?.column === column && <Icon name={sort.direction === 'asc' ? 'i-down' : 'i-up'} size={14} color={theme.colors.accentStrong}/>}</Focusable> : <Text style={[browseType(theme, 13), {color: theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>)}</View>)}
+    {/* A number column's name sits over its numbers' right edge, as the rows set them (tablet-play 11). */}
+    {columns.map(column => <View key={column} style={[columnStyle(column, variant), column === 'plays' || column === 'duration' ? {alignItems: 'flex-end'} : undefined]}>{column === 'number' ? <Text accessibilityLabel={t('next.browse.native.number')} style={[browseType(theme, 13), {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('next.browse.native.numberSign')}</Text> : (onSort && sortable.includes(column) ? <Focusable accessibilityRole="button" focusKind="row" onPress={() => onSort(column)} style={{height: grow ? undefined : 42, minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6}}><Text style={[browseType(theme, 13), {color: sort?.column === column ? theme.colors.text : theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>{sort?.column === column && <Icon name={sort.direction === 'asc' ? 'i-down' : 'i-up'} size={14} color={theme.colors.accentStrong}/>}</Focusable> : <Text style={[browseType(theme, 13), {color: theme.colors.textTertiary}]}>{t(columnKeys[column])}</Text>)}</View>)}
     <View style={{width: 84}}/>
   </View>;
 }

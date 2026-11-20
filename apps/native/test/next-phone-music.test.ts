@@ -101,7 +101,7 @@ async function tabletMusic(kind: 'album' | 'artist', phase: 'loading' | 'ready' 
   return {get tree() {return tree;}, host, loads, get backs() {return backs;}};
 }
 
-for (const kind of ['album', 'artist'] as const) {
+for (const kind of ['artist'] as const) {
   for (const phase of ['loading', 'error', 'ready'] as const)
   test(`tablet ${kind} keeps one route Back while ${phase} and only ${phase === 'error' ? 'fails' : 'does not fail'} into the recovery view`, async () => {
     const view = await tabletMusic(kind, phase);

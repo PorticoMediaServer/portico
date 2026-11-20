@@ -15,7 +15,7 @@ const songs = [{id: 's1', kind: 'song', title: 'Alone Again', libraryId: 'music'
 const similar = [{id: 'x1', kind: 'album', title: 'Thriller', libraryId: 'music', year: 1982, posterUrl: '/th.jpg'}, {id: 'x2', kind: 'artist', title: 'Prince', libraryId: 'music'},
   {id: 'x3', kind: 'album', title: 'No library'}] as any[];
 
-async function album(over: Record<string, unknown> = {}, props: Record<string, unknown> = {}) {
+async function album(over: Record<string, unknown> = {}, props: Record<string, unknown> = {}, form = 'phone') {
   const calls: unknown[][] = [], h = hooks();
   const record = (name: string) => (...args: unknown[]) => {calls.push([name, ...args]); return Promise.resolve();};
   // The shared song rows load for real, with the card text they read stubbed.
@@ -23,14 +23,15 @@ async function album(over: Record<string, unknown> = {}, props: Record<string, u
     '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: (model: any) => ({id: model.id, title: model.title, caption: [], detail: []})}});
   const {useAlbum} = await screenModule(new URL('../src-next/pages/shared/music/useAlbum.ts', import.meta.url), {
     react: h.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/errors': errors,
-    './music-rows': rows, '../../../screens/destinations/music/use-playing-item': {usePlayingItem: () => 's2'}});
+    './music-rows': rows, '../../../screens/destinations/music/use-playing-item': {usePlayingItem: () => 's2'}, '../../../kit/theme': {useTheme: () => ({form})}});
   const page = {phase: 'ready', items: songs, offset: 0};
   const snapshot = {phase: 'ready', songs, songPage: page, songTotal: 2, songDurationSeconds: 489, albums: [], similar, similarBySound: true, favorite: false,
     albumDetails: {badges: [{variant: 'atmos'}]}, ...over};
   let current = true;
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, artistEntry: () => artist, play: record('play'), load: record('load'),
     nextSongs: record('next'), previousSongs: record('previous'), retrySongs: record('retry'), refreshSongs: record('refresh'),
-    focusSong: record('focus'), blurSong: record('blur'), similarPage: () => undefined, similarCurrent: () => current, toggleFavorite: record('favorite')};
+    focusSong: record('focus'), blurSong: record('blur'), similarPage: () => undefined, similarCurrent: () => current, toggleFavorite: record('favorite'),
+    songFavorite: (song: any) => song.id === 's1', toggleSongFavorite: record('song-favorite')};
   const picked = {active: false, selected: false, onToggle: () => {}, onEnter: () => {}};
   const view = h.render(() => useAlbum({controller, entry, runtime: {artwork: (path?: string) => path ? {uri: path} : undefined, ambient: (path?: string) => path ? {url: path} : undefined,
     text: {locale: 'en-US'}, reportError: record('error')}, actions: {menu: (...args: unknown[]) => {calls.push(['menu', ...args]);}},
@@ -96,4 +97,18 @@ test('TV: the heart, and a multi-disc album lists its first disc with a choice o
   const multi = (await album({songs: two, songPage: {phase: 'ready', items: two, offset: 0}})).view;
   assert.deepEqual(multi.discs.map((value: any) => [value.label, value.selected]), [[t('title.disc', {number: '1'}), true], [t('title.disc', {number: '2'}), false]]);
   assert.deepEqual(multi.songs.rows.map((row: any) => row.id), [two[0].id], 'the chosen disc\'s songs');
+});
+
+// A tablet (tablet-play 11, the old tablet album page): "Album" over the title, Details beside the songs, and each song's
+// plays and heart; a phone (frame 13) shows none of them.
+test('a tablet shows the Album kicker, Details and the song table\'s hearts; a phone none of them', async () => {
+  const phone = await album({}, {onPlaylist: () => {}});
+  assert.equal(phone.view.kicker, undefined); assert.equal(phone.view.details, undefined); assert.equal(phone.view.songs.onFavorite, undefined);
+  assert.equal(phone.view.songs.rows[0].favorite, undefined, 'a phone row carries no heart');
+  const tablet = await album({}, {onPlaylist: () => {}}, 'expanded');
+  assert.deepEqual(tablet.view.kicker, {label: t('next.browse.native.album')});
+  assert.deepEqual(tablet.view.details?.map((row: any) => row.label), [t('title.year'), t('title.genres')]);
+  assert.deepEqual(tablet.view.songs.rows.map((row: any) => row.favorite), [true, false]);
+  tablet.view.songs.onFavorite('s2'); assert.equal(tablet.calls.at(-1)?.[0], 'song-favorite');
+  assert.equal(typeof tablet.view.playlist, 'function');
 });
