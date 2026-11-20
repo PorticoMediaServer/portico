@@ -103,7 +103,7 @@ function CollectionHost({route, active, context, runtime}: {route: CollectionRou
     void port.playSegments([{source: {container: {kind: 'collection', id: route.collectionId}}, ...(shuffle ? {order: {mode: 'shuffle' as const}} : {})}],
       {signal: operation.signal, isCurrent}).catch(runtime.reportError);
   };
-  // Phones and tablets: the rebuilt page (pages/touch/collection); TV keeps this screen until its page lands.
+  // The rebuilt page: phones and tablets (pages/touch/collection), TV (pages/tv/collection).
   const Screen = Platform.isTV ? TVCollectionPage : CollectionPage;
   // Play on in the top bar, as on a title page: only while this page is the one on screen.
   const onPlayOn = runtime.playOn ? (anchor?: React.RefObject<View | null>) => {if (current() && context.navigation.getSnapshot().route === route) runtime.playOn?.open(anchor);} : undefined;

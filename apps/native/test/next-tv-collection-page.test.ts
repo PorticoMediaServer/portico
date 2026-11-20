@@ -12,13 +12,13 @@ type Node = Readonly<{type: unknown; props: Record<string, unknown> & {children:
 const react = {default: {Fragment: 'Fragment', createElement: (type: unknown, props: Record<string, unknown> | null, ...children: unknown[]): Node => ({type, props: {...props, children}})},
   useEffect: () => {}, useRef: () => ({current: null})};
 
-async function page(view: Record<string, unknown>, totalCount = 4) {
+async function page(view: Record<string, unknown>) {
   const {CollectionPage} = await screenModule(new URL('../src-next/pages/tv/collection/CollectionPage.tsx', import.meta.url), {
     react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/controls': {Chip: 'Chip'},
     '../../../kit/artwork': {AmbientArt: 'AmbientArt'}, '../../../kit/frames': {TitleFrame: 'TitleFrame', PanelBlock: 'PanelBlock', PosterWindowRow: 'PosterWindowRow', StateRow: 'StateRow'},
     '../../../kit/layout': {HeroMetadata: 'HeroMetadata'}, '../../shared/collection/useCollection': {useCollection: () => view},
   });
-  const node = CollectionPage({state: {totalCount}, focusScope: 'collection:x', runtime: {}, onBack: () => {}}) as Node;
+  const node = CollectionPage({state: {}, focusScope: 'collection:x', runtime: {}, onBack: () => {}}) as Node;
   const frame = (node.props.children as Node[])[0]!;
   return {frame, parts: frame.props.children.flat().filter(Boolean) as Node[]};
 }
@@ -36,9 +36,9 @@ test('frame 11: the lede, Play all with Shuffle and More, and one row under the 
   assert.equal(frame.props.shortHead, true, 'the row shows whole under the head on arrival');
 });
 
-test('an empty or failed collection draws its state and no row; a failed later page keeps the row with the state under it', async () => {
-  const empty = await page(view({state: {kind: 'empty'}}), 0);
+test('a collection with no films (the hook gives no row) draws its state alone; a failed later page keeps the row with the state under it', async () => {
+  const empty = await page(view({state: {kind: 'empty'}, row: undefined}));
   assert.deepEqual(empty.parts.map(part => part.type), ['PanelBlock']);
-  const later = await page(view({state: {kind: 'error'}}), 4);
+  const later = await page(view({state: {kind: 'error'}}));
   assert.deepEqual(later.parts.map(part => part.type), ['PosterWindowRow', 'PanelBlock']);
 });

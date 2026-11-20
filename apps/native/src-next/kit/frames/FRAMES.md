@@ -183,7 +183,7 @@ Live screens whose look changes with this foundation (they are in the app today,
 - every native hero's metadata line: the rating, runtime and season count are outlined chips;
 - every native `Tabs`: the rule runs the page's full width;
 - every native labelled `Button`: a label that does not fit on one line wraps to a second, and the button grows; none shrinks or is cut;
-- the glass icon-only buttons on `BookScreen`, `AuthorSeriesScreen` and `CollectionScreen`: a rounded square, not a circle;
+- the glass icon-only buttons on `BookScreen` and `AuthorSeriesScreen`: a rounded square, not a circle;
 - TV scrubbing: the strip is the kit `PlayerFilmstrip` (no tile shadows; its times in the player's type roles);
 - native TV Live: Record's glyph is red;
 - an episode row that is playing has its title in the accent.
@@ -375,9 +375,9 @@ these now.
 
 Still the screens' own, for Stage 2 (they read the title controller or TV shelves directly):
 `screens/watch/TitlePeople.tsx` (TV paging and focus; Stage 2 draws it on `CastRow`), `TitleEpisodePlate.tsx` (the
-episode opened in place; the gallery's is built from the kit parts) and
-`screens/collections/CollectionScreen.tsx` (it still uses `CoverHero`; Stage 2 puts it on `TitleFrame`). A person's page is
-rebuilt on `TitleFrame` with `cover` (`pages/touch/person`, `pages/tv/person`).
+episode opened in place; the gallery's is built from the kit parts). A person's page is rebuilt on `TitleFrame` with
+`cover` (`pages/touch/person`, `pages/tv/person`), and a collection's on `TitleFrame` (`pages/touch/collection`,
+`pages/tv/collection`).
 The runtime chip is outlined only on Home (rule 6213a8c02a); the gallery's facts use the shared ids (`season-count`,
 `content-rating`).
 

@@ -1,28 +1,10 @@
 // @fabric-react
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as React from 'react';
 import {HttpLocalApi} from '../../../packages/client-core/src/index.ts';
-import {defaultI18n} from '../../../packages/i18n/src/index.ts';
-import {screenModule} from './helpers/screen-harness.mjs';
-import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {NativeCollectionController} from '../src-next/screens/collections/controller.ts';
 import {createWindowedCollection} from '../../../packages/client-core/src/collections/windowed.ts';
-import * as kitModel from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 
-const themed = {useTheme: () => ({isTV: true, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111', line: '#222', accent: '#3af', accentStrong: '#4bf'}, type: {}})};
-const {NativeCollectionScreen, CollectionCard} = await screenModule(new URL('../src-next/screens/collections/CollectionScreen.tsx', import.meta.url), {
-  react: {...React, default: React},
-  'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
-  '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-  '../../../../../packages/client-core/src/presentation/kit-model': kitModel, '../saved/presentation': {savedDuration: (value: number) => String(value)},
-  'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
-  '../../../../../packages/i18n/src': {defaultI18n},
-  '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'Ambient', Artwork: 'Artwork'}, '../../kit/cards': {PosterCard: 'Poster'},
-  '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'},
-  '../../kit/overlays': {Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid', WindowedRow: 'WindowedRow'},
-  '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})}, '../../kit/theme': themed,
-});
 const settle = async () => {for (let n = 0; n < 20; n++) await new Promise(resolve => setTimeout(resolve, 0));};
 const members = [{id: 'm1', kind: 'movie', title: 'Toy Story', year: 1995}, {id: 'm2', kind: 'movie', title: 'Toy Story 2', year: 1999, watched: true}];
 const window = () => {
@@ -74,36 +56,6 @@ test('the collection controller reads the real collection view and its own sorts
     assert.equal(paths.at(-1)?.includes('cursor='), false, 'pages are read by index, never by cursor');
     assert.equal(paths.at(-1)?.includes('collection=c1'), true);
   } finally {controller.dispose();}
-});
-
-test('TV collection draws the name, film facts, Play all, Shuffle and the real member row', async () => {
-  const calls: string[] = [], back: (() => boolean)[] = [];
-  const state = {phase: 'ready' as const, title: 'Toy Story Collection', collection: window(), complete: members, first: members[0],
-    totalCount: 2, sorts: [{id: 'custom', labelKey: 'sort.custom', directions: ['asc'] as const}, {id: 'title', labelKey: 'sort.title', directions: ['asc', 'desc'] as const}], sort: 'custom'};
-  const runtime = {ambient: () => undefined, artwork: () => undefined, registerTVPageBack: (handler: () => boolean) => {back.push(handler); return () => {};}, error: () => ({})} as any;
-  let tree: any;
-  const host = createFabricHookHost(() => {tree = NativeCollectionScreen({state, runtime,
-    onPlay: () => calls.push('play'), onShuffle: () => calls.push('shuffle'), onSort: () => calls.push('sort'),
-    onOpen: () => calls.push('open'), onBack: () => calls.push('back'), onRetry: () => calls.push('retry')});});
-  await host.mount();
-  try {
-    const nodes = descendants(tree);
-    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === 'Toy Story Collection'));
-    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === defaultI18n.t('next.browse.filmCount', {count: 2})));
-    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === '1995 – 1999'));
-    const play = nodes.find(node => node.props.testID === 'collection-play-all');
-    assert.equal(play.props.preferredFocus, true); play.props.onPress(); assert.ok(calls.includes('play'));
-    nodes.find(node => node.props.testID === 'collection-shuffle').props.onPress(); assert.ok(calls.includes('shuffle'));
-    const row = nodes.find(node => node.type === 'WindowedRow');
-    assert.ok(row, 'TV draws the members as one windowed row');
-    assert.equal(row.props.collection, state.collection);
-    assert.equal(nodes.some(node => node.type === 'WindowedGrid'), false);
-    const card = row.props.renderItem(members[0], {index: 0, id: 'movie:m1', onFocus: () => {}, onBlur: () => {}});
-    assert.equal(card.type, CollectionCard);
-    assert.equal(card.props.entry, members[0]);
-    assert.equal(nodes.find(node => node.props.testID === 'collection-sort') !== undefined, true);
-    assert.equal(back.length, 1); assert.equal(back[0](), true); assert.ok(calls.includes('back'));
-  } finally {await host.unmount();}
 });
 
 test('a long collection keeps a bounded window and reads evicted pages again by index', async () => {
