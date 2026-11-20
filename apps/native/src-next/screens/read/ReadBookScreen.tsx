@@ -64,13 +64,16 @@ export function ReadBookScreen({controller, route, comic, owner, context, runtim
   const [edit, setEdit] = useState<Readonly<{lease: NativeReadOwnerEditLease; owner: object; key: number}>>();
   const [collection, setCollection] = useState<Readonly<{lease: NativeReadOwnerEditLease; owner: object; key: number; kind: NativeReadingCollectionKind}>>();
   const editSeq = useRef(0);
-  // Back on top by the system's own Back (iOS's swipe) shows this same route under a new revision: arm again from it.
+  // Back on top by the system's own Back (iOS's swipe) shows this same route under a new revision.
   const revision = useRouteRevision(context, route);
   useLayoutEffect(() => {
     if (!controller.arm()) return;
     void controller.load().catch(() => {});
     return () => controller.release();
-  }, [controller, route, revision]);
+  }, [controller, route]);
+  // Only the press check follows the new revision; the page keeps what it drew (no loading flash on the way back). A
+  // changed session can't be carried over, so the page arms and reads afresh.
+  useLayoutEffect(() => {if (revision !== undefined && !controller.rearm() && controller.arm()) void controller.load().catch(() => {});}, [controller, revision]);
   const manifest = state.manifest, title = manifest?.metadata.title ?? controller.item.title;
   // The exact selected version from the page's versions producer, never looked up again.
   const selectedVersion = state.sourceId ? state.versions.find(value => value.sourceId === state.sourceId) : undefined;

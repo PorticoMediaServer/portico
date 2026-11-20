@@ -76,13 +76,16 @@ export function useReadBook({controller, route, comic, owner, context, runtime, 
   const shelf = useSyncExternalStore(controller.subscribeShelf, controller.shelfSnapshot);
   const [menuOpen, setMenuOpen] = useState(false), [versionsOpen, setVersionsOpen] = useState(false), [expanded, setExpanded] = useState(false), [tab, setTab] = useState<'contents' | 'details'>('contents');
   const downloadAnchor = useRef<View | null>(null);
-  // Back on top by the system's own Back (iOS's swipe) shows this same route under a new revision: arm again from it.
+  // Back on top by the system's own Back (iOS's swipe) shows this same route under a new revision.
   const revision = useRouteRevision(context, route);
   useLayoutEffect(() => {
     if (!controller.arm()) return;
     void controller.load().catch(() => {});
     return () => controller.release();
-  }, [controller, route, revision]);
+  }, [controller, route]);
+  // Only the press check follows the new revision; the page keeps what it drew (no loading flash on the way back). A
+  // changed session can't be carried over, so the page arms and reads afresh.
+  useLayoutEffect(() => {if (revision !== undefined && !controller.rearm() && controller.arm()) void controller.load().catch(() => {});}, [controller, revision]);
   const run = (work: Promise<unknown>) => {void work.catch(runtime.reportError);};
   const ready = state.phase === 'ready' && !!state.manifest, manifest = ready ? state.manifest : undefined;
   const series = controller.series(), saved = manifest ? controller.savedProgression(manifest) : undefined;
