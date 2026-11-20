@@ -43,10 +43,15 @@ test('Remote loads its actual documents without an outside check; saves preserve
   assert.equal(write.options.headers['If-Match'], '"7"');
   assert.equal(write.options.body.publicPort, 33443);assert.equal(write.options.body.certificateWarningDays, 14);
   assert.equal('interfaces' in write.options.body, false);
+  await assert.rejects(f.source.save('remote.publicPort', 33444));
+  assert.equal(f.calls.filter(call => call.method === 'PUT').length, 1, 'a stale revision cannot send another write');
+  await f.source.readConfiguration();
   await f.source.save('remote.trustedProxies', ['10.0.0.4']);
   const network = f.calls.at(-1)!;assert.equal(network.options.headers['If-Match'], '"8"');
   assert.deepEqual(network.options.body, {trustedProxies: ['10.0.0.4'], webOrigins: ['https://tools.example']}, 'the guessed home networks must stay automatic');
+  await f.source.readConfiguration();
   await f.source.save('remote.homeNets', []);assert.deepEqual(f.calls.at(-1)?.options.body.homeNetworks, []);
+  await f.source.readConfiguration();
   await f.source.save('remote.interface', 'eth0');
   const selected = f.calls.findLast(call => call.method === 'PUT')!;assert.equal(selected.options.body.advertisedInterface, 'eth0');
   assert.equal(selected.options.body.publicPort, 32500);assert.equal('interfaces' in selected.options.body, false);

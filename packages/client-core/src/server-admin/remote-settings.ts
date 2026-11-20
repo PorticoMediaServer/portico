@@ -17,7 +17,7 @@ export type OwnerRemoteStatus = RemoteAccessStatus & {
 };
 type Name = 'remote-access' | 'network';
 type Confirmation = Readonly<{name: Name; etag: string; body: Record<string, unknown>; message: string; code: string}>;
-export type OwnerRemoteSnapshot = Readonly<{status?: OwnerRemoteStatus; interfaces?: NetworkInterfaceSettings; blocks: readonly BlockedNetwork[]; busy: boolean; checking?: boolean; error?: unknown; confirmation?: Confirmation}>;
+export type OwnerRemoteSnapshot = Readonly<{status?: OwnerRemoteStatus; interfaces?: NetworkInterfaceSettings; blocks: readonly BlockedNetwork[]; busy: boolean; checking?: boolean; error?: unknown; needsRefresh?: boolean; confirmation?: Confirmation}>;
 const rows: Readonly<Record<string, readonly [Name, string]>> = {
  'remote.access': ['remote-access', 'remoteAccess'], 'remote.security': ['remote-access', 'remoteSecurity'],
  'remote.secureConnections': ['remote-access', 'secureConnections'], 'remote.signInOutside': ['remote-access', 'signInFromOutside'],
@@ -87,12 +87,12 @@ export class OwnerRemoteSettings {
   if (!this.current()) throw new DOMException('Remote Settings retired', 'AbortError');
   this.network = {values, etag};
   this.configuration = {revision: Number(interfaces.etag.slice(1, -1)), registryRevision: 'remote-access', path: '', signInPolicyRevision: '', fields};
-  this.publish({interfaces, status: {...status, warnings: [...new Map([...status.warnings, ...values.warnings].map(warning => [warning.code, warning])).values()]}, blocks: blocked.items, error: undefined});
+  this.publish({interfaces, status: {...status, warnings: [...new Map([...status.warnings, ...values.warnings].map(warning => [warning.code, warning])).values()]}, blocks: blocked.items, error: undefined, needsRefresh: false});
   return this.configuration;
   } finally {linked.dispose();}
  };
  private async write(name: Name, etag: string, body: Record<string, unknown>, signal?: AbortSignal) {
-  try {await putSettingsDocument(this.api, name, etag, body, signal);this.publish({confirmation: undefined});}
+  try {await putSettingsDocument(this.api, name, etag, body, signal);this.publish({confirmation: undefined, needsRefresh: true});}
   catch (error) {
    const code = (error as {code?: string}).code;
    if (code === 'would_refuse_this_route' || code === 'would_refuse_sign_in') this.publish({confirmation: {name, etag, body, code, message: (error as Error).message}});
@@ -101,9 +101,13 @@ export class OwnerRemoteSettings {
  }
  save = async (id: string, value: unknown, signal?: AbortSignal): Promise<void> => {
   if (!this.current() || this.life.signal.aborted) throw new DOMException('Remote Settings retired', 'AbortError');
-  const row = rows[id], remote = this.state.interfaces;if (!row || !remote || !this.network || this.state.confirmation) return invalid();
+  const row = rows[id], remote = this.state.interfaces;if (!row || !remote || !this.network || this.state.confirmation || this.state.needsRefresh) return invalid();
   const [name, key] = row;
-  if (id === 'remote.interface') {await saveNetworkInterface(this.api, remote, value === 'all' ? '' : String(value), signal);return;}
+  if (id === 'remote.interface') {
+   await saveNetworkInterface(this.api, remote, value === 'all' ? '' : String(value), signal);
+   this.publish({needsRefresh: true});
+   return;
+  }
   const body: Record<string, unknown> = name === 'remote-access' ? remoteBody(remote.document) : (() => {const {homeNetworksDefault, homeNetworks, builtInWebOrigins, warnings, ...settings} = this.network!.values;return {...settings, ...(!homeNetworksDefault ? {homeNetworks} : {})};})();
   let raw = value;
   if (id === 'remote.access' && value !== 'on' && value !== 'off') return invalid();
@@ -121,7 +125,7 @@ export class OwnerRemoteSettings {
   await this.write(name, name === 'network' ? this.network.etag : remote.etag, body, signal);
  };
  saveOwnAddress = (ownAddress: {enabled: boolean; domain: string; certificateFile: string; keyFile: string}) => this.command(async () => {
-  const remote = this.state.interfaces;if (!remote || this.state.confirmation) return invalid();
+  const remote = this.state.interfaces;if (!remote || this.state.confirmation || this.state.needsRefresh) return invalid();
   await this.write('remote-access', remote.etag, {...remoteBody(remote.document), ownAddress}, this.life.signal);
  });
  confirm = async () => {
@@ -132,7 +136,13 @@ export class OwnerRemoteSettings {
  private async command(run: () => Promise<unknown>) {
   if (this.state.busy || !this.current()) return;
   this.publish({busy: true, error: undefined});
-  try {if (!this.current() || this.life.signal.aborted) return false;await run();await this.readConfiguration();return true;}
+  try {
+   if (!this.current() || this.life.signal.aborted) return false;
+   await run();
+   // The command succeeded. A failed readback reports stale data without turning an accepted write back into a draft.
+   try {await this.readConfiguration();} catch (error) {this.publish({error});}
+   return true;
+  }
   catch (error) {if (settingsSaveConflict(error)) {this.publish({confirmation: undefined});await this.readConfiguration().catch(() => {});}this.publish({error});return false;}
   finally {this.publish({busy: false});}
  }
