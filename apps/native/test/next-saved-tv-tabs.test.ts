@@ -14,7 +14,7 @@ test('Saved TV tabs retain real route IDs, actual selection and the Rail Saved e
   const activation = {subscribe() {}, getSnapshot: () => ({visible, intent: 'enter', revision: 1})};
   const destination = {subscribe() {}, getSnapshot: () => ({route: {view: 'collections'}}), select: async (route: unknown) => {selections.push(route);}};
   const tabs = host.render(() => useSavedTVTabs({destination, activation, authority, reportError() {}}));
-  assert.deepEqual(tabs.items.map(item => tabs.itemProps(item).focusId), ['watchlist', 'favorites', 'playlists', 'collections', 'views', 'history']);
+  assert.deepEqual(tabs.items.map((item: {value: string}) => tabs.itemProps(item).focusId), ['watchlist', 'favorites', 'playlists', 'collections', 'views', 'history']);
   assert.equal(tabs.region.edges.left, nativeDestinationFocusIds(authority).rail);
   assert.equal(tabs.region.edges.down, undefined, 'an absent real body region is never fabricated');
   // The entry follows the shown tab, which is the destination's actual selected route.
