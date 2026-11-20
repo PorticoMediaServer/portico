@@ -6,7 +6,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Chip, Segmented, TextField, Focusable} from '../controls';
 import {Icon} from '../Icon';
 import {Popover} from '../overlays';
-import {focusTestID} from '../focus';
+import {FocusRegion, focusTestID} from '../focus';
 import {useTheme} from '../theme';
 import {alpha, browsePlatform, browseType, changeFacetSelection, nextFacetState} from './presentation';
 import type {BrowsePlatform, FacetValue, FilterBuilderProps, FilterFieldState, FilterFieldValue, MatchModeValue} from './types';
@@ -33,7 +33,11 @@ export function FacetChips({values, included, excluded, onValueChange, cycleExcl
   cycleExclusion?: boolean; platform?: BrowsePlatform; trailing?: ReactNode; preferredFocusValue?: string; focusPrefix?: string;
 }) {
   const theme = useTheme(), target = browsePlatform(theme, platform), tv = target === 'tv';
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: tv ? 12 : 8}}>
+  // F-FILT-5: focus coming into the chips lands on the chosen value (or the first chip), not on whichever chip sits
+  // under the row it came from.
+  const entry = values.find(item => item.value === preferredFocusValue) ?? values.find(item => included.includes(item.value) && !item.disabled) ?? values.find(item => !item.disabled);
+  const style = {flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: tv ? 12 : 8};
+  const chips = <>
     {values.map(item => {
       const include = included.includes(item.value), exclude = excluded.includes(item.value);
       return <Focusable key={item.value} {...focusProps(focusPrefix, 'facet', item.value)} focusKind="chip" focusRadius={tv ? 12 : 17} preferredFocus={tv && preferredFocusValue === item.value} disabled={item.disabled} accessibilityRole="checkbox" accessibilityState={{checked: exclude ? 'mixed' : include, disabled: item.disabled}} onPress={() => onValueChange(item.value, nextFacetState(item.value, included, excluded, cycleExclusion))}
@@ -46,7 +50,9 @@ export function FacetChips({values, included, excluded, onValueChange, cycleExcl
       </Focusable>;
     })}
     {trailing}
-  </View>;
+  </>;
+  return tv && focusPrefix !== undefined && entry ? <FocusRegion id={JSON.stringify([focusPrefix, 'facets'])} entry={JSON.stringify([focusPrefix, 'facet', entry.value])} entryPolicy="entry" style={style}>{chips}</FocusRegion>
+    : <View style={style}>{chips}</View>;
 }
 
 export function FieldTile({label, summary, active = false, open = false, onOpenChange, platform, children, more = false, focusPrefix}: {
