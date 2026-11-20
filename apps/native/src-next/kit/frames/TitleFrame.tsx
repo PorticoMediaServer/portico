@@ -384,7 +384,9 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, titl
     {content}
   </View> : <>
     {!held && (cover && art ? <View>
-      <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: spec.coverGlow, overflow: 'hidden'}}>{art}</View>{head}</View> : head)}
+      {/* The glow's box is not a clip: a longer wash (an album's, phone-app frame 13's page wash) runs past it and fades out
+          by itself, where a clip drew a hard edge across the songs. */}
+      <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: spec.coverGlow}}>{art}</View>{head}</View> : head)}
     {strip}
     {content}
   </>;

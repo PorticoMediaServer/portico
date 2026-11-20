@@ -134,13 +134,14 @@ export function SelectionPhoneActionBar(props: Pick<SelectionBarProps, 'actions'
   const {isTV, colors} = useTheme();
   if (isTV) return null;
   const recipe = glassRecipe();
-  const ids = phoneMain.map(id => id === 'myList' ? props.fourthSlot ?? 'myList' : id);
+  // Only what this selection offers, sharing the row evenly: an empty slot for an action it lacks (Queue, for songs on
+  // an album) left a gap after Play.
+  const offers = phoneMain.map(id => id === 'myList' ? props.fourthSlot ?? 'myList' : id)
+    .flatMap(id => {const offer = props.actions.find(action => action.id === id); return offer ? [{id, offer}] : [];});
   return <View style={[styles.phoneActions, {height: 50 + (props.bottomInset ?? 34)}]}>
     {recipe.nativeBlur ? <BlurView style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={colors.raised} /> : null}
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: 'rgba(14,36,52,.94)', borderTopWidth: 1, borderTopColor: 'rgba(92,179,226,.3)'}]} />
-    {ids.map(id => {
-      const offer = props.actions.find(action => action.id === id);
-      if (!offer) return <View key={id} style={{flex: 1}} />;
+    {offers.map(({id, offer}) => {
       return <Focusable key={id} accessibilityRole="button" accessibilityLabel={label(id)} accessibilityHint={offer.reason} disabled={offer.disabled}
         onPress={() => {if (offer.disabled) return; if (id === 'queue' || id === 'watched' || id === 'more') props.onMenuChange(id);else props.onAction(id);}}
         style={{flex: 1, height: 44, alignItems: 'center', paddingTop: id === 'play' ? 0 : 2, gap: 4, opacity: offer.disabled ? .42 : 1}}>
