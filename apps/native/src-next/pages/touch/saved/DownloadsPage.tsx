@@ -12,9 +12,9 @@ import {limits, useDownloads, type DownloadsPageProps} from '../../shared/saved/
 const t = defaultI18n.t;
 
 export function DownloadsPage(props: DownloadsPageProps) {
-  const {runtime, device, copy, back, inline} = props;
+  const {runtime, device, back, inline} = props;
   const state = useDownloads(props);
-  const {snapshot, inventory, membership, viewport, scroll, limitRef, inventoryTop, setInventoryTop, setPaneWidth, paneWidth,
+  const {snapshot, copy, inventory, membership, viewport, scroll, limitRef, inventoryTop, setInventoryTop, setPaneWidth, paneWidth,
     empty, storage, requests, waiting, cancelWaiting, expanded, readingTablet, readingColumn, rulesBeside, heldBytes,
     readingBytes, watchingBytes, readingBarWatching, readingBarReading, readingBarGap,
     failure, setEntryMenu, entryMenu, menu, menuItems, sheetMenu, afterMenu, pickingLimit, setPickingLimit,
