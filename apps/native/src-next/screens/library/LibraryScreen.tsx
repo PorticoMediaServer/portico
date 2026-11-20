@@ -1,5 +1,5 @@
-import {TVSparseCardFrame, TVCardPaintFrame, TVPendingCardPaint} from '../../kit/cards/TVSparseCardFrame';
-import type {CardProps} from '../../kit/cards/primitives';
+import {LibraryCard} from '../../kit/browse/LibraryCard';
+import {frameSpec} from '@portico/design';
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
 import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent, type StyleProp, type TextStyle} from 'react-native';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
@@ -11,7 +11,7 @@ import {libraryTabs, type LibraryTabId} from '../../../../../packages/client-cor
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
 import {TVMusicDiscover} from '../destinations/music/TVMusicDiscover';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
-import {CircleCard, GenreTile, PlaylistMosaic, PosterCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
+import {type CardSelection} from '../../kit/cards';
 import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Button, Focusable} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
@@ -24,24 +24,24 @@ import {Icon} from '../../kit/Icon';
 import {usePullRefresh} from '../../kit/states/usePullRefresh';
 import {WindowedGrid, AlphabetRail, Row, type LayoutSelection, type WindowedGridHandle} from '../../kit/layout';
 import {discoverCell} from './discover-cells';
-import {shapeFor, type ShapeFamily} from '../../../../../packages/client-core/src/presentation/card-shape';
 import {GridSkeleton, SkeletonBlock, StateView, showSkeleton, skeletonTiming, type StateViewProps} from '../../kit/states';
 import {useTheme, type Theme} from '../../kit/theme';
 import {TopBar} from '../../kit/layout/TopBar';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {homeActionDiagnostics} from '../../platform/home-action-diagnostics';
-import {homeCardText} from '../home/model';
 import {createDestinationEntryFocus, nativeDestinationFocusIds, type NativeDestinationActivationPort} from '../destinations/focus';
 import {useTVPageBack} from '../destinations/useTVPageBack';
 import {useDestinationEntryFocus} from '../destinations/useEntryFocus';
 import {NativeLibraryDestination, nativeLibraryEntryKey, nativeLibraryCanSave, type NativeLibrarySnapshot, type NativeLibraryViewDraft} from './model';
+import {useFirstScanning} from '../../pages/shared/library/useFirstScanning';
 import type {NativeLibraryFirstScanPort} from './first-scan';
 import type {NativeSelection} from '../selection/native-selection';
 import {LibraryToolbar} from './LibraryToolbar';
-import {LibraryListRow} from './LibraryListRow';
+import {LibraryListRow} from '../../kit/browse/LibraryListRow';
 import {NativeLibraryDirectory} from './directory';
-import {LibraryFilters, libraryFiltersDockWidth, useLibraryFrameFilters} from './LibraryFilters';
-import {LibraryJumpSheet} from './LibraryJumpSheet';
+import {LibraryFilters, libraryFiltersDockWidth} from './LibraryFilters';
+import {useLibraryFrameFilters} from '../../kit/browse/LibraryFilterFields';
+import {LibraryJumpSheet} from '../../kit/browse/LibraryJumpSheet';
 import {libraryAlphabetRail, libraryJumpLetter, libraryJumpLetters} from './jump';
 import type {NativeLibraryFilterDraft, NativeLibraryFilterSnapshot} from './filters';
 import {libraryAppliedFilters} from './applied-filters';
@@ -444,14 +444,7 @@ function LibraryLoading({theme, width, height, tablet, expanded, elapsedMs}: {th
 }
 
 /** The owner's first-scan check for this library's empty page: false until it is known, and while it is not asked. */
-export function useFirstScanning(port: NativeLibraryFirstScanPort | undefined, libraryId: string, enabled: boolean): boolean {
-  const [scanning, setScanning] = useState(false);
-  useEffect(() => {
-    setScanning(false);
-    return port && enabled ? port.observe(libraryId, setScanning) : undefined;
-  }, [port, libraryId, enabled]);
-  return enabled && scanning;
-}
+export {useFirstScanning};
 
 /** tv-focus 46: the composed empty-library page. Header and pivot strip stay
  * above it; the one action enters first and leads Home. An owner's library that is
@@ -609,10 +602,10 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
     <LibraryGridRegion id={gridRegion} enabled={active.visible} entry={firstAddress?.childId ?? firstKey} grid={theme.isTV ? {columns: measuredColumns, count: state.total} : undefined}
       edges={theme.isTV ? {left: ids.rail, up: applied.length ? appliedRegion : ids.libraryToolbar(source.library.id)} : undefined}
       screenStart={{regionId: ids.libraryToolbar(source.library.id), childId: theme.isTV ? 'sort' : 'filters'}} style={{flex: 1}}>
-    <WindowedGrid key={view.generation} ref={grid} testID={list ? "library-list" : "library-grid"} collection={collection} getKey={nativeLibraryEntryKey} itemWidth={width} itemHeight={list ? 70 : itemHeight} captionHeight={list ? 70 : 0}
+    <WindowedGrid key={view.generation} ref={grid} testID={list ? "library-list" : "library-grid"} collection={collection} getKey={nativeLibraryEntryKey} itemWidth={width} itemHeight={list ? frameSpec.browse.listRow[theme.form] : itemHeight} captionHeight={list ? frameSpec.browse.listRow[theme.form] : 0}
       gap={gap} rowGap={rowGap} gutter={gutter} rightGutter={rightGutter} selection={selected}
       onVisibleRange={changedRange} onScrollOffset={changedOffset} refreshControl={pull} onGeometry={theme.isTV ? onGridGeometry : undefined} initialIndex={view.generation ? view.anchor : initialIndex} paddingBottom={28} style={{flex: 1}}
-      renderPlaceholder={() => <View style={{width, height: list ? 70 : artHeight, borderRadius: theme.isTV ? 14 : 8, backgroundColor: theme.colors.raised}}/>}
+      renderPlaceholder={() => <View style={{width, height: list ? frameSpec.browse.listRow[theme.form] : artHeight, borderRadius: theme.isTV ? 14 : 8, backgroundColor: theme.colors.raised}}/>}
       renderNativeSlot={theme.isTV ? (entry, context) => <FocusItem focusId={context.focusId} entityId={context.entityId} waiting={context.waiting}
         cell={{index: context.index, pending: context.waiting, generation: context.source}}>
         <LibraryCard entry={entry} family={source.library.kind} width={width} placeholderHeight={artHeight} runtime={runtime} actions={actions} disabled={!active.visible}
@@ -651,42 +644,4 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
     height={theme.isTV ? 514 : 480} style={frame ? undefined : {position: 'absolute', right: theme.isTV ? 40 : 2, top: theme.isTV ? 174 : 110}}/> : undefined;
   if (frame) return frame({toolbar: toolbarRows, grid: <>{gridRegions}{jump}</>, alphabet: rail});
   return <View style={{flex: 1}}>{toolbarRows}{gridRegions}{rail}{jump}</View>;
-}
-
-function LibraryCard({entry, family, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; /** The grid's own library kind (the server does not put it on each entry); the shared shape rule's family. */ family?: string; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
-  const menuAnchorRef = useRef<View>(null);
-  const theme = useTheme();
-  const adapter = entry ? runtime.playback : undefined;
-  const playing = useSyncExternalStore(adapter?.subscribe ?? (() => () => {}), adapter?.getSnapshot ?? (() => undefined));
-  const renderCard = <P extends CardProps & React.Attributes,>(Component: React.ComponentType<P>, props: P) => theme.isTV
-    ? <TVSparseCardFrame {...props}><Component {...props} frame={TVCardPaintFrame}/></TVSparseCardFrame> : <Component {...props}/>;
-  if (!entry) return <TVSparseCardFrame title="" width={width} disabled={disabled} focusId={focusId} onFocus={onFocus} onBlur={onBlur} menuAnchorRef={menuAnchorRef}>
-    <TVPendingCardPaint height={placeholderHeight ?? width * 1.5}/>
-  </TVSparseCardFrame>;
-  // All live variants delegate only paint; the one outer native CardFrame survives a fill/kind change.
-  if (entry.kind === 'radio' && entry.radioSeed) return renderCard(SquareCard, {focusId, disabled,
-    title: defaultI18n.t('music.radioNamed', {name: entry.title}), width, titleLines: 2,
-    caption: [{id: 'radio', role: 'value' as const, text: defaultI18n.t('music.radio')}],
-    artwork: runtime.artwork(entry.posterUrl), onNavigate: () => actions.play(entry), onFocus, onBlur});
-  if (entry.kind === 'playlist' || entry.kind === 'category' && entry.navigation?.browse?.pivot === 'albums') {
-    const covers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
-    // A playlist counts its songs; a genre the albums that carry it (the tile opens Albums filtered to it).
-    const caption = entry.count === undefined ? [] : [{id: 'count', role: 'value' as const,
-      text: defaultI18n.t(entry.countIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: entry.count, pivot: entry.kind === 'playlist' ? 'songs' : 'albums'})}];
-    const resource = {focusId, disabled, width, title: entry.title, caption, covers, onNavigate: () => actions.open(entry), onFocus, onBlur};
-    return entry.kind === 'playlist' ? renderCard(PlaylistMosaic, {...resource, titleLines: 2})
-      : renderCard(GenreTile, {...resource, variant: 'music' as const, height: theme.isTV ? 180 : 84});
-  }
-  const text = homeCardText(entry, false, runtime.text);
-  const playingAlbum = entry.kind === 'album' && playing?.entry?.album?.id === entry.id;
-  const props = {focusId, disabled, title: entry.displayTitle || entry.title, width, titleLines: 2 as const, caption: text.caption, artwork: runtime.artwork(entry.posterUrl), watched: entry.watched, playing: playingAlbum,
-    onNavigate: () => actions.open(entry), onPlay: entry.playback ? () => actions.play(entry) : undefined, onMore: () => actions.menu(entry, menuAnchorRef, onSelect), selection: selected,
-    menuAnchorRef, moreExpanded: actions.isMenuOpen?.(entry), onFocus, onBlur};
-  // A landscape shelf (Continue Watching) draws Home's 16:9 card: the backdrop, the title on it and the time left.
-  if (wide) {const resume = homeCardText(entry, true, runtime.text);
-    return renderCard(WideCard, {...props, caption: resume.caption, detail: resume.detail, artwork: runtime.artwork(entry.backdropUrl ?? entry.posterUrl), progress: resume.progress});}
-  const artistCovers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
-  return entry.kind === 'artist' ? renderCard(CircleCard, {...props, art: {covers: artistCovers.length ? artistCovers : props.artwork ? [props.artwork] : [], alt: entry.title}})
-    // One shape rule for every client (client-core shapeFor): music and audiobooks square, an audiobook series too; reading series 2:3.
-    : shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined) === 'square' ? renderCard(SquareCard, props) : renderCard(PosterCard, props);
 }

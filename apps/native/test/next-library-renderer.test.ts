@@ -25,6 +25,8 @@ test('the Library descriptor requires the actual authorized ID and never supplie
     '../native-screen-services': {nativeScreenServices: () => {throw new Error('a renderer must not construct an uninjected selection binding');}},
   });
   const {createNativeLibraryRenderer, createNativeLibraryPlaySelection: exportedPlay} = await screenModule(new URL('../src-next/screens/library/index.tsx', import.meta.url), {
+    '@portico/design': {}, '../../kit/focus': {}, '../../shell/routes': {},
+    '../../pages/touch/library/LibraryPage': {}, '../../pages/tv/library/LibraryPage': {}, '../../kit/browse/LibraryCard': {}, '../destinations/music/TVMusicDiscover': {}, '../destinations/music/MusicMixesRow': {},
     './first-scan': {observeFirstScan: () => () => {}},
     react: {default: React}, 'react-native': {Platform: platform}, './LibraryScreen': {LibraryScreen: 'LibraryScreen'}, './model': {NativeLibraryDestination}, './directory': {NativeLibraryDirectory},
     '../../shell/model': {sameAuthority},
@@ -73,7 +75,7 @@ test('the Library descriptor requires the actual authorized ID and never supplie
       assert.equal(reading.props.context, context); assert.equal(typeof reading.props.onBack, 'function');
     }
     libraries = [{id: 'real-id', name: 'Movies', kind: 'movie'}];
-    assert.equal(renderer.render({kind: 'shell', destination: {kind: 'library', libraryId: 'real-id'}}, {}).type, 'LibraryScreen', 'normal media keeps the browse screen');
+    assert.equal(renderer.render({kind: 'shell', destination: {kind: 'library', libraryId: 'real-id'}}, {}).type.name, 'LibrarySurface', 'normal media keeps the browse screen');
     platform.isTV = true;
     for (const kind of ['book', 'comic', 'books']) {
       libraries = [{id: 'reading', name: 'Actual reading library', kind}];

@@ -29,7 +29,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       '../../../tv/layout/TVFocusGrid': {TVFocusGrid: 'TVFocusGrid'},
       '../../saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet'},
       '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
-      '../../library/LibraryJumpSheet': {LibraryJumpSheet: 'LibraryJumpSheet'},
+      '../../../kit/browse/LibraryJumpSheet': {LibraryJumpSheet: 'LibraryJumpSheet'},
       '../useTVPageBack': {useTVPageBack(_runtime: unknown, _route: unknown, _enabled: boolean, page: unknown) {back = page;}},
       '../useEntryFocus': {useDestinationEntryFocus(_active: unknown, target: unknown) {entry = target;}},
       '../../../shell/model': {sameAuthority: () => true},

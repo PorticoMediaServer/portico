@@ -29,7 +29,7 @@ const noRowSelection: LayoutSelection = {active: false, isSelected: () => false,
  * and remembered cards mounted so focus and Back land where they were. */
 export function TVMusicDiscover({destination, state, runtime, active, anchor, onEntered, renderEntry}: {
   destination: NativeLibraryDestination; state: NativeLibrarySnapshot; runtime: NativeShellRuntime;
-  active: NativeDestinationActivation; anchor?: boolean; onEntered: () => void;
+  active: NativeDestinationActivation; anchor?: boolean; onEntered?: () => void;
   renderEntry: (entry: ContentEntry, width: number, context: LayoutItemContext) => ReactNode;
 }) {
   const theme = useTheme(), registry = useFocusRegistry(), scroll = useRef<ScrollView>(null);
@@ -56,14 +56,14 @@ export function TVMusicDiscover({destination, state, runtime, active, anchor, on
   const focused = (regionId: string, childId: string) => {
     const y = Math.max(0, measured.current.get(regionId) ?? 0);
     positions.set(destination, {regionId, childId, y});
-    scroll.current?.scrollTo({y, animated: false}); onEntered();
+    scroll.current?.scrollTo({y, animated: false}); onEntered?.();
   };
   // More waits for the real row; a temporarily loading Mixes read must not land
   // on an unrelated rail and consume the opening's focus request.
   const waitingForMixes = anchor && (mixes?.phase === 'idle' || mixes?.phase === 'loading');
   useDestinationEntryFocus(entryActivation, !waitingForMixes && region && child ? {regionId: region, childId: child} : undefined,
     () => {if (region && child) focused(region, child);});
-  useLayoutEffect(() => {if (!regions.length && !waitingForMixes) onEntered();}, [regions.length, waitingForMixes, onEntered]);
+  useLayoutEffect(() => {if (!regions.length && !waitingForMixes) onEntered?.();}, [regions.length, waitingForMixes, onEntered]);
   const edges = (id: string) => {const index = regions.indexOf(id); return {up: regions[index - 1] ?? tabs, down: regions[index + 1], left: ids.rail};};
   const mixNode = runtime.mixes && <View key="mixes" onLayout={event => measured.current.set(mixRegion, event.nativeEvent.layout.y)}>
     <MusicMixesRow port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError} active={active.visible}

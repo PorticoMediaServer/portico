@@ -53,9 +53,12 @@ async function libraryScreen(width: number, isTV = false) {
     '../destinations/useTVPageBack': {useTVPageBack: () => {}},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: () => {}},
     './model': {NativeLibraryDestination: 'NativeLibraryDestination', nativeLibraryEntryKey: (entry: any) => entry.id, nativeLibraryCanSave: () => true},
-    './LibraryToolbar': {LibraryToolbar: 'LibraryToolbar'}, './LibraryListRow': {LibraryListRow: 'LibraryListRow'},
+    '@portico/design': {frameSpec: {browse: {listRow: {phone: 76, medium: 76, expanded: 76, tv: 84}}}}, '../../kit/browse/LibraryCard': {LibraryCard: function LibraryCard() {}},
+    '../../pages/shared/library/useFirstScanning': await screenModule(new URL('../src-next/pages/shared/library/useFirstScanning.ts', import.meta.url), {react: host.react}),
+    './LibraryToolbar': {LibraryToolbar: 'LibraryToolbar'}, '../../kit/browse/LibraryListRow': {LibraryListRow: 'LibraryListRow'},
     './directory': {NativeLibraryDirectory: 'NativeLibraryDirectory'},
-    './LibraryFilters': {LibraryFilters: 'LibraryFilters', useLibraryFrameFilters: () => undefined, libraryFiltersDockWidth: 380},
+    '../../kit/browse/LibraryFilterFields': {useLibraryFrameFilters: () => undefined},
+    './LibraryFilters': {LibraryFilters: 'LibraryFilters', libraryFiltersDockWidth: 380},
     '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     './applied-filters': {libraryAppliedFilters: () => []},
     './library-grid': {libraryTabletGridGeometry},
@@ -63,9 +66,13 @@ async function libraryScreen(width: number, isTV = false) {
     '../destinations/music/TVMusicDiscover': {TVMusicDiscover: 'TVMusicDiscover'},
     '../read/platform': {hiddenReadingLibraryOnTV, isReadingLibraryKind},
   };
-  const jumpSheet = await screenModule(new URL('../src-next/screens/library/LibraryJumpSheet.tsx', import.meta.url), modules);
+  const jumpSheet = await screenModule(new URL('../src-next/kit/browse/LibraryJumpSheet.tsx', import.meta.url), {...modules,
+    '@portico/design': {frameSpec: {browse: {filtersWidth: {tv: 680}}}},
+    '../controls': modules['../../kit/controls'], '../theme': modules['../../kit/theme'],
+    '../focus': modules['../../kit/focus'], '../overlays': {SidePanel: 'SidePanel'}, './presentation': modules['../../kit/browse/presentation'],
+  });
   const module = await screenModule(new URL('../src-next/screens/library/LibraryScreen.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, 
-    ...modules, './LibraryJumpSheet': jumpSheet, './jump': libraryJump,
+    ...modules, '../../kit/browse/LibraryJumpSheet': jumpSheet, './jump': libraryJump,
     '../../kit/cards/TVSparseCardFrame': {TVSparseCardFrame: 'TVSparseCardFrame', TVCardPaintFrame: 'TVCardPaintFrame', TVPendingCardPaint: 'TVPendingCardPaint'},
     '../../platform/home-action-diagnostics': {homeActionDiagnostics},
   });

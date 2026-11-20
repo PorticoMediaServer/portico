@@ -18,7 +18,7 @@ type Media = Readonly<{
   isNew?: boolean;
 }>;
 export type PosterCardProps = CardProps & Media & {titleLines?: 1 | 2};
-export type WideCardProps = CardProps & Media;
+export type WideCardProps = CardProps & Media & {captionBelow?: boolean};
 export type SquareCardProps = CardProps & Media;
 export type CircleCardProps = CardProps & ({art: CircleArtProps; person?: false} | {art: PersonCircleProps; person: true}) & {
   /** The circle's diameter where the name and role under it need more room than the circle (a title page's cast:
@@ -138,13 +138,15 @@ export function WideCard(props: WideCardProps) {
   return <CardFrame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={52} centered />}>
     {s => <><ArtFrame height={height} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
       <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={fallbackFor(props, 'wide', width, height)} width={width} height={height} />
+      {props.captionBelow ? <View style={{position: 'absolute', left: 0, right: 0, bottom: 0}}><Progress value={props.progress}/></View> : <>
       <Scrim start={scrimStart} />
       <View onLayout={t.isTV ? undefined : event => {const top = event.nativeEvent.layout.y; if (top !== copyTop) setCopyTop(top);}} style={{position: 'absolute', left: t.spec.card.wide.insetX[t.column], right: t.spec.card.wide.insetX[t.column], bottom: t.spec.card.wide.insetBottom[t.column]}}>
         <Text numberOfLines={t.isTV ? 1 : wideTitleLines} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
         <View style={{marginTop: t.isTV ? 4 : 2}}><Parts parts={handheld ? compactFacts : props.caption} gap={factsGap} style={{color: t.colors.textSecondary}} /></View>
         <Progress value={props.progress} style={{marginTop: t.spec.card.progress.marginTop[t.column]}} />
-      </View>
-    </ArtFrame>{under && <View style={{marginTop: wideDetailGap}}><Parts parts={props.detail} gap={factsGap} /></View>}</>}
+      </View></>}
+    </ArtFrame>{props.captionBelow ? <Caption {...props} titleLines={2} caption={[...(props.caption ?? []), ...(props.detail ?? [])]} detail={undefined} selected={props.selection?.selected}/>
+      : under && <View style={{marginTop: wideDetailGap}}><Parts parts={props.detail} gap={factsGap} /></View>}</>}
   </CardFrame>;
 }
 /** A wide card's detail (Continue Watching's time left) sits under the picture on a tablet, in the caption grey, as on the web

@@ -32,15 +32,28 @@ export function libraryFilterField(field: BrowseFieldCapability, predicates: rea
   let mode: 'any' | 'all' | 'none' = 'any';
   for (const node of mine) {
     const negative = 'not' in node, leaf = negative ? node.not : node;
+    if (field.id === 'year') {
+      const decades = ('any' in leaf ? leaf.any : [leaf]).flatMap(range => {
+        if (!('field' in range) || range.field !== 'year' || range.operator !== 'between' || !Array.isArray(range.value)) return [];
+        const [from, to] = range.value;
+        return typeof from === 'number' && from % 10 === 0 && to === from + 9 ? [String(from)] : [];
+      });
+      (negative ? excluded : included).push(...decades);
+    }
     if (!('field' in leaf)) continue;
     if (!['equals', 'in', 'contains-any', 'contains-all', 'not-in', 'not-equals'].includes(leaf.operator)) continue;
     const out = negative || leaf.operator === 'not-in' || leaf.operator === 'not-equals' ? excluded : included;
     out.push(...scalarList(leaf.value).map(String));
     if (leaf.operator === 'contains-all' && !negative) mode = 'all';
   }
-  const values = orderFilterValues(field, facet?.value?.values ?? []).map(value => ({...value,
-    label: field.id === 'year' ? defaultI18n.t('next.kit.filter.decade', {year: value.value}) : value.label}));
-  const valueSummary = field.id === 'year' ? fieldSelectionSummary({...field, id: 'decade'}, direct, value => defaultI18n.t('next.kit.filter.decade', {year: String(value)})) : undefined;
+  const values = orderFilterValues(field, facet?.value?.values ?? []).map(value => {
+    if (field.id !== 'year') return value;
+    // The facet returns a range key; the decade predicate takes its numeric start year.
+    const year = value.value.split('..', 1)[0]!;
+    return {...value, value: year, label: defaultI18n.t('next.kit.filter.decade', {year})};
+  });
+  const valueSummary = field.id === 'year' && included.length === 1 && excluded.length === 0
+    ? defaultI18n.t('next.kit.filter.decade', {year: included[0]!}) : undefined;
   return {...presentation, summary: valueSummary, kind: 'values', included: [...new Set(included)], excluded: [...new Set(excluded)], mode,
     allowAll: field.operators.includes('contains-all'), cycleExclusion: true, showMatchMode: false, values,
     search: facet?.search ?? '', total: facet?.value?.total, status: facet?.phase === 'error' ? 'error' : !facet || facet.phase === 'loading' || facet.phase === 'idle' ? 'loading' : 'ready'};
@@ -52,6 +65,14 @@ export function libraryFilterChange(capabilities: BrowseCapabilities, field: Bro
   const condition = (id: string, operator: BrowseOperator, next: BrowseScalar | readonly BrowseScalar[] | null): BrowseNode => browseCondition(id, operator, next);
   if (value.kind === 'values') {
     const target = filterValuesField(field), offered = capabilities.fields.find(candidate => candidate.id === target.field);
+    if (!offered && field.id === 'year' && field.operators.includes('between')) {
+      const ranges = (years: readonly string[]): BrowseNode | undefined => {
+        const nodes = years.map(Number).map(year => condition('year', 'between', [year, year + 9]));
+        return nodes.length > 1 ? {variant: 'group', any: nodes} : nodes[0];
+      };
+      const included = ranges(value.included), excluded = ranges(value.excluded);
+      return [...retained, ...(included ? [value.mode === 'none' ? browseNot(included) : included] : []), ...(excluded ? [browseNot(excluded)] : [])];
+    }
     if (!offered) throw new Error('native_library_filter_field_not_offered');
     const cast = (raw: readonly string[]): BrowseScalar[] => raw.map(item => offered.type === 'number' ? Number(item) : item);
     const operator = target.operator as BrowseOperator;

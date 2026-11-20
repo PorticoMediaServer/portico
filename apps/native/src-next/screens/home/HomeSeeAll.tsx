@@ -5,7 +5,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
 import {homeRowReasonParts} from '../../../../../packages/client-core/src/presentation/home-row-reason';
-import {homeEntryCapabilities} from '../../../../../packages/client-core/src/home-selection';
+import {HomeRowCard} from '../../kit/browse/HomeRowCard';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {Button, Chip, Focusable} from '../../kit/controls';
 import {BrowseToolbar, FiltersButton, QuickToggle, SortMenu, type BrowseLabels} from '../../kit/browse';
@@ -13,10 +13,8 @@ import {BrowseFrame} from '../../kit/frames';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {MediaArt} from '../../kit/artwork';
 import {browseType} from '../../kit/browse/presentation';
-import {PosterCard} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {AmbientArt} from '../../kit/artwork';
-import {generatedPoster} from '../../kit/artwork';
 import {FocusItem, FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {WindowedGrid, type LayoutSelection} from '../../kit/layout';
 import {Icon} from '../../kit/Icon';
@@ -34,7 +32,7 @@ export {homeBrowseLabel};
 
 /** Requested row only. Membership IDs locate grid cells; displayed episodes and
  * their actual playback targets retain their independent server identities. */
-type HomeSeeAllProps = {
+export type HomeSeeAllProps = {
   controller: NativeHomeRowController; runtime: NativeShellRuntime; active: boolean;
   onBack: () => void; onPlay: (shuffle: boolean) => void; onOpen: (entry: ContentEntry, current: () => boolean) => void; onPlayEntry: (entry: ContentEntry, current: () => boolean) => void;
   onMenu?: (entry: ContentEntry, anchor: RefObject<View | null>) => void; onFilters: () => void; onReshuffle: () => void;
@@ -201,14 +199,6 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
       {grid()}
     </FocusRegion>
   </View>;
-}
-
-function HomeRowCard({entry, runtime, width, onOpen, onPlay, onMenu, onFocus, onBlur}: {entry: ContentEntry; runtime: NativeShellRuntime; width: number; onOpen: () => void; onPlay: () => void;
-  onMenu?: (anchor: RefObject<View | null>) => void; onFocus: () => void; onBlur: () => void}) {
-  const anchor = useRef<View>(null), theme = useTheme(), text = homeCardText(entry, false, runtime.text);
-  const allowed = homeEntryCapabilities(entry, {platform: theme.isTV ? 'tv' : 'phone-app', playbackAvailable: !!runtime.playback});
-  return <PosterCard title={text.title} caption={text.caption} detail={text.detail} width={width} artwork={runtime.artwork(entry.posterUrl)} artworkFallback={generatedPoster(text.title, width)} density="grid" menuAnchorRef={anchor}
-    onNavigate={onOpen} primaryAction={theme.isTV && allowed.playable && entry.playback ? 'play' : 'navigate'} onPlay={onPlay} onFocus={onFocus} onBlur={onBlur} onMore={onMenu ? () => onMenu(anchor) : undefined}/>;
 }
 
 /** The drawn phone list row for See all: same activation, play and menu as the poster. */

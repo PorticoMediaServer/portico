@@ -26,7 +26,18 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false
   const draft = {getSnapshot: () => state, subscribe() {}, setPredicates: (value: unknown) => calls.push(['predicates', value]), apply: () => {calls.push('apply'); return true;}, clear: () => calls.push('clear'), search() {}, retryFacet() {},
     dispose: () => calls.push('dispose'), applyLive: () => calls.push('live'), refresh() {}, setOpenFields() {}};
   const runtime = {text: {t: defaultI18n.t}, getSnapshot: () => ({authority: {serverId: 'server', epoch: 'epoch'}}), reportError: (error: unknown) => {throw error;}};
-  const {LibraryFilters, useLibraryFrameFilters} = await screenModule(new URL('../src-next/screens/library/LibraryFilters.tsx', import.meta.url), {
+  const fieldsModule = await screenModule(new URL('../src-next/kit/browse/LibraryFilterFields.tsx', import.meta.url), {
+    react: host.react, '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel},
+    '../../../../../packages/i18n/src': {defaultI18n}, './index': {FilterBuilder: 'FilterBuilder'},
+    '../frames': {StateRow: 'StateRow'}, '../focus': {}, '../theme': {useTheme: () => theme},
+    '../browse/presentation': {browsePlatform: (used: typeof theme) => used.isTV ? 'tv' : used.platform === 'phone' ? 'phone' : 'desktop'},
+    '../../screens/library/filter-controls': {libraryFilterChange, libraryFilterField},
+    '../../screens/library/model': {nativeLibraryCanSave},
+  });
+  const {useLibraryFrameFilters} = fieldsModule;
+  const {LibraryFilters} = await screenModule(new URL('../src-next/screens/library/LibraryFilters.tsx', import.meta.url), {
+    '@portico/design': {frameSpec: {browse: {filtersWidth: {tv: 680, expanded: 380}}}},
+    '../../kit/browse/LibraryFilterFields': fieldsModule,
     react: host.react, 'react-native': {Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel}, '../../../../../packages/i18n/src': {defaultI18n},

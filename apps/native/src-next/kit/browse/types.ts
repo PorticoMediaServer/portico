@@ -1,3 +1,4 @@
+import type {FocusRegionProps} from '../focus';
 import type {ReactNode} from 'react';
 import type {BrowseFieldCapability, BrowseQuickFilter, BrowseSortCapability, BrowseSortSelection} from '../../../../../packages/client-core/src/browse';
 import type {AppliedFilterModel, BrowseToolbarModel, FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -29,7 +30,10 @@ export type BrowseToolbarProps = Readonly<{
   /** Save view: TV's toolbar (a phone or tablet saves from ⋯ or its Filters sheet). */
   save?: Readonly<{canSave: boolean; onSave: () => void}>;
   onSelect?: () => void;
-  onJump?: () => void; selection?: ReactNode; children?: ReactNode; testID?: string;
+  onJump?: () => void; jumpEnabled?: boolean;
+  region?: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>;
+  appliedRegion?: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>;
+  selection?: ReactNode; children?: ReactNode; testID?: string;
 }>;
 
 export type FacetValue = Readonly<{value: string; label: string; count?: number; countIsLowerBound?: boolean; disabled?: boolean}>;

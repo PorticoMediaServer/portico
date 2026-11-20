@@ -155,8 +155,11 @@ export const frame = {
     /** The poster grid: the narrowest a column's card may be (the columns stretch to both gutters), and the gaps between
      * columns and rows (desktop-browse .pgrid 20 / 30; phone-app 5; tablet 4 and 5). Its loading boxes use the same. */
     grid: {card: forms(100, 130, 160, 200), columnGap: forms(10, 16, 20, 28), rowGap: forms(16, 22, 30, 36)}, // R2 and R5 interim
-    /** Filters: a sheet on a phone; over the grid on an upright tablet (tablet 5, 420); a column docked beside the grid on a
-     * landscape tablet (tablet 4, 380); the web's side panel (desktop-browse filters, 520); TV's side sheet (680). */
+    libraryTile: forms(108, 108, 108, 140),
+    listRow: forms(76, 76, 76, 84),
+    genreWidth: forms(150, 150, 160, 320),
+    /** Phone 6: the sheet fills this share of an upright window at each stop. */
+    phoneFilterDetents: [.69, .83] as const,
     filtersWidth: {...forms(0, 420, 380, 680), web: 520},
   },
   /** Frame 8 and rule 12: every region is placed from the frame's edges, so nothing moves when content is missing.
