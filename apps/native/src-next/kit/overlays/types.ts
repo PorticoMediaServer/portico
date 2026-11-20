@@ -131,6 +131,13 @@ export type MenuProps = Omit<SurfaceProps, 'children' | 'headerContext'> & {
   initialFocusId?: string;
   secondaryTitle?: React.ReactNode;
   context?: React.ReactNode;
+  /** A touch sheet's shape; the frames draw two, so the caller picks by the frame it follows.
+   * - `list` (default): a card's menu (select.html 1, "Press and hold"): its own heading (`touchHeader`), a flat list of
+   *   rows with bare icons, an owner card at the end.
+   * - `groups`: a title page's own ⋯ (phone-detail 9, 10): the title with its secondary line and Done, the runs between
+   *   separators as raised card groups with icon tiles, an owner section as its label over an accent-outlined card.
+   * Popovers and TV's side sheet keep their own forms either way. */
+  form?: 'list' | 'groups';
 };
 export type MenuRowProps = Omit<PressableProps, 'children' | 'hasTVPreferredFocus'> & {
   /** TV: take focus once when this becomes true (TV-FOCUS-REVIEW step 4). */
