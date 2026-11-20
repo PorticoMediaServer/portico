@@ -7,7 +7,7 @@ import {EpisodeTile, PosterCard, SquareCard} from '../../../kit/cards';
 import {Button, Chip} from '../../../kit/controls';
 import {SongRow, type TrackRowData} from '../../../kit/browse/Tracks';
 import {TrackWindow} from '../../../kit/music/TrackWindow';
-import {AboutTable, CastRow, ChoiceChips, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
+import {AboutTable, CastRow, ChoiceChips, QuoteBlock, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
 import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
@@ -369,6 +369,32 @@ function PhoneBook() {
 }
 /** An author of audiobooks on a phone (collections 41b): their circle of covers over a glow, Resume the book they are in,
  * their books (who read each and the time left), and Details. */
+/** A book to read on a phone (phone-read 7): its cover over a glow from it, the series and its place, the author with
+ * their initials, the facts, Continue reading with its progress, the version and where the reader is, the description,
+ * the first lines, and Contents / Details (the chapters: the finished ones checked, the one being read with its place). */
+function PhoneRead() {
+  const t = defaultI18n.t, [tab, setTab] = useState('contents');
+  const rows: TrackRowData[] = (['readChapter1', 'readChapter2', 'readChapter3', 'readChapter4'] as const).map((name, index) => ({id: name, number: index + 1,
+    text: {id: name, title: f(name), caption: [], detail: index === 1 ? [{id: 'remaining', text: t('next.kit.remaining', {time: durationText(42 * 60, t)}), role: 'context' as const}] : []},
+    duration: {id: 'duration', text: durationText([5_400, 13_800, 6_000, 1_800][index]!, t)!, role: 'context'}, done: index < 1, current: index === 1, progress: index === 1 ? .4 : undefined}));
+  return <Page destination={{kind: 'library', libraryId: 'books'}}><TitleFrame testID="frames-title-read" back={back}
+    topAction={{icon: 'i-more', label: f('more'), onPress: none}} scroller={musicScroller({})}
+    art={<AmbientArt treatment="library" palette={{first: '#9a4a1e', second: '#3a1a0c'}}/>}
+    cover={{shape: 'poster', node: <Artwork source={asset('pool/movies/dune.jpg')} style={{width: '100%', height: '100%'}}/>}}
+    kicker={{label: t('title.seriesAndBook', {series: f('readDune'), number: '1'}), onPress: none}} title={f('readDune')}
+    byline={{text: f('readDuneAuthor'), initials: 'FH', onPress: none}}
+    metadata={<HeroMetadata facts={[{id: 'pages', text: t('next.reader.pageCount', {count: 535}), role: 'context'}, {id: 'duration', text: t('next.reader.aboutDuration', {duration: durationText(46_800, t)!}), role: 'context'}]}/>}
+    primary={{icon: 'i-book', label: t('next.cards.read'), progress: .46, onPress: none}}
+    actions={[{icon: 'i-plus', label: f('myList'), onPress: none}, {icon: 'i-dl', label: f('download'), onPress: none}]}
+    place={{version: {label: t('next.reader.version'), value: 'EPUB', onPress: none}, facts: [t('next.reader.pageOf', {page: 248, count: 535}), t('next.kit.remaining', {time: durationText(25_200, t)!})]}}
+    synopsis={f('readDuneAbout')}
+    tabs={{value: tab, onValueChange: setTab, items: [{value: 'contents', label: t('next.reader.contents')}, {value: 'details', label: t('next.reader.details')}]}}>
+    <PanelBlock><QuoteBlock label={t('next.reader.firstLines')} text={f('readDuneFirstLines')}/></PanelBlock>
+    {/* A phone draws the chosen tab's panel only. */}
+    {tab === 'contents' ? <TrackWindow rows={rows} variant="chapters" onPlay={none}/>
+      : <PanelBlock><AboutTable rows={[{label: t('next.reader.format'), values: [{text: 'EPUB'}]}, {label: t('next.reader.pagesStrip'), values: [{text: '535'}]}]}/></PanelBlock>}
+  </TitleFrame></Page>;
+}
 function PhoneAuthor() {
   const t = defaultI18n.t, martian = asset('pool/books/the-martian-unabridged.jpg');
   return <Page destination={{kind: 'library', libraryId: 'audiobook'}}><TitleFrame testID="frames-title-author" back={back}
@@ -501,6 +527,7 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-title-book', title: 'next.platform.frame.titleBook', render: Book, ...whole},
   {id: 'frames-title-author', title: 'next.platform.frame.titleAuthor', render: PhoneAuthor, ...whole},
   {id: 'frames-title-series', title: 'next.platform.frame.titleSeries', render: PhoneSeries, ...whole},
+  {id: 'frames-title-read', title: 'next.platform.frame.titleRead', render: PhoneRead, ...whole},
   {id: 'frames-title-missing', title: 'next.platform.frame.titleMissing', render: Missing, ...whole},
   {id: 'frames-title-loading', title: 'next.platform.frame.titleLoading', render: Loading, ...whole},
   {id: 'frames-title-versions', title: 'next.platform.frame.titleVersions', render: Versions, ...whole},

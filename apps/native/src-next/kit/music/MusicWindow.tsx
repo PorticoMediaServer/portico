@@ -17,18 +17,21 @@ function useScrollRef() {
 
 /** The existing page stays one scroller. JS receives only crossed row ranges;
  * each section mounts its fixed rows plus the actual focused host. */
-export function MusicScrollView({children, onNearEnd, collapseAt, onCollapse, ...props}: Omit<ScrollViewProps, 'onScroll'> & {onNearEnd?: () => void;
+export function MusicScrollView({children, onNearEnd, collapseAt, onCollapse, pinAt, onPin, ...props}: Omit<ScrollViewProps, 'onScroll'> & {onNearEnd?: () => void;
   /** Once the page has scrolled `collapseAt` points (its title under the top bar), `onCollapse(true)`; back above it, `false`. */
-  collapseAt?: number; onCollapse?: (collapsed: boolean) => void}) {
+  collapseAt?: number; onCollapse?: (collapsed: boolean) => void;
+  /** As `collapseAt`, a second mark: where the page's own tabs reach the top bar and pin under it. */
+  pinAt?: number; onPin?: (pinned: boolean) => void}) {
   const content = useRef<View>(null), [scroll, attach] = useScrollRef();
   const [viewport, setViewport] = useState({offset: 0, height: 0}), [layout, setLayout] = useState(0), [origin, setOrigin] = useState(0);
-  const reported = useSharedValue(-1), tail = useSharedValue(-1), collapsed = useSharedValue(false);
+  const reported = useSharedValue(-1), tail = useSharedValue(-1), collapsed = useSharedValue(false), pinned = useSharedValue(false);
   const publish = useCallback((offset: number, height: number) => setViewport({offset, height}), []);
   const move = useCallback((offset: number) => {scroll.current?.scrollTo({y: Math.max(0, offset), animated: false}); setViewport(value => ({...value, offset: Math.max(0, offset)}));}, [scroll]);
   const onScroll = useAnimatedScrollHandler(event => {
     const offset = event.contentOffset.y, height = event.layoutMeasurement.height, range = Math.floor(offset / 54);
     if (range !== reported.value) {reported.value = range; runOnJS(publish)(offset, height);}
     if (onCollapse && collapseAt !== undefined && (offset > collapseAt) !== collapsed.value) {collapsed.value = offset > collapseAt; runOnJS(onCollapse)(offset > collapseAt);}
+    if (onPin && pinAt !== undefined && (offset > pinAt) !== pinned.value) {pinned.value = offset > pinAt; runOnJS(onPin)(offset > pinAt);}
     if (onNearEnd && offset + height >= event.contentSize.height - 840) {
       if (tail.value !== event.contentSize.height) {tail.value = event.contentSize.height; runOnJS(onNearEnd)();}
     } else tail.value = -1;
