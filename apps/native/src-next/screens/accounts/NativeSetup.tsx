@@ -12,7 +12,7 @@ import {useTheme} from '../../kit/theme';
 import {nativeAccounts} from '../../platform/accounts';
 import {createNativeSetupAdapter, type NativeSetupTarget} from '../../platform/setup-adapter';
 import {PasswordStrengthMeter} from './PasswordStrengthMeter';
-import {PhoneAccountForm} from './PhoneAccountForm';
+import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PhoneSetupApproval} from './PhoneSetupApproval';
 
 /** First-run setup in the phone app (auth.html frame 1p, B-DESIGN §6) on the shared setup controller. The server decides
@@ -58,7 +58,7 @@ function SetupStates({controller, target, onAdmitted, onLeave}: {controller: Set
     else onLeave();
   }};
   const tryAgain = (onPress = controller.retry) => ({id: 'retry', label: t('action.tryAgain'), disabled: busy, loading: busy, onPress});
-  const Layout = theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
+  const Layout = theme.platform === 'phone' ? AccountForm : StateLayout;
   const message = (title: string, body: string, primary?: ReturnType<typeof tryAgain>, secondary: ReturnType<typeof tryAgain> | typeof back = back) =>
     <>
       <Layout testID="accounts-setup" title={title} body={body} primaryAction={primary} secondaryAction={secondary}/>

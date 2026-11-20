@@ -25,7 +25,7 @@ const handoffModule = async (react: unknown, back: unknown, entry = (..._args: u
   '../../../../../packages/i18n/src': {catalogue, defaultI18n, enUS}, '../../kit/controls': {Button: 'Button'},
   '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'}, '../../kit/theme': {nativeType, useTheme: () => theme},
   '../../kit/states/sentence-parts': {stateSentenceParts}, '../../platform/native-blur': {BlurView: 'Blur', glassRecipe: () => ({nativeBlur: true})},
-  '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: entry}, './TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'}, './entry-revision': revision,
+  '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: entry}, '../../kit/frames/TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'}, './entry-revision': revision,
   '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'},
   '../../platform/forgot-pin-handoff': await screenModule(new URL('../src-next/platform/forgot-pin-handoff.ts', import.meta.url), {react: {default: {}},
     './account-authority': {hostedUrl: 'https://web.getportico.tv'}, '../../../../packages/client-core/src/route-identity': await import('../../../packages/client-core/src/route-identity.ts')}),

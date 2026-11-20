@@ -8,7 +8,7 @@ import {createTheme, nativeType} from '../src-next/kit/theme';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.terms)] : [];
 
 // This exercises the real phone presenter and its callbacks. AccountEntry invitation
 // ownership/dispatch coverage is a separate required vector, not inferred here.
@@ -25,21 +25,23 @@ test('phone account presenter exposes only its offered password and provider cap
       '../../../../../packages/i18n/src': {defaultI18n},
       '../../../../../packages/client-core/src/public-links': {porticoPublicLinks},
     });
-    const {PhoneAccountSignIn} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSignIn.tsx', import.meta.url), {'../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true}, 
-      './LegalAgreement': legal, './ProviderButton': {ProviderButton: 'ProviderButton'}, react: {...React, default: React},
-      'react-native': {Image: 'Image', Keyboard: {isVisible: () => false, addListener: () => ({remove() {}})}, KeyboardAvoidingView: 'KeyboardAvoidingView', Linking: {openURL: async (url: string) => {links.push(url); if (linkFailure) throw new Error('browser unavailable');}}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-      'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
-      '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {ColourBackdrop: 'Backdrop'},
-      '../../kit/controls': {Button: 'Button', TextField: 'Field'}, '../../kit/theme': {nativeType, useTheme: () => createTheme({isTV: false, width: 390})},
+    const parts = await screenModule(new URL('../src-next/kit/accounts/AccountParts.tsx', import.meta.url), {
+      react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'},
+      '../../screens/accounts/LegalAgreement': legal, '../theme': {useTheme: () => createTheme({isTV: false, width: 390})},
+    });
+    const {SignInPage} = await screenModule(new URL('../src-next/pages/touch/accounts/SignInPage.tsx', import.meta.url), {
+      react: {...React, default: React}, '../../../../../../packages/i18n/src': {defaultI18n},
+      '../../../kit/frames': {SignInFrame: 'SignInFrame'}, '../../../kit/accounts/AccountParts': parts,
+      '../../../screens/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'},
     });
     let tree: any, passwordEnabled = false, registration = true, recovery = true;
-    const providers = [{id: 'google', enabled: true, native: false, nativeClientIds: []}], calls: string[] = [];
-    host = createFabricHookHost(() => {tree = PhoneAccountSignIn({busy: false, providers, passwordEnabled, registration, recovery,
+    const calls: string[] = [];
+    host = createFabricHookHost(() => {tree = SignInPage({busy: false, passwordEnabled, registration, recovery,
       username: 'account', password: 'password', onUsernameChange: () => {}, onPasswordChange: () => {},
       onContinue: () => calls.push('password'), onProvider: (id: string) => calls.push(id),
       onForgot: () => calls.push('forgot'), onCreate: () => calls.push('create'), onLocal: () => calls.push('local'), onOpenLink: (url: string) => {links.push(url);}});});
     await act(() => host!.mount());
-    const agreement = nodes(tree).find(node => node.type === legal.LegalAgreement);
+    const agreement = parts.AccountTerms(tree.props.terms.props);
     const footer = agreement.type(agreement.props);
     const anchors = nodes(footer).filter(node => node.props.accessibilityRole === 'link');
     await act(() => anchors[0].props.onPress());

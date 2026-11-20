@@ -17,8 +17,8 @@ import {OverlaysProvider} from '../../../kit/overlays/OverlayHost';
 import {AccountMenu, ChoiceMatrix, DefaultHint, NotificationItem, ProfileAvatar, ServerHeader, SettingsNav, SettingsProfileCard, SettingsRow, ShortcutTiles} from '../../../kit/shell';
 import {LegalAgreement} from '../../../screens/accounts/LegalAgreement';
 import {PhonePINEntry} from '../../../screens/accounts/PhonePINEntry';
-import {PhoneProfilePIN} from '../../../screens/accounts/PhoneProfilePIN';
-import {PhoneWhosWatching} from '../../../screens/accounts/PhoneWhosWatching';
+import {ProfilePINPage} from '../../../pages/touch/accounts/ProfilePINPage';
+import {ProfilesPage} from '../../../pages/touch/accounts/ProfilesPage';
 import {RememberProfileRow} from '../../../screens/accounts/RememberProfileRow';
 import {DownloadsStillPlay} from '../../../kit/states/DownloadsStillPlay';
 import {TVSwitchRow} from '../../../screens/settings-live/server/TVSettingRows';
@@ -249,13 +249,13 @@ const SignInPortico = () => <Window><SignInFrame kicker={t('accounts.signIn.to')
 const pickerProfiles: readonly ProfileOption[] = [{id: 'demo', name: 'Demo', initial: 'D', color: 'blue', primary: true}, {id: 'alex', name: 'Alex', initial: 'A', color: 'violet', pinRequired: true}, {id: 'kids', name: 'Kids', initial: 'K', color: 'mint'}, {id: 'sam', name: 'Sam', initial: 'S', color: 'coral'}];
 function WhosWatching() {
   const [remember, setRemember] = useState(false);
-  return <Window><PhoneWhosWatching testID="frames-whos-watching" picker={<ProfilePicker profiles={pickerProfiles} onSelect={none} onManage={none} onAdd={none} title={t('accounts.profiles.onServer', {server: f('serverName')})}/>}>
+  return <Window><ProfilesPage testID="frames-whos-watching" picker={<ProfilePicker profiles={pickerProfiles} onSelect={none} onManage={none} onAdd={none} title={t('accounts.profiles.onServer', {server: f('serverName')})}/>}>
     <RememberProfileRow checked={remember} onChange={setRemember} focusId="frames-whos-watching-remember" marginTop={24}/>
-  </PhoneWhosWatching></Window>;
+  </ProfilesPage></Window>;
 }
 function ProfilePIN() {
   const [pin, setPin] = useState(''), [remember, setRemember] = useState(false), alex = pickerProfiles[1]!;
-  return <Window><PhoneProfilePIN testID="frames-profile-pin" profile={{name: alex.name, face: {initial: alex.initial, color: alex.color}}} value={pin} onChange={setPin} onSubmit={none} busy={false} rejected={false}
+  return <Window><ProfilePINPage testID="frames-profile-pin" profile={{name: alex.name, face: {initial: alex.initial, color: alex.color}}} value={pin} onChange={setPin} onSubmit={none} busy={false} rejected={false}
     remember={<RememberProfileRow checked={remember} onChange={setRemember} focusId="frames-profile-pin-remember"/>} onForgot={none} onBack={none}/></Window>;
 }
 

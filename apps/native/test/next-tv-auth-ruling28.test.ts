@@ -27,7 +27,7 @@ const inScope = (component: (props: any) => any, props: any) => {
 const entryRevision = (react: unknown) => screenModule(new URL('../src-next/tv/auth/entry-revision.ts', import.meta.url), {react});
 const common = async (react: unknown) => ({react, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/theme': {nativeType, useTheme: () => theme},
   '../../platform/tv-keys': {useTVKeyEvent() {}},
-  '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, './TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'},
+  '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/frames/TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'},
   '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus() {}}, './entry-revision': await entryRevision(react)});
 // The existing caller vectors render the pad directly; give its real entry hooks
 // a separate controlled host. Native region/Focusable boundaries remain stubs.
@@ -171,11 +171,21 @@ test('profile PIN shares the actual pad, submits four digits once and exposes on
   let tree: any, remote: (event: any) => void = () => {};
   const submitted: string[] = [], actions: string[] = [], react = {...React, default: React};
   const numeric = await numericModule(react);
-  const {TVProfilePINForm} = await screenModule(new URL('../src-next/tv/auth/TVProfilePINForm.tsx', import.meta.url), {
-    ...await common(react), 'react-native': {Text: 'Text', View: 'View', useTVEventHandler: (fn: typeof remote) => {remote = fn;}},
-    '../../platform/tv-keys': remoteKeys(handler => {remote = handler;}),
-    '../../kit/focus': {FocusProvider: 'Provider'}, './TVAuthLayout': {TVProfilePINLayout: 'PINLayout', TVCodeErrorLine: 'ErrorLine'}, './TVNumericPad': numeric,
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'}, './TVRememberRow': {TVRememberRow: 'TVRememberRow'},
+  const bindings = await common(react);
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useTVProfilePIN.ts', import.meta.url), {
+    react, '../../../platform/tv-keys': remoteKeys(handler => {remote = handler;}),
+    '../../../platform/tv-play-pause-owner': {useTVPlayPauseOwner: () => () => true},
+  });
+  const frame = await screenModule(new URL('../src-next/kit/frames/TVAuthLayout.tsx', import.meta.url), {
+    react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
+    '@portico/design': {}, 'react-native-reanimated': {}, '../useMotion': {}, '../artwork': {}, '../theme': bindings['../../kit/theme'],
+    '../../shell/model': {}, '../dev-observation': {}, '../focus': {}, '../states/StateActionButton': {},
+  });
+  const {TVProfilePINForm} = await screenModule(new URL('../src-next/pages/tv/accounts/ProfilePINPage.tsx', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../shared/accounts/useTVProfilePIN': hook,
+    '../../../kit/focus': {FocusProvider: 'Provider'},
+    '../../../kit/frames/TVAuthLayout': {TVProfilePINLayout: 'PINLayout', TVCodeErrorLine: 'ErrorLine', TVProfilePINHints: frame.TVProfilePINHints},
+    '../../../tv/auth/TVNumericPad': numeric, '../../../tv/auth/TVRememberRow': {TVRememberRow: 'TVRememberRow'},
   });
   const profile = {id: 'actual-profile', name: 'Actual name', initial: 'A', color: 'blue'};
   const props = {profile, code: '', busy: false, onCodeChange: (value: string) => {props.code = value;},

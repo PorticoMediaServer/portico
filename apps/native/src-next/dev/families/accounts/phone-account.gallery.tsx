@@ -6,9 +6,9 @@ import {presentError} from '../../../../../../packages/client-core/src/presentat
 import type {Gallery} from '../../gallery-registry';
 import {Button, FormError} from '../../../kit/controls';
 import {useTheme} from '../../../kit/theme';
-import {PhoneAccountSignIn} from '../../../screens/accounts/PhoneAccountSignIn';
+import {SignInPage} from '../../../pages/touch/accounts/SignInPage';
 import {PhoneFindServer, type FoundServer} from '../../../screens/accounts/PhoneFindServer';
-import {PhoneServerSignIn} from '../../../screens/accounts/PhoneServerSignIn';
+import {ServerSignInPage} from '../../../pages/touch/accounts/ServerSignInPage';
 
 // The phone and tablet sign-in screens (auth.html frames 4, 5 and 6) in the states the review desk signs against:
 // at rest, filled, long values, busy and error. Each case is the whole screen, so it cancels the Kit window's gutter.
@@ -24,7 +24,7 @@ const wrong = () => <FormError placement="block">{presentError(Object.assign(new
 
 function Welcome({username = '', password = '', busy = false, notice = false}: {username?: string; password?: string; busy?: boolean; notice?: boolean}) {
   const [user, setUser] = useState(username), [secret, setSecret] = useState(password);
-  return <Whole><PhoneAccountSignIn busy={busy} passwordEnabled registration recovery username={user} password={secret} onUsernameChange={setUser} onPasswordChange={setSecret}
+  return <Whole><SignInPage busy={busy} passwordEnabled registration recovery username={user} password={secret} onUsernameChange={setUser} onPasswordChange={setSecret}
     error={notice ? <FormError placement="block">{t('accounts.provider.unavailable', {provider: t('accounts.provider.apple')})}</FormError> : undefined}
     onContinue={noop} onProvider={noop} onForgot={noop} onCreate={noop} onLocal={noop} onOpenLink={noop}/></Whole>;
 }
@@ -45,7 +45,7 @@ function Local({serverName = 'Portico demo', address = '192.168.1.20:32500', use
   serverName?: string; address?: string; username?: string; password?: string; busy?: boolean; error?: boolean;
 }) {
   const [user, setUser] = useState(username), [secret, setSecret] = useState(password);
-  return <Whole><PhoneServerSignIn busy={busy} error={error ? wrong() : undefined} passwordInvalid={error} serverName={serverName} address={address} username={user} password={secret}
+  return <Whole><ServerSignInPage busy={busy} error={error ? wrong() : undefined} passwordInvalid={error} serverName={serverName} address={address} username={user} password={secret}
     onUsernameChange={setUser} onPasswordChange={setSecret} onSignIn={noop} onBack={noop}
     links={<Button variant="link" onPress={noop}>{t('auth.forgotPassword')}</Button>}/></Whole>;
 }
