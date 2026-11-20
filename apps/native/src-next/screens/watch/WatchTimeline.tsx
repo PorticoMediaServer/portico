@@ -12,6 +12,7 @@ import {useTVKeyEvent} from '../../platform/tv-keys';
 import {createTVSeekRepeat} from '../../platform/tv-seek-repeat';
 import {touchScrub, useSiriRemoteTouch} from '../../platform/siri-remote';
 import {Focusable} from '../../kit/controls';
+import {registerBack} from '../../kit/navigation/back';
 import {useTheme} from '../../kit/theme';
 import type {NativeWatchControls} from './controls';
 import {NativeScrubPreview, NativeTrickplayStrip, scrubCardCentre} from './TrickplayStrip';
@@ -89,8 +90,13 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
     if (!tv || !focused || !enabled || !fence) {clearRemotePreview(); return;}
     if (!remoteScrubbing) return;
     const unregister = controls.registerScrubCancel(fence, clearRemotePreview);
-    return () => {unregister(); clearRemotePreview();};
-  }, [clearRemotePreview, controls, enabled, fence, focused, remoteScrubbing, tv]);
+    const unregisterBack = registerBack(() => {
+      if (!current() || previewRef.current === undefined) return false;
+      clearRemotePreview();
+      return true;
+    }, {scope: 'overlay'});
+    return () => {unregisterBack(); unregister(); clearRemotePreview();};
+  }, [clearRemotePreview, controls, current, enabled, fence, focused, remoteScrubbing, tv]);
   const remoteCurrent = () => tv && focused && enabled && !!fence && current() && playback.getSnapshot().capabilities.seek && span > 0;
   repeatStep.current = (direction, seconds) => {
     if (!remoteCurrent() || !fence) return false;
@@ -102,7 +108,7 @@ export function NativeWatchTimeline({source, playback, controls, compact, enable
   useTVKeyEvent(event => {
     if (event.phase === 'long-end') {repeat.handle(event); return;}
     if (!remoteCurrent() || !fence) {repeat.stop(); return;}
-    if ((event.key === 'down' || event.key === 'back') && previewRef.current !== undefined) {
+    if (event.key === 'down' && previewRef.current !== undefined) {
       clearRemotePreview();
       return;
     }

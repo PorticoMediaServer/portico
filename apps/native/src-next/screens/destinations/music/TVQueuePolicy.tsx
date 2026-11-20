@@ -1,20 +1,17 @@
-import React, {useLayoutEffect, useRef, useState} from 'react';
-import {Text, View} from 'react-native';
+import {useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {QueuePlaybackView} from '../../../../../../packages/client-core/src/queue-controller';
 import type {V1QueuePolicyIntent} from '../../../../../../packages/client-core/src/playback-v1/v1-queue-player';
 import type {PlaybackFence} from '../../../../../../packages/player-core/src';
 import type {NativeListeningQueuePolicy} from '../../../shell/listening-queue-policy';
-import {Focusable} from '../../../kit/controls';
-import {Icon} from '../../../kit/Icon';
-import {useTheme} from '../../../kit/theme';
+import type {AudioControl} from '../../../kit/frames';
 
 /** No optimistic shuffle/repeat state: only the accepted queue projection is drawn. */
 export function useTVQueuePolicy({fence, queue, policy, reportError, testID}: {
   fence: PlaybackFence; queue?: QueuePlaybackView; policy?: NativeListeningQueuePolicy;
   reportError: (error: unknown) => void; testID: string;
 }) {
-  const theme = useTheme(), t = defaultI18n.t, [busy, setBusy] = useState(false);
+  const t = defaultI18n.t, [busy, setBusy] = useState(false);
   const key = JSON.stringify([fence, queue?.queue.id]);
   const lease = useRef<{key: string; abort: AbortController} | undefined>(undefined), flight = useRef<object | undefined>(undefined);
   if (lease.current && lease.current.key !== key) {
@@ -35,20 +32,15 @@ export function useTVQueuePolicy({fence, queue, policy, reportError, testID}: {
     catch (error) {if (current()) reportError(error);}
     finally {if (current() && flight.current === token) {flight.current = undefined; setBusy(false);}}
   };
-  const button = (id: 'shuffle' | 'repeat', active: boolean, label: string, intent: V1QueuePolicyIntent) => <Focusable
-    focusId={id} testID={`${testID}-${id}`} focusRadius={36} accessibilityRole="button" accessibilityLabel={label}
-    accessibilityState={{checked: active, busy}} onPress={() => {void change(intent);}}
-    style={({focused}) => ({width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: focused ? theme.colors.raisedHigh : 'transparent'})}>
-    <Icon name={id === 'shuffle' ? 'i-shuffle' : 'i-repeat'} size={32} color={active ? theme.colors.accentStrong : theme.colors.textSecondary}/>
-    {id === 'repeat' && queue.queue.repeat === 'one' && <View pointerEvents="none" style={{position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center'}}>
-      <Text style={{fontSize: 14 * theme.textScale, color: theme.colors.accentStrong}}>{defaultI18n.number(1)}</Text>
-    </View>}
-  </Focusable>;
+  const control = (id: 'shuffle' | 'repeat', active: boolean, label: string, intent: V1QueuePolicyIntent): AudioControl => ({
+    icon: id === 'shuffle' ? 'i-shuffle' : 'i-repeat', label, active, busy, focusId: id, testID: `${testID}-${id}`,
+    repeatOne: id === 'repeat' && queue.queue.repeat === 'one',
+    onPress: () => {void change(intent);},
+  });
   const repeat = queue.queue.repeat;
   return {
-    shuffle: queue.queue.radio ? null : button('shuffle', queue.queue.shuffled, t('next.dock.shuffle'), {action: 'shuffle', shuffled: !queue.queue.shuffled}),
-    repeat: button('repeat', repeat !== 'off', t(repeat === 'one' ? 'next.dock.repeatOne' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOff'),
+    shuffle: queue.queue.radio ? undefined : control('shuffle', queue.queue.shuffled, t('next.dock.shuffle'), {action: 'shuffle', shuffled: !queue.queue.shuffled}),
+    repeat: control('repeat', repeat !== 'off', t(repeat === 'one' ? 'next.dock.repeatOne' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOff'),
       {action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'}),
   };
 }

@@ -14,7 +14,7 @@ import {GestureCommitScope} from '../src-next/kit/controls/gesture-commit.ts';
 import {commandAllowed, dockCommand, playbackPosition, seekBounds, seekTo} from '../src-next/kit/dock/model.ts';
 import type {DockCommand, DockOccupant} from '../src-next/kit/dock/types.ts';
 import type {ListeningScrubber} from '../src-next/kit/dock/ListeningCoverBridge.tsx';
-import type {NowPlayingScreenProps} from '../src-next/screens/destinations/music/NowPlayingScreen.tsx';
+import type {NowPlayingScreenProps} from '../src-next/pages/shared/player/audio-player.ts';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes)
   : React.isValidElement<any>(node) ? [node, ...nodes(node.props.children)] : [];
@@ -30,7 +30,7 @@ async function fixture(hosted = true) {
       seekWindow: {start: 100, end: 200}, skipBackSeconds: 10, skipForwardSeconds: 30,
       capabilities: {play: true, pause: true, stop: true, seek: true, previous: false, next: false, cast: false}},
   };
-  const theme = {isTV: false, colors: {text: '#fff', textSecondary: '#ddd', textTertiary: '#aaa', ink: '#000', line: '#555'}, layers: {player: 30}};
+  const theme = {isTV: false, form: 'phone', colors: {text: '#fff', textSecondary: '#ddd', textTertiary: '#aaa', ink: '#000', line: '#555'}, layers: {player: 30}};
   const equalizer = {supported: true};
   const permit = {current: () => paintCurrent, subscribe: () => () => {}};
   const pan = () => {
@@ -39,7 +39,7 @@ async function fixture(hosted = true) {
     for (const name of ['onBegin', 'onUpdate', 'onEnd', 'onFinalize']) value[name] = (run: (...args: any[]) => void) => {value.callbacks[name] = run; return value;};
     return value;
   };
-  const mod = await screenModule(new URL('../src-next/screens/destinations/music/NowPlayingScreen.tsx', import.meta.url), {'./use-audiobook-read': {useAudiobookRead: () => ({reader: undefined, snapshot: {phase: 'retired'}})}, './audiobook-controls': audiobookControls, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})}, 
+  const playerBindings = {'../../../screens/destinations/music/use-audiobook-read': {useAudiobookRead: () => ({reader: undefined, snapshot: {phase: 'retired'}})}, '../../../screens/destinations/music/audiobook-controls': audiobookControls, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})},
     react: {...React, default: React},
     'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView', BackHandler: {addEventListener: () => ({remove() {}})}},
     'react-native-gesture-handler': {Gesture: {Pan: pan}, GestureDetector: 'GestureDetector'},
@@ -47,7 +47,7 @@ async function fixture(hosted = true) {
       useSharedValue: (value: unknown) => React.useRef({value}).current, useAnimatedStyle: (read: () => unknown) => read()},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: () => equalizer}},
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}},
-    '../../watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'}, './MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'},
+    '../../../screens/watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'}, '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'},
     '../../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': {clockText},
     '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
@@ -58,28 +58,31 @@ async function fixture(hosted = true) {
       useListeningScrubberPublication: (value: ListeningScrubber | undefined) => {scrubber = value; return hosted;}},
     '../../../kit/browse/presentation': {alpha: (color: string) => color, browseType: () => ({})},
     '../../../kit/dock/model': {commandAllowed, dockCommand, playbackPosition, seekBounds, seekTo},
-    './NowPlayingQueue': {NowPlayingQueue: 'Queue'},
-    './ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'Favorite'},
-    './TVMusicFocus': {MusicFocusRegion: 'FocusRegion', TVMusicFocus: 'TVFocus', TVMusicSeek: 'TVSeek'},
-    './ListeningNotice': {NativeListeningNotice: 'Notice'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVNowPlaying'},
+    '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerPage'}, '../../../screens/destinations/music/NowPlayingQueue': {nowPlayingSource: () => undefined, NowPlayingQueue: 'Queue'},
+    '../../../screens/destinations/music/ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'Favorite'},
+    '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: 'FocusRegion', TVMusicFocus: 'TVFocus', TVMusicSeek: 'TVSeek'},
+    '../../../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'Notice'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVNowPlaying'},
     '../../../kit/overlays/SurfacePaintHost': {RetainedOverlay: 'RetainedOverlay'},
     '../../../kit/dock/PlayerMorphBridge': {usePublishedPlayerMorph: () => undefined},
     '../../../kit/overlays/OverlayPaintContext': liveOverlayPaint,
-    './NowPlayingLyrics': {NowPlayingLyrics: 'Lyrics'}, './ListeningPanePaint': {ListeningQueuePaint: 'QueuePaint', ListeningLyricsPaint: 'LyricsPaint'},
+    '../../../screens/destinations/music/NowPlayingLyrics': {NowPlayingLyrics: 'Lyrics'}, '../../../screens/destinations/music/ListeningPanePaint': {ListeningQueuePaint: 'QueuePaint', ListeningLyricsPaint: 'LyricsPaint'},
     '../../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})},
+  };
+  const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTouchAudioPlayer.ts', import.meta.url), playerBindings);
+  const {AudioPlayerPage} = await screenModule(new URL('../src-next/pages/touch/player/AudioPlayerPage.tsx', import.meta.url), {
+    ...playerBindings, '../../shared/player/useTouchAudioPlayer': playerHook,
+    '../../../kit/player/queue': {AudioPanel: 'AudioPanel', ChapterList: 'ChapterList', ChapterTicks: 'ChapterTicks'},
+    '../../../kit/player/ListeningSurface': {ListeningCover: 'ListeningCover', ListeningNoticeLine: 'NoticeLine', ListeningPageBackground: 'ListeningPageBackground', ListeningPanel: 'ListeningPanel', ListeningSurface: 'ListeningSurface'},
+    '../../../kit/player/listening-presentation': {equalizerCopy: () => ({}), retainedListeningParts: [], omittedListeningParts: []},
   });
   const host = createFabricHookHost(() => {
     const props: NowPlayingScreenProps = {occupant, width: 390, height: 844, onAction: command => commands.push(command), onClose() {}};
-    // Follow the exported wrapper's actual touch branch without exporting or
-    // copying its private implementation just to make a test seam.
-    const touch = mod.NowPlayingScreen(props);
-    assert.equal(typeof touch.type, 'function');
-    tree = touch.type(touch.props);
+    tree = AudioPlayerPage(props);
   });
   await host.mount();
   const live = () => {assert.ok(scrubber, 'the actual component published an enabled scrubber'); return scrubber;};
   return {host, commands, fence, live, get occupant() {return occupant;},
-    seekPaint: () => {const node = nodes(tree).find(value => value.type === 'ListeningSeekPaint'); assert.ok(node); return node;},
+    seekPaint: () => {const node = nodes(tree).find(value => value.type === 'AudioPlayerPage')?.props.scrubber; assert.ok(node); return node;},
     async position(seconds: number) {occupant = {...occupant, playback: {...occupant.playback, positionSeconds: seconds}}; await host.rerender();},
     async presentation(change: Partial<DockOccupant['presentation']>) {occupant = {...occupant, presentation: {...occupant.presentation, ...change}}; await host.rerender();},
     async replace() {const next = dockFence('successor'); occupant = {...occupant, playback: {...occupant.playback, kind: 'music', queue: null, fence: next}, presentation: {...occupant.presentation, fence: next}}; await host.rerender(); return next;},
