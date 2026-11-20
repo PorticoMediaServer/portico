@@ -4,7 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {NativeScreenLifetime} from '../lifetime';
 import {createNativeSettingsPorts} from '../settings-ports';
 import {createNativeRecordingsController} from '../recordings-controller';
-import {NativeRecordingsScreen} from '../RecordingsScreen';
+import {RecordingsPage} from '../../../pages/shared/live/RecordingsPage';
 import {NativeServerTroubleshooting} from './TroubleshootingPage';
 import {TopBar} from '../../../kit/layout/TopBar';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
@@ -43,8 +43,7 @@ export function createNativeServerFeedbackRenderer(context: NativeShellBootstrap
 }
 
 function RecordingsDestination({controller, ports, runtime, onGuide}: {controller: ReturnType<typeof createNativeRecordingsController>; ports: ReturnType<typeof createNativeSettingsPorts>; runtime: NativeShellRuntime; onGuide: () => void}) {
-  const insets = useSafeAreaInsets();
-  return <View style={{flex: 1, paddingTop: insets.top}}><NativeRecordingsScreen controller={controller} ports={ports} runtime={runtime} onGuide={onGuide}/></View>;
+  return <RecordingsPage controller={controller} ports={ports} runtime={runtime} onGuide={onGuide}/>;
 }
 
 function ServerFeedbackDestination({ports, runtime, onBack}: {ports: ReturnType<typeof createNativeSettingsPorts>; runtime: NativeShellRuntime; onBack: () => void}) {

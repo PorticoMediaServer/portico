@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {React, fabricHost} from './helpers/fabric-host.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
+import {liveGuideModule, liveTabsFixture, ownerTagFixture, recordingsPageModule} from './helpers/live-fixtures.mjs';
 import {defaultI18n, catalogue, enUS} from '../../../packages/i18n/src';
 import * as dvr from '../../../packages/client-core/src/dvr';
 import * as channels from '../../../packages/client-core/src/channel-guide';
@@ -61,7 +61,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
   const context: any = {api: {baseUrl: origin}, account, authority: () => authority,
     current: () => current, navigation: {subscribe: listen, getSnapshot: () => {if (disposed) {disposedReads++; throw new Error('native_shell_cancelled');} return route;}, isCurrent: () => current}};
   const runtime: any = {retirementSignal: retirement.signal, subscribe: listen, getSnapshot: () => {if (disposed) {disposedReads++; throw new Error('native_shell_cancelled');} return shell;}, text: {t: defaultI18n.t, locale: 'en-US'},
-    error: (_: unknown, retry: () => void) => ({title: 'Unavailable', primaryAction: {id: 'retry', label: 'Retry', onPress: retry}}), reportError: (error: unknown) => {throw error;}, onDestination: noop};
+    error: (_: unknown, retry: () => void) => ({title: 'Unavailable', primaryAction: {id: 'retry', label: 'Retry', onPress: retry}}), reportError: (error: unknown) => {throw error;}, onDestination: noop, artwork: () => undefined};
   const useScreenBack = (_: unknown, fn: () => boolean, enabled: boolean) => React.useEffect(() => {if (enabled) {backs.add(fn); return () => {backs.delete(fn);};}}, [fn, enabled]);
   const pageBack = {enabled: false, page: undefined as any}, entries: any[] = [];
   const native = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', FlatList: 'FlatList', VirtualizedList: 'VirtualizedList', Platform: {OS: 'android'},
@@ -81,8 +81,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
     '../../kit/controls': controls, '../../kit/focus': focus, '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog', Menu: 'Menu', ToastHost: 'ToastHost'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {Quiet: ({children}: any) => children, StateView: (props: any) => jsx('StateView', props)}, '../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
     '../../kit/theme': {useTheme: () => theme}, '../../shell/tv-focus': {tvFocusIds}, './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack, useScreenEntry: () => noop}, './recording-rule-presentation': rules};
-  const recordingModule = await screenModule(new URL('../src-next/screens/settings-live/RecordingsScreen.tsx', import.meta.url), {'../../kit/live/Recordings': {RecordingStorageSummary: 'RecordingStorageSummary'},
-    '../../pages/touch/live/RecordingsPage': {RecordingsPage: ({back, list, overlay}: any) => React.createElement('RecordingsPage', null, jsx('Button', back), list, overlay)}, '../../pages/tv/live/RecordingsPage': {TVRecordingsPage: ({facts, tabs, list, overlay}: any) => React.createElement('TVRecordingsPage', null, facts, tabs, list, overlay)}, ...common, ...liveTabsFixture(React),
+  const recordingModule = await recordingsPageModule({...common, ...liveTabsFixture(React),
     '../../../../../packages/client-core/src/presentation/title-page': titlePage, '../../../../../packages/client-core/src/media-item': mediaItem, '../../../../../packages/client-core/src/library-content': content, '../../../../../packages/contracts/src/routes': routes,
     './recording-overlap-window': overlap, '../home/entry-lifetime': entryLifetime, './LiveRecordingOwner': {NewRuleSheet: (props: any) => {editors.push(`new-rule:${props.open}`); return jsx('NewRuleEditor', props);}},
   });
@@ -102,12 +101,11 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
   const recordings: any = realRecordings ? new NativeRecordingsController(lifetime, realService) : fakeRecordings;
   let activeOpening: object | undefined;
   if (realRecordings) {const begin = recordings.beginViewerOpening; recordings.beginViewerOpening = (opening: object) => {activeOpening = opening; begin(opening);};}
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {'../../pages/touch/live/GuidePage': {GuidePage: ({actions, tabs, toolbar, list, overlay}: any) => React.createElement('GuidePage', null, actions, tabs, toolbar, list, overlay)}, '../../pages/tv/live/GuidePage': {TVGuidePage: ({actions, tabs, toolbar, list, overlay}: any) => React.createElement('GuidePage', null, actions, tabs, toolbar, list, overlay)}, ...common, ...liveTabsFixture(React), ...ownerTagFixture,
+  const {NativeLiveScreen} = await liveGuideModule({...common, ...liveTabsFixture(React), ...ownerTagFixture,
     './tv-settings-focus': tvSettingsFocus,
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 'react-native-gesture-handler': {GestureDetector: 'GestureDetector'},
-    'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
-    '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': directory, './GuideLoadingMarker': {GuideLoadingMarker: 'Loading'},
-    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity() {}}, '../../shell/model': shellModel, './RecordingsScreen': recordingModule, '../../tv/layout/guide-focus': {},
+    'react-native-reanimated': {useDerivedValue: (fn: () => unknown) => ({value: fn()}), default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
+    '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': directory, '../../kit/live/NativeGuideRow': {LiveRow: 'LiveRow', GuideChannelArt: 'GuideChannelArt'}, '../../kit/live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../../kit/live/GuideRuler': {GuideRuler: 'GuideRuler'}, '../../kit/live/Guide': {guideSpec: {ruler: 36, nowPill: 120}}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity() {}}, '../../shell/model': shellModel, './RecordingsScreen': recordingModule, '../../tv/layout/guide-focus': {},
     '../destinations/useTVPageBack': {useTVPageBack: (_r: unknown, _d: unknown, enabled: boolean, page: any) => {pageBack.enabled = enabled; pageBack.page = page;}},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
@@ -196,15 +194,15 @@ test('recording rows draw no ⋯ on any platform; touch keeps tap for details an
       const tree = elements(rendered.type({...rendered.props, runtime: f.runtime}));
       assert.equal(tree.find(node => node.props.testID === 'recordings-more-recording'), undefined);
       const rowNode = tree.find(node => node.props.testID === 'recordings-row-recording')!;
-      assert.equal(rowNode.props.onLongPressAction, rendered.props.onMenu, 'long press (hold OK on TV) opens the menu');
-      assert.equal(rowNode.props.onPress, rendered.props.onOpen, 'a press opens the details');
+      assert.equal(rowNode.props.onLongPressAction, rendered.props.focus.onLongPressAction, 'long press (hold OK on TV) opens the menu');
+      assert.equal(rowNode.props.onPress, rendered.props.onPress, 'a press opens the details');
     } finally {await f.close();}
   }
 });
 
 test('a show’s recordings say Kept or Unplayed; other lists do not', async () => {
   const f = await fixture({isTV: false, role: 'member', canManage: false}); try {
-    const facts = (tree: any) => elements(tree).filter(node => node.type === 'ScreenText').map(node => node.props.children).filter((value: unknown) => typeof value === 'string');
+    const facts = (tree: any) => elements(tree).filter(node => node.type === 'Text').map(node => node.props.children).filter((value: unknown) => typeof value === 'string');
     const draw = async (query: object, recording: any) => {
       f.recordingState.query = query; f.recordingState.page = {recordings: [recording], rules: [], captureAvailable: true}; f.recordingState.viewerWindow = windowOf([recording]);
       await f.recordings(); const list = f.all().find(node => node.type === 'FlatList')!;

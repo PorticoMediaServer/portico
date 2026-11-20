@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {React, fabricHost} from './helpers/fabric-host.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
+import {liveGuideModule, liveTabsFixture, ownerTagFixture} from './helpers/live-fixtures.mjs';
 import {defaultI18n} from '../../../packages/i18n/src';
 import * as dvr from '../../../packages/client-core/src/dvr';
 import * as channels from '../../../packages/client-core/src/channel-guide';
@@ -95,7 +95,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   const recordings: any = {getSnapshot: () => recordingSnapshot, lifetime, subscribe: (fn: () => void) => {recordingListeners.add(fn); return () => {recordingListeners.delete(fn);};},
     loadSummary: async () => {summaryReads.push(summaryReads.length);},
     schedule: async (draft: unknown, options: unknown) => {scheduled.push({draft, options}); return scheduleFails ? undefined : {value: {id: `rec-${scheduled.length}`, state: 'scheduled'}};}};
-  const {NativeLiveScreen} = await screenModule(new URL('../src-next/screens/settings-live/LiveScreen.tsx', import.meta.url), {'../../pages/touch/live/GuidePage': {GuidePage: ({actions, tabs, toolbar, list, overlay}: any) => jsx('GuidePage', null, actions, tabs, toolbar, list, overlay)}, '../../pages/tv/live/GuidePage': {TVGuidePage: ({actions, tabs, toolbar, list, overlay}: any) => jsx('GuidePage', null, actions, tabs, toolbar, list, overlay)}, ...liveTabsFixture(React), ...ownerTagFixture,
+  const {NativeLiveScreen} = await liveGuideModule({...liveTabsFixture(React), ...ownerTagFixture,
     react: {...React, default: React}, 'react-native': native,
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Pattern: 'Pattern', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/dvr': dvr, '../../../../../packages/client-core/src/presentation/kit-model': kitModel,
@@ -105,9 +105,8 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     '../../shell/tv-focus': {tvFocusIds}, './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack: noop, useScreenEntry: () => noop}, './recording-rule-presentation': rules,
     './tv-settings-focus': tvSettingsFocus,
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 'react-native-gesture-handler': {GestureDetector: 'GestureDetector'},
-    'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
-    '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': {...directory, GuideFeatureClient: FakeFeatures}, './GuideLoadingMarker': {GuideLoadingMarker: 'Loading'},
-    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity: noop}, '../../shell/model': shellModel, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'}, '../../tv/layout/guide-focus': {},
+    'react-native-reanimated': {useDerivedValue: (fn: () => unknown) => ({value: fn()}), default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
+    '../../../../../packages/client-core/src/guide': guide, '../../../../../packages/client-core/src/guide/directory': {...directory, GuideFeatureClient: FakeFeatures}, '../../kit/live/NativeGuideRow': {LiveRow: 'LiveRow', GuideChannelArt: 'GuideChannelArt'}, '../../kit/live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../../kit/live/GuideRuler': {GuideRuler: 'GuideRuler'}, '../../kit/live/Guide': {guideSpec: {ruler: 36, nowPill: 120}}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity: noop}, '../../shell/model': shellModel, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'}, '../../tv/layout/guide-focus': {},
     '../destinations/useTVPageBack': {useTVPageBack: noop}, '../destinations/useEntryFocus': {useDestinationEntryFocus: noop}, './guide-presentation': guidePresentation,
     '../../kit/useScreenReader': {useScreenReader: () => false},
     './useGuideTimePan': {useGuideTimePan: () => ({active: false, position: {value: 0}, adjust: noop})}, '../../../../../packages/client-core/src/presentation/live-availability': availability, './guide-pan-model': guidePan, './LivePhonePicker': {NativeLivePhonePicker: 'PhonePicker'},
@@ -115,6 +114,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'}, './server/tv-server-reader': {nativeServerAdmission}, '../../tv/auth': {TVManagementHandoff: 'Handoff'},
     '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (address: string) => ({url: address})},
   });
+  runtime.artwork = () => undefined;
   const ports = {context};
   await host.render(jsx(NativeLiveScreen, {controller, recordings, owner: {}, ports, runtime}));
   const all = () => nodes(host.root), find = (id: string) => all().find(node => node.props?.testID === id);

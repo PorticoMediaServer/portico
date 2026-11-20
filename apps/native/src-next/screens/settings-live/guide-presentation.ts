@@ -1,6 +1,6 @@
 import {defaultI18n, type I18n} from '../../../../../packages/i18n/src';
 import {episodeLabel, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
-import type {GuideProgram} from '../../../../../packages/client-core/src/guide/types';
+import type {GuideChannelRow, GuideProgram} from '../../../../../packages/client-core/src/guide/types';
 
 /** UI language and number/date format locale may differ. Preserve the actual
  * resolved auto-hour policy, including undefined; old runtimes keep their
@@ -59,3 +59,18 @@ export function nativeChannelMenuEntries(channel: Readonly<{favorite: boolean; k
 
 /** Phone-only Library Channel editing uses the existing Settings stack. */
 export const nativeLibraryChannelEditorRoute = (channelId: string) => ({kind: 'server-settings', page: 'live', channelId} as const);
+
+// tv.html frame 6: the grid is one focus region, so every cell carries the served
+// identity as a tagged tuple. Canonical ids may contain any text up to 256
+// characters, so joining with a delimiter can collide and a programme id may itself
+// begin with a gap's label; the tag and a JSON tuple keep them distinct, and an
+// absent source stays absent rather than becoming a made-up value.
+export type GuideCellIdentity =
+  | Readonly<{kind: 'programme'; id: string}>
+  | Readonly<{kind: 'gap'; start: number}>
+  | Readonly<{kind: 'now'}>;
+export const channelFocusId = (channel: GuideChannelRow) =>
+  JSON.stringify(['channel', channel.kind, channel.sourceId ?? null, channel.id]);
+export const cellFocusId = (channel: GuideChannelRow, cell: GuideCellIdentity) =>
+  JSON.stringify([cell.kind, channel.kind, channel.sourceId ?? null, channel.id,
+    cell.kind === 'programme' ? cell.id : cell.kind === 'gap' ? cell.start : null]);

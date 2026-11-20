@@ -1,6 +1,6 @@
 import React from 'react';
-import {LoadingPaint, SkeletonBlock} from '../../kit/states';
-import {guideLoadingMarkerBox} from './guide-loading-marker';
+import {LoadingPaint, SkeletonBlock} from '../states';
+import {guideLoadingMarkerBox} from '../../screens/settings-live/guide-loading-marker';
 
 /** The cell's programme loading marker as a pure wrapper over the approved
  * LoadingPaint: ready=false keeps the shared 300ms quiet window and the static

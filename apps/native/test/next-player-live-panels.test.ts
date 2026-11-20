@@ -91,7 +91,7 @@ test('mobile live More opens the current real menu, details and series sheet wit
   const {NativeLiveActionPanels} = await screenModule(new URL('../src-next/screens/watch/LiveActionPanels.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text'}, '../../../../../packages/client-core/src/guide/legacy-source': {legacyChannel: (value: unknown) => value, legacyProgramme: (value: unknown) => value},
     '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/states': {StateView: 'State'}, '../../kit/theme': {useTheme: () => theme},
-    '../settings-live/LiveScreen': {ProgrammeDetails: 'ProgrammeDetails'}, '../settings-live/LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRuleSheet'},
+    '../../kit/live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../settings-live/LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRuleSheet'},
   });
   const render = () => h.render(() => NativeLiveActionPanels({actions, context: {playback: {subscribe, getSnapshot: () => ({})}}, runtime: {text: {t}, reportError: assert.fail}}));
   const menu = render();assert.equal(menu.type, 'Menu');assert.equal(menu.props.description, 'Mountain Stage');assert.deepEqual(menu.props.items.map((item: any) => item.id), ['series', 'favorite', 'details']);
