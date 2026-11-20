@@ -62,7 +62,7 @@ function SettingsListBody({bar, backdrop, search, list, profile, shortcuts, page
     {/* The list's column is already placed from the gutter, so the cards in it start at the column's own edges. */}
     <View style={phone ? page ? hidden : shown : {width}}>
       {phone && <SheetBar {...bar}/>}
-      <ScrollView style={phone ? undefined : {flex: 1, width: width + 2 * ring, marginLeft: -ring}}
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" style={phone ? undefined : {flex: 1, width: width + 2 * ring, marginLeft: -ring}}
         contentContainerStyle={phone ? {paddingBottom: frameSpec.sheet.footerClear} : {paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}>
         <FrameColumn.Provider value={!phone || column}>
           {!phone && !searching && <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: frame.headerGap}]}>{bar.title}</Text>}

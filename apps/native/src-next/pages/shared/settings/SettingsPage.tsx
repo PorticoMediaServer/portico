@@ -68,8 +68,8 @@ export function NativeSettingsPage(props: SettingsProps) {
       {serverGroups.map(group => <SettingsNavigationGroup key={group[0]?.id}>{group.map(value => row(value, true))}</SettingsNavigationGroup>)}
     </SettingsNavigationGroup>}
   </>;
-  const profile = compact && <SettingsProfileCard testID="settings-profile-card" profile={shell.profile} locked={shell.profile.pinRequired} description={signedIn} onPress={() => choose('profile')}/>;
-  const shortcuts = compact && <>
+  const profile = compact && !searchingQuery && <SettingsProfileCard testID="settings-profile-card" profile={shell.profile} locked={shell.profile.pinRequired} description={signedIn} onPress={() => choose('profile')}/>;
+  const shortcuts = compact && !searchingQuery && <>
     {dashboardCard && <PhoneDashboardCard t={t} update={updatePending} onPress={openDashboard}/>}
     {!!sheetShortcuts.length && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts.map(action => action.id === 'notifications' && unreadNotifications > 0
       ? {...action, trailing: <SettingsNotificationCount count={defaultI18n.number(unreadNotifications)}/>} : action)}/>}
