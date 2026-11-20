@@ -97,7 +97,7 @@ test(`actual retained Read components cap guest residency and restore original s
   const {NativeReadingGuestHost} = await screenModule(new URL('../src-next/screens/read/NativeReadingGuestHost.tsx', import.meta.url), {...stackSlotFixture, 
     react, 'react-native': native, 'react-native-webview': {default: WebView}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/states': {LoadingPaint: ({children}: any) => children, SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
+    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, './asset-origin': {readerAssetEntry}, './ReadingGuestView': {ReadingGuestView, createReadingGuestBridge},
   });
   const {ReadNativeHost} = await screenModule(new URL('../src-next/screens/read/ReadNativeHost.tsx', import.meta.url), {...stackSlotFixture, 
@@ -105,7 +105,7 @@ test(`actual retained Read components cap guest residency and restore original s
     '../../../../../packages/client-core/src': {preferenceValue, ReadingError}, '../../../../../packages/i18n/src': {defaultI18n},
     '../downloads/device': {createNativeDownloadsDevice: () => {throw new Error('unexpected offline device');}}, '../../../platform/offline-downloads': {offlineDownloads: {}},
     '../../kit/states': {LoadingPaint: ({children}: any) => children, SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
+    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     './NativeReadingGuestHost': {NativeReadingGuestHost}, './reading-session-owner': {createReadingSessionOwner, closeReadingResource},
     './annotation-journal': {NativeAnnotationJournal: class {unbind() {}}, nativeAnnotationIdentity: () => ({}), nativeAnnotationLeaseOf: () => undefined},
     './annotation-session': {nativeAnnotationBridge: (value: any) => value.session}, './annotation-sync': {NativeAnnotationSync: class {dispose() {} flush() {return Promise.resolve();}}},

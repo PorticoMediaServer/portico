@@ -41,7 +41,7 @@ test('twenty original sessions can evict and restore real guest components witho
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'}, '../../kit/controls/Button': {Button: 'Button'},
-    '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
+    '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
     './asset-origin': {readerAssetEntry}, './ReadingGuestView': {ReadingGuestView, createReadingGuestBridge},
   });
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'a'.repeat(64)};

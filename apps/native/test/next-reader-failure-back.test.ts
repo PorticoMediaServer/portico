@@ -86,7 +86,7 @@ async function harness(fixture: Fixture) {
     react: {...React, default: React}, 'react-native': {View: 'View', NativeModules: {PorticoReaderAssets: {bundle: async () => at === 'assets' ? {} : {url: appleReaderEntry}}}, useWindowDimensions: () => ({width, height: 844})},
     'react-native-webview': {default: 'WebView'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'},
-    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
+    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, './asset-origin': {readerAssetEntry},
     './ReadingGuestView': {ReadingGuestView: 'ReadingGuestView', createReadingGuestBridge: () => {hostCalls++; return {...reader};}},
   });
@@ -111,7 +111,7 @@ async function harness(fixture: Fixture) {
     '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), publicationSource: () => ({sourceId: 'source'}), readingSession: async () => session}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'},
     '../../kit/controls/Button': {Button: 'Button'},
-    '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
+    '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
     './NativeReadingGuestHost': {NativeReadingGuestHost: 'NativeReadingGuestHost'},
     './reading-session-owner': {createReadingSessionOwner, closeReadingResource},

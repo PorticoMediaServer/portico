@@ -24,6 +24,8 @@ const LAYERS: Record<string, string> = {
   'screens/share/NativeContentLinks.tsx': 'the page for a link that cannot be opened',
   'screens/share/NativeShareLinks.tsx': 'the page for a share link that cannot be opened',
   'screens/settings-live/server/channels/ChannelEditor.tsx': 'the channel editor and its preview, windows of their own',
+  'screens/read/ReadNativeHost.tsx': 'the reader, a window over the shell: its wait and its failure page',
+  'screens/read/NativeReadingGuestHost.tsx': 'the reader guest, a window over the shell: its wait and its failure page',
   'dev/families/artwork/artwork.gallery.tsx': 'the Kit gallery case that shows the backdrop',
   'dev/families/frames/player.gallery.tsx': 'the gallery\'s stand-in for the player hosts: the audio layer with its glow, the black video layer',
 };

@@ -92,7 +92,7 @@ test(`actual live host with its presentation binding fences original close on ${
     '../downloads/device': {createNativeDownloadsDevice: () => {throw new Error('unexpected offline device');}},
     '../../../platform/offline-downloads': {offlineDownloads: {}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'},
-    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
+    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     './NativeReadingGuestHost': {NativeReadingGuestHost: 'NativeReadingGuestHost'},
     './reading-session-owner': {createReadingSessionOwner, closeReadingResource},
     './annotation-journal': {NativeAnnotationJournal: class {unbind() {}}, nativeAnnotationIdentity: () => ({}), nativeAnnotationLeaseOf: () => undefined},
