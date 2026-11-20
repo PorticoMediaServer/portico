@@ -98,8 +98,11 @@ export async function recordingsPageModule(previous) {
     '../overlays': previous['../../kit/overlays'], '../states': previous['../../kit/states'], '../Icon': previous['../../kit/Icon'],
     '../artwork': {Artwork: 'Artwork', ChannelMark: 'ChannelMark', GeneratedArt: 'GeneratedArt'},
     '../cards/primitives': {Progress: 'Progress'},
-    '../frames/metrics': {useFrameMetrics: () => ({form: previous['../../kit/theme'].useTheme().isTV ? 'tv' : 'phone',
-      gutter: 20, rightGutter: 20, cardInset: 0, cardRadius: 12, cardPadding: 16})},
+    '../frames/metrics': {useFrameMetrics: () => {
+      const theme = previous['../../kit/theme'].useTheme();
+      return {form: theme.form, width: theme.width, gutter: theme.gutter, rightGutter: theme.gutter,
+        cardInset: 0, cardRadius: 12, cardPadding: 16};
+    }},
     '../../../../../packages/i18n/src': previous['../../../../../packages/i18n/src'],
     '../../../../../packages/client-core/src/presentation/title-page': previous['../../../../../packages/client-core/src/presentation/title-page'],
     '../../../../../packages/client-core/src/dvr': previous['../../../../../packages/client-core/src/dvr'],
