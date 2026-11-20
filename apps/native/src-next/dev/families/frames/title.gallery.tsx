@@ -357,7 +357,8 @@ function PhoneBook() {
     // The served ambient image is not available to the gallery (artwork.gallery.tsx); the cover's palette stands in for the glow.
     art={<AmbientArt treatment="library" palette={{first: '#5b4a86', second: '#2a2238'}}/>}
     cover={{shape: 'square', node: <Artwork source={asset('pool/books/harry-potter-and-the-philosopher-s-stone.jpg')} style={{width: '100%', height: '100%'}}/>}}
-    kicker={{label: f('bookSeries'), detail: f('bookSeriesDetail'), onPress: none}} title={f('book')} byline={{text: f('authorValue'), onPress: none}}
+    // The series and the book's place in it as one line (collections 41a "Harry Potter, book 1"), a link to the series.
+    kicker={{label: t('title.seriesAndBook', {series: f('bookSeries'), number: '1'}), onPress: none}} title={f('book')} byline={{text: f('authorValue'), onPress: none}}
     // The author is the byline: the facts are who reads it, how long and how many chapters.
     metadata={<Meta text={f('bookFacts').split(' · ').slice(1).join(' · ')}/>}
     primary={{icon: 'i-play', label: f('resumeChapter'), progress: .32, remaining: f('bookLeft'), onPress: none}}

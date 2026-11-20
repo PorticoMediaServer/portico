@@ -2018,6 +2018,7 @@ export const enUS = {
   'title.resumeChapter': 'Resume {chapter}',
   'title.resumeChapterNumber': 'Resume chapter {number}',
   'title.bookInSeries': ', book {number}',
+  'title.seriesAndBook': '{series}, book {number}',
   'title.published': 'Published',
   'title.aboutThisBook': 'About this book',
   'title.publisher': 'Publisher',

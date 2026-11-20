@@ -6,6 +6,9 @@ import {nativeDestinationLifetime} from '../lifetime';
 import {createNativeEntryActions} from '../entry-actions';
 import {NativeAudiobookController, type AudiobookLease, type AudiobookScreenController} from './model';
 import {BookScreen} from './BookScreen';
+import {useTheme} from '../../../kit/theme';
+import {BookPage} from '../../../pages/touch/book/BookPage';
+import type {BookPageProps} from '../../../pages/shared/book/useBook';
 import {AuthorSeriesScreen} from './AuthorSeriesScreen';
 
 type MenuArgs = Parameters<ReturnType<typeof createNativeEntryActions>['menu']>;
@@ -16,6 +19,12 @@ type Page = Readonly<{key: string; entry: ContentEntry; controller: NativeAudiob
   drawn: {route?: NativeShellRoute}}>;
 
 /** Phone 41a and TV 43: the real book page. One route-owned controller per book. */
+/** A phone draws an audiobook on the rebuilt page (collections 41a); a tablet and TV keep the old book screen until their
+ * lanes rebuild it. */
+function BookHost(props: BookPageProps) {
+  return useTheme().platform === 'phone' ? <BookPage {...props}/> : <BookScreen {...props}/>;
+}
+
 export function createNativeBookRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
   const lifetime = nativeDestinationLifetime(context);
   let pages = new Map<string, Page>(), disposed = false;
@@ -126,7 +135,7 @@ export function createNativeBookRenderer(context: NativeShellBootstrapContext): 
         context.navigation.open(entry.kind === 'book' ? {kind: 'book', entry: target} : {kind: 'audiobook', entry: target}, context.authority());
       };
       return route.kind === 'book'
-        ? <BookScreen controller={controller} entry={page.entry} runtime={runtime} actions={actions} openEntry={openEntry} onBack={back}/>
+        ? <BookHost controller={controller} entry={page.entry} runtime={runtime} actions={actions} openEntry={openEntry} onBack={back}/>
         : <AuthorSeriesScreen controller={controller} entry={page.entry} runtime={runtime} actions={actions} openEntry={openEntry} onBack={back}/>;
     },
     dispose: () => {
