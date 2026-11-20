@@ -32,7 +32,7 @@ export function SearchGridCard({entry, group, runtime, actions, selection, width
     selection={selection?.active ? <SelectionCircle selected={selection.selected} selecting interactive={false} variant="row" accessibilityLabel={entry.title}/> : undefined}/></View>;
   if (theme.isTV && group === 'live-tv') return <ChannelCard {...props} onCaptionLayout={onCaptionLayout} subtitle={entry?.subtitle} artwork={runtime.artwork(entry?.posterUrl)}/>;
   if (group === 'movies' || group === 'shows') return <PosterCard {...props} artwork={runtime.artwork(entry?.posterUrl)}/>;
-  if (group === 'episodes') return <EpisodeTile {...props} label={text?.caption ?? []} layout="tile" artwork={runtime.artwork(content?.stillUrl ?? content?.backdropUrl ?? entry?.posterUrl)}/>;
+  if (group === 'episodes') return <EpisodeTile {...props} caption={undefined} label={text?.caption ?? []} layout="tile" artwork={runtime.artwork(content?.stillUrl ?? content?.backdropUrl ?? entry?.posterUrl)}/>;
   if (group === 'people') return <CircleCard {...props} person art={{source: runtime.artwork(entry?.posterUrl), initials: nameInitials(entry?.title ?? '')}}/>;
   if (group === 'artists') return <CircleCard {...props} art={{covers: content?.artworkPaths?.flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];}) ?? [], alt: entry?.title}}/>;
   return <SquareCard {...props} artwork={runtime.artwork(entry?.posterUrl)}/>;
