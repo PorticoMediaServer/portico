@@ -67,7 +67,6 @@ test('phone See all draws on the library frame: its header regions, one toolbar 
   const controller = {subscribe: () => () => {}, getSnapshot: () => state, rowId: row.id, kinds: [{id: 'movies'}], setSort() {}, setFilters() {}, selectKind: (id: unknown) => selected.push(id), collection: {subscribe: () => () => {}, getSnapshot: () => ({})}};
   const {HomeSeeAll} = await screenModule(new URL('../src-next/screens/home/HomeSeeAll.tsx', import.meta.url), {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
-    './generated-poster': {generatedPoster: () => null},
     react: h.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 390, height: 844})},
     '../../../../../packages/i18n/src': {defaultI18n: {has: () => false}},
     '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({sorts: [], sort: {}, groups: [], quick: [{id: 'unwatched', active: false, query: {}, label: {text: 'Unwatched'}}]})},
@@ -75,7 +74,7 @@ test('phone See all draws on the library frame: its header regions, one toolbar 
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_labels: unknown, value: any, fallback: any) => value ?? fallback}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
     '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({})},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../kit/browse': {BrowseToolbar: 'BrowseToolbar', FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SortMenu: 'SortMenu', ViewToggle: 'ViewToggle'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
-    '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', MediaArt: 'MediaArt', AmbientArt: 'AmbientArt'},
+    '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/artwork': {generatedPoster: () => null, StandardBackdrop: 'StandardBackdrop', MediaArt: 'MediaArt', AmbientArt: 'AmbientArt'},
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({subscribe: () => () => {}, getSnapshot: () => 0})},
     '../../kit/layout': {WindowedGrid: 'WindowedGrid'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', LoadingBoundary: 'LoadingBoundary', LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/theme': {nativeType: type, useTheme: () => theme}, '../../shell/model': {authorityKey: () => 'authority'}, './browse-label': {homeBrowseLabel: t}, './see-all-model': seeAllModel,

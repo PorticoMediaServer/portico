@@ -16,7 +16,7 @@ import {browseType} from '../../kit/browse/presentation';
 import {PosterCard} from '../../kit/cards';
 import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {AmbientArt} from '../../kit/artwork';
-import {generatedPoster} from './generated-poster';
+import {generatedPoster} from '../../kit/artwork';
 import {FocusItem, FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {WindowedGrid, type LayoutSelection} from '../../kit/layout';
 import {Icon} from '../../kit/Icon';

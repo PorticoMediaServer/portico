@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {homeContinuationCard, homeContinuationSource} from '../../../packages/client-core/src/presentation/home-continuation';
 // @fabric-react
 import * as homeWindow from '../src-next/screens/home/home-window';
@@ -24,6 +25,7 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import * as pageBack from '../src-next/screens/destinations/tv-page-back';
 import * as homeModel from '../src-next/screens/home/model';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {withHomeCards} from './helpers/home-cards-stub.mjs';
 import {expandFrames} from './helpers/browse-frame-stub.mjs';
 
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
@@ -33,11 +35,17 @@ const phoneTheme = createTheme({isTV: false, width: 390});
 const tabletTheme = createTheme({isTV: false, width: 834});
 const tvTheme = createTheme({isTV: true, width: 1920});
 const desktopTheme = createTheme({isTV: false, width: 1440});
+// The kit's Row draws a string sub-line in this role (checked against Row's source below): the phone's 13 px caption.
+const rowSubtitleRole = (theme: typeof phoneTheme) => theme.layoutMode === 'phone' ? theme.type.caption : theme.type.rowSubtitle;
+test('the kit Row draws a string sub-line in the phone caption role, rowSubtitle elsewhere', () => {
+  const row = readFileSync(new URL('../src-next/kit/layout/Row.tsx', import.meta.url), 'utf8');
+  assert.match(row, /typeof subtitle === 'string' \? <Text style=\{\[theme\.layoutMode === 'phone' \? theme\.type\.caption : theme\.type\.rowSubtitle,/);
+});
 
 function factsModule(theme: typeof phoneTheme) {
-  return screenModule(new URL('../src-next/screens/home/HomeHeroFacts.tsx', import.meta.url), {
+  return screenModule(new URL('../src-next/kit/home/HeroFacts.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {View: 'View', Text: 'Text'},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/theme': {nativeType, useTheme: () => theme},
+    '../../../../../packages/i18n/src': {defaultI18n}, '../theme': {nativeType, useTheme: () => theme},
   });
 }
 
@@ -49,7 +57,7 @@ test('phone Home rows take the drawn 28 px rhythm while the hero keeps its own h
   assert.equal(home.homeTopWithoutHero('tablet', 24), 24, 'a tablet has no phone header: rows start under the safe area');
   // Android walk, 12 Nov: a sideways phone keeps the shell's phone header (shellLayout), so its rows start under it too.
   assert.equal(home.homeTopWithoutHero(shellLayout(874, 402, false).kind, 0), 104, 'sideways, the rows still start under the phone header');
-  assert.equal(home.homeRowSubtitle(phoneTheme).fontSize, 13, 'phone-app.html .phone .row-head .sub is 13 px');
+  assert.equal(rowSubtitleRole(phoneTheme).fontSize, 13, 'phone-app.html .phone .row-head .sub is 13 px');
   assert.equal(home.homeContentBottom(phoneTheme, 84), 96, 'kit.css .ph-scroll ends 96 px over the 84 px bar');
   // Other platforms keep their shipped values.
   assert.deepEqual(home.homeRowSpacing(tvTheme), {marginBottom: 30});
@@ -57,15 +65,15 @@ test('phone Home rows take the drawn 28 px rhythm while the hero keeps its own h
   assert.equal(home.homeHeroBlock(tvTheme, 1080, false), 820);
   assert.equal(home.homeHeroBlock(tvTheme, 1080, true), 588);
   assert.equal(home.homeHeroBlock(desktopTheme, 560, false), 560);
-  assert.equal(home.homeRowSubtitle(tvTheme).fontSize, tvTheme.type.rowSubtitle.fontSize);
-  assert.equal(home.homeRowSubtitle(desktopTheme).fontSize, desktopTheme.type.rowSubtitle.fontSize);
+  assert.equal(rowSubtitleRole(tvTheme).fontSize, tvTheme.type.rowSubtitle.fontSize);
+  assert.equal(rowSubtitleRole(desktopTheme).fontSize, desktopTheme.type.rowSubtitle.fontSize);
   assert.equal(home.homeContentBottom(tvTheme, 0), 96);
   assert.equal(home.homeContentBottom(desktopTheme, 0), 24);
   assert.equal(tabletTheme.platform, 'tablet');
   assert.equal(tabletTheme.layoutMode, 'phone', 'tablet shares the shell mode, so mode alone cannot admit phone-only changes');
   assert.deepEqual(home.homeRowSpacing(tabletTheme), {marginTop: 26}, 'foldable.html .phone.md .row is 26 px above');
   assert.equal(home.homeHeroBlock(tabletTheme, 560, false), 560, 'the medium hero keeps the height its composition supplies');
-  assert.equal(home.homeRowSubtitle(tabletTheme), tabletTheme.type.caption, 'foldable.html keeps the drawn 13 px sub-line');
+  assert.equal(rowSubtitleRole(tabletTheme), tabletTheme.type.caption, 'foldable.html keeps the drawn 13 px sub-line');
   assert.equal(home.homeContentBottom(tabletTheme, 92), 132, 'foldable.html .md .ph-scroll keeps 40 px under the last row');
 });
 
@@ -179,7 +187,7 @@ test('the drawn phone facts badge is 9 px padding, .28 border and a 700 year; TV
 
 async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), rows: readonly any[], react: any = {...React, default: React}, registry = createFocusRegistry(), bindings: Record<string, any> = {}) {
   // Phone and tablet Home draw on the frame: read its parts in scroller(hero + rows) order (helpers/browse-frame-stub).
-  const module = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  const module = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react: {...react, useLayoutEffect: react.useLayoutEffect ?? react.useEffect}, '@portico/design': {heroSpec},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
@@ -193,7 +201,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({playable: true, details: true, watchlisted: false})},
     '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel},
-    '../../../../../packages/client-core/src/presentation/kit-model': {},
+    '../../../../../packages/client-core/src/presentation/kit-model': await import('../../../packages/client-core/src/presentation/kit-model/index.ts'),
     '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {AmbientArt: 'AmbientArt', ArtworkArrivalContext: React.createContext(undefined)}, '../../kit/controls': {Button: 'Button'},
     '../../kit/cards': {CollectionBanner: 'CollectionBanner', LiveCard: 'LiveCard', PosterCard: 'PosterCard', RankedCard: 'RankedCard', SquareCard: 'SquareCard', WideCard: 'WideCard', wideDetailHeight: () => 0},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
@@ -210,7 +218,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, './TvHomeRecovery': {TvHomeRecovery: 'Recovery'}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})},
     ...bindings,
-  });
+  }));
   return {...module, HomeScreen: (props: any) => expandFrames(module.HomeScreen(props))};
 }
 
@@ -240,7 +248,8 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
     {id: 'continue', kind: 'continue', artworkShape: 'landscape', title: 'Continue Watching', subtitleText: {fallback: 'In progress'}, entries: [entry], nextCursor: '', total: 1, start: 0, limit: 1},
     {id: 'on_now', kind: 'live', artworkShape: 'landscape', title: 'On now', subtitleText: {fallback: 'Synthetic Live TV'}, entries: [], nextCursor: '', total: 0, start: 0, limit: 0,
       live: {revision: 'live-1', sort: 'favorites', group: '', groups: [], observedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3_600_000).toISOString(), channels: [
-        {channel: {id: 'channel-1', sourceId: 'source-1', name: 'Channel One', number: 1, mark: {}, programmes: []}, source: {name: 'Synthetic Live TV'}},
+        {channel: {id: 'channel-1', sourceId: 'source-1', name: 'Channel One', number: 1, mark: {}, programmes: [
+          {title: 'Midday Report', start: new Date(Date.now() - 600_000).toISOString(), end: new Date(Date.now() + 1_200_000).toISOString(), flags: {}}]}, source: {name: 'Synthetic Live TV'}},
       ]}},
   ];
   const h = hooks(), authority = {serverId: 'actual', viewerFence: 'viewer'};
@@ -269,15 +278,27 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
   const scroller = descendants(tree).find(node => node.type === 'ScrollView');
   assert.equal(scroller.props.contentContainerStyle.paddingBottom, 84, 'the frame\'s bottom clearance (0 in the stand-in) over the 84 px bar');
   const row = descendants(tree).find(node => node.type === 'Row');
-  assert.equal(row.props.subtitle.type, 'Text');
-  assert.equal(row.props.subtitle.props.style[0].fontSize, 13);
-  assert.deepEqual(labels(row.props.subtitle), ['In progress']);
+  // The kit's Row draws the string sub-line in the phone's 13 px role (rowSubtitleRole, asserted above).
+  assert.equal(row.props.subtitle, 'In progress');
 
   const liveElement = descendants(tree).find(node => typeof node.type === 'function' && node.props?.itemWidth === 244);
   assert.ok(liveElement, 'the live row keeps the drawn 244 px channel card');
   const liveRow = liveElement.type(liveElement.props);
-  assert.deepEqual(labels(liveRow.props.subtitle), ['Synthetic Live TV']);
-  assert.equal(liveRow.props.subtitle.props.style[0].fontSize, 13);
+  assert.equal(liveRow.props.subtitle, 'Synthetic Live TV');
+  // phone-app.html frame 2: on a phone the channel card says the channel's name (no number or source line) and when the
+  // programme ends, not the time left and the range; a tablet and TV keep their lines.
+  const channelCard = (theme: typeof phoneTheme) => {
+    currentTheme = theme;
+    const item = rows[1]!.live!.channels[0]!, element = liveElement.type(liveElement.props).props.renderItem(item, {testID: 'live', onFocus() {}, onBlur() {}});
+    return element.type(element.props);
+  };
+  const phoneCard = channelCard(phoneTheme);
+  assert.equal(phoneCard.props.title, 'Midday Report');
+  assert.equal(phoneCard.props.number, undefined); assert.equal(phoneCard.props.sourceName, undefined); assert.equal(phoneCard.props.range, undefined);
+  assert.equal(phoneCard.props.caption.length, 1); assert.match(phoneCard.props.caption[0].text, /^Ends /);
+  const tabletCard = channelCard(tabletTheme);
+  assert.equal(tabletCard.props.number, 1); assert.equal(tabletCard.props.sourceName, 'Synthetic Live TV'); assert.ok(tabletCard.props.range);
+  assert.equal(tabletCard.props.caption[0]?.id, 'remaining');
   for (const theme of [tabletTheme, desktopTheme, tvTheme]) {
     currentTheme = theme;
     assert.equal(liveElement.type(liveElement.props).props.subtitle, undefined, `${theme.layoutMode} Live row retains no subtitle`);
@@ -423,7 +444,7 @@ test('an actionless Home keeps the original independent mixes reader mounted and
 });
 
 test('libraries that did not load show one quiet banner with Try again, never the empty state (P2-61 HOME-RESILIENCE)', async () => {
-  const h = hooks(), authority = {serverId: 'actual', viewerFence: 'viewer'};
+  const authority = {serverId: 'actual', viewerFence: 'viewer'};
   const document = {rows: [], spotlight: [], serverId: authority.serverId, viewerFence: authority.viewerFence};
   const emptyCopy = {type: 'EmptyCopy', props: {}};
   let retried = 0;
@@ -435,7 +456,8 @@ test('libraries that did not load show one quiet banner with Try again, never th
     renderHomeEmpty: () => emptyCopy, error: () => ({}), retryLibraries: () => {retried++;},
   });
   for (const theme of [tvTheme, phoneTheme]) {
-    const {HomeScreen} = await homeModule(theme, [], h.react);
+    // TV draws HomeScreen's own forms and a phone the rebuilt page: each has its own hook order, so its own host.
+    const h = hooks(), {HomeScreen} = await homeModule(theme, [], h.react);
     const unknown = h.render(() => HomeScreen({runtime: runtime(true), authority}));
     assert.equal(descendants(unknown).includes(emptyCopy), false, 'no first-library or member empty state while the libraries are unknown');
     const banner = descendants(unknown).find(node => node.type === 'Banner');

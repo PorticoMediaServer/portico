@@ -4,6 +4,7 @@ import {homeContinuationCard, homeContinuationSource} from '../../../packages/cl
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {withHomeCards} from './helpers/home-cards-stub.mjs';
 import {expandFrames} from './helpers/browse-frame-stub.mjs';
 import * as homeWindow from '../src-next/screens/home/home-window';
 import * as rowState from '../src-next/kit/layout/row-state';
@@ -42,7 +43,7 @@ async function homeFixture(width: number, height: number) {
     getSnapshot = () => 0;
     state() {return undefined;}
   }
-  const {HomeScreen} = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), {'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
+  const {HomeScreen} = await screenModule(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, '../../kit/overlays': {Banner: 'Banner'}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react,
     'react-native': {AppState: {currentState: 'active'}, RefreshControl: 'RefreshControl', Text: 'Text', View: 'View', useWindowDimensions: () => dimensions},
@@ -78,7 +79,7 @@ async function homeFixture(width: number, height: number) {
     '../../platform/home-action-diagnostics': {}, '../destinations/music/MusicMixesRow': {}, './HomeHeroFacts': {HomeHeroFacts: 'HomeHeroFacts'},
     './model': {authorizedHome: (value: unknown) => value, platformRows: () => rows, homeRowHasContent: () => true},
     './TvHomeRecovery': {}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})}, './home-window': homeWindow,
-  });
+  }));
   return {
     setSize: (nextWidth: number, nextHeight: number) => {dimensions = {width: nextWidth, height: nextHeight, fontScale: 1};},
     setCrease: () => {posture = {status: 'available', window: dimensions, folds: [{orientation: 'vertical', bounds: {left: width / 2 - 4, right: width / 2 + 4}}]};},

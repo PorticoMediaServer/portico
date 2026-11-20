@@ -245,7 +245,7 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
         onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} style={[{minHeight: 24, flexDirection: 'row', alignItems: 'center', flexShrink: 1}, controlStyle(arrowFocus === 'all')]}>
         <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text><Icon name="i-right" size={18} color={theme.colors.textTertiary} />
       </Pressable> : <Text accessibilityRole="header" style={[theme.type.rowHeading, headingStyle, {color: theme.colors.text, flexShrink: 1, includeFontPadding: false}]}>{title}</Text>}
-      {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
+      {subtitle && <View style={{flexShrink: 1}}>{typeof subtitle === 'string' ? <Text style={[theme.layoutMode === 'phone' ? theme.type.caption : theme.type.rowSubtitle, {color: theme.colors.textTertiary, includeFontPadding: false}]}>{subtitle}</Text> : subtitle}</View>}
       {onSeeAll && !theme.isTV && theme.form !== 'phone' && <SeeAllLink testID={testID ? `${testID}-see-all` : undefined} label={defaultI18n.t('next.layout.seeAll')} accessibilityHint={title} onPress={onSeeAll}
         onFocus={() => setArrowFocus('all')} onBlur={() => setArrowFocus(undefined)} style={controlStyle(arrowFocus === 'all')}/>}
 

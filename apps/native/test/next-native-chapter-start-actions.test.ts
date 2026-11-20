@@ -75,6 +75,7 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
     react, '../../../../../packages/client-core/src/presentation/home-continuation': {homeContinuationCard, homeContinuationSource},
     '../../../../../packages/client-core/src/presentation/home-spotlight': {}, '../../../../../packages/client-core/src/presentation/kit-model': {},
     '../../../../../packages/client-core/src/presentation/content-entry-subject': {},
+    '../../../../../packages/client-core/src/presentation/home-card': await import('../../../packages/client-core/src/presentation/home-card.ts'),
   });
   const chapter = entry('chapter'), movie = entry('movie'), book = {...entry('book'), playback: undefined};
   const resumedChapter = {...chapter, playback: {...chapter.playback, startSeconds: 450}};

@@ -6,9 +6,9 @@ import {screenModule} from './helpers/screen-harness.mjs';
 // generated cover of mock.html's "No artwork" (initial, title, tint), as web does.
 test('a title without a poster draws its generated cover at the card size', async () => {
   const react = await import('react');
-  const {generatedPoster} = await screenModule(new URL('../src-next/screens/home/generated-poster.tsx', import.meta.url), {
+  const {generatedPoster} = await screenModule(new URL('../src-next/kit/artwork/GeneratedPoster.tsx', import.meta.url), {
     react, '@portico/design': {generatedCoverTint: (title: string) => ({first: `first:${title}`, second: 'second'})},
-    '../../kit/artwork': {GeneratedCover: 'GeneratedCover'},
+    './Generated': {GeneratedCover: 'GeneratedCover'},
   });
   const cover = generatedPoster('  Ash Lane', 200) as {type: unknown; props: Record<string, unknown>};
   assert.equal(cover.type, 'GeneratedCover');

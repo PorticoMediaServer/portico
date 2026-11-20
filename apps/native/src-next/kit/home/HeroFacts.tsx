@@ -1,8 +1,8 @@
 import React from 'react';
-import {Text, View} from 'react-native';
+import {Text, View, type TextStyle} from 'react-native';
 import {defaultI18n, type I18n} from '../../../../../packages/i18n/src';
 import type {CardTextModel, FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {useTheme, type Theme} from '../../kit/theme';
+import {useTheme, type Theme} from '../theme';
 
 /** A hex colour with the drawn alpha; `rgba(237,245,250,.28)` is the same paint. */
 function withAlpha(color: string, value: number): string {
@@ -28,13 +28,16 @@ export function homeFactStrong(theme: Theme): string {
 }
 
 /** The display context stays canonical; continuation timing is a separate genuine projection. */
-export function HomeHeroFacts({facts, continuation, centered, fontSize}: {facts: readonly FactPart[]; continuation?: CardTextModel; centered?: boolean; fontSize?: number}) {
+/** The hero's facts at a size of its own (tablet.html 2, desktop: 14 or 15 over 1.4), from the form that draws it. */
+export type HomeHeroFactsSize = Readonly<{text: TextStyle; columnGap: number; rowGap: number}>;
+
+export function HomeHeroFacts({facts, continuation, centered, size}: {facts: readonly FactPart[]; continuation?: CardTextModel; centered?: boolean; size?: HomeHeroFactsSize}) {
   const theme = useTheme();
   const remaining = continuation?.detail.find(part => part.id === 'remaining');
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: (centered ?? theme.layoutMode === 'phone') ? 'center' : 'flex-start', columnGap: fontSize ? 14 : theme.spec.hero.facts.gap[theme.column], rowGap: fontSize ? 6 : theme.spec.hero.facts.rowGap[theme.column]}}>
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: (centered ?? theme.layoutMode === 'phone') ? 'center' : 'flex-start', columnGap: size ? size.columnGap : theme.spec.hero.facts.gap[theme.column], rowGap: size ? size.rowGap : theme.spec.hero.facts.rowGap[theme.column]}}>
     {facts.map(fact => {
       const badge = fact.id === 'duration' || fact.id === 'season-count';
-      const text = <Text style={[badge ? theme.type.tag : theme.type.meta, {...(fontSize ? {fontSize: fontSize * theme.textScale, lineHeight: fontSize * 1.4 * theme.textScale} : {}), includeFontPadding: false, color: badge || fact.id === 'year' ? theme.colors.text : theme.colors.textSecondary, ...(!badge && fact.id === 'year' ? {fontFamily: homeFactStrong(theme)} : {})}]}>{fact.text}</Text>;
+      const text = <Text style={[badge ? theme.type.tag : theme.type.meta, {...size?.text, includeFontPadding: false, color: badge || fact.id === 'year' ? theme.colors.text : theme.colors.textSecondary, ...(!badge && fact.id === 'year' ? {fontFamily: homeFactStrong(theme)} : {})}]}>{fact.text}</Text>;
       return badge ? <View key={fact.id} style={homeFactTag(theme)}>{text}</View> : <React.Fragment key={fact.id}>{text}</React.Fragment>;
     })}
     {theme.isTV && continuation?.progress !== undefined && remaining && <View style={{flexDirection: 'row', alignItems: 'center', gap: 14}}>
