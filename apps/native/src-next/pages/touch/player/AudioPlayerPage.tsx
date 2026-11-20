@@ -117,8 +117,8 @@ export function AudioPlayerPage(props: NowPlayingScreenProps) {
           onPress: () => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})},
     ]}
     next={upcoming ? {label: t('next.music.upNext'), title: upcoming} : undefined}
-    lyrics={lyrics ? {icon: 'i-cc', label: t('player.lyrics'), testID: `${testID}-lyrics-toggle`, active: sheet === 'lyrics', onPress: () => setSheet(open => open === 'lyrics' ? null : 'lyrics')} : undefined}
-    queue={queue ? {icon: 'i-queue', label: t('player.queue'), testID: `${testID}-queue-toggle`, active: sheet === 'queue', onPress: () => setSheet(open => open === 'queue' ? null : 'queue')} : undefined}
+    lyrics={lyrics && (!side || !tabs || sheet === 'lyrics') ? {icon: 'i-cc', label: t('player.lyrics'), testID: `${testID}-lyrics-toggle`, active: sheet === 'lyrics', onPress: () => setSheet(open => open === 'lyrics' ? null : 'lyrics')} : undefined}
+    queue={queue && (!side || !tabs || sheet === 'queue') ? {icon: 'i-queue', label: t('player.queue'), testID: `${testID}-queue-toggle`, active: sheet === 'queue', onPress: () => setSheet(open => open === 'queue' ? null : 'queue')} : undefined}
     speed={book ? {label: t('player.opt.speed'), value: `${bookFacts?.rate.effective ?? bookFacts?.rate.selected ?? 1}×`, testID: `${testID}-speed`, disabled: !bookFacts?.rate.supported?.length, onPress: () => setPanel('speed'),
       choices: (bookFacts?.rate.supported ?? []).map(rate => ({label: `${rate}×`, selected: (bookFacts?.rate.effective ?? bookFacts?.rate.selected) === rate,
         onPress: () => {if (bookReader?.current() && (!paintPermit || paintPermit.current())) audiobook?.setRate(playback.fence, rate);}}))} : undefined}
@@ -132,13 +132,13 @@ export function AudioPlayerPage(props: NowPlayingScreenProps) {
   return <>
     {paintActive && showingQueue && queue && <NowPlayingQueue paintOwner={paneOwner} paintScope={fenceKey} testID={`${testID}-queue`} view={queue} onPlay={onQueuePlay} artwork={artwork} queueEdit={queueEditPort}/>}
     {paintActive && showingLyrics && knownLyrics && React.cloneElement(knownLyrics, {paintOwner: paneOwner, paintScope: fenceKey})}
-    <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={retainedListeningParts} omitTypes={omittedListeningParts}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !wide && !!sheet}>
+    <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={retainedListeningParts} omitTypes={omittedListeningParts}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !side && !!sheet}>
       {!backgroundHosted && <ListeningPageBackground fence={playback.fence} height={height} ambient={p.ambient}/>}
       {panel === 'signal' && signal ? <ListeningPanel><MusicSignalSheet view={signal} onClose={closePanel} contextTitle={p.identity.title} returnFocusRef={signalRef}/></ListeningPanel> : null}
       {panel === 'eq' ? <ListeningPanel opaque><NativeWatchEqualizer onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></ListeningPanel> : null}
       {column}
     </ListeningSurface></RetainedOverlay></TVMusicFocus>
-    <BottomSheet open={paintActive && !wide && !!sheet} onOpenChange={open => {if (!open) setSheet(null);}}
+    <BottomSheet open={paintActive && !side && !!sheet} onOpenChange={open => {if (!open) setSheet(null);}}
       title={t(sheet === 'chapters' ? 'player.opt.chapters' : sheet === 'lyrics' ? 'player.lyrics' : 'player.queue')} scrollable={false}
       testID={`${testID}-sheet`} detents={[Math.round(height * .5), Math.round(height * .94)]}>
       {sheet === 'chapters' ? chapterPane : sheet === 'lyrics' ? lyricPaint : queuePaint}
