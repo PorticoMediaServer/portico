@@ -76,7 +76,8 @@ function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativ
   const stride = itemHeight + verticalGap;
   useLayoutEffect(() => {if (viewport.width > 0) onGeometry?.(columns, stride);}, [columns, onGeometry, stride, viewport.width]);
   const total = snapshot.total ?? collection.pageSize;
-  const window = gridWindow(total, columns, stride, Math.max(0, scroll + stickyOffset - paddingTop), Math.max(0, viewport.height - stickyOffset), overscanRows);
+  // The scroller's top is raised by the ring room, so what is in view starts that much further down the content.
+  const window = gridWindow(total, columns, stride, Math.max(0, scroll + ringRoom + stickyOffset - paddingTop), Math.max(0, viewport.height - ringRoom - stickyOffset), overscanRows);
   const firstMounted = window.startRow * columns, lastMounted = Math.min(total - 1, (window.endRow + 1) * columns - 1);
   const firstPage = collection.pageOf(firstMounted), lastPage = collection.pageOf(Math.max(firstMounted, lastMounted));
   const subscribePages = useCallback((listener: () => void) => {
@@ -100,9 +101,10 @@ function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativ
     const bounded = Math.max(0, Math.min(total - 1, Math.floor(index)));
     // An index/rail jump lands directly; traversing every intervening viewport
     // would ask the sparse collection for pages that the user never sees.
-    // The first row is the page's top, where it opens: the row arithmetic would stop short of it by the content's top padding.
+    // The first row is the page's top, where it opens. Any other row lands where the first row sits at the top: the ring room
+    // above the first row is drawn under the scroller's raised top, so it is not scrolled past.
     const row = Math.floor(bounded / columns);
-    anchor.move(row === 0 ? 0 : Math.max(0, Math.min(height - viewport.height, paddingTop + row * stride - stickyOffset)), true);
+    anchor.move(row === 0 ? 0 : Math.max(0, Math.min(height - viewport.height, paddingTop - ringRoom + row * stride - stickyOffset)), true);
   }, [anchor, columns, height, paddingTop, stickyOffset, stride, total, viewport.height]);
   const moveToOffset = useCallback((offset: number) => {
     if (Number.isFinite(offset)) anchor.move(Math.max(0, offset), true);
