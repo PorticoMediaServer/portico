@@ -185,3 +185,20 @@ test('original host retirement distinguishes deliberate cancellation from a type
   guest.dispose();f.host.dispose();
  }
 });
+
+test('a Reader that cannot start or read the book hands the reader back: the host closes and the app shows its own way out', async () => {
+  const life = new AbortController();
+  const manifest: ReadingManifest = Object.freeze({sessionId: 'session', sourceId: 'asset', itemId: 'item', revision: 'a'.repeat(64), size: 1, format: 'pdf', metadata: {title: 'Actual title'}});
+  const facade: ReadingHostSession = {manifest, signal: life.signal, async headPDF() {}, async readRange() {return new Uint8Array();}, async readAsset() {return new Uint8Array();},
+    async page(index) {return {index, name: 'p.png', mime: 'image/png', bytes: new Uint8Array()};}, async progress() {return {progress: null};}, async saveProgress() {return {progress: null, saved: false};}};
+  let unavailable = 0, input: ((message: string) => void) | undefined;
+  const host = createReadingHost({session: facade, channel: 'captured_unique_channel', preferences: () => preferences, initialProgress: {progress: null}, current: () => true,
+    send(message) {input?.(message);}, onBack() {}, onSettings() {}, onUnavailable() {unavailable++;}});
+  const connection = connectReadingHost({send: host.receive, subscribe(listener) {input = listener; return () => {input = undefined;};}});
+  await connection.ready;
+  connection.failed();
+  assert.equal(unavailable, 1);
+  // Once closed, a repeat (or a late one) changes nothing.
+  host.receive(JSON.stringify({v: 1, kind: 'failed'}));
+  assert.equal(unavailable, 1);
+});

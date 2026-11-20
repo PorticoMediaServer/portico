@@ -56,7 +56,8 @@ function useNativeSearchAll(guest: ReadingGuest, book: ReaderBookState | undefin
 
 function NativeReading({guest}: {guest: ReadingGuest}) {
   const [book, setBook] = useState<ReaderBookState>(), [failed, setFailed] = useState(false), [active, setActive] = useState(true), [crease, setCrease] = useState(guest.crease);
-  const reportError = useCallback(() => setFailed(true), []);
+  // Any failure hands the reader back to the app's own page (Back, Try again); this page is only the fallback.
+  const reportError = useCallback(() => {connection.failed(); setFailed(true);}, []);
   const progressRef = useRef<ReturnType<typeof bindReadingProgress>>(undefined);
   const onSearchAll = useNativeSearchAll(guest, book, active && !failed, reportError);
   useEffect(() => {
@@ -74,12 +75,12 @@ function NativeReading({guest}: {guest: ReadingGuest}) {
         ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, unreadable: defaultI18n.t('next.reader.unreadablePage'),
           // A comic downloaded to this device is read from its own file.
           ...(publication.comicPages ? {pages: publication.comicPages} : {localArchive: true})})];
-      reader = bindReadPreferences({adapters, preferences: guest.preferences, authority, reportError: () => {if (alive) setFailed(true);}});
+      reader = bindReadPreferences({adapters, preferences: guest.preferences, authority, reportError: () => {if (alive) {connection.failed(); setFailed(true);}}});
       const near = guest.contentsTarget ? undefined : readerNear(guest.initialProgress);
-      progress = bindReadingProgress({controller: reader.controller, session: guest.session, initial: guest.initialProgress, authority, reportError: () => {if (alive) setFailed(true);}, held: near !== undefined});
+      progress = bindReadingProgress({controller: reader.controller, session: guest.session, initial: guest.initialProgress, authority, reportError: () => {if (alive) {connection.failed(); setFailed(true);}}, held: near !== undefined});
       progressRef.current = progress;
       setBook({...(guest.session.manifest.canAnnotate === true && guest.session.annotations && guest.session.mutateAnnotation ? {annotations:{manifest:guest.session.manifest,signal:guest.session.signal,annotations:guest.session.annotations,mutateAnnotation:guest.session.mutateAnnotation}} : {}), publication, controller: reader.controller, authority, contentsTarget: guest.contentsTarget, location: publication.resumeLocation(guest.initialProgress) ?? undefined, near, landed: progress.landed});
-    })().catch(() => {if (alive) setFailed(true);});
+    })().catch(() => {if (alive) {connection.failed(); setFailed(true);}});
     return () => {
       alive = false; offActive(); offCrease(); progressRef.current = undefined;
       void (async () => {try {await progress?.stop(); await reader?.dispose();} finally {publication?.dispose(); fonts?.dispose(); guest.dispose();}})();
@@ -92,7 +93,7 @@ function NativeReading({guest}: {guest: ReadingGuest}) {
 }
 function NativeReaderEntry() {
   const [guest, setGuest] = useState<ReadingGuest>(), [failed, setFailed] = useState(false);
-  useEffect(() => {let active = true; void connection.ready.then(value => {if (active) setGuest(value);}, () => {if (active) setFailed(true);}); return () => {active = false; connection.dispose();};}, []);
+  useEffect(() => {let active = true; void connection.ready.then(value => {if (active) setGuest(value);}, () => {connection.failed(); if (active) setFailed(true);}); return () => {active = false; connection.dispose();};}, []);
   if (failed) return <StateView variant="page" title={defaultI18n.t('next.states.pageFailed')} body={defaultI18n.t('next.states.pageFailedBody')}/>;
   return guest ? <NativeReading guest={guest}/> : <Skeleton height="100dvh"/>;
 }
