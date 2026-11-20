@@ -59,12 +59,10 @@ export function LibraryFilters({draft, source, runtime, labels, owner, onClose, 
     return <FiltersPane testID={panelId} geometry={geometry} summary={showing || undefined} onClose={onClose} onClear={clear} onDone={() => {draft.dispose(); onClose();}}>{content}</FiltersPane>;
   }
   return theme.isTV ? <SidePanel testID={panelId} open={state.open} onOpenChange={open => {if (!open) close();}} title={defaultI18n.t('next.browse.native.filters')}
-    width={frameSpec.browse.filtersWidth.tv} topInset={0} initialFocusRef={initialFocusRef} showClose={false} titleType={{size: 44, weight: 800, tracking: -.03, lineHeight: 52.8}}
+    description={results && defaultI18n.t('next.browse.native.resultsMatch', {results})} width={frameSpec.browse.filtersWidth.tv} topInset={0} initialFocusRef={initialFocusRef} showClose={false} titleType={{size: 44, weight: 800, tracking: -.03, lineHeight: 52.8}}
     style={{paddingTop: 42, paddingLeft: 56, paddingRight: 96, paddingBottom: 56}} footer={footer}>{content}</SidePanel>
     : <BottomSheet testID={panelId} open={state.open} onOpenChange={open => {if (!open) close();}} onExited={onExited} title={defaultI18n.t('next.browse.native.filters')}
       headerAction={<Button focusId="clear" variant="text" textStyle={theme.platform === 'phone' ? {color: theme.colors.textSecondary} : undefined} onPress={draft.clear}>{defaultI18n.t('next.browse.native.clearAll')}</Button>}
       footer={footer} scrollable={false} detents={theme.platform === 'phone' ? [580, 698] : [580, 780]}
       defaultDetent={theme.platform === 'phone' ? 1 : undefined} showClose={false}>{content}</BottomSheet>;
 }
-
-export {useLibraryFrameFilters} from '../../kit/browse/LibraryFilterFields';

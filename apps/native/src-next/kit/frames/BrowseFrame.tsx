@@ -4,10 +4,10 @@ import Animated, {type AnimatedRef} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {StartFocusScope} from '../focus';
+import {FocusRegion, StartFocusScope, type FocusRegionProps} from '../focus';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {FiltersDock, FiltersOver, FiltersPane, LibraryExpandedHeader, LibraryHeader, LibraryMediumHeader, StickyBrowseHeader, libraryFiltersTabletPane} from '../browse';
-import {Button, Tabs, type TabItem} from '../controls';
+import {Button, Tabs, type TabsProps} from '../controls';
 import type {IconName} from '../Icon';
 import {BottomSheet, SidePanel} from '../overlays';
 import {SkeletonBlock} from '../states/SkeletonBlock';
@@ -29,7 +29,8 @@ export type BrowseHeaderProps = PageHeaderProps & Readonly<{
   ambient?: ReactNode;
   /** The page's tabs: Discover / Movies / Collections (Music: Discover / Artists / Albums / Songs / Genres). The frame draws
    * the kit `Tabs` from the gutter, its rule across the page. */
-  tabs?: Readonly<{items: readonly TabItem[]; value: string; onValueChange: (value: string) => void}>;
+  tabs?: Pick<TabsProps, 'items' | 'value' | 'onValueChange' | 'disabled' | 'itemProps'> &
+    {region?: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>};
   /** A pushed list's one line saying why these titles are here (desktop-browse seeall, collections-46). */
   intro?: ReactNode;
   /** Labelled buttons under the intro: Play and Shuffle on See all. */
@@ -89,6 +90,7 @@ export type BrowseFrameProps = Readonly<{
   /** TV: the `focusId` or `testID` of the control the page starts on (R1): Home's first Continue Watching card, a
    * list's first card. Never in the rail. */
   startFocus?: string;
+  focus?: Pick<FocusRegionProps, 'id' | 'entry' | 'edges' | 'enabled'>;
 }> & (
   | Readonly<{header: BrowseHeaderProps; hero?: never}>
   /** Home: the hero leads and the shell's wordmark bar sits over it. `null` while Home has nothing to feature. */
@@ -97,11 +99,14 @@ export type BrowseFrameProps = Readonly<{
 /** Frame 1, Browse: Home, a library, See all, any page of rows of cards or a grid under one header. Its regions are
  * `frameRegions.browse` and `.home` (packages/design). The frame owns the header, the safe area, the space between regions
  * and rows and the clearance at the bottom; the shell owns the tab bar, sidebar or rail, and the window owns the backdrop. */
-export function BrowseFrame({startFocus, ...props}: BrowseFrameProps) {
+export function BrowseFrame({startFocus, focus, ...props}: BrowseFrameProps) {
   // While the TV Filters sheet is open the page starts in it, on its primary (Show 6 movies), never on a card behind it.
-  return <StartFocusScope id={props.filters?.open ? 'apply' : startFocus}><BrowsePage {...props}/></StartFocusScope>;
+  const page = <BrowsePage {...props}/>;
+  return <StartFocusScope id={props.filters?.open ? 'apply' : startFocus}>
+    {focus ? <FocusRegion {...focus} style={{flex: 1}}>{page}</FocusRegion> : page}
+  </StartFocusScope>;
 }
-function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, children, testID, scroller, onRowsLayout, notice, foot, scroll}: Omit<BrowseFrameProps, 'startFocus'>) {
+function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, children, testID, scroller, onRowsLayout, notice, foot, scroll}: Omit<BrowseFrameProps, 'startFocus' | 'focus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), form = frame.form;
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   // A library's header and toolbar stay put while its grid or rows scroll under them; a plain page's title scrolls away.
@@ -141,10 +146,13 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, chil
 function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, tabs: tabItems, intro, actions}: BrowseHeaderProps) {
   const frame = useFrameMetrics(), form = frame.form;
   // TV sets the tabs beside the title, in the header's own row; elsewhere they run from the gutter under it.
-  const tabs = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange} style={form === 'tv' ? undefined : {marginTop: form === 'phone' ? 0 : frame.headerGap}}
-    contentContainerStyle={form === 'tv' ? undefined : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
+  const strip = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange}
+    disabled={tabItems.disabled} itemProps={tabItems.itemProps} style={form === 'tv' ? undefined : {marginTop: form === 'phone' ? 0 : frame.headerGap}}
+    contentContainerStyle={form === 'tv' ? {paddingHorizontal: 0} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
+  const tabs = tabItems?.region ? <FocusRegion {...tabItems.region} orientation="horizontal" entry={tabItems.value}>{strip}</FocusRegion> : strip;
   const theme = useTheme();
-  if (!switcher) return <><PageHeader title={title} back={back} trailing={trailing}/>
+  if (!switcher) return <>
+    <PageHeader title={title} back={back} trailing={trailing} showTVBack/>
     {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
     {/* On a phone a pushed list's actions share their row in equal halves (collections 46a: Play and Shuffle). */}
     {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: frame.headerGap}}>
@@ -153,7 +161,7 @@ function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, t
   if (form === 'phone') return <StickyBrowseHeader name={title} switcher={switcher} menu={menu} back={back}>{tabs}</StickyBrowseHeader>;
   if (form === 'medium') return <LibraryMediumHeader name={title} counts={counts} ambient={ambient} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryMediumHeader>;
   if (form === 'expanded') return <LibraryExpandedHeader name={title} counts={counts} ambient={ambient} switcher={switcher} menu={menu} selection={trailing}>{tabs}</LibraryExpandedHeader>;
-  return <LibraryHeader name={title} counts={counts} switcher={switcher}>{tabs}</LibraryHeader>;
+  return <LibraryHeader name={title} counts={counts} switcher={switcher} menu={trailing}>{tabs}</LibraryHeader>;
 }
 
 /** A phone's pushed-list actions as equal halves: each kit Button (a fragment's too) in its own flexible cell, stretched to it. */

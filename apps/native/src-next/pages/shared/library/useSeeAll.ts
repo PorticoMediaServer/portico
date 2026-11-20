@@ -1,11 +1,12 @@
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
+import {appliedFilterParts, browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {serverTextLabel} from '../../../../../../packages/client-core/src/presentation/server-text';
 import {hasHomeRowQueue} from '../../../../../../packages/client-core/src/home-row-browse';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {homeBrowseLabel} from '../../../screens/home/browse-label';
 import {homeSeeAllQuickOrder} from '../../../screens/home/see-all-model';
 import type {HomeSeeAllProps} from '../../../screens/home/HomeSeeAll';
+import {authorityKey} from '../../../shell/model';
 import {useTheme} from '../../../kit/theme';
 import {browseFailure} from './useLibrary';
 
@@ -37,14 +38,30 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
     const remaining = state.filters.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query));
     controller.setFilters(checked ? [...remaining, quick.query] : remaining);
   };
-  return {t, title, intro, view, setView, ready, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
+  const focusId = isTV ? `home-see-all:${authorityKey(runtime.getSnapshot().authority)}:${controller.rowId}` : undefined;
+  const playable = !!row && hasHomeRowQueue(row.id);
+  const labelField = (id: string) => {
+    const field = state.capabilities?.fields.find(candidate => candidate.id === id);
+    return field ? label(field) : id;
+  };
+  const applied = model?.applied.flatMap(node => 'field' in node ? [{id: JSON.stringify(node), parts: appliedFilterParts(node, labelField, runtime.text)}] : []) ?? [];
+  const clear = () => {controller.setFilters([]); controller.selectKind(undefined);};
+  const remove = (id: string) => controller.setFilters(state.filters.filter(node => JSON.stringify(node) !== id));
+  const focus = focusId ? {
+    header: {id: focusId, enabled: active, entry: playable ? 'play' : 'back', edges: {down: `${focusId}.toolbar`}},
+    toolbar: {id: `${focusId}.toolbar`, enabled: active, edges: {up: focusId, down: applied.length ? `${focusId}.applied` : `${focusId}.grid`}},
+    applied: {id: `${focusId}.applied`, enabled: active, edges: {up: `${focusId}.toolbar`, down: `${focusId}.grid`}},
+    grid: {id: `${focusId}.grid`, enabled: active, edges: {up: applied.length ? `${focusId}.applied` : `${focusId}.toolbar`},
+      count: data.total, screenStart: {regionId: focusId, childId: playable ? 'play' : 'back'}},
+  } : undefined;
+  return {t, title, intro, focus, clear, remove, applied, view, setView, ready, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
     model: model && {...model, applied: state.filters, quick: model.quick.filter(quick => homeSeeAllQuickOrder(quick.id, isTV))},
     failure: state.phase === 'error' ? browseFailure(runtime.error(state.error, retry, 'home')) : undefined,
     gridFailure: data.status === 'error' ? runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home') : undefined,
     empty: data.status === 'ready' && data.total === 0,
     total: total?.total,
     ambient: artwork ? runtime.ambient(artwork.backdropUrl ?? artwork.posterUrl) : undefined,
-    playable: !!row && hasHomeRowQueue(row.id),
+    playable,
     kinds: controller.kinds.length ? [{id: 'all', label: t('search.chip.all'), count: labelCount('all'), selected: !state.selectedKind,
       onPress: () => controller.selectKind(undefined)}, ...controller.kinds.map(kind => ({id: kind.id, count: labelCount(kind.id),
       selected: state.selectedKind === kind.id, onPress: () => controller.selectKind(kind.id)}))] : [],

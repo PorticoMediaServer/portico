@@ -11,6 +11,7 @@ import {Icon} from '../Icon';
 import {useTheme} from '../theme';
 import {alpha, browsePlatform, browseType} from './presentation';
 import type {AppliedFilterChip, BrowsePlatform, BrowseToolbarProps} from './types';
+import {FocusItem, FocusRegion} from '../focus';
 import {TVRow} from '../layout/TVRow';
 import MaskedView from '@react-native-masked-view/masked-view';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -77,7 +78,7 @@ export function SortMenu({scope, focusId, sorts, value, label, onValueChange, on
 export function AppliedFilterChips({filters, onRemove, onClear, platform, children}: {filters: readonly AppliedFilterChip[]; onRemove: (id: string) => void; onClear?: () => void; platform?: BrowsePlatform; children?: ReactNode}) {
   const theme = useTheme(), target = browsePlatform(theme, platform);
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: target === 'tv' ? 12 : 8, flexWrap: 'wrap'}}>
-    {filters.map(({id, parts}) => <Focusable key={id} accessibilityRole="button" focusKind="chip" focusRadius={target === 'tv' ? 14 : 17} onPress={() => onRemove(id)} accessibilityLabel={t('next.browse.native.removeFilter', {field: parts.field.text})} style={{minHeight: target === 'tv' ? 52 : target === 'phone' ? 30 : 34, paddingLeft: target === 'tv' ? 20 : 11, paddingRight: 7, borderRadius: target === 'tv' ? 14 : 17, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: target === 'tv' ? alpha(theme.colors.accent, .18) : theme.colors.raisedBright}}>
+    {filters.map(({id, parts}) => <Focusable key={id} focusId={id} accessibilityRole="button" focusKind="chip" focusRadius={target === 'tv' ? 14 : 17} onPress={() => onRemove(id)} accessibilityLabel={t('next.browse.native.removeFilter', {field: parts.field.text})} style={{minHeight: target === 'tv' ? 52 : target === 'phone' ? 30 : 34, paddingLeft: target === 'tv' ? 20 : 11, paddingRight: 7, borderRadius: target === 'tv' ? 14 : 17, flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: target === 'tv' ? alpha(theme.colors.accent, .18) : theme.colors.raisedBright}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: target === 'tv' ? 8 : 7, flexWrap: 'wrap'}}>
         <Text style={[browseType(theme, target === 'tv' ? 20 : 13, 600), {color: theme.colors.textTertiary}]}>{parts.field.text}</Text>
         {!['equals', 'in', 'contains-any'].includes(parts.operator) && <Text style={[browseType(theme, target === 'tv' ? 20 : 13, 600), {color: theme.colors.textSecondary}]}>{parts.operatorPart.text}</Text>}
@@ -85,7 +86,7 @@ export function AppliedFilterChips({filters, onRemove, onClear, platform, childr
       </View>
       <Icon name="i-close" size={target === 'tv' ? 22 : 14} color={theme.colors.textSecondary}/>
     </Focusable>)}
-    {filters.length > 0 && onClear && <Button variant="text" size="small" onPress={onClear}>{t('next.browse.native.clearAll')}</Button>}
+    {filters.length > 0 && onClear && <Button focusId="clear" variant="text" size="small" onPress={onClear}>{t('next.browse.native.clearAll')}</Button>}
     {children}
   </View>;
 }
@@ -144,13 +145,13 @@ export function ChipRail({children}: {children: ReactNode}) {
  * rail that fades where more lie past it, and grid / list pinned at the right end. No count line: while a filter applies the
  * Filters control says how many match ("Filters · 12"). TV keeps its two rows (final3-tv-08): the controls, then the applied
  * filters with the count. On every form Sort sits directly after Filters, and Select at the trailing end (owner, 18 Nov). */
-export function BrowseToolbar({model, platform, sticky = false, resultCount, resultTotal, onQuickChange, onFilters, filtersOpen = false, onSortChange, onReshuffle, labels, applied = [], onRemoveFilter, onClearFilters, view, save, onJump, onSelect, selection, children, testID}: BrowseToolbarProps) {
+export function BrowseToolbar({model, platform, sticky = false, resultCount, resultTotal, onQuickChange, onFilters, filtersOpen = false, onSortChange, onReshuffle, labels, applied = [], onRemoveFilter, onClearFilters, view, save, onJump, jumpEnabled, onSelect, selection, region, appliedRegion, children, testID}: BrowseToolbarProps) {
   const theme = useTheme(), {width} = useWindowDimensions(), target = browsePlatform(theme, platform), phone = target === 'phone', tv = target === 'tv';
   if (applied.length > 0 && !onRemoveFilter) throw new Error('Applied browse filters need a real remove callback.');
   if (selection) return <View testID={testID}>{selection}</View>;
-  const sort = <SortMenu sorts={model.sorts} value={model.sort} label={labels.sort} onValueChange={onSortChange} onReshuffle={onReshuffle}/>;
+  const sort = <SortMenu scope={region?.id} focusId={tv ? "sort" : undefined} sorts={model.sorts} value={model.sort} label={labels.sort} onValueChange={onSortChange} onReshuffle={onReshuffle}/>;
   const filters = <FiltersButton count={model.applied.length} matches={!tv && model.applied.length > 0 ? resultTotal : undefined} open={filtersOpen} onPress={onFilters}/>;
-  const quick = model.quick.map(item => <QuickToggle key={item.id} checked={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>);
+  const quick = model.quick.map(item => <FocusItem key={item.id} focusId={`quick:${item.id}`}><QuickToggle checked={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle></FocusItem>);
   const style = {zIndex: sticky ? theme.layers.sticky : undefined, backgroundColor: sticky ? alpha(theme.colors.ink, .86) : undefined, paddingTop: phone ? 10 : sticky ? 12 : 20, paddingBottom: sticky || phone ? 10 : 0};
   const chips = <>{applied.length > 0 && <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)}/>}{quick}{children}</>;
   if (!tv) return <View testID={testID} accessibilityLabel={t('next.browse.native.toolbar')} style={style}>
@@ -159,15 +160,21 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, res
       {view && <ViewToggle {...view}/>}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}
     </View>
   </View>;
+  const controls = <>
+    {sort}<FocusItem focusId="filters">{filters}</FocusItem>{onJump && <Chip focusId="jump" disabled={jumpEnabled === false} onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}
+    {quick}{children}
+    {save && <View style={{marginLeft: 'auto'}}><FocusItem focusId="save"><SaveViewButton {...save}/></FocusItem></View>}
+  </>;
+  const controlStyle = {flexDirection: 'row' as const, flexWrap: 'wrap' as const, alignItems: 'center' as const, gap: theme.space.controlGap,
+    paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight};
+  const summary = <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)} onClear={onClearFilters}>
+    <Text accessibilityLiveRegion="polite" style={[theme.type.meta, {color: theme.colors.textTertiary}]}>{resultCount}</Text>
+  </AppliedFilterChips>;
   return <View testID={testID} accessibilityLabel={t('next.browse.native.toolbar')} style={style}>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: theme.gutter}}>
-      {filters}{sort}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}
-      <View style={{height: 40, width: 1.5, marginHorizontal: 6, backgroundColor: theme.colors.line}}/>
-      {quick}{children}
-      {save && <View style={{marginLeft: 'auto'}}><SaveViewButton {...save}/></View>}
-    </View>
-    <View style={{paddingHorizontal: theme.gutter, paddingTop: 24}}>
-      <AppliedFilterChips platform={target} filters={applied} onRemove={id => onRemoveFilter!(id)} onClear={onClearFilters}><Text accessibilityLiveRegion="polite" style={[browseType(theme, 22, 600), {color: theme.colors.textTertiary}]}>{resultCount}</Text></AppliedFilterChips>
+    {region ? <FocusRegion {...region} entry="sort" orientation="horizontal" style={controlStyle}>{controls}</FocusRegion>
+      : <View style={controlStyle}>{controls}</View>}
+    <View style={{paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight, paddingTop: theme.space.md}}>
+      {appliedRegion && applied.length ? <FocusRegion {...appliedRegion} entry={applied[0].id} orientation="horizontal">{summary}</FocusRegion> : summary}
     </View>
   </View>;
 }

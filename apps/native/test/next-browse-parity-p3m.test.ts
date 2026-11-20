@@ -68,10 +68,11 @@ async function emptyPage(isTV: boolean) {
     '@portico/design': {frameSpec: {browse: {listRow: {phone: 76, medium: 76, expanded: 76, tv: 84}}}}, '../../kit/browse/LibraryCard': {LibraryCard: 'LibraryCard'},
     '../../pages/shared/library/useFirstScanning': await screenModule(new URL('../src-next/pages/shared/library/useFirstScanning.ts', import.meta.url), {react}),
     './LibraryToolbar': {LibraryToolbar: 'LibraryToolbar'}, '../../kit/browse/LibraryListRow': {LibraryListRow: 'LibraryListRow'}, './directory': {NativeLibraryDirectory: 'NativeLibraryDirectory'},
-    './LibraryFilters': {LibraryFilters: 'LibraryFilters', useLibraryFrameFilters: () => undefined, libraryFiltersDockWidth: 380}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, './applied-filters': {libraryAppliedFilters: () => []}, './library-grid': {libraryTabletGridGeometry: () => ({})},
+    '../../kit/browse/LibraryFilterFields': {useLibraryFrameFilters: () => undefined},
+    './LibraryFilters': {LibraryFilters: 'LibraryFilters', libraryFiltersDockWidth: 380}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, './applied-filters': {libraryAppliedFilters: () => []}, './library-grid': {libraryTabletGridGeometry: () => ({})},
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, '../destinations/music/TVMusicDiscover': {TVMusicDiscover: 'TVMusicDiscover'},
     '../read/platform': {hiddenReadingLibraryOnTV: () => false, isReadingLibraryKind: () => false}, '../share/share-actions': {shareLinkActions: () => []},
-    './LibraryJumpSheet': {}, './jump': {}, '../../kit/cards/TVSparseCardFrame': {}, '../../platform/home-action-diagnostics': {homeActionDiagnostics: () => {}},
+    '../../kit/browse/LibraryJumpSheet': {}, './jump': {}, '../../kit/cards/TVSparseCardFrame': {}, '../../platform/home-action-diagnostics': {homeActionDiagnostics: () => {}},
   };
   const {LibraryEmpty, useFirstScanning} = await screenModule(new URL('../src-next/screens/library/LibraryScreen.tsx', import.meta.url), modules);
   return {LibraryEmpty, useFirstScanning};

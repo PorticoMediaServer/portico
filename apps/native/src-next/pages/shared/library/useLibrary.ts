@@ -1,15 +1,21 @@
 import type {ComponentProps, ReactNode} from 'react';
 import type {MusicMixesRow} from '../../../screens/destinations/music/MusicMixesRow';
-import {useCallback, useEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {BrowseNode} from '../../../../../../packages/client-core/src/browse';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {appliedFilterParts, browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
+import {browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {libraryTabs, type LibraryTabId} from '../../../../../../packages/client-core/src/presentation/library-tabs';
 import {serverTextLabel} from '../../../../../../packages/client-core/src/presentation/server-text';
 import {shareLinkActions} from '../../../screens/share/share-actions';
 import {nativeLibraryCanSave, nativeLibraryEntryKey, type NativeLibrarySnapshot} from '../../../screens/library/model';
-import {libraryAlphabetRail} from '../../../screens/library/jump';
+import {libraryAppliedFilters} from '../../../screens/library/applied-filters';
+import {libraryAlphabetRail, libraryJumpLetter, libraryJumpLetters} from '../../../screens/library/jump';
+import {createDestinationEntryFocus, nativeDestinationFocusIds} from '../../../screens/destinations/focus';
+import {useTVPageBack} from '../../../screens/destinations/useTVPageBack';
+import {useDestinationEntryFocus} from '../../../kit/focus/useDestinationEntryFocus';
+import {useFocusRegistry} from '../../../kit/focus';
+import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeLibraryFilterDraft} from '../../../screens/library/filters';
 import type {HomeSeeAll} from '../../../../../../packages/client-core/src/home';
 import {hiddenReadingLibraryOnTV} from '../../../screens/read/platform';
@@ -23,6 +29,7 @@ import {useFirstScanning} from './useFirstScanning';
 export {nativeLibraryEntryKey};
 export type LibraryProps = NativeLibraryScreenProps & {
   onSeeAll: (target: HomeSeeAll, title: string) => void;
+  tvMusicDiscover?: ReactNode;
   mixes?: (events: Pick<ComponentProps<typeof MusicMixesRow>, 'onReady' | 'onLayout'>) => ReactNode;
 };
 
@@ -63,6 +70,7 @@ export function useLibrary(props: LibraryProps, tv = false) {
     return {id: library.id, name: library.name, count: summary && libraryCounts(summary.counts).map(part => part.text).join(' · ')};
   });
   const artwork = summaries.libraries.find(library => library.id === state.library.id)?.summary.latestArtwork;
+  const canSave = !!state.sort && nativeLibraryCanSave(state, {predicates: state.predicates, sort: state.sort});
   const save = () => {
     if (state.sort && nativeLibraryCanSave(state, {predicates: state.predicates, sort: state.sort})) actions.saveView(destination, {predicates: state.predicates, sort: state.sort});
   };
@@ -95,10 +103,10 @@ export function useLibrary(props: LibraryProps, tv = false) {
     retrySummaries: () => {void directory.load().catch(runtime.reportError);},
     tabs: {items: libraryTabs(state.library.kind).map(tab => ({value: tab.id, label: t(tab.label)})), value: state.tab.id,
       onValueChange: (id: string) => {if (activation.getSnapshot().visible) void destination.load(id as LibraryTabId).catch(runtime.reportError);}},
-    menu: tv ? undefined : {...runtime.libraryMenu(state.library), canSaveView: !!state.sort && nativeLibraryCanSave(state, {predicates: state.predicates, sort: state.sort}),
+    menu: tv ? undefined : {...runtime.libraryMenu(state.library), canSaveView: canSave,
       onSaveView: save, onMarkAll: actions.markAll && state.collection ? markAll : undefined,
       shareActions: shareLinkActions(runtime.shareScope?.(), 'library', {libraryId: state.library.id}, {notice: runtime.notice, report: runtime.reportError})},
-    save,
+    save, canSave,
     rows: state.discover.appended.filter(section => section.entries.length).map(section => {
       const title = serverTextLabel(defaultI18n, section.heading);
       const target: HomeSeeAll | undefined = section.seeAll && ('rowId' in section.seeAll
@@ -159,10 +167,7 @@ export function useLibraryGrid(props: NativeLibraryScreenProps, source: NativeLi
   const base = source.tab.fixedFilter ?? [];
   const filters = source.predicates.filter(node => !base.some(fixed => JSON.stringify(fixed) === JSON.stringify(node)));
   const applied = model.applied.filter(node => filters.some(filter => JSON.stringify(node) === JSON.stringify(filter)));
-  const appliedChips = applied.flatMap(node => 'field' in node ? [{id: JSON.stringify(node), parts: appliedFilterParts(node, id => {
-    const field = source.capabilities?.fields.find(candidate => candidate.id === id);
-    return field ? props.labels.field(field) : id;
-  }, runtime.text)}] : []);
+  const appliedChips = libraryAppliedFilters(applied, source.capabilities!, props.labels);
   const shape = source.tab.shows === 'genres' ? 'genre' : ['music', 'audiobook'].includes(source.library.kind) ? 'square' : 'poster';
   const clear = () => destination.setQuery(base as readonly BrowseNode[]);
   const setSort = (sort: NonNullable<NativeLibrarySnapshot['sort']>) => destination.setQuery(source.predicates, sort);
@@ -172,6 +177,69 @@ export function useLibraryGrid(props: NativeLibraryScreenProps, source: NativeLi
     remove: (id: string) => destination.setQuery(source.predicates.filter(node => JSON.stringify(node) !== id)),
     reshuffle: () => setSort({...source.sort!, seed: Math.floor(Math.random() * 4294967296)}),
     filteredEmpty: data.status === 'ready' && data.total === 0 && filters.length > 0,
+  };
+}
+
+const rememberedTVResource = new WeakMap<NativeShellRuntime, Map<string, Readonly<{key: string; index: number}>>>();
+
+export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof useLibrary>, regionId: string, toolbarId: string) {
+  const {state: source, active} = view, {runtime, activation} = props;
+  const grid = useLibraryGrid(props, source, true);
+  const registry = useFocusRegistry();
+  const [jumpOpen, setJumpOpen] = useState(false);
+  useEffect(() => {if (!active.visible) setJumpOpen(false);}, [active.visible]);
+  const resource = source.tab.shows === 'genres' || source.tab.shows === 'playlists';
+  const restore = useRef(resource && active.intent === 'restore' ? rememberedTVResource.get(runtime)?.get(regionId) : undefined).current;
+  const startingIndex = restore?.index ?? 0;
+  const page = Math.floor(startingIndex / grid.collection.pageSize);
+  const subscribePage = useCallback((listener: () => void) => grid.collection.subscribePage(page, listener), [grid.collection, page]);
+  const pageVersion = useCallback(() => grid.collection.getPageVersion(page), [grid.collection, page]);
+  useSyncExternalStore(subscribePage, pageVersion);
+  const entry = restore ? grid.collection.residentItems().find(item => nativeLibraryEntryKey(item) === restore.key) ?? grid.collection.itemAt(startingIndex) : grid.collection.itemAt(0);
+  const key = entry && nativeLibraryEntryKey(entry);
+  const address = key && (registry.entityAddress(regionId, key) ?? {regionId, childId: key});
+  const requested = useCallback(() => {
+    if (restore) grid.grid.current?.scrollToIndex(startingIndex);
+    else grid.top();
+  }, [grid.grid, grid.top, restore, startingIndex]);
+  useDestinationEntryFocus({...active, intent: resource && active.intent === 'restore' ? 'enter' : active.intent}, address || undefined, requested);
+  useTVPageBack(runtime, {kind: 'library', libraryId: source.library.id}, true, {
+    registerTop: true, scope: JSON.stringify([active.revision, source.queryRevision, source.tab.id]),
+    current: () => activation.getSnapshot().visible && !jumpOpen && !view.filters?.getSnapshot().open,
+    start: () => {
+      const first = grid.collection.itemAt(0);
+      return first ? registry.entityAddress(regionId, nativeLibraryEntryKey(first)) ?? {regionId, childId: nativeLibraryEntryKey(first)} : undefined;
+    },
+    atTop: () => grid.offset.current <= 0, scrollTop: grid.top,
+  });
+  const letters = libraryJumpLetters(grid.data.positionIndex);
+  const selectedLetter = libraryJumpLetter(letters, grid.range.first);
+  const selected = grid.selected?.active;
+  const ids = nativeDestinationFocusIds(runtime.getSnapshot().authority), tabs = ids.libraryTabs(source.library.id);
+  const appliedId = `${toolbarId}.applied`;
+  const applied = grid.appliedChips.length > 0;
+  const count = grid.data.total === undefined ? undefined : view.t(grid.data.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: grid.data.total, pivot: source.tab.pivot ?? 'other'});
+  const unfiltered = applied && source.unfilteredTotal;
+  return {...grid,
+    count: count && unfiltered ? view.t('title.shownOfTotal', {shown: defaultI18n.number(grid.data.total!), total: view.t(unfiltered.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: unfiltered.total, pivot: source.tab.pivot ?? 'other'})}) : count,
+    initialIndex: restore ? startingIndex : grid.initialIndex,
+    toolbar: {id: toolbarId, enabled: active.visible && !selected, edges: {left: ids.rail, up: tabs, down: applied ? appliedId : regionId}},
+    applied: {id: appliedId, enabled: active.visible, edges: {left: ids.rail, up: toolbarId, down: regionId}},
+    region: {id: regionId, entry: address ? address.childId : undefined, enabled: active.visible,
+      edges: {left: ids.rail, up: applied ? appliedId : toolbarId}, screenStart: {regionId: toolbarId, childId: 'sort'}, count: grid.data.total},
+    onItemFocus: (item: ContentEntry, index: number) => {
+      if (!resource || !activation.getSnapshot().visible) return;
+      let memory = rememberedTVResource.get(runtime);
+      if (!memory) {memory = new Map(); rememberedTVResource.set(runtime, memory);}
+      memory.delete(regionId);
+      memory.set(regionId, {key: nativeLibraryEntryKey(item), index});
+      if (memory.size > 64) memory.delete(memory.keys().next().value!);
+    },
+    jump: {
+      open: jumpOpen, panelId: `${toolbarId}.jump`, letters, selected: selectedLetter, onClose: () => setJumpOpen(false),
+      onSelect: (letter: string) => {setJumpOpen(false); grid.grid.current?.scrollToLetter(letter);},
+    },
+    openJump: () => setJumpOpen(true),
   };
 }
 
@@ -202,4 +270,41 @@ const countNames: Record<string, string> = {movie: 'movies', show: 'shows', epis
 function libraryCounts(counts: readonly Readonly<{kind: string; count: number; atLeast?: boolean}>[]) {
   return counts.flatMap(part => countNames[part.kind] ? [{id: part.kind, role: 'value' as const,
     text: t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: countNames[part.kind]})}] : []);
+}
+
+export function useTVLibrary(props: LibraryProps) {
+  const view = useLibrary(props, true), {state, active} = view;
+  const ids = nativeDestinationFocusIds(props.runtime.getSnapshot().authority);
+  const id = state.library.id, tabsId = ids.libraryTabs(id), toolbarId = ids.libraryToolbar(id);
+  const gridId = ids.libraryGrid(id, state.tab.id), switcherId = `${tabsId}.switcher`, stateId = `${tabsId}.state`;
+  const registry = useFocusRegistry(), [retryEpoch, setRetryEpoch] = useState(0), retryPressed = useRef(false);
+  useEffect(() => {
+    if (!active.visible) retryPressed.current = false;
+    else if (state.phase === 'error' && retryPressed.current) {
+      retryPressed.current = false;
+      setRetryEpoch(epoch => epoch + 1);
+    }
+  }, [active.visible, state.phase]);
+  const request = useMemo(() => {
+    // A failed retry is a new request to focus Try again.
+    void retryEpoch;
+    return createDestinationEntryFocus(registry);
+  }, [registry, retryEpoch]);
+  const retry = view.failure?.primaryAction;
+  const failure = view.failure && retry?.id === 'retry' ? {...view.failure, primaryAction: {...retry, onPress: (event: Parameters<typeof retry.onPress>[0]) => {
+    retryPressed.current = true;
+    retry.onPress(event);
+  }}} : view.failure;
+  const firstAction = (failure ?? view.emptyState)?.primaryAction?.id;
+  useDestinationEntryFocus(active, firstAction ? {regionId: stateId, childId: firstAction} : undefined, undefined, request);
+  const rowId = (index: number) => `${gridId}.row.${index}`;
+  return {...view, failure, gridId, toolbarId, tabsId, stateId,
+    switcher: {id: switcherId, enabled: active.visible, edges: {left: ids.rail, right: tabsId, down: tabsId}},
+    tabs: {...view.tabs, region: {id: tabsId, enabled: active.visible, edges: {left: switcherId, up: switcherId,
+      down: firstAction ? stateId : state.collection ? toolbarId : view.rows.length && !props.tvMusicDiscover ? rowId(0) : undefined}},
+      itemProps: (item: {value: string}) => ({focusId: item.value, onFocus: () => {if (state.tab.id !== item.value) view.tabs.onValueChange(item.value);}})},
+    shelves: view.rows.map((row, index) => ({...row, focus: {id: rowId(index), enabled: active.visible,
+      edges: {left: ids.rail, up: index ? rowId(index - 1) : tabsId, down: index + 1 < view.rows.length ? rowId(index + 1) : undefined}}})),
+    pageState: firstAction ? {id: stateId, entry: firstAction, edges: {left: ids.rail, up: tabsId}} : undefined,
+  };
 }

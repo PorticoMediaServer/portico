@@ -55,10 +55,42 @@ test('See all keeps Back and the group playback actions over the results', async
   const {SeeAllPage} = await screenModule(new URL('../src-next/pages/touch/library/SeeAllPage.tsx', import.meta.url), {
     ...modules, '../../shared/library/useSeeAll': {useSeeAll: () => ({t: defaultI18n.t, title: 'Recently added', ready: true, playable: true, view: 'grid', kinds: []})},
   });
-  const frame = SeeAllPage({controller: {collection: {}}, onBack: () => actions.push('back'), onPlay: (shuffle: boolean) => actions.push(shuffle ? 'shuffle' : 'play')}) as Node;
+  const frame = SeeAllPage({controller: {collection: {}}, runtime: {}, onBack: () => actions.push('back'), onPlay: (shuffle: boolean) => actions.push(shuffle ? 'shuffle' : 'play')}) as Node;
   assert.equal(frame.props.header.title, 'Recently added');
   frame.props.header.actions.props.children[1].props.onPress();
   frame.props.header.back.onPress();
   assert.deepEqual(actions, ['shuffle', 'back']);
   assert.equal(frame.props.grid.props.shape, 'poster');
+});
+
+test('TV Library connects the filter and jump actions to its grid', async () => {
+  const actions: string[] = [];
+  const t = defaultI18n.t, state = {library: {id: 'films', name: 'Films'}, tab: {shows: 'grid'}, collection: {}};
+  const view = {state, t, active: {visible: true}, openFilters: () => actions.push('filters'), gridId: 'grid', toolbarId: 'toolbar'};
+  const grid = {data: {status: 'ready'}, jump: {letters: [{key: 'A'}]}, region: {id: 'grid', edges: {up: 'toolbar'}}, openJump: () => actions.push('jump')};
+  const {LibraryPage} = await screenModule(new URL('../src-next/pages/tv/library/LibraryPage.tsx', import.meta.url), {
+    ...modules, '../../../kit/focus': {FocusItem: 'FocusItem'}, '../../../kit/browse/LibraryJumpSheet': {LibraryJumpSheet: 'Jump'},
+    '../../shared/library/useLibrary': {useTVLibrary: () => view, useTVLibraryGrid: () => grid},
+  });
+  const page = LibraryPage({runtime: {}, destination: {}, actions: {}}) as Node;
+  const frame = (page.type as (props: Node['props']) => Node)(page.props);
+  const toolbar = frame.props.toolbar.props.children[1];
+  toolbar.props.onFilters();
+  toolbar.props.onJump();
+  assert.deepEqual(actions, ['filters', 'jump']);
+  assert.equal(frame.props.grid.props.children[0].props.region.edges.up, 'toolbar');
+});
+
+test('TV See all starts on Play and provides an on-screen Back action', async () => {
+  let back = false;
+  const {SeeAllPage} = await screenModule(new URL('../src-next/pages/tv/library/SeeAllPage.tsx', import.meta.url), {
+    ...modules, '../../../kit/focus': {FocusItem: 'FocusItem'},
+    '../../shared/library/useSeeAll': {useSeeAll: () => ({t: defaultI18n.t, title: 'Recently added', ready: true, playable: true,
+      focus: {header: {id: 'row', entry: 'play'}, grid: {id: 'grid'}}})},
+  });
+  const frame = SeeAllPage({controller: {collection: {}}, runtime: {}, onBack: () => {back = true;}}) as Node;
+  assert.equal(frame.props.startFocus, 'play');
+  frame.props.header.back.onPress();
+  assert.ok(back);
+  assert.equal(frame.props.grid.props.region.id, 'grid');
 });

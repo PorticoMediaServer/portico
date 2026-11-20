@@ -5,19 +5,21 @@ import type {AnimatedRef} from 'react-native-reanimated';
 import {Row} from '../layout';
 import {cardCaptionHeight} from '../cards/caption-metrics';
 import {useTheme} from '../theme';
+import type {RowProps} from '../layout/Row';
 import type {LayoutItemContext} from '../layout/types';
 
 const noSelection = {active: false, isSelected: () => false, onToggle: () => {}, onEnter: () => {}};
 
-export function LibraryShelf<T>({title, items, shape, getKey, onVisibleRange, onSeeAll, renderItem}: {
+export function LibraryShelf<T>({title, items, shape, getKey, onVisibleRange, onSeeAll, focus, renderItem}: {
   title: string; items: readonly T[]; shape: 'wide' | 'square' | 'poster'; getKey: (item: T) => string;
+  focus?: RowProps<T>['focus'];
   onVisibleRange: (first: number, last: number) => void; onSeeAll?: () => void;
   renderItem: (item: T, context: LayoutItemContext, width: number) => ReactNode;
 }) {
   const theme = useTheme(), card = theme.spec.card, width = card.width[shape][theme.column];
   const caption = cardCaptionHeight(theme, 2);
   return <Row title={title} items={items} selection={noSelection} itemWidth={width} itemHeight={width / card.aspect[shape] + caption} captionHeight={caption}
-    getKey={getKey} onVisibleRange={onVisibleRange} onSeeAll={onSeeAll}
+    getKey={getKey} focus={focus} onVisibleRange={onVisibleRange} onSeeAll={onSeeAll}
     renderItem={(item, context) => renderItem(item, context, width)}/>;
 }
 

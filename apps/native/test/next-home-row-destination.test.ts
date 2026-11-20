@@ -13,7 +13,7 @@ const authority = {serverId: 'server', accountId: 'account', profileId: 'profile
 const rowModule = (isTV = false) => screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, 
     '../../kit/useScreenReader': {useScreenReader: () => false},
     react: {...React, default: React}, '../../../../../packages/client-core/src/recommendation-feedback': {}, '../../../../../packages/i18n/src': {}, '../../kit/overlays': {}, '../../kit/controls': {}, 'react-native': {Platform: {isTV}, View: 'View'}, '../../kit/focus': {},
-    '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, './HomeSeeAll': {}, './HomeRowFilters': {},
+    '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeSeeAll': {}, './HomeRowFilters': {},
     './row-controller': {NativeHomeRowController}, '../../platform/server-connections': {}, '../../shell/routes': {titleRoute, nativeEntryRoute, nativeEntryRouteSupported},
     '../../shell/route-registry': {nativeShellRoutes: new NativeShellRouteRegistry()}, '../../shell/model': {}, '../../kit/theme': {},
     '../read/platform': {hiddenReadingLibraryOnTV},

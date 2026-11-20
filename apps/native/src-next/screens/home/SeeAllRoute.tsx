@@ -8,6 +8,7 @@ import {useDockClearance} from '../../kit/dock/DockClearance';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {frameForm} from '@portico/design';
 import {SeeAllPage} from '../../pages/touch/library/SeeAllPage';
+import {SeeAllPage as TVSeeAllPage} from '../../pages/tv/library/SeeAllPage';
 import {HomeSeeAll} from './HomeSeeAll';
 import {HomeRowFilters} from './HomeRowFilters';
 import {NativeHomeRowController} from './row-controller';
@@ -169,7 +170,7 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
   onNotInterested: (entry: ContentEntry, value: boolean) => Promise<boolean>; kindLabel: (id: string) => string;
 }) {
   const {width, height} = useWindowDimensions();
-  const Page = !Platform.isTV && width < height && frameForm(width, false, height) === 'phone' ? SeeAllPage : HomeSeeAll;
+  const Page = Platform.isTV ? TVSeeAllPage : width < height && frameForm(width, false, height) === 'phone' ? SeeAllPage : HomeSeeAll;
   const shown = useRef(active); shown.current = active;
   const place = useNativeStackPlacement(source.route), stacked = useNativeStackHosted();
   const row = useSyncExternalStore(source.controller.subscribe, source.controller.getSnapshot).row;

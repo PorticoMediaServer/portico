@@ -1,13 +1,12 @@
 import React, {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
-import {Text, View} from 'react-native';
 import type {BrowseNode} from '../../../../../packages/client-core/src/browse';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {FilterBuilder, type BrowseLabels, type FilterFieldState} from './index';
-import {StateView} from '../states';
+import {FocusItem} from '../focus';
+import {StateRow, type BrowseFiltersProps} from '../frames';
 import {browsePlatform} from '../browse/presentation';
 import {useTheme} from '../theme';
-import type {BrowseFiltersProps} from '../frames';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {libraryFilterChange, libraryFilterField} from '../../screens/library/filter-controls';
 import {NativeLibraryFilterDraft} from '../../screens/library/filters';
@@ -27,10 +26,12 @@ export function LibraryFilterFields({draft, source, runtime, labels, owner, live
   if (!model || !source.capabilities) return null;
   const capabilities = source.capabilities;
   const fields = Object.fromEntries(model.groups.flatMap(group => group.fields.map(field => [field.id, libraryFilterField(field, state.predicates, state.facets[field.id], now)]))) as Readonly<Record<string, FilterFieldState>>;
-  const results = state.count.value && defaultI18n.t(state.count.value.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: state.count.value.total, pivot: source.tab.pivot ?? 'other'});
+  const retry = () => {setFailure(undefined); draft.refresh();};
+  const error = failure || state.count.phase === 'error' ? runtime.error(failure ?? state.count.error, retry) : undefined;
   return <>
-    {(failure || state.count.phase === 'error') && <StateView {...runtime.error(failure ?? state.count.error, () => {setFailure(undefined); draft.refresh();})}/>}
-    {theme.isTV && results && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: -4, marginBottom: 8}]}>{defaultI18n.t('next.browse.native.resultsMatch', {results})}</Text>}
+    {error && <FocusItem focusId="retry-filter"><StateRow kind="error" icon={error.icon ?? 'i-warn'} title={typeof error.title === 'string' ? error.title : defaultI18n.t('next.states.pageFailed')}
+      reason={typeof error.body === 'string' ? error.body : undefined}
+      action={{label: defaultI18n.t('next.states.tryAgain'), onPress: retry}}/></FocusItem>}
     <FilterBuilder testID={`${panelId}-fields`} model={model} labels={labels} focusPrefix={focusPrefix} openFields={openFields} fields={fields}
       onFieldOpenChange={(id, open) => setOpenFields(previous => open ? [...previous.filter(value => value !== id), id] : previous.filter(value => value !== id))}
       onFieldChange={(id, value) => {

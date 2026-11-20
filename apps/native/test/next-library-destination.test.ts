@@ -70,9 +70,17 @@ test('Library filter controls preserve negative-only values, typed decades, fixe
   assert.deepEqual(libraryFilterChange(filterCapabilities, genre, [negative], state, [], new Date()), [negative]);
   const fixed: BrowseNode = {variant: 'predicate', field: 'favorite', operator: 'equals', value: true};
   const alternative: BrowseNode = {variant: 'group', any: [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Comedy']}, fixed]};
-  const changed = libraryFilterChange(filterCapabilities, year, [alternative, fixed], {kind: 'values', included: ['1980'], excluded: [], mode: 'any'}, [fixed], new Date());
+  const decade = libraryFilterField(year, [], {phase: 'ready', search: '', value: {field: 'decade', values: [{value: '1980..1989', label: '1980..1989', count: 13}], total: 1}}, new Date());
+  if (decade.kind !== 'values') assert.fail();
+  assert.deepEqual(decade.values[0], {value: '1980', label: '1980s', count: 13});
+  const changed = libraryFilterChange(filterCapabilities, year, [alternative, fixed], {...decade, included: [decade.values[0]!.value]}, [fixed], new Date());
   assert.deepEqual(changed, [alternative, fixed, {variant: 'predicate', field: 'decade', operator: 'in', value: [1980]}]);
   assert.equal(libraryFilterField(year, changed, undefined, new Date()).summary, '1980s');
+  const yearOnly = {...year, operators: ['between' as const]};
+  const range = libraryFilterChange({...filterCapabilities, fields: [yearOnly]}, yearOnly, [],
+    {...decade, included: ['1980']}, [], new Date());
+  assert.deepEqual(range, [{variant: 'predicate', field: 'year', operator: 'between', value: [1980, 1989]}]);
+  assert.equal(libraryFilterField(yearOnly, range, undefined, new Date()).summary, '1980s');
 });
 
 test('Applied Library chips retain semantic predicate IDs and never flatten a cross-field OR', () => {

@@ -21,7 +21,7 @@ import type {NativeEntryActions} from '../entry-actions';
 import {TVFocusGrid} from '../../../tv/layout/TVFocusGrid';
 import {SavedTVTabs} from '../../saved/SavedTVTabs';
 import {SavedConfirmSheet} from '../../saved/SavedForms';
-import {LibraryJumpSheet} from '../../library/LibraryJumpSheet';
+import {LibraryJumpSheet} from '../../../kit/browse/LibraryJumpSheet';
 import {useTVPageBack} from '../useTVPageBack';
 import {useDestinationEntryFocus} from '../useEntryFocus';
 import {sameAuthority, type ShellAuthority} from '../../../shell/model';

@@ -41,7 +41,7 @@ test('See all entry Play preserves a chapter seek and retains the original row l
   const {createNativeHomeRows} = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, '../destinations/entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, 
     react, 'react-native': {Platform: {isTV: false}}, '../../kit/focus': {}, '../../kit/overlays': {}, '../../kit/controls': {},
     '../../../../../packages/client-core/src/recommendation-feedback': {}, '../../../../../packages/i18n/src': {},
-    '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, './HomeSeeAll': {}, './HomeRowFilters': {},
+    '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeSeeAll': {}, './HomeRowFilters': {},
     './row-controller': {NativeHomeRowController: class {subscribe = subscribe; collection = {subscribe}; dispose() {}}},
     '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
     '../../shell/model': {}, '../../kit/theme': {}, '../../kit/useScreenReader': {useScreenReader: () => false}, '../read/platform': {}, '../read/reading-books-open': {},
