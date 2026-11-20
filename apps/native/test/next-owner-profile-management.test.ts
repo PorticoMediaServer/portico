@@ -62,7 +62,7 @@ async function fixture(main = true, pinRequired = false, pictures = false) {
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
     '../../platform/accounts': {}, '../../platform/app-session-storage': {}, '../../platform/native-session-lifecycle': {}, '../../platform/profile-recovery': {}, '../../platform/account-authority': {},
     '../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => pictures}, '../../platform/server-connections': {},
-    '../settings-live/ProfileEditorFields': await profileEditorFields(react, {colors, type, isTV: false}),
+    '../../kit/settings/ProfileEditorFields': await profileEditorFields(react, {colors, type, isTV: false}),
     '../settings-live/lifetime': {NativeScreenLifetime: class {current = () => true; dispose() {}}},
     '../../shell/model': {sameAuthority: (left: unknown, right: unknown) => left === right},
     '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},

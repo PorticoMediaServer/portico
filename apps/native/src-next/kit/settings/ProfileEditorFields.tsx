@@ -4,11 +4,11 @@ import {profileArtColors} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {PROFILE_ART, type ProfileArt} from '../../../../../packages/client-core/src/profile-management';
 import type {ProfileRestrictions, RatingSystem} from '../../../../../packages/client-core/src/identity-restrictions';
-import {Button, Focusable, Select, Switch, TextField} from '../../kit/controls';
-import {Dialog} from '../../kit/overlays';
-import {SettingsRow} from '../../kit/shell';
-import {useTheme} from '../../kit/theme';
-import {addHiddenLabel} from '../accounts/account-form-values';
+import {Button, Focusable, Select, Switch, TextField} from '../controls';
+import {Dialog} from '../overlays';
+import {SettingsRow} from '../shell';
+import {useTheme} from '../theme';
+import {addHiddenLabel} from '../../screens/accounts/account-form-values';
 
 const t = defaultI18n.t;
 

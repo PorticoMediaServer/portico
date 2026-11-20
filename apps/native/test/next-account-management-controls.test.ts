@@ -43,7 +43,7 @@ async function fixture() {
     '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'},
     '../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => false},
     '../../platform/server-connections': {nativeNetworkFetch: () => {throw new Error('unexpected network');}},
-    '../settings-live/ProfileEditorFields': await profileEditorFields(React, theme),
+    '../../kit/settings/ProfileEditorFields': await profileEditorFields(React, theme),
     '../settings-live/lifetime': {NativeScreenLifetime: class {current = () => true; dispose() {} request = (work: () => unknown) => work();}},
     '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => a === b},
     '../../shell/route-registry': {nativeShellRoutes: {registerRoute(kind: string, factory: unknown) {factories[kind] = factory;}}},
