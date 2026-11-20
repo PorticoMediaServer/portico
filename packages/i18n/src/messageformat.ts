@@ -123,11 +123,21 @@ function pluralCategory(locale: string, n: number, ordinal: boolean): string {
   return t === 1 && h !== 11 ? 'one' : t === 2 && h !== 12 ? 'two' : t === 3 && h !== 13 ? 'few' : 'other';
 }
 
+// One Intl formatter per locale and options, made once: making one costs far more than using it,
+// and a screen of cards formats hundreds of numbers and dates on every render.
+const numberCache = new Map<string, Intl.NumberFormat>();
+const dateCache = new Map<string, Intl.DateTimeFormat>();
+
 function numberText(value: number, o: FormatOptions, style?: string): string {
   try {
-    // `::group-off` (an ICU skeleton): a number that is a name more than an amount, "1080p" and not "1,080p".
-    const opts: Intl.NumberFormatOptions = style === 'integer' ? {maximumFractionDigits: 0} : style === 'percent' ? {style: 'percent', maximumFractionDigits: 0} : style === '::group-off' ? {useGrouping: false} : {};
-    return new Intl.NumberFormat(o.locale, opts).format(value);
+    const key = `${o.locale}|${style ?? ''}`;
+    let format = numberCache.get(key);
+    if (!format) {
+      // `::group-off` (an ICU skeleton): a number that is a name more than an amount, "1080p" and not "1,080p".
+      const opts: Intl.NumberFormatOptions = style === 'integer' ? {maximumFractionDigits: 0} : style === 'percent' ? {style: 'percent', maximumFractionDigits: 0} : style === '::group-off' ? {useGrouping: false} : {};
+      numberCache.set(key, format = new Intl.NumberFormat(o.locale, opts));
+    }
+    return format.format(value);
   } catch { return String(value); }
 }
 
@@ -136,7 +146,10 @@ function dateText(value: Date | number, o: FormatOptions, kind: 'date' | 'time',
   if (!Number.isFinite(d.getTime())) return '';
   const s = (['short', 'medium', 'long', 'full'].includes(style) ? style : 'medium') as 'short' | 'medium' | 'long' | 'full';
   try {
-    return new Intl.DateTimeFormat(o.locale, {...(kind === 'date' ? {dateStyle: s} : {timeStyle: s === 'full' || s === 'long' ? 'short' : s}), timeZone: o.timeZone, ...(kind === 'time' && o.hour12 !== undefined ? {hour12: o.hour12} : {})}).format(d);
+    const key = `${o.locale}|${kind}|${s}|${o.timeZone ?? ''}|${o.hour12 ?? ''}`;
+    let format = dateCache.get(key);
+    if (!format) dateCache.set(key, format = new Intl.DateTimeFormat(o.locale, {...(kind === 'date' ? {dateStyle: s} : {timeStyle: s === 'full' || s === 'long' ? 'short' : s}), timeZone: o.timeZone, ...(kind === 'time' && o.hour12 !== undefined ? {hour12: o.hour12} : {})}));
+    return format.format(d);
   } catch { return kind === 'date' ? d.toDateString() : d.toTimeString().slice(0, 5); }
 }
 

@@ -231,3 +231,24 @@ test('credits cards preserve the published after-scene and automatic-countdown t
   assert.equal(t('player.upNext.sceneAfterCredits'), "There's a scene after the credits. Skip credits takes you straight to it.");
   assert.equal(t('player.upNext.playingIn', {seconds: 7}), 'Playing in 7s');
 });
+
+test('formatters made once per locale and options still format each locale and zone as its own', () => {
+  // Interleaved, so a formatter kept for one locale, style or time zone is never used for another.
+  for (let n = 0; n < 2; n++) {
+    assert.equal(formatMessage('{n, number}', {n: 1234.5}, {locale: 'en-US'}), '1,234.5');
+    assert.equal(formatMessage('{n, number}', {n: 1234.5}, {locale: 'de-DE'}), '1.234,5');
+    assert.equal(formatMessage('{n, number, ::group-off}', {n: 1080}, {locale: 'en-US'}), '1080');
+    assert.equal(formatMessage('{n, number, percent}', {n: 0.25}, {locale: 'en-US'}), '25%');
+    const at = Date.UTC(2026, 10, 16, 23, 30);
+    assert.equal(formatMessage('{d, date, short}', {d: at}, {locale: 'en-US', timeZone: 'UTC'}), '11/16/26');
+    assert.equal(formatMessage('{d, date, short}', {d: at}, {locale: 'en-US', timeZone: 'Asia/Tokyo'}), '11/17/26');
+    assert.equal(formatMessage('{d, time, short}', {d: at}, {locale: 'en-US', timeZone: 'UTC', hour12: false}), '23:30');
+    assert.equal(formatMessage('{d, time, short}', {d: at}, {locale: 'en-US', timeZone: 'UTC', hour12: true}), '11:30 PM');
+  }
+  const us = createI18n('en-US'), de = createI18n(resolveRegion(undefined, {locales: ['de-DE']}));
+  for (let n = 0; n < 2; n++) {
+    assert.equal(us.number(1234.5), '1,234.5');
+    assert.equal(us.number(0.5, {style: 'percent'}), '50%');
+    assert.equal(de.number(1234.5, {maximumFractionDigits: 0}), '1.235');
+  }
+});
