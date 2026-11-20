@@ -24,7 +24,7 @@ import {NativeServerSegments} from '../../../screens/settings-live/server/Segmen
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
-import {NativeServerHistory} from '../../../screens/settings-live/server/HistoryPage';
+import {ServerHistoryPage} from '../../touch/settings/ServerHistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
 import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
 import {useSettingsPage, type SettingsProps} from './useSettingsPage';
@@ -74,8 +74,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     {!!sheetShortcuts.length && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts.map(action => action.id === 'notifications' && unreadNotifications > 0
       ? {...action, trailing: <SettingsNotificationCount count={defaultI18n.number(unreadNotifications)}/>} : action)}/>}
   </>;
-  const custom = historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/>
-    : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/>
+  const custom = peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/>
     : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
@@ -92,7 +91,8 @@ export function NativeSettingsPage(props: SettingsProps) {
     : generalPage ? <NativeServerGeneral ports={ports} runtime={runtime} compactHeader={compact}/> : undefined;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
-  const settingsPage = (!compact || pushed) && <SettingsPageFrame title={t(page.title)}
+  const settingsPage = (!compact || pushed) && (historyPage ? <ServerHistoryPage ports={ports} runtime={runtime} server={serverHeader}
+    back={compact ? {label: title, onPress: phoneBack} : undefined} retry={retry}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
     intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
@@ -112,7 +112,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     </> : !custom && <SettingsRowTargetContext.Provider value={rowTargeting}>
       <SettingsPreferences key={page.id} {...preferenceProps} page={page} region={rows} column={column} aimedRow={aimed}/>
     </SettingsRowTargetContext.Provider>}
-  </SettingsPageFrame>;
+  </SettingsPageFrame>);
   const content = <SettingsListFrame bar={{title, action: {label: t('action.done'), onPress: closeSettings, testID: 'settings-sheet-done'}}}
     search={search} profile={profile} shortcuts={shortcuts} list={list} page={settingsPage || undefined} searching={tvSearch} closing={closing}
     hints={tv && !tvSearch ? <SettingsKeyHints t={t}/> : undefined}/>;

@@ -96,7 +96,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './server/PeoplePage': {NativeServerPeople: 'NativeServerPeople'},
     './server/SignInPage': {NativeServerSignIn: 'NativeServerSignIn'},
     './server/MetadataPage': {NativeServerMetadata: 'NativeServerMetadata'},
-    './server/HistoryPage': {NativeServerHistory: 'NativeServerHistory'},
+    '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: 'NativeServerHistory'},
     './server/PhoneServerPageHeader': {PhoneServerPageHeader: 'PhoneServerPageHeader'},
     '../settings/remote-sources/NativeRemoteSourcesScreen': {NativeRemoteSourcesScreen: 'NativeRemoteSourcesScreen'},
     '../../platform/playback/equalizer': {nativeEqualizer},
