@@ -5,7 +5,7 @@ import {settingsRowIndex} from '../../../../../../../packages/client-core/src/pr
 import type {BackupSettings} from '../../../../../../../packages/client-core/src/server-admin/server-backups';
 import type {defaultI18n} from '../../../../../../../packages/i18n/src';
 import {Button} from '../../../../kit/controls';
-import {NativeSettingControl} from '../SettingControl';
+import {NativeSettingControl} from '../../../../kit/settings/SettingControl';
 
 /** One draft for the real days/hour/keep fields, saved through the page's existing backup source. */
 export function NativeBackupSchedule({settings, saving, t, onSave}: {settings: BackupSettings; saving: boolean; t: typeof defaultI18n.t; onSave: (change: Pick<BackupSettings, 'days' | 'hour' | 'keep'>) => void}) {

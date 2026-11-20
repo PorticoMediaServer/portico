@@ -9,7 +9,7 @@ import {defaultI18n, type MessageId} from '../../../../../../../packages/i18n/sr
 import {Button, Focusable, Switch, TextField} from '../../../../kit/controls';
 import {BottomSheet, Menu} from '../../../../kit/overlays';
 import {FolderExplorer} from '../../owner-libraries/FolderExplorer';
-import {NativeAdvancedSection} from '../AdvancedSection';
+import {NativeAdvancedSection} from '../../../../kit/settings/AdvancedSection';
 import {shellType} from '../../../../kit/shell/visual';
 import {useTheme} from '../../../../kit/theme';
 import type {NativeShellBootstrapContext} from '../../../../shell/bootstrap';

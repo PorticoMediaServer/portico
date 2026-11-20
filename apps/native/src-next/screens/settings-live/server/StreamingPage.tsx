@@ -11,8 +11,8 @@ import {withFormValue} from '../../../../../../packages/client-core/src/server-a
 import {readSettingsBinding, settingsBinding, settingsBindingPatch, type SettingsBindingSources} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {Button} from '../../../kit/controls';
-import {NativeAdvancedSection} from './AdvancedSection';
-import {NativeSettingControl} from './SettingControl';
+import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
+import {NativeSettingControl} from '../../../kit/settings/SettingControl';
 import {NativeStreamingHardware} from './StreamingHardware';
 import {settingEnabled, settingsSummary} from './settings-values';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';

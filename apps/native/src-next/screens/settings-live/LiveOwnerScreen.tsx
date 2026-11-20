@@ -21,7 +21,7 @@ import {ChannelMapSheet} from './LiveOwnerSettingsSheets';
 import {SourceSettingsSheet} from './LiveSourceSettingsSheet';
 import {NativeRecordingOwner} from './LiveRecordingOwner';
 import {NativeLibraryChannelsPanel} from './server/LibraryChannelsPanel';
-import {NativeAdvancedSection} from './server/AdvancedSection';
+import {NativeAdvancedSection} from '../../kit/settings/AdvancedSection';
 import {FormScrollView} from '../../platform/keyboard';
 import {TopBar} from '../../kit/layout/TopBar';
 

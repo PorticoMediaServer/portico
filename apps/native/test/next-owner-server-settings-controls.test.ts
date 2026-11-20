@@ -48,7 +48,7 @@ test('backup chosen days, whole hour and keep count form one draft for the rebui
   const host = hooks(), settings = {days: [0,1,2,3,4,5,6], hour: 3, keep: 7, folder: '', includeArtwork: false}, saved: unknown[] = [];
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupSchedule.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'}, '../../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
-    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../kit/controls': {Button: 'Button'}, '../SettingControl': {NativeSettingControl: 'Setting'},
+    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../kit/controls': {Button: 'Button'}, '../../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
   });
   const render = () => host.render(() => module.NativeBackupSchedule({settings, saving: false, t, onSave: (value: unknown) => saved.push(value)}));
   const field = (id: string) => nodes(render()).find((node: any) => node.props.row?.id === id)!;
@@ -82,7 +82,7 @@ test('Segments exposes every Advanced control the segments document has (the per
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/SegmentsPage.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView'}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
-    './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../../../../packages/client-core/src/segment-review': {remeasureAllSegments: async () => ({}), retryUnreadableSegments: async () => ({})}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, './SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': {settingEnabled, settingsSummary}, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
+    '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../../../../packages/client-core/src/segment-review': {remeasureAllSegments: async () => ({}), retryUnreadableSegments: async () => ({})}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': {settingEnabled, settingsSummary}, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
   });
   const ports = {context: fixture.group.context, renderSettingsPanel: () => ({type: 'Review', props: {}})}, runtime = {text: {t}, reportError: assert.fail};
   const render = () => host.render(() => {const outer = module.NativeServerSegments({ports, runtime});return outer.type(outer.props);});
@@ -96,10 +96,10 @@ test('Segments exposes every Advanced control the segments document has (the per
 
 test('a folder row names the bound directory and picks one through the shared explorer', async () => {
   const values = await import('../src-next/screens/settings-live/server/settings-values.ts'), host = hooks();
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/SettingControl.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../kit/controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
-    '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
-    '../owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, './settings-values': values,
+  const module = await screenModule(new URL('../src-next/kit/settings/SettingControl.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
+    '../shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../theme': {useTheme: () => theme},
+    '../../screens/settings-live/owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../screens/settings-live/server/settings-values': values,
   });
   let changed: unknown, opened = false;
   const api = {request: async () => ({})};
