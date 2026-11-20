@@ -1,7 +1,17 @@
 {
   "path": "android/src/main/java/com/reactnativecommunity/webview/RNCWebViewClient.java",
   "beforeSHA256": "b5bc7df57d0de88ebe991b7d69027b47f6c64bb511ebab7a7273d88db34b8f07",
-  "afterSHA256": "c0edd34eeefc25a2e53b48665ecb2d112229531389e9724239be9291aaad8248",
+  "afterSHA256": "72512e2469fb5d3a71043e45e2f8f9fccebd7f6201c9810e33413f3b24f702e8",
   "before": "    private static String TAG = \"RNCWebViewClient\";",
-  "after": "    private static String TAG = \"RNCWebViewClient\";\n    private volatile boolean porticoReaderSurface = false;\n\n    @Override\n    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {\n        String url = request.getUrl().toString();\n        if (PorticoReaderAndroidAssets.isEntry(url)) porticoReaderSurface = true;\n        if (porticoReaderSurface || PorticoReaderAndroidAssets.isOrigin(url))\n            return PorticoReaderAndroidAssets.response(view.getContext(), request);\n        return super.shouldInterceptRequest(view, request);\n    }\n"
+  "after": "    private static String TAG = \"RNCWebViewClient\";\n    private volatile boolean porticoReaderSurface = false;\n\n    @Override\n    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {\n        String url = request.getUrl().toString();\n        if (PorticoReaderAndroidAssets.isEntry(url)) porticoReaderSurface = true;\n        if (porticoReaderSurface || PorticoReaderAndroidAssets.isOrigin(url))\n            return PorticoReaderAndroidAssets.response(view.getContext(), request);\n        return super.shouldInterceptRequest(view, request);\n    }\n",
+  "messages": {
+    "path": "android/src/main/java/com/reactnativecommunity/webview/RNCWebView.java",
+    "beforeSHA256": "3fd04aab5f1758832bcc4a606cb2c11d1e1f0669c3d962be1cd35562f201a362",
+    "afterSHA256": "540ca0a1b7d763a1fa3076c76190fb57260c3725abc36fb998b99c22d31740a4",
+    "before": "                RNCWebView.this.onMessage(message.getData(), sourceOrigin.toString());",
+    "after": "                String topURL = view.getUrl();\n                String origin = sourceOrigin.toString();\n                if (topURL != null && (PorticoReaderAndroidAssets.isEntry(topURL)\n                    || topURL.startsWith(PorticoReaderAndroidAssets.ENTRY + \"#\"))) {\n                  // AndroidX supplies an origin, not the document URL. Attribute the\n                  // message to the loaded reader only when its main frame sent it.\n                  if (isMainFrame && \"https://appassets.androidplatform.net\".equals(origin)) {\n                    RNCWebView.this.onMessage(message.getData(), topURL);\n                  }\n                  return;\n                }\n                RNCWebView.this.onMessage(message.getData(), origin);"
+  },
+  "assetsSHA256": "c0edd34eeefc25a2e53b48665ecb2d112229531389e9724239be9291aaad8248",
+  "navigationBefore": "        final String url = request.getUrl().toString();\n        return this.shouldOverrideUrlLoading(view, url);",
+  "navigationAfter": "        final String url = request.getUrl().toString();\n        if (porticoReaderSurface) {\n            // The React Native event loses WebResourceRequest.isForMainFrame().\n            // Only the reader's own sandbox documents may load in a subframe.\n            if (!request.isForMainFrame()) {\n                return !(\"about:blank\".equals(url) || url.startsWith(\"blob:https://appassets.androidplatform.net/\"));\n            }\n            return !(PorticoReaderAndroidAssets.isEntry(url) || url.startsWith(PorticoReaderAndroidAssets.ENTRY + \"#\"));\n        }\n        return this.shouldOverrideUrlLoading(view, url);"
 }
