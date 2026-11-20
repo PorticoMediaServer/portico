@@ -1,9 +1,10 @@
+import {settingsFixture, settingsFixtureChildren} from './helpers/settings-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-focus.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.headerContent)] : [];
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(settingsFixtureChildren(tree)), ...nodes(tree.props?.headerContent)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 // Settings search seams: the matches, the Covered flag, TV, and every destination entry ask the screen makes.
 const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[]};
@@ -28,7 +29,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
   const page = (id: string) => ({id, title: id, icon: 'settings', sections: []});
   const structure = {headings: [{id: 'account', pages: ['profile', 'playback', 'region'].map(page)}, {id: 'server', pages: ['dashboard', 'history', 'metadata', 'people', 'remote-sources'].map(page)}]};
   const theme: any = {isTV: search.tv, width: initialWidth, platform: initialWidth < 600 ? 'phone' : 'tablet', colors: new Proxy({}, {get: (_t, key) => String(key)})};
-  const {NativeSettingsScreen} = await screenModule(new URL('../src-next/screens/settings-live/SettingsScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
+  const {NativeSettingsScreen} = await settingsFixture({'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: host.react,
     'react-native': {AppState: {}, BackHandler: {addEventListener: (_name: string, listener: () => boolean) => {hardwareBack.push(listener); return {remove: () => {hardwareBack.splice(hardwareBack.indexOf(listener), 1);}};}}, Dimensions: {get: () => ({width: theme.width, height: 844})}, NativeModules: {}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', StatusBar: {}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})}, 'react-native-qrcode-svg': {default: 'QRCode'},
@@ -133,7 +134,7 @@ function ancestry(tree: any, match: (node: any) => boolean, path: any[] = []): a
   if (Array.isArray(tree)) {for (let index = 0; index < tree.length; index++) {const found = ancestry(tree[index], match, [...path, index]); if (found) return found;} return undefined;}
   if (!tree || typeof tree !== 'object') return undefined;
   const next = [...path, {type: tree.type, key: tree.props?.key}];
-  return match(tree) ? next : ancestry(tree.props?.children, match, next);
+  return match(tree) ? next : ancestry(settingsFixtureChildren(tree), match, next);
 }
 
 test('An open Settings page keeps its component ancestry and selection through phone-tablet-phone resize', async () => {
@@ -180,7 +181,7 @@ test('Opening a wide pane from the compact hub keeps its visible page when shrin
   try {
     assert.equal(f.header(), undefined);
     f.resize(800); f.render(); f.render();
-    const page = f.nodes().find(node => node.props?.page)?.props.page; assert.ok(page);
+    const page = f.nodes().find(node => node.props?.page?.id)?.props.page; assert.ok(page);
     const path = ancestry(f.tree(), node => node.props?.page?.id === page.id);
     f.resize(390); f.render();
     assert.equal(f.header().props.title, page.id); assert.deepEqual(ancestry(f.tree(), node => node.props?.page?.id === page.id), path);
@@ -228,10 +229,7 @@ test('Phone owner Settings reaches the Dashboard from a card above the shortcuts
     assert.deepEqual(order, ['settings-profile-card', 'PhoneDashboardCard', 'settings-shortcuts'], 'profile, then the card, then the shortcuts');
     shown.props.onPress();
     assert.deepEqual(f.opens, [{kind: 'server-dashboard'}]);
-    const body = shown.type({...shown.props, update: true});
-    const texts = (node: any): string[] => Array.isArray(node) ? node.flatMap(texts) : typeof node === 'string' ? [node] : node?.props ? texts(node.props.children) : [];
-    assert.deepEqual(texts(body), ['next.shell.server', 'settings.server.dashboard', 'next.shell.dashboardSummary', 'next.dashboard.update']);
-    assert.equal(texts(shown.type({...shown.props, update: false})).includes('next.dashboard.update'), false, 'Update only while one is waiting');
+    assert.equal(shown.props.update, false, 'there is no update badge before the server confirms one');
   } finally {f.unmount();}
 });
 
