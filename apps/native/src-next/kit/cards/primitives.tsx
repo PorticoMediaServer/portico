@@ -24,7 +24,7 @@ export type CardNativeProps = Omit<PressableProps, 'children' | 'style' | 'onPre
   focusId?: string;
   title: string;
   /** The caller's authored title allowance, shared by square, circle and mosaic cards. */
-  titleLines?: 1 | 2;
+  titleLines?: 0 | 1 | 2;
   /** Shelves that reserve room for the complete title receive the caption’s laid-out height. */
   onCaptionLayout?: (height: number) => void;
   /** The line under the title may take two lines: a cast member's role is a name, never cut (detail-tv-4, phone-detail d1). */
