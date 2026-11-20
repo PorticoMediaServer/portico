@@ -12,7 +12,7 @@ import {StateView} from '../../../kit/states';
 import {PhoneDashboardCard, SettingsHelp, SettingsKeyHints, SettingsNavigationGroup, SettingsNotificationCount, SettingsPageLink, SettingsSearchGroup} from '../../../kit/settings/SettingsParts';
 import {NativeTVKeyboard} from '../../../screens/destinations';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
-import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
+import {OwnerLibrariesPage} from './OwnerLibrariesPage';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
 import {NativeServerTroubleshooting} from '../../../screens/settings-live/server/TroubleshootingPage';
 import {NativeServerStorage} from '../../../screens/settings-live/server/StoragePage';
@@ -84,7 +84,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
       onClose={leaveServerPage} initialChannelId={initialChannelId}/>
-    : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
     : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/>
     : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/>
@@ -92,6 +91,7 @@ export function NativeSettingsPage(props: SettingsProps) {
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
   const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/> : librariesPage ? <OwnerLibrariesPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}

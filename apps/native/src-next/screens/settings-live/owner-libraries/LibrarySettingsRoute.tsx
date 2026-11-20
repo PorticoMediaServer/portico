@@ -5,7 +5,7 @@ import {NativeScreenLifetime} from '../lifetime';
 import {createNativeSettingsPorts} from '../settings-ports';
 import {createNativeSettingsRenderer} from '../SettingsRoute';
 import {Screen} from '../Screen';
-import {NativeOwnerLibrariesPanel} from './OwnerLibrariesPanel';
+import {OwnerLibrariesPage} from '../../../pages/shared/settings/OwnerLibrariesPage';
 
 /** Reuse the actual owner library editor; no alternate page or administration API. */
 export function createNativeLibrarySettingsRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
@@ -21,7 +21,7 @@ export function createNativeLibrarySettingsRenderer(context: NativeShellBootstra
       const account = context.account;
       if (!account.canManage || account.account.role !== 'owner' || account.account.disabled || account.account.primaryProfileId !== lifetime.authority.profileId)
         return fallback.render({kind: 'shell', destination: {kind: 'settings'}}, runtime);
-      return <Screen><NativeOwnerLibrariesPanel key={route.libraryId} ports={ports} runtime={runtime} initialLibraryId={route.libraryId} lifetime={lifetime}/></Screen>;
+      return <Screen><OwnerLibrariesPage key={route.libraryId} ports={ports} runtime={runtime} initialLibraryId={route.libraryId} lifetime={lifetime}/></Screen>;
     },
     dispose: () => {fallback.dispose?.(); lifetime.dispose();},
   };
