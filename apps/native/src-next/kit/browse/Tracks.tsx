@@ -130,7 +130,8 @@ function columnStyle(column: TrackColumn, variant: TrackVariant) {
 
 /** A track row's resting height, at the system text size: a list that windows its rows (`TrackWindow`) steps by it. */
 export function trackRowHeight(theme: Pick<ReturnType<typeof useTheme>, 'platform'>, variant: TrackVariant, current?: boolean): number {
-  return theme.platform === 'phone' ? 54 : variant === 'chapters' && current ? 76 : variant === 'songs' ? 56 : 60;
+  // The chapter you are in is taller on every form: its own progress and the time left in it sit under its title.
+  return variant === 'chapters' && current ? 76 : theme.platform === 'phone' ? 54 : variant === 'songs' ? 56 : 60;
 }
 
 export function TrackRow({row, variant, columns = defaultColumns[variant], selection, onPlay, onMore, onToggleFavorite, isMenuOpen, focusId, testID, onFocus, onBlur, disabled, index, previousFocused}: TrackActions & TVTrackFocus & {row: TrackRowData; variant: TrackVariant; columns?: readonly TrackColumn[]; selection: TrackSelection}) {
@@ -141,7 +142,8 @@ export function TrackRow({row, variant, columns = defaultColumns[variant], selec
   const duration = row.duration ?? row.text.detail.find(part => part.id === 'duration');
   const progress = boundedProgress(row.progress ?? row.text.progress), remaining = row.text.detail.find(part => part.id === 'remaining');
   if (tv) return <TVTrackRow {...{focusId, testID, onFocus, onBlur, disabled, index, previousFocused}} row={row} selected={selected} selectionMode={selection.active} selection={selection.active ? selection.renderControl(row, selected, () => selection.onToggle(row.id)) : undefined} onPress={() => selection.active ? selection.onToggle(row.id) : onPlay(row.id)} onMenu={onMore ? () => onMore(row.id) : undefined} showArtwork={variant === 'top-songs' || variant === 'songs'} showCaption={variant === 'top-songs' || variant === 'songs'}/>;
-  const actions = <View style={{width: phone ? 44 : variant === 'chapters' ? 60 : 84, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center'}}>
+  // A phone's chapter rows have no buttons: the row itself plays the chapter (collections 41a, phone-read 8).
+  const actions = phone && variant === 'chapters' ? null : <View style={{width: phone ? 44 : variant === 'chapters' ? 60 : 84, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center'}}>
     {variant === 'chapters' ? <Button variant="icon" size="small" iconOnly icon="i-play" accessibilityLabel={t('next.browse.native.play', {title: row.text.title})} onPress={() => onPlay(row.id)}/> : <>
     {row.favorite !== undefined && onToggleFavorite && !phone && <Button variant="icon" size="small" iconOnly icon={row.favorite ? 'i-heart-f' : 'i-heart'} accessibilityLabel={t(row.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} accessibilityState={{checked: row.favorite}} onPress={() => onToggleFavorite(row.id, !row.favorite)}/>}
     {/* A phone's ⋯ is plain, as the music frames draw it (phone-app 13, 15b); the round disc stays on wider forms. */}
@@ -149,7 +151,7 @@ export function TrackRow({row, variant, columns = defaultColumns[variant], selec
     </>}
   </View>;
   const select = () => selection.onToggle(row.id);
-  return <View style={{height: grow ? undefined : height, minHeight: height, paddingVertical: grow ? 6 : undefined, paddingLeft: phone ? 20 : 8, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: phone ? 14 : 16, borderRadius: 10, backgroundColor: selected ? alpha(theme.colors.accent, .18) : !phone && (row.playing || row.current) ? alpha(theme.colors.text, .08) : undefined}}>
+  return <View style={{height: grow ? undefined : height, minHeight: height, paddingVertical: grow ? 6 : undefined, paddingLeft: phone ? 20 : 8, paddingRight: phone && !actions ? 20 : 12, flexDirection: 'row', alignItems: 'center', gap: phone ? 14 : 16, borderRadius: 10, backgroundColor: selected ? alpha(theme.colors.accent, .18) : (!phone || variant === 'chapters') && (row.playing || row.current) ? alpha(theme.colors.text, .08) : undefined}}>
     {selection.active && selection.renderControl(row, selected, select)}
     <CardFrame menuAnchorRef={menuAnchorRef} moreExpanded={isMenuOpen?.(row.id)} title={row.text.title} primaryAction="play" onPlay={() => onPlay(row.id)} onMore={onMore ? () => onMore(row.id, menuAnchorRef) : undefined}
       selection={{active: selection.active, selected, onToggle: select, onEnter: () => selection.onEnter(row.id)}}
