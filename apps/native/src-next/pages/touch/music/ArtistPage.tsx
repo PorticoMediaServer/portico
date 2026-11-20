@@ -1,7 +1,7 @@
 import React from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {AmbientArt, ArtistCircle} from '../../../kit/artwork';
-import {AboutTable, musicScroller, PanelBlock, PanelHeading, StateRow, TitleFrame} from '../../../kit/frames';
+import {DetailsAside, musicScroller, PanelBlock, StateRow, TitleFrame} from '../../../kit/frames';
 import {HeroMetadata, PosterRow} from '../../../kit/layout';
 import {MusicSectionControls} from '../../../kit/music/MusicSectionControls';
 import {TrackWindow} from '../../../kit/music/TrackWindow';
@@ -22,9 +22,9 @@ export function ArtistPage(props: ArtistPageProps) {
     primary={{icon: 'i-play', label: t('entry.play'), onPress: view.play, testID: 'artist-play'}}
     actions={[{icon: 'i-shuffle', label: t('title.shuffle'), labelled: true, split: true, onPress: view.shuffle, testID: 'artist-shuffle'},
       // A tablet on its side: the heart beside them (the old tablet artist page); elsewhere it is in ⋯.
-      {icon: view.favorite.on ? 'i-heart-f' : 'i-heart', label: t(view.favorite.on ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite'), active: view.favorite.on, wide: true, onPress: view.favorite.toggle, testID: 'artist-favorite'},
+      view.favoriteAction,
       {icon: 'i-more', label: t('card.more', {title: view.title}), onPress: view.more, testID: 'artist-menu'}]}
-    aside={view.about?.length ? <PanelBlock inset={false}><PanelHeading title={t('title.details')}/><AboutTable rows={view.about}/></PanelBlock> : undefined}
+    aside={view.about?.length ? <DetailsAside rows={view.about}/> : undefined}
     scroller={musicScroller({testID: 'artist-scroll'})}>
     {view.state && <PanelBlock><StateRow {...view.state}/></PanelBlock>}
     {songs && <TrackWindow heading={{title: songs.title, quiet: true}} rows={songs.rows} variant="top-songs" select={songs.select} onPlay={songs.onPlay} onMore={songs.onMore} onFavorite={songs.onFavorite}/>}

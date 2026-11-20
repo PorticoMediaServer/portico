@@ -4,8 +4,9 @@ import type {FactPart} from '../../../../../../packages/client-core/src/presenta
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
-import type {AboutValue, StateRowProps} from '../../../kit/frames';
+import type {AboutValue, StateRowProps, TitleAction} from '../../../kit/frames';
 import {useTheme} from '../../../kit/theme';
+import {isTabletForm} from '@portico/design';
 import type {PosterRowProps} from '../../../kit/layout';
 import type {MusicSection} from '../../../kit/music/section';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -13,7 +14,7 @@ import type {NativeEntryActions} from '../../../screens/destinations/entry-actio
 import type {NativeTVMusicController} from '../../../screens/destinations/music/model';
 import {usePlayingItem} from '../../../screens/destinations/music/use-playing-item';
 import type {NativeSavedSelectionPort} from '../../../screens/saved/SavedScreen';
-import {similarPaging, songList, type SongList} from './music-rows';
+import {favoriteAction, similarPaging, songList, type SongList} from './music-rows';
 
 const t = defaultI18n.t;
 const year = (value: number | undefined) => value === undefined ? undefined : defaultI18n.number(value, {useGrouping: false});
@@ -36,6 +37,8 @@ export type AlbumView = Readonly<{
   play: () => void; shuffle: () => void; download?: () => void; more: () => void;
   /** Whether this viewer favourites the album, and the toggle (the old TV album page's heart). */
   favorite: Readonly<{on: boolean; toggle: () => void}>;
+  /** The same heart as a page action (`favoriteAction`). */
+  favoriteAction: TitleAction;
   playlist?: () => void;
   /** A tablet's Details beside the songs (tablet-play 11, the old tablet album page): year, release date, label, type,
    * genres, added. None on a phone (frame 13 has none). */
@@ -80,7 +83,7 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
   const byId = new Map(snapshot.songs.map(song => [song.id, song]));
   const albums = snapshot.similar.filter(value => value.kind === 'album' && value.libraryId);
   const retryRead = {label: t('action.tryAgain'), onPress: () => run(controller.load())};
-  const {form} = useTheme(), tablet = form === 'medium' || form === 'expanded';
+  const tablet = isTabletForm(useTheme().form);
   const date = (value: string | null | undefined) => value ? new Intl.DateTimeFormat(runtime.text.locale ?? 'en-US', {dateStyle: 'medium'}).format(new Date(value)) : undefined;
   const details = tablet ? ([[t('title.year'), released], [t('title.releaseDate'), date(entry.releaseDate)], [t('title.label'), entry.label],
     [t('title.albumType'), entry.albumType], [t('title.genres'), entry.genres?.join(', ')], [t('title.added'), date(entry.addedAt)]] as const)
@@ -91,7 +94,8 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
     facts, badges: snapshot.albumDetails?.badges,
     play: () => run(controller.play()), shuffle: () => run(controller.play(undefined, true)),
     download: download ? () => download(entry) : undefined, more: () => actions.menu(entry),
-    favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())}, playlist: onPlaylist,
+    favorite: {on: snapshot.favorite, toggle: () => run(controller.toggleFavorite())},
+    favoriteAction: favoriteAction(snapshot.favorite, () => run(controller.toggleFavorite()), 'album-favorite', t), playlist: onPlaylist,
     details: details.length ? details : undefined,
     discs: discNumbers.length > 1 ? discNumbers.map(value => ({id: String(value), label: t('title.disc', {number: defaultI18n.number(value, {useGrouping: false})}),
       selected: value === chosen, onPress: () => setDisc(value)})) : undefined,

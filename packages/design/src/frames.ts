@@ -20,6 +20,8 @@ export function frameForm(width: number, isTV = false, height?: number): FrameFo
   if (width < 600 || (height !== undefined && width < 1024 && height < 600)) return 'phone';
   return width < 1024 ? 'medium' : 'expanded';
 }
+/** A tablet, upright (`medium`) or on its side (`expanded`): the one test for a tablet-only part or datum. */
+export const isTabletForm = (form: FrameForm): boolean => form === 'medium' || form === 'expanded';
 
 export const frame = {
   /** Rule 4: on a phone a grouped card sits 16 from the edge and its text 14 inside it. On wider forms a card starts at the gutter. */
