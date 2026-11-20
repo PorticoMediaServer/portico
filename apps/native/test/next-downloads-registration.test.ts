@@ -13,7 +13,7 @@ test('the ordinary Downloads route registers its own real-data renderer and exac
   const host = hooks(); let kind: string | undefined, factory: any, retired = 0;
   const device = {getSnapshot: () => ({entries: []})};
   const view = await screenModule(new URL('../src-next/screens/downloads/view.tsx', import.meta.url), {
-    react: host.react, './DownloadsScreen': {DownloadsScreen: 'Downloads'},
+    react: host.react, '../../pages/touch/saved/DownloadsPage': {DownloadsPage: 'Downloads'},
     './device': {createNativeDownloadsDevice: () => ({device, service: undefined, dispose: () => {retired++;}})},
     '../../shell/model': {sameAuthority}, '../../shell/routes': {nativeEntryRoute: (entry: unknown) => ({kind: 'title', entry})},
     '../read/eligibility': readEligibility, '../read/platform': readPlatform,

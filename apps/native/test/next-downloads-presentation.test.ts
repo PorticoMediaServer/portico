@@ -1,4 +1,5 @@
 // @fabric-react
+import {savedFixture} from './helpers/saved-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -114,7 +115,7 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
   const snapshot = {supported: true, ready: true, entries: [current], settings: {}, usedBytes: 1, freeBytes: 100, otherBytes: 0};
   const device = {getSnapshot: () => snapshot, subscribe: () => () => {}, open: async () => {opened++;},
     playabilityReason: () => null, remove: async (value: unknown) => {removed.push(value);}};
-  const {DownloadsScreen} = await screenModule(new URL('../src-next/screens/downloads/DownloadsScreen.tsx', import.meta.url), {
+  const {DownloadsScreen} = await savedFixture('Downloads', {
     '../../pages/touch/saved/DownloadsPage': {DownloadsPage: 'DownloadsPage'},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
@@ -132,18 +133,21 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);
-    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children), ...nodes(node.props.body)] : [];
+    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children), ...nodes(node.props.body), ...nodes(node.props.overlays), ...nodes(node.props.rules), ...nodes(node.props.grid)] : [];
   }
   const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
   try {
     const find = (test: (node: any) => boolean) => nodes(screen.tree).find(test);
     find(node => node.type?.type?.name === 'DownloadInventoryWindow').props.onMenu(current, {current: null});
     await screen.host.rerender();
-    find(node => node.props?.testID === 'downloads-entry-menu-item-remove').props.onPress();
+    const menu = find(node => node.type?.name === 'DownloadEntryMenu');
+    const menuScreen = await mount(menu.type, menu.props);
+    try {nodes(menuScreen.tree).find(node => node.props?.testID === 'downloads-entry-menu-item-remove').props.onPress();}
+    finally {await menuScreen.host.unmount();}
     await screen.host.rerender();
     assert.deepEqual(removed, [], 'choosing Remove deletes nothing yet');
     assert.equal(find(node => node.props?.testID === 'downloads-remove-confirm').props.open, false, 'the confirm waits for the menu sheet to leave');
-    find(node => node.props?.testID === 'downloads-entry-menu').props.onExited();
+    find(node => node.type?.name === 'DownloadEntryMenu').props.afterMenu();
     await screen.host.rerender();
     const confirm = find(node => node.type?.name === 'SavedConfirmSheet' && node.props.testID === 'downloads-remove-confirm');
     assert.equal(confirm.props.open, true); assert.equal(confirm.props.destructive, true);
@@ -162,7 +166,7 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
   const snapshot = {supported: true, ready: true, entries: [current], settings: {}, usedBytes: 1, freeBytes: 100, otherBytes: 0};
   const device = {getSnapshot: () => snapshot, subscribe: () => () => {}, open: async () => {opened++;},
     playabilityReason: () => null};
-  const {DownloadsScreen} = await screenModule(new URL('../src-next/screens/downloads/DownloadsScreen.tsx', import.meta.url), {
+  const {DownloadsScreen} = await savedFixture('Downloads', {
     '../../pages/touch/saved/DownloadsPage': {DownloadsPage: 'DownloadsPage'},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
@@ -180,7 +184,7 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);
-    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children), ...nodes(node.props.body)] : [];
+    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children), ...nodes(node.props.body), ...nodes(node.props.overlays), ...nodes(node.props.rules), ...nodes(node.props.grid)] : [];
   }
   const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
   try {

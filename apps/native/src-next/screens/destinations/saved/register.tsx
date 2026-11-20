@@ -8,7 +8,7 @@ import {createNativeEntryActions} from '../entry-actions';
 import {createNativeSavedSelection} from '../../saved/selection';
 import {createNativeTVSavedDestination} from './model';
 import {nativeTVSavedSelectionSource} from './tv-source';
-import {TVSavedScreen} from './TVSavedScreen';
+import {TVSavedPage} from '../../../pages/tv/saved/SavedPage';
 
 /** tv-more1–5: TV owns the Saved destination and its landing. Pushed playlist,
  * collection and saved-view pages stay with Saved's own route registration. */
@@ -38,7 +38,7 @@ export function createNativeTVSavedRenderer(context: NativeShellBootstrapContext
   const renderer: NativeRouteRenderer = {
     render: (route, runtime) => {
       if (route.kind !== 'shell' || route.destination.kind !== 'saved' || !current()) return null;
-      return <TVSavedScreen controller={destination.controller} runtime={runtime} actions={actions} activation={destination.activation}
+      return <TVSavedPage controller={destination.controller} runtime={runtime} actions={actions} activation={destination.activation}
         authority={runtime.getSnapshot().authority} initialTab="watchlist" selection={savedSelection()} openSaved={openSaved} openEntry={openEntry}
         browseHome={() => {if (current()) context.navigation.open({kind: 'shell', destination: {kind: 'home'}}, context.authority());}}/>;
     },

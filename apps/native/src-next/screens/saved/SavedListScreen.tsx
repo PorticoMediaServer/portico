@@ -20,7 +20,7 @@ import {savedTitleCount} from './presentation';
 import {SavedSortMenu} from './SavedSortMenu';
 import {SavedLoading, SavedTail} from './SavedLoading';
 import {savedNearEnd} from './paging';
-import type {NativeSavedSelectionPort} from './SavedScreen';
+import type {NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
 import {TVRow} from '../../kit/layout/TVRow';
 import {TopBar} from '../../kit/layout/TopBar';
 
