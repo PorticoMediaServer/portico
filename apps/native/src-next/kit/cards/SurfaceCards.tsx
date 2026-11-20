@@ -125,7 +125,8 @@ export function GenreTile(props: GenreTileProps) {
       {props.variant === 'video' ? t.isTV || props.backdrop ? <><MediaArt kind="wide" source={props.backdrop} width={width} height={height} visible={props.visible} priority={props.priority} /><Scrim start={0} opacity={0.75} /></>
         : props.covers.slice(0, 2).map((source, index) => <Artwork key={source.cacheKey} source={source} width={42} height={63} visible={props.visible} priority={props.priority} fallback={props.renderCoverFallback?.(index)} style={{position: 'absolute', right: index ? -2 : 30, top: index ? 30 : 38, borderRadius: 5, transform: [{rotate: index ? '10deg' : '-8deg'}]}} />)
         : <CoverFan covers={props.covers} shape="square" variant="music" width={t.isTV ? 180 : 112} height={t.isTV ? 140 : 84} visible={props.visible} renderFallback={props.renderCoverFallback} style={{position: 'absolute', right: -2, top: 18}} />}
-      <View style={{position: 'absolute', left: t.isTV ? 22 : 14, top: t.isTV ? 22 : 12, right: props.variant === 'music' ? width * 0.42 : 14}}>
+      {/* The title wraps before the art at the right: the music fan, or the two covers of a video tile without a backdrop. */}
+      <View style={{position: 'absolute', left: t.isTV ? 22 : 14, top: t.isTV ? 22 : 12, right: props.variant === 'music' ? width * 0.42 : !t.isTV && !props.backdrop && props.covers.length ? 30 + 42 + t.space.xs : 14}}>
         <Text numberOfLines={2} style={[titleStyle(t, t.isTV ? 26 : 15, 800, -0.01), {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
         <Parts parts={props.caption} />
       </View>
