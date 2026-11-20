@@ -1,4 +1,4 @@
-import React, {useCallback, useId, useRef, useSyncExternalStore} from 'react';
+import React, {useCallback, useId, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import Animated, {useAnimatedStyle, type SharedValue} from 'react-native-reanimated';
 import Svg, {Defs, Pattern, Rect} from 'react-native-svg';
@@ -62,7 +62,14 @@ export function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPositio
     <View style={{width: channelWidth - (theme.isTV ? 18 : phoneGrid ? 2 : 8)}}>
       <FocusItem focusId={channelFocusId(channel)} cell={theme.isTV ? {row: index, kind: 'channel'} : undefined}><Focusable ref={channelRef} focusId={channelFocusId(channel)} testID={`live-channel-${channel.sourceId}-${channel.id}`} accessibilityRole="button" accessibilityLabel={[`${channel.number} ${channel.name}`, unavailable ? runtime.text.t(unavailable) : undefined].filter(Boolean).join(', ')} onFocus={() => onTVFocus(index)} onLongPress={() => onChannelMenu(channel, channelRef.current)} onPress={() => list ? onOpen(channel, current.now, channelRef.current) : theme.isTV ? watch(channel) : onOpen(channel, undefined, channelRef.current)} focusKind="row" style={{height: rowHeight, borderRadius: compactChannel ? 8 : 12, paddingHorizontal: phoneGrid ? 0 : 16, flexDirection: compactChannel ? 'column' : 'row', justifyContent: compactChannel ? 'center' : undefined, alignItems: 'center', gap: compactChannel ? 5 : landscapePhone ? 10 : 16, backgroundColor: phoneGrid ? 'transparent' : theme.colors.raised}}>
         <View style={{width: theme.isTV ? 56 : landscapePhone ? 32 : 36, height: theme.isTV ? 56 : landscapePhone ? 32 : 36}}><GuideChannelArt channel={channel} source={logo} size={theme.isTV ? 56 : landscapePhone ? 32 : 36}/>{compactChannel && channel.favorite && <View style={{position: 'absolute', right: -7, top: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: theme.colors.ink, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-star-f" size={10} color={theme.colors.accentStrong}/></View>}</View>
-        <View style={{flex: compactChannel ? undefined : 1, alignItems: compactChannel ? 'center' : undefined}}>{!compactChannel && <View style={{flexDirection: 'row', alignItems: 'center', gap: 5}}><Text style={[shellType(theme.isTV ? 22 : landscapePhone ? 12.5 : 13, 700), {color: theme.colors.text, flexShrink: 1}]}>{channel.name}</Text>{landscapePhone && channel.favorite && <Icon name="i-star-f" size={10} color={theme.colors.accentStrong}/>}</View>}<Text style={[shellType(theme.isTV ? 18 : 11), {color: theme.colors.textSecondary}]}>{channel.number}</Text></View>
+        <View style={{flex: compactChannel ? undefined : 1, minWidth: 0, alignItems: compactChannel ? 'center' : undefined}}>
+          {!compactChannel && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight}}>
+            {theme.isTV ? <GuideProgrammeTitle title={channel.name} lines={2} maxHeight={rowHeight - (theme.type.micro.lineHeight ?? theme.space.md)}
+              style={[theme.type.cardTitle, {color: theme.colors.text}]}/> : <Text style={[theme.type.captionStrong, {color: theme.colors.text, flexShrink: 1}]}>{channel.name}</Text>}
+            {landscapePhone && channel.favorite && <Icon name="i-star-f" size={10} color={theme.colors.accentStrong}/>}
+          </View>}
+          <Text style={[theme.isTV ? theme.type.micro : theme.type.caption, {color: theme.colors.textSecondary}]}>{channel.number}</Text>
+        </View>
       </Focusable></FocusItem>
     </View>
     <View style={{flex: 1, overflow: 'hidden'}} onLayout={entry}>
@@ -102,32 +109,35 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
   const theme = useTheme(), fadeId = useId().replace(/:/g, ''), padding = theme.isTV ? 16 : compact ? 7 : 8;
   const gap = cell.kind === 'gap', narrow = nativeGuideTitleLines(cell.tier, left, Math.max(0, cell.width - (compact ? 2 : 0)), laneWidth, compact, theme.isTV) === 1;
   const background = selected ? theme.colors.raisedBright : !theme.isTV && gap ? 'transparent' : cell.state === 'now' ? theme.colors.raisedHigh : !theme.isTV && cell.state === 'past' ? alpha(theme.colors.raised, .5) : theme.colors.raised;
-  const cellWidth = Math.max(0, cell.width - (compact ? 2 : 0)), clippedStart = cell.clippedStart, isTV = theme.isTV;
-  const elapsed = !gap && cell.state === 'now';
-  const phoneTile = compact && theme.form === 'phone';
-  const titleLines = phoneTile && cellWidth >= theme.space.xl ? 2 : narrow ? 1 : 2;
+  const cellWidth = Math.max(0, cell.width - (compact ? 2 : 0));
+  const elapsed = !gap && cell.state === 'now', progressRoom = elapsed ? theme.space.tight : 0;
+  const bodyHeight = rowHeight - (compact ? theme.space.tight : 0) - progressRoom - (selected ? 4 : gap && !theme.isTV ? 2 : 0);
+  const [titleHeight, setTitleHeight] = useState(0);
+  const titleStyle = theme.isTV ? theme.type.cardTitle : gap ? theme.type.rowHelp : theme.type.captionStrong;
+  const titleLines = compact && cellWidth >= theme.space.xl ? 2 : narrow ? 1 : 2;
+  const captionGap = theme.space.tight;
+  const captionHeight = titleHeight > 0 ? bodyHeight - titleHeight - captionGap : 0;
+  const captions = (cell.tier === 'full' || cell.tier === 'title2') && captionHeight >= (theme.type.caption.lineHeight ?? theme.type.caption.fontSize ?? 0);
   const content = useAnimatedStyle(() => {
     const window = nativeGuideCellWindow(left, cellWidth, laneWidth, panActive ? start * px - panPosition.value : 0);
-    return {transform: [{translateX: window.cutLeft}], width: Math.max(0, window.width - padding * 2)};
+    const inset = Math.min(padding, Math.max(0, (window.width - 16) / 2));
+    return {transform: [{translateX: window.cutLeft + inset}], width: Math.max(0, window.width - inset * 2)};
   }, [left, cellWidth, laneWidth, panActive, start, px, padding]);
-  const clip = useAnimatedStyle(() => {
-    const clipped = clippedStart || left + (panActive ? start * px - panPosition.value : 0) < 0;
-    return {width: clipped ? isTV ? 20 : 10 : 0, opacity: clipped ? 1 : 0};
-  }, [clippedStart, left, panActive, start, px, isTV]);
+  const captionLines = gapBody ? [gapBody] : nativeProgrammeCaption(cell.program, cell.state === 'now', theme.isTV, clock, runtime.text);
   if (loading) return <GuideLoadingMarker cellWidth={cellWidth} rowHeight={rowHeight} compact={compact} left={left} testID={`${testID}-loading`}/>;
-  if (failed) return <Focusable ref={refNode} focusId={focusId} testID={`${testID}-error`} accessibilityRole="button" accessibilityLabel={runtime.text.t('guide.tileFailed')} onFocus={onTVFocus} onLongPress={theme.isTV ? retry : undefined} onPress={retry} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: theme.colors.raised}}><Animated.View style={[{position: 'absolute', left: padding, top: 0, bottom: 0, justifyContent: 'center'}, content]}><Text style={[shellType(theme.isTV ? 20 : 12), {color: theme.colors.textTertiary}]}>{runtime.text.t('guide.tileFailed')}</Text></Animated.View></Focusable>;
+  if (failed) return <Focusable ref={refNode} focusId={focusId} testID={`${testID}-error`} accessibilityRole="button" accessibilityLabel={runtime.text.t('guide.tileFailed')} onFocus={onTVFocus} onLongPress={theme.isTV ? retry : undefined} onPress={retry} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: theme.colors.raised}}><Animated.View style={[{position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center'}, content]}><Text style={[shellType(theme.isTV ? 20 : 12), {color: theme.colors.textTertiary}]}>{runtime.text.t('guide.tileFailed')}</Text></Animated.View></Focusable>;
   return <Focusable ref={refNode} focusId={focusId} testID={testID} accessibilityRole="button" accessibilityLabel={cell.program?.title ?? gapLabel} onFocus={onTVFocus} onLongPress={theme.isTV ? onPress : undefined} onPress={onPress} accessibilityState={{selected}} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: background, borderWidth: selected ? 2 : !theme.isTV && gap ? 1 : 0, borderColor: selected ? theme.colors.accentStrong : theme.colors.line, overflow: 'hidden'}}>
     {!theme.isTV && gap && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}><Svg width="100%" height="100%" accessible={false}><Defs><Pattern id={`${fadeId}-gap`} patternUnits="userSpaceOnUse" width={14} height={14} patternTransform="rotate(45)"><Rect width={7} height={14} fill={theme.colors.text} fillOpacity={.035}/></Pattern></Defs><Rect width="100%" height="100%" fill={`url(#${fadeId}-gap)`}/></Svg></View>}
-    <Animated.View style={[{position: 'absolute', left: padding, top: 0, bottom: elapsed ? theme.space.tight : 0, justifyContent: 'center'}, content]}>
-      <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>{!theme.isTV && cell.program?.recording && <View style={{width: 7, height: 7, borderRadius: 4, marginTop: 4.5, marginRight: 5, backgroundColor: theme.colors.record}}/>}<Animated.View style={[{overflow: 'hidden'}, clip]}><Icon name="i-left" size={theme.isTV ? 16 : 10} color={theme.colors.textTertiary}/></Animated.View><GuideProgrammeTitle title={cell.program?.title ?? gapLabel} lines={titleLines}
-        style={[theme.isTV ? theme.type.cardTitle : gap ? theme.type.rowHelp : theme.type.captionStrong,
-          {color: !theme.isTV && (gap || cell.state === 'past') ? theme.colors.textTertiary : theme.colors.text}]}/></View>
-      {!theme.isTV && gap && gapBody && (cell.tier === 'full' || cell.tier === 'title2') && <Text style={[shellType(11.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{gapBody}</Text>}
-      {(cell.tier === 'full' || cell.tier === 'title2') && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 12 : 5, marginTop: theme.isTV ? theme.space.tight : 3}}>
+    <Animated.View style={[{position: 'absolute', left: 0, top: 0, bottom: progressRoom, justifyContent: 'center'}, content]}>
+      <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+        <GuideProgrammeTitle title={cell.program?.title ?? gapLabel} lines={titleLines} maxHeight={bodyHeight} onHeight={setTitleHeight}
+          style={[titleStyle, {color: !theme.isTV && (gap || cell.state === 'past') ? theme.colors.textTertiary : theme.colors.text}]}/>
+      </View>
+      {captions && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight, marginTop: captionGap}}>
         <ProgrammeFlags programme={cell.program} grid text={runtime.text}/>
-        {theme.isTV && cell.program?.recording && <View style={{width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.record}}/>}
-        {nativeProgrammeCaption(cell.program, cell.state === 'now', theme.isTV, clock, runtime.text).map((caption, captionIndex) => <GuideProgrammeTitle key={captionIndex} title={caption} lines={1} complete
-          style={[theme.type.caption, {color: !theme.isTV && cell.state === 'now' ? theme.colors.textSecondary : theme.colors.textTertiary,
+        {cell.program?.recording && <View style={{width: theme.space.xs, height: theme.space.xs, borderRadius: theme.space.xs / 2, backgroundColor: theme.colors.record}}/>}
+        {captionLines.map((caption, index) => <GuideProgrammeTitle key={index} title={caption} lines={1} whole
+          maxHeight={captionHeight} style={[theme.type.caption, {color: !theme.isTV && cell.state === 'now' ? theme.colors.textSecondary : theme.colors.textTertiary,
             opacity: !theme.isTV && cell.state === 'past' ? .65 : 1}]}/>)}
       </View>}
     </Animated.View>
