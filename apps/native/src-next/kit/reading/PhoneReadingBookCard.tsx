@@ -1,3 +1,4 @@
+import {GuideProgrammeTitle} from '../live/GuideProgrammeTitle';
 import React, {useRef, type RefObject} from 'react';
 import {Text, View} from 'react-native';
 import {generatedCoverTint} from '@portico/design';
@@ -45,7 +46,8 @@ export function PhoneReadingBookCard({testID, title, author, detail, width, artw
     </View>
     <View style={{paddingTop: theme.space.tight, gap: theme.space.hairline}}
       onLayout={onCaptionLayout && (event => onCaptionLayout(event.nativeEvent.layout.height))}>
-      <Text style={[theme.type.cardTitle, {color: theme.colors.text}]}>{title}</Text>
+      {/* A card in a grid or shelf: two lines, then "…" on a whole word (owner, 20 Nov); the card's label reads the whole title. */}
+      <View style={{flexDirection: 'row'}}><GuideProgrammeTitle title={title} lines={2} style={[theme.type.cardTitle, {color: theme.colors.text}]}/></View>
       {author && <Text style={[theme.type.cardSubtitle, {color: theme.colors.textTertiary}]}>{author}</Text>}
       {detail && <Text style={[theme.type.cardSubtitle, {color: theme.colors.textTertiary}]}>{detail}</Text>}
     </View>
