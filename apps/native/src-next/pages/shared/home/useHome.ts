@@ -12,6 +12,7 @@ import type {HeroCandidate} from '../../../kit/layout';
 import {useFocusAnchor} from '../../../kit/layout/FocusAnchor';
 import {homeRowMetrics, type HomeHeroAction} from '../../../kit/home';
 import type {PageStateProps} from '../../../kit/frames';
+import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {skeletonTiming} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
 import {noteHomeRead} from '../../../shell/home-read-log';
@@ -44,11 +45,11 @@ export function useHome({runtime, authority, active = true, heroObscured = false
   const cardFocusId = useCallback((item: HomeCardModel) => ids.entry(item.entry), [ids]);
   // Confirmed Appearance effects: the drawn card is 100 percent, and the picture is drawn unless the viewer turned backdrops off.
   const cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100, showBackdrops = runtime.appearanceShowBackdrops !== false;
-  const width = dimensions.width, height = dimensions.height;
+  const {width, form} = useFrameMetrics(), height = dimensions.height;
   const snapshot = useSyncExternalStore(runtime.home.subscribe, runtime.home.getSnapshot);
   // P2-61: a library directory that did not answer is unknown, never "no libraries".
   const librariesUnavailable = useSyncExternalStore(runtime.subscribe ?? noSubscription, () => {try {return runtime.getSnapshot?.().librariesUnavailable === true;} catch {return false;}});
-  const heroHeight = theme.spec.hero.homeHeight[theme.column];
+  const heroHeight = form === 'expanded' ? theme.spec.hero.tabletHome.landscapeHeight : theme.spec.hero.homeHeight[theme.column];
   const heroActive = active && !heroObscured && !runtime.getSnapshot().selectionActive;
   const errorFacts = snapshot.error ? presentError(snapshot.error, 'home') : undefined;
   const transportFailure = errorFacts !== undefined && ['unreachable', 'offline', 'timeout', 'busy'].includes(errorFacts.category);
@@ -148,10 +149,11 @@ export function useHome({runtime, authority, active = true, heroObscured = false
     if (reportedRange.value !== next) {reportedRange.value = next; runOnJS(updateViewport)(y);}
   });
   const candidates: readonly HomeCandidate[] = useMemo(() => document ? homeSpotlightModels(document).map(model => ({
-    id: model.entry.id, title: model.entry.displayTitle || model.entry.title, entry: model.entry, overview: model.overview,
+    id: model.entry.id, title: model.entry.displayTitle || model.entry.title,
+    long: form === 'expanded' && (model.entry.displayTitle || model.entry.title).length > 20, entry: model.entry, overview: model.overview,
     reason: serverTextLabel(labels, model.reason.text), facts: homeTitleFactParts(model.entry, runtime.text),
     target: model.primary?.entry, primaryLabel: model.primary ? t(model.primary.label.key, model.primary.label.params) : undefined,
-  })) : [], [document, runtime.text, labels, t]);
+  })) : [], [document, form, runtime.text, labels, t]);
   const guarded = (run: () => void) => {if (current()) run();};
 
   return {
