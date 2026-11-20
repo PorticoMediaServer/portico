@@ -24,7 +24,7 @@ export function MusicScrollView({children, onNearEnd, collapseAt, onCollapse, ..
   const [viewport, setViewport] = useState({offset: 0, height: 0}), [layout, setLayout] = useState(0), [origin, setOrigin] = useState(0);
   const reported = useSharedValue(-1), tail = useSharedValue(-1), collapsed = useSharedValue(false);
   const publish = useCallback((offset: number, height: number) => setViewport({offset, height}), []);
-  const move = useCallback((offset: number) => {scroll.current?.scrollTo({y: Math.max(0, offset), animated: false}); setViewport(value => ({...value, offset: Math.max(0, offset)}));}, []);
+  const move = useCallback((offset: number) => {scroll.current?.scrollTo({y: Math.max(0, offset), animated: false}); setViewport(value => ({...value, offset: Math.max(0, offset)}));}, [scroll]);
   const onScroll = useAnimatedScrollHandler(event => {
     const offset = event.contentOffset.y, height = event.layoutMeasurement.height, range = Math.floor(offset / 54);
     if (range !== reported.value) {reported.value = range; runOnJS(publish)(offset, height);}
@@ -33,7 +33,7 @@ export function MusicScrollView({children, onNearEnd, collapseAt, onCollapse, ..
       if (tail.value !== event.contentSize.height) {tail.value = event.contentSize.height; runOnJS(onNearEnd)();}
     } else tail.value = -1;
   });
-  const value = useMemo(() => ({content, scroll, ...viewport, layout, origin, move}), [viewport, layout, origin, move]);
+  const value = useMemo(() => ({content, scroll, ...viewport, layout, origin, move}), [scroll, viewport, layout, origin, move]);
   return <Viewport.Provider value={value}><Animated.ScrollView {...props} ref={attach} onScroll={onScroll} scrollEventThrottle={16}
     onLayout={event => {const {height} = event.nativeEvent.layout; setViewport(value => ({...value, height})); props.onLayout?.(event);}}>
     <View ref={content} collapsable={false} onLayout={event => {setOrigin(event.nativeEvent.layout.y); setLayout(value => value + 1);}}>{children}</View>
@@ -106,7 +106,7 @@ export function MusicShelf<T extends {id: string}>({items, width, gap, inset = 0
     const before = previous.current; previous.current = ids;
     const shift = musicWindowShift(before, ids, 1, stride, viewport.offset - inset);
     if (before !== ids && shift) {const offset = Math.max(0, viewport.offset + shift); scroll.current?.scrollTo({x: offset, animated: false}); setViewport(value => ({...value, offset}));}
-  }, [ids, stride, viewport.offset, inset]);
+  }, [scroll, ids, stride, viewport.offset, inset]);
   const indices = [...musicWindow(items.length, 1, stride, inset, viewport.offset, viewport.width || width * 3, focused === undefined ? undefined : ids.indexOf(focused))].sort((a, b) => a - b);
   let previousIndex = 0;
   const cells = indices.map(index => {
