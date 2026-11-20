@@ -39,7 +39,7 @@ const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/wa
 const contexts: {current: unknown}[] = [];
 const focus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
   react: {...react, createContext: (current: unknown) => {const value = {current}; contexts.push(value); return value;}, useContext: (context: {current: unknown}) => context.current},
-  'react-native': {findNodeHandle: () => null, TVFocusGuideView: 'Guide', View: 'View'}, '../theme': themed, './registry': registry, './useHostRef': hostRefs,
+  'react-native': {findNodeHandle: () => null, TVFocusGuideView: 'Guide', View: 'View'}, '../theme': themed, './registry': registry, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefs,
 });
 function targets(value: any, kinds = ['Button', 'TextField']): any[] {
   if (Array.isArray(value)) return value.flatMap(node => targets(node, kinds));

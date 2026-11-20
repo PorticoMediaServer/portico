@@ -18,7 +18,7 @@ async function focusModule() {
   const mod = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
     react: controlledReact,
     'react-native': {findNodeHandle: (host: Host) => host.nativeTag, TVFocusGuideView: 'TVFocusGuideView', View: 'View'},
-    '../theme': {useTheme: () => ({isTV: true})}, './registry': registryModule, './useHostRef': hostRefModule,
+    '../theme': {useTheme: () => ({isTV: true})}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
   });
   return {mod, contexts};
 }

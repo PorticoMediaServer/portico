@@ -8,7 +8,7 @@ import {colorAlpha, focusScale, type FocusKind} from './control-model';
 import {useFocusedMenu} from './useFocusedMenu';
 import {useOverlayPaintMode} from '../overlays/OverlayPaintContext';
 import {useInTopLayer} from '../overlays/OverlayHost';
-import {useCovered, useFocusTarget} from '../focus';
+import {useCovered, useFocusTarget, useLayerCovered} from '../focus';
 import {useNativeObservation} from '../dev-observation';
 import {focusFromTouch, noteTouch} from './touch-focus';
 
@@ -72,7 +72,7 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   const motion = useMotion(), paint = useOverlayPaintMode();
   const retainDisabledFocus = isTV && focusableWhenDisabled === true && paint.interactive;
   const nativeDisabled = !paint.interactive || disabled && !retainDisabledFocus;
-  const covered = useCovered(), inert = !paint.interactive || covered;
+  const covered = useCovered(), layerCovered = useLayerCovered(), inert = !paint.interactive || covered;
   const {waiting, ...binding} = useFocusTarget({focusId, testID, disabled: nativeDisabled || focusable === false, ref, preferred: isTV && preferredFocus, preferredBlocked: inert});
   const accessibilityRole = props.accessibilityRole ?? (onPress ? 'button' : undefined);
   const observation = useNativeObservation<View>({kind: 'view', semanticId: binding.testID, role: accessibilityRole,
@@ -80,9 +80,11 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
     declaredStyleComplete: typeof style !== 'function'}, binding.ref);
   const [nativeFocused, setNativeFocused] = useState(false);
   const setFocused = (next: boolean) => setNativeFocused(next && !focusFromTouch(isTV));
-  // W-9 (2eec0520): under a covered layer a control is inert. Covering blocks new focus but cannot move focus
-  // already there, so a control left focused under a pushed page neither answers OK nor draws its ring: the
-  // ring on screen is always the control that answers. Blur is still recorded so no stale ring returns.
+  // W-9 (2eec0520): under a covered layer a control is inert. Under a layer a route or the player covers it is also natively
+  // not focusable: that layer can never hold or take focus (lead, 19 Nov). Before that, the covered Music library kept native
+  // focus under a music page on Android TV and the remote's keys went nowhere. Under a page `Modal` (`CoveredSignal`) it stays
+  // focusable: blocking there would move tvOS focus (D7). A control still focused as it is covered draws no ring. Blur is
+  // still recorded so no stale ring returns.
   // The ring is derived from native focus alone: every native focus and blur is recorded, and the ring shows only
   // while native focus is here, on a live (interactive, uncovered) control. It can never show where focus is not.
   // R1, TV: only the top layer draws a ring (`useInTopLayer`); a control left focused under an open sheet draws none.
@@ -112,7 +114,7 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
   // and landed on the search field (small fault 22).
   const declaredEdges = Object.fromEntries((['nextFocusUp', 'nextFocusDown', 'nextFocusLeft', 'nextFocusRight'] as const)
     .flatMap(key => props[key] == null && binding[key] != null ? [[key, binding[key]]] : []));
-  return <AnimatedPressable {...binding} {...props} {...declaredEdges} testID={binding.testID} ref={observation.ref} disabled={nativeDisabled} focusable={nativeDisabled ? false : focusable}
+  return <AnimatedPressable {...binding} {...props} {...declaredEdges} testID={binding.testID} ref={observation.ref} disabled={nativeDisabled} focusable={nativeDisabled || layerCovered ? false : focusable}
     accessibilityRole={accessibilityRole}
     accessibilityActions={longPressAccessibilityAction && onLongPressAction
       ? [...(accessibilityActions ?? []).filter(action => action.name !== longPressAccessibilityAction.name), ...(waiting ? [] : [longPressAccessibilityAction])] : accessibilityActions}

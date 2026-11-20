@@ -60,7 +60,7 @@ async function mount(component: any, initial: Record<string, any>) {
     native() {const found = elements(tree).filter(node => node.type === 'Pressable'); assert.equal(found.length, 1); return found[0]!;}};
 }
 
-async function controls(isTV = false, reduce = false, interactive = true, covered = false) {
+async function controls(isTV = false, reduce = false, interactive = true, covered: boolean | 'signal' = false) {
   const paintState = {interactive};
   const PropsFilter = await installedFilter();
   const theme = createTheme({isTV, width: isTV ? 1920 : 390, reduceMotion: reduce});
@@ -92,14 +92,14 @@ async function controls(isTV = false, reduce = false, interactive = true, covere
   };
   const focusModule = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
     react, 'react-native': {...native, findNodeHandle: () => null, TVFocusGuideView: 'TVFocusGuideView'},
-    './useHostRef': await import('../src-next/kit/focus/useHostRef.ts'),
+    './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': await import('../src-next/kit/focus/useHostRef.ts'),
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, './registry': await import('../src-next/kit/focus/registry.ts'),
   });
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
     '../overlays/OverlayHost': {useInTopLayer: () => true}, '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive: paintState.interactive})},
     react, 'react-native': native, 'react-native-reanimated': animated, '@portico/design': {focusSpec, fieldSpec},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: () => motion},
-    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': {...focusModule, useCovered: () => covered},
+    './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': {...focusModule, useCovered: () => !!covered, useLayerCovered: () => covered === true},
   });
   const {Button} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {
     react, 'react-native': native, '@portico/design': {buttonSpec}, './Focusable': {Focusable},
@@ -333,6 +333,14 @@ test('W-9 (2eec0520): a control under a covered layer answers no OK and draws no
     await act(() => control.native().props.onFocus({}));
     assert.equal(handles[1]!.read().opacity, 0, 'no ring is drawn on a control the user cannot see');
   } finally {await control.host.unmount();}
+});
+
+test('a layer a route covers can never hold or take focus: its controls are natively unfocusable, but not under a page Modal (D7)', async () => {
+  for (const [covered, focusable] of [[true, false], ['signal', true], [false, true]] as const) {
+    const {Focusable} = await controls(true, false, true, covered);
+    const control = await mount(Focusable, {onPress() {}});
+    try {assert.equal(control.native().props.focusable !== false, focusable, `covered: ${covered}`);} finally {await control.host.unmount();}
+  }
 });
 
 test('W-9 (2eec0520, anime Play): a blur while the page is not interactive still clears the ring, so it never outlives native focus', async () => {

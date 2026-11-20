@@ -24,7 +24,7 @@ async function focusNamespace(react: any) {
   const theme = createTheme({width: 390, isTV: false});
   return screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {react: {...react, createContext: (value: any) => ({value}), forwardRef: (render: any) => render},
     'react-native': {findNodeHandle: () => undefined, TVFocusGuideView: 'TVFocusGuideView', View: 'View'}, '../theme': {useTheme: () => theme},
-    './registry': registry, './useHostRef': hostRef});
+    './registry': registry, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRef});
 }
 
 async function fixture(mount = false) {
