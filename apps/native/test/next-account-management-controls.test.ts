@@ -52,8 +52,8 @@ async function fixture() {
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../../platform/offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'}, '../../kit/theme': {useTheme: () => theme},
     './AccountEntry': {AccountEntry: 'AccountEntry'}, './downloads-entry': {createAccountDownloadsEntry: () => ({dispose() {}})},
-    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
-    './PhoneServerChooser': {PhoneServerChooser: 'PhoneServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, './TVServerChooser': {TVServerChooser: 'TVServerChooser'},
+    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
+    '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'},
     './sign-out-downloads': {removeCapturedServerDownloads: async () => {}}, '../../tv/auth': {TVProfilePINForm: 'TVProfilePINForm', TVForgotPINHandoff: 'TVForgotPINHandoff'},
     './account-form-values': values,
   });

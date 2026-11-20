@@ -4,7 +4,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, TextField} from '../../kit/controls';
 import {SettingsGroup, SettingsRow, SettingsSectionLabel} from '../../kit/shell';
 import {nativeType, useTheme} from '../../kit/theme';
-import {PhoneAccountForm} from './PhoneAccountForm';
+import {AccountForm} from '../../kit/accounts/AccountForm';
 
 export type FoundServer = Readonly<{origin: string; name: string; host: string; setupRequired: boolean}>;
 
@@ -21,7 +21,7 @@ export function PhoneFindServer({busy, error, address, found, searching, failed,
   const theme = useTheme(), t = defaultI18n.t;
   const section = (label: string, busy = false) => <SettingsSectionLabel label={label} busy={busy} inset={2}/>;
   const quiet = [nativeType({size: 12.5, lineHeight: 18.75, weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textTertiary}];
-  return <PhoneAccountForm testID="accounts-find-server" title={t('accounts.find.title')} body={t('accounts.find.lede')}
+  return <AccountForm testID="accounts-find-server" title={t('accounts.find.title')} body={t('accounts.find.lede')}
     detailsAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: onBack}}
     secondaryAction={{id: 'find-continue', label: t('action.continue'), disabled: busy || !address.trim(), loading: busy, onPress: onContinue}}
     beforeActions={<>

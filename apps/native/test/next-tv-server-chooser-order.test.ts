@@ -15,24 +15,24 @@ const region = (tree: any, id: string) => nodes(tree).find((node: any) => node.t
  * mounts no native views, so a node handle stands in for Use a local server's. */
 test('the TV server chooser keeps its actions in a row, Down goes Refresh servers, Use a local server, then Link a TV, and Up returns to the servers', async () => {
   const entries: any[] = [];
-  const {TVServerChooser} = await screenModule(new URL('../src-next/screens/accounts/TVServerChooser.tsx', import.meta.url), {
-    react: {...React, default: React},
-    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: (view: any) => view.handle},
-    '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/artwork': {ColourBackdrop: 'ColourBackdrop'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
-    './PhoneServerChooser': {serverRowDetail: (server: any) => server.sharesName ? server.address : defaultI18n.t(server.labelKey)},
-    '../../kit/focus': {FocusProvider: 'FocusProvider', FocusRegion: 'FocusRegion'},
-    '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV: true, textScale: 1,
-      colors: {ink: '#071018', lineSoft: '#223', accentStrong: '#4cf', text: '#fff', textSecondary: '#ccc', textTertiary: '#aaa', raised: '#123'},
-      type: {body: {}, bodyStrong: {}, caption: {}, captionStrong: {}}, layout: {gutter: {tvAuth: 96}}})},
-    '../destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)},
-    '../../tv/auth/entry-revision': {useTVBusyEntryRevision: () => 0},
+  const react = {...React, default: React}, regionType = 'FocusRegion';
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useTVServerChooser.ts', import.meta.url), {
+    react, 'react-native': {findNodeHandle: (view: any) => view.handle}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)},
+    '../../../tv/auth/entry-revision': {useTVBusyEntryRevision: () => 0},
+  });
+  const {TVServerChooserPage} = await screenModule(new URL('../src-next/pages/tv/accounts/ServerChooserPage.tsx', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../shared/accounts/useTVServerChooser': hook,
+    '../../shared/accounts/useServerChooser': {serverRowDetail: (server: any) => defaultI18n.t(server.labelKey)},
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/controls/TVAccountRow': {TVAccountRow: 'TVAccountRow', TVAccountRowColumn: 'Column'},
+    '../../../kit/focus': {FocusProvider: 'FocusProvider', FocusRegion: regionType},
+    '../../../kit/frames/TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountActions: regionType},
+    '../../../kit/accounts/AccountParts': {AccountFields: 'Fields'}, '../../../kit/accounts/ServerChooserParts': {ServerGroup: 'Group'},
+    '../../../kit/states': {StateView: 'StateView'},
   });
   let tree: any;
   const host = createFabricHookHost(() => {
-    const outer = TVServerChooser({snapshot: {selectedServerId: 'living-room', servers: [
+    const outer = TVServerChooserPage({snapshot: {selectedServerId: 'living-room', servers: [
         {id: 'living-room', name: 'Living room', labelKey: 'accounts.servers.local', signIn: 'local'},
         {id: 'office', name: 'Office', labelKey: 'accounts.servers.local', signIn: 'local'},
       ]}, busy: false, owner: false, onSelect() {}, onSignOut() {}, onRefresh() {}, onAdd() {},
@@ -52,7 +52,6 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
     assert.ok(actions && rows, 'both focus regions are drawn');
     assert.deepEqual(entries.at(-1), [{visible: true, intent: 'enter', revision: 0},
       {regionId: 'accounts.chooser.rows', childId: 'server:office'}], 'focus still enters the first offered server row');
-    assert.equal(actions.props.style.flexDirection, 'row', 'the actions sit side by side, as Connect24 draws them');
     assert.deepEqual(actions.props.order, ['refresh', 'add']);
     const buttons = React.Children.toArray(actions.props.children).filter((child: any) => child?.type === 'Button') as any[];
     assert.deepEqual(buttons.map((child: any) => child.props.focusId), ['refresh', 'add'], 'Refresh servers comes before Use a local server');

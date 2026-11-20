@@ -9,7 +9,7 @@ import {Icon} from '../../kit/Icon';
 import {nativeType, useTheme} from '../../kit/theme';
 import {useDestinationEntryFocus} from '../../screens/destinations/useEntryFocus';
 import {useTVBusyEntryRevision} from './entry-revision';
-import {TVAuthLayout} from './TVAuthLayout';
+import {TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 import {TVCodeBoxes, TVNumericPad} from './TVNumericPad';
 
 export type TVVerificationFormProps = Readonly<{

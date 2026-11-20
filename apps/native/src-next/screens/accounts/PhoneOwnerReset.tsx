@@ -5,7 +5,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {StateLayout} from '../../kit/states';
 import {Button, TextField} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
-import {PhoneAccountForm} from './PhoneAccountForm';
+import {AccountForm} from '../../kit/accounts/AccountForm';
 import {ownerResetFilePaths} from './reset-file-paths';
 
 export function PhoneOwnerReset({phase, serverName, location, code, onCodeChange, busy, error, onBack, onWrite, onVerify, onContinue}: {
@@ -13,7 +13,7 @@ export function PhoneOwnerReset({phase, serverName, location, code, onCodeChange
   busy: boolean; error?: React.ReactNode; onBack: () => void; onWrite: () => void; onVerify: () => void; onContinue: () => void;
 }) {
   const theme = useTheme(), t = defaultI18n.t, [showSystems, setShowSystems] = useState(false);
-  const Layout = theme.platform === 'phone' ? PhoneAccountForm : StateLayout;
+  const Layout = theme.platform === 'phone' ? AccountForm : StateLayout;
   const back = {id: 'back', label: t('action.back'), disabled: busy, onPress: onBack};
   if (phase === 'done') return <Layout testID="accounts-owner-reset-done" title={t('accounts.recovery.ownerSessionTitle')}
     body={t('accounts.recovery.ownerSessionBody')} beforeActions={<>{error}<Text style={[theme.type.body, {color: theme.colors.textSecondary, marginBottom: 18}]}>{t('accounts.recovery.ownerSessionHelp')}</Text></>}

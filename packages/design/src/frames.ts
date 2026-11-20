@@ -143,7 +143,7 @@ export const frame = {
    * The bottom sheet's own surface, grab and scrim are the kit sheet's. */
   sheet: {fullTop: 62, fullRadius: 16, footerClear: 34},
   /** Frame 6: the centred column on a tablet. A phone uses its width; the web's column and inset are the auth stage's. */
-  signIn: {column: forms(0, 380, 380, 0)},
+  signIn: {column: forms(0, 380, 380, 0), keyboardClearance: 80},
   /** Frame 1, a library's fixed regions under its header (desktop-browse grid and filters, phone-app 4 to 6, tablet 3 to 5,
    * final3-tv-08). The regions are `frameRegions.browse`. R5 interim: these numbers move to the rules hand's rhythm table. */
   browse: {

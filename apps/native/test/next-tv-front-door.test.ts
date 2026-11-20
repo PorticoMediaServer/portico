@@ -19,17 +19,27 @@ async function observationModule() {
 }
 
 async function frontDoorModule(modules: Record<string, any>) {
-  const layout = await screenModule(new URL('../src-next/tv/auth/TVAuthLayout.tsx', import.meta.url), {
-    ...modules, '@portico/design': design, 'react-native-reanimated': {}, '../../kit/useMotion': {},
-    '../../kit/states/StateActionButton': {StateActionButton: 'StateActionButton'},
+  const layout = await screenModule(new URL('../src-next/kit/frames/TVAuthLayout.tsx', import.meta.url), {
+    ...modules, '@portico/design': design, 'react-native-reanimated': {}, '../useMotion': {},
+    '../theme': modules['../../kit/theme'], '../artwork': modules['../../kit/artwork'], '../focus': modules['../../kit/focus'],
+    '../dev-observation': modules['../../kit/dev-observation'], '../states/StateActionButton': {StateActionButton: 'StateActionButton'},
   });
-  return screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {...modules, '@portico/design': design, './TVAuthLayout': layout, './TVCodePresenter': {TVNoCodeCard: 'CodeCard'}, './code-retry': {useCodeRetry: () => {}}});
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useTVSignIn.ts', import.meta.url), {
+    react: modules.react, '../../../screens/destinations/useEntryFocus': modules['../../screens/destinations/useEntryFocus'],
+    '../../../tv/auth/entry-revision': modules['./entry-revision'], '../../../tv/auth/code-retry': {useCodeRetry() {}},
+  });
+  return screenModule(new URL('../src-next/pages/tv/accounts/SignInPage.tsx', import.meta.url), {
+    react: modules.react, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/controls': modules['../../kit/controls'], '../../../kit/focus': modules['../../kit/focus'],
+    '../../../kit/frames/TVAuthLayout': {...layout, TVAccountActions: (props: any) => layout.TVAccountActions(props)},
+    '../../../tv/auth/TVCodePresenter': {TVNoCodeCard: 'CodeCard'}, '../../shared/accounts/useTVSignIn': hook,
+  });
 }
 // Mount the real shared frame and canvas; keep only native hosts as stand-ins.
 const drawFrame = (frame: any) => {const canvas = frame.type(frame.props); return canvas.type(canvas.props);};
 
 const flatten = (value: any): any => Array.isArray(value) ? Object.assign({}, ...value.map(flatten)) : value;
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+const nodes = (node: any): any[] => node?.type?.name === 'TVAccountActions' ? nodes(node.type(node.props)) : Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 
 test('the TV front door renders its wordmark and only actual authority-choice callbacks without starting either flow', async () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'require'), previousDev = Object.getOwnPropertyDescriptor(globalThis, '__DEV__');

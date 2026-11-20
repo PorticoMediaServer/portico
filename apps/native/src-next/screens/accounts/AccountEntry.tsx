@@ -14,7 +14,7 @@ import {MFARequiredError, type IdentityOptions, type IdentityTransaction, type R
 import type {SetupCodeSnapshot} from '../../../../../packages/client-core/src/setup-code';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {TVAccountFields, TVAuthLayout} from '../../tv/auth/TVAuthLayout';
+import {TVAccountFields, TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 import {StateLayout} from '../../kit/states';
 import {Button, Focusable, TextField, FormError, Switch} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -44,7 +44,7 @@ import {PhoneOwnerReset} from './PhoneOwnerReset';
 import type {ResetFileLocation} from '../../../../../packages/client-core/src/account-reset';
 import {NativeSetup} from './NativeSetup';
 import {PhoneFindServer} from './PhoneFindServer';
-import {PhoneServerSignIn} from './PhoneServerSignIn';
+import {ServerSignInPage} from '../../pages/touch/accounts/ServerSignInPage';
 import {PhonePINEntry} from './PhonePINEntry';
 import {PhoneNoServers} from './PhoneNoServers';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
@@ -60,13 +60,13 @@ import {PhoneMoveCode} from './PhoneMoveCode';
 import {EndedMoveCodeAction} from './EndedMoveCodeAction';
 import {DirectoryAccessRefused} from './DirectoryAccessRefused';
 import {directoryAccessRefused, directoryClockSkew, directoryIdentityUnconfirmed} from './directory-refusal';
-import {PhoneProfilePIN} from './PhoneProfilePIN';
-import {PhoneWhosWatching} from './PhoneWhosWatching';
+import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
+import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
 import {RememberProfileRow} from './RememberProfileRow';
-import {PhoneAccountSignIn} from './PhoneAccountSignIn';
+import {SignInPage} from '../../pages/touch/accounts/SignInPage';
 import {LegalAgreement} from './LegalAgreement';
-import {PhoneAccountForm} from './PhoneAccountForm';
+import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PasswordStrengthMeter} from './PasswordStrengthMeter';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {directoryFailure, directoryOfflineBody, directoryRows, nextRetryDelay} from './directory-chooser';
@@ -947,7 +947,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   // One setup target per server shown for setup: NativeSetup keeps one controller for it.
   const setupTarget = useMemo(() => server && setupAddress ? Object.freeze({origin: setupAddress, server, expected: endedTarget.current}) : undefined, [server, setupAddress]);
   // Phone and tablet share the compact form column (auth.html frames 4 to 6).
-  const FormLayout = theme.isTV ? TVAuthLayout : PhoneAccountForm;
+  const FormLayout = theme.isTV ? TVAuthLayout : AccountForm;
   // Pickers and directory/recovery states keep their authored centred composition.
   const EntryLayout = theme.isTV ? TVAuthLayout : ['profiles', 'profile-pin', 'servers', 'account-sign-out', 'tv'].includes(stage) ? StateLayout : FormLayout;
   const formStep = theme.platform === 'phone' && stage.startsWith('setup-')
@@ -1030,7 +1030,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     return <StateLayout testID="accounts-server-list-loading" title={t('web.chooser.loading')}/>;
   const providerNoticeView = providerNotice ? <FormError placement="block">{t('accounts.provider.unavailable',
     {provider: t(providerNotice === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google')})}</FormError> : null;
-  if (stage === 'welcome') return <PhoneAccountSignIn busy={busy} error={status ?? providerNoticeView} onOpenLink={openLegalLink}
+  if (stage === 'welcome') return <SignInPage busy={busy} error={status ?? providerNoticeView} onOpenLink={openLegalLink}
     passwordEnabled registration recovery username={username} password={password}
     onUsernameChange={value => {if (lifetime.current && stageRef.current === 'welcome') setUsername(value);}}
     onPasswordChange={value => {if (lifetime.current && stageRef.current === 'welcome') setPassword(value);}}
@@ -1343,7 +1343,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       {!Platform.isTV && server?.move === 'to_local' && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
     </>;
     const signIn = async () => {consume(await operation.current!.signInLocal(username, password)); setPassword('');};
-    if (!theme.isTV && source) return <PhoneServerSignIn busy={busy} error={status} passwordInvalid={passwordInvalid} serverName={server!.name}
+    if (!theme.isTV && source) return <ServerSignInPage busy={busy} error={status} passwordInvalid={passwordInvalid} serverName={server!.name}
       address={address.trim() ? address.trim().replace(/^https?:\/\//i, '') : new URL(source.serverOrigin()).host}
       username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} links={links}
       onSignIn={() => {if (lifetime.current && stageRef.current === 'local' && source === operation.current) void run(signIn);}} onBack={back}/>;
@@ -1411,7 +1411,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const onForgot = () => {if (!current() || busy || !authOptions?.recovery) return; void run(requestReset);};
     const onCreate = () => {if (!current() || busy || !authOptions?.registration) return; setPassword(''); setStage('register');};
     intentRunner.current = intent => {if (intent.kind === 'provider') onProvider(intent.id); else if (intent.kind === 'continue') onContinue(); else if (intent.kind === 'forgot') onForgot(); else onCreate();};
-    return <PhoneAccountSignIn busy={busy} error={status ?? providerNoticeView} onOpenLink={openLegalLink}
+    return <SignInPage busy={busy} error={status ?? providerNoticeView} onOpenLink={openLegalLink}
       passwordEnabled={!!authOptions?.password} registration={!!authOptions?.registration} recovery={authOptions?.recovery !== false}
       username={username} password={password} onUsernameChange={value => {if (current()) setUsername(value);}} onPasswordChange={value => {if (current()) setPassword(value);}}
       onProvider={onProvider} onContinue={onContinue} onForgot={onForgot} onCreate={onCreate}
@@ -1732,13 +1732,13 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       if (main.pinRequired) {setProfile(main); setCode(''); setStage('profile-pin');} else void run(() => choose(main.id));
     };
     const profileManagement = main ? {onManage: openManagement, ...(profiles.length < 8 ? {onAdd: openManagement} : {})} : {};
-    return <PhoneWhosWatching testID="accounts-entry" onBack={backAction ? back : undefined} backDisabled={busy}
+    return <ProfilesPage testID="accounts-entry" onBack={backAction ? back : undefined} backDisabled={busy}
       picker={<ProfilePicker focusScope={`tv.auth.profiles.${server!.id}`} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy}))} preferredProfileId={theme.isTV ? profileFocus.get(originalOperation) : undefined}
       onFocusChange={id => {if (id && operation.current === originalOperation) profileFocus.set(originalOperation, id);}} title={t('auth.whosWatching')} {...profileManagement} description={t('accounts.profiles.serverContext', {server: server!.name})}
       onSelect={id => {afterEntry.clear(); const value = profiles.find(item => item.id === id)!; if (value.pinRequired) {setProfile(value); setCode(''); setStage('profile-pin');} else void run(() => choose(id));}}/>}>
     {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/>}
     {status}
-    <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></PhoneWhosWatching>;
+    <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></ProfilesPage>;
   }
   if (theme.isTV && stage === 'tv-move-handoff' && server) return <TVMoveHandoff serverName={server.name}
     url={new URL('/sign-in', operation.current!.inspectedOrigin()).href} onBack={back}/>;
@@ -1751,7 +1751,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     hints={busy ? <BootWaitLine active serverName={server?.name} testID="accounts-profile-wait"/> : undefined}
     onSubmit={value => {void run(() => choose(profile!.id, value));}}
     onForgotPIN={() => {if (!busy) {setCode(''); setError(undefined); setStage('profile-forgot-pin');}}}/>;
-  if (stage === 'profile-pin') return <PhoneProfilePIN testID="accounts-entry" profile={{name: profile!.name, face: {initial: [...profile!.name][0] ?? '', color: profile!.art}}}
+  if (stage === 'profile-pin') return <ProfilePINPage testID="accounts-entry" profile={{name: profile!.name, face: {initial: [...profile!.name][0] ?? '', color: profile!.art}}}
     value={code} onChange={setCode} onSubmit={value => {void run(() => choose(profile!.id, value));}} busy={busy} rejected={!!error} status={status}
     remember={canRemember ? <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/> : undefined}
     hints={<BootWaitLine active={busy} serverName={server?.name} testID="accounts-profile-wait"/>} onBack={back}

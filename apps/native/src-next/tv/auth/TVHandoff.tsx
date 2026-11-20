@@ -11,7 +11,7 @@ import {nativeType, useTheme} from '../../kit/theme';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {useDestinationEntryFocus} from '../../screens/destinations/useEntryFocus';
 import {useTVBusyEntryRevision} from './entry-revision';
-import {TVAuthLayout} from './TVAuthLayout';
+import {TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 import {registerBack} from '../../kit/navigation/back';
 
 /** Display-only public URL. The account controller supplies its verified origin;

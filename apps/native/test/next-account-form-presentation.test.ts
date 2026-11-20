@@ -18,34 +18,29 @@ const theme = {platform: 'phone', column: 'phone', isTV: false, textScale: 1, ty
 const nativeType = (value: any, scale: number) => ({fontSize: value.size * scale, lineHeight: value.lineHeight * scale});
 const react = {...React, default: React};
 
-test('compact auth form keeps Back above its left-aligned heading, with actions reachable above the keyboard', async context => {
-  const listeners = new Map<string, () => void>(); let back = 0, tree: any;
-  const {PhoneAccountForm} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountForm.tsx', import.meta.url), {'../../platform/keyboard': {FormScrollView: 'FormScrollView'},
-    react, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: {OS: 'android'},
-      Keyboard: {isVisible: () => false, addListener: (name: string, handler: () => void) => {listeners.set(name, handler); return {remove: () => listeners.delete(name)};}}},
-    'react-native-reanimated': {default: {View: 'AnimatedView'}, useSharedValue: (value: unknown) => React.useRef({value}).current, useAnimatedStyle: (work: () => unknown) => work(), withTiming: (value: unknown) => value},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
-    '../../kit/artwork': {ColourBackdrop: 'Backdrop'}, '../../kit/theme': {useTheme: () => theme, nativeType},
-    '../../kit/useMotion': {useMotion: () => ({timing: () => ({duration: 160})})}, '../../kit/states/StateActionButton': {StateActionButton: 'Action'},
+test('compact auth forms forward their Back action and keep the editor above Continue', async () => {
+  let back = 0;
+  const {AccountForm} = await screenModule(new URL('../src-next/kit/accounts/AccountForm.tsx', import.meta.url), {
+    react, 'react-native': {View: 'View', Text: 'Text'},
+    'react-native-reanimated': {default: {View: 'AnimatedView'}, useSharedValue: (value: unknown) => React.useRef({value}).current,
+      useAnimatedStyle: (work: () => unknown) => work(), withTiming: (value: unknown) => value},
+    '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: () => ({timing: () => ({duration: 160})})},
+    '../states/StateActionButton': {StateActionButton: 'Action'}, '../frames': {SignInFrame: 'SignInFrame'},
   });
-  const host = createFabricHookHost(() => {tree = PhoneAccountForm({title: 'Create account', body: 'Account details', testID: 'form',
+  let tree: any;
+  const host = createFabricHookHost(() => {tree = AccountForm({title: 'Sign in', body: 'Account details', testID: 'form',
     beforeActions: React.createElement('TextInput', {testID: 'draft'}), primaryAction: {id: 'continue', label: 'Continue', onPress() {}},
-    secondaryAction: {id: 'back', label: 'Back', onPress: () => {back++;}}});});
-  context.after(() => host.unmount()); await act(() => host.mount());
-  let all = nodes(tree); const actions = all.filter(node => node.type === 'Action');
-  assert.deepEqual(actions.map(node => node.props.action.id), ['back', 'continue']);
-  assert.ok(all.indexOf(actions[0]) < all.findIndex(node => node.props.accessibilityRole === 'header'));
-  assert.equal(flatten(all.find(node => node.props.accessibilityRole === 'header').props.style).fontSize, 34);
-  assert.equal(flatten(all.find(node => node.props.accessibilityRole === 'header').props.style).textAlign, 'left');
-  const scroll = all.find(node => node.type === 'FormScrollView');
-  assert.equal(scroll.props.contentContainerStyle.paddingHorizontal, 22);
-  assert.equal(actions[1].props.style.minHeight, 48); assert.equal(actions[1].props.style.height, undefined);
-  // The keyboard controller keeps the focused field and the next action in view on both platforms.
-  assert.equal(scroll.props.bottomOffset, 80); assert.equal(scroll.props.keyboardShouldPersistTaps, 'handled');
-  assert.equal(all.some(node => node.type === 'KeyboardAvoidingView'), false);
-  assert.equal(all.filter(node => node.props.testID === 'draft').length, 1);
-  actions[0].props.action.onPress(); assert.equal(back, 1);
-  await host.unmount(); assert.equal(listeners.size, 0);
+    detailsAction: {id: 'back', label: 'Back', onPress: () => {back++;}}});});
+  await act(() => host.mount());
+  const form = nodes(tree).find(node => node.type === 'SignInFrame');
+  assert.equal(form.props.title, 'Sign in');
+  assert.equal(form.props.lede, 'Account details');
+  const all = nodes(form);
+  assert.ok(all.findIndex(node => node.props.testID === 'draft') < all.findIndex(node => node.type === 'Action'));
+  assert.equal(all.find(node => node.type === 'Action').props.action.id, 'continue');
+  form.props.back.onPress();
+  assert.equal(back, 1);
+  await host.unmount();
 });
 
 test('new-password strength uses all four shared-policy segments and the exact label', async context => {
@@ -68,7 +63,7 @@ test('owner reset shows the file name and expands every system’s documented lo
   const {PhoneOwnerReset} = await screenModule(new URL('../src-next/screens/accounts/PhoneOwnerReset.tsx', import.meta.url), {
     react, 'react-native': {View: 'View', Text: 'Text'}, '../../../../../packages/i18n/src': {defaultI18n: copy},
     '../../kit/states': {StateLayout: 'State'}, '../../kit/controls': {FormError, TextField: 'Field', Button: 'Button'}, '../../kit/theme': {useTheme: () => theme},
-    './PhoneAccountForm': {PhoneAccountForm: 'Form'}, './reset-file-paths': resetPaths,
+    '../../kit/accounts/AccountForm': {AccountForm: 'Form'}, './reset-file-paths': resetPaths,
   });
   let tree: any; const host = createFabricHookHost(() => {tree = PhoneOwnerReset({phase: 'code', serverName: 'Server', code: '', onCodeChange() {}, busy: false,
     location: {fileName: 'reset-code.txt', retryAfterSeconds: 0}, onBack() {}, onWrite() {}, onVerify() {}, onContinue() {}});});

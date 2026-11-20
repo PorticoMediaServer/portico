@@ -10,7 +10,7 @@ import {useTheme} from '../../../kit/theme';
 import {TVCodePresenter, TVCredentialForm, TVFrontDoor} from '../../../tv/auth';
 import {AccountEntry} from '../../../screens/accounts/AccountEntry';
 import {ServersRoute} from '../../../screens/accounts/AccountRoutes';
-import {TVServerChooser} from '../../../screens/accounts/TVServerChooser';
+import {TVServerChooserPage} from '../../../pages/tv/accounts/ServerChooserPage';
 
 // The five TV account screens, each in the states the review desk signs against: at rest, focused,
 // empty, filled, long value, busy and error. Each case is one whole screen (the account frame owns the
@@ -36,7 +36,7 @@ function Credentials({kind, username = '', password = '', busy = false, error = 
 const row = (id: string, name: string, signIn: 'local' | 'portico', signedIn: boolean, address = 'livingroom.local:32400') =>
   ({id, name, signIn, signedIn, familyId: `family-${id}`, fingerprint: `fp-${id}`, address, sharesName: false,
     labelKey: signIn === 'portico' ? 'accounts.session.portico' : 'accounts.session.local'});
-type Snapshot = NonNullable<React.ComponentProps<typeof TVServerChooser>['snapshot']>;
+type Snapshot = NonNullable<React.ComponentProps<typeof TVServerChooserPage>['snapshot']>;
 const servers = (long: boolean) => ({selectedServerId: 'a', servers: [
   row('a', fixture['next.controls.native.fixture.serverName'], 'portico', true),
   row('b', long ? fixture['next.controls.native.fixture.longServerName'] : 'Cabin', 'local', true),
@@ -44,7 +44,7 @@ const servers = (long: boolean) => ({selectedServerId: 'a', servers: [
 ]}) as unknown as Snapshot;
 
 function Chooser({long = false, busy = false}: {long?: boolean; busy?: boolean}) {
-  return <Whole><TVServerChooser snapshot={servers(long)} busy={busy} owner onSelect={noop} onSignOut={noop} onForget={noop} onRefresh={noop} onAdd={noop}
+  return <Whole><TVServerChooserPage snapshot={servers(long)} busy={busy} owner onSelect={noop} onSignOut={noop} onForget={noop} onRefresh={noop} onAdd={noop}
     footer={<View style={{alignSelf: 'stretch', gap: 8, marginTop: 10}}>
       <Button variant="link" disabled={busy} onPress={noop}>{t('settings.linkTV')}</Button>
       <Button variant="link" disabled={busy} onPress={noop}>{t('accounts.signOut.portico')}</Button>
