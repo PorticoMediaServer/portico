@@ -13,9 +13,9 @@ const elements = (node: any): React.ReactElement<any>[] => Array.isArray(node) ?
 const text = (node: any): string[] => Array.isArray(node) ? node.flatMap(text) : React.isValidElement<any>(node) ? text(node.props.children) : typeof node === 'string' ? [node] : [];
 async function renderer(tv = true) {
   const theme = createTheme({isTV: tv, width: tv ? 1920 : 390});
-  return screenModule(new URL('../src-next/screens/home/HomeHeroFacts.tsx', import.meta.url), {
+  return screenModule(new URL('../src-next/kit/home/HeroFacts.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {View: 'View', Text: 'Text'},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/theme': {useTheme: () => theme},
+    '../../../../../packages/i18n/src': {defaultI18n}, '../theme': {useTheme: () => theme},
   });
 }
 const episode: HomeTitlePresentationEntry = {id: 'episode', libraryId: 'tv', kind: 'episode', title: 'Episode title', show: {id: 'show', name: 'Show title'},

@@ -376,6 +376,20 @@ export const shelf = {
   homeOverlap: -40, pageBottom: 72, arrowWidth: 56, arrowTop: 38, arrowBottom: 50, revealMs: 200,
   rank: {width: 262, numberWidth: 92, numberHeight: 255, overlap: -22, posterWidth: 170, strokeWidth: 2, role: 'rank' as TypeRole},
 } as const;
+/** Home's rows beyond the shared card and shelf sizes (phone-app.html 1, 2; tablet.html 2; foldable.html 7; tv.html 1):
+ * the phone's row gap, the ranked card, the caption under a card, the collection banner, Continue your books' resume
+ * card, the medium window's cards and the pending (still loading) row. */
+export const homeRows = {
+  phone: {rowGap: 28},
+  ranked: {phone: {width: 186, posterWidth: 116}, tv: {width: 318, posterWidth: 214}},
+  /** Under a card: a poster's caption is this plus its title line; a square's is fixed. */
+  caption: {poster: {touch: 48, tv: 80}, square: {touch: 54, tv: 80}},
+  collection: {touch: 236, tv: 360},
+  continueBooks: {phone: {width: 296, height: 150}, tablet: {width: 392, height: 176}, tv: {width: 560, height: 216}},
+  medium: {card: {poster: 140, wide: 292}, uprightTablet: {poster: 152, wide: 296}, title: 14, caption: 12.5, titleMargin: 9, heading: 21,
+    gutter: {uprightTablet: 28, other: 24}, gap: 14},
+  pending: {gap: {touch: 10, tv: 28}, headingMargin: {touch: 12, tv: 22}, rowBottom: {tv: 30}, radius: {touch: 8, tv: 14}, rows: {touch: 2, tv: 3}},
+} as const;
 export const banner = {
   height: 300, radius: 16, surface: 'collection' as ColorToken, imageWidthFraction: 0.7, imagePosition: '60% 30%', maskOpaqueAt: 0.45,
   hoverScale: 1.03, hoverMs: 600, paddingLeft: 56, copyMaxWidth: 520, kind: 'bannerKind' as TypeRole, title: 'bannerTitle' as TypeRole, body: 'bannerBody' as TypeRole,

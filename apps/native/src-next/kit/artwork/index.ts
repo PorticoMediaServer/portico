@@ -2,6 +2,7 @@ export {Artwork, ArtworkArrivalContext, MediaArt, BookSpine} from './Artwork';
 export type {MediaArtProps, MediaArtKind} from './Artwork';
 export {AmbientArt} from './Surfaces';
 export {GeneratedArt, GeneratedCover, GeneratedCoverClearance} from './Generated';
+export {generatedPoster} from './GeneratedPoster';
 export type {GeneratedArtProps} from './Generated';
 export {missingArt} from './MissingArt';
 export type {MissingArtShape} from './MissingArt';
