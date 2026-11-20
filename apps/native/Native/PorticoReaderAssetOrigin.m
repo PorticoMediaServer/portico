@@ -40,7 +40,7 @@ static NSString *ReaderCSP(NSData *data,NSString *mime){
    [scripts appendFormat:@" 'sha256-%@'",[[NSData dataWithBytes:digest length:sizeof(digest)] base64EncodedStringWithOptions:0]];
   }
  }
- return [NSString stringWithFormat:@"default-src 'none'; %@; worker-src 'self' blob:; connect-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; frame-src blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",scripts];
+ return [NSString stringWithFormat:@"default-src 'none'; %@; worker-src 'self' blob:; connect-src 'self' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; font-src 'self' data: blob:; frame-src blob:; frame-ancestors portico-reader://bundle; base-uri 'none'; form-action 'none'",scripts];
 }
 static NSData *ReaderRead(NSURL *root,NSURL *url,NSString **mime,NSError **error,BOOL(^cancelled)(void)){
  NSArray *parts=ReaderPath(url);NSString *type=ReaderMIME(parts.lastObject);
