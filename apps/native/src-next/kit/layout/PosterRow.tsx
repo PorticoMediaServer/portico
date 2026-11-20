@@ -60,9 +60,12 @@ export function PosterRow({title, items, paging, small, shape, subtitle, onSeeAl
 export function PosterColumn({items, testID, focusKey}: Readonly<{items: readonly PosterRowItem[]; testID?: string; focusKey?: string}>) {
   const theme = useTheme(), generated = useId(), region = `poster-column.${focusKey ?? generated}`, width = theme.spec.card.width.square[theme.column];
   const cards = items.map((item, index) => <PosterItem key={item.key} item={item} width={width} shape="square"
-    context={{index, id: item.key, focusId: `${region}.${item.key}`, testID: testID && `${testID}.${index}`, onFocus: noop, onBlur: noop}}/>);
+    // A card's focus id is its key, as in a row (`Row`'s default): a page can name it as its start (the TV artist page's
+    // return to the album it opened). Ids are scoped by their region, so the same album in this column and in a row of
+    // the page never collide.
+    context={{index, id: item.key, focusId: item.key, testID: testID && `${testID}.${index}`, onFocus: noop, onBlur: noop}}/>);
   const style = {gap: theme.space.md};
-  return theme.isTV ? <FocusRegion id={region} testID={testID} orientation="vertical" order={items.map(item => `${region}.${item.key}`)} style={style}>{cards}</FocusRegion>
+  return theme.isTV ? <FocusRegion id={region} testID={testID} orientation="vertical" order={items.map(item => item.key)} style={style}>{cards}</FocusRegion>
     : <View testID={testID} style={style}>{cards}</View>;
 }
 const noop = () => {};
