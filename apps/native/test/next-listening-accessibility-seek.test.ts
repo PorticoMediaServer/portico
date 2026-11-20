@@ -58,7 +58,7 @@ async function fixture(hosted = true) {
       useListeningScrubberPublication: (value: ListeningScrubber | undefined) => {scrubber = value; return hosted;}},
     '../../../kit/browse/presentation': {alpha: (color: string) => color, browseType: () => ({})},
     '../../../kit/dock/model': {commandAllowed, dockCommand, playbackPosition, seekBounds, seekTo},
-    './NowPlayingQueue': {NowPlayingQueue: 'Queue'},
+    '../../../pages/touch/player/AudioPlayerPage': {AudioPlayerPage: 'AudioPlayerPage'}, './NowPlayingQueue': {NowPlayingQueue: 'Queue'},
     './ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'Favorite'},
     './TVMusicFocus': {MusicFocusRegion: 'FocusRegion', TVMusicFocus: 'TVFocus', TVMusicSeek: 'TVSeek'},
     './ListeningNotice': {NativeListeningNotice: 'Notice'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVNowPlaying'},
@@ -79,7 +79,7 @@ async function fixture(hosted = true) {
   await host.mount();
   const live = () => {assert.ok(scrubber, 'the actual component published an enabled scrubber'); return scrubber;};
   return {host, commands, fence, live, get occupant() {return occupant;},
-    seekPaint: () => {const node = nodes(tree).find(value => value.type === 'ListeningSeekPaint'); assert.ok(node); return node;},
+    seekPaint: () => {const node = nodes(tree).find(value => value.type === 'AudioPlayerPage')?.props.scrubber; assert.ok(node); return node;},
     async position(seconds: number) {occupant = {...occupant, playback: {...occupant.playback, positionSeconds: seconds}}; await host.rerender();},
     async presentation(change: Partial<DockOccupant['presentation']>) {occupant = {...occupant, presentation: {...occupant.presentation, ...change}}; await host.rerender();},
     async replace() {const next = dockFence('successor'); occupant = {...occupant, playback: {...occupant.playback, kind: 'music', queue: null, fence: next}, presentation: {...occupant.presentation, fence: next}}; await host.rerender(); return next;},

@@ -14,6 +14,7 @@ import {useTVKeyEvent} from '../../platform/tv-keys';
 import {admitTVPlayPause, tvPlayPauseTogglesPlayback} from '../../platform/tv-play-pause';
 import {useTVPlayPauseOwner} from '../../platform/tv-play-pause-owner';
 import {Button, Focusable} from '../../kit/controls';
+import {PlayerPage} from '../../pages/touch/player/PlayerPage';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
 import {NativeTVGroupPill} from '../settings-live/GroupPill';
@@ -596,6 +597,33 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
       style={phone ? {height: 44, paddingHorizontal: 16, borderRadius: 10, opacity: 1} : {opacity: 1}} textStyle={phone ? {fontSize: 15, fontWeight: '700'} : undefined}
       onPress={promptMotion.interactive && prompt ? () => skipSegment(prompt) : undefined}>{t('player.skip', {kind: paintedPrompt.kind})}</Button></Animated.View> : undefined;
   const skipNodes = skipOfferNode ?? skipNoticeNode ?? skipPromptNode;
+  if (!theme.isTV && compact && width < 600 && !tablet && !linear && !props.edgeInsets?.right) {
+    const admitted = !initialPlayer || initialPlayer.controlsAdmitted;
+    return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={admitted ? 'box-none' : 'none'}
+      accessibilityElementsHidden={!admitted} importantForAccessibility={admitted ? 'auto' : 'no-hide-descendants'} style={[{width, height}, chromeMorphStyle]}>
+      <PlayerPage chromeVisible={visible} controlsEnabled={controlsEnabled} scrubbing={scrubbing}
+        picture={<Focusable ref={picture} testID="watch-picture" accessibilityRole="button" accessibilityLabel={identity?.title ?? t('player.opt.menu')}
+          onPress={() => {if (controlsCurrent()) controls.toggleVisibility(fence);}} style={{flex: 1}}/>}
+        onMinimize={() => {if (minimizeCurrent()) props.onMinimize(fence);}}
+        onQuality={() => panel('quality')} quality={props.quality || t('player.opt.quality')}
+        onFullWindow={props.fullWindowRequest?.() && controls.canFullWindow() && !state.fullWindow ? () => {
+          if (controlsCurrent() && props.fullWindowRequest?.()) controls.setFullWindow(fence, true);
+        } : undefined}
+        tools={<>
+          {props.onCast && icon('cast', 'i-cast', t('player.playOn'), () => props.onCast!(fence, castButton))}
+          {pipOffered && icon('pip', 'i-pip', t('player.pictureInPicture'), () => props.onPictureInPicture!(fence))}
+          {icon('options', 'i-sliders', t('player.opt.menu'), () => panel('options'))}
+        </>}
+        transport={props.waiting || stillWatching ? null : transport}
+        times={{position: clockText(source.playback.positionSeconds) ?? '', duration: clockText(source.playback.duration)}}
+        scrubber={<NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact
+          enabled={controlsEnabled} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds}
+          skipForwardSeconds={props.skipForwardSeconds}/>}
+        prompts={skipOfferNode ? undefined : skipNodes} card={skipOfferNode} onControlsLayout={props.onPictureControlsLayout}/>
+      {props.notice && state.panel === undefined && <LossNotice notice={props.notice} top={64} gutter={theme.gutter} available={width}/>}
+      {stillWatchingNode}
+    </Animated.View></GestureDetector>;
+  }
   // tablet-play1: an expanded window draws the desktop player's two bars — a top
   // bar with the way out, the title and the tools, and a bottom bar with the seek,
   // the times and one row holding the pills either side of a centred transport.

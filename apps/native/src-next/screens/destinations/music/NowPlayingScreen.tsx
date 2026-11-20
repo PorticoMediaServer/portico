@@ -16,6 +16,7 @@ import {clockText, durationText} from '../../../../../../packages/client-core/sr
 import {AmbientArt, Artwork} from '../../../kit/artwork';
 import {Layer} from '../../../kit/shell/Layer';
 import {Button, Focusable} from '../../../kit/controls';
+import {AudioPlayerPage} from '../../../pages/touch/player/AudioPlayerPage';
 import {GestureCommitScope} from '../../../kit/controls/gesture-commit';
 import {Icon} from '../../../kit/Icon';
 import {useTheme} from '../../../kit/theme';
@@ -106,7 +107,7 @@ export type NowPlayingScreenProps = Readonly<{
 const QUEUE_WIDTH = 366;
 const SIDE_BY_SIDE = 700;
 const ListeningChromeGate = createContext(false);
-const listeningPaintTypes = [ListeningSurface, ListeningSwipeArea, ListeningColumn, ListeningSidePanel, ListeningPageBackground, ListeningGroup, ListeningSeekPaint, ListeningQueuePaint, ListeningLyricsPaint, MusicFocusRegion, MusicSignalLine, MusicSignalSheet, ListeningFavoritePaint, View, Text, ScrollView, Artwork, AmbientArt, Button, Focusable, Icon, React.Fragment];
+const listeningPaintTypes = [ListeningSurface, ListeningSwipeArea, ListeningColumn, ListeningSidePanel, ListeningPageBackground, ListeningGroup, ListeningSeekPaint, ListeningQueuePaint, ListeningLyricsPaint, MusicFocusRegion, MusicSignalLine, MusicSignalSheet, ListeningFavoritePaint, AudioPlayerPage, ListeningPhoneCover, View, Text, ScrollView, Artwork, AmbientArt, Button, Focusable, Icon, React.Fragment];
 const listeningPaintOmissions = [GestureDetector, NowPlayingQueue, NowPlayingLyrics, ListeningSongActions, NativeWatchEqualizer];
 
 export function NowPlayingScreen(props: NowPlayingScreenProps) {
@@ -142,7 +143,11 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
   const drawnWindow = queue ? nowPlayingQueueWindow(queue) : undefined;
   const currentFacts = drawnQueue?.currentEntryId ? nowPlayingQueueEntry(drawnWindow, drawnQueue.currentEntryId) : undefined;
   const currentSegmentId = currentFacts?.available === true ? currentFacts.segmentId : undefined;
-  const playingFrom = currentSegmentId ? drawnWindow?.segments.find(segment => segment.id === currentSegmentId && segment.label)?.label : undefined;
+  const entry = drawnQueue?.entries?.find(item => item.id === drawnQueue.currentEntryId);
+  const track = entry && queue?.items.find(item => item.entryId === entry.id);
+  const albumSource = entry && !entry.hidden && entry.sourceContext.kind === 'album'
+    && entry.sourceContext.id === track?.albumId ? track.album : undefined;
+  const playingFrom = (currentSegmentId ? drawnWindow?.segments.find(segment => segment.id === currentSegmentId && segment.label)?.label : undefined) ?? albumSource;
   const policyReady = !!drawnQueue && drawnFence.kind === 'queue' && !!lifetime && !!queuePolicy?.canApply(drawnFence);
   const shuffled = !!drawnQueue?.shuffled, repeat = drawnQueue?.repeat ?? 'off';
   // The edit port exists only while the accepted window really matches the drawn queue and
@@ -374,7 +379,50 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
         accessibilityLabel={t(favoritePaint.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}
         onPress={() => {if (song?.token) song.favorite(song.token, !favoritePaint.favorite);}}/> : null}
     </View>;
-  const column = <ListeningColumn testID={`${testID}-column`} fence={playback.fence} source={p.artwork} playingFrom={wide ? playingFrom : undefined} header={header} cover={cover} wide={wide} height={height} horizontal={bookHorizontal}
+  const positionInWindow = Math.max(0, position - (bounds?.start ?? 0));
+  const seekPaint = <ListeningSeekPaint fence={playback.fence} fraction={fraction} span={span} seconds={positionInWindow}
+    label={t('player.position')} testID={`${testID}-scrubber`} fallbackGesture={hostedScrubber ? undefined : scrub} fallbackAdjust={hostedScrubber || !inputActive ? undefined : adjustSeek}/>;
+  const framedPhone = width < 600 && height > width;
+  const upcoming = queue?.next?.available ? queue.items.find(item => item.entryId === queue.next.entryId)?.title : undefined;
+  const column = framedPhone ? <AudioPlayerPage testID={`${testID}-column`} title={p.identity.title} byline={facts.map(part => part.text)}
+    icon={book ? 'i-book' : 'i-music'} cover={p.artwork && <ListeningPhoneCover fence={playback.fence} source={p.artwork}/>}
+    context={playingFrom ? t('next.music.playingFrom', {source: ''}).trim() : t('player.queueNowPlaying')} source={playingFrom}
+    close={{icon: 'i-down', label: t('player.minimize'), onPress: onClose}}
+    more={{icon: 'i-more', label: t('card.more', {title: p.identity.title}), anchorRef: moreRef, onPress: () => setPanel('more')}}
+    favourite={favoritePaint ? {icon: favoritePaint.favorite ? 'i-heart-f' : 'i-heart', active: favoritePaint.favorite,
+      label: t(favoritePaint.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites'), disabled: favoritePaint.pending,
+      onPress: () => {if (song?.token) song.favorite(song.token, !favoritePaint.favorite);}} : undefined}
+    device={playOn?.enabled ? {icon: 'i-cast', label: t('device.thisDevice'), anchorRef: playOnButton,
+      onPress: () => playOn.open(playback.fence, playOnButton)} : undefined}
+    chapter={book ? {label: chapter?.title ?? '', of: chapterTotal === undefined ? '' : t('player.chapterTotal', {total: chapterTotal})} : undefined}
+    signal={signal || retry?.enabled || notice ? <>
+      {signal && <MusicSignalLine view={signal} onPress={() => setPanel('signal')}/>}
+      {retry?.enabled && <Button testID={`${testID}-retry`} variant="primary" icon="i-retry" onPress={() => retry.run(playback.fence)}>{t('next.states.tryAgain')}</Button>}
+      {notice && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={theme.type.caption}>{t(notice)}</Text>}
+    </> : undefined}
+    scrubber={seekPaint} times={{position: clockText(positionInWindow) ?? '', end: `-${clockText(Math.max(0, (span || p.durationSeconds || 0) - positionInWindow)) ?? ''}`,
+      middle: bookRemaining ? t('next.kit.remaining', {time: bookRemaining}) : undefined}}
+    transport={[
+      book ? {icon: 'i-prev', label: t(byChapter ? 'next.dock.previousChapter' : 'player.previous'), testID: `${testID}-previous-chapter`, disabled: !p.capabilities.previous, onPress: () => act('previous')}
+        : {icon: 'i-shuffle', label: t('next.dock.shuffle'), testID: `${testID}-shuffle`, disabled: !policyReady || !!drawnQueue?.radio, active: shuffled, onPress: () => changePolicy({action: 'shuffle', shuffled: !shuffled})},
+      book ? {icon: 'i-rew', label: t('player.skipBackSeconds', {seconds: skipBack}), testID: `${testID}-skip-back`, skip: skipBack, disabled: !p.capabilities.seek || !bookReader, onPress: () => seekBook(position - skipBack)}
+        : {icon: 'i-prev', label: t('player.previous'), testID: `${testID}-previous`, disabled: !p.capabilities.previous, onPress: () => act('previous')},
+      {icon: playback.playing ? 'i-pause' : 'i-play', label: t(playback.playing ? 'action.pause' : 'action.play'), testID: `${testID}-toggle`, disabled: playback.playing ? !p.capabilities.pause : !p.capabilities.play, onPress: () => act(playback.playing ? 'pause' : 'play')},
+      book ? {icon: 'i-ffw', label: t('player.skipForwardSeconds', {seconds: skipForward}), testID: `${testID}-skip-forward`, skip: skipForward, disabled: !p.capabilities.seek || !bookReader, onPress: () => seekBook(position + skipForward)}
+        : {icon: 'i-next', label: t('player.next'), testID: `${testID}-next`, disabled: !p.capabilities.next, onPress: () => act('next')},
+      book ? {icon: 'i-next', label: t(byChapter ? 'next.dock.nextChapter' : 'player.next'), testID: `${testID}-next-chapter`, disabled: !p.capabilities.next, onPress: () => act('next')}
+        : {icon: 'i-repeat', label: t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne'), testID: `${testID}-repeat`, disabled: !policyReady, active: repeat !== 'off',
+          onPress: () => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})},
+    ]}
+    next={upcoming ? {label: t('next.music.upNext'), title: upcoming} : undefined}
+    lyrics={lyrics ? {icon: 'i-cc', label: t('player.lyrics'), testID: `${testID}-lyrics-toggle`, active: sheet === 'lyrics', onPress: () => setSheet(open => open === 'lyrics' ? null : 'lyrics')} : undefined}
+    queue={queue ? {icon: 'i-queue', label: t('player.queue'), testID: `${testID}-queue-toggle`, active: sheet === 'queue', onPress: () => setSheet(open => open === 'queue' ? null : 'queue')} : undefined}
+    speed={book ? {label: t('player.opt.speed'), value: `${bookFacts?.rate.effective ?? bookFacts?.rate.selected ?? 1}×`, testID: `${testID}-speed`, disabled: !bookFacts?.rate.supported?.length, onPress: () => setPanel('speed')} : undefined}
+    sleep={book ? {icon: 'i-moon', label: t('player.opt.sleepTimer'), value: sleepMinutes === null ? undefined : t('player.opt.minutes', {count: sleepMinutes}), testID: `${testID}-sleep`, disabled: !bookReader || !audiobook?.setSleepTimer,
+      active: sleepMinutes !== null, onPress: () => setPanel('sleep')} : undefined}
+    chapters={book ? {icon: 'i-list', label: t('player.opt.chapters'), value: chapterTotal?.toString(), testID: `${testID}-chapters-toggle`, disabled: !bookReader,
+      active: sheet === 'chapters', onPress: () => setSheet(open => open === 'chapters' ? null : 'chapters')} : undefined}
+    /> : <ListeningColumn testID={`${testID}-column`} fence={playback.fence} source={p.artwork} playingFrom={wide ? playingFrom : undefined} header={header} cover={cover} wide={wide} height={height} horizontal={bookHorizontal}
     identity={bookHorizontal ? <ListeningGroup fence={playback.fence} index={0} height={height} style={{width: undefined, flex: 1, minWidth: 0, marginBottom: 6}}>{identity}</ListeningGroup> : undefined}>
     <ListeningSwipeArea fence={playback.fence}><ListeningGroup fence={playback.fence} index={0} height={height}>
     {!bookHorizontal ? identity : null}
@@ -392,8 +440,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     <ListeningGroup fence={playback.fence} index={1} height={height}>
     <View style={{width: '100%', maxWidth: book ? 600 : 520, marginTop: book ? wide ? 8 : 12 : 20}}>
       <View>
-      <ListeningSeekPaint fence={playback.fence} fraction={fraction} span={span} seconds={position - (bounds?.start ?? 0)}
-        label={t('player.position')} testID={`${testID}-scrubber`} fallbackGesture={hostedScrubber ? undefined : scrub} fallbackAdjust={hostedScrubber || !inputActive ? undefined : adjustSeek}/>
+      {seekPaint}
       {book && wide && bounds && span > 0 ? <View testID={`${testID}-chapter-ticks`} pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 12, height: 4}}>
         {(wholeBook ? wholeBook.chapters.filter(value => value.itemId === wholeBook.itemId) : chapterData?.chapters ?? []).filter(value => value.startSeconds > bounds.start && value.startSeconds < bounds.end).map(value => <View key={value.id}
           style={{position: 'absolute', top: 0, bottom: 0, width: 2, marginLeft: -1, left: `${(value.startSeconds - bounds.start) / span * 100}%`, backgroundColor: alpha(theme.colors.ink, .75)}}/>)}
@@ -506,7 +553,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     {paintActive && showingLyrics && knownLyrics && React.cloneElement(knownLyrics, {paintOwner: paneOwner, paintScope: fenceKey})}
     <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={listeningPaintTypes} omitTypes={listeningPaintOmissions}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !wide && !!sheet}>
       {!backgroundHosted && <ListeningPageBackground fence={playback.fence} height={height} ambient={p.ambient}/>}
-      <View style={{flex: 1, paddingTop: topInset, paddingBottom: bottomInset}}>
+      <View style={{flex: 1, paddingTop: framedPhone ? 0 : topInset, paddingBottom: framedPhone ? 0 : bottomInset}}>
         {panel === 'signal' && signal ? <View style={{position: 'absolute', inset: 0, zIndex: 30}}><MusicSignalSheet view={signal} onClose={closePanel} contextTitle={p.identity.title} returnFocusRef={signalRef}/></View> : null}
         {panel === 'eq' ? <View style={{position: 'absolute', inset: 0, zIndex: 30, backgroundColor: theme.colors.ink}}><NativeWatchEqualizer onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></View> : null}
         <View style={{flex: 1, flexDirection: 'row'}}>
@@ -549,6 +596,14 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
 
 }
 
+
+function ListeningPhoneCover({fence, source}: {fence: PlaybackFence; source: DockOccupant['presentation']['artwork']}) {
+  const theme = useTheme(), slot = useRef<View>(null);
+  const gesture = useListeningChromeGesture(fence, false), shared = useListeningCoverSlot(fence, 'full', slot, true);
+  return <ListeningCoverTarget slot={slot} onLayout={shared.measure} gesture={gesture}>
+    <Animated.View style={[StyleSheet.absoluteFill, shared.style]}><Artwork source={source} style={[StyleSheet.absoluteFill, {borderRadius: theme.radii.artwork}]}/></Animated.View>
+  </ListeningCoverTarget>;
+}
 
 function ListeningColumn({fence, source, playingFrom, header, identity, horizontal = false, cover, wide, height, measureOnly = false, testID, children}: {
   fence: PlaybackFence; source: DockOccupant['presentation']['artwork']; playingFrom?: string; cover: number; wide: boolean; height: number;
@@ -623,7 +678,7 @@ function ListeningSurface({fence, testID, children, blocked = false}: {fence: Pl
 
 /** The cover is the physical swipe target, leaving queue/lyrics scrolling and
  * the scrubber to their original recognisers. Every target has its own handler. */
-function ListeningCoverTarget({gesture, slot, onLayout, size, children}: {gesture?: ReturnType<NonNullable<ReturnType<typeof usePublishedPlayerMorph>>['chromeGesture']>; slot: React.RefObject<View | null>; onLayout: () => void; size: number; children: React.ReactNode}) {
+function ListeningCoverTarget({gesture, slot, onLayout, size = '100%', children}: {gesture?: ReturnType<NonNullable<ReturnType<typeof usePublishedPlayerMorph>>['chromeGesture']>; slot: React.RefObject<View | null>; onLayout: () => void; size?: number | '100%'; children: React.ReactNode}) {
   const view = <View ref={slot} collapsable={false} onLayout={onLayout} style={{width: size, height: size}}>{children}</View>;
   return gesture ? <GestureDetector gesture={gesture}>{view}</GestureDetector> : view;
 }
