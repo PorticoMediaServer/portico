@@ -10,10 +10,10 @@ import {useTheme} from '../../../kit/theme';
 import {FolderExplorer} from '../owner-libraries/FolderExplorer';
 import {settingNumber} from './settings-values';
 
-type Props = {row: SpecRow; value: unknown; disabled?: boolean; t: typeof defaultI18n.t; onChange: (value: unknown) => void; onValidity?: (valid: boolean) => void; onCustom?: () => void; api?: LibraryContentApi};
+type Props = {row: SpecRow; value: unknown; disabled?: boolean; insetField?: boolean; t: typeof defaultI18n.t; onChange: (value: unknown) => void; onValidity?: (valid: boolean) => void; onCustom?: () => void; api?: LibraryContentApi};
 
 /** Only paints a checked bound value; page owners decide admission, visibility and saving. */
-export function NativeSettingControl({row, value, disabled = false, t, onChange, onValidity, onCustom, api}: Props) {
+export function NativeSettingControl({row, value, disabled = false, insetField, t, onChange, onValidity, onCustom, api}: Props) {
   const theme = useTheme(), label = t(row.label), description = row.help ? t(row.help) : undefined;
   if (row.control.type === 'toggle') return <SettingsRow first label={label} description={description}
     control={<Switch testID={row.id} accessibilityLabel={label} checked={value === true} disabled={disabled} onCheckedChange={onChange}/>}/>;
@@ -29,7 +29,8 @@ export function NativeSettingControl({row, value, disabled = false, t, onChange,
       }}/>}/>;
   }
   if (row.control.type === 'number') return <SettingNumber row={row} value={value} disabled={disabled} t={t} onChange={onChange} onValidity={onValidity}/>;
-  if (row.control.type === 'text') return <TextField testID={row.id} label={label} description={description} value={typeof value === 'string' ? value : ''} editable={!disabled}
+  if (row.control.type === 'text') return <TextField testID={row.id} label={label} description={description}
+    containerStyle={insetField ? {paddingHorizontal: theme.space.md, paddingVertical: theme.space.sm} : undefined} value={typeof value === 'string' ? value : ''} editable={!disabled}
     autoCapitalize="none" autoCorrect={false} secureTextEntry={row.control.secret} placeholder={row.control.placeholder ? t(row.control.placeholder) : undefined} onChangeText={onChange}/>;
   if (row.control.type === 'folder') return <SettingFolder row={row} value={value} disabled={disabled} t={t} api={api} onChange={onChange}/>;
   if (row.control.type === 'matrix' && value && typeof value === 'object' && !Array.isArray(value)) {

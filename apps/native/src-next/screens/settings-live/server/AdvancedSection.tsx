@@ -21,7 +21,7 @@ export function NativeAdvancedSection({children, summary = defaultI18n.t('next.s
       onPress={() => {setExpanded(!visible); onOpenChange?.(!visible);}} focusKind="row" focusRadius={14}
       style={{flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 18, paddingHorizontal: 22, borderRadius: 14, backgroundColor: theme.colors.raised}}>
       <Text style={[shellType(16, 600), {color: theme.colors.text}]}>{defaultI18n.t('settings.section.advanced')}</Text>
-      {!visible && <Text numberOfLines={1} style={[shellType(14), {color: theme.colors.textTertiary, flex: 1}]}>{summary}</Text>}
+      {!visible && <Text style={[shellType(14), {color: theme.colors.textTertiary, flex: 1}]}>{summary}</Text>}
       <Icon name={visible ? 'i-up' : 'i-down'} size={22} color={theme.colors.textTertiary} style={{marginLeft: 'auto'}}/>
     </Focusable>
     <View style={{display: visible ? 'flex' : 'none', marginTop: 26, gap: 18}}>{children}</View>
