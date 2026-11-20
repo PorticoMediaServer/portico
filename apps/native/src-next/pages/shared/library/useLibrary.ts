@@ -222,12 +222,17 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
   const applied = grid.appliedChips.length > 0;
   const count = grid.data.total === undefined ? undefined : view.t(grid.data.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: grid.data.total, pivot: source.tab.pivot ?? 'other'});
   const unfiltered = applied && source.unfilteredTotal;
+  // F-LIB-43/44: Down from the toolbar goes to the grid's remembered card. When that card has left the mounted window (after
+  // Jump to, say), it falls back to the region's entry, which is then the first card in view, not the first card mounted.
+  const inView = !restore && grid.range.first > 0 ? grid.collection.itemAt(grid.range.first) : undefined;
+  const inViewKey = inView && nativeLibraryEntryKey(inView);
+  const regionEntry = inViewKey ? registry.entityAddress(regionId, inViewKey)?.childId ?? inViewKey : address ? address.childId : undefined;
   return {...grid,
     count: count && unfiltered ? view.t('title.shownOfTotal', {shown: defaultI18n.number(grid.data.total!), total: view.t(unfiltered.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: unfiltered.total, pivot: source.tab.pivot ?? 'other'})}) : count,
     initialIndex: restore ? startingIndex : grid.initialIndex,
     toolbar: {id: toolbarId, enabled: active.visible && !selected, edges: {left: ids.rail, up: tabs, down: applied ? appliedId : regionId}},
     applied: {id: appliedId, enabled: active.visible, edges: {left: ids.rail, up: toolbarId, down: regionId}},
-    region: {id: regionId, entry: address ? address.childId : undefined, enabled: active.visible,
+    region: {id: regionId, entry: regionEntry, enabled: active.visible,
       edges: {left: ids.rail, up: applied ? appliedId : toolbarId}, screenStart: {regionId: toolbarId, childId: 'sort'}, count: grid.data.total},
     onItemFocus: (item: ContentEntry, index: number) => {
       if (!resource || !activation.getSnapshot().visible) return;
