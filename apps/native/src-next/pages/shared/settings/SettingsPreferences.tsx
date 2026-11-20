@@ -148,7 +148,7 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
       </>
     )}
     {managementURL && section.id === 'who' && <SettingsManagementCard url={managementURL} text={runtime.text}/>}</React.Fragment>)}
-    {hasAdvanced && <Button testID="settings-advanced" variant="glass" size="small" trailingIcon={advanced ? 'i-up' : 'i-down'} onPress={() => setAdvanced(value => !value)}>{t('settings.section.advanced')}</Button>}
+    {hasAdvanced && <SectionCard><Button testID="settings-advanced" variant="glass" size="small" trailingIcon={advanced ? 'i-up' : 'i-down'} onPress={() => setAdvanced(value => !value)}>{t('settings.section.advanced')}</Button></SectionCard>}
   </SettingsControlRows>
     <Dialog testID="settings-action-confirm" open={shown !== undefined} onOpenChange={open => {if (!open && !confirmFlight.current && shown) closeConfirm(shown);}} initialFocusRef={cancel}
       title={shown?.kind === 'signOut' ? t('settings.signOutConfirm.title', {server: ports.serverName(), device: t(device)}) : t('settings.resetRecommendations.confirmTitle')}
