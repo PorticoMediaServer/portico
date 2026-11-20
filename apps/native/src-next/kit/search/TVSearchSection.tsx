@@ -3,19 +3,19 @@ import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {searchGroupLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import type {SearchEntry, SearchGroupResult} from '../../../../../packages/client-core/src/search';
-import {Focusable} from '../../kit/controls';
-import {FocusItem, FocusRegion, useCovered, useFocusRegistry, type FocusAddress} from '../../kit/focus';
-import {useRowPageBoundary} from '../../kit/focus/page-boundary';
-import {useReplacementRefocus} from '../../kit/focus/replacement-refocus';
-import {LoadingPaint, SkeletonBlock, StateView} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {Focusable} from '../controls';
+import {FocusItem, FocusRegion, useCovered, useFocusRegistry, type FocusAddress} from '../focus';
+import {useRowPageBoundary} from '../focus/page-boundary';
+import {useReplacementRefocus} from '../focus/replacement-refocus';
+import {LoadingPaint, SkeletonBlock, StateView} from '../states';
+import {browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {Row} from '../../kit/layout/Row';
+import {Row} from '../layout/Row';
 import {TVLoadedGrid} from '../../tv/layout/TVLoadedGrid';
-import {NativeSearchDestination, nativeSearchEntryKey, nativeSearchTailKey, type NativeSearchSnapshot} from './model';
-import {SearchGridCard} from './SearchGridCard';
-import type {NativeSearchActions, NativeSearchSelectionPort} from './types';
+import {NativeSearchDestination, nativeSearchEntryKey, nativeSearchTailKey, type NativeSearchSnapshot} from '../../screens/search/model';
+import {SearchGridCard} from '../../screens/search/SearchGridCard';
+import type {NativeSearchActions, NativeSearchSelectionPort} from '../../screens/search/types';
 
 type Cell = Readonly<{kind: 'entry'; entry: SearchEntry}> | Readonly<{kind: 'tail'; id: string}>;
 export function TVSearchSection({group, destination, runtime, actions, selection, enabled, regionId, keyboardRegion, previousRegion, previousFallback, nextRegion,
@@ -52,9 +52,9 @@ export function TVSearchSection({group, destination, runtime, actions, selection
   const firstId = group.items[0]?.id;
   const measureCaption = (height: number) => setCaption(current =>
     current && current.firstId === firstId && current.height >= height ? current : {firstId, height});
-  const height = songs ? 84 : group.id === 'live-tv' ? 225 : group.id === 'episodes' ? 210 : ['movies', 'shows'].includes(group.id) ? 390 : 290;
+  const height = songs ? 84 : group.id === 'live-tv' ? 304 : group.id === 'episodes' ? 210 : ['movies', 'shows'].includes(group.id) ? 390 : 290;
   const artHeight = group.id === 'movies' || group.id === 'shows' ? cardWidth * 1.5
-    : group.id === 'episodes' ? cardWidth * 9 / 16 : cardWidth;
+    : group.id === 'live-tv' || group.id === 'episodes' ? cardWidth * 9 / 16 : cardWidth;
   const rowHeight = Math.max(height, artHeight + (caption?.firstId === firstId ? caption?.height ?? 0 : 0));
   const failure = paging?.error ? runtime.error(paging.error, retry, 'search') : undefined;
   const groupFailure = group.status === 'error' ? runtime.error({code: group.errorCode}, paging?.error ? retry : () => {void destination.retry().catch(runtime.reportError);}) : undefined;
@@ -79,11 +79,11 @@ export function TVSearchSection({group, destination, runtime, actions, selection
     neighbors={{...(nextRegion ? {next: nextRegion} : {}), ...(previousFallback ? {previous: previousFallback} : {})}} screenStart={screenStart} style={{marginTop: 46}}>
     {heading}
     {groupFailure && <StateView testID={`tv-search-group-error:${group.id}`} {...groupFailure}/>}
-    <TVLoadedGrid items={items} getKey={getKey} itemWidth={cardWidth} itemHeight={height} gap={28} rowGap={songs ? 0 : 40}
+    <TVLoadedGrid items={items} getKey={getKey} itemWidth={cardWidth} itemHeight={group.id === 'live-tv' ? rowHeight : height} gap={28} rowGap={songs ? 0 : 40}
       scrollY={scrollY} viewportHeight={viewportHeight} coordinateRoot={contentRoot} initialWidth={width} layoutRevision={layoutRevision} onGeometry={geometry} style={{marginTop: 30}}
       renderItem={(cell, position) => <FocusItem focusId={getKey(cell)} cell={{index: position.index, pending: cell.kind === 'tail'}} waiting={cell.kind === 'tail' && !failure}>
         {cell.kind === 'entry' ? <SearchGridCard index={position.index} previousFocused={focusedIndex === position.index - 1} entry={cell.entry} group={group.id} width={cardWidth} runtime={runtime} actions={actions}
-          selection={selection?.item(cell.entry, group.id)} titleLines={0} disabled={!enabled} onFocus={() => {setFocusedIndex(position.index); position.onFocus(); if (position.index >= group.items.length - columns) request();}}
+          selection={selection?.item(cell.entry, group.id)} titleLines={0} onCaptionLayout={group.id === 'live-tv' ? measureCaption : undefined} disabled={!enabled} onFocus={() => {setFocusedIndex(position.index); position.onFocus(); if (position.index >= group.items.length - columns) request();}}
           onBlur={() => setFocusedIndex(current => current === position.index ? undefined : current)}/>
           : <Focusable focusId={cell.id} focusKind="card" disabled={!enabled || !!paging?.error && !paging.error.retryable} focusableWhenDisabled={!!paging?.error && !paging.error.retryable}
             accessibilityRole={failure ? 'button' : undefined} accessibilityLabel={typeof failure?.title === 'string' ? failure.title : defaultI18n.t('saved.loading')}

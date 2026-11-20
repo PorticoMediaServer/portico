@@ -4,7 +4,7 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
 import {tvEpisodeRegionMap} from '../src-next/screens/watch/tv-title-focus.ts';
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
-const theme = {isTV: true, textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', accent: '#abc', accentStrong: '#def'}, type: {caption: {}}};
+const theme = {isTV: true, textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', accent: '#abc', accentStrong: '#def'}, type: {caption: {}, rowHeading: {}, rowHelp: {}}, space: {tight: 6, hairline: 2}};
 const i18n = {defaultI18n: {t: (key: string) => key}};
 const native = {Text: 'Text', View: 'View', ScrollView: 'ScrollView'};
 const type = {browseType: (_theme: unknown, fontSize: number) => ({fontSize})};
@@ -120,21 +120,24 @@ test('TV Search song results use full-width track rows and channels use factual 
   const row = nodes(tree).find(node => node.type === 'SongRow'); assert.ok(row); assert.equal(tree.props.style.width, 1044);
   assert.equal(row.props.focusId, 'actual-track'); assert.equal(row.props.previousFocused, true); assert.equal(row.props.row.artwork.props.width, 56);
   row.props.onPlay(); row.props.onMore(); row.props.onSelectionChange(); assert.deepEqual(calls, [['play', song, 'songs'], ['more', song, 'songs'], ['toggle']]);
-  const channel = h.render(() => SearchGridCard({entry: {id: 'channel', kind: 'channel', title: 'Real station'}, group: 'live-tv', runtime, actions, width: 400}));
-  const frame = channel.type(channel.props), art = frame.props.children[0]({focused: false});
+  const channel = h.render(() => SearchGridCard({entry: {id: 'channel', kind: 'channel', title: 'Real station with a name that wraps', subtitle: 'A local channel subtitle that wraps as well'}, group: 'live-tv', runtime, actions, width: 400}));
+  const frame = channel.type(channel.props), face = frame.props.children[0]({focused: false});
+  const art = nodes(face).find(node => node.type === 'ArtFrame');
   assert.equal(art.type, 'ArtFrame'); assert.equal(art.props.width, 400); assert.equal(art.props.height, 225);
   assert.equal(nodes(art).find(node => node.type === 'Icon').props.name, 'i-tv');
-  assert.deepEqual(nodes(art).filter(node => node.type === 'Text').flatMap(node => node.props.children), ['Real station']);
+  const captions = nodes(face).filter(node => node.type === 'Text');
+  assert.deepEqual(captions.flatMap(node => node.props.children), ['Real station with a name that wraps', 'A local channel subtitle that wraps as well']);
+  assert.ok(captions.every(node => node.props.numberOfLines === undefined));
   const poster = h.render(() => SearchGridCard({entry: {id: 'movie', kind: 'movie', title: 'Real title'}, group: 'movies', runtime, actions, width: 196}));
   assert.equal(poster.props.titleLines, 2); assert.equal(poster.props.titleTextStyle.fontSize, 20); assert.equal(poster.props.captionTextStyle.fontSize, 18);
   const gridHost = hooks();
-  const {TVSearchSection} = await screenModule(new URL('../src-next/screens/search/TVSearchSection.tsx', import.meta.url), {
+  const {TVSearchSection} = await screenModule(new URL('../src-next/kit/search/TVSearchSection.tsx', import.meta.url), {
     react: gridHost.react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
     '../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel: (group: string) => group},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({})},
-    '../../kit/focus/replacement-refocus': {useReplacementRefocus() {}}, '../../kit/focus/page-boundary': {useRowPageBoundary() {}}, '../../kit/states': {}, '../../kit/browse/presentation': type, '../../kit/theme': {useTheme: () => theme},
-    '../../kit/layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
-    './model': {nativeSearchEntryKey: key, nativeSearchTailKey: () => ''}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'},
+    '../controls': {Focusable: 'Focusable'}, '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({})},
+    '../focus/replacement-refocus': {useReplacementRefocus() {}}, '../focus/page-boundary': {useRowPageBoundary() {}}, '../states': {}, '../browse/presentation': type, '../theme': {useTheme: () => theme},
+    '../layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
+    '../../screens/search/model': {nativeSearchEntryKey: key, nativeSearchTailKey: () => ''}, '../../screens/search/SearchGridCard': {SearchGridCard: 'SearchGridCard'},
   });
   const section = gridHost.render(() => TVSearchSection({group: {id: 'songs', status: 'success', items: [song]}, enabled: true, singleRow: true, width: 1044, regionId: 'songs',
     runtime, actions, destination: {}, contentRoot: {current: null}}));

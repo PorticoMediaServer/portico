@@ -13,14 +13,14 @@ const flatten = (style: any): any => Array.isArray(style) ? Object.assign({}, ..
 async function fixture() {
   const host = hooks(), registry = createFocusRegistry(), calls: string[] = [], theme = createTheme({isTV: true, width: 1920});
   let boundary: any, refocused: any;
-  const {TVSearchSection} = await screenModule(new URL('../src-next/screens/search/TVSearchSection.tsx', import.meta.url), {
+  const {TVSearchSection} = await screenModule(new URL('../src-next/kit/search/TVSearchSection.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => registry},
-    '../../kit/focus/replacement-refocus': {useReplacementRefocus: (...args: any[]) => {refocused = args;}}, '../../kit/focus/page-boundary': {useRowPageBoundary: (...args: any[]) => {boundary = args;}},
-    '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme}, '../../kit/layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
-    './model': {nativeSearchEntryKey, nativeSearchTailKey}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'},
+    '../controls': {Focusable: 'Focusable'}, '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => registry},
+    '../focus/replacement-refocus': {useReplacementRefocus: (...args: any[]) => {refocused = args;}}, '../focus/page-boundary': {useRowPageBoundary: (...args: any[]) => {boundary = args;}},
+    '../states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
+    '../browse/presentation': {browseType}, '../theme': {useTheme: () => theme}, '../layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
+    '../../screens/search/model': {nativeSearchEntryKey, nativeSearchTailKey}, '../../screens/search/SearchGridCard': {SearchGridCard: 'SearchGridCard'},
   });
   const items = Array.from({length: 12}, (_, index) => ({id: `served-${index}`, kind: 'movie', libraryId: 'movies', title: 'Stored title'}));
   const props: any = {group: {id: 'movies', status: 'success', items, totalCount: 53, totalCountExact: true, nextCursor: 'offered-cursor'},

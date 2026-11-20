@@ -2,7 +2,7 @@ import React, {useId, useRef, type ReactNode} from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {frameSpec} from '@portico/design';
-import {Artwork, type ArtworkSource} from '../artwork';
+import {Artwork, missingArt, type ArtworkSource} from '../artwork';
 import {Button} from '../controls/Button';
 import {Chip} from '../controls/Chip';
 import {Focusable} from '../controls/Focusable';
@@ -10,7 +10,8 @@ import {Icon} from '../Icon';
 import {useFrameMetrics} from '../frames/metrics';
 import {useTheme} from '../theme';
 import type {CardSelection} from '../cards';
-import {CardFrame} from '../cards/primitives';
+import {browseType} from '../browse/presentation';
+import {ArtFrame, CardFrame} from '../cards/primitives';
 import {SelectionCircle} from '../selection';
 
 export type SearchHistoryItem = Readonly<{query: string; onPress: () => void; remove?: Readonly<{label: string; onPress: () => void}>}>;
@@ -48,13 +49,16 @@ export type TopResultProps = Readonly<{
   title: string;
   /** The facts: kind, year, seasons. */
   facts?: ReactNode;
+  details?: ReactNode;
   synopsis?: string;
   artwork?: ArtworkSource;
   /** The title's own buttons from tablet width (Resume, My List, More); a phone draws one round Play. */
   actions?: ReactNode;
-  play?: Readonly<{label: string; onPress: () => void}>;
+  play?: Readonly<{label: string; title?: string; onPress: () => void}>;
   onPress: () => void;
   testID?: string;
+  focusId?: string;
+  disabled?: boolean;
   selection?: CardSelection;
   selectionLabel?: string;
   onMenu?: (anchor: React.RefObject<View | null>) => void;
@@ -64,7 +68,7 @@ export type TopResultProps = Readonly<{
 /** The Top result (phone-app 8, desktop-search s-top, final3-tv-09): the title's picture with its words over it. A phone's
  * is a card the width of the page with a round Play; wider forms put the words beside the picture with the title's own
  * buttons. The live phone screen's copy (`screens/search/SearchScreen.tsx` `SearchTopResult`) moves onto this in Stage 2. */
-export function TopResult({eyebrow, title, facts, synopsis, artwork, actions, play, onPress, testID, selection, selectionLabel, onMenu, menuOpen}: TopResultProps) {
+export function TopResult({eyebrow, title, facts, details, synopsis, artwork, actions, play, onPress, testID, focusId, disabled, selection, selectionLabel, onMenu, menuOpen}: TopResultProps) {
   const theme = useTheme(), frame = useFrameMetrics(), gradient = useId(), anchor = useRef<View>(null), phone = frame.form === 'phone', tv = frame.form === 'tv';
   const width = frame.width - 2 * frame.cardInset, height = phone ? width * .5 : Math.min(width * .32, frame.form === 'tv' ? 300 : 360);
   const words = <View style={{gap: theme.space.tight}}>
@@ -75,11 +79,18 @@ export function TopResult({eyebrow, title, facts, synopsis, artwork, actions, pl
   </View>;
   // TV (final3-tv-09): beside the keyboard, the 16:9 picture with the words beside it; the title's buttons are its page's.
   if (tv) {
-    const art = frameSpec.search.topResultArt;
-    return <Focusable accessibilityLabel={title} onPress={onPress} focusRadius={frame.cardRadius} style={{flexDirection: 'row', alignItems: 'center', gap: frame.headingGap * 2, marginHorizontal: frame.cardInset}}>
-      <View style={{width: art, height: art * 9 / 16, borderRadius: frame.cardRadius, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={artwork} height={art * 9 / 16}/></View>
-      <View style={{flex: 1}}>{words}</View>
-    </Focusable>;
+    const art = frameSpec.search.topResultArt, artHeight = art * 9 / 16;
+    return <CardFrame focusId={focusId} testID={testID} title={title} disabled={disabled} selection={selection}
+      menuAnchorRef={anchor} moreExpanded={menuOpen} onNavigate={onPress} onMore={onMenu && (() => onMenu(anchor))}
+      style={{marginTop: 44, transformOrigin: 'left center'}} pressableStyle={{flexDirection: 'row', gap: 36, alignItems: 'center'}}>
+      {state => <><ArtFrame width={art} height={artHeight} radius={14} focused={state.focused} hovered={state.hovered} holding={state.holding} selected={selection?.selected}>
+        <Artwork source={artwork} width={art} height={artHeight} fallback={artwork ? undefined : missingArt({title, shape: 'wide', width: art, height: artHeight})}/>
+      </ArtFrame><View style={{flex: 1}}>
+        <Text style={[browseType(theme, 20, 700), {color: theme.colors.accentStrong, marginBottom: 10}]}>{eyebrow}</Text>
+        <Text accessibilityRole="header" style={[browseType(theme, 52, 800, -.04, 52), {color: theme.colors.text, marginBottom: 14}]}>{title}</Text>
+        {facts}{details}
+      </View></>}
+    </CardFrame>;
   }
   return <View style={{marginHorizontal: frame.cardInset}}>
     <CardFrame testID={testID} title={title} selection={selection} menuAnchorRef={anchor} moreExpanded={menuOpen}
@@ -93,7 +104,12 @@ export function TopResult({eyebrow, title, facts, synopsis, artwork, actions, pl
       </Svg>
       <View style={{marginLeft: frame.cardPadding, marginRight: phone ? frame.cardPadding + theme.targets.touch + theme.space.sm : width * .5, marginTop: frame.cardPadding, marginBottom: frame.cardPadding, gap: frame.headingGap}}>
         {words}
-        {!phone && actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>{actions}</View>}
+        {!phone && (actions || play && !selection?.active) && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+          {play && !selection?.active && <Button testID="search-top-play" variant="primary" size="small" icon="i-play" accessibilityLabel={play.label} onPress={play.onPress}>
+            {play.title}
+          </Button>}
+          {actions}
+        </View>}
       </View>
       {selection?.active && <View style={{position: 'absolute', top: frame.cardPadding, right: frame.cardPadding}}>
         <SelectionCircle selected={selection.selected} selecting interactive={false} variant="row" accessibilityLabel={selectionLabel ?? title}/>
