@@ -43,6 +43,7 @@ import {TvHomeRecovery} from './TvHomeRecovery';
 import {useTvHomeRecovery} from './useTvHomeRecovery';
 import {homeMountedRows, homeVisibleRange, type HomeRowBox} from './home-window';
 import {HomeCard, HomeCollectionCard, HomeHeroFacts, HomeLiveRow, HomePendingRow, HomeRemoteHint, HomeWindow, booksCardSize} from '../../kit/home';
+import {HomePage} from '../../pages/touch/home/HomePage';
 
 type HomeCandidate = HeroCandidate & {entry: ContentEntry; target?: ContentEntry; primaryLabel?: string};
 const noMixesSubscription = () => () => {};
@@ -131,8 +132,21 @@ function TVHomeRowShift({heroDelta, style, onLayout, children}: {heroDelta: numb
   return <Animated.View collapsable={false} layout={layout} onLayout={onLayout} style={[style, position]}>{children}</Animated.View>;
 }
 
+type HomeScreenProps = Parameters<typeof HomeScreenForms>[0];
+
+/** An upright phone draws the rebuilt Home page (phone-app.html 1, 2), with Music's mixes row handed in from here; a
+ * tablet, a phone on its side, a desktop window and TV keep this screen's forms until their pages are rebuilt. The
+ * switch is an element, never an inline call, so turning a phone over swaps whole components, never hook orders. */
+export function HomeScreen(props: HomeScreenProps) {
+  const theme = useTheme(), {runtime, authority, active} = props;
+  if (theme.isTV || theme.platform !== 'phone' || theme.layoutMode !== 'phone') return <HomeScreenForms {...props}/>;
+  const mixes = runtime.mixes ? <MusicMixesRow focusScope={`home:${authorityKey(authority)}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError}
+    title={runtime.text.t('music.mixesForYou')} onOpen={runtime.musicDiscover} active={active ?? true}/> : undefined;
+  return <HomePage runtime={runtime} authority={authority} active={props.active} heroObscured={props.heroObscured} bottomInset={props.bottomInset} onScrolledChange={props.onScrolledChange} mixes={mixes}/>;
+}
+
 /** Server-authored Home only. No whole-library reads, local ranking or metadata inference. */
-export function HomeScreen({runtime, authority, playOnHidden = false, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
+function HomeScreenForms({runtime, authority, playOnHidden = false, active = true, heroObscured = false, railExpanded = false, bottomInset = 0, onScrolledChange, holdRailDim, releaseRailDim}: {
   runtime: NativeShellRuntime; authority: ShellAuthority;
   /** The shell hides Play on while Home is selecting or its chrome is hidden. */
   playOnHidden?: boolean; active?: boolean; heroObscured?: boolean; railExpanded?: boolean; bottomInset?: number; onScrolledChange?: (scrolled: boolean) => void;

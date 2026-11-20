@@ -1,6 +1,6 @@
 import React, {useState, type ReactNode} from 'react';
-import {RefreshControl, ScrollView, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type StyleProp, type ViewStyle} from 'react-native';
-import Animated from 'react-native-reanimated';
+import {RefreshControl, ScrollView, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle} from 'react-native';
+import Animated, {type AnimatedRef} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -76,7 +76,10 @@ export type BrowseFrameProps = Readonly<{
   /** The rows form's own scroller, drawn by the frame (Home): the page's scroll handler and offset, which drive its row
    * window and scrolled header, pull to refresh, and the room for the tab bar under the frame's bottom clearance. */
   scroll?: Readonly<{
-    ref?: React.Ref<Animated.ScrollView>; style?: StyleProp<ViewStyle>;
+    /** The scroller's own id (Home's is `native-home`, which the app's tests and device scripts find it by). */
+    testID?: string;
+    /** The page's animated ref (`useAnimatedRef`), which its scroll anchoring reads. */
+    ref?: AnimatedRef<Animated.ScrollView>; style?: React.ComponentProps<typeof Animated.ScrollView>['style'];
     onScroll?: ((event: NativeSyntheticEvent<NativeScrollEvent>) => void) | object; onScrollBeginDrag?: () => void;
     refresh?: Readonly<{refreshing: boolean; onRefresh: () => void}>; bottomInset?: number;
   }>;
@@ -117,7 +120,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, chil
       {loading ? <GridSkeleton/> : grid}
       {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>
-    : scroll && !loading ? <Animated.ScrollView ref={scroll.ref} testID={testID ? `${testID}-scroll` : undefined} style={scroll.style} scrollEventThrottle={16}
+    : scroll && !loading ? <Animated.ScrollView ref={scroll.ref} testID={scroll.testID ?? (testID ? `${testID}-scroll` : undefined)} style={scroll.style} scrollEventThrottle={16}
       onScroll={scroll.onScroll as never} onScrollBeginDrag={scroll.onScrollBeginDrag} showsVerticalScrollIndicator={false}
       refreshControl={scroll.refresh ? <RefreshControl refreshing={scroll.refresh.refreshing} tintColor={theme.colors.text} onRefresh={scroll.refresh.onRefresh}/> : undefined}
       contentContainerStyle={{paddingBottom: frame.bottomClear + (scroll.bottomInset ?? 0)}}>{!pinned && top}{rows}</Animated.ScrollView>
