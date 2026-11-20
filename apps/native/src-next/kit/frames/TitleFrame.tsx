@@ -324,7 +324,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       {/* A cover page with no buttons and no words (a person without a biography) ends at its name: no empty gap. */}
       {(primary || actions.length > 0 || words || picker) && <View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View>}</View>
     : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: artistTV || squareTV ? ring.top : tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && (!tv || artistTV) ? 'row-reverse' : 'row', alignItems: (cover.shape === 'circle' || squareTV) && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
-      {split && discs}{coverBox}<View style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View>
+      {/* Where the name starts (a page offset: the head is the page's first part): the bar takes over as it reaches the bar. */}
+      {split && discs}{coverBox}<View onLayout={event => setWordsTop(event.nativeEvent.layout.y)} style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View>
         {squareTV && beside && <View style={{marginTop: frame.sectionGap}}>{beside}</View>}</View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
@@ -400,7 +401,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       {(held || tabsPinned) && tabBar()}
     </> : <View style={{minHeight: barHeight, paddingTop: insets.top, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
       <RoundBarButton icon="i-left" label={back.label} onPress={back.onPress}/>
-      <Text accessibilityRole="header" style={[theme.type.barTitle, {color: theme.colors.text, paddingRight: theme.space.md, borderRightWidth: 1, borderRightColor: theme.colors.line}]}>{title}</Text>
+      {/* The rule after the title parts it from the tabs; a page with no tabs (an artist) has none. */}
+      <Text accessibilityRole="header" style={[theme.type.barTitle, {color: theme.colors.text}, tabs ? {paddingRight: theme.space.md, borderRightWidth: 1, borderRightColor: theme.colors.line} : undefined]}>{title}</Text>
       {/* The tabs stand on the bar's lower edge, so their rule is the bar's own and the selected underline meets it (desktop-detail f3). */}
       <View style={{flex: 1, minWidth: 0, alignSelf: 'flex-end'}}>{tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} contentContainerStyle={{paddingHorizontal: 0}}/>}</View>
       {primary && <Button variant="primary" size="small" align="center" icon={primary.icon} disabled={primary.disabled || loading} onPress={primary.onPress}>{primary.label}</Button>}
