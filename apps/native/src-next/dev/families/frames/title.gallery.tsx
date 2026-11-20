@@ -336,7 +336,7 @@ function PhoneArtist() {
 function Artist() {
   const theme = useTheme();
   if (useFrameMetrics().form === 'phone') return <PhoneArtist/>;
-  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', node: <Artwork source={asset('pool/albums/abbey-road-2019-mix.jpg')} style={{width: '100%', height: '100%'}}/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
+  return <Page destination={{kind: 'library', libraryId: 'music'}}><TitleFrame testID="frames-title-artist" back={back} cover={{shape: 'circle', large: true, node: size => <ArtistCircle covers={[asset('pool/albums/abbey-road-2019-mix.jpg')]} rings={[40, 80]} initials="TB" alt={f('artist')} size={size} visible/>}} kicker={{label: f('artistKicker')}} title={f('artist')}
     metadata={<Meta text={f('artistFacts')}/>} primary={{icon: 'i-play', label: f('play'), onPress: none}}
     actions={[{icon: 'i-shuffle', label: f('shuffle'), labelled: true, onPress: none}, {icon: 'i-heart', label: f('favourite'), onPress: none}, {icon: 'i-more', label: f('more'), onPress: none}]}
     aside={<><View><PanelHeading title={f('albums')}/><SquareCard title={f('abbeyRoad')} caption={[{id: 'year', text: '1969', role: 'context'}]} artwork={asset('pool/albums/abbey-road-2019-mix.jpg')} width={theme.spec.card.width.poster[theme.column] * 1.2} onNavigate={none}/></View>
