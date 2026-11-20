@@ -198,10 +198,11 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
   const entry = restore ? grid.collection.residentItems().find(item => nativeLibraryEntryKey(item) === restore.key) ?? grid.collection.itemAt(startingIndex) : grid.collection.itemAt(0);
   const key = entry && nativeLibraryEntryKey(entry);
   const address = key && (registry.entityAddress(regionId, key) ?? {regionId, childId: key});
+  const {grid: gridRef, top} = grid;
   const requested = useCallback(() => {
-    if (restore) grid.grid.current?.scrollToIndex(startingIndex);
-    else grid.top();
-  }, [grid.grid, grid.top, restore, startingIndex]);
+    if (restore) gridRef.current?.scrollToIndex(startingIndex);
+    else top();
+  }, [gridRef, top, restore, startingIndex]);
   useDestinationEntryFocus({...active, intent: resource && active.intent === 'restore' ? 'enter' : active.intent}, address || undefined, requested);
   useTVPageBack(runtime, {kind: 'library', libraryId: source.library.id}, true, {
     registerTop: true, scope: JSON.stringify([active.revision, source.queryRevision, source.tab.id]),
