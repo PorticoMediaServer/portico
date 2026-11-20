@@ -25,7 +25,7 @@ import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePa
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
 import {NativeServerHistory} from '../../../screens/settings-live/server/HistoryPage';
-import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
+import {RemoteSourcesPage} from './RemoteSourcesPage';
 import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
 import {useSettingsPage, type SettingsProps} from './useSettingsPage';
 import {SettingsPreferences} from './SettingsPreferences';
@@ -81,7 +81,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
     : remoteAccessPage ? <NativeRemoteAccessPage ports={ports} runtime={runtime} compactHeader={compact}/>
     : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/>
-    : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
       onClose={leaveServerPage} initialChannelId={initialChannelId}/>
     : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
@@ -92,7 +91,8 @@ export function NativeSettingsPage(props: SettingsProps) {
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
   const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
-    back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/> : remoteSourcesPage ? <RemoteSourcesPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+    onBackHandlerChange={setRemoteBack} back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
     intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}

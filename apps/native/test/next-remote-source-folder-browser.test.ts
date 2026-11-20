@@ -10,9 +10,15 @@ const folders: Record<string, {name: string; path: string}[]> = {'': [{name: 'Fi
 async function browser(multiple: boolean) {
   const h = lifecycleHooks(), chosen: any[] = [], opened: string[] = [];
   const controller = {folders: async (_id: string, path: string) => {opened.push(path); return folders[path] ?? [];}};
-  const module = await screenModule(new URL('../src-next/screens/settings/remote-sources/SourceFolderBrowser.tsx', import.meta.url), {
-    react: h.react, 'react-native': {Text: 'Text'}, '../../../kit/controls/Button': {Button: 'Button'},
-    './RemoteSourceForms': {Page: 'Page', Problem: 'Problem', remoteSourceError: () => 'error'},
+  const controls = await screenModule(new URL('../src-next/pages/shared/settings/useRemoteSourceForms.ts', import.meta.url), {
+    react: h.react, 'react-native': {},
+    '../../../../../../packages/client-core/src/remote-storage': {},
+    '../../../screens/settings/remote-sources/messages': {remoteSourceError: () => 'error'},
+  });
+  const module = await screenModule(new URL('../src-next/kit/settings/remote-sources/SourceFolderBrowser.tsx', import.meta.url), {
+    react: h.react, '../../controls': {Button: 'Button'}, '../SettingsParts': {SettingsHelp: 'Text'},
+    '../../../pages/shared/settings/useRemoteSourceForms': controls,
+    './RemoteSourceForms': {RemoteSourceForm: 'Page', Problem: 'Problem'},
   });
   const render = () => h.render(() => module.SourceFolderBrowser({controller, source: {id: 'rs_1', name: 'Archive'}, t, isCurrent: () => true, multiple, onCancel() {}, onChoose: (value: unknown) => {chosen.push(value);}}));
   const press = async (label: string) => {

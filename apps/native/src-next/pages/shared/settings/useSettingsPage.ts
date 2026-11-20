@@ -328,7 +328,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const choose = (id: string) => {if (!viewCurrent()) return; pageState.current = {...pageState.current, selected: id, pushed: !theme.isTV}; setSelected(id); setTarget(undefined); if (!theme.isTV) setPushed(true);};
   const phoneBack = () => {if (!viewCurrent()) return; if (!remoteSourcesPage || !remoteBack.current?.()) popPage();};
   const viewerRole = ports.context.account.account.role === 'owner' ? 'owner' as const : ports.context.account.canManage ? 'administrator' as const : 'member' as const;
-  const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || integrationsPage || streamingPage || segmentsPage || peoplePage || signInPage || metadataPage || historyPage || remoteSourcesPage || remoteAccessPage;
+  const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || integrationsPage || streamingPage || segmentsPage || peoplePage || signInPage || metadataPage || historyPage || remoteAccessPage;
   const accountGroups = compact ? [orderedPages] : grouped(orderedPages, theme.isTV ? tvPageGroups : tabletAccountClusters);
   const serverGroups = grouped(serverGroupPages, compact ? [] : tabletServerClusters);
   const focusSearch = () => {if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}};

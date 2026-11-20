@@ -45,7 +45,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     './owner-libraries/OwnerLibrariesPanel': {NativeOwnerLibrariesPanel: 'Libraries'}, '../../kit/shell/ServerIdentity': {ServerBand: 'ServerBand', ServerHeader: 'ServerHeader'},
     './LiveOwnerScreen': {NativeLiveOwnerScreen: 'LiveOwner'}, './live-owner-controller': {NativeLiveOwnerController: class {}}, './recordings-controller': {createNativeRecordingsController: () => ({})}, '../../platform/server-connections': {nativeRouteCrypto: {}},
     './server/TroubleshootingPage': {NativeServerTroubleshooting: 'Troubleshooting'}, './server/StoragePage': {NativeServerStorage: 'Storage'}, './server/IntegrationsPage': {NativeServerIntegrations: 'Integrations'}, './ServerGeneralPage': {ServerGeneralPage: 'General'}, './server/RemoteAccessPage': {NativeRemoteAccessPage: 'RemoteAccess'}, './server/StreamingPage': {NativeServerStreaming: 'Streaming'}, './server/SegmentsPage': {NativeServerSegments: 'Segments'}, './server/PeoplePage': {NativeServerPeople: 'People'}, './server/SignInPage': {NativeServerSignIn: 'SignIn'}, './server/MetadataPage': {NativeServerMetadata: 'Metadata'}, './server/HistoryPage': {NativeServerHistory: 'History'},
-    './server/PhoneServerPageHeader': {PhoneServerPageHeader: 'PhoneHeader'}, '../settings/remote-sources/NativeRemoteSourcesScreen': {NativeRemoteSourcesScreen: 'RemoteSources'}, './DashboardScreen': {NativeDashboardScreen: 'Dashboard'},
+    './server/PhoneServerPageHeader': {PhoneServerPageHeader: 'PhoneHeader'}, './RemoteSourcesPage': {RemoteSourcesPage: 'RemoteSources'}, './DashboardScreen': {NativeDashboardScreen: 'Dashboard'},
     '../../platform/playback/equalizer': {}, '../../tv/auth/TVHandoff': {},
     './use-tv-voice-search': {useTVVoiceSearch: () => ({})}, '../../platform/playback/passthrough-formats': {}, './NativeDynamicRangeRow': {}, '../../platform/playback/dynamic-range-matching': {}, './NativeApplePassthroughRow': {}, '../../kit/settings/DeviceCapabilityRows': {}, './NativeFrameRateRow': {}, './NativePassthroughRow': {}, './NativeLossNoticesRow': {}, './NativeServerOfflineNoticeRow': {}, './NativeSafeModeRow': {},
   });
@@ -61,6 +61,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     retire: () => retirement.abort(), endLifetime: () => {lifetime = false;}, endContext: () => {contextCurrent = false;}, retiredReads: () => retiredReads,
     resize: (width: number) => {theme.width = width; theme.platform = width < 600 ? 'phone' : 'tablet';},
     systemBack: () => [...hardwareBack].reverse().some(listener => listener()),
+    remotePage: () => nodes(tree).find(node => node.type === 'RemoteSources'),
     remote: (handled: boolean) => nodes(tree).find(node => node.type === 'RemoteSources').props.onBackHandlerChange(() => {remoteBacks++; return handled;}), remoteBacks: () => remoteBacks,
     unmount: () => {for (const effect of effects) effect.cleanup?.();},
   };
@@ -97,7 +98,7 @@ test('Remote source Back belongs to the current Settings route and is offered be
   const f = await fixture();
   try {
     f.find('settings-page-remote-sources').props.onPress(); f.render(); f.remote(true);
-    const back = f.header().props.onBack; back(); f.render(); assert.ok(f.header()); assert.equal(f.remoteBacks(), 1);
+    const back = f.remotePage().props.back.onPress; back(); f.render(); assert.ok(f.remotePage()); assert.equal(f.remoteBacks(), 1);
     f.routeAway(); back(); assert.equal(f.remoteBacks(), 1); assert.equal(f.backs(), 0);
   } finally {f.unmount();}
 });

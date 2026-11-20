@@ -98,7 +98,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './server/MetadataPage': {NativeServerMetadata: 'NativeServerMetadata'},
     './server/HistoryPage': {NativeServerHistory: 'NativeServerHistory'},
     './server/PhoneServerPageHeader': {PhoneServerPageHeader: 'PhoneServerPageHeader'},
-    '../settings/remote-sources/NativeRemoteSourcesScreen': {NativeRemoteSourcesScreen: 'NativeRemoteSourcesScreen'},
+    './RemoteSourcesPage': {RemoteSourcesPage: 'NativeRemoteSourcesScreen'},
     '../../platform/playback/equalizer': {nativeEqualizer},
     '../../tv/auth/TVHandoff': {publicTVHandoffAddress: (value: string) => ({url: value, display: value, pathname: '/settings/profile', search: ''})},
   });
