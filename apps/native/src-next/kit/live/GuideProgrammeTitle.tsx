@@ -51,7 +51,12 @@ function FittedGuideText({title, lines, style, width, maxHeight, whole, onHeight
           while (cut > 0 && !/\s/.test(clipped[cut - 1]!)) cut--;
         }
         const shortened = clipped.slice(0, cut).trimEnd().replace(/[\s:–—-]+$/, '');
-        setTrial(shortened ? shortened + ellipsis : ellipsis);
+        if (shortened) {setTrial(shortened + ellipsis); return;}
+        // No whole word fits (owner, 20 Nov): cut the first word itself, one letter at a time, so the cell still shows
+        // part of its title ("Peb…"); a bare "…" only when not even one letter fits.
+        const word = clipped.split(/\s/)[0] ?? '', letters = Array.from(word);
+        const keep = letters.length - 1;
+        setTrial(keep > 0 ? letters.slice(0, keep).join('').replace(/[:–—-]+$/, '') + ellipsis : ellipsis);
       }}>{trial}</Text>}
   </>;
 }
