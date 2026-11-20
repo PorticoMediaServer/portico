@@ -34,12 +34,14 @@ export function smallerStep(size: number, column: 'handheld' | 'desktop' | 'tenF
  * phone, still a title); there it wraps as far as it needs. It is never cut (owner, 13 Nov: "never end a title in dots"). */
 export const pageTitleLines = 3;
 
-/** The one page title: Home's hero, a title, album, artist or collection page. Off TV it steps down, then wraps; it is never
- * cut. A word wider than the line also takes the next size down rather than break in the middle. `lines` (TV) caps it. */
+/** The one page title: Home's hero, a title, album, artist, book or collection page. It steps down, then wraps; it is never
+ * cut. A word wider than the line also takes the next size down rather than break in the middle. `lines` caps it (TV's Home
+ * hero, two lines); a capped title does not step on TV. */
 export function Lockup({title, long = false, lines, size, lineRatio, tracking = -.035, variant, style, ...props}: LockupProps) {
   const theme = useTheme();
   const column = variant === 'desktop' || !variant && theme.layoutMode === 'desktop' ? 'desktop' : variant === 'tv' || (!variant && theme.isTV) ? 'tenFoot' : 'handheld';
-  const page = column !== 'tenFoot', phoneSteps = size === undefined && column === 'handheld' && theme.platform === 'phone', lockup = typeScale.handheld.lockup;
+  // TV steps too, unless its caller caps the lines (Home's hero, two): a title page's title is never cut on TV either.
+  const page = column !== 'tenFoot' || lines === undefined, phoneSteps = size === undefined && column === 'handheld' && theme.platform === 'phone', lockup = typeScale.handheld.lockup;
   // The phone frames' starting size by length (46; 42 past 20 characters; 34 past 40); a frame-sized page names its own.
   const step = phoneSteps ? (lockupStep(title) === 'lockup' && long ? 'lockupLong' : lockupStep(title)) : long ? 'lockupLong' : 'lockup';
   const base = typeScale[column][step === 'veryLong' ? 'lockupLong' : step], display = typeScale.handheld.display.size;

@@ -98,3 +98,16 @@ test('a title past three lines steps down the scale to the display size, then wr
   assert.equal(stepped.fontSize, 46);
   assert.ok(Math.abs(stepped.lineHeight - 46 * 1.02) < 1e-9 && Math.abs(stepped.letterSpacing - -.04 * 46) < 1e-9);
 });
+
+// Owner's no-cut rule on TV (desk, 20 Nov): a TV title page's title steps down too, to the 10-foot display size, then wraps.
+// Only a caller that caps its lines (TV Home's hero, two) keeps the cap and does not step.
+test('on TV an uncapped page title steps down past three lines to the display size and is never cut; a capped one keeps its cap', async () => {
+  const tv = await lockup(true);
+  let title = tv.draw({title: sixty, size: 100});
+  assert.deepEqual([flat(title.props.style).fontSize, title.props.numberOfLines], [100, undefined], 'no line cap: no ellipsis');
+  const four = {nativeEvent: {lines: [{text: 'The Night '}, {text: 'the Ferry Did '}, {text: 'Not Come Back '}, {text: 'to the Northern Island'}]}};
+  for (let step = 0; step < 12 && title.props.onTextLayout; step++) {title.props.onTextLayout(four); title = tv.draw({title: sixty, size: 100});}
+  assert.equal(flat(title.props.style).fontSize, design.typeScale.tenFoot.display.size, 'down to the 10-foot display size, then it wraps');
+  const capped = tv.draw({title: sixty, lines: 2});
+  assert.deepEqual([capped.props.numberOfLines, capped.props.onTextLayout], [2, undefined], 'Home\'s capped hero title does not step');
+});
