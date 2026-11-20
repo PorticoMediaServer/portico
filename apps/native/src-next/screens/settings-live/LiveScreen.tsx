@@ -1,5 +1,6 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {channelUnavailableMessage, liveGuideStale, liveServerWideNotice} from '../../../../../packages/client-core/src/presentation/live-availability';
+import {TVGuidePage} from '../../pages/tv/live/GuidePage';
 import {GuidePage} from '../../pages/touch/live/GuidePage';
 import React, {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
@@ -360,7 +361,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const sourceLabel = sourceOptions.find(option => option.value === state.options.sourceId)?.label;
   const sourcePicker = phoneChrome ? state.sources.length === 1 ? <View testID="live-source" style={{height: 34, borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: 9, paddingHorizontal: 12, justifyContent: 'center'}}><Text style={[shellType(13.5, 700), {color: theme.colors.text}]}>{state.sources[0].name}</Text></View>
     : <NativeLivePhonePicker testID="live-source" accessibilityLabel={t('channels.source')} value={state.options.sourceId} options={sourceOptions.map(option => ({id: option.value, label: option.label}))} onChange={chooseSource} style={{height: 34, borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: 9, paddingHorizontal: 12, gap: 8}}>{sourceLabel}</NativeLivePhonePicker>
-    : <Select testID="live-source" accessibilityLabel={t('channels.source')} value={state.options.sourceId} options={sourceOptions} onValueChange={chooseSource}/>;
+    : <Select focusId="live-source" testID="live-source" accessibilityLabel={t('channels.source')} value={state.options.sourceId} options={sourceOptions} onValueChange={chooseSource}/>;
   const chooseDay = (day: string) => Number(day) === today ? goNow() : setStart(dayPrimeTime(Number(day), state.options.timezone));
   const shortDate = useMemo(() => nativeGuideDate(locale, state.options.timezone, {weekday: 'short', month: 'short', day: 'numeric'}), [locale, state.options.timezone]);
   const longDay = useMemo(() => nativeGuideDate(locale, state.options.timezone, {weekday: 'long'}), [locale, state.options.timezone]);
@@ -474,7 +475,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       edges={tvGroupEdges(programmeGroups.map(group => `${programmeRegion}.${group}`), `${programmeRegion}.${id}`)}
       stops={{left: true, right: true}} style={style}>{children}</FocusRegion>;
   };
-  const watchProgramme = selected?.channel.tuneAvailable ? <Button ref={opener} testID="live-watch" icon="i-play" onPress={() => watch(selected.channel)}>{t(onNowProgramme ? 'guide.watchLive' : 'guide.watchChannel')}</Button> : null;
+  const watchProgramme = selected?.channel.tuneAvailable ? <Button align={theme.isTV ? 'stretch' : undefined} ref={opener} testID="live-watch" icon="i-play" onPress={() => watch(selected.channel)}>{t(onNowProgramme ? 'guide.watchLive' : 'guide.watchChannel')}</Button> : null;
   // Spec §10: an unavailable channel says why in its sheet, where Watch would be (LT-4, as web's programme panel).
   const sheetReason = selected && !selected.channel.tuneAvailable ? channelUnavailableMessage(selected.channel.tuneUnavailableReason ?? '') : undefined;
   // The TV sheet reads "Later on" before its actions (tv.html 6); phone and tablet keep it after them.
@@ -504,7 +505,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         {sheetReason && <Banner testID="live-sheet-reason" placement="inline" variant="quiet" tone="warning" icon="i-alert" message={t(sheetReason)}/>}
         {(theme.isTV ? showTVWatch : onNowProgramme) && programmeGroup('watch', watchProgramme)}
         {selected.channel.kind === 'live' && selected.channel.recordAvailable && selected.program && selected.program.end > now && programmeGroup('record', <>
-          <Button style={{flex: 1}} ref={theme.isTV ? !showTVWatch ? opener : undefined : !selected.channel.tuneAvailable ? opener : undefined} variant="glass" testID="live-record" icon="i-rec" focusableWhenDisabled loading={recording} disabled={recording || !!selected.program.recording} onPress={() => {
+          <Button align={theme.isTV ? 'stretch' : undefined} style={theme.isTV ? undefined : {flex: 1}} ref={theme.isTV ? !showTVWatch ? opener : undefined : !selected.channel.tuneAvailable ? opener : undefined} variant="glass" testID="live-record" icon="i-rec" focusableWhenDisabled loading={recording} disabled={recording || !!selected.program.recording} onPress={() => {
             const channel = legacyChannel(selected.channel), programme = selected.program && legacyProgramme(selected.program);
             if (!channel || !programme) return;
             setRecording(true);
@@ -516,9 +517,9 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
               guide.invalidate();
             }, error => {if (controller.lifetime.current()) setRecordError(error);}).finally(() => {if (controller.lifetime.current()) setRecording(false);});
           }}>{t(recordLabelKey(selected.program.recording))}</Button>
-          <Button style={{flex: 1}} variant="glass" testID="live-record-series" onPress={() => {if (selected.program) void askSeries(selected.channel, selected.program);}}>{t('guide.recordSeries')}</Button>
-        </>, {flexDirection: 'row', gap: 10}, true)}
-        {theme.isTV && programmeGroup('favorite', <Button ref={theme.isTV && !showTVWatch && !tvCanRecord ? opener : undefined} focusableWhenDisabled variant="glass" testID="live-channel-favorite" icon={selected.channel.favorite ? 'i-star-f' : 'i-star'}
+          <Button align={theme.isTV ? 'stretch' : undefined} style={theme.isTV ? undefined : {flex: 1}} variant="glass" testID="live-record-series" onPress={() => {if (selected.program) void askSeries(selected.channel, selected.program);}}>{t('guide.recordSeries')}</Button>
+        </>, {flexDirection: theme.isTV ? 'column' : 'row', gap: theme.space.controlGap}, !theme.isTV)}
+        {theme.isTV && programmeGroup('favorite', <Button align="stretch" ref={theme.isTV && !showTVWatch && !tvCanRecord ? opener : undefined} focusableWhenDisabled variant="glass" testID="live-channel-favorite" icon={selected.channel.favorite ? 'i-star-f' : 'i-star'}
           accessibilityState={{selected: selected.channel.favorite}} disabled={state.mutating} onPress={favorite}>
           {t(selected.channel.favorite ? 'channels.removeFavorite' : 'channels.addFavorite')}</Button>)}
         {selected.channel.kind === 'live' && selected.program && selected.program.start > now && (() => {
@@ -526,7 +527,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
           if (!channel) return null;
           const airing = programme && {channel: {id: channel.id, sourceId: channel.sourceId, provenance: channel.provenance, generation: channel.generation, name: channel.name, number: channel.number, group: channel.group}, programme};
           const existing = reminders.get(selected.program!.id);
-          return programmeGroup('remind', <Button variant="glass" testID="live-remind" focusableWhenDisabled icon={existing ? 'i-bell-f' : 'i-bell'} disabled={!airing} onPress={() => {if (airing) remind(airing, existing);}}>{t(existing ? 'guide.stopRemind' : 'guide.remind')}</Button>);
+          return programmeGroup('remind', <Button align={theme.isTV ? 'stretch' : undefined} variant="glass" testID="live-remind" focusableWhenDisabled icon={existing ? 'i-bell-f' : 'i-bell'} disabled={!airing} onPress={() => {if (airing) remind(airing, existing);}}>{t(existing ? 'guide.stopRemind' : 'guide.remind')}</Button>);
         })()}
         {!onNowProgramme && !theme.isTV && watchProgramme}
         {!theme.isTV && laterOn}
@@ -540,8 +541,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const viewIcons = <Segmented testID="live-view" value={view} onValueChange={value => setView(value as 'list' | 'guide')}
     itemProps={item => ({accessibilityLabel: t(item.value === 'list' ? 'channels.viewList' : 'channels.viewGuide'), style: {minHeight: 44, minWidth: 44, paddingHorizontal: 12}})}
     items={(['guide', 'list'] as const).map(value => ({value, label: <Icon name={value === 'list' ? 'i-list' : 'i-timeline'} size={20} color={view === value ? theme.colors.text : theme.colors.textTertiary}/>}))}/>;
-  const controlsRow = <FocusRegion id={controls} orientation="horizontal" edges={{left: ids.rail, down: filters}} stops={{up: true}} style={{flexDirection: 'row', gap: 22, alignItems: 'center', marginBottom: 24, minHeight: 64}}>
-    <Text accessibilityRole="header" style={[shellType(44, 800, 'normal', -.03), {color: theme.colors.text, marginRight: 14}]}>{t('search.chip.liveTV')}</Text>
+  const controlsRow = <FocusRegion id={controls} entry="live-source" orientation="horizontal" edges={{left: ids.rail, down: filters}} stops={{up: true}} style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm, alignItems: 'center', minHeight: theme.targets.touch}}>
     {sourcePicker}
     {dayPicker}
     <Button testID="live-now" variant="glass" size="small" onPress={goNow}>{t('guide.now')}</Button>
@@ -564,22 +564,26 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     accessibilityLabel={t('settings.server.live')} onPress={() => openManagement()}/>;
   const phoneActions = <>{viewSwitch}{hasRecordings && recordingsIcon}{!rebuiltPhone && phoneOwner}</>;
   const channelFilters = <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'}
-    edges={{left: ids.rail, up: controls, down: grid}} style={rebuiltPhone ? undefined : {marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 14}}>
+    edges={{left: ids.rail, up: controls, down: grid}} style={rebuiltPhone ? undefined : {marginBottom: theme.isTV ? theme.space.sm : stackedHeader ? 8 : 14}}>
     {filterChips}
   </FocusRegion>;
   const phoneToolbar = <>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}>
     <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{t('guide.onNow')}</Text>
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{clock(now)}</Text>
   </View>}{rebuiltPhone && phoneOwner}{sortPicker}</>;
+  const ticks = rulerTicks(start - overscan, end + overscan, px, state.options.timezone).filter(tick => {
+    if (!inNowSpan) return true;
+    const distance = (tick.atMs - now) * px;
+    return distance <= -theme.space.xl - theme.space.md || distance >= theme.space.lg;
+  });
   const guideView = <View ref={content} onLayout={event => {setMeasuredWidth(event.nativeEvent.layout.width); measureContent();}}
       style={{flex: 1, paddingLeft: insetLeft, paddingRight: twoPane ? Math.max(insetRight, contentWidth - guideEnd) : insetRight}}>
-    {!rebuiltPhone && <>
+    {!rebuiltPhone && !theme.isTV && <>
       {stackedHeader && <View style={{flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: compact ? 20 : 0, marginBottom: 12, minHeight: 38}}>
         <Text accessibilityRole="header" style={[shellType(32, 800, 36.8, -.035), {color: theme.colors.text, flex: 1}]}>{t('search.chip.liveTV')}</Text>
         {phoneActions}
       </View>}
       {landscape && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', height: 50, paddingTop: 6, marginBottom: 6}}><Text accessibilityRole="header" style={[shellType(24, 800, 'normal', -.035), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>{viewSwitch}{filterChips}{sortPicker}{hasRecordings && recordingsIcon}{managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}</View>}
-      {theme.isTV && controlsRow}
       {expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>
         {viewIcons}
       </NativeLiveTabs>}
@@ -600,7 +604,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
           <Button testID="live-later" variant="glass" size="small" trailingIcon="i-right" disabled={!panActive} onPress={() => pan.adjust(4 * SLOT_MS)}>{t('guide.later')}</Button>
         </View>}
         {filterEmpty ? theme.isTV ? <FocusRegion id={grid} edges={{up: filters, left: ids.rail}} style={{flex: 1}}>{filterEmptyView}</FocusRegion> : filterEmptyView : <GestureDetector gesture={pan.gesture}><View style={{flex: 1}}>
-        {view === 'guide' && <View style={{height: theme.isTV ? 50 : 30, flexDirection: 'row', marginLeft: landscape ? 0 : channelWidth}}>{landscape && <View style={{width: channelWidth, paddingLeft: 4}}>{dayPicker}</View>}<View style={{flex: 1, overflow: 'hidden'}}><Animated.View style={[{flex: 1}, rulerShift]}>{rulerTicks(start - overscan, end + overscan, px, state.options.timezone).map(tick => <View key={tick.atMs} style={{position: 'absolute', left: tick.x - overscan * px, height: theme.isTV ? 28 : 22, borderLeftWidth: 1, borderLeftColor: theme.colors.line}}><Text style={[shellType(theme.isTV ? 20 : 11), {marginLeft: 10, color: theme.colors.textSecondary}]}>{clock(tick.atMs)}</Text></View>)}</Animated.View></View></View>}
+        {view === 'guide' && <View style={{height: theme.isTV ? 50 : 30, flexDirection: 'row', marginLeft: landscape ? 0 : channelWidth}}>{landscape && <View style={{width: channelWidth, paddingLeft: 4}}>{dayPicker}</View>}<View style={{flex: 1, overflow: 'hidden'}}><Animated.View style={[{flex: 1}, rulerShift]}>{ticks.map(tick => <View key={tick.atMs} style={{position: 'absolute', left: tick.x - overscan * px, height: theme.isTV ? 28 : 22, borderLeftWidth: 1, borderLeftColor: theme.colors.line}}><Text style={[shellType(theme.isTV ? 20 : 11), {marginLeft: 10, color: theme.colors.textSecondary}]}>{clock(tick.atMs)}</Text></View>)}</Animated.View></View></View>}
         <FocusRegion id={grid} edges={theme.isTV ? {up: filters, left: ids.rail} : undefined} stops={theme.isTV ? {right: true, down: true} : undefined}
           timeGrid={theme.isTV ? {initialTime: now, start, end} : undefined} style={{flex: 1}}>
         <VirtualizedList ref={list} refreshControl={pull} key={`${state.revision}:${view}`} data={null} getItem={(_, index) => index} getItemCount={() => data.total ?? 12} keyExtractor={index => String(index)} initialNumToRender={12} maxToRenderPerBatch={12} windowSize={5} removeClippedSubviews={false} getItemLayout={(_, index) => ({index, length: rowHeight + rowGap, offset: index * (rowHeight + rowGap)})}
@@ -641,7 +645,9 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   </>;
   if (rebuiltPhone) return <GuidePage title={t('search.chip.liveTV')} actions={phoneActions} tabs={channelFilters}
     toolbar={phoneToolbar} list={guideView} overlay={overlays}/>;
-  return <Screen style={theme.isTV ? {paddingTop: 56, paddingRight: 8} : phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
+  if (theme.isTV) return <TVGuidePage title={t('search.chip.liveTV')} actions={controlsRow} tabs={channelFilters}
+    list={guideView} overlay={overlays}/>;
+  return <Screen style={phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
     {guideView}{overlays}
   </Screen>;
 }
