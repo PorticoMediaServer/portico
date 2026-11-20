@@ -185,7 +185,10 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
   const room = Math.max(0, width - left - right - pane);
   const columns = Math.max(1, Math.min(phone ? 3 : 7, Math.floor((room + gap) / (minimum + gap))));
   const cardWidth = Math.max(1, tightGrid ? (room - gap * (columns - 1)) / columns : Math.floor((room - gap * (columns - 1)) / columns));
-  const cardHeight = cardWidth * 1.5 + 48 + (theme.isTV ? 0 : cardTitleLine(theme));
+  const [phoneCaptionHeight, setPhoneCaptionHeight] = useState(0);
+  const measureCaption = (height: number) => setPhoneCaptionHeight(current => Math.max(current, height));
+  const captionHeight = Math.max(phoneCaptionHeight, 48 + (theme.isTV ? 0 : cardTitleLine(theme)));
+  const cardHeight = cardWidth * 1.5 + captionHeight;
   // The drawn grid/list pair: the same bounded collection, the same query and
   // the same open action; only the row height and cover change.
   const list = view === 'list', rowWidth = Math.max(1, room);
@@ -216,7 +219,7 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
           : <StateView testID="reading-books-empty" variant="inline" title={defaultI18n.t('library.emptyLibrary')} body={defaultI18n.t('library.emptyLibraryBody')} style={{flex: 1}}/>)
           : <View style={{flex: 1}}>
             <WindowedGrid ref={grid} testID={list ? 'reading-books-list' : 'reading-books-grid'} collection={collection} getKey={nativeLibraryEntryKey}
-              itemWidth={list ? rowWidth : cardWidth} itemHeight={list ? 70 : cardHeight} captionHeight={list ? 70 : 48 + (theme.isTV ? 0 : cardTitleLine(theme))}
+              itemWidth={list ? rowWidth : cardWidth} itemHeight={list ? 70 : cardHeight} captionHeight={list ? 70 : captionHeight}
               gap={list ? 0 : gap} rowGap={list ? 0 : rowGap} gutter={left} rightGutter={right} style={{flex: 1}} initialIndex={state.memory.firstVisibleIndex}
               onVisibleRange={changedRange}
               renderPlaceholder={() => list ? <View style={{width: rowWidth, height: 70, backgroundColor: theme.colors.raised}}/>
@@ -236,7 +239,7 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
                   if (list) return <ReadingListRow entry={entry} width={rowWidth} runtime={runtime} onOpen={openSeries} phone={phone}/>;
                   const text = homeCardText(entry, false, runtime.text);
                   return phone ? <PhoneReadingBookCard testID={`reading-series-${entry.id}`} title={entry.displayTitle ?? entry.title} width={cardWidth}
-                    artwork={runtime.artwork(entry.posterUrl)} onOpen={openSeries}/>
+                    artwork={runtime.artwork(entry.posterUrl)} onOpen={openSeries} onCaptionLayout={measureCaption}/>
                     : <PosterCard testID={`reading-series-${entry.id}`} title={text.title} caption={text.caption} width={cardWidth} artwork={runtime.artwork(entry.posterUrl)} visible onNavigate={openSeries}/>;
                 }
                 const open = () => {if (lease) openBook(lease, entry);};
@@ -247,7 +250,7 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
                 if (list) return <ReadingListRow entry={entry} width={rowWidth} runtime={runtime} onOpen={open} onMenu={menu} selection={selection} phone={phone}/>;
                 if (phone) return <PhoneReadingBookCard testID={`reading-book-${entry.id}`} title={entry.displayTitle ?? entry.title} author={entry.author}
                   width={cardWidth} artwork={runtime.artwork(entry.posterUrl)} periodical={entry.publicationType === 'magazine' || entry.publicationType === 'newspaper'}
-                  onOpen={open} onMenu={menu} selection={selection}/>;
+                  onOpen={open} onMenu={menu} selection={selection} onCaptionLayout={measureCaption}/>;
                 const text = homeCardText(entry, false, runtime.text);
                 return <ReadingMenuAnchor>{anchorRef => <PosterCard title={text.title} caption={text.caption} width={cardWidth} artwork={runtime.artwork(entry.posterUrl)} visible
                   testID={`reading-book-${entry.id}`} onNavigate={open} selection={selection} menuAnchorRef={anchorRef}

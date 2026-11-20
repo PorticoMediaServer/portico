@@ -7,7 +7,6 @@ import type {ArtworkSource} from '../../kit/artwork';
 import {Focusable} from '../../kit/controls';
 import {SelectionCircle} from '../../kit/selection';
 import type {CardSelection} from '../../kit/cards/model';
-import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
 
 const glyph = (title: string): string => title.trim().slice(0, 1).toUpperCase() || '·';
@@ -30,21 +29,25 @@ export function PhoneReadingBookCover({title, author, width, height, artwork, pe
  * standard menu, which owns the Download offer. Every field drawn here is an offered
  * display value and every action is the caller's own handler; the component
  * holds no content entry, client or authorization state. */
-export function PhoneReadingBookCard({testID, title, author, width, artwork, periodical, onOpen, onMenu, selection}: Readonly<{
-  testID: string; title: string; author?: string; width: number; artwork?: ArtworkSource; periodical?: boolean;
-  onOpen: () => void; onMenu?: (anchor: RefObject<View | null>) => void; selection?: CardSelection;
+export function PhoneReadingBookCard({testID, title, author, detail, width, artwork, periodical, onOpen, onMenu, selection, disabled, onCaptionLayout}: Readonly<{
+  testID: string; title: string; author?: string; detail?: string; width: number; artwork?: ArtworkSource; periodical?: boolean;
+  onOpen: () => void; onMenu?: (anchor: RefObject<View | null>) => void; selection?: CardSelection; disabled?: boolean; onCaptionLayout?: (height: number) => void;
 }>) {
   const anchor = useRef<View>(null);
   const theme = useTheme(), height = periodical ? width * 4 / 3 : width * 3 / 2;
-  return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={cardAccessibilityLabel(title, [], [], [author])} focusKind="row"
-    ref={anchor} accessibilityState={selection?.active ? {selected: selection.selected} : undefined}
+  return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={cardAccessibilityLabel(title, [], [], [author, detail])} focusKind="row"
+    ref={anchor} disabled={disabled} accessibilityState={selection?.active ? {selected: selection.selected} : undefined}
     onPress={selection?.active ? selection.onToggle : onOpen} onLongPressAction={onMenu ? () => onMenu(anchor) : undefined} style={{width}}>
     <View accessible={false} importantForAccessibility="no-hide-descendants" style={{width, height, borderRadius: 10, overflow: 'hidden', borderWidth: selection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>
       <PhoneReadingBookCover title={title} author={author} width={width} height={height} artwork={artwork} periodical={periodical}/>
       {selection?.active ? <SelectionCircle selected={selection.selected} selecting interactive={false} accessibilityLabel={title}
         style={{position: 'absolute', right: 7, bottom: 7}}/> : null}
     </View>
-    <Text numberOfLines={1} style={[browseType(theme, 12.5, 600), {color: theme.colors.text, marginTop: 7}]}>{title}</Text>
-    {author ? <Text numberOfLines={1} style={[browseType(theme, 11.5, 400), {color: theme.colors.textTertiary, marginTop: 2}]}>{author}</Text> : null}
+    <View style={{paddingTop: theme.space.tight, gap: theme.space.hairline}}
+      onLayout={onCaptionLayout && (event => onCaptionLayout(event.nativeEvent.layout.height))}>
+      <Text style={[theme.type.cardTitle, {color: theme.colors.text}]}>{title}</Text>
+      {author && <Text style={[theme.type.cardSubtitle, {color: theme.colors.textTertiary}]}>{author}</Text>}
+      {detail && <Text style={[theme.type.cardSubtitle, {color: theme.colors.textTertiary}]}>{detail}</Text>}
+    </View>
   </Focusable>;
 }
