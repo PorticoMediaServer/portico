@@ -82,6 +82,7 @@ test('Finished, Download, and Start over in the book\'s menu; no resume means Pl
   assert.equal(menuEntry, entity);
   assert.deepEqual(extras.map((extra: any) => extra.id), ['book-start-over']);
   extras[0].onSelect(); assert.deepEqual(calls.at(-1), ['startOver']);
+  view.startOver(); assert.deepEqual(calls.at(-1), ['startOver'], 'a TV page\'s Start over button starts the book over too');
   const fresh = await book({listening: undefined});
   assert.equal(fresh.view.primary.label, t('entry.play'));
   fresh.view.primary.onPress(); assert.deepEqual(fresh.calls.at(-1), ['startOver']);
