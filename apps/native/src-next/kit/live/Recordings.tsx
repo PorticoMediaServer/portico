@@ -1,6 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {Text, View} from 'react-native';
 import {Artwork, ChannelMark, type ArtworkSource} from '../artwork';
+import {Progress} from '../cards/primitives';
 import {Button} from '../controls/Button';
 import {Focusable} from '../controls/Focusable';
 import {Icon} from '../Icon';
@@ -110,4 +111,21 @@ export function ConflictCard({title, body, children, action}: ConflictCardProps)
     {children}
     {action && <Button variant="glass" size="small" onPress={action.onPress}>{action.label}</Button>}
   </View>;
+}
+
+export function RecordingStorageSummary({title, used, free, remaining, fraction, onPress}: {
+  title: string; used: string; free: string; remaining: string; fraction?: number; onPress: () => void;
+}) {
+  const theme = useTheme(), frame = useFrameMetrics();
+  return <Focusable accessibilityRole="button" accessibilityLabel={[title, used, free, remaining].join(', ')} onPress={onPress}
+    style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.sm, padding: frame.cardPadding, gap: theme.space.xs,
+      borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised}}>
+    <View style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.sm}}>
+      <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{used}</Text>
+      <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{free}</Text>
+      <View style={{flex: 1}}/><Icon name="i-right" size={theme.type.listLabel.fontSize} color={theme.colors.textTertiary}/>
+    </View>
+    <Progress value={fraction} height={theme.space.tight}/>
+    <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{remaining}</Text>
+  </Focusable>;
 }

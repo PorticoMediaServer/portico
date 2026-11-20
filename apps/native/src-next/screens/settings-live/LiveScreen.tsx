@@ -1,5 +1,6 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {channelUnavailableMessage, liveGuideStale, liveServerWideNotice} from '../../../../../packages/client-core/src/presentation/live-availability';
+import {GuidePage} from '../../pages/touch/live/GuidePage';
 import React, {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, Platform, ScrollView, Text, View, VirtualizedList, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -67,6 +68,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const tabletMedium = !theme.isTV && theme.platform === 'tablet', phoneChrome = phone || tabletMedium;
   // The authored phone header stack covers the medium tablet too; landscape keeps its own
   // single-row header and wide layouts keep the desktop controls row.
+  const rebuiltPhone = theme.form === 'phone' && compact && dimensions.width < dimensions.height;
   const stackedHeader = phoneChrome && !landscape;
   const expandedTouch = !theme.isTV && !phoneChrome;
   // foldable7: only a reported vertical crease for this exact window may split the page;
@@ -429,7 +431,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const conflicts = !theme.isTV && hasRecordings ? recordingState.summary?.conflicts ?? 0 : 0;
   useEffect(() => {if (!theme.isTV && hasRecordings && onLive && !recordingsOpen && !ownerOpen) void recordings.loadSummary();}, [recordings, theme.isTV, hasRecordings, onLive, recordingsOpen, ownerOpen, recordingsReturn]);
   const recordingsLabel = conflicts > 0 ? t('next.live.recordingsConflicts', {count: conflicts}) : t('recordings.title');
-  const recordingsIcon = <View><Button testID="live-recordings" variant="icon" size="small" icon="i-rec" accessibilityLabel={recordingsLabel} onPress={() => setRecordingsOpen(true)}/>{conflicts > 0 && <LiveConflictDot style={{position: 'absolute', top: 6, right: 6}}/>}</View>;
+  const recordingsIcon = <View><Button testID="live-recordings" variant="icon" size="small" icon="i-rec-ring" accessibilityLabel={recordingsLabel} onPress={() => setRecordingsOpen(true)}/>{conflicts > 0 && <LiveConflictDot style={{position: 'absolute', top: 6, right: 6}}/>}</View>;
   // The public destination must be registered by Web and admitted by the handoff's
   // exact public URL validator before a control can offer it.
   const managementUrl = useMemo(() => {
@@ -558,25 +560,33 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     {sortPicker}
   </View>;
   const programmeFocusBody = theme.isTV && programmeBody ? <FocusRegion id={programmeRegion} entryRegion={`${programmeRegion}.${programmeGroups.find(group => !group.startsWith('later:'))}`} stops={{up: true, down: true, left: true, right: true}}>{programmeBody}</FocusRegion> : programmeBody;
-  return <Screen style={theme.isTV ? {paddingTop: 56, paddingRight: 8} : phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
-    <View ref={content} onLayout={event => {setMeasuredWidth(event.nativeEvent.layout.width); measureContent();}}
+  const phoneOwner = managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders"
+    accessibilityLabel={t('settings.server.live')} onPress={() => openManagement()}/>;
+  const phoneActions = <>{viewSwitch}{hasRecordings && recordingsIcon}{!rebuiltPhone && phoneOwner}</>;
+  const channelFilters = <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'}
+    edges={{left: ids.rail, up: controls, down: grid}} style={rebuiltPhone ? undefined : {marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 14}}>
+    {filterChips}
+  </FocusRegion>;
+  const phoneToolbar = <>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}>
+    <Text style={[theme.type.listLabel, {color: theme.colors.text}]}>{t('guide.onNow')}</Text>
+    <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{clock(now)}</Text>
+  </View>}{rebuiltPhone && phoneOwner}{sortPicker}</>;
+  const guideView = <View ref={content} onLayout={event => {setMeasuredWidth(event.nativeEvent.layout.width); measureContent();}}
       style={{flex: 1, paddingLeft: insetLeft, paddingRight: twoPane ? Math.max(insetRight, contentWidth - guideEnd) : insetRight}}>
+    {!rebuiltPhone && <>
       {stackedHeader && <View style={{flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: compact ? 20 : 0, marginBottom: 12, minHeight: 38}}>
         <Text accessibilityRole="header" style={[shellType(32, 800, 36.8, -.035), {color: theme.colors.text, flex: 1}]}>{t('search.chip.liveTV')}</Text>
-        {viewSwitch}
-        {hasRecordings && recordingsIcon}
-        {managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}
+        {phoneActions}
       </View>}
       {landscape && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', height: 50, paddingTop: 6, marginBottom: 6}}><Text accessibilityRole="header" style={[shellType(24, 800, 'normal', -.035), {color: theme.colors.text}]}>{t('search.chip.liveTV')}</Text>{viewSwitch}{filterChips}{sortPicker}{hasRecordings && recordingsIcon}{managesServer && <Button testID="live-owner-open" variant="icon" size="small" icon="i-sliders" accessibilityLabel={t('settings.server.live')} disabled={theme.isTV && !managementUrl} onPress={() => openManagement()}/>}</View>}
       {theme.isTV && controlsRow}
       {expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts} onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>
         {viewIcons}
       </NativeLiveTabs>}
-      {!landscape && <FocusRegion id={filters} orientation="horizontal" entry={state.options.favorites ? 'favorites' : state.options.group ? `group:${state.options.group}` : 'all'} edges={{left: ids.rail, up: controls, down: grid}} style={{marginBottom: theme.isTV ? 38 : stackedHeader ? 8 : 14}}>
-        {filterChips}
-      </FocusRegion>}
+      {!landscape && channelFilters}
       {expandedTouch && timeRow}
-      {stackedHeader && <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: compact ? 20 : 0}}>{view === 'guide' ? dayPicker : <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}><Text style={[shellType(13, 700), {color: theme.colors.text}]}>{t('guide.onNow')}</Text><Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{clock(now)}</Text></View>}{sortPicker}</View>}
+      {stackedHeader && <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: compact ? 20 : 0}}>{phoneToolbar}</View>}
+    </>}
       {state.error !== undefined ? <StateView {...runtime.error(state.error, () => {void controller.loadSources();}, 'live')}/> : empty ? <StateView testID="live-no-sources" variant={compact ? 'centered' : 'inline'} stackActions={compact}
         // states 17c: the owner's state names the server it sets up, with the Owner only tag over the heading.
         kicker={managesServer && !theme.isTV ? <OwnerTag testID="live-no-sources-owner-tag" identity={shell.serverName}/> : undefined} title={t(managesServer ? 'web.live.empty.noSourcesOwnerTitle' : 'web.live.empty.noSourcesTitle')}
@@ -604,7 +614,8 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
         </View></GestureDetector>}
         {data.channelsError && <StateView {...runtime.error(new Error('guide_channels_unavailable'), () => guide.reset(), 'live')}/>}
       </>}
-    </View>
+    </View>;
+  const overlays = <>
     {twoPane && <View testID="live-programme-pane" style={{position: 'absolute', left: paneLeft, right: 0, top: 0, bottom: 0, backgroundColor: theme.colors.ink,
       borderLeftWidth: 1, borderLeftColor: theme.colors.line}}>
       <Focusable testID="live-programme-close" focusKind="button" accessibilityRole="button" accessibilityLabel={t('action.close')} onPress={() => setSelected(undefined)} style={{position: 'absolute', top: 8, right: 8, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', zIndex: 1}}><Icon name="i-close" size={20} color={theme.colors.textTertiary}/></Focusable>
@@ -627,6 +638,11 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
       onOpenChange={value => {if (!value) setSeries(undefined);}}
       onCreated={() => {setSelected(undefined); setSeries(undefined); guide.invalidate(); if (!theme.isTV) void recordings.loadSummary(); setToast({id: `series-${Date.now()}`, message: t('guide.seriesSet'), icon: 'i-rec'});}}/>
     <ToastHost toast={toast} onDismiss={() => setToast(null)} bottomOffset={phone ? 96 : 0} obstructionTop={dockTop}/>
+  </>;
+  if (rebuiltPhone) return <GuidePage title={t('search.chip.liveTV')} actions={phoneActions} tabs={channelFilters}
+    toolbar={phoneToolbar} list={guideView} overlay={overlays}/>;
+  return <Screen style={theme.isTV ? {paddingTop: 56, paddingRight: 8} : phoneChrome ? {paddingTop: insets.top + (landscape ? 0 : 14)} : undefined}>
+    {guideView}{overlays}
   </Screen>;
 }
 
@@ -725,6 +741,8 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
   const gap = cell.kind === 'gap', narrow = nativeGuideTitleLines(cell.tier, left, Math.max(0, cell.width - (compact ? 2 : 0)), laneWidth, compact, theme.isTV) === 1;
   const background = selected ? theme.colors.raisedBright : !theme.isTV && gap ? 'transparent' : cell.state === 'now' ? theme.colors.raisedHigh : !theme.isTV && cell.state === 'past' ? alpha(theme.colors.raised, .5) : theme.colors.raised;
   const cellWidth = Math.max(0, cell.width - (compact ? 2 : 0)), clippedStart = cell.clippedStart, isTV = theme.isTV;
+  const phoneTile = compact && theme.form === 'phone';
+  const titleLines = phoneTile && cellWidth >= theme.space.xl ? 2 : narrow ? 1 : 2;
   const content = useAnimatedStyle(() => {
     const window = nativeGuideCellWindow(left, cellWidth, laneWidth, panActive ? start * px - panPosition.value : 0);
     return {transform: [{translateX: window.cutLeft}], width: Math.max(0, window.width - padding * 2)};
@@ -738,7 +756,7 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
   return <Focusable ref={refNode} focusId={focusId} testID={testID} accessibilityRole="button" accessibilityLabel={cell.program?.title ?? gapLabel} onFocus={onTVFocus} onLongPress={theme.isTV ? onPress : undefined} onPress={onPress} accessibilityState={{selected}} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: background, borderWidth: selected ? 2 : !theme.isTV && gap ? 1 : 0, borderColor: selected ? theme.colors.accentStrong : theme.colors.line, overflow: 'hidden'}}>
     {!theme.isTV && gap && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}><Svg width="100%" height="100%" accessible={false}><Defs><Pattern id={`${fadeId}-gap`} patternUnits="userSpaceOnUse" width={14} height={14} patternTransform="rotate(45)"><Rect width={7} height={14} fill={theme.colors.text} fillOpacity={.035}/></Pattern></Defs><Rect width="100%" height="100%" fill={`url(#${fadeId}-gap)`}/></Svg></View>}
     <Animated.View style={[{position: 'absolute', left: padding, top: 0, bottom: 0, justifyContent: 'center'}, content]}>
-      <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>{!theme.isTV && cell.program?.recording && <View style={{width: 7, height: 7, borderRadius: 4, marginTop: 4.5, marginRight: 5, backgroundColor: theme.colors.record}}/>}<Animated.View style={[{overflow: 'hidden'}, clip]}><Icon name="i-left" size={theme.isTV ? 16 : 10} color={theme.colors.textTertiary}/></Animated.View><Text numberOfLines={narrow ? 1 : 2} ellipsizeMode="tail" style={[shellType(theme.isTV ? 22 : gap ? 12.5 : narrow ? 12 : 13, gap && !theme.isTV ? 600 : 700), {color: !theme.isTV && (gap || cell.state === 'past') ? theme.colors.textTertiary : theme.colors.text, lineHeight: theme.isTV ? undefined : narrow ? 15 : 16, flexShrink: 1}]}>{cell.program?.title ?? gapLabel}</Text>{!theme.isTV && <View pointerEvents="none" style={{position: 'absolute', right: 0, top: 0, bottom: 0, width: 8}}><Svg width="100%" height="100%" accessible={false}><Defs><LinearGradient id={fadeId} x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={background} stopOpacity="0"/><Stop offset="1" stopColor={background}/></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${fadeId})`}/></Svg></View>}</View>
+      <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>{!theme.isTV && cell.program?.recording && <View style={{width: 7, height: 7, borderRadius: 4, marginTop: 4.5, marginRight: 5, backgroundColor: theme.colors.record}}/>}<Animated.View style={[{overflow: 'hidden'}, clip]}><Icon name="i-left" size={theme.isTV ? 16 : 10} color={theme.colors.textTertiary}/></Animated.View><Text numberOfLines={titleLines} ellipsizeMode="tail" style={[shellType(theme.isTV ? 22 : gap ? 12.5 : narrow ? 12 : 13, gap && !theme.isTV ? 600 : 700), {color: !theme.isTV && (gap || cell.state === 'past') ? theme.colors.textTertiary : theme.colors.text, lineHeight: theme.isTV ? undefined : narrow ? 15 : 16, flexShrink: 1}]}>{cell.program?.title ?? gapLabel}</Text>{!theme.isTV && <View pointerEvents="none" style={{position: 'absolute', right: 0, top: 0, bottom: 0, width: 8}}><Svg width="100%" height="100%" accessible={false}><Defs><LinearGradient id={fadeId} x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={background} stopOpacity="0"/><Stop offset="1" stopColor={background}/></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${fadeId})`}/></Svg></View>}</View>
       {!theme.isTV && gap && gapBody && (cell.tier === 'full' || cell.tier === 'title2') && <Text numberOfLines={1} style={[shellType(11.5), {color: theme.colors.textTertiary, marginTop: 3, lineHeight: 14}]}>{gapBody}</Text>}
       {(cell.tier === 'full' || cell.tier === 'title2') && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 12 : 5, marginTop: theme.isTV ? 8 : 3}}>
         <ProgrammeFlags programme={cell.program} grid text={runtime.text}/>
