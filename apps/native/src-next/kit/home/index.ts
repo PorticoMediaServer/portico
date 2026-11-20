@@ -3,3 +3,5 @@ export {HomeHeroFacts, HomeRemoteHint, homeFactTag, homeFactStrong} from './Hero
 export type {HomeHeroFactsSize} from './HeroFacts';
 export {homeRowMetrics} from './metrics';
 export type {HomeRowMetrics} from './metrics';
+export {HomeCardSlot, HomeCollectionRow, HomeHeroActions, HomeHeroArt, HomeRowPlace} from './HomeParts';
+export type {HomeHeroAction} from './HomeParts';
