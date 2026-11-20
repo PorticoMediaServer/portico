@@ -89,7 +89,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     '../../platform/server-connections': {nativeRouteCrypto: {random: (size: number) => new Uint8Array(size)}},
     './server/TroubleshootingPage': {NativeServerTroubleshooting: 'NativeServerTroubleshooting'},
     './server/StoragePage': {NativeServerStorage: 'NativeServerStorage'},
-    './server/IntegrationsPage': {NativeServerIntegrations: 'NativeServerIntegrations'},
+    '../../touch/settings/ServerIntegrationsPage': {ServerIntegrationsPage: 'NativeServerIntegrations'},
     './server/GeneralPage': {NativeServerGeneral: 'NativeServerGeneral'},
     './server/StreamingPage': {NativeServerStreaming: 'NativeServerStreaming'},
     './server/SegmentsPage': {NativeServerSegments: 'NativeServerSegments'},
