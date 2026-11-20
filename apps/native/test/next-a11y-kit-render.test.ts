@@ -77,11 +77,11 @@ test('reading-card long press opens the item menu (which offers Download) and it
   // MOB-055 replaced the card's bare long-press Download with the standard
   // reading menu, so no unnamed long-press side effect remains (NM-08).
   const f = fixture(), menus: unknown[] = [];
-  const {PhoneReadingBookCard} = await screenModule(new URL('../src-next/screens/read/PhoneReadingBookCard.tsx', import.meta.url), {
+  const {PhoneReadingBookCard} = await screenModule(new URL('../src-next/kit/reading/PhoneReadingBookCard.tsx', import.meta.url), {
     react: f.common.react, 'react-native': f.native, '@portico/design': {}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/artwork': {GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../../kit/controls': {FormError, Focusable: 'Focusable'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => f.theme}, '../../kit/cards/model': cardModel,
+    '../artwork': {GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../controls': {FormError, Focusable: 'Focusable'},
+    '../selection': {SelectionCircle: 'SelectionCircle'},
+    '../browse/presentation': {browseType: () => ({})}, '../theme': {useTheme: () => f.theme}, '../cards/model': cardModel,
   });
   const props = {testID: 'book', title: 'The same title', author: 'Author A', width: 110, onOpen() {}};
   const card = f.host.render(() => PhoneReadingBookCard({...props, onMenu: (anchor: unknown) => {menus.push(anchor);}}));

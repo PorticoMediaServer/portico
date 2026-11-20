@@ -1,13 +1,13 @@
 import React, {useRef, type RefObject} from 'react';
 import {Text, View} from 'react-native';
 import {generatedCoverTint} from '@portico/design';
-import {cardAccessibilityLabel} from '../../kit/cards/model';
-import {GeneratedCover, MediaArt} from '../../kit/artwork';
-import type {ArtworkSource} from '../../kit/artwork';
-import {Focusable} from '../../kit/controls';
-import {SelectionCircle} from '../../kit/selection';
-import type {CardSelection} from '../../kit/cards/model';
-import {useTheme} from '../../kit/theme';
+import {cardAccessibilityLabel} from '../cards/model';
+import {GeneratedCover, MediaArt} from '../artwork';
+import type {ArtworkSource} from '../artwork';
+import {Focusable} from '../controls';
+import {SelectionCircle} from '../selection';
+import type {CardSelection} from '../cards/model';
+import {useTheme} from '../theme';
 
 const glyph = (title: string): string => title.trim().slice(0, 1).toUpperCase() || '·';
 
@@ -45,7 +45,7 @@ export function PhoneReadingBookCard({testID, title, author, detail, width, artw
     </View>
     <View style={{paddingTop: theme.space.tight, gap: theme.space.hairline}}
       onLayout={onCaptionLayout && (event => onCaptionLayout(event.nativeEvent.layout.height))}>
-      <Text style={[theme.type.cardTitle, {color: theme.colors.text}]}>{title}</Text>
+      <Text numberOfLines={0} style={[theme.type.cardTitle, {color: theme.colors.text}]}>{title}</Text>
       {author && <Text style={[theme.type.cardSubtitle, {color: theme.colors.textTertiary}]}>{author}</Text>}
       {detail && <Text style={[theme.type.cardSubtitle, {color: theme.colors.textTertiary}]}>{detail}</Text>}
     </View>

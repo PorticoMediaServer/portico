@@ -52,10 +52,10 @@ test('reading shelf keeps a bounded native window, starts ten cards early and dr
 });
 
 test('phone card long press opens its anchored menu and selection tap does not open the book', async () => {
-  const r = renderer(), {PhoneReadingBookCard} = await screenModule(new URL('../src-next/screens/read/PhoneReadingBookCard.tsx', import.meta.url), {'../../kit/cards/model': cardModel, 
+  const r = renderer(), {PhoneReadingBookCard} = await screenModule(new URL('../src-next/kit/reading/PhoneReadingBookCard.tsx', import.meta.url), {'../cards/model': cardModel,
     react: r.react, 'react-native': {Text: 'Text', View: 'View'}, '@portico/design': {generatedCoverTint: () => ({})},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../../kit/controls': {Focusable: 'Focusable'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/browse/presentation': {browseType: typography}, '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
+    '../artwork': {StandardBackdrop: 'StandardBackdrop', GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../controls': {Focusable: 'Focusable'},
+    '../selection': {SelectionCircle: 'SelectionCircle'}, '../browse/presentation': {browseType: typography}, '../theme': {useTheme: () => createTheme({isTV: false, width: 390})},
   });
   let opened = 0, selected = 0, anchor: unknown;
   const tree = r.render(PhoneReadingBookCard, {testID: 'one', title: 'One', width: 108, onOpen: () => {opened++;}, onMenu: (ref: unknown) => {anchor = ref;},
@@ -87,7 +87,7 @@ async function periodical(tablet: boolean, magazine: boolean, phase = 'ready') {
     '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/cards/primitives': {Scrim: 'Scrim'},
     '../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../../kit/theme': {useTheme: () => theme(tablet)},
     '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
-    './ReadingLoading': {ReadingLoading: 'ReadingLoading'}, './ReadingShelf': {ReadingShelf: 'ReadingShelf'},
+    '../../kit/reading/ReadingLoading': {ReadingLoading: 'ReadingLoading'}, './ReadingShelf': {ReadingShelf: 'ReadingShelf'},
     './ReadingActions': {ReadingItemMenu: 'ReadingItemMenu', ReadingSelectionToolbar: 'ReadingSelectionToolbar', useReadingActions: () => actions},
     './periodical-presentation': presentation,
   });
@@ -150,10 +150,10 @@ test('periodical loading outline uses the same tablet cover and phone front-page
 test('reading loading delegates the quiet skeleton and adds a notice only after eight seconds', async t => {
   const r = renderer(), effects: (() => (() => void) | undefined)[] = [];
   r.react.useEffect = (effect: () => (() => void) | undefined) => effects.push(effect);
-  const {ReadingLoading} = await screenModule(new URL('../src-next/screens/read/ReadingLoading.tsx', import.meta.url), {
+  const {ReadingLoading} = await screenModule(new URL('../src-next/kit/reading/ReadingLoading.tsx', import.meta.url), {
     react: r.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../kit/states': {LoadingBoundary: 'LoadingBoundary', SkeletonBlock: 'SkeletonBlock', skeletonTiming: {slowMs: 8000}},
-    '../../kit/browse/presentation': {browseType: typography}, '../../kit/theme': {useTheme: () => theme(false)},
+    '../states': {LoadingBoundary: 'LoadingBoundary', SkeletonBlock: 'SkeletonBlock', skeletonTiming: {slowMs: 8000}},
+    '../browse/presentation': {browseType: typography}, '../theme': {useTheme: () => theme(false)},
   });
   t.mock.timers.enable({apis: ['setTimeout']});
   const props = {ready: false, skeleton: {type: 'GridOutline', props: {}}};

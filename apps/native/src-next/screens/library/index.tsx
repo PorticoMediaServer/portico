@@ -21,7 +21,7 @@ import {NativeLibraryDestination} from './model';
 import {NativeLibraryDirectory} from './directory';
 import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../read/platform';
 import {libraryTab, libraryTabs, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
-import {NativeReadingLibraryScreen} from '../read/ReadingLibrary';
+import {BooksPage} from '../../pages/touch/reading/BooksPage';
 import {createNativeLibraryPlaySelection} from './play-selection';
 import {createNativeDiscoverSelection} from './discover-selection';
 import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNamingPanelId, NativeTVLibrarySurface} from './tv-library';
@@ -106,7 +106,7 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
       // the bounded Reading list (`GET /v1/reading/items`), not generic content.
       if (isReadingLibraryKind(library.kind)) {
         leaveSelected(id, libraries);
-        return <NativeReadingLibraryScreen key={id} context={context} runtime={runtime} libraryId={id} title={library.name} labels={ports.labels}
+        return <BooksPage key={id} context={context} runtime={runtime} libraryId={id} title={library.name} labels={ports.labels}
           onBack={() => runtime.onDestination({kind: 'libraries'})}/>;
       }
       const savedIntent = takeLibrarySavedView(nativeLibraryOpeningRoute(context, route) ?? route, id, context.authority(), context.session()?.sessionFamilyId);
