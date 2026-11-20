@@ -8,6 +8,7 @@ import {NativeAudiobookController, type AudiobookLease, type AudiobookScreenCont
 import {BookScreen} from './BookScreen';
 import {useTheme} from '../../../kit/theme';
 import {BookPage} from '../../../pages/touch/book/BookPage';
+import {BookPage as TVBookPage} from '../../../pages/tv/book/BookPage';
 import type {BookPageProps} from '../../../pages/shared/book/useBook';
 import {AuthorSeriesScreen} from './AuthorSeriesScreen';
 import {AuthorSeriesPage} from '../../../pages/touch/book/AuthorSeriesPage';
@@ -20,10 +21,11 @@ type Page = Readonly<{key: string; entry: ContentEntry; controller: NativeAudiob
    * route object they were built with. */
   drawn: {route?: NativeShellRoute}}>;
 
-/** A phone draws an audiobook on the rebuilt page (collections 41a); a tablet and TV keep the old book screen until their
- * lanes rebuild it. */
+/** A phone (collections 41a) and a TV (collections 43) draw an audiobook on the rebuilt pages; a tablet keeps the old book
+ * screen until its lane rebuilds it. */
 function BookHost(props: BookPageProps) {
-  return useTheme().platform === 'phone' ? <BookPage {...props}/> : <BookScreen {...props}/>;
+  const {platform, isTV} = useTheme();
+  return isTV ? <TVBookPage {...props}/> : platform === 'phone' ? <BookPage {...props}/> : <BookScreen {...props}/>;
 }
 
 /** A phone draws an author or a series on the rebuilt page (collections 41b, 41c); a tablet and TV keep the old screen
