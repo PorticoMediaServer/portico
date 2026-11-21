@@ -22,7 +22,7 @@ async function fixture() {
     './lifetime': {NativeScreenLifetime}, './settings-controller': {}, './device-preference-consumer': {},
     './dashboard-controller': {}, './server/tv-server-reader': {}, '../../pages/tv/settings/ServerSettingsPage': {}, '../../pages/shared/settings/SettingsPage': {}, './DashboardScreen': {}, './settings-ports': {},
     './server/TVServerPageMenu': {isTVServerPage: () => false},
-    './EqualizerSettingsScreen': {NativeEqualizerSettingsScreen: () => null},
+    '../../pages/shared/settings/EqualizerSettingsPage': {EqualizerSettingsPage: () => null},
     './downloads-summary': {createNativeSettingsDownloads},
     '../../platform/event-resync': {readEventState: (_events: unknown, _signal: AbortSignal, read: () => Promise<unknown>) => read()},
   });
