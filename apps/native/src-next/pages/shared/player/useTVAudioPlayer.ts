@@ -7,7 +7,7 @@ import {shellLayout} from '../../../shell/model';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
 import {registerOverlayKeys} from '../../../platform/overlay-keys';
 import type {NativeEqualizerCopy} from '../../../kit/frames/EqualizerFrame';
-import {listeningSongFavorite} from '../../../screens/destinations/music/ListeningSongActions';
+import {listeningSongFavorite} from '../../../kit/player/ListeningSongActions';
 import {nowPlayingQueueRows, nowPlayingSource} from './useNowPlayingQueue';
 import type {NowPlayingScreenProps} from './audio-player';
 import {useTVQueuePolicy} from '../../../screens/destinations/music/TVQueuePolicy';

@@ -76,7 +76,7 @@ test('closing TV Lyrics returns focus to its opener without starting at Play aga
     '../../../kit/focus': {}, '../../../kit/dock/model': {playbackPosition: () => 12, seekBounds: () => undefined},
     '../../../shell/model': {shellLayout: () => ({})},
     '../../../platform/playback/equalizer': {nativeEqualizer: {getSnapshot: () => ({supported: false})}},
-    '../../../platform/overlay-keys': {}, '../../../screens/destinations/music/ListeningSongActions': {},
+    '../../../platform/overlay-keys': {}, '../../../kit/player/ListeningSongActions': {},
     './useNowPlayingQueue': {nowPlayingSource: () => undefined},
     '../../../screens/destinations/music/TVQueuePolicy': {useTVQueuePolicy: () => ({})},
     '../../../tv/layout/TVPageMotion': {useTVPageMotion: () => ({open: true, ready: true})}, '../../../kit/navigation/back': {},

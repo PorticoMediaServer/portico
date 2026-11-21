@@ -1,8 +1,8 @@
 import React from 'react';
 import {View} from 'react-native';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {Button} from '../../../kit/controls';
-import type {NativeListeningSong} from '../../../shell/listening-song-detail';
+import {defaultI18n} from '../../../../../packages/i18n/src';
+import {Button} from '../controls';
+import type {NativeListeningSong} from '../../shell/listening-song-detail';
 
 const t = defaultI18n.t;
 

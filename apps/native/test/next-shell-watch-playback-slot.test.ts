@@ -84,7 +84,7 @@ async function layer(withWatch = true, canonical?: NativeWatchReader, options: {
     '../pages/touch/player/AudioPlayerPage': {AudioPlayerPage: 'NowPlayingScreen'},
     '../pages/tv/player/ListeningRoute': {TVListeningRoute: 'TVListeningRoute'},
     '../kit/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
-    '../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'NativeListeningNotice'},
+    '../kit/player/ListeningNotice': {NativeListeningNotice: 'NativeListeningNotice'},
     '../screens/destinations/music/MusicSignal': musicSignal,
     '../screens/destinations/music/signal-facts': signalFacts,
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': audioEffects,

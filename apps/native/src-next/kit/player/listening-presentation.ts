@@ -6,7 +6,7 @@ import type {NativeEqualizerCopy} from '../frames/EqualizerFrame';
 import {MusicSignalLine, MusicSignalSheet} from '../../screens/destinations/music/MusicSignal';
 import {NowPlayingQueue} from './NowPlayingQueue';
 import {NowPlayingLyrics} from './NowPlayingLyrics';
-import {ListeningSongActions, ListeningFavoritePaint} from '../../screens/destinations/music/ListeningSongActions';
+import {ListeningSongActions, ListeningFavoritePaint} from './ListeningSongActions';
 import {ListeningQueuePaint, ListeningLyricsPaint} from './ListeningPanePaint';
 import {AmbientArt, Artwork} from '../artwork';
 import {Button, Focusable} from '../controls';

@@ -29,7 +29,7 @@ import type {NowPlayingScreenProps} from '../pages/shared/player/audio-player';
 import {NowPlayingLyrics} from '../kit/player/NowPlayingLyrics';
 import type {LyricsTarget} from '../../../../packages/client-core/src/lyrics';
 import {musicSignalView} from '../screens/destinations/music/MusicSignal';
-import {NativeListeningNotice} from '../screens/destinations/music/ListeningNotice';
+import {NativeListeningNotice} from '../kit/player/ListeningNotice';
 import {NativePlayOnSheets} from '../screens/watch/PlayOnSheets';
 import {useListeningSong} from './use-listening-song';
 import {nativeMusicSignal} from '../screens/destinations/music/signal-facts';

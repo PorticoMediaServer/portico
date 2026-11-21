@@ -417,9 +417,9 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
     '../../../shell/model': {shellLayout: () => ({width: 1920, height: 1080, left: 0, top: 0, scale: 1})},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {supported: true}; return () => snapshot;})()}},
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../shared/player/EqualizerPage': {EqualizerPage: 'Equalizer'},
-    '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'}, '../../../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'Notice'},
+    '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'}, '../../../kit/player/ListeningNotice': {NativeListeningNotice: 'Notice'},
     './useNowPlayingQueue': {nowPlayingSource: () => undefined, nowPlayingQueueRows: () => [], nowPlayingQueueFocusScope: () => '', nowPlayingQueueEditPort: () => undefined},
-    '../../../screens/destinations/music/ListeningSongActions': {listeningSongFavorite: () => undefined}, '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: b.focus.FocusRegion, TVMusicFocus: 'MusicFocus', TVMusicSeek: 'Seek'}, '../../../screens/destinations/music/TVQueuePolicy': {useTVQueuePolicy: () => ({})},
+    '../../../kit/player/ListeningSongActions': {listeningSongFavorite: () => undefined}, '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: b.focus.FocusRegion, TVMusicFocus: 'MusicFocus', TVMusicSeek: 'Seek'}, '../../../screens/destinations/music/TVQueuePolicy': {useTVQueuePolicy: () => ({})},
     '../../../tv/layout/TVPageMotion': {TVPageGroup: 'PageGroup', TVPageTransition: 'Transition', useTVPageMotion: () => ({open: true, ready: motionReady})}};
   const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTVAudioPlayer.ts', import.meta.url), playerBindings);
   const {TVAudioPlayerPage: TVNowPlayingScreen} = await screenModule(new URL('../src-next/pages/tv/player/AudioPlayerPage.tsx', import.meta.url), {
