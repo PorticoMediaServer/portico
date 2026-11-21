@@ -135,7 +135,6 @@ test('renderer commands retain their original navigation occurrence across cache
     react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
     '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController},
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
-    './BookScreen': {BookScreen: 'book'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
     '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
@@ -543,7 +542,6 @@ test('a scoped loading publication restores the cached book when its opening is 
     react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
     '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController: ObservedController},
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
-    './BookScreen': {BookScreen: 'book'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
     '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
@@ -723,7 +721,6 @@ test('renderer stops guarded navigation reads when a predicate disposes it but r
     react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
     '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController},
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
-    './BookScreen': {BookScreen: 'book'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
     '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });

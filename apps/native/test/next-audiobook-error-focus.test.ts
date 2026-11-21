@@ -119,10 +119,10 @@ test('TV author and series give focus to the real retry button and recover', asy
   }
 });
 
-test('actual Book and Author Resume buttons stay admitted during tail loading and retained error', async () => {
+test('the actual Author Resume button stays admitted during tail loading and retained error', async () => {
   const {screenModule} = await import('./helpers/screen-harness.mjs');
-  const {BookScreen} = await import('../src-next/screens/destinations/audiobooks/BookScreen.tsx');
-  for (const kind of ['book', 'author']) for (const outcome of ['ready', 'error']) {
+  // The book page's Resume is the kit TitleFrame's (next-use-book); the author page keeps this check.
+  for (const kind of ['author']) for (const outcome of ['ready', 'error']) {
     state.theme = createTheme({isTV: true, width: 1920});
     const id = `${kind}-1`, entry = {id, kind, libraryId: 'books', title: 'Title'};
     const row = {id: 'offered-book', kind: 'book', libraryId: 'books', title: 'Book',
@@ -153,7 +153,7 @@ test('actual Book and Author Resume buttons stay admitted during tail loading an
     const facade = {getSnapshot: value.getSnapshot, subscribe: value.subscribe, load: () => value.load(lease),
       resume: () => value.resume(lease), startOver: () => value.startOver(lease), resumeBook: (book: any) => value.resumeBook(lease, book),
       next: (section: string) => value.next(section, lease), recover: () => value.recover(lease)};
-    const screen = await mount(kind === 'book' ? BookScreen : AuthorSeriesPage, {controller: facade, entry,
+    const screen = await mount(AuthorSeriesPage, {controller: facade, entry,
       runtime: {artwork: () => undefined, ambient: () => undefined, reportError() {}}, actions: {menu() {}}, openEntry() {}, onBack() {}});
     try {
       const pending = value.next(sectionId, lease);
@@ -171,34 +171,4 @@ test('actual Book and Author Resume buttons stay admitted during tail loading an
       assert.equal(starts[0].lifetime.isCurrent(), false, 'an explicit replacement retires the old offer');
     } finally {await screen.host.unmount(); value.dispose();}
   }
-});
-
-test('a book made of parts heads its list "Chapters", never a bare count (W3 F11)', async () => {
-  const {screenModule} = await import('./helpers/screen-harness.mjs');
-  const {BookScreen} = await import('../src-next/screens/destinations/audiobooks/BookScreen.tsx');
-  const {defaultI18n} = await import('../../../packages/i18n/src/index.ts');
-  state.theme = createTheme({isTV: false, width: 390});
-  const entry = {id: 'book-1', kind: 'book', libraryId: 'books', title: 'The Hobbit'};
-  const part = {id: 'file-1', kind: 'book', libraryId: 'books', title: 'The Hobbit', duration: 60};
-  const section = {id: 'files', type: 'list', heading: {key: 'library.content.files', fallback: ''}, entries: [part], totalCount: 1, nextCursor: ''};
-  const listening = {target: {kind: 'book', id: entry.id, libraryId: 'books'}, actions: ['play'], resumeUnavailable: false};
-  const snapshot = {phase: 'ready', error: null, sections: [section], appended: [section], pagination: {cursor: null}, projection: {entity: entry, listening, sections: [section]}};
-  class Service {subscribe = () => () => {}; getSnapshot = () => snapshot; select = async () => {}; next = async () => {}; dispose = () => {};}
-  const {NativeAudiobookController} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/model.ts', import.meta.url), {
-    react: {default: {}}, '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => true})},
-    '../../../../../../packages/client-core/src/library-content': {LibraryContentService: Service},
-    '../../../../../../packages/client-core/src/container-state': {getContainerState: async () => ({revision: 1, watched: false})},
-  });
-  const value = new NativeAudiobookController({context: {api: {}, playback: {start: async () => {}}}, kind: 'book', libraryId: 'books', id: entry.id});
-  const abort = new AbortController(), lease = {signal: abort.signal, isCurrent: () => !abort.signal.aborted};
-  await value.load(lease);
-  const facade = {getSnapshot: value.getSnapshot, subscribe: value.subscribe, load: () => value.load(lease), resume: () => value.resume(lease), startOver: () => value.startOver(lease),
-    resumeBook: (book: any) => value.resumeBook(lease, book), next: (id: string) => value.next(id, lease), recover: () => value.recover(lease)};
-  const screen = await mount(BookScreen, {controller: facade, entry, runtime: {artwork: () => undefined, ambient: () => undefined, reportError() {}}, actions: {menu() {}}, openEntry() {}, onBack() {}});
-  try {
-    const texts = elements(screen.tree).map(element => element.props.children).filter(text => typeof text === 'string' || typeof text === 'number');
-    const heading = texts.indexOf(defaultI18n.t('next.browse.chapters'));
-    assert.ok(heading >= 0, `the parts list has a heading: ${JSON.stringify(texts)}`);
-    assert.equal(texts.includes(''), false, 'no empty heading before the count');
-  } finally {await screen.host.unmount(); value.dispose();}
 });

@@ -8,7 +8,7 @@ import {useBook, type BookPageProps} from '../../shared/book/useBook';
 
 const t = defaultI18n.t;
 
-/** An audiobook's page on a phone (collections 41a): `TitleFrame` with its cover over the page wash from it, the series
+/** An audiobook's page on a phone or tablet (collections 41a; the frame's tablet form on a tablet): `TitleFrame` with its cover over the page wash from it, the series
  * over the title, the author as a link under it, who reads it and how long, Resume with Finished and Download, the book's
  * progress and the time left, the description with Read more, and its chapters a window at a time (the finished ones
  * checked, the one you are in marked with its progress), paging the server near the end. */
