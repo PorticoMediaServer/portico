@@ -272,11 +272,11 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
   for (const wrapper of wrappers) assert.equal(wrapper.props.style, undefined, 'the frame spaces the rows (frameSpec rhythm.rowSection)');
   assert.equal(descendants(tree).filter(node => node.type === 'Hero').length, 0, 'no spotlight: no empty 560 px hero');
   assert.equal(descendants(tree).find(node => node.type === 'BrowseFrameRows').props.children[0], null, 'no spotlight: no hero; the frame starts the rows under the bar');
-  // With a spotlight the hero comes back at its drawn 560 px (final3-phone-01).
+  // With a spotlight the hero comes back at rule 14's moderate 470 px (owner, 17 Nov; phone-app frame 1).
   const lit = hooks(), litHome = (await homeModule(() => currentTheme, rows, lit.react)).HomeScreen;
   const litRuntime = {...runtime, home: {...runtime.home, getSnapshot: () => ({document: {rows, spotlight: [{entry, reason: 'Because you watched'}], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'})}};
   const litTree = lit.render(() => litHome({runtime: litRuntime, authority, bottomInset: 84}));
-  assert.equal(descendants(litTree).filter(node => node.type === 'Hero' && node.props.height === 560).length, 1, 'with a spotlight: the 560 px hero');
+  assert.equal(descendants(litTree).filter(node => node.type === 'Hero' && node.props.height === 470).length, 1, 'with a spotlight: the 470 px hero');
   const scroller = descendants(tree).find(node => node.type === 'ScrollView');
   assert.equal(scroller.props.contentContainerStyle.paddingBottom, 84, 'the frame\'s bottom clearance (0 in the stand-in) over the 84 px bar');
   const row = descendants(tree).find(node => node.type === 'Row');
