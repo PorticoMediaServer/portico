@@ -216,7 +216,6 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
           const continuing = !episode.watched && (episode.progressSeconds ?? 0) > 0;
           const status: FactPart[] = continuing ? [{id: 'continue', text: t('title.continueEpisode'), role: 'status'}, ...cardText(subject, 'continuation', env).detail] : next ? [{id: 'up-next', text: t('title.nextUp'), role: 'status'}] : [];
           return <Fragment key={episode.id}><CatalogueSelectionEntry selection={selection} entry={episode} position={index}>{picked => <EpisodeTile selection={picked} className={episodeRowClass} model={{...model, caption: [...model.caption, ...status]}} length={model.detail.find(part => part.id === 'duration')?.text} airDate={!continuing && date ? {...date, id: 'air-date'} : undefined} context="detail" artworkKind={episode.stillUrl ? 'still' : 'backdrop'} artwork={art.foreground(episode.stillUrl ?? episode.backdropUrl ?? show.backdropUrl, 632, 16 / 9)} watched={episode.watched} expanded={expanded} next={next} description={episode.overview}
-            onPlay={episode.available !== false && episode.playback?.itemId === episode.id ? () => runScreenCommand(binding.context, () => binding.playEpisode(data, episode)) : undefined}
             onNavigate={() => { void binding.expand(data, episode).catch(binding.context.effects.reportError); }} />}</CatalogueSelectionEntry>
             {rowEnd === index && opened && <EpisodeListOpened><EpisodeBody binding={binding} data={data} /></EpisodeListOpened>}
           </Fragment>;
