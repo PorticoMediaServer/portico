@@ -1,4 +1,5 @@
 import {PreviewText} from '../layout/PreviewText';
+import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import React, {Children, isValidElement, useEffect, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, TVFocusGuideView, Text, View, useWindowDimensions, type FocusGuideMethods, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
@@ -154,6 +155,7 @@ const titlePrimaryId = 'title-primary';
 const tvFoldedCopy = .03;
 function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, place, title, metadata, picker, primary, actions = [], tagline, synopsis, note, quote, readMore, credits, cast, beside, tabs, seasons, children, aside, collapsed, state, scroller, topControl, artRef, scrollMemory, onEnd, selectionBar, testID}: Omit<TitleFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), spec = frameSpec.hero.title;
+  const [synopsisOpen, setSynopsisOpen] = useState(false);
   const {form} = frame, tv = form === 'tv', split = form === 'medium' && window.width > window.height, stacked = form === 'phone' || form === 'medium';
   const [passed, setPassed] = useState(false), [tabsPinned, setTabsPinned] = useState(false), [tabsY, setTabsY] = useState(Number.POSITIVE_INFINITY), [heroEnd, setHeroEnd] = useState(Number.POSITIVE_INFINITY), [wordsTop, setWordsTop] = useState(Number.POSITIVE_INFINITY);
   // TV (detail-tv-3): focus moving into the panel folds the hero to the title and the tabs at the top, the art dims, and
@@ -257,7 +259,10 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     {name.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={name.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .35)}}>{name.text}</Text> : name.text}</Text>);
   // The synopsis reads from the left on every form, under a centred title on a phone too (detail-phone d1 frames 1 and 3,
   // as the web page at phone width). Loading keeps the loaded page's boxes (rule 12): the synopsis's lines, so the tabs and the panel do not move when the words arrive.
-  const synopsisStyle = [theme.type.intro, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}];
+  // The synopsis is the type scale's synopsis role (14/21 regular on a phone, phone-app `.tblurb`), not the settings intro (14.5/500),
+  // held to rule 14's two lines (owner, 17 Nov). A page with no Read more of its own opens the rest by a press on the paragraph,
+  // so nothing is lost and the page keeps the frame's two lines.
+  const synopsisStyle = [theme.type.synopsis, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}];
   const words = loading ? <View style={{gap: spec.creditsGap}}>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
   </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || quote !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : tv ? theme.spec.hero.copy.titleWidth.tv : spec.copyWidth}}>
@@ -267,7 +272,9 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
     {synopsis !== undefined && (readMore && !readMore.expanded
       ? <PreviewText text={synopsis} lines={spec.readMoreLines[form]} style={synopsisStyle}/>
-      : <Text style={synopsisStyle}>{synopsis}</Text>)}
+      : readMore || synopsisOpen || tv ? <Text style={synopsisStyle}>{synopsis}</Text>
+      : <Focusable accessibilityRole="button" accessibilityLabel={synopsis} accessibilityHint={defaultI18n.t('web.person.readMore')} onPress={() => setSynopsisOpen(true)} testID="title-synopsis">
+        <PreviewText text={synopsis} lines={spec.synopsisLines[form]} style={synopsisStyle}/></Focusable>)}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
       {/* A phone's is a plain bold link under the paragraph (frame 7); wider forms keep the chevron. */}
       <Button variant={form === 'phone' ? 'link' : 'text'} size="xs" trailingIcon={form === 'phone' ? undefined : readMore.expanded ? 'i-chup' : 'i-chdown'} textStyle={form === 'phone' ? {color: theme.colors.text} : undefined}
