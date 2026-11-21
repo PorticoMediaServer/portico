@@ -5,6 +5,8 @@ import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext, useWebAction} from '../../route-registry-view';
 import {currentWebEnvironment} from '../../platform/environment';
 import {Button} from '../../kit/controls';
+import {SectionCard, SettingsPageFrame} from '../../kit/frames';
+import {SettingsRow} from '../../kit/shell/SettingsSurfaces';
 import {Licences} from '../../kit/states/Licences';
 import {router} from '../../router';
 import tmdbLogo from '../../kit/assets/tmdb.svg';
@@ -19,28 +21,30 @@ function About() {
   // O-169 (C7): the web bundle carries no build id. The server version comes
   // from the signed-in system read (it is never served before sign-in).
   const {appVersion: version} = currentWebEnvironment();
-  return <main className={styles.page}>
-    <Button variant="text" icon="i-left" onClick={() => {void router.navigate({to: '/settings', search: {scope: 'account', section: 'device'}});}}>{t('next.settingsSpec.account.device.title')}</Button>
-    <h1>{t('settings.about')}</h1><p className={styles.lede}>{t('licenses.portico.body')}</p>
-    <dl className={styles.box}>
-      <div><dt>{t('web.about.webApp')}</dt><dd>{version || t('next.states.versionNotRecorded')}</dd></div>
-      <div><dt>{t('web.about.server')}</dt><dd>{identity.serverName}</dd></div>
-      <div><dt>{t('web.about.serverVersion')}</dt><dd>{identity.serverVersion || t('next.states.versionNotRecorded')}</dd></div>
-      {identity.serverApiVersion && <div><dt>{t('web.about.serverApi')}</dt><dd>{identity.serverApiVersion}</dd></div>}
-    </dl>
-    <section className={styles.box}>
-      <button type="button" onClick={() => setLicenses(true)}><b>{t('licenses.title')}</b><span>{t('licenses.rowHelp')}</span></button>
-      <a href="https://github.com/PorticoMediaServer/portico-server" target="_blank" rel="noopener noreferrer">{t('licenses.source.title')}</a>
-    </section>
-    <section className={styles.box}>
-      <a href="https://getportico.tv/docs/" target="_blank" rel="noopener noreferrer">{t('web.about.help')}</a>
-      <a href="https://getportico.tv/terms" target="_blank" rel="noopener noreferrer">{t('web.about.terms')}</a>
-      <a href="https://getportico.tv/privacy" target="_blank" rel="noopener noreferrer">{t('web.about.privacy')}</a>
-    </section>
-    {feedback && <section className={styles.box}><Button variant="glass" icon="i-flag" onClick={feedback}>{t('next.shell.feedback')}</Button></section>}
+  const link = (href: string, label: string) => <SettingsRow label={label}><a className={styles.link} href={href} target="_blank" rel="noopener noreferrer">{href.replace(/^https:\/\//, '').replace(/\/$/, '')}</a></SettingsRow>;
+  // This device's About on the settings page frame (desktop-settings, phone-app 16's pushed page): the versions, the
+  // licences and source, help and the legal pages, Send feedback, then the data credits.
+  return <SettingsPageFrame title={t('settings.about')} intro={t('licenses.portico.body')}
+    back={{label: t('next.settingsSpec.account.device.title'), onPress: () => {void router.navigate({to: '/settings', search: {scope: 'account', section: 'device'}});}}}>
+    <SectionCard>
+      <SettingsRow label={t('web.about.webApp')}><span className={styles.value}>{version || t('next.states.versionNotRecorded')}</span></SettingsRow>
+      <SettingsRow label={t('web.about.server')}><span className={styles.value}>{identity.serverName}</span></SettingsRow>
+      <SettingsRow label={t('web.about.serverVersion')}><span className={styles.value}>{identity.serverVersion || t('next.states.versionNotRecorded')}</span></SettingsRow>
+      {identity.serverApiVersion && <SettingsRow label={t('web.about.serverApi')}><span className={styles.value}>{identity.serverApiVersion}</span></SettingsRow>}
+    </SectionCard>
+    <SectionCard>
+      <SettingsRow label={t('licenses.title')} help={t('licenses.rowHelp')}><Button variant="icon" size="small" iconOnly icon="i-right" aria-label={t('licenses.title')} onClick={() => setLicenses(true)}/></SettingsRow>
+      {link('https://github.com/PorticoMediaServer/portico-server', t('licenses.source.title'))}
+    </SectionCard>
+    <SectionCard>
+      {link('https://getportico.tv/docs/', t('web.about.help'))}
+      {link('https://getportico.tv/terms', t('web.about.terms'))}
+      {link('https://getportico.tv/privacy', t('web.about.privacy'))}
+    </SectionCard>
+    {feedback && <SectionCard><SettingsRow label={t('next.shell.feedback')}><Button variant="icon" size="small" iconOnly icon="i-right" aria-label={t('next.shell.feedback')} onClick={feedback}/></SettingsRow></SectionCard>}
     <p className={styles.legal}><img src={tmdbLogo} alt="TMDB" height={16}/>{t('web.about.legal')} {t('web.about.tmdb')}</p>
     <p className={styles.legal}>{t('about.datasetCredit')}</p>
     <Licences open={licenses} onOpenChange={setLicenses}/>
-  </main>;
+  </SettingsPageFrame>;
 }
 export default defineWebScreen({id: 'about', component: About});
