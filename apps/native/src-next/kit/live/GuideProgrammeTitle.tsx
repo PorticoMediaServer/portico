@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Text, View, type StyleProp, type TextStyle} from 'react-native';
 
 const ellipsis = '…';
@@ -24,14 +24,24 @@ export function GuideProgrammeTitle(props: GuideTextProps) {
 
 function FittedGuideText({title, lines, style, width, maxHeight, whole, onHeight}: GuideTextProps & {width: number}) {
   const [trial, setTrial] = useState(title), [fit, setFit] = useState<string>();
+  // On tvOS a hidden measuring text mounted with a newly opened guide sometimes never reports its lines, and the cell
+  // stayed "…" for good (every programme cell, Apple TV). If no report comes, the measuring text is drawn again.
+  const [attempt, setAttempt] = useState(0), heard = useRef(false);
+  useEffect(() => {
+    if (fit !== undefined || attempt >= 3) return;
+    heard.current = false;
+    const timer = setTimeout(() => {if (!heard.current) setAttempt(n => n + 1);}, 400);
+    return () => clearTimeout(timer);
+  }, [fit, attempt, trial]);
   const fallback = whole ? '' : ellipsis;
   const value = fit ?? fallback;
   return <>
     {value !== '' && <Text textBreakStrategy="simple" android_hyphenationFrequency="none" style={style}
       onLayout={onHeight && (event => onHeight(event.nativeEvent.layout.height))}>{value}</Text>}
-    {fit === undefined && <Text key={trial} accessible={false} importantForAccessibility="no"
+    {fit === undefined && <Text key={`${attempt}:${trial}`} accessible={false} importantForAccessibility="no"
       textBreakStrategy="simple" android_hyphenationFrequency="none"
       style={[style, {position: 'absolute', left: 0, right: 0, opacity: 0}]} onTextLayout={event => {
+        heard.current = true;
         let end = 0, height = 0;
         const measured = event.nativeEvent.lines;
         for (const line of measured.slice(0, lines)) {
