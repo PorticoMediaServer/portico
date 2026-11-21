@@ -13,8 +13,8 @@ import {createNativeSearchGenreController, openNativeSearchGenre} from './naviga
 import {NativeSearchExplore, NativeSearchGenreList} from './explore';
 import {NativeSearchOnNow} from './on-now';
 import {SearchPageFor} from './search-page';
-import {GenreBrowseScreen} from './GenreBrowseScreen';
 import {GenreBrowsePage} from '../../pages/touch/search/GenreBrowsePage';
+import {GenreBrowsePage as TVGenreBrowsePage} from '../../pages/tv/search/GenreBrowsePage';
 import type {GenreBrowseProps} from '../../pages/shared/search/useGenreBrowse';
 import {CoveredLayer} from '../../kit/focus';
 import {AllGenresScreen} from './AllGenresScreen';
@@ -143,8 +143,13 @@ nativeShellRoutes.registerRoute('search-genre', createNativeSearchModule);
 nativeShellRoutes.registerRoute('search-genres', createNativeSearchModule);
 nativeShellRoutes.registerRoute('search-reading', createNativeReadingSearchModule);
 
-/** A genre page on a phone or tablet: the kit page in the touch stack, covered while another page is on top. TV keeps its own screen. */
-const GenrePage = Platform.isTV ? GenreBrowseScreen : GenreHost;
+/** A genre page on a phone or tablet: the kit page in the touch stack, covered while another page is on top. On TV the kit page
+ * takes the screen while it is the page in front and is not drawn while another is. */
+const GenrePage = Platform.isTV ? TVGenreHost : GenreHost;
+function TVGenreHost(props: GenreBrowseProps) {
+  const active = useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot).visible;
+  return <CoveredLayer covered={!active} style={{position: 'absolute', inset: 0, display: active ? 'flex' : 'none'}}><TVGenreBrowsePage {...props}/></CoveredLayer>;
+}
 function GenreHost(props: GenreBrowseProps) {
   const active = useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot).visible;
   const place = useNativeStackPlacement(props.stackRoute), stacked = useNativeStackHosted();
