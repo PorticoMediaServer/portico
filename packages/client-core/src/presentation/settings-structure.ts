@@ -267,9 +267,10 @@ const accountPages: readonly AuthoredPage[] = [
         ]}, {help: 'settings.help.subtitleMode'}),
         pref('playback.preferredSubtitleLanguages', 'pref.label.playback.preferredSubtitleLanguages', {type: 'languages'}, {help: 'settings.help.subtitleLanguages'}),
       ]},
-      // Every player engine draws captions in this style, on top of the device's own Accessibility caption settings; the preview is the web's.
+      // Every player engine draws captions in this style, on top of the device's own Accessibility caption settings; every
+      // client draws the preview above the choices (web, and the phone, tablet and TV mock-ups: tv-more 24).
       {id: 'appearance', title: 'settings.section.subtitleAppearance', rows: [
-        custom('subtitlePreview', 'settings.section.subtitleAppearance', {platforms: ['web']}),
+        custom('subtitlePreview', 'settings.section.subtitleAppearance'),
         pref('playback.subtitleSize', 'settings.row.subtitleSize', {type: 'choice', choices: (['small', 'medium', 'large', 'extra-large'] as const).map(value => ({value, label: `settings.subtitleSize.${value}` as MessageId}))}),
         pref('playback.subtitleBackground', 'settings.row.subtitleBackground', {type: 'choice', choices: [
           {value: 'none', label: 'settings.subtitleBackground.none'}, {value: 'outline', label: 'next.settingsSpec.account.audio-subtitles.groups.2.rows.3.control.options.1.label'},

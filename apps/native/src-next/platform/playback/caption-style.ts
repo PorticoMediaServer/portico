@@ -36,3 +36,19 @@ export function captionStyle(preferences: SubtitlePreferences): CaptionStyle {
   const {size, color, background, position, font, keepStyling, useSystemCaptionStyle} = preferences;
   return Object.freeze({size, scale: scales[size], color, background, position, font, keepStyling, useSystemCaptionStyle});
 }
+
+/** The drawn caption palette, the same values web's player and Settings preview use (web kit/media/caption-style):
+ * the preview paints exactly what the player will. Media colours are independent of the app theme. */
+const paintColors: Readonly<Record<SubtitlePreferences['color'], string>> = {white: '#fff', yellow: '#ff0', cyan: '#0ff', green: '#0f0', pink: '#ff80c0'};
+const paintBackgrounds: Readonly<Record<SubtitlePreferences['background'], string>> = {none: 'transparent', outline: 'transparent', shadow: 'transparent', translucent: 'rgba(0,0,0,0.65)', opaque: '#000'};
+const oneOf = <T extends string>(values: readonly T[], value: unknown, fallback: T): T => values.includes(value as T) ? value as T : fallback;
+export type CaptionPaint = Readonly<{scale: number; color: string; backgroundColor: string; edge: 'none' | 'outline' | 'shadow'; position: SubtitlePreferences['position']}>;
+/** What the Settings preview draws from the effective preferences; an unknown value falls back to the registry default. */
+export function captionPaint(values: PreferenceValues): CaptionPaint {
+  const size = oneOf(['small', 'medium', 'large', 'extra-large'] as const, values['playback.subtitleSize'], 'medium');
+  const color = oneOf(['white', 'yellow', 'cyan', 'green', 'pink'] as const, values['playback.subtitleColor'], 'white');
+  const background = oneOf(['none', 'outline', 'shadow', 'translucent', 'opaque'] as const, values['playback.subtitleBackground'], 'translucent');
+  return Object.freeze({scale: scales[size], color: paintColors[color], backgroundColor: paintBackgrounds[background],
+    edge: background === 'outline' ? 'outline' as const : background === 'shadow' ? 'shadow' as const : 'none' as const,
+    position: oneOf(['bottom', 'raised', 'top'] as const, values['playback.subtitlePosition'], 'bottom')});
+}

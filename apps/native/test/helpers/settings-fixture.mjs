@@ -31,7 +31,9 @@ export async function settingsFixture(previous) {
   const prefs = await load('pages/shared/settings/useSettingsPreferences.ts', modules);
   const bindings = {...modules, '@portico/design': {frameSpec: {settings: {tvSearchWidth: 500, languageWidth: 640}}},
     '../../../kit/settings/SettingsParts': parts, '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'NativeAdvancedSection'}, '../../../kit/frames': fixtureFrame, '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'},
-    '../../../kit/shell/SettingsProfileCard': {SettingsProfileCard: 'Focusable'}, './useSettingsPreferences': prefs};
+    '../../../kit/shell/SettingsProfileCard': {SettingsProfileCard: 'Focusable'}, './useSettingsPreferences': prefs,
+    // The subtitle preview's palette is plain data; the real one is used.
+    '../../../platform/playback/caption-style': modules['../../../platform/playback/caption-style'] ?? await import('../../src-next/platform/playback/caption-style.ts')};
   const body = await load('pages/shared/settings/SettingsPreferences.tsx', bindings);
   const Metadata = previous['../../touch/settings/ServerMetadataPage']?.ServerMetadataPage;
   const People = previous['../../touch/settings/ServerPeoplePage']?.ServerPeoplePage;
