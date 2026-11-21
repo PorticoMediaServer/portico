@@ -32,7 +32,8 @@ export type TitleCredit = Readonly<{label: string; names: string | readonly Abou
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
 export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: string; onPress?: () => void}>;
 /** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. */
-export type TitleCover = Readonly<{node: ReactNode; shape: 'poster' | 'square' | 'circle'}>;
+/** `stack` is a series' fanned volumes (the kit's `CoverStack`), at the right like a circle from 1024 (desktop-read 4). */
+export type TitleCover = Readonly<{node: ReactNode; shape: 'poster' | 'square' | 'circle' | 'stack'}>;
 export type TitleFrameProps = Readonly<{
   /** The picture behind the words, as the kit's `AmbientArt` with `treatment="title"`; it fades itself into the backdrop. */
   art?: ReactNode;

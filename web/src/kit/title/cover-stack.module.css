@@ -1,0 +1,11 @@
+/* desktop-read 4 and phone-read 4: three volumes fanned left to right, the back ones turned out and a little darker.
+   Each is drawn whole at the foot of its 2:3 place, its edge and shadow following it. */
+.stack { display: block; position: relative; width: 100%; height: 100%; --whole-valign: flex-end; }
+.volume { position: absolute; bottom: 4%; width: 49%; aspect-ratio: 2 / 3; border-radius: 8px; }
+.image { display: block; width: 100%; height: 100%; border-radius: inherit; overflow: hidden; box-shadow: 0 32px 56px -22px color-mix(in srgb, var(--color-shadow) 95%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); }
+.volume:nth-child(1) { left: 0; width: 41.7%; bottom: 9%; transform: rotate(-7deg); filter: brightness(.8); }
+.volume:nth-child(2) { left: 25%; width: 45.1%; bottom: 15%; transform: rotate(-1deg); filter: brightness(.9); }
+.volume:nth-child(3) { left: auto; right: 0; transform: rotate(5deg); }
+.stack[data-count="1"] .volume { left: 25%; width: 49%; bottom: 4%; transform: none; filter: none; }
+.stack[data-count="2"] .volume:first-child { left: 12%; }
+.stack[data-count="2"] .volume:last-child { left: auto; right: 12%; transform: rotate(5deg); }
