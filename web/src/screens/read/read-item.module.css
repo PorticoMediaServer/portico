@@ -9,9 +9,12 @@
 
 /* phone-read.html 3 .nb: the reading branch keeps its own Back on a phone, above
    the hero, the loading skeleton and the failure state alike. */
-.phoneTopBar { position: sticky; z-index: var(--layer-sticky); top: 0; display: flex; align-items: center; height: 52px; padding: 8px 12px 0; background: color-mix(in srgb, var(--color-ink) 86%, transparent); backdrop-filter: blur(18px); }
+/* It is a glass disc over the page, as the title frame's Back is: no band with an edge across the window (audit). The bar takes
+   no height, so the cover's wash runs to the top. */
+.phoneTopBar { position: sticky; z-index: var(--layer-sticky); top: 0; height: 0; padding: 0 12px; }
+.phoneTopBar > button { margin-top: 12px; }
 /* phone-read.html 3 .gr: a 38px round control, not the kit's 42px small default. */
-.phoneTopBar button[data-size="small"] { width: 38px; height: 38px; border-radius: 50%; }
+.phoneTopBar button[data-size="small"] { width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--color-ink) 45%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 /* More by the author, under Contents and Details (desktop-read 3, phone-read 8). */
 .moreBy { margin-top: 56px; }
 @media (max-width: 599px) { .moreBy { margin-top: 40px; } }
