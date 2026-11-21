@@ -37,12 +37,15 @@ export type SelectProps = Omit<FocusableProps, 'children'> & {
   pickerTitle?: React.ReactNode;
   pickerDescription?: React.ReactNode;
   pickerFooter?: React.ReactNode;
+  /** TV: a picker chip in a page header that opens down (tv.html 6 All channels, Today) draws a down chevron; a value in a row
+   *  or a field keeps the up-down mark (settings.html `.sel`). */
+  chevron?: 'down';
 };
 export type RichSelectProps = SelectProps;
 
 const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function NativeSelect({
   options, value, defaultValue, onValueChange, open, defaultOpen = false, onOpenChange,
-  label, description, error, placeholder, rich, style, textStyle, pickerContext, pickerTitle, pickerDescription, pickerFooter, onPress, disabled, accessibilityLabel,
+  label, description, error, placeholder, rich, style, textStyle, pickerContext, pickerTitle, pickerDescription, pickerFooter, chevron, onPress, disabled, accessibilityLabel,
   accessibilityState, testID, rowLabel, ...props
 }, ref) {
   const theme = useTheme();
@@ -99,8 +102,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
           <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, valueEmphasis(!!selected), {flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text></>
         : inline ? <Text style={[nativeType({size: 14.5, weight: 500, lineHeight: 'normal', tracking: 0}, theme.textScale), valueEmphasis(!!selected), {textAlign: 'right', flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text>
         : <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, styles.value, {fontFamily: fontFamilies[700], color: selected ? theme.colors.text : theme.colors.textTertiary}, textStyle]}>{selected?.label ?? placeholder}</Text>}
-      {/* A TV picker chip with no label of its own (tv.html 6 All channels, Today) opens down; fields and value rows keep the up-down mark (settings.html `.sel`). */}
-      <Icon name={theme.isTV && label === undefined && rowLabel === undefined && !inline ? 'i-down' : 'i-updown'} size={theme.isTV ? 26 : inline ? 15 : 18} color={inline ? theme.emphasis[emphasis.active] : theme.colors.textTertiary} />
+      <Icon name={theme.isTV && chevron === 'down' ? 'i-down' : 'i-updown'} size={theme.isTV ? 26 : inline ? 15 : 18} color={inline ? theme.emphasis[emphasis.active] : theme.colors.textTertiary} />
     </Focusable>
     {error !== undefined ? <FormError placement="inline">{error}</FormError>
       : description !== undefined ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{description}</Text> : null}

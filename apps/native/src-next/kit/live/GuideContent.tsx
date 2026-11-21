@@ -48,12 +48,12 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
   const dayPicker = phoneChrome ? <GuideDayPicker testID="live-day" accessibilityLabel={t('guide.day')} value={String(currentDay)} disabled={daysCount < 1}
     onChange={chooseDay} options={days.map(day => ({id: String(day), label: dayName(day), trailing: dayTrailing(day)}))} note={dayNote}
     name={dayName(currentDay)} date={shortDate(currentDay)}/>
-    : <Select testID="live-day" accessibilityLabel={t('guide.day')} disabled={daysCount < 1} value={String(currentDay)}
+    : <Select testID="live-day" chevron="down" accessibilityLabel={t('guide.day')} disabled={daysCount < 1} value={String(currentDay)}
         options={days.map(day => ({value: String(day), label: day === today ? t('guide.today') : fullDate(day)}))} onValueChange={chooseDay}/>;
   const sortPicker = phoneChrome ? <NativeLivePhonePicker testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'}
     options={sortOptions.map(option => ({id: option.value, label: option.label}))} onChange={chooseSort} placement="bottom-end" secondary>
       {sortOptions.find(option => option.value === state.options.sort)?.label}
-    </NativeLivePhonePicker> : <Select testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'}
+    </NativeLivePhonePicker> : <Select testID="live-sort" chevron="down" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'}
       options={sortOptions} onValueChange={chooseSort}/>;
   const viewSwitch = <GuideViewSwitch value={view} onChange={setView} list={t('channels.viewList')} guide={t('channels.viewGuide')} compact={phone}/>;
   const recordingsIcon = <GuideRecordingsButton label={recordingsLabel} count={conflicts} onPress={() => setRecordingsOpen(true)}/>;
