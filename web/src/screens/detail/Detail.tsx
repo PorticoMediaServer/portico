@@ -442,7 +442,11 @@ export function TitleDetails({binding, data}: {binding: DetailBindings; data: De
   const language = (code: string) => { try { return new Intl.DisplayNames(locale(), {type: 'language'}).of(code) ?? code; } catch { return code; } };
   const number = (value: number) => new Intl.NumberFormat(locale(), {maximumFractionDigits: 1}).format(value);
   const directors = metadata.credits.filter(credit => credit.role.toLowerCase() === 'director'), writers = metadata.credits.filter(credit => /writer|writing|screenplay|teleplay|novel/i.test(credit.role));
-  const ratings = metadata.ratings.map(rating => `${rating.provider} ${number(rating.value)}`).join(', ');
+  // The server names its two own ratings by role ("community", "critic"); they read as Audience and Critics, sentence case.
+  const provider = (name: string) => name === 'community' ? t('title.rating.audience') : name === 'critic' ? t('title.rating.critics') : name;
+  const ratings = metadata.ratings.map(rating => `${provider(rating.provider)} ${number(rating.value)}`).join(', ');
+  // A track with no language is tagged "und" or the ICU "root"; it names no language, so Details leaves it out.
+  const named = (codes: readonly string[]) => codes.filter(code => !['root', 'und', 'zxx', 'mis', 'mul'].includes(code.toLowerCase())).map(language).join(', ');
   // The phone hero already keeps year, runtime and the content rating in view, so its
   // Details avoids repeating them and puts the drawn credit lines under the people.
   const rows: (readonly [string, ReactNode])[] = [
@@ -458,7 +462,7 @@ export function TitleDetails({binding, data}: {binding: DetailBindings; data: De
     [t('title.studio'), facts?.studio], [t('title.network'), facts?.network], [t('title.country'), facts?.country], [t('title.edition'), facts?.edition],
     ...(!phone ? [
       [t('next.selection.language'), facts?.originalLanguage ? language(facts.originalLanguage) : undefined] as const,
-      [t('title.audio'), data.languages.audio.map(language).join(', ')] as const, [t('title.subtitles'), data.languages.subtitles.map(language).join(', ')] as const,
+      [t('title.audio'), named(data.languages.audio)] as const, [t('title.subtitles'), named(data.languages.subtitles)] as const,
     ] : []),
     [t('title.added'), instantDate(item.addedAt, locale())],
   ];

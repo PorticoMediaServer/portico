@@ -257,12 +257,13 @@ function SavedLists(bindings: SavedViewBindings & {onCreate: () => void}) {
           {projection?.sorts.length ? <SortMenu variant="saved" sorts={projection.sorts.map(sort => ({...sort, defaultDirection: sort.directions[0] ?? 'asc', expensive: false, applicableKinds: []}))}
             value={savedSortSelection(route, projection)} label={playlistSortName}
             onValueChange={value => { if (route.view === 'playlists') effects.selectRoute({...route, sort: value.field, direction: value.direction}); }} /> : null}
-          {projection?.filters.length ? <><span className={styles.separator} aria-hidden="true"/>
+          {projection?.filters.length ? <>{projection.sorts.length ? <span className={styles.separator} aria-hidden="true"/> : null}
             {projection.filters.map(filter => {
               const selected = 'filter' in route ? route.filter ?? 'all' : 'all';
               return <div key={filter.id} className={styles.playlistFilters} role="group" aria-label={defaultI18n.has(filter.labelKey) ? t(filter.labelKey) : t('playlists.filter')}>
-                {filter.options.map(option => <Chip key={option.id} variant="quick" selected={selected === option.id} count={option.count}
-                  onClick={() => { if (route.view === 'playlists') effects.selectRoute({...route, filter: selected === option.id ? 'all' : option.id as PlaylistListFilter}); }}>{option.label}</Chip>)}
+                {/* The options are ids ("all", "mine", "shared") with no counts behind them: they read as their names, with no number. */}
+                {filter.options.map(option => <Chip key={option.id} variant="quick" selected={selected === option.id}
+                  onClick={() => { if (route.view === 'playlists') effects.selectRoute({...route, filter: selected === option.id ? 'all' : option.id as PlaylistListFilter}); }}>{option.id === 'all' ? t('next.controls.all') : t('playlists.filter.option', {group: option.id})}</Chip>)}
               </div>;
             })}</> : null}
           {bindings.catalogueSelection?.toolbar ?? bindings.selection?.toolbar}

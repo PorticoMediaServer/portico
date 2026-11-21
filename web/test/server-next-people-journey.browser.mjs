@@ -94,7 +94,7 @@ try {
     await j.signInPage(second, 'owner', password, 'owner', undefined, freshCode);
     await j.openSettings(second);
     await second.getByRole('list', {name: /profiles/i}).getByRole('listitem').filter({hasText: 'Kid'}).getByRole('button', {name: 'Manage'}).click();
-    await second.getByRole('list', {name: 'Blocked Tags'}).getByText('Kids', {exact: true}).waitFor();
+    await second.getByRole('list', {name: 'Blocked tags'}).getByText('Kids', {exact: true}).waitFor();
     await second.getByRole('combobox', {name: 'Highest rating'}).getByText('PG-13').waitFor();
     await again.close();
   });
