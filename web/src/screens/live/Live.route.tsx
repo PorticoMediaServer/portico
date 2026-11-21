@@ -322,7 +322,9 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
             onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}
             onPlay={onPlay}/> : undefined}
           day={{label: t('guide.day'), value: String(localDayStart(start, timezone)),
-            options: days.map(day => ({value: String(day), label: day === today ? t('guide.today') : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(day)})),
+            options: days.map((day, index) => ({value: String(day), label: day === today ? t('guide.today') : index > 0 && days[index - 1] === today ? t('guide.tomorrow') : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(day),
+              // final3-mobileweb-05: each day says its date beside its name ("Today  Wed, Oct 21", "Friday  Oct 23").
+              description: new Intl.DateTimeFormat(defaultI18n.region.formatLocale, day === today || index > 0 && days[index - 1] === today ? {weekday: 'short', month: 'short', day: 'numeric', timeZone: timezone} : {month: 'short', day: 'numeric', timeZone: timezone}).format(day)})),
             onChange: value => {const day = days.find(day => String(day) === value);if (day === undefined) return;
               if (day === today) setStart(guideNowStart(serverNow(), spanMs, range)); else moveTo(dayPrimeTime(day, timezone));}}}
           sort={{value: search.sort ?? 'number', options: [{value: 'number', label: t('channels.sortNumber')}, {value: 'name', label: t('channels.sortName')}, {value: 'favorites', label: t('channels.favorites')}],
