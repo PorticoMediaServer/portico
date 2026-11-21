@@ -17,20 +17,23 @@ export function SettingsPageLink({id, testID, title, icon, selected, server, onP
   id: string; testID?: string; title: string; icon: IconName; selected: boolean; server?: boolean; onPress: () => void; onFocus?: () => void;
 }) {
   const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone', tv = theme.isTV;
-  const tint = server || selected ? theme.colors.accentStrong : theme.colors.textSecondary;
+  // A tablet's list beside the page (tablet.html `.sx .it`): a plain glyph, the words in the secondary colour, no tile and no
+  // arrow; the open page has the neutral fill (text at .1), the accent bar and an accent glyph. A phone keeps its tiles and arrows.
+  const list = !tv && !phone;
+  const tint = selected || (server && !list) ? theme.colors.accentStrong : list ? theme.colors.textTertiary : theme.colors.textSecondary;
   return <Focusable focusId={id} testID={testID ?? `settings-page-${id}`} accessibilityRole="button" accessibilityLabel={title}
     accessibilityState={{selected}} onFocus={onFocus} onPress={onPress} focusKind="row" focusRadius={frame.cardRadius}
     style={{minHeight: frameSpec.settings.navigationRow[frame.form], paddingVertical: theme.space.tight, paddingHorizontal: frame.cardPadding,
       gap: theme.space.controlGap, borderRadius: frame.cardRadius, flexDirection: 'row', alignItems: 'center',
-      backgroundColor: selected && !phone ? alpha(theme.colors.accent, .16) : undefined}}>
-    {tv && selected && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: theme.space.xs, bottom: theme.space.xs,
-      width: theme.space.hairline * 4, borderRadius: theme.space.hairline * 2, backgroundColor: theme.colors.accent}}/>}
-    <View style={tv ? undefined : {width: frameSpec.stateRow.tile[frame.form], height: frameSpec.stateRow.tile[frame.form], borderRadius: theme.baseRadii.control,
+      backgroundColor: selected && !phone ? list ? alpha(theme.colors.text, .1) : alpha(theme.colors.accent, .16) : undefined}}>
+    {(tv || list) && selected && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: theme.space.xs, bottom: theme.space.xs,
+      width: theme.space.hairline * (tv ? 4 : 3), borderRadius: theme.space.hairline * 2, backgroundColor: theme.colors.accent}}/>}
+    <View style={tv || list ? undefined : {width: frameSpec.stateRow.tile[frame.form], height: frameSpec.stateRow.tile[frame.form], borderRadius: theme.baseRadii.control,
       backgroundColor: server ? alpha(theme.colors.accent, .16) : theme.colors.raisedBright, alignItems: 'center', justifyContent: 'center'}}>
-      <Icon name={icon} size={theme.type.rowLabel.fontSize} color={tint}/>
+      <Icon name={icon} size={list ? theme.scale.icon.tertiary.size : theme.type.rowLabel.fontSize} color={tint}/>
     </View>
-    <Text style={[theme.type.rowLabel, {color: theme.colors.text, flex: 1}]}>{title}</Text>
-    {!tv && <Icon name="i-right" size={theme.type.rowHelp.fontSize} color={theme.colors.textTertiary}/>}
+    <Text style={[theme.type.rowLabel, {color: list && !selected ? theme.colors.textSecondary : theme.colors.text, flex: 1}]}>{title}</Text>
+    {!tv && !list && <Icon name="i-right" size={theme.type.rowHelp.fontSize} color={theme.colors.textTertiary}/>}
   </Focusable>;
 }
 
