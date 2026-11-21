@@ -16,7 +16,7 @@ const t = defaultI18n.t, text = Object.freeze({text: Object.freeze({t: defaultI1
  * or Read. A book or comic opens in the saved-only reader. */
 export function RememberedDownloadsPage({source, onBack}: {source: RememberedDownloadsOpening; onBack: () => void}) {
   const view = useRememberedDownloads({source, onBack});
-  if (view.reading && source.noticeCopy) {const ReadingScreen = (require('../../../screens/downloads/RememberedReadingScreen') as typeof import('../../../screens/downloads/RememberedReadingScreen')).RememberedReadingScreen;
+  if (view.reading && source.noticeCopy) {const ReadingScreen = (require('./RememberedReadingPage') as typeof import('./RememberedReadingPage')).RememberedReadingPage;
     return <ReadingScreen reading={view.reading} noticeCopy={source.noticeCopy} current={view.current} onBack={view.closeReading}/>;}
   return <BrowseFrame testID="remembered-downloads" header={{title: t('downloads.title'), back: {label: t('action.back'), onPress: view.back, testID: 'remembered-downloads-back'}}}
     grid={<DownloadEntryList ids={view.entries} empty={t('downloads.emptyTitle')} header={source.player || view.failure ? <>

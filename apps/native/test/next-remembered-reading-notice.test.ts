@@ -22,13 +22,13 @@ test('saved-only Settings shows a local notice and closes onto the same original
   const reading = {owner, preferences: {getSnapshot: () => ({}), subscribe: () => () => {}}};
   // The real screen on the Fabric renderer: dialog ownership and the close on
   // unmount are React's commits and cleanups, not a driver replay.
-  const {RememberedReadingScreen} = await screenModule(new URL('../src-next/screens/downloads/RememberedReadingScreen.tsx', import.meta.url), {
+  const {RememberedReadingPage: RememberedReadingScreen} = await screenModule(new URL('../src-next/pages/touch/downloads/RememberedReadingPage.tsx', import.meta.url), {
     react: {...fabricReact, default: fabricReact}, 'react-native': {View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../kit/overlays/surface': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
-    '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../pages/touch/reading/ReaderGuestPage': {ReaderGuestPage: 'NativeReadingGuestHost'},
+    '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../kit/overlays/surface': {Dialog: 'Dialog'}, '../../../kit/controls': {Button: 'Button'}, '../../../kit/frames/ReaderFrame': {ReaderFrame: 'ReaderFrame'},
+    '../reading/ReaderGuestPage': {ReaderGuestPage: 'NativeReadingGuestHost'},
+    '../../shared/downloads/useRememberedReading': await screenModule(new URL('../src-next/pages/shared/downloads/useRememberedReading.ts', import.meta.url), {react: {...fabricReact, default: fabricReact}}),
   });
   let tree: unknown; const host = await sceneHost(() => {tree = RememberedReadingScreen({reading, noticeCopy: {title: 'Reading settings', body: 'Reading settings aren’t available in this saved-only opening.'}, current: () => root, onBack() {}}); return tree;});
   const original = find(tree, 'NativeReadingGuestHost')!; const oldSettings = original.props.onSettings;

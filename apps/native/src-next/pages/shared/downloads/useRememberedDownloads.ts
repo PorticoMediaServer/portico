@@ -1,4 +1,5 @@
-import {useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {registerBack} from '../../../kit/navigation/back';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {videoTrackName, videoTrackWords} from '../../../../../../packages/client-core/src/video-track-labels';
@@ -52,6 +53,9 @@ export function useRememberedDownloads({source, onBack}: {source: RememberedDown
     const player = source.player; if (player) run(lifetime => player.open(entry, lifetime));};
   const back = () => {if (!current() || !rendered) return; rendered.active = false; rendered.abort.abort();
     const fence = source.player?.fence(); if (fence) source.player?.close(fence); onBack();};
+  // Android Back leaves the list for the recovery page, as the list's own Back does (the reader, open over it, answers first).
+  const backRef = useRef(back); backRef.current = back;
+  useEffect(() => registerBack(() => {backRef.current(); return true;}, {scope: 'surface'}), []);
   return {inventory, entries, busy, current, run, play, back, reading, closeReading: () => {if (current()) setReading(undefined);},
     failure: failure ? presentError(failure, 'home').body : undefined};
 }
