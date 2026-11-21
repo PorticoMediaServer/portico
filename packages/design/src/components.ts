@@ -134,7 +134,15 @@ export const field = {
 export const tvAccount = {column: 900, fieldsWidth: 860, titleGap: 22, ledeGap: 48, eyebrowGap: 14, fieldGap: 22, actionGap: 20, beforeActionsGap: 32,
   wordmark: {top: 72, width: 174, height: 40}, footerBottom: 64,
   /** connect24 .sgr .si: a server or certificate row's glyph sits in its own tile. */
-  rowIcon: {box: 52, radius: 14, glyph: 28}} as const;
+  rowIcon: {box: 52, radius: 14, glyph: 28},
+  /** connect 35 to 38, a Portico Account with nowhere to go yet: the page's column starts at the TV gutter (200) under a top of
+   * 96, its lede at most 1000 wide; the two doors are 440 high with a 76 glyph chip and the set-up door's 220 code; the
+   * invitation's fields and keyboard are 860 wide with the help 100 beside them; the offline servers' list is 1300 wide. The title
+   * sits 6 over the lede and a notice 30 under it; the links under the doors stand 96 apart so a focus ring never covers a neighbour.
+   * Under a notice (connect 38) the doors are 400 high with a 180 code, so the links stay inside the safe area. */
+  wide: {left: 200, top: 96, right: 96, ledeMax: 1000, titleGap: 6, noticeGap: 30, sectionGap: 32, linkGap: 96,
+    door: {height: 440, padding: 48, radius: 28, chip: 76, glyph: 34, code: 220, codePad: 16, codeRise: 40, gap: 40, short: {height: 400, code: 180}},
+    form: {width: 860, helpGap: 100, keyColumns: 9}, list: {width: 1300, gap: 16}}} as const;
 
 /** R11, TV key hints (tv.html, tv-detail, tv-player, tv-more `.key-cap` and `.hint`): a key cap 36 high with its key in
  * the badge role, then what the key does in the caption role, quieter than the cap. */

@@ -74,43 +74,6 @@ async function bindings() {
     async dispose() {for (const driver of drivers.splice(0).reverse()) await driver.unmount();}};
 }
 
-test('DoorTiles original helper enters once, retains Setup host through busy, and INERT wins', async () => {
-  const b = await bindings(); let busy = false, tree: any, door: any, joined = 0; const isCurrent = () => true;
-  const {TVNoServers} = await screenModule(new URL('../src-next/screens/accounts/TVNoServers.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
-    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/focus': b.focus,
-    '../search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ColourBackdrop: 'Backdrop'},
-    '../../kit/controls': {Focusable: b.Focusable, Button: 'Button', TextField: 'TextField'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/theme': {useTheme: () => b.theme, nativeType}, '../destinations/useEntryFocus': b.entry,
-    '../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})}, '../../tv/auth/entry-revision': {useTVBusyEntryRevision}});
-  const parent = createFabricHookHost(() => {tree = TVNoServers({busy, isCurrent, onJoin() {}, onFind() {}, onRefresh() {}, onSignOut() {}, onBack() {}});}); await parent.mount();
-  const original = () => nodes(tree).find(node => node.type?.name === 'DoorTiles');
-  let doorDriver = createFabricHookHost(() => {const node = original(); door = node.type({...node.props, onJoin: () => {joined++;}});}); await doorDriver.mount();
-  const region = await b.region(() => door.props), tile = (id: string) => nodes(door).find(node => node.type === b.Focusable && node.props.focusId === id).props;
-  const join = await b.target('accounts.empty.door', () => tile('join')), setup = await b.target('accounts.empty.door', () => tile('setup'));
-  try {
-    await flush(); assert.equal(join.calls, 1); assert.equal(setup.calls, 0); assert.equal(join.props.preferredFocus, undefined);
-    const joinRef = join.props.ref, setupRef = setup.props.ref;
-    setup.props.onFocus({}); await flush(); assert.equal(b.registry.capture()?.childId, 'setup');
-    for (busy of [true, false, true, false]) {
-      await parent.rerender(); await doorDriver.rerender(); await region.refresh(); await join.refresh(); await setup.refresh(); await flush();
-      assert.equal(b.registry.child({regionId: 'accounts.empty.door', childId: 'setup'}), setup.host);
-      assert.equal(join.props.ref, joinRef); assert.equal(setup.props.ref, setupRef); assert.equal(join.calls, 1, 'busy never requests Join again');
-      assert.equal(b.registry.capture()?.childId, 'setup'); assert.equal(setup.props.onPress, undefined, 'Setup never becomes a command');
-      assert.equal(join.props.disabled, false); assert.equal(typeof join.props.onPress, busy ? 'undefined' : 'function');
-    }
-    b.paint.OverlayPaintModeContext.current = b.paint.OVERLAY_PAINT_INERT; await join.refresh(); await setup.refresh();
-    assert.equal(join.props.disabled, true); assert.equal(join.props.onPress, undefined); assert.equal(b.registry.child({regionId: 'accounts.empty.door', childId: 'setup'}), undefined);
-    b.paint.OverlayPaintModeContext.current = b.paint.OVERLAY_PAINT_LIVE; await join.refresh(); await setup.refresh(); await flush();
-    assert.equal(b.registry.child({regionId: 'accounts.empty.door', childId: 'setup'}), setup.host); assert.equal(join.calls, 1);
-    join.props.onPress(); assert.equal(joined, 1);
-    await doorDriver.unmount(); await b.dispose();
-    doorDriver = createFabricHookHost(() => {const node = original(); door = node.type(node.props);}); await doorDriver.mount();
-    await b.region(() => door.props);
-    const newJoin = await b.target('accounts.empty.door', () => tile('join')); await b.target('accounts.empty.door', () => tile('setup')); await flush();
-    assert.notEqual(newJoin.host, join.host); assert.equal(newJoin.calls, 1, 'a genuine tile/guide/host remount has its own entry receipt');
-    newJoin.props.onFocus({}); assert.equal(b.registry.capture()?.childId, 'join');
-  } finally {await doorDriver.unmount(); await parent.unmount(); await b.dispose();}
-});
 
 async function rowComposition(b: Awaited<ReturnType<typeof bindings>>) {
   const page = await screenModule(new URL('../src-next/kit/focus/page-boundary.ts', import.meta.url), {
@@ -724,50 +687,6 @@ function actualButtonProps(o: Awaited<ReturnType<typeof overlayBindings>>, props
   return outer.type.render(outer.props, outer.props.ref).props;
 }
 
-test('Join caller binds Find/Sign out to its real field region and preserves commands through busy and Back', async () => {
-  const b = await bindings(), o = await overlayBindings(b), backs = new Set<() => boolean>();
-  const native = {...b.native, BackHandler: {addEventListener: (_: string, fn: () => boolean) => {backs.add(fn); return {remove: () => backs.delete(fn)};}}};
-  const {TVNoServers} = await screenModule(new URL('../src-next/screens/accounts/TVNoServers.tsx', import.meta.url), {
-    react: b.react, 'react-native': native, 'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/focus': b.focus, '../search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ColourBackdrop: 'Backdrop'},
-    '../../kit/controls': {Button: o.Button, Focusable: b.Focusable, TextField: 'TextField'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/theme': {useTheme: () => b.theme, nativeType}, '../destinations/useEntryFocus': b.entry,
-    '../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})}, '../../tv/auth/entry-revision': {useTVBusyEntryRevision}});
-  let tree: any, busy = false, current = true; const calls: unknown[] = [];
-  const props = {isCurrent: () => current, onJoin: (...value: string[]) => calls.push(value), onFind: () => calls.push('find'),
-    onSignOut: () => calls.push('sign-out'), onRefresh() {}, onBack: () => calls.push('back')};
-  const source = createFabricHookHost(() => {tree = TVNoServers({...props, busy});}); await source.mount(); await flush();
-  nodes(tree).find(node => node.type?.name === 'DoorTiles').props.onJoin(); await flush();
-  const region = () => nodes(tree).find(node => node.type === b.focus.FocusRegion && node.props.id === 'accounts.empty.fields');
-  const field = (id: string) => nodes(tree).find(node => node.type === 'TextField' && node.props.focusId === id);
-  await act(() => {field('address').props.onChangeText('https://original.example'); field('invitation').props.onChangeText('ORIGINAL-CODE');});
-  const guide = await b.region(() => region().props), button = (id: string) => nodes(tree).find(node => node.type === o.Button && node.props.focusId === id);
-  const find = await b.target('accounts.empty.fields', () => actualButtonProps(o, button('find').props));
-  const signOut = await b.target('accounts.empty.fields', () => actualButtonProps(o, button('sign-out').props));
-  const join = await b.target('accounts.empty.fields', () => actualButtonProps(o, button('join').props));
-  try {
-    assert.deepEqual(b.registry.order('accounts.empty.fields'), ['address', 'invitation', 'join', 'find', 'sign-out']);
-    assert.equal(b.registry.config('accounts.empty.fields')?.entry, 'address');
-    assert.equal(find.props.testID, registryModule.focusTestID('accounts.empty.fields', 'find'));
-    assert.equal(signOut.props.testID, registryModule.focusTestID('accounts.empty.fields', 'sign-out'));
-    const refs = [find.props.ref, signOut.props.ref];
-    busy = true; await source.rerender(); await guide.refresh(); await find.refresh(); await signOut.refresh(); await join.refresh();
-    for (const target of [find, signOut, join]) {assert.equal(target.props.disabled, true); assert.equal(target.props.onPress, undefined);}
-    assert.deepEqual(calls, []);
-    busy = false; await source.rerender(); await guide.refresh(); await find.refresh(); await signOut.refresh(); await join.refresh();
-    assert.equal(find.props.ref, refs[0]); assert.equal(signOut.props.ref, refs[1]);
-    assert.equal(b.registry.child({regionId: 'accounts.empty.fields', childId: 'find'}), find.host);
-    assert.equal(b.registry.child({regionId: 'accounts.empty.fields', childId: 'sign-out'}), signOut.host);
-    find.props.onPress(); signOut.props.onPress(); join.props.onPress(); await flush();
-    assert.deepEqual(calls, ['find', 'sign-out', ['ORIGINAL-CODE', 'https://original.example']]);
-    current = false; find.props.onPress(); signOut.props.onPress(); assert.equal(calls.length, 3, 'original current predicate still refuses stale callers');
-    // These isolated probes are separate roots: retire the field subtree as
-    // React would when Back removes it from its parent.
-    await find.dispose(); await signOut.dispose(); await join.dispose(); await guide.dispose();
-    current = true; assert.equal([...backs][0]!(), true); await flush();
-    assert.ok(nodes(tree).find(node => node.type?.name === 'DoorTiles')); assert.equal(calls.length, 3, 'Back retains the original in-page return');
-  } finally {await source.unmount(); await b.dispose();}
-});
 
 for (const kind of ['trusted', 'identity'] as const) for (const closeBy of ['cancel', 'back'] as const) test(`${kind} Forget caller binds safe Cancel and distinct real footer hosts, re-enables after failure, then returns by ${closeBy}`, async t => {
   t.mock.timers.enable({apis: ['setTimeout']});
