@@ -14,7 +14,7 @@ import {GestureCommitScope} from '../../../kit/controls/gesture-commit';
 import {useListeningScrubberPublication, useListeningPageActive, useListeningPaintPermit} from '../../../kit/dock/ListeningCoverBridge';
 import {commandAllowed, dockCommand, playbackPosition, seekBounds, seekTo} from '../../../kit/dock/model';
 import type {DockCommand, DockOccupant} from '../../../kit/dock/types';
-import {nowPlayingQueueEntry, nowPlayingQueueWindow, nowPlayingSource} from '../../../screens/destinations/music/NowPlayingQueue';
+import {nowPlayingQueueEntry, nowPlayingQueueWindow, nowPlayingSource} from './useNowPlayingQueue';
 import {listeningSongFavorite} from '../../../screens/destinations/music/ListeningSongActions';
 import {useAudiobookRead} from '../../../screens/destinations/music/use-audiobook-read';
 import {currentListeningChapter, locateListeningChapter} from '../../../screens/destinations/music/audiobook-controls';

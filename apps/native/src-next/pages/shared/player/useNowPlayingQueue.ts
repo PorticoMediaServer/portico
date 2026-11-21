@@ -1,24 +1,20 @@
-import React, {useCallback, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {ScrollView, Text, View} from 'react-native';
-import {frameSpec} from '@portico/design';
+import type React from 'react';
+import {useCallback, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import type {QueuePlaybackView, QueuePlaybackWindow} from '../../../../../../packages/client-core/src/queue-controller';
 import type {QueueEntry, PlaybackFence} from '../../../../../../packages/player-core/src';
 import type {V1QueueEditIntent} from '../../../../../../packages/client-core/src/playback-v1/v1-queue-player';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
-import {Artwork} from '../../../kit/artwork';
-import {Focusable} from '../../../kit/controls';
-import {FocusRegion, type FocusEdges} from '../../../kit/focus';
-import type {NowPlayingScreenProps} from '../../../pages/shared/player/audio-player';
-import {useTVQueueSongMenu} from './TVQueueSongMenu';
+import type {Artwork} from '../../../kit/artwork';
+import type {FocusEdges} from '../../../kit/focus';
+import type {NowPlayingScreenProps} from './audio-player';
+import {useTVQueueSongMenu} from './useTVQueueSongMenu';
 import {useStableFocusOrder} from '../../../kit/focus/useStableFocusOrder';
-import {Menu, type MenuEntry} from '../../../kit/overlays';
-import {useTheme} from '../../../kit/theme';
-import {browseType} from '../../../kit/browse/presentation';
+import type {MenuEntry} from '../../../kit/overlays';
 import {committedPaintScope, useCommittedPaintPublication} from '../../../kit/overlays/CommittedPaint';
-import {ListeningQueuePaint, type ListeningQueuePaintData, type ListeningQueuePaintRow} from './ListeningPanePaint';
+import type {ListeningQueuePaintData, ListeningQueuePaintRow} from '../../../kit/player/ListeningPanePaint';
 
-const t = defaultI18n.t, tvRowSpec = frameSpec.audio.tv;
+const t = defaultI18n.t;
 /** A queue run survives track fences but never another authority/run. */
 export const nowPlayingQueueFocusScope = (fence: PlaybackFence) => JSON.stringify(fence.playback);
 
@@ -54,7 +50,7 @@ export type NowPlayingQueueProps = Readonly<{
   testID?: string;
 }>;
 
-export type NowPlayingQueueRow = Readonly<{entryId: string; title: string; detail?: readonly string[]; posterUrl?: string; seconds?: number; current: boolean;
+export type NowPlayingQueueRow = Readonly<{entryId: string; title: string; artist?: string; detail?: readonly string[]; posterUrl?: string; seconds?: number; current: boolean;
   position?: number; available?: boolean; segmentId?: string}>;
 /** Everything one open sheet may act on; never read from a later render. */
 type Row = NowPlayingQueueRow;
@@ -114,7 +110,7 @@ export function nowPlayingQueueRows(view: QueuePlaybackView, options: Readonly<{
     // Position, availability and source come from the accepted window's own row, never from the
     // drawn array's index or from visible/not-removed; a missing fact stays unknown.
     const facts = nowPlayingQueueEntry(window, entry.id);
-    return [{entryId: entry.id, title: item.title, ...(detail.length ? {detail} : {}), ...(item.posterUrl ? {posterUrl: item.posterUrl} : {}), ...(seconds ? {seconds} : {}),
+    return [{entryId: entry.id, title: item.title, ...(item.artist ? {artist: item.artist} : {}), ...(detail.length ? {detail} : {}), ...(item.posterUrl ? {posterUrl: item.posterUrl} : {}), ...(seconds ? {seconds} : {}),
       current: entry.id === view.queue.currentEntryId, ...(facts?.position !== undefined ? {position: facts.position} : {}),
       ...(facts?.available !== undefined ? {available: facts.available} : {}), ...(facts?.segmentId ? {segmentId: facts.segmentId} : {})}];
   });
@@ -131,8 +127,8 @@ export function nowPlayingQueueEditPort(view: QueuePlaybackView | undefined, fen
 /** tv#7: bounded memory belongs to the actual queue run, including its viewer scope. */
 const rememberedRow = new Map<string, string>();
 
-export function NowPlayingQueue({view, onPlay, artwork, regionId, focusScopeKey, interactive = true, menuScope, edges, queueEdit, paintOwner, paintScope = '', testID = 'now-playing-queue'}: NowPlayingQueueProps) {
-  const theme = useTheme(), tv = theme.isTV, rows = nowPlayingQueueRows(view), [rowMenu, setRowMenu] = useState<RowOpening>(), rowMenuRef = useRef<RowOpening | undefined>(undefined);
+export function useNowPlayingQueue({view, onPlay, artwork, regionId, focusScopeKey, interactive = true, menuScope, queueEdit, paintOwner, paintScope = '', testID = 'now-playing-queue'}: NowPlayingQueueProps, tv: boolean) {
+  const rows = nowPlayingQueueRows(view), [rowMenu, setRowMenu] = useState<RowOpening>(), rowMenuRef = useRef<RowOpening | undefined>(undefined);
   const current = rows.filter(row => row.current), upcoming = rows.filter(row => !row.current), window = nowPlayingQueueWindow(view);
   // Only a real segment label names a run; an unlabeled run keeps the plain Up next heading
   // rather than inventing a source or borrowing the album the song happens to carry.
@@ -151,7 +147,7 @@ export function NowPlayingQueue({view, onPlay, artwork, regionId, focusScopeKey,
   const songMenu = useTVQueueSongMenu({enabled: tv && interactive, queueId: view.queue.id, revision: view.queue.revision,
     context: focusScopeKey && menuScope ? {...menuScope, scopeKey: focusScopeKey} : undefined,
     upcomingIds: new Set(upcoming.map(row => row.entryId)), entry: entryId => nowPlayingQueueEntry(window, entryId),
-    onPlay, edit: queueEdit, testID});
+    onPlay, edit: queueEdit});
   const count = view.total ?? rows.length;
   const seconds = view.durationKnown === false || view.totalDurationMs === undefined ? undefined : view.totalDurationMs / 1000;
   const summary = [t('title.songCount', {count}), durationText(seconds, t)].filter((value): value is string => !!value);
@@ -214,27 +210,6 @@ export function NowPlayingQueue({view, onPlay, artwork, regionId, focusScopeKey,
     if (!rememberedRow.has(queueId) && rememberedRow.size >= 8) rememberedRow.delete(rememberedRow.keys().next().value!);
     rememberedRow.set(queueId, entryId);
   };
-  /** Keep the album cover at its authored size as long titles and bylines wrap. */
-  const tvRow = (value: Row) => {
-    const source = artwork?.(value.posterUrl);
-    const body = <>
-      {source ? <Artwork source={source} width={tvRowSpec.rowArt} height={tvRowSpec.rowArt} style={{borderRadius: tvRowSpec.rowArtRadius, overflow: 'hidden', flexShrink: 0}}/> : null}
-      <View style={{flex: 1, minWidth: 0}}>
-        <Text style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{value.title}</Text>
-        {value.detail?.length ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{value.detail.join('  ')}</Text> : null}
-      </View>
-      {value.current && <Text style={[browseType(theme, 19, 600), {color: theme.colors.accentStrong}]}>{t('player.queueNowPlaying')}</Text>}
-      {value.seconds ? <Text style={[browseType(theme, 19, 400), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{durationText(value.seconds, t)}</Text> : null}
-    </>;
-    const props = {testID: `${testID}-row-${value.entryId}`, focusId: `${testID}-${value.entryId}`, focusKind: 'row' as const, focusRadius: 10,
-      accessibilityRole: 'button' as const, accessibilityLabel: t('player.queuePlay', {title: value.title})};
-    const canHold = songMenu.canOpen(value);
-    return <Focusable key={value.entryId} {...props} disabled={!interactive || !canPlay && !canHold} focusableWhenDisabled={interactive}
-      onFocus={() => remember(value.entryId)} onPress={canPlay && interactive ? () => onPlay!(view.queue.id, value.entryId, view.queue.revision) : undefined}
-      onLongPressAction={canHold ? () => songMenu.open(value) : undefined}
-      style={({focused}) => ({minHeight: tvRowSpec.row, paddingVertical: theme.space.tight, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 18, borderRadius: 15,
-        backgroundColor: focused ? theme.colors.raisedHigh : 'transparent'})}>{body}</Focusable>;
-  };
   const paintSemantic = useMemo(() => committedPaintScope(paintOwner, paintScope, view.queue.id, view.queue.revision), [paintOwner, paintScope, view.queue.id, view.queue.revision]);
   const displayRow = (value: Row): ListeningQueuePaintRow => {
     const facts = value.current ? undefined : queueEdit?.entry(value.entryId);
@@ -249,36 +224,15 @@ export function NowPlayingQueue({view, onPlay, artwork, regionId, focusScopeKey,
     menu: (id: string) => {const value = rows.find(row => row.entryId === id);if (value) openMenu(value);}};
   useCommittedPaintPublication(paintOwner, 'listening-queue', paintScope, paintSemantic,
     display && paintOwner ? {data: display, actions: paintActions} : undefined);
-  if (tv) {
-    // tv#7's sub line is what is left to play, never the whole queue: the engine's own remaining
-    // count when it gives one, and a duration only when this queue is a complete window and every
-    // remaining row states its length. A part that is not known is left out, not inferred.
-    const complete = view.queue.entries.every(entry => !entry.hidden) && view.durationKnown !== false;
-    const remaining = view.remainingCount ?? (complete ? upcoming.length : undefined);
-    const upcomingSeconds = complete && upcoming.length > 0 && upcoming.every(row => row.seconds !== undefined)
-      ? upcoming.reduce((total, row) => total + (row.seconds ?? 0), 0) : undefined;
-    const tvSummary = [remaining === undefined ? undefined : t('title.songCount', {count: remaining}),
-      upcomingSeconds === undefined ? undefined : durationText(upcomingSeconds, t)].filter((value): value is string => !!value);
-    // Known read-only rows remain native stops; their real command admission is independent.
-    const remembered = rememberedRow.get(memoryKey);
-    const entry = remembered && tvUpcoming.some(row => row.entryId === remembered) ? remembered : tvUpcoming[0]?.entryId;
-    const rows = <ScrollView contentContainerStyle={{paddingBottom: 16}} showsVerticalScrollIndicator={false}>
-      {!!upcoming.length && !!tvSummary.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 18}}>{tvSummary.map((part, index) => <Text key={index} style={[browseType(theme, 20, 400), {color: theme.colors.textTertiary}]}>{part}</Text>)}</View>}
-      {tvUpcoming.map(tvRow)}
-      {!tvUpcoming.length ? <Text style={[browseType(theme, 20, 400), {color: theme.colors.textTertiary}]}>{t('player.queueEmpty')}</Text> : null}
-    </ScrollView>;
-    return <View testID={testID} style={{flex: 1, minHeight: 0}}>
-      {regionId
-        ? <FocusRegion id={regionId} enabled={interactive} entry={entry ? `${testID}-${entry}` : undefined} order={tvUpcoming.map(row => `${testID}-${row.entryId}`)}
-          orientation="vertical" edges={edges} style={{flex: 1}}>{rows}</FocusRegion>
-        : rows}
-      {songMenu.menu}
-    </View>;
-  }
-  const menu = rowMenu ? <Menu key={`${rowMenu.queueId}:${rowMenu.revision}:${rowMenu.row.entryId}`} testID={`${testID}-row-menu`} open presentation="sheet" title={rowMenu.row.title}
-    onOpenChange={open => {if (!open) retire(rowMenu);}} items={menuItems(rowMenu)}/> : null;
-  return <>
-    {!paintOwner && <ListeningQueuePaint data={display} onPlay={paintActions.play} onMenu={paintActions.menu} testID={testID}/>}
-    {menu}
-  </>;
+  const complete = view.queue.entries.every(entry => !entry.hidden) && view.durationKnown !== false;
+  const remaining = view.remainingCount ?? (complete ? upcoming.length : undefined);
+  const upcomingSeconds = complete && upcoming.length > 0 && upcoming.every(row => row.seconds !== undefined)
+    ? upcoming.reduce((total, row) => total + (row.seconds ?? 0), 0) : undefined;
+  const tvSummary = [remaining === undefined ? undefined : t('title.songCount', {count: remaining}),
+    upcomingSeconds === undefined ? undefined : durationText(upcomingSeconds, t)].filter((value): value is string => !!value);
+  // Known read-only rows remain native stops; their real command admission is independent.
+  const remembered = rememberedRow.get(memoryKey);
+  const entry = remembered && tvUpcoming.some(row => row.entryId === remembered) ? remembered : tvUpcoming[0]?.entryId;
+  return {display, paintActions, rowMenu, retire, menuItems, tvUpcoming, tvSummary, entry, songMenu, remember, canPlay,
+    play: (entryId: string) => onPlay?.(view.queue.id, entryId, view.queue.revision), labels};
 }

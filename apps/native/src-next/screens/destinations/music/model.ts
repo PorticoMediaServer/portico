@@ -38,7 +38,7 @@ export type NativeTVMusicSnapshot = Readonly<{
   error?: unknown;
 }>;
 
-type Options = Readonly<{requestId?: () => Promise<string>; api: NativeShellBootstrapContext['api']; entry: ContentEntry; similarScope: Parameters<typeof readListeningSimilar>[1]; lifetime: ReturnType<typeof nativeDestinationLifetime>; playback?: NativeShellPlaybackAdapter}>;
+type Options = Readonly<{requestId?: () => Promise<string>; api: NativeShellBootstrapContext['api']; entry: ContentEntry; similarScope: Parameters<typeof readListeningSimilar>[1]; lifetime: ReturnType<typeof nativeDestinationLifetime>; playback?: NativeShellPlaybackAdapter; expandOnPlay?: boolean}>;
 const ALBUM_MEMBERSHIP_PAGE_LIMIT = 100;
 const membershipFailure = (code: string) => Object.assign(new Error(code), {code, ...(code==='native_music_retired'?{name:'AbortError'}:{})});
 /** A plain failure with no stable wire code came from this stage, not from the
@@ -485,8 +485,8 @@ export class NativeTVMusicController {
   };
   play = (anchorItemId?: string, shuffle = false): Promise<void> => {
     if (!this.current()) return Promise.resolve();
-    const port = this.options.playback?.cataloguePlayback?.();
-    if (!port) return Promise.reject(Object.assign(new Error('music_playback_unavailable'), {code: 'music_playback_unavailable'}));
+    const playback = this.options.playback, port = playback?.cataloguePlayback?.();
+    if (!playback || !port) return Promise.reject(Object.assign(new Error('music_playback_unavailable'), {code: 'music_playback_unavailable'}));
     this.playController?.abort();
     const controller = new AbortController();
     this.playController = controller;
@@ -495,7 +495,14 @@ export class NativeTVMusicController {
       source: {container: {kind: this.options.entry.kind, id: this.options.entry.id}},
       ...(shuffle ? {order: {mode: 'shuffle' as const}} : {}),
       ...(anchorItemId ? {anchor: {itemId: anchorItemId}} : {}),
-    }], {signal: controller.signal, isCurrent}).then(() => undefined);
+    }], {signal: controller.signal, isCurrent}).then(queue => {
+      if (!this.options.expandOnPlay || !isCurrent()) return;
+      const snapshot = playback.getSnapshot(), fence = snapshot.fence;
+      // The player opens only the queue this Play started, even if another
+      // route or playback command won while the original Play was pending.
+      if (fence?.kind === 'queue' && snapshot.queue?.view?.queue.id === queue.id && !snapshot.dock.local?.expanded)
+        return playback.onTransition(playback.dock.expand(fence));
+    });
   };
   toggleFavorite = async (): Promise<void> => {
     if (!this.current()) return;

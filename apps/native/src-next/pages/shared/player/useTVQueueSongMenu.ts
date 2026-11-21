@@ -1,12 +1,12 @@
-import React, {useLayoutEffect, useRef, useState} from 'react';
+import {useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {Menu} from '../../../kit/overlays';
-import type {NowPlayingQueueProps, NowPlayingQueueRow} from './NowPlayingQueue';
+import type {MenuEntry} from '../../../kit/overlays';
+import type {NowPlayingQueueProps, NowPlayingQueueRow} from './useNowPlayingQueue';
 
 type Context = Readonly<{scopeKey: string; fenceKey: string; lease?: object}>;
 type Input = Readonly<{enabled: boolean; queueId: string; revision: string; context?: Context;
   upcomingIds: ReadonlySet<string>; entry: NonNullable<NowPlayingQueueProps['queueEdit']>['entry'];
-  onPlay?: NowPlayingQueueProps['onPlay']; edit?: NowPlayingQueueProps['queueEdit']; testID: string}>;
+  onPlay?: NowPlayingQueueProps['onPlay']; edit?: NowPlayingQueueProps['queueEdit']}>;
 type Opening = Readonly<{row: NowPlayingQueueRow; queueId: string; revision: string; context: Context;
   play?: Input['onPlay']; edit?: Input['edit']; position?: number}>;
 
@@ -44,13 +44,12 @@ export function useTVQueueSongMenu(input: Input) {
   return {
     canOpen: (row: NowPlayingQueueRow) => !!admitted(row),
     open: (row: NowPlayingQueueRow) => {if (!alive.current) return; const at = admitted(row); if (!at) return; own.current = at; setOpening(at);},
-    // Keep the shared Menu mounted through logical close: its actual paint exit owns return.
-    menu: <Menu testID={`${input.testID}-song-menu`} open={!!shown} title={shown?.row.title} presentation="sideSheet"
-      onOpenChange={open => {if (!open && shown) retire(shown);}} items={shown ? [
+    menu: {open: !!shown, title: shown?.row.title,
+      onOpenChange: (open: boolean) => {if (!open && shown) retire(shown);}, items: (shown ? [
         {id: 'play-now', label: defaultI18n.t('player.opt.playNow'), disabled: !shown.play,
           onSelect: () => {if (current(shown)) shown.play?.(shown.queueId, shown.row.entryId, shown.revision);}},
         {id: 'remove', label: defaultI18n.t('web.together.removeFromQueue'), destructive: true, disabled: !shown.edit,
           onSelect: () => {if (current(shown)) shown.edit?.apply({action: 'remove', entryId: shown.row.entryId}, shown.queueId, shown.revision);}},
-      ] : []}/>,
+      ] : []) satisfies readonly MenuEntry[]},
   };
 }

@@ -6,7 +6,7 @@ const track = (n: number) => ({id: `itm_t${n}`, kind: 'track', title: `Walk Trac
   durationMs: 40000, addedAt: '2026-11-12T00:00:00Z', images: {}, state: {}, libraryId: 'lib_m'});
 
 async function album(answerTracks: (url: URL) => unknown = url => url.searchParams.get('cursor') === 'c2'
-  ? {items: [track(2), track(3)], total: 3} : {items: [track(1)], nextCursor: 'c2', total: 3}) {
+  ? {items: [track(2), track(3)], total: 3} : {items: [track(1)], nextCursor: 'c2', total: 3}, playbackOptions: Record<string, unknown> = {}) {
   const {NativeTVMusicController} = await import('../src-next/screens/destinations/music/model.ts');
   const seen: string[] = [];
   const answer = (path: string, method = 'GET') => {
@@ -20,7 +20,7 @@ async function album(answerTracks: (url: URL) => unknown = url => url.searchPara
   let active = true;
   const controller = new NativeTVMusicController({entry: {id: 'alb_1', libraryId: 'lib_m', kind: 'album', title: 'Walk Album'},
     api: {request: async (path: string, method?: string) => answer(path, method)}, similarScope: {},
-    lifetime: {scope: {serverId: 'server', viewerId: 'viewer'}, current: () => active}, requestId: async () => 'op'} as never);
+    lifetime: {scope: {serverId: 'server', viewerId: 'viewer'}, current: () => active}, requestId: async () => 'op', ...playbackOptions} as never);
   return {controller, seen, close: () => {active = false; controller.dispose();}};
 }
 
@@ -60,4 +60,25 @@ test('an answer that is not a list of tracks is the songs read failing, not a cr
   assert.equal(state.phase, 'error');
   assert.equal((state.error as {code?: string}).code, 'music_album_songs_unavailable');
   f.close();
+});
+
+test('TV album Play opens its own accepted queue and leaves a replacement queue alone', async () => {
+  const opened: unknown[] = [], fence = {kind: 'queue'}, snapshot = {fence, dock: {local: {expanded: false}},
+    queue: {view: {queue: {id: 'album-queue'}}}};
+  const playback = {
+    cataloguePlayback: () => ({playSegments: async () => ({id: 'album-queue'})}),
+    getSnapshot: () => snapshot, dock: {expand: (target: unknown) => target},
+    onTransition: async (target: unknown) => {opened.push(target);},
+  };
+  const tv = await album(undefined, {playback, expandOnPlay: true}), phone = await album(undefined, {playback});
+  try {
+    await tv.controller.play('itm_t1');
+    await phone.controller.play();
+    snapshot.queue.view.queue.id = 'another-queue';
+    await tv.controller.play();
+    assert.deepEqual(opened, [fence]);
+  } finally {
+    tv.close();
+    phone.close();
+  }
 });
