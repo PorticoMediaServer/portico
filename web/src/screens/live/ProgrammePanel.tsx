@@ -6,7 +6,7 @@ import {channelTint, programmeFactParts, type ChannelMarkModel} from '@portico/c
 import {legacyProgramme, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {Button, Segmented, Select} from '../../kit/controls';
 import type {SelectOption} from '../../kit/controls';
-import {ChannelMark} from '../../kit/artwork';
+import {ChannelMark, nameInitials} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Banner, BottomSheet, Dialog, Menu, SidePanel, type MenuEntry} from '../../kit/overlays';
 import {useShellWidth} from '../../shell/viewport';
@@ -28,7 +28,8 @@ const paddingOptions: readonly SelectOption[] = PADDINGS.map(value => ({value: S
 
 const channelMark = (channel: GuideChannelRow): ChannelMarkModel => ({
   sourceId: channel.sourceId ?? '', id: channel.id,
-  ...(channel.mark ?? {text: Array.from(channel.name.trim())[0]?.toLocaleUpperCase() ?? '', seed: channel.id}),
+  // The same initials the guide's row draws ("NN"), never the first letter alone.
+  ...(channel.mark ?? {text: nameInitials(channel.name) || channel.number, seed: `${channel.sourceId ?? ''}:${channel.id}`}),
 });
 
 /** One upcoming airing's reminder; a local browser fact, never a server promise. */
