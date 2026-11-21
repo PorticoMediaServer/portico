@@ -1786,6 +1786,7 @@ export const enUS = {
   'recordings.loading': 'Loading recordings',
   'recordings.noneScheduled': 'Nothing scheduled',
   'recordings.noneScheduledBody': 'Choose a program in the guide and press Record.',
+  'recordings.noneScheduledNoRecordBody': 'Recordings made for this profile appear here. Recording is turned on by the server’s owner.',
   'recordings.noneRecorded': 'No recordings yet',
   'recordings.noneRecordedBody': 'Finished recordings appear here to watch.',
   'recordings.conflicts': 'Conflicts',

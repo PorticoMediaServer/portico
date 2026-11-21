@@ -87,8 +87,10 @@ export function useRecordings({controller, ports, runtime, onGuide}: RecordingsP
   const rules = state.viewerWindow ? state.viewerWindow.items.flatMap(row => row.kind === 'rule' ? [row.value] : []) : state.page?.rules ?? [];
   const activeRuleOpening = ruleOpening.current;
   const first = query.view === 'recorded' && !query.group ? groups[0]?.key : query.view === 'rules' ? rules[0]?.id : (recordings.find(value => value.state === 'conflicted') ? `${recordings.find(value => value.state === 'conflicted')!.id}.resolve` : recordings[0]?.id);
+  // A profile the server does not let record is not sent to the guide to press a Record it is never offered.
+  const mayRecord = ownerCanSeeRules || state.summary?.canRecord !== false;
   const emptyGuide = !state.loading && !state.accessDenied && state.error === undefined
-    && (query.view === 'upcoming' && !recordings.length && state.page?.captureAvailable === true
+    && (query.view === 'upcoming' && !recordings.length && state.page?.captureAvailable === true && mayRecord
       || query.view === 'recorded' && !query.group && !groups.length && state.storage?.writeHealthy === true);
   const entryRegion = first || emptyGuide ? body : tabs, entryChild = first ?? (emptyGuide ? 'recordings-open-guide' : query.view);
   const awaitingFirstPage = state.loading || !state.page && !state.groups && query.view !== 'storage';
@@ -207,7 +209,7 @@ export function useRecordings({controller, ports, runtime, onGuide}: RecordingsP
   const restartViewer = (expected: NonNullable<typeof state.viewerWindow>) => {if (!drawnCurrent()) return; const current = controller.getSnapshot(); if (current.viewerWindow !== expected) return; const {view, sort, group} = current.query; void controller.load({view, ...(sort === undefined ? {} : {sort}), ...(group === undefined ? {} : {group})}, viewerOpening);};
   const isEmpty = !state.loading && (query.view === 'rules' ? !rules.length : query.view === 'recorded' && !query.group ? !groups.length : !recordings.length);
   const emptyTitle: MessageId = query.view === 'upcoming' ? 'recordings.noneScheduled' : query.view === 'rules' ? 'recordings.noneRules' : query.view === 'history' ? 'web.dvr.empty.history' : 'recordings.noneRecorded';
-  const emptyBody: MessageId | undefined = query.view === 'upcoming' ? 'recordings.noneScheduledBody' : query.view === 'rules' ? 'recordings.noneRulesBody' : query.view === 'history' ? undefined : 'recordings.noneRecordedBody';
+  const emptyBody: MessageId | undefined = query.view === 'upcoming' ? mayRecord ? 'recordings.noneScheduledBody' : 'recordings.noneScheduledNoRecordBody' : query.view === 'rules' ? 'recordings.noneRulesBody' : query.view === 'history' ? undefined : 'recordings.noneRecordedBody';
   const unavailable = state.page && !state.page.captureAvailable && !recordings.length && query.view === 'upcoming';
   const window = state.viewerWindow;
   const watchFocus = (id: string, index: number, length: number) => {

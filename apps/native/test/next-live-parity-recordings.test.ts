@@ -267,3 +267,15 @@ test('a member without recording permission can switch recordings tabs without r
     assert.ok(f.find('recordings-view-rules'));
   } finally {await f.close();}
 });
+
+test('a member who may not record is told recordings come from the owner, not sent to the guide to press Record', async () => {
+  for (const canRecord of [false, true]) {
+    const f = await fixture({isTV: true, role: 'member', canManage: false}); try {
+      f.recordingState.summary = {...summary, canRecord}; f.recordingState.page = {recordings: [], rules: [], captureAvailable: true};
+      await f.recordings();
+      const empty = f.find('recordings-empty');
+      assert.equal(empty.props.body, defaultI18n.t(canRecord ? 'recordings.noneScheduledBody' : 'recordings.noneScheduledNoRecordBody'));
+      assert.equal(!!empty.props.primaryAction, canRecord, 'Open the guide only for a profile that can record');
+    } finally {await f.close();}
+  }
+});
