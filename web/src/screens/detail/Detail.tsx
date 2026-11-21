@@ -20,6 +20,7 @@ import {useRelationRow} from './relation-row';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n, serviceText} from '@core/presentation/service-text.ts';
 import {titleFactParts, type FactPart} from '@core/presentation/kit-model';
+import {episodeCode} from '@core/presentation/card-caption.ts';
 import {preferenceValue} from '@core/preferences.ts';
 import {AmbientArt, Artwork, PersonCircle, type AmbientArtProps} from '../../kit/artwork';
 import {Button, ResumeButton, Select, Tabs} from '../../kit/controls';
@@ -94,7 +95,7 @@ export function TitleBody({binding, compact = false, artworkClaim}: {binding: De
   const tab = requestedTab === 'related' && !hasRelated ? 'details' : requestedTab;
   const tabs = [...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}, ...(data.extras?.some(extra => extra.items.length) ? [{value: 'extras', label: t('next.controls.extras')}] : [])];
   // A film's page is the title frame (frame 2): the screen hands it its parts and the frame places them on every form.
-  if (!compact && data.item.kind === 'movie') return <div data-title-id={data.scope.itemId}><FilmTitle binding={binding} data={data} artworkClaim={artworkClaim}
+  if (!compact && (data.item.kind === 'movie' || data.item.kind === 'episode' && !!data.item.episode)) return <div data-title-id={data.scope.itemId}><FilmTitle binding={binding} data={data} artworkClaim={artworkClaim}
     showBackdrops={preferenceValue<boolean>(preferences, 'appearance.showBackdrops')} tabs={tabs} tab={tab}>
     {snapshot.phase === 'error' && <ScreenFailure retry={() => { void binding.service.retry(); }} />}
     {snapshot.mutationError && <ScreenFailure retry={() => { void binding.service.retryMutation(); }} />}
@@ -154,18 +155,27 @@ function FilmTitle({binding, data, artworkClaim, showBackdrops, tabs, tab, child
   const directed = metadata.credits.filter(credit => credit.role.toLowerCase() === 'director');
   const starring = metadata.credits.filter(credit => credit.department.toLowerCase() === 'acting' || credit.role.toLowerCase() === 'cast').slice(0, 4);
   const credits: TitleCredit[] = [...(directed.length ? [{label: label('title.directedBy'), names: directed.map(person)}] : []), ...(starring.length ? [{label: label('title.starring'), names: starring.map(person)}] : [])];
-  const collection = data.collections?.[0];
-  const all = titlePageFacts({year: item.year, durationSeconds: item.duration, genres: metadata.genres.map(genre => genre.name), contentRating: facts?.contentRating}, env);
+  const collection = data.collections?.[0], episode = item.kind === 'episode' ? item.episode : undefined;
+  // An episode on a page of its own (frames-title episode): its show and season are the kicker and open the show; the facts
+  // lead with its number and when it aired.
+  const code = episode ? episodeCode({seasonNumber: episode.seasonNumber ?? undefined, episodeNumber: episode.number}, t) : undefined;
+  const aired = episode?.airDate ? calendarDate(episode.airDate, locale()) : undefined;
+  const all = episode ? [...(code ? [{id: 'episode-code', text: code, role: 'identity' as const}] : []), ...(aired ? [{id: 'aired', text: t('title.airedOn', {date: aired}), role: 'context' as const}] : []),
+    ...titleFactParts({durationSeconds: item.duration, contentRating: data.episodeDetails?.contentRating ?? facts?.contentRating}, env)]
+    : titlePageFacts({year: item.year, durationSeconds: item.duration, genres: metadata.genres.map(genre => genre.name), contentRating: facts?.contentRating}, env);
+  const kicker = episode ? {icon: 'i-tv' as const, label: episode.showTitle, ...(episode.seasonNumber != null ? {detail: episode.seasonNumber === 0 ? t('next.kit.special') : t('next.kit.season', {number: episode.seasonNumber})} : {}),
+      onPress: command(() => binding.context.effects.openEntry({id: episode.showId, libraryId: data.scope.libraryId, kind: 'show', title: episode.showTitle, navigation: {view: 'show', entityId: episode.showId}}))}
+    : collection && {icon: 'i-layers' as const, label: collection.name, detail: t('lib.count', {count: collection.memberCount, pivot: 'other'}),
+      onPress: command(() => binding.context.effects.openEntry({id: collection.id, libraryId: data.scope.libraryId, kind: 'collection', title: collection.name, navigation: {view: 'collection', entityId: collection.id}}))};
   const genres = <GenreNames names={metadata.genres.map(value => value.name)} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} />;
   const phone = width < 1024;
   // Up to 1024 the year and genres lead (phone-detail d1), as the page had them.
   const parts = phone ? [...all.filter(part => part.id === 'year' || part.id === 'genres'), ...all.filter(part => part.id !== 'year' && part.id !== 'genres')] : all;
-  const foreground = art.foreground(item.backdropUrl ?? item.posterUrl, phone ? 800 : 1920, 16 / 9);
+  const picture = item.stillUrl ?? item.backdropUrl ?? item.posterUrl, foreground = art.foreground(picture, phone ? 800 : 1920, 16 / 9);
   return <TitleFrame
-    art={showBackdrops && <TitleArtwork key={phone ? 'phone' : 'desktop'} artworkClaim={artworkClaim} titleKey={item.id} reduced={reduced} treatment={phone ? 'phone' : 'title'} source={art.ambient(item.backdropUrl ?? item.posterUrl)} foreground={foreground} />}
+    art={showBackdrops && <TitleArtwork key={phone ? 'phone' : 'desktop'} artworkClaim={artworkClaim} titleKey={item.id} reduced={reduced} treatment={phone ? 'phone' : 'title'} source={art.ambient(picture)} foreground={foreground} />}
     back={binding.context.effects.back ? {label: t('next.states.back'), onPress: command(() => binding.context.effects.back?.())} : undefined}
-    kicker={collection && {icon: 'i-layers', label: collection.name, detail: t('lib.count', {count: collection.memberCount, pivot: 'other'}),
-      onPress: command(() => binding.context.effects.openEntry({id: collection.id, libraryId: data.scope.libraryId, kind: 'collection', title: collection.name, navigation: {view: 'collection', entityId: collection.id}}))}}
+    kicker={kicker || undefined}
     title={item.title} metadata={<TitleFactsLine parts={parts} genres={genres} />} primary={primary} actions={actions}
     tagline={facts?.tagline} synopsis={item.overview} credits={credits}
     tabs={{items: tabs, value: tab, onValueChange: value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'related' || value === 'details' || value === 'extras') binding.view.tab(value); })}}>{children}</TitleFrame>;

@@ -100,7 +100,8 @@
 .phoneCollectionCopy b { font-size: var(--type-body-size); font-weight: var(--type-row-heading-weight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .phoneCollectionCopy small { font-size: var(--type-meta-size); color: var(--color-text-secondary); }
 
-.people { display: flex; gap: 22px; flex-wrap: wrap; }
+/* Each person starts at the row's top: a button centres its own content, so a name on two lines had pushed its circle up past its neighbours'. */
+.people { display: flex; align-items: flex-start; gap: 22px; flex-wrap: wrap; }
 .creditGroups > section + section { margin-top: 26px; padding-top: 24px; border-top: 1px solid color-mix(in srgb, var(--color-line) 60%, transparent); }
 .peopleHeader { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .peopleAll { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--type-see-all-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-secondary); cursor: pointer; }
@@ -156,7 +157,7 @@
 
 .details { padding: 24px var(--shell-gutter) 110px; display: block; }
 
-.details > section + section { margin-top: 36px; }
+.details > * + * { margin-top: 36px; }
 
 .details dl > div { grid-template-columns: 110px 1fr; gap: 12px; }
 
