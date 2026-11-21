@@ -1012,11 +1012,13 @@ export const enUS = {
 
   // ── Profiles on a direct account ─────────────────────────────────
   'profiles.title': 'Profiles',
+  'profiles.intro': 'Tap a profile to switch to it. Each keeps its own watch history, My List and recommendations.',
   'profile.current': 'Current',
   'profile.protected': 'Protected by a PIN',
   'profile.inUse': 'In use',
   'profile.main': 'Main profile',
   'profile.add': 'Add profile',
+  'profile.addLimit': 'Up to {count}',
   'profile.addTitle': 'Add a profile',
   'profile.name': 'Name',
   'profile.limitReached': 'An account can have up to 8 profiles.',
@@ -1030,6 +1032,7 @@ export const enUS = {
   'profile.rename': 'Rename…',
   'profile.renameTitle': 'Rename {name}',
   'profile.setPin': 'Set a PIN…',
+  'profile.setPinHelp': 'Anyone using this account can open {name} until it has a PIN.',
   'profile.changePin': 'Change PIN…',
   'profile.removePin': 'Remove PIN',
   'profile.pinTitle': 'PIN for {name}',
