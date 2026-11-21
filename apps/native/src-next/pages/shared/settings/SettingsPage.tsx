@@ -23,7 +23,7 @@ import {ServerStreamingPage} from '../../touch/settings/ServerStreamingPage';
 import {ServerSegmentsPage} from '../../touch/settings/ServerSegmentsPage';
 import {ServerPeoplePage} from '../../touch/settings/ServerPeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
-import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
+import {ServerMetadataPage} from '../../touch/settings/ServerMetadataPage';
 import {ServerHistoryPage} from '../../touch/settings/ServerHistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
 import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
@@ -75,7 +75,6 @@ export function NativeSettingsPage(props: SettingsProps) {
       ? {...action, trailing: <SettingsNotificationCount count={defaultI18n.number(unreadNotifications)}/>} : action)}/>}
   </>;
   const custom = signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
-    : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
@@ -96,6 +95,8 @@ export function NativeSettingsPage(props: SettingsProps) {
     : integrationsPage ? <ServerIntegrationsPage ports={ports} runtime={runtime} compact={compact} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : segmentsPage ? <ServerSegmentsPage lifetime={controller.lifetime} ports={ports} runtime={runtime} server={serverHeader} retry={retry} onBackHandlerChange={setSegmentBack}
+      back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : metadataPage ? <ServerMetadataPage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onLibraries={() => choose('libraries')}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : peoplePage ? <ServerPeoplePage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
