@@ -1,9 +1,12 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 import type {ReadingItem} from '../../../../../../packages/client-core/src';
 import type {BrowseCapabilities} from '../../../../../../packages/client-core/src/browse';
 import {readLibrarySummaries, type LibrarySummary} from '../../../../../../packages/client-core/src/library-summary';
-import {authorPredicate, libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../../packages/client-core/src/presentation/library-tabs';
+import {authorPredicate, libraryTabs, readingPeriodicalTabs, readingTabModel, type LibraryTabId, type ReadingPeriodicalTab} from '../../../../../../packages/client-core/src/presentation/library-tabs';
+
+/** A reading library's tab: the authored and browse tabs, or its Magazines or Newspapers. */
+export type ReadingTabId = LibraryTabId | ReadingPeriodicalTab['id'];
 import type {BrowseLabels} from '../../../kit/browse';
 import {useTheme} from '../../../kit/theme';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
@@ -44,8 +47,8 @@ export function useBooksLibrary(props: BooksPageProps) {
   const scopedContext = useMemo<NativeShellBootstrapContext>(() => ({...context, current: () => opening?.isCurrent() === true}), [context, opening]);
   const kind = library?.kind === 'comic' ? 'comic' : 'book';
   const name = library?.name ?? title, authoredTabs = useMemo(() => libraryTabs(kind), [kind]);
-  const [tab, setTab] = useState<LibraryTabId>('discover'), fellBack = useRef<NativeReadingPageOpening | undefined>(undefined);
-  const [viewLife, setViewLife] = useState<NativeReadingOfferLifetime & Readonly<{opening: NativeReadingPageOpening; tab: LibraryTabId}>>();
+  const [tab, setTab] = useState<ReadingTabId>('discover'), fellBack = useRef<NativeReadingPageOpening | undefined>(undefined);
+  const [viewLife, setViewLife] = useState<NativeReadingOfferLifetime & Readonly<{opening: NativeReadingPageOpening; tab: ReadingTabId}>>();
   useLayoutEffect(() => {
     if (!opening) return;
     const life = new AbortController();
@@ -87,11 +90,19 @@ export function useBooksLibrary(props: BooksPageProps) {
   const pivotTabs = useMemo(() => capability?.phase === 'ready' && capability.data
     ? readingTabModel(capability.data)?.filter(value => value.id !== 'discover') : undefined, [capability]);
   const gridTab = useMemo(() => pivotTabs?.find(value => value.id === 'browse'), [pivotTabs]);
-  const tabs = useMemo(() => gridTab && pivotTabs ? [authoredTabs[0]!, ...pivotTabs] : authoredTabs, [authoredTabs, gridTab, pivotTabs]);
+  // tablet-read 1: Discover, Books, Magazines, Newspapers, Authors, Series. The periodical tabs follow Books.
+  const periodicalTabs = useMemo(() => capability?.phase === 'ready' ? readingPeriodicalTabs(capability.data) : [], [capability]);
+  const tabs = useMemo((): readonly Readonly<{id: ReadingTabId; label: MessageId}>[] => {
+    const base: readonly Readonly<{id: ReadingTabId; label: MessageId}>[] = gridTab && pivotTabs ? [authoredTabs[0]!, ...pivotTabs] : authoredTabs;
+    if (!periodicalTabs.length) return base;
+    const books = base.findIndex(value => value.id === 'browse');
+    return books < 0 ? [...base, ...periodicalTabs] : [...base.slice(0, books + 1), ...periodicalTabs, ...base.slice(books + 1)];
+  }, [authoredTabs, gridTab, pivotTabs, periodicalTabs]);
+  const periodicalTab = periodicalTabs.find(value => value.id === tab);
   const gridSelected = pivotTabs?.find(value => value.id === tab);
   /** An author's card opens the Books grid filtered to them, as their name on a book does. */
   const [authorOpen, setAuthorOpen] = useState<Readonly<{opening: NativeReadingPageOpening; personId: string}>>();
-  const selectTab = (id: LibraryTabId) => {setAuthorOpen(undefined); setTab(id);};
+  const selectTab = (id: ReadingTabId) => {setAuthorOpen(undefined); setTab(id);};
   useEffect(() => {
     if (!opening) return;
     const ab = new AbortController();
@@ -146,14 +157,16 @@ export function useBooksLibrary(props: BooksPageProps) {
     if (opening.isCurrent()) {setAuthorOpen({opening, personId}); setTab('browse');}
   } : undefined;
   const currentAuthor = authorOpen?.opening === opening ? authorOpen?.personId : undefined;
-  const grid = !theme.isTV && opening && gridTab && library ? {
+  const periodical = !theme.isTV && opening && periodicalTab ? {context: scopedContext, runtime, libraryId,
+    kind: periodicalTab.publicationType, opening} : undefined;
+  const grid = !theme.isTV && opening && gridTab && library && !periodicalTab ? {
     key: `${(gridSelected ?? gridTab).id}:${currentAuthor ?? ''}`,
     context: scopedContext, opening, runtime, library, tab: gridSelected ?? gridTab, labels: props.labels,
     owner: context.session()?.viewer.role === 'owner', onCount: projectGridCount,
     onDownload: offerDownload, onAuthor: selectAuthor,
     startQuery: (gridSelected ?? gridTab).id === 'browse' && currentAuthor ? [authorPredicate(currentAuthor)] : undefined,
   } : undefined;
-  return {name, tab, tabs, selectTab, openLibrary, readingLibraries, grid,
+  return {name, tab, tabs, selectTab, openLibrary, readingLibraries, grid, periodical,
     counts: gridCount && gridCount.libraryId === libraryId && gridCount.opening === opening ? [gridCount.text] : counts,
     waiting: !opening || tab !== 'discover' && !theme.isTV && !capability, showSelection: !gridTab || tab === 'discover',
     discoveryState, booksState, readingActions, booksWindow, openDiscover, openBooks, readingOffer,

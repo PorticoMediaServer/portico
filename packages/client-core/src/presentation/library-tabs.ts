@@ -104,6 +104,16 @@ export function readingTabModel(capabilities: BrowseCapabilities | undefined): r
   return tabs.length > 1 ? tabs : undefined;
 }
 
+/** A reading library's Magazines and Newspapers tabs (tablet-read 1: Discover, Books, Magazines, Newspapers, Authors, Series):
+ * the periodical pivots its capabilities publish. They aren't browse grids (`browsable: false`); each lists the library's
+ * publications of that kind from the periodicals source, and a publication opens its archive. */
+export type ReadingPeriodicalTab = Readonly<{id: 'magazines' | 'newspapers'; label: 'library.tab.magazines' | 'library.tab.newspapers'; publicationType: 'magazine' | 'newspaper'}>;
+export function readingPeriodicalTabs(capabilities: BrowseCapabilities | undefined): readonly ReadingPeriodicalTab[] {
+  if (!capabilities || capabilities.library.kind !== 'book') return [];
+  return capabilities.pivots.flatMap(pivot => !pivot.browsable && pivot.facetSource?.field === 'publicationType' && (pivot.id === 'magazines' || pivot.id === 'newspapers')
+    ? [pivot.id === 'magazines' ? {id: 'magazines', label: 'library.tab.magazines', publicationType: 'magazine'} as const : {id: 'newspapers', label: 'library.tab.newspapers', publicationType: 'newspaper'} as const] : []);
+}
+
 /** The tab an address names, or Discover. */
 export function libraryTab(kind: string, id: string | undefined, options?: Parameters<typeof libraryTabs>[1]): LibraryTab {
   const tabs = libraryTabs(kind, options);
