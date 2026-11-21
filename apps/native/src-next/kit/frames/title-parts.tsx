@@ -63,7 +63,8 @@ export function ChoiceChips({items}: Readonly<{items: readonly ChoiceChip[]}>) {
   </View>;
 }
 
-/** A value in the About table; one with `onPress` opens its page (a genre, a person), underlined as drawn. */
+/** A value in the About table; one with `onPress` opens its page (a genre, a person): accent words on a phone
+ * (phone-detail `.kv dd .lk`), underlined elsewhere (desktop-detail `a.l`). */
 export type AboutValue = Readonly<{text: string; onPress?: () => void}>;
 /** The About facts (desktop-detail f3, f8; phone-detail d1 frame 2; detail-tv-4; desktop-listen): a label and a value per
  * row. On a phone the table sits on a raised card with hairlines, as drawn. */
@@ -75,7 +76,7 @@ export function AboutTable({rows}: Readonly<{rows: readonly Readonly<{label: str
       <Text style={[text, {color: theme.colors.textTertiary, width: phone ? sizes.aboutPhone.label : sizes.aboutLabel[frame.form]}]}>{row.label}</Text>
       <Text style={[text, {flex: 1, color: theme.colors.text}]}>{row.values.map((value, position) => <Text key={position}>{position > 0 ? ', ' : ''}
         {/* TV: plain words, as detail-tv-4 draws them; a link inside a line of text cannot take the remote's focus. */}
-        {value.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={value.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .4), color: phone ? theme.colors.accentStrong : theme.colors.text}}>{value.text}</Text> : value.text}</Text>)}</Text>
+        {value.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={value.onPress} style={phone ? {color: theme.colors.accentStrong} : {textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .4), color: theme.colors.text}}>{value.text}</Text> : value.text}</Text>)}</Text>
     </View>)}
   </View>;
 }
