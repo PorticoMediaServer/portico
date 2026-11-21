@@ -34,7 +34,8 @@ test('A23/A24 (owner, 18 Nov): at phone width the toolbar is one row with no cou
   assert.match(toolbar, /<div className=\{styles\.toolbarMain\}>\{filters\}\{sort\}\n\s*<ChipRail>/);
   assert.doesNotMatch(toolbar, /phoneCount/);
   assert.match(toolbar, /\{filters\}\{sort\}\{platform === 'tv' && onJump/, 'wide and TV: Sort sits directly after Filters (owner, 18 Nov)');
-  assert.match(toolbar, /\{\(actions != null && actions !== false \|\| quick\.length > 0\) && <span className=\{styles\.separator\} aria-hidden="true"\/>\}/);
+  // ... and only when something stands before it (See all has no Filters or sort: no divider starts its row).
+  assert.match(toolbar, /\{\(filters \|\| sort \|\| platform === 'tv' && onJump\) && \(actions != null && actions !== false \|\| quick\.length > 0\) && <span className=\{styles\.separator\} aria-hidden="true"\/>\}/);
 });
 
 test('SMALL-FAULTS 29: the chip rail never draws a partly visible chip: it fades out from the end of the last whole chip', () => {
