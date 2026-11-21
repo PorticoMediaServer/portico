@@ -27,7 +27,7 @@ export function NativeSettingControl({row, value, disabled = false, first = true
         if (option && !option.locked) onChange(option.value);
       }}/>}/>;
   }
-  if (row.control.type === 'number') return <SettingNumber row={row} value={value} disabled={disabled} t={t} onChange={onChange} onValidity={onValidity}/>;
+  if (row.control.type === 'number') return <SettingNumber row={row} value={value} disabled={disabled} insetField={insetField} t={t} onChange={onChange} onValidity={onValidity}/>;
   if (row.control.type === 'text') return <TextField testID={row.id} label={label} description={description}
     containerStyle={insetField ? {paddingHorizontal: theme.space.md, paddingVertical: theme.space.sm} : undefined} value={typeof value === 'string' ? value : ''} editable={!disabled}
     autoCapitalize="none" autoCorrect={false} secureTextEntry={row.control.secret} placeholder={row.control.placeholder ? t(row.control.placeholder) : undefined} onChangeText={onChange}/>;
@@ -60,13 +60,14 @@ function SettingFolder({row, value, disabled, first, t, api, onChange}: Props) {
   </>;
 }
 
-function SettingNumber({row, value, disabled, t, onChange, onValidity}: Props) {
+function SettingNumber({row, value, disabled, insetField, t, onChange, onValidity}: Props) {
   const theme = useTheme(), label = t(row.label), unit = row.control.unit ? t(row.control.unit) : undefined;
   const [text, setText] = useState(value === null ? '' : String(value)), [invalid, setInvalid] = useState(false);
   const validity = useRef(onValidity); validity.current = onValidity;
   useEffect(() => {setText(value === null ? '' : String(value)); setInvalid(false); validity.current?.(true);}, [value, disabled]);
+  // In a card, the field keeps the card's padding, as a text field does.
   return <TextField testID={row.id} label={label} description={row.help ? t(row.help) : undefined} value={text} editable={!disabled} keyboardType="numeric"
-    accessibilityLabel={unit ? `${label}, ${unit}` : label}
+    containerStyle={insetField ? {paddingHorizontal: theme.space.md, paddingVertical: theme.space.sm} : undefined} accessibilityLabel={unit ? `${label}, ${unit}` : label}
     trailing={unit && <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{unit}</Text>}
     placeholder={row.control.placeholder ? t(row.control.placeholder) : undefined} error={invalid ? t('error.invalidInput') : undefined}
     onChangeText={typed => {

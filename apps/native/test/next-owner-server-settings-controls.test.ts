@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
-import {bindingModule, formsFixture, maintenance, nodes, content, specification, t, i18n, theme} from './helpers/owner-server-settings.mjs';
+import {bindingModule, formsFixture, maintenance, nodes, content, specification, storagePage, t, i18n, theme} from './helpers/owner-server-settings.mjs';
 import {settingNumber, settingChoice, settingEnabled, settingsSummary, missingRemovalTime} from '../src-next/screens/settings-live/server/settings-values.ts';
 
 const bindings = await bindingModule(), {settingsRowIndex} = specification;
@@ -46,11 +46,9 @@ test('download rows and confirmations always lead with account username', () => 
 
 test('backup chosen days, whole hour and keep count form one draft for the rebuilt backup source', async () => {
   const host = hooks(), settings = {days: [0,1,2,3,4,5,6], hour: 3, keep: 7, folder: '', includeArtwork: false}, saved: unknown[] = [];
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupSchedule.tsx', import.meta.url), {
-    react: host.react, 'react-native': {View: 'View'}, '../../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
-    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../kit/controls': {Button: 'Button'}, '../../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
-  });
-  const render = () => host.render(() => module.NativeBackupSchedule({settings, saving: false, t, onSave: (value: unknown) => saved.push(value)}));
+  const module = await storagePage(host.react, {'../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification}, {'../../../kit/controls': {Button: 'Button'}, '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'}});
+  const render = () => host.render(() => module.BackupSchedule({settings, saving: false, t, onSave: (value: unknown) => saved.push(value)}));
   const field = (id: string) => nodes(render()).find((node: any) => node.props.row?.id === id)!;
   field('storage.backupSchedule').props.onCustom();
   const days = field('storage.backupDays');assert.equal(days.props.value.sunday, 'runs');
