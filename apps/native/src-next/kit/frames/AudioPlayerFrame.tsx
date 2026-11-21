@@ -206,13 +206,16 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), window = useWindowDimensions(), form = frame.form === 'medium' ? 'medium' as const : 'expanded' as const;
   // An upright tablet (tablet-play 10) keeps the device with Lyrics and Up next in a pill row under the transport; a tablet on its side and the web put it at the top right.
   const upright = window.height > window.width, book = chapter !== undefined, edge = wideSpec.panelInset[form], panelWidth = panel !== undefined ? spec.upNextWidth[form] : 0;
+  // On its side with the panel drawn, Up next and Lyrics are the panel's own tabs (tablet-play 9): no pill row repeats them, and
+  // its room goes to the cover.
+  const tabsInPanel = !upright && panel !== undefined;
   const top = <View style={{height: spec.topBar[form], flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingHorizontal: edge}}>
     <Glyph item={close} loading={false} disc/><Context context={context} source={source} loading={loading} centred={false}/>
     {device && (!upright || book) && <Button ref={device.anchorRef} testID={device.testID} variant="glass" size="small" icon={device.icon} disabled={device.disabled || loading} onPress={device.onPress}>{device.label}</Button>}
     {more && <Glyph item={more} loading={loading} disc/>}
   </View>;
   // The column is as wide as the cover, which is the spec's size or the largest that leaves the column's fixed rows their room.
-  const rows = spec.titleSlot[form] + wideSpec.scrubberGap[form] + spec.scrubber[form] + wideSpec.transportGap[form] + icons.primary[form] + wideSpec.belowGap[form] + theme.targets.touch;
+  const rows = spec.titleSlot[form] + wideSpec.scrubberGap[form] + spec.scrubber[form] + wideSpec.transportGap[form] + icons.primary[form] + (tabsInPanel && !book ? 0 : wideSpec.belowGap[form] + theme.targets.touch);
   const room = window.height - insets.top - insets.bottom - spec.topBar[form] - wideSpec.titleGap[form] - rows - theme.space.lg;
   const artRoom = Math.max(wideSpec.bookArt[form], room);
   const column = Math.max(0, Math.min(frame.width - panelWidth - 3 * edge, book ? wideSpec.bookColumn[form] : Math.min(spec.artwork[form], artRoom)));
@@ -229,7 +232,7 @@ function WideAudio({close, more, context, source, device, notice, artwork, cover
   const marks = !book && !loading && (favourite || titleMore) && <View style={{flexDirection: 'row', alignSelf: 'flex-end'}}>{favourite && <Glyph item={favourite} loading={loading} size={icons.inlineIcon[form]}/>}{titleMore && <Glyph item={titleMore} loading={loading} size={icons.inlineIcon[form]}/>}</View>;
   const head = book ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: wideSpec.bookArtGap}}><Art artwork={artwork} cover={cover} icon={icon} title={title} size={wideSpec.bookArt[form]} loading={loading}/>{words('pageTitle')}</View>
     : <><Art artwork={artwork} cover={cover} icon={icon} title={title} size={column} loading={loading}/><View style={{marginTop: wideSpec.titleGap[form], flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm}}>{words('pageTitle')}{marks}</View></>;
-  const actions = [lyrics, upright ? device : undefined, queue].filter((item): item is AudioControl => item !== undefined);
+  const actions = (tabsInPanel ? [] : [lyrics, upright ? device : undefined, queue]).filter((item): item is AudioControl => item !== undefined);
   const pills = !book && actions.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: theme.space.controlGap}}>
     {actions.map(item => <Button key={item.focusId ?? item.label} ref={item.anchorRef} focusId={item.focusId} testID={item.testID} variant="glass" size="small" icon={item.icon} disabled={item.disabled || loading} onPress={item.onPress}
       style={{borderRadius: theme.targets.touch / 2}}>{item.label}</Button>)}</View>;
