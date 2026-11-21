@@ -29,6 +29,7 @@ class FakeSavedService {
   };
   mutate = (intent: any): Promise<void> => {
     this.intent = intent;
+    if (intent.action === 'create') {FakeSavedService.mutations.push(`create:${intent.name}`); this.snapshot = {...this.snapshot, lastReceipt: {playlistId: 'new-1'}}; return Promise.resolve();}
     const attempt = FakeSavedService.mutations.length;
     FakeSavedService.mutations.push(intent.itemId);
     if (attempt === FakeSavedService.syncThrowAt) throw new Error('not queued');
@@ -317,7 +318,8 @@ test('the real picker controller closes without a choice and writes nothing', as
   const {MusicPlaylistPickerController} = await screenModule(new URL('../src-next/screens/destinations/music/MusicPlaylistPicker.tsx', import.meta.url), {
     react: {default: {createElement() {}, useSyncExternalStore() {}}, useSyncExternalStore: () => ({})},
     '../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../kit/overlays': {Menu: 'Menu'},
+    '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
     '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}})},
     '../../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request-id'})},
     './playlist-port': {MusicPlaylistPort},
@@ -333,4 +335,29 @@ test('the real picker controller closes without a choice and writes nothing', as
   assert.equal(controller.getSnapshot().open, false, 'Cancel closes the actual picker');
   assert.equal(FakeSavedService.mutations.length, 0, 'closing without choosing performs no mutation');
   assert.deepEqual(FakeSavedService.instances.flatMap((writer: any) => writer.committed), [], 'no playlist write was committed');
+});
+
+test('New playlist makes the playlist and adds the song to it in one step', async () => {
+  reset();
+  const {MusicPlaylistPort} = await screenModule(new URL('../src-next/screens/destinations/music/playlist-port.ts', import.meta.url), {
+    react: {default: {}},
+    '../../../../../../packages/client-core/src/saved': {default: {}, SavedService: FakeSavedService},
+  });
+  const {MusicPlaylistPickerController} = await screenModule(new URL('../src-next/screens/destinations/music/MusicPlaylistPicker.tsx', import.meta.url), {
+    react: {default: {createElement() {}, useSyncExternalStore() {}}, useSyncExternalStore: () => ({})},
+    '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
+    '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}})},
+    '../../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request-id'})},
+    './playlist-port': {MusicPlaylistPort},
+  });
+  const controller = new MusicPlaylistPickerController({api: {request: async () => ({})}, current: () => true});
+  const added: unknown[] = [];
+  controller.open('song-9', {signal: new AbortController().signal, isCurrent: () => true}, (playlist: unknown) => added.push(playlist));
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await controller.createAndAdd('Late night');
+  assert.deepEqual(FakeSavedService.mutations, ['create:Late night', 'song-9'], 'the playlist is made, then the song is added to it');
+  assert.deepEqual(added, [{id: 'new-1', name: 'Late night'}]);
+  assert.equal(controller.getSnapshot().open, false, 'the picker closes once the song is in');
 });
