@@ -33,6 +33,8 @@ export function ShortcutTiles({actions, testID}: {testID?: string; actions: read
         {action.trailing && <View pointerEvents="none" style={{position: 'absolute', top: 8, right: 10, minWidth: 18, height: 18,
           paddingHorizontal: 5, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.accentStrong}}>{action.trailing}</View>}
       </Focusable>)}
+      {/* A short row keeps the tiles a quarter wide (Forget remembered profile, a fifth, stays one tile, not a banner). */}
+      {Array.from({length: 4 - row.length}, (_, index) => <View key={`slot-${index}`} style={{flex: 1}}/>)}
     </View>)}</View>;
 }
 
