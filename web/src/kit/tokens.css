@@ -1583,6 +1583,11 @@
   --spec-episode-progress-height-phone: 4px;
   --spec-episode-progress-height-tablet: 4px;
   --spec-episode-progress-height-tv: 6px;
+  --spec-episode-watched-t-v-disc: 38px;
+  --spec-episode-watched-t-v-inset: 14px;
+  --spec-episode-watched-t-v-glyph: 22px;
+  --spec-episode-watched-t-v-ink-alpha: 0.72;
+  --spec-episode-watched-t-v-still-dim: 0.8px;
   --spec-generated-art-height: 236px;
   --spec-generated-art-radius: 14px;
   --spec-generated-art-surface: var(--color-raised-soft);

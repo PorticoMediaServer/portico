@@ -8,7 +8,8 @@ import {Artwork, MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, mis
 import {Focusable} from '../controls/Focusable';
 import {SelectionCircle} from '../selection/index';
 import {useTheme} from '../theme';
-import {ArtFrame, Badge, Caption, CardAction, CardFrame, Parts, Progress, Scrim, titleStyle, type CardProps} from './primitives';
+import {alpha, ArtFrame, Badge, Caption, CardAction, CardFrame, Parts, Progress, Scrim, titleStyle, type CardProps} from './primitives';
+import {Icon} from '../Icon';
 
 type Media = Readonly<{
   artwork?: ArtworkSource | null;
@@ -201,13 +202,18 @@ export function EpisodeTile(props: EpisodeTileProps) {
   const label = props.aired && !phoneRow ? [...props.label, {id: 'aired', text: props.aired, role: 'context' as const}] : props.label;
   const meta = (weight: 600 | 700) => {const {fontFamily, fontWeight} = titleStyle(t, 1, weight); return [phoneRow ? t.type.rowHelp : t.type.meta, {fontFamily, fontWeight}];};
   const pictured = !row || wide, playingBars = (color: string) => [.55, 1, .38].map((factor, index) => <View key={index} style={{width: 3, height: 12 * factor, borderRadius: 1.5, backgroundColor: color}}/>);
-  const chip = !pictured ? undefined : props.status && !row ? <Badge kind="new">{props.status}</Badge>
+  // TV draws Watched as the check alone in a disc over a dimmed still (tv-detail 4); other forms keep the labelled chip.
+  const watchedTV = t.isTV && !row && props.watched && !props.playing && !props.status, disc = t.spec.episode.watchedTV;
+  const chip = !pictured || watchedTV ? undefined : props.status && !row ? <Badge kind="new">{props.status}</Badge>
     : props.playing ? <Badge kind="playing">{defaultI18n.t('next.dock.playing')}</Badge> : props.watched ? <Badge kind="watched">{defaultI18n.t('next.cards.watched')}</Badge> : undefined;
   const art = (focused: boolean, hovered: boolean, holding: boolean) => <ArtFrame width={artWidth} height={height} radius={row ? 8 : undefined} focused={focused} hovered={hovered} holding={holding} hoverScale={t.spec.card.hover.episodeScale} selected={props.selection?.selected || props.open}>
     <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="still" backdropFallback={props.backdropFallback} source={props.artwork} fallback={fallbackFor(props, 'still', artWidth, height)} width={artWidth} height={height} />
+    {watchedTV && <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(t.colors.ink, disc.stillDim)}]}/>}
     {/* The length's corner is the top right; on a row's small picture a status chip takes the top, so the length sits at the bottom right (tablet-play 2a). */}
     {props.length && pictured && <View style={[{position: 'absolute', right: t.spec.episode.duration.inset[t.column]}, row && chip
       ? {bottom: t.spec.episode.duration.inset[t.column] + t.spec.card.progress.height[t.column]} : {top: t.spec.episode.duration.inset[t.column]}]}><Badge>{props.length}</Badge></View>}
+    {watchedTV && <View accessibilityLabel={defaultI18n.t('next.cards.watched')} style={{position: 'absolute', left: disc.inset, top: disc.inset, width: disc.disc, height: disc.disc, borderRadius: disc.disc / 2,
+      alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(t.colors.ink, disc.inkAlpha)}}><Icon name="i-check" size={disc.glyph} color={t.colors.text}/></View>}
     {chip && <View style={{position: 'absolute', left: t.isTV ? 16 : 8, top: t.isTV ? 14 : 8}}>{chip}</View>}
     <Marks watched={props.watched && !pictured} progress={props.progress} />
     {/* A phone's row: the episode that is playing carries the playing mark on its picture (phone-player 4). */}
