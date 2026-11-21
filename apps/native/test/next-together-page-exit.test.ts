@@ -2,7 +2,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
+import {dirname, relative} from 'node:path';
 import {screenModule} from './helpers/screen-harness.mjs';
+import * as timer from '../../../packages/client-core/src/timer.ts';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {NativeTogetherController} from '../src-next/screens/settings-live/together-controller.ts';
 import {parseRoom, roomEntry} from '../../../packages/client-core/src/room-protocol.ts';
@@ -13,7 +15,7 @@ import {NativeShellNavigation} from '../src-next/shell/routes';
 import {nativeTogetherPages} from '../src-next/screens/settings-live/together-page';
 import {memberNames} from '../src-next/screens/settings-live/together-presentation';
 const react = {...React, default: React};
-const module = await screenModule(new URL('../src-next/screens/settings-live/TogetherScreen.tsx', import.meta.url), {
+const screenModules: Record<string, unknown> = {
   react, 'react-native': {ScrollView: 'ScrollView', Share: {}, Text: 'Text', View: 'View'},
   'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
@@ -27,7 +29,21 @@ const module = await screenModule(new URL('../src-next/screens/settings-live/Tog
   './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenEntry: () => {}}, './together-presentation': {memberNames, nativeTogetherLobbyFaces: () => []},
   './group-port': {groupPort: () => undefined},
   './TogetherTVRoom': {NativeTogetherTVRoom: 'TVRoom'},
-});
+};
+// The lobby and room logic live in pages/shared/together; each is loaded for real with the same stubs, re-pointed from there.
+const screenFile = new URL('../src-next/screens/settings-live/TogetherScreen.tsx', import.meta.url);
+const shared = async (name: string) => {
+  const file = new URL(`../src-next/pages/shared/together/${name}.ts`, import.meta.url);
+  const rebased = Object.fromEntries(Object.entries(screenModules).map(([key, value]) => {
+    if (!key.startsWith('.')) return [key, value];
+    const path = relative(dirname(file.pathname), new URL(key, screenFile).pathname);
+    return [path.startsWith('.') ? path : `./${path}`, value];
+  }));
+  return screenModule(file, {...rebased, '../../../../../../packages/client-core/src/timer': timer});
+};
+const module = await screenModule(screenFile, {...screenModules,
+  '../../pages/shared/together/useTogetherLobby': await shared('useTogetherLobby'),
+  '../../pages/shared/together/useTogetherRoom': await shared('useTogetherRoom')});
 const find = (node: any, id: string): any => {
   if (!node) return undefined;
   if (Array.isArray(node)) return node.map(value => find(value, id)).find(Boolean);

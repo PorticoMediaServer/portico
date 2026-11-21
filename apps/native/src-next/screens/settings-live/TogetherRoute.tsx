@@ -6,6 +6,8 @@ import {NativeTogetherController} from './together-controller';
 import {NativeTogetherMedia} from './together-media';
 import {nativeTogetherSession} from './together-session';
 import {NativeTogetherScreen} from './TogetherScreen';
+import {TogetherPage} from '../../pages/touch/together/TogetherPage';
+import {Platform} from 'react-native';
 import {nativeTogetherPages} from './together-page';
 
 export function createNativeTogetherRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
@@ -18,7 +20,8 @@ export function createNativeTogetherRenderer(context: NativeShellBootstrapContex
       lifetime.assert();
       if (route.kind !== 'together') throw new Error('native_together_route_mismatch');
       const page=pages.capture(route);if(!page)return null;
-      return <NativeTogetherScreen key={page.key} page={page} ports={{context}} controller={controller} media={media} runtime={runtime} onBack={page.back} joinCode={route.joinCode}/>;
+      const Page = Platform.isTV ? NativeTogetherScreen : TogetherPage;
+      return <Page key={page.key} page={page} ports={{context}} controller={controller} media={media} runtime={runtime} onBack={page.back} joinCode={route.joinCode}/>;
     },
     dispose: () => {pages.dispose();controller.dispose(); media.dispose(); lifetime.dispose();},
   };

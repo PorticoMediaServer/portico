@@ -1,12 +1,9 @@
-import {readCatalogueItemResponse} from '../../../../../packages/client-core/src/query/catalogue-reads';
 import React, {forwardRef, useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Share, Text, View, type TextInput} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {RoomEnterLifetime} from '../../../../../packages/client-core/src/room-session';
-import type {MediaItem} from '../../../../../packages/client-core/src';
-import {parseMediaItem} from '../../../../../packages/client-core/src/media-item';
 import {roomEntry, roomPositionMs, type GroupControl} from '../../../../../packages/client-core/src/room-protocol';
 import {Button, Focusable, Segmented, TextField} from '../../kit/controls';
 import {FocusRegion} from '../../kit/focus';
@@ -28,93 +25,14 @@ import {groupPort} from './group-port';
 import type {NativeTogetherMedia} from './together-media';
 import type {NativeTogetherPage} from './together-page';
 import {TopBar} from '../../kit/layout/TopBar';
+import {useTogetherLobby, useTogetherLobbyArt, type TogetherProps} from '../../pages/shared/together/useTogetherLobby';
+import {useTogetherRoom, type TogetherRoomProps} from '../../pages/shared/together/useTogetherRoom';
 
-export function NativeTogetherScreen({controller, media, ports, runtime, page, onBack, joinCode}: {page: NativeTogetherPage; controller: NativeTogetherController; media: NativeTogetherMedia; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime; onBack?: () => void;
-  /** N2-1: a Watch Together link's code: Join with a code opens with it filled in, once for this page. */
-  joinCode?: string}) {
-  const theme = useTheme(), t = runtime.text.t, phone = theme.platform === 'phone';
-  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
-  const region = ids.surface('together');
-  const group = state.group;
-  type Form = {kind: 'start' | 'join'; retired: boolean};
-  const [form, setForm] = useState<Form>(), [name, setName] = useState(''), [code, setCode] = useState('');
-  const [typing, setTyping] = useState<'name' | 'code' | 'who'>(), [typingRevision, setTypingRevision] = useState(0), [typingIntent, setTypingIntent] = useState<'enter' | 'restore'>('enter');
-  const firstField = useRef<TextInput>(null);
-  const firstTVField = useRef<View>(null);
-  const profile = ports.context.account.profiles.find(value => value.id === controller.lifetime.authority.profileId);
-  const faces = nativeTogetherLobbyFaces(state.group, runtime.getSnapshot().profile);
-  const [who, setWho] = useState(profile?.name ?? ''), [authority, setAuthority] = useState<GroupControl>('host');
-  const startRef = useRef<View>(null), joinRef = useRef<View>(null);
-  const sheet = form?.kind;
-  const view = useMemo(() => ({active: true, binding: {controller, page}, form: undefined as Form | undefined, pending: undefined as {abort: AbortController; form?: Form} | undefined}), [controller, page]);
-  const viewCurrent = useCallback((expected: Form | undefined) => {
-    const local = () => view.active && view.form === expected && !expected?.retired && !page.signal.aborted && !controller.lifetime.signal.aborted;
-    return local() && page.current() && local() && controller.lifetime.current() && local();
-  }, [controller, page, view]);
-  const roomCurrent = useCallback(() => viewCurrent(view.form), [viewCurrent, view]);
-  // SUP-006: only the server's wrong-code refusal for this join belongs on the field.
-  const codeFailure = !theme.isTV && sheet === 'join' && state.joinFailure?.code === 'code_invalid' && !!state.error;
-  const closeForm = () => {
-    if (!form || !viewCurrent(form)) return;
-    form.retired = true; view.form = undefined;
-    setForm(undefined); setTyping(undefined); controller.clearJoinFailure();
-    if (view.pending?.form === form) {const original = view.pending; view.pending = undefined; original.abort.abort();}
-  };
-  const enter = async (work: (lifetime: RoomEnterLifetime) => Promise<boolean>, expected: Form | undefined) => {
-    if (!viewCurrent(expected) || view.pending) return false;
-    const flight = {abort: new AbortController(), form: expected}; view.pending = flight;
-    const current = () => view.pending === flight && !flight.abort.signal.aborted && viewCurrent(expected)
-      && view.pending === flight && !flight.abort.signal.aborted;
-    const stop = () => {if (!current()) flight.abort.abort();};
-    const offNavigation = ports.context.navigation.subscribe(stop), offAuthority = ports.context.subscribeAuthority(stop);
-    const retire = () => flight.abort.abort(); page.signal.addEventListener('abort', retire, {once: true});
-    try {if (!current()) return false; const accepted = await work({signal: flight.abort.signal, isCurrent: current}); return current() && accepted;}
-    finally {page.signal.removeEventListener('abort', retire); offNavigation(); offAuthority(); if (view.pending === flight) view.pending = undefined;}
-  };
-  useLayoutEffect(() => {view.active = true; return () => {
-    view.active = false; if (view.form) view.form.retired = true;
-    const original = view.pending; view.pending = undefined; original?.abort.abort();
-  };}, [view]);
-  const run = (work: () => Promise<unknown>) => {if (!viewCurrent(form)) return; void work().catch(error => {if (viewCurrent(form)) runtime.reportError(error);});};
-  // The refresh belongs to this page/controller opening, not to the form: it must not run again
-  // when a field changes or a new handler identity is created. `view` is the private binding for
-  // that opening and its `form` field is the exact form lifetime the opening holds, so the guard
-  // reads the committed form without adding either the form state or a render ref to the trigger.
-  useEffect(() => {
-    const expected = view.form;
-    if (!viewCurrent(expected)) return;
-    void controller.refresh().catch(error => {if (viewCurrent(expected)) runtime.reportError(error);});
-  }, [controller, runtime, view, viewCurrent]);
-  const room = group && !['idle', 'left', 'joining'].includes(state.phase);
-  // N2-1: a link's code is filled into Join with a code once; the viewer still confirms their name and joins.
-  const linkCode = useRef(joinCode);
-  useEffect(() => {
-    const value = linkCode.current;
-    if (!value || room || view.form || view.pending || !viewCurrent(undefined)) return;
-    linkCode.current = undefined;
-    const next: Form = {kind: 'join', retired: false}; view.form = next; setForm(next); setCode(value.toUpperCase().slice(0, 12));
-    if (theme.isTV) {setTyping('code'); setTypingIntent('enter'); setTypingRevision(revision => revision + 1);}
-  }, [room, view, viewCurrent, theme.isTV]);
-  const back = () => {
-    if (!viewCurrent(form)) return;
-    if (form) {closeForm(); return;}
-    const original = view.pending; view.pending = undefined; original?.abort.abort(); if (viewCurrent(form)) onBack?.();
-  };
-  if (room && state.phase === 'ended') return <TogetherPage title={t('entry.group.together')} onBack={onBack ? back : undefined}><TogetherEndedScreen controller={controller} reason={group.ended?.reason} text={runtime.text} current={() => viewCurrent(form)}/></TogetherPage>;
-  if (room) return <TogetherPage title={group.name} onBack={onBack ? back : undefined}>{theme.isTV ? <NativeTogetherTVRoom key={`${group.id}/${group.you.memberId}`} controller={controller} media={media} state={state} group={group} ports={ports} runtime={runtime} isCurrent={roomCurrent}/> : <TogetherRoom controller={controller} ports={ports} runtime={runtime} isCurrent={roomCurrent}/>}</TogetherPage>;
-  const busy = state.busy || state.phase === 'joining';
-  const fieldsRegion = ids.surface('together.form'), keyboard = ids.surface('together.keyboard');
-  const type = (field: 'name' | 'code' | 'who') => {if (viewCurrent(form) && theme.isTV) {setTypingIntent(typing === field ? 'restore' : 'enter'); setTyping(field); setTypingRevision(value => value + 1);}};
-  const openForm = (kind: Form['kind']) => {
-    if (!viewCurrent(undefined) || view.pending) return;
-    const defaultName = kind === 'start' && !name.trim() ? t('web.together.defaultName', {name: runtime.getSnapshot().profile.name}) : undefined;
-    if (!viewCurrent(undefined)) return;
-    const next: Form = {kind, retired: false}; view.form = next; setForm(next);
-    if (defaultName !== undefined) setName(defaultName);
-    setTyping(theme.isTV && kind === 'join' ? 'code' : undefined);
-    if (theme.isTV && kind === 'join') {setTypingIntent('enter'); setTypingRevision(value => value + 1);}
-  };
+export function NativeTogetherScreen(props: TogetherProps) {
+  const {controller, media, ports, runtime, onBack} = props, theme = useTheme(), t = runtime.text.t;
+  const {phone, state, ids, region, group, form, name, setName, code, setCode, typing, setTyping, typingRevision, typingIntent, firstField, firstTVField, profile, faces, who, setWho, authority, setAuthority, startRef, joinRef, sheet, viewCurrent, roomCurrent, codeFailure, closeForm, enter, run, room, back, busy, fieldsRegion, keyboard, type, openForm} = useTogetherLobby(props);
+  if (room && group && state.phase === 'ended') return <TogetherPage title={t('entry.group.together')} onBack={onBack ? back : undefined}><TogetherEndedScreen controller={controller} reason={group.ended?.reason} text={runtime.text} current={() => viewCurrent(form)}/></TogetherPage>;
+  if (room && group) return <TogetherPage title={group.name} onBack={onBack ? back : undefined}>{theme.isTV ? <NativeTogetherTVRoom key={`${group.id}/${group.you.memberId}`} controller={controller} media={media} state={state} group={group} ports={ports} runtime={runtime} isCurrent={roomCurrent}/> : <TogetherRoom controller={controller} ports={ports} runtime={runtime} isCurrent={roomCurrent}/>}</TogetherPage>;
   return <TogetherPage title={t('entry.group.together')} settingsBack onBack={onBack ? back : undefined}><Screen title={phone ? undefined : t('entry.group.together')}>
     <ScrollView contentContainerStyle={{paddingHorizontal: theme.isTV ? 0 : phone ? 16 : 20, paddingTop: phone ? 6 : 0, paddingBottom: 64}}>
       {state.error && <Banner message={state.error} tone="warning"/>}
@@ -209,47 +127,14 @@ const TogetherTVField = forwardRef<View, {focusId: string; testID: string; label
 });
 
 /** One authorized current title, never a demo backdrop or a catalogue scan. */
-function TogetherLobbyArt({itemId, controller, ports, runtime}: {itemId?: string; controller: NativeTogetherController; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime}) {
-  const [item, setItem] = useState<MediaItem>();
-  useEffect(() => {
-    setItem(undefined);
-    if (!itemId) return;
-    const abort = new AbortController();
-    void controller.lifetime.request(signal => readCatalogueItemResponse(ports.context.api, itemId, signal).then(parseMediaItem), abort.signal)
-      .then(value => {if (!abort.signal.aborted && controller.lifetime.current() && value.id === itemId && value.available) setItem(value);}, () => {});
-    return () => abort.abort();
-  }, [itemId, controller, ports]);
-  const source = item && item.id === itemId ? runtime.ambient(item.backdropUrl) : undefined;
+function TogetherLobbyArt(props: {itemId?: string; controller: NativeTogetherController; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime}) {
+  const source = useTogetherLobbyArt(props);
   return source ? <AmbientArt testID="together-lobby-art" source={source} treatment="wash"/> : null;
 }
 
-function TogetherRoom({controller, ports, runtime, isCurrent}: {isCurrent: () => boolean; controller: NativeTogetherController; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime}) {
-  const theme = useTheme(), t = runtime.text.t, phone = theme.platform === 'phone', gradientId = useId().replace(/:/g, '');
-  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), group = state.group!;
-  const playback = useSyncExternalStore(ports.context.playback.subscribe, ports.context.playback.getSnapshot);
-  const [items, setItems] = useState<Readonly<Record<string, MediaItem | null>>>({}), [confirm, setConfirm] = useState<'end' | 'leave'>();
-  const [memberMenu, setMemberMenu] = useState<string>(), [queueMenu, setQueueMenu] = useState<string>();
-  const menuReturn = useRef<View | null>(null), memberRefs = useRef(new Map<string, View>()), queueRefs = useRef(new Map<string, View>());
-  const [clock, setClock] = useState(controller.serverNow);
-  const cancel = useRef<View>(null), endRef = useRef<View>(null), leaveRef = useRef<View>(null);
-  const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]), region = ids.surface('together.room');
-  const currentItemId = roomEntry(group)?.itemId ?? '';
-  const canControl = group.you.mayControl, playing = group.clock.playing;
-  const enter = useScreenEntry(theme.isTV ? {regionId: region, childId: canControl && currentItemId ? 'transport' : 'leave'} : undefined, controller.lifetime.current);
-  const key = JSON.stringify([...new Set([currentItemId, ...group.queue.filter(value => value.available).map(value => value.itemId)].filter((id): id is string => !!id))]);
-  useEffect(() => {
-    let active = true;
-    for (const id of JSON.parse(key) as string[]) void controller.lifetime.request(signal => readCatalogueItemResponse(ports.context.api, id, signal).then(parseMediaItem)).then(item => {if (active) setItems(value => ({...value, [id]: item}));}, () => {if (active && controller.lifetime.current()) setItems(value => ({...value, [id]: null}));});
-    return () => {active = false;};
-  }, [key, controller, ports]);
-  useEffect(() => {const timer = setInterval(() => setClock(controller.serverNow()), 1000); return () => clearInterval(timer);}, [controller]);
-  const run = (work: () => Promise<unknown>) => {if (!isCurrent() || !controller.currentGroup(group)) return; void work().catch(error => {if (isCurrent() && controller.currentGroup(group)) runtime.reportError(error);});};
-  const now = currentItemId ? items[currentItemId] : undefined;
-  const title = !currentItemId ? t(group.clock.entryId ? 'web.together.hiddenTitle' : 'web.together.nothingChosen') : now === null ? t('web.together.hiddenTitle') : now?.title ?? t('web.together.loadingTitle');
-  const art = now?.backdropUrl ? runtime.artwork(now.backdropUrl) : undefined;
-  const members = group.members, profile = runtime.getSnapshot().profile;
-  const hostDeadline = group.clock.playing ? group.host.pausesAt : group.host.endsAt;
-  const hostCountdown = hostDeadline ? defaultI18n.clock(Math.max(0, Math.ceil((Date.parse(hostDeadline) - clock) / 1000))) : undefined;
+function TogetherRoom({controller, ports, runtime, isCurrent}: TogetherRoomProps) {
+  const theme = useTheme(), t = runtime.text.t;
+  const {phone, gradientId, state, group, playback, items, confirm, setConfirm, memberMenu, setMemberMenu, queueMenu, setQueueMenu, menuReturn, memberRefs, queueRefs, clock, cancel, endRef, leaveRef, ids, region, currentItemId, canControl, playing, enter, key, run, now, title, art, members, profile, hostCountdown} = useTogetherRoom({controller, ports, runtime, isCurrent});
   const nowAndTransport = <>
             <View testID="together-now-card" style={{borderRadius: phone ? 16 : 22, overflow: 'hidden', minHeight: theme.isTV ? 300 : phone ? 196 : 180, justifyContent: 'flex-end', padding: phone ? 14 : 30, backgroundColor: theme.colors.raised}}>
               {art && <View style={{position: 'absolute', inset: 0, opacity: phone ? 1 : .35}}><Artwork source={art}/></View>}
