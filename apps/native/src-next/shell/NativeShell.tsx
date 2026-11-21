@@ -362,7 +362,10 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const phoneHomeHeader = <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={<PlayOnButton playOn={runtime.playOn} variant="plain"/>} activity={runtime.ownerActivity} scrolled={homeScrolled}/>;
   /** One shell destination inside its stack screen: a tab's first screen, a library opened
    * from Libraries, or Settings (the modal stack's transparent root over the live page). */
-  const renderShellPage = ({presentation, top, tabActive, modal}: NativeStackPage) => {
+  // A shell page sits beside the sidebar or rail, as a pushed page does, so it is told that width (usePageWidth): without
+  // it a tablet's library grid sized six columns for the whole window and drew four, leaving a gap at the right (iPad).
+  const renderShellPage = (page: NativeStackPage) => pageInsetElement(sideNavigation ? sideWidth : 0, renderShellPageBody(page));
+  const renderShellPageBody = ({presentation, top, tabActive, modal}: NativeStackPage) => {
     const page = presentation.route.kind === 'shell' ? presentation.route.destination : presentation.destination;
     if (modal) return <View style={{flex: 1, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}}>
       {!settingsSheet && <Layer style={{position: 'absolute', inset: 0}}/>}
