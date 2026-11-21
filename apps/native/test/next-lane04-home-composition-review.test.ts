@@ -88,12 +88,12 @@ async function homeFixture(width: number, height: number, shared = false) {
   };
 }
 
-test('upright tablet Home composes the centered 560pt hero and 152pt shelves', async () => {
+test('upright tablet Home composes the centered 470pt hero (rule 14) and 152pt shelves', async () => {
   const fixture = await homeFixture(834, 1194, true), tree = fixture.render();
   const spotlight = nodes(tree).find(node => node.type?.name === 'HomeSpotlight');
   assert.ok(spotlight, 'the upright tablet uses the shared Home page');
   const hero = named(spotlight.type(spotlight.props), 'Hero');
-  assert.equal(hero.props.height, 560); assert.equal(hero.props.copySide, undefined);
+  assert.equal(hero.props.height, 470); assert.equal(hero.props.copySide, undefined);
   assert.deepEqual(hero.props.copyStyle, {left: 56, right: 56, bottom: 44});
   const artwork = hero.props.renderArtwork(hero.props.candidates[0], {visible: true});
   const ambient = artwork.type(artwork.props);

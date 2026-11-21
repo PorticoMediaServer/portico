@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, useWindowDimensions, type ViewProps} from 'react-native';
+import {frameSpec} from '@portico/design';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {runOnJS, useAnimatedScrollHandler, useSharedValue} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -49,7 +50,9 @@ export function useHome({runtime, authority, active = true, heroObscured = false
   const snapshot = useSyncExternalStore(runtime.home.subscribe, runtime.home.getSnapshot);
   // P2-61: a library directory that did not answer is unknown, never "no libraries".
   const librariesUnavailable = useSyncExternalStore(runtime.subscribe ?? noSubscription, () => {try {return runtime.getSnapshot?.().librariesUnavailable === true;} catch {return false;}});
-  const heroHeight = form === 'expanded' ? theme.spec.hero.tabletHome.landscapeHeight : theme.spec.hero.homeHeight[theme.column];
+  // Rule 14, the moderate hero (owner, 17 Nov): 470 on a phone and an upright tablet, 390 on a tablet on its side, from the
+  // design numbers; the older 560 / 440 drew it about 80 points taller than the frames.
+  const heroHeight = frameSpec.hero.home.height[form];
   const heroActive = active && !heroObscured && !runtime.getSnapshot().selectionActive;
   const errorFacts = snapshot.error ? presentError(snapshot.error, 'home') : undefined;
   const transportFailure = errorFacts !== undefined && ['unreachable', 'offline', 'timeout', 'busy'].includes(errorFacts.category);
