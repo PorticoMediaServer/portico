@@ -140,9 +140,9 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   // the episode's, and its watched lives in the episode's own menu and plate, not on the show's hero.
   const watched = !show && detail?.actions.some(value => value.id === 'watched' && value.enabled) ? detail.personal.watched : undefined;
   const actions: TitleAction[] = [
-    ...(myList ? [{icon: myList.selected ? 'i-check' as const : 'i-plus' as const, label: t(myList.selected ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist'), active: myList.selected, labelled: true, pinned: true,
+    ...(myList ? [{icon: myList.selected ? 'i-check' as const : 'i-plus' as const, label: t(myList.selected ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist'), shortLabel: t('title.watchlist'), active: myList.selected, labelled: true, pinned: true,
       testID: 'watch-title-my-list', onPress: () => {void myList.change(!myList.selected).catch(fail);}}] : []),
-    ...(watched !== undefined ? [{icon: 'i-check' as const, label: t(watched ? 'entry.markUnwatched' : 'entry.markWatched'), active: watched, labelled: true, wide: true,
+    ...(watched !== undefined ? [{icon: 'i-check' as const, label: t(watched ? 'entry.markUnwatched' : 'entry.markWatched'), shortLabel: t('card.watched'), active: watched, labelled: true, wide: true,
       onPress: () => {void controller.personal({action: 'watched', value: !watched}).catch(fail);}}] : []),
     ...(props.download ? [{icon: 'i-dl' as const, label: t('next.cards.download'), labelled: true, onPress: () => props.download!(entry)}] : []),
     {icon: 'i-more', label: t('card.more', {title}), testID: 'watch-title-more', onPress: () => props.more(entry)},
