@@ -32,8 +32,10 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
 }, ref) {
   const theme = useTheme();
   const geometry = chipGeometry(variant, theme.column);
-  // A quick chip is filled like every other toolbar chip, with no outline until it is on (phone-app `.phone .chip`, tv.html `.tv .chip`).
-  const isFacet = variant === 'facet' || variant === 'pill';
+  // A quick chip is filled like the toolbar's other chips on a phone and TV (phone-app `.phone .chip`, tv.html `.tv .chip`);
+  // a tablet, upright or on its side (the `web` column), draws it as an outlined pill (tablet.html and desktop-browse `.qt`).
+  const tabletQuick = variant === 'quick' && !theme.isTV && theme.platform !== 'phone';
+  const isFacet = variant === 'facet' || variant === 'pill' || tabletQuick;
   const applied = variant === 'applied';
   const [checked, setChecked] = useControlValue(selected, defaultSelected ?? false, onSelectedChange);
   const checkbox = props.accessibilityRole === 'checkbox' || variant === 'facet';
@@ -42,7 +44,7 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
   const desktop = theme.platform === 'web', desktopChoice = desktop && (variant === 'facet' || variant === 'quick');
   const border = dim ? theme.colors.line : desktopChoice ? colorAlpha(checked ? theme.colors.accentStrong : theme.colors.text, checked ? .62 : .16) : checked ? colorAlpha(theme.isTV ? theme.colors.accentStrong : theme.colors.accent, theme.isTV ? .7 : 1) : isFacet || retry ? theme.colors.lineStrong : 'transparent';
   const color = dim ? theme.colors.textTertiary : checked || !theme.isTV && !isFacet ? theme.colors.text : theme.colors.textSecondary;
-  const labelWeight = !theme.isTV && (variant === 'facet' || variant === 'pill' || theme.platform === 'web' && variant === 'quick') ? 600 : 700;
+  const labelWeight = !theme.isTV && (variant === 'facet' || variant === 'pill' || tabletQuick) ? 600 : 700;
   const glyphSize = iconSize ?? chipSpec.icon[theme.column];
   return <Focusable {...props} ref={ref} disabled={disabled} focusKind="chip" focusRadius={geometry.radius}
     accessibilityRole={checkbox ? 'checkbox' : props.accessibilityRole ?? 'button'} accessibilityState={{...accessibilityState, ...(checkbox ? {checked} : toggle ? {selected: checked} : {})}}
