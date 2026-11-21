@@ -56,3 +56,68 @@ func TestOwnerLibrariesHaveFourStableSelectedCovers(t *testing.T) {
 		}
 	}
 }
+
+func TestLibrarySummaryOnlyCountsAndShowsPermittedTitles(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	ctx := context.Background()
+	films, err := s.db.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	books, err := s.db.CreateLibrary(ctx, "Books", db.LibraryBooks, "en", []string{t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.BeginScan(ctx, books.ID); err != nil {
+		t.Fatal(err)
+	}
+	allowed, hidden := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	batch := db.ImportBatch{LibraryID: films.ID, PathID: films.Paths[0].ID, Items: []db.ImportItem{
+		{Kind: db.KindMovie, Title: "Allowed", AddedAt: 1, RatingAge: new(8),
+			Keys:   []db.ItemKey{{Kind: db.KeyName, Key: "allowed"}},
+			Images: []db.ImportImage{{Role: db.ImagePoster, Source: db.ImageFromFile, FileHash: allowed}}},
+		{Kind: db.KindMovie, Title: "Hidden", AddedAt: 2, RatingAge: new(18),
+			Keys:   []db.ItemKey{{Kind: db.KeyName, Key: "hidden"}},
+			Images: []db.ImportImage{{Role: db.ImagePoster, Source: db.ImageFromFile, FileHash: hidden}}},
+	}}
+	if _, err := s.db.Import(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	var profile Profile
+	call(t, s, "POST", "/v1/profiles", owner, ProfileCreate{Name: "Child"}, &profile)
+	call(t, s, "PUT", "/v1/profiles/"+profile.ID+"/restrictions", owner, Restrictions{AllLibraries: true, MaxRatingAge: new(8)}, nil)
+	var child Session
+	call(t, s, "POST", "/v1/profiles/"+profile.ID+"/select", signIn(t, s, 1).Session.AccessToken, ProfileSelect{}, &child)
+
+	summaryFor := func(token, id string) *LibrarySummary {
+		t.Helper()
+		for _, library := range get[Libraries](t, s, token, "/v1/libraries").Items {
+			if library.ID == id && library.Summary != nil {
+				return library.Summary
+			}
+		}
+		t.Fatalf("library %q has no summary", id)
+		return nil
+	}
+	expectFilms := func(token string, count int, covers ...string) {
+		t.Helper()
+		summary := summaryFor(token, films.PublicID)
+		if !reflect.DeepEqual(summary.Counts, []db.LibrarySummaryCount{{Kind: "movie", Count: count}}) ||
+			!reflect.DeepEqual(summary.CoverURLs, covers) || summary.LatestArtwork != covers[0] || summary.Empty || !summary.EmptyKnown {
+			t.Fatalf("film summary: %+v", summary)
+		}
+	}
+	expectFilms(owner, 2, "/v1/images/"+hidden, "/v1/images/"+allowed)
+	expectFilms(child.AccessToken, 1, "/v1/images/"+allowed)
+	empty := summaryFor(owner, books.PublicID)
+	if !empty.FirstScan || !empty.Empty || !empty.EmptyKnown || empty.CoverURLs == nil || len(empty.CoverURLs) != 0 || empty.LatestArtwork != "" {
+		t.Fatalf("empty first scan summary: %+v", empty)
+	}
+	if err := s.db.EndScan(ctx, books.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if summaryFor(owner, books.PublicID).FirstScan {
+		t.Fatal("the completed first scan still appears active")
+	}
+}

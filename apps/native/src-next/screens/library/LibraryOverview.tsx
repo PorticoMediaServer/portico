@@ -12,7 +12,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeLibraryDirectory} from './directory';
 
-const pivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', episode: 'episodes', artist: 'artists', album: 'albums', song: 'songs', book: 'books', author: 'authors', series: 'series', ebook: 'books', comic: 'titles'};
+const pivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', episode: 'episodes', artist: 'artists', album: 'albums', song: 'songs', audiobook: 'audiobooks', book: 'books', author: 'authors', series: 'series', ebook: 'books', comic: 'titles'};
 /** Phone4d: the single authorized summary read supplies order, names, counts,
  * covers and ambient. The shell owns the real page and bottom navigation. */
 export function NativeLibraryOverview({directory, runtime, activation, openLibrary, editPins}: {

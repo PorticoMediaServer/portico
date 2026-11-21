@@ -33,8 +33,7 @@ export function parseLibrarySummary(raw:unknown):LibrarySummary{
  const classified=publicationCounts(raw.publicationCounts);
  return Object.freeze({counts:Object.freeze(counts),...(classified?{publicationCounts:classified}:{}),coverUrls:Object.freeze([...raw.coverUrls] as string[]),latestArtwork:raw.latestArtwork,firstScan:raw.firstScan,empty:raw.empty,emptyKnown:raw.emptyKnown});
 }
-/** A library whose server sends no summary (the rebuilt server's list carries id, name and kind
- * only) reads as one with nothing known: no counts or covers, and not known to be empty. */
+/** A library whose server sends no summary has no known counts, covers or empty state. */
 const unknownSummary:LibrarySummary=Object.freeze({counts:Object.freeze([]),coverUrls:Object.freeze([]),latestArtwork:'',firstScan:false,empty:false,emptyKnown:false});
 /** A summary is optional: absent or unreadable, the library still lists, with nothing known about
  * it. Only an unreadable list or library row refuses the read. */
