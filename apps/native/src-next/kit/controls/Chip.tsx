@@ -32,8 +32,8 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
 }, ref) {
   const theme = useTheme();
   const geometry = chipGeometry(variant, theme.column);
-  // A TV quick chip is filled like every other TV toolbar chip, with no outline until it is on (tv.html `.tv .chip`).
-  const isFacet = variant === 'facet' || variant === 'pill' || variant === 'quick' && !theme.isTV;
+  // A quick chip is filled like every other toolbar chip, with no outline until it is on (phone-app `.phone .chip`, tv.html `.tv .chip`).
+  const isFacet = variant === 'facet' || variant === 'pill';
   const applied = variant === 'applied';
   const [checked, setChecked] = useControlValue(selected, defaultSelected ?? false, onSelectedChange);
   const checkbox = props.accessibilityRole === 'checkbox' || variant === 'facet';
