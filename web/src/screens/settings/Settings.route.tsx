@@ -22,7 +22,7 @@ import {settingsRoute} from '../../kit/settings/search';
 import {SettingsPageFailure} from '../../kit/settings';
 import {settingsPlatform} from '../../platform/settings-platform';
 import {DashboardScreen, HistoryScreen, createDashboardBindings, type DashboardBindings} from '../dashboard';
-import {SettingsScreen, type SettingsBindings, type SettingsContext, type SettingsPageSnapshot} from './Settings';
+import {SettingsScreen, type SettingsBindings, type SettingsPhoneLead, type SettingsContext, type SettingsPageSnapshot} from './Settings';
 import {SecureAddressProvider} from './SecureAddressProvider';
 import {CustomizeHomeRow} from './account-appearance/CustomizeHome';
 import {SettingsController, type SettingsControllerOptions} from './controller';
@@ -623,7 +623,7 @@ export function SettingsEntry() {
           if (ownAddressChildren.has(row.id)) return {present: false};
           const remote = remoteSettings.getSnapshot(), status = remote.status;
           const disabled = remote.busy || !!remote.confirmation || !current();
-          if (row.id === 'remote.ownCertificate') return {present: true, wide: true, control: <OwnAddressControl key={remote.interfaces?.etag} source={remoteSettings}/>};
+          if (row.id === 'remote.ownCertificate') return {present: true, bare: true, control: <OwnAddressControl key={remote.interfaces?.etag} source={remoteSettings}/>};
           if (row.id === 'remote.refused') return {present: true, wide: true, control: <OwnerRefusedAddresses source={remoteSettings} onStandard={() => source.change(settingsRowIndex.get('remote.security')!.row, 'standard', selected)} onCertificate={() => openSettingsRow({scope: 'server', section: 'remote', row: 'remote.ownCertificate'})}/>};
           if (row.id === 'remote.blocked') return {present: true, wide: true, control: <OwnerBlockedNetworks source={remoteSettings}/>};
           if (row.id === 'remote.thisDevice') return {present: !!status, displayValue: status && defaultI18n.t(status.thisDevice.atHome ? 'next.remoteStatus.deviceHome' : 'next.remoteStatus.deviceAway', {address: status.thisDevice.address})};
@@ -714,11 +714,20 @@ export function SettingsEntry() {
   // or storage alert), so the compact layout opens the page, not the list.
   const openDetail = typeof raw.scope === 'string' || typeof raw.section === 'string';
   return <><SecureAddressProvider api={selected.api} isCurrent={selected.current} active={route.scope === 'server' && route.section === 'signin' && selected.settings.role === 'owner'}>
-    <SettingsScreen bindings={settings} route={route} navigate={navigate} openDetail={openDetail} />
+    <SettingsScreen bindings={settings} route={route} navigate={navigate} openDetail={openDetail} phoneLead={phoneLead(selected.context.facts.identity)} />
   </SecureAddressProvider>
     {profilePIN && selected.profiles === profilePIN.source && <ProfilePINDialog key={JSON.stringify([profilePIN.target.id, profilePIN.remove])}
       request={profilePIN} isCurrent={() => selected.profilePINCurrent(profilePIN) && selected.profiles === profilePIN.source && !!profilePIN.source.getSnapshot().document} onClose={() => selected.closeProfilePIN(profilePIN)} onFailure={() => {if (selected.profilePINCurrent(profilePIN)) setFailure({error: undefined});}} />}
   </>;
+}
+
+/** At phone width the list starts with who you are and the four quick tiles (phone-web 9, phone-app 16). */
+function phoneLead(identity: ShellAssemblyContext['facts']['identity']): SettingsPhoneLead {
+  const t = defaultI18n.t, go = (to: '/profiles' | '/servers' | '/notifications' | '/watch-together') => () => {void router.navigate({to});};
+  return {profile: {id: identity.viewer.profileId, name: identity.profileName, initial: Array.from(identity.profileName.trim())[0] ?? '', art: identity.profileArt},
+    description: t('settings.signedInAs', {server: identity.serverName, username: identity.username || identity.profileName}),
+    shortcuts: [{id: 'profile', icon: 'i-switch', label: t('next.shell.switchProfile'), onAction: go('/profiles')}, {id: 'server', icon: 'i-server', label: t('next.shell.switchServer'), onAction: go('/servers')},
+      {id: 'notifications', icon: 'i-bell', label: t('next.shell.notifications'), onAction: go('/notifications')}, {id: 'together', icon: 'i-people', label: t('next.shell.watchTogether'), onAction: go('/watch-together')}]};
 }
 
 export default defineWebScreen({id: 'settings', component: SettingsEntry, // The bare /settings stays bare: at phone width it is the list, and only a link that names a page opens one.

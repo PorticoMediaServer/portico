@@ -5,6 +5,7 @@ import {Icon} from '../../../kit/Icon';
 import {Menu} from '../../../kit/overlays/Popover';
 import {AddProfileDialog} from './AddProfileDialog';
 import type {ProfileSettingsSource} from './source';
+import {SettingsGroupAction} from '../../../kit/settings/SettingsGroups';
 import styles from './profile.module.css';
 const t = defaultI18n.t;
 
@@ -38,7 +39,7 @@ export function ProfileList({source, isCurrent, onFailure, onSelect}: {
         </>}</span>
       </li>)}
     </ul>
-    {manage && document.profiles.length < 8 && <Button ref={add} className={styles.addProfile} variant="glass" size="small" icon="i-plus" disabled={state.busy} onClick={() => {if (isCurrent()) setAdding(true);}}>{t('next.settingsSpec.account.profile.groups.0.rows.0.control.addLabel')}</Button>}
+    {manage && document.profiles.length < 8 && <SettingsGroupAction><Button ref={add} variant="glass" size="small" icon="i-plus" disabled={state.busy} onClick={() => {if (isCurrent()) setAdding(true);}}>{t('next.settingsSpec.account.profile.groups.0.rows.0.control.addLabel')}</Button></SettingsGroupAction>}
     {adding && <AddProfileDialog source={source} isCurrent={isCurrent} returnFocusRef={add} onClose={() => setAdding(false)} />}
   </>;
 }

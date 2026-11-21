@@ -14,7 +14,7 @@
 .grouped > [data-dashboard-quiet-slot='load'] { grid-column: 1 / -1; grid-row: 4; min-width: 0; }
 .grouped > [data-dashboard-section='activity'] { grid-column: 1 / -1; grid-row: 5; min-width: 0; }
 .grouped > [data-dashboard-quiet-slot='tasks'] { grid-column: 1 / -1; grid-row: 6; min-width: 0; }
-.grouped[data-quiet-embedded] > [data-dashboard-section='updates'] { grid-row: 1; margin-top: 28px; }
+.grouped[data-quiet-embedded] > [data-dashboard-section='updates'] { grid-row: 1; }
 .grouped[data-quiet-embedded] > [data-dashboard-section='streams'] { grid-row: 2; }
 .grouped[data-quiet-embedded] > [data-dashboard-quiet-slot='load'] { grid-row: 3; }
 .grouped[data-quiet-embedded] > [data-dashboard-section='activity'] { grid-row: 4; }

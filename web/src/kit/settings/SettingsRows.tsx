@@ -22,6 +22,8 @@ export type SettingPresentation = Readonly<{
   choices?: readonly (Omit<SettingsOption, 'label' | 'hint'> & {label: string; hint?: string})[]; label?: string; help?: string;
   /** A stacked custom control that fills the row's width, as its mock-up draws it. */
   wide?: boolean;
+  /** The control draws its own rows (kit \`SettingsRow\`), such as a switch with dependent fields that save together. */
+  bare?: boolean;
   gridRows?: readonly SettingsTableRow[];
 }>;
 export type SettingsRowsProps = Readonly<{
@@ -42,10 +44,10 @@ export function SettingsRows(input: SettingsRowsProps) {
     const label = props.state(row).label ?? t(row.label), value = props.state(row).displayValue?.trim();
     return value ? `${label}: ${value}` : label;
   });
-  return <>
+  return <div className={styles.groups}>
     {(props.holder.groups ?? []).map((group, index) => <Group key={index} group={group} {...props} />)}
     {advanced.length > 0 && <SettingsAdvanced open={props.advancedOpen} onOpenChange={props.onAdvancedChange} summary={summary}>{props.holder.advanced?.groups?.map((group, index) => <Group key={index} group={group} advanced {...props} />)}</SettingsAdvanced>}
-  </>;
+  </div>;
 }
 function Group({group, advanced, ...props}: SettingsRowsProps & {group: GroupSpec; advanced?: boolean}) {
   const rows = group.rows.filter(row => props.state(row).present);
@@ -95,7 +97,7 @@ function Row({row, flat, dependent = false, inheritedDisabled = false, ...props}
     control = <div className={styles.matrixControl} {...controlState}><ChoiceMatrix label={label} disabled={disabled} choices={(c.columns ?? []).map(column => ({value: column.value!, label: t(column.label), description: column.hint && t(column.hint)}))}
       rows={(c.items ?? []).map(item => ({id: item.id!, label: t(item.label), value: String(values[item.id!]), hint: defaults && values[item.id!] !== defaults[item.id!] ? <span className={styles.changed}>{t('next.shell.changed')}<button type="button" disabled={disabled} onClick={() => change({...values, [item.id!]: defaults[item.id!]})}>{t('next.shell.reset')}</button></span> : undefined}))} onChange={(id, value) => change({...values, [id]: value})} /></div>;
   } else control = props.renderSpecial(row, {...state, disabled});
-  const body = flat || c.type === 'matrix' ? <div id={row.id} className={styles.specialRow} data-found={props.foundRowId === row.id || undefined} {...controlState}>{control}</div> : <SettingsRow id={row.id} dependent={dependent} found={props.foundRowId === row.id} stacked={['preview', 'list', 'table'].includes(c.type) || state.wide === true} path={settingsPathRow(row.id, c.type)}
+  const body = state.bare ? <div id={row.id} data-found={props.foundRowId === row.id || undefined} {...controlState}>{control}</div> : flat || c.type === 'matrix' ? <div id={row.id} className={styles.specialRow} data-found={props.foundRowId === row.id || undefined} {...controlState}>{control}</div> : <SettingsRow id={row.id} dependent={dependent} found={props.foundRowId === row.id} stacked={['preview', 'list', 'table'].includes(c.type) || state.wide === true} path={settingsPathRow(row.id, c.type)}
     label={<><MatchText text={label} query={props.query ?? ''} />{reset}</>} help={state.help ?? (row.help && <MatchText text={t(row.help)} query={props.query ?? ''} />)} className={disabled ? styles.disabled : undefined}>
     <div className={styles.control} data-wide={state.wide || undefined} {...controlState}>{changed && defaultLabel !== undefined && ['toggle','select','segmented','number'].includes(c.type) && <span className={styles.defaultValue}>{t('next.settings.defaultValue', {value: defaultLabel})}</span>}{control}</div>
   </SettingsRow>;

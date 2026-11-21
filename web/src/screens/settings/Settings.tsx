@@ -2,10 +2,12 @@ import {createSettingsOpen, SettingsOpenContext} from './quiet-refresh';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import {settingsRowIndex, settingsSpec, type SettingsHolder, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
-import {SettingsNav, type SettingsSearchGroup} from '../../kit/shell/SettingsSurfaces';
-import {SettingsPageFailure, SettingsPageHeading, SettingsPanel, SettingsRows, SettingsWorkspace, searchSettings, settingsRoute, type SettingPresentation, type SettingsRoute, type SettingsPanelProps} from '../../kit/settings';
+import {SettingsNav, SettingsProfileCard, ShortcutTiles, type SettingsSearchGroup} from '../../kit/shell/SettingsSurfaces';
+import type {ProfileIdentity, ShellAction} from '../../kit/shell';
+import {SettingsPageFailure, SettingsPanel, SettingsRows, searchSettings, settingsRoute, type SettingPresentation, type SettingsRoute, type SettingsPanelProps} from '../../kit/settings';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {Icon} from '../../kit/Icon';
+import {SettingsListFrame, SettingsPageFrame} from '../../kit/frames';
 import {Button} from '../../kit/controls';
 import {Dialog, useRetained} from '../../kit/overlays';
 import {settingsChangeConfirmation} from '@core/presentation/settings-change-confirm.ts';
@@ -54,7 +56,10 @@ export type SettingsBindings = Readonly<{
   openHome: () => void;
 }>;
 
-export function SettingsScreen({bindings, route, navigate, openDetail = false}: {bindings: SettingsBindings; route: SettingsRoute; navigate: (route: SettingsRoute) => void;
+export type SettingsPhoneLead = Readonly<{profile: ProfileIdentity; description: string; shortcuts: readonly ShellAction[]}>;
+export function SettingsScreen({bindings, route, navigate, openDetail = false, phoneLead}: {bindings: SettingsBindings; route: SettingsRoute; navigate: (route: SettingsRoute) => void;
+  /** At phone width: the profile card and the quick tiles over the list. */
+  phoneLead?: SettingsPhoneLead;
   /** A link that names a scope or section asks for that page, not the compact list. */
   openDetail?: boolean}) {
   useSyncExternalStore(bindings.presentation?.subscribe ?? noPresentation, bindings.presentation?.getSnapshot ?? emptyPresentation, emptyPresentation);
@@ -127,7 +132,7 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
   const navigation = <SettingsNav accountName={bindings.accountName} serverName={bindings.serverName} viewerRole={bindings.role === 'admin' ? 'administrator' : bindings.role}
     account={settingsSpec.filter(section => section.scope === 'account' && sectionVisible(section)).map(section => ({id: `account/${section.id}`, label: t(section.title), icon: settingsIconName(section.icon), cluster: section.navGroup}))}
     server={settingsSpec.filter(section => section.scope === 'server' && (!compact || section.id !== 'dashboard') && sectionVisible(section)).map(section => ({id: `server/${section.id}`, label: t(section.title), icon: settingsIconName(section.icon), cluster: section.navGroup}))}
-    selectedId={`${selected.scope}/${selected.section}`} selectedSearchResult={selected.row ? {pageId: `${selected.scope}/${selected.section}`, rowId: selected.row} : undefined}
+    selectedId={compact ? "" : `${selected.scope}/${selected.section}`} selectedSearchResult={selected.row ? {pageId: `${selected.scope}/${selected.section}`, rowId: selected.row} : undefined}
     actions={feedback ? [{id: 'feedback', icon: 'i-flag', label: t('next.shell.feedback'), onAction: feedback}] : []}
     query={query} onQueryChange={setQuery} onNavigate={go} matches={groups} onSearchResult={go} layout={compact ? 'phone' : 'desktop'} />;
   const panelSpec = panel && section.panels?.[panel.id], tab = panelSpec?.tabs?.find(tab => tab.id === panel?.tab);
@@ -140,15 +145,21 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
   const audience = bindings.audience(section);
   const fact = configuration.find(fact => fact.key === configurationKey);
   const editing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement && !['button','checkbox','radio','range','submit','reset','file','color','hidden'].includes(target.type));
-  return <SettingsOpenContext.Provider value={quietOpen}><div className={styles.screen} onFocusCapture={event => {if(editing(event.target))bindings.inputActive?.(true);}}
-    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}><SettingsWorkspace scope={selected.scope} navigation={navigation} compactPage={compactPage} onBack={() => {setPanel(undefined); void router.navigate({to: '/settings'});}}
-      title={libraryPage ? String(libraryTitle) : t(section.title)} onDone={() => {void router.navigate({href: settingsReturnHref()});}}>
-    {selected.scope === 'server' && bindings.role !== 'member' && (bindings.role === 'owner' ? <ServerHeader serverName={bindings.serverName} viewerRole="owner" audience={audience} health={bindings.serverHealth?.()} facts={bindings.serverFacts()} /> : <ServerHeader serverName={bindings.serverName} viewerRole="administrator" audience="administrators" facts={bindings.serverFacts()} />)}
-    {libraryPage && <Button variant="glass" size="small" icon="i-left" onClick={() => {setPanel(undefined);opener.current?.focus();}}>{t(section.title)}</Button>}
-    {libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : <SettingsPageHeading title={libraryPage ? libraryTitle : t(section.title)} saveState={snapshot.saveState} />}
+  const done = {label: t('next.settings.done'), onPress: () => {void router.navigate({href: settingsReturnHref()});}};
+  const server = selected.scope === 'server' && bindings.role !== 'member' ? bindings.role === 'owner' ? <ServerHeader serverName={bindings.serverName} viewerRole="owner" audience={audience} health={bindings.serverHealth?.()} facts={bindings.serverFacts()} /> : <ServerHeader serverName={bindings.serverName} viewerRole="administrator" audience="administrators" facts={bindings.serverFacts()} /> : undefined;
+  const closeLibrary = () => {setPanel(undefined);opener.current?.focus();};
+  // A library opened from Libraries is its own page: Back returns to Libraries, and its artwork band is its header.
+  const page = <SettingsPageFrame title={libraryPage ? String(libraryTitle) : t(section.title)} status={snapshot.saveState} action={done} server={server}
+    back={libraryPage ? {label: t(section.title), onPress: closeLibrary} : {label: t('next.shell.settings'), onPress: () => {setPanel(undefined); void router.navigate({to: '/settings'});}}}
+    header={libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : undefined}>
     {libraryPage && panelSpec?.tabs ? <Tabs aria-label={libraryTitle} value={panel?.tab ?? panelSpec.tabs[0]?.id} onValueChange={value => setPanel(current => current && {...current, tab: value})}
       phone={compact} items={panelSpec.tabs.map(item => ({value: item.id, label: t(item.title), panel: <>{bindings.panelIntro?.({...panelContext, tabId: item.id})}{rows(item, {...panelContext, tabId: item.id})}</>}))}/> : fact ? <ConfigurationFact fact={fact} /> : snapshot.error ? <SettingsPageFailure retry={() => {void bindings.load(section);}} home={bindings.openHome} error={snapshot.error}
       server={section.scope === 'server' ? {name: bindings.serverName, openMySettings: () => go('account/profile')} : undefined} /> : snapshot.loading ? <p role="status">{t('next.settings.loading')}</p> : bindings.section?.(context, openPanel, holder => rows(holder, context)) ?? rows(section, context)}
+  </SettingsPageFrame>;
+  return <SettingsOpenContext.Provider value={quietOpen}><div className={styles.screen} onFocusCapture={event => {if(editing(event.target))bindings.inputActive?.(true);}}
+    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}>
+    <SettingsListFrame bar={{title: t('next.shell.settings'), action: done}} list={navigation}
+      profile={phoneLead && <SettingsProfileCard profile={phoneLead.profile} description={phoneLead.description} onPress={() => go('account/profile')} />} shortcuts={phoneLead && <ShortcutTiles compact items={phoneLead.shortcuts} />} page={shown ? page : undefined} />
     {panel && panelSpec && !libraryPage && <SettingsPanel open onClose={() => setPanel(undefined)} audience={t(audience === 'owner' ? 'next.shell.editorAudience.owner' : 'next.shell.serverVisibility.ownerShared')} title={panelState?.title ?? (panelSpec.title ? t(panelSpec.title) : t(section.title))} description={panelState?.description} create={panelState?.create} returnFocusRef={opener}
       saveState={snapshot.saveState} tabs={panelSpec.tabs?.map(tab => ({id: tab.id, title: t(tab.title), content: rows(tab, {...panelContext, tabId: tab.id})}))} selectedTab={panel.tab} onTabChange={value => setPanel(current => current && {...current, tab: value})}>
       {rows(tab ?? panelSpec, panelContext)}
@@ -159,7 +170,7 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
           if (rowState(pending.row, pending.context).present) bindings.change(pending.row, pending.value, pending.context);}}>{t('settings.confirm.change')}</Button></>}>
       <p>{shownConfirming.message}</p>
     </Dialog>}
-  </SettingsWorkspace></div></SettingsOpenContext.Provider>;
+  </div></SettingsOpenContext.Provider>;
 }
 
 function ConfigurationFact({fact}: {fact: SettingsConfigurationMatch}) {

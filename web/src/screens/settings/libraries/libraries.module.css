@@ -15,9 +15,12 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  min-height: 127px;
+  min-height: var(--list-row-two-line);
+  box-sizing: border-box;
   padding: 18px 20px;
 }
+/* The cover fan's own height sets a row's; a row with only its kind's icon is a list row. */
+.row:has(.covers) { min-height: 127px; }
 .row + .row { border-top: 1px solid var(--color-line-soft); }
 
 .covers { flex: none; display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: flex-start; width: 144px; height: 90px; }
