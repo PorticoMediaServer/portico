@@ -7,7 +7,7 @@ import {bytesLabel, dvrMessage, playableRecording, recordingReason, recordingSta
   type Recording, type RecordingDetail, type RecordingState} from '@core/dvr.ts';
 import {channelTint} from '@portico/client-core/kit-model';
 import {Button, Chip, Segmented, Select} from '../../kit/controls';
-import {ChannelMark} from '../../kit/artwork';
+import {ChannelMark, nameInitials} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Banner, Dialog, Menu, SidePanel, type MenuEntry} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
@@ -72,7 +72,7 @@ function episodeOf(recording: Recording) {
 }
 function channelMark(recording: Recording) {
   const channel = recording.channel;
-  return channel ? {sourceId: '', id: channel.id, text: channel.mark?.text ?? channel.name.slice(0, 2).toLocaleUpperCase(), seed: channel.mark?.seed ?? channel.id} : undefined;
+  return channel ? {sourceId: '', id: channel.id, text: channel.mark?.text ?? (nameInitials(channel.name) || channel.name.slice(0, 2).toLocaleUpperCase()), seed: channel.mark?.seed ?? channel.id} : undefined;
 }
 function RecordingArt({recording, large, badges, now}: {recording: Recording; large?: boolean; badges?: ReactNode; now?: number}) {
   const mark = channelMark(recording);
