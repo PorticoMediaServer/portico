@@ -1,3 +1,4 @@
+import {frameSpec} from '@portico/design';
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, useWindowDimensions, type ViewProps} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -49,7 +50,10 @@ export function useHome({runtime, authority, active = true, heroObscured = false
   const snapshot = useSyncExternalStore(runtime.home.subscribe, runtime.home.getSnapshot);
   // P2-61: a library directory that did not answer is unknown, never "no libraries".
   const librariesUnavailable = useSyncExternalStore(runtime.subscribe ?? noSubscription, () => {try {return runtime.getSnapshot?.().librariesUnavailable === true;} catch {return false;}});
-  const heroHeight = form === 'expanded' ? theme.spec.hero.tabletHome.landscapeHeight : theme.spec.hero.homeHeight[theme.column];
+  // A phone on its side keeps the hero short enough to show its title, its buttons and the first row's heading.
+  const sideways = form === 'phone' && dimensions.width > dimensions.height;
+  const heroHeight = form === 'expanded' ? theme.spec.hero.tabletHome.landscapeHeight
+    : sideways ? frameSpec.hero.home.phoneSideways : theme.spec.hero.homeHeight[theme.column];
   const heroActive = active && !heroObscured && !runtime.getSnapshot().selectionActive;
   const errorFacts = snapshot.error ? presentError(snapshot.error, 'home') : undefined;
   const transportFailure = errorFacts !== undefined && ['unreachable', 'offline', 'timeout', 'busy'].includes(errorFacts.category);

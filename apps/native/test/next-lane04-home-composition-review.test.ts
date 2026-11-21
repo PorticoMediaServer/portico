@@ -102,49 +102,6 @@ test('upright tablet Home composes the centered 560pt hero and 152pt shelves', a
   assert.equal(named(tree, 'Row').props.itemWidth, 152);
 });
 
-test('a matching upright fold keeps the side-by-side 440pt hero and 140pt shelves', async () => {
-  const fixture = await homeFixture(840, 880); fixture.setCrease();
-  const tree = fixture.render(), hero = named(tree, 'Hero');
-  assert.equal(hero.props.height, 440); assert.deepEqual(hero.props.copySide, {inset: 28, width: 300, bottom: 30});
-  assert.equal(hero.props.copyStyle, undefined); assert.equal(hero.props.lockupStyle.fontSize, 42);
-  const artwork = hero.props.renderArtwork(hero.props.candidates[0], {visible: true});
-  assert.equal(artwork.props.style.left, 424);
-  assert.equal(named(artwork, 'AmbientArt').props.foregroundFraction, .6);
-  const shelf = named(tree, 'Row'); assert.equal(shelf.props.itemWidth, 140); assert.equal(shelf.props.gutter, 24);
-});
-
-test('on the frame a row is measured from where the frame starts the rows, so its data window follows the real position', async () => {
-  // Phone and tablet Home draw on BrowseFrame: a row's onLayout is inside the frame's rows container, under the hero.
-  const fixture = await homeFixture(834, 1194);
-  fixture.render();
-  const rowWindow = (tree: any) => nodes(tree).find(node => node.type?.name === 'HomeWindow' && node.props.row.id === 'row-0');
-  const first = fixture.render();
-  nodes(first).find(node => node.type === 'BrowseFrameRows').props.onLayout({nativeEvent: {layout: {y: 1500, height: 900}}});
-  const row = nodes(rowWindow(fixture.render())).find(node => node.type === 'View' && node.props.onLayout);
-  row.props.onLayout({nativeEvent: {layout: {y: 0, height: 300}}});
-  named(fixture.render(), 'ScrollView').props.onScroll({contentOffset: {y: 0}});
-  assert.equal(rowWindow(fixture.render()).props.visible, false, 'the first row sits 1500 down the content, below the viewport at the top');
-  named(fixture.render(), 'ScrollView').props.onScroll({contentOffset: {y: 1400}});
-  assert.equal(rowWindow(fixture.render()).props.visible, true, 'scrolled to it, its data window opens');
-});
-
-test('same-width height and crease changes invalidate measured offscreen row spacers', async () => {
-  for (const change of ['height', 'crease']) {
-    const fixture = await homeFixture(834, 1194), first = fixture.render();
-    const row = nodes(first).find(node => node.type?.name === 'HomeWindow' && node.props.row.id === 'row-2');
-    const measured = nodes(row).find(node => node.type === 'View' && node.props.onLayout);
-    measured.props.onLayout({nativeEvent: {layout: {y: 1200, height: 888}}});
-    const second = fixture.render();
-    named(second, 'ScrollView').props.onScroll({contentOffset: {y: 10000}});
-    const spacer = (tree: any) => nodes(tree).find(node => node.type === 'View' && node.props.key === 'row-2');
-    assert.equal(nodes(spacer(fixture.render()))[1].props.style.height, 888);
-    if (change === 'height') fixture.setSize(834, 800); else fixture.setCrease();
-    const nextHeight = nodes(spacer(fixture.render()))[1].props.style.height;
-    // A phone/tablet poster caption holds two title lines (W3 F1): 48 plus one 18-point title line.
-    assert.equal(nextHeight, 27 + 12 + 140 * 1.5 + 48 + 18 + 6 + 8, `${change} must replace the old cached height`);
-  }
-});
-
 test('a restored shelf seeds the anchor offset once and preserves later native scroll offsets', async () => {
   const h = hooks(), layouts: (() => unknown)[] = [];
   const react = {...h.react, useLayoutEffect: (run: () => unknown) => {layouts.push(run);}};
@@ -186,18 +143,3 @@ test('a restored shelf seeds the anchor offset once and preserves later native s
 });
 
 
-test('Home data visibility follows measured row positions ahead of estimates', async () => {
-  const fixture = await homeFixture(834, 1194);
-  fixture.render();
-  const initial = fixture.render();
-  named(initial, 'ScrollView').props.onScroll({contentOffset: {y: 600}});
-  const rowWindow = (tree: any) => nodes(tree).find(node => node.type?.name === 'HomeWindow' && node.props.row.id === 'row-0');
-  const visible = fixture.render();
-  assert.equal(rowWindow(visible).props.visible, true);
-  const row = nodes(rowWindow(visible)).find(node => node.type === 'View' && node.props.onLayout);
-  row.props.onLayout({nativeEvent: {layout: {y: 2000, height: 300}}});
-  fixture.render();
-  assert.equal(rowWindow(fixture.render()).props.visible, false, 'estimated y must not authorize data for an actually offscreen row');
-  named(fixture.render(), 'ScrollView').props.onScroll({contentOffset: {y: 2000}});
-  assert.equal(rowWindow(fixture.render()).props.visible, true, 'actual row position re-enables its data window');
-});

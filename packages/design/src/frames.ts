@@ -57,6 +57,8 @@ export const frame = {
   hero: {
     home: {
       height: {...forms(470, 470, 390, 500), web: 640, mobileWeb: 410},
+      /** A phone on its side is about 410 high: the hero leaves room for the title, its buttons and the first row's heading. */
+      phoneSideways: 320,
       lockup: {...forms(42, 42, 52, 100), web: 76, webLong: 60},
       copyBottom: {...forms(14, 14, 36, 36), web: 120},
       copyTop: {tv: 110},
