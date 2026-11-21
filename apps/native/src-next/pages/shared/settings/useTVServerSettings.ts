@@ -7,7 +7,7 @@ import {publicTVHandoffAddress} from '../../../tv/auth/TVHandoff';
 import {useScreenEntry} from '../../../screens/settings-live/Screen';
 import {NativeScreenLifetime} from '../../../screens/settings-live/lifetime';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
-import type {TVServerPage} from '../../../screens/settings-live/server/TVServerPageMenu';
+import type {TVServerPage} from '../../../screens/settings-live/server/tv-server-pages';
 import {createTVServerReader, nativeServerAdmission} from '../../../screens/settings-live/server/tv-server-reader';
 
 export function useTVServerSettings({ports, runtime, initialPage}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; initialPage: TVServerPage}) {

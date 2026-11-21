@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, type ReactNode} from 'react';
 import {dataFolderConfirmText} from '../../../../../../packages/client-core/src/admin/data-folder';
 import {sessionViewer, STOP_MESSAGE_MAX} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import {Button, FormError, TextField} from '../../../kit/controls';
@@ -7,6 +7,20 @@ import {BottomSheet, Menu} from '../../../kit/overlays';
 import {OwnerDashboardContent} from '../../../kit/settings/dashboard/OwnerDashboardContent';
 import {ownerIsNewServer, ownerPeopleLine, ownerUpdatedLabel} from '../../../screens/settings-live/owner-dashboard/model';
 import {useOwnerDashboard} from '../../shared/settings/useOwnerDashboard';
+import {useDashboardRead} from '../../shared/settings/useDashboardRead';
+
+export function OwnerDashboardOpening({deniedFallback, onDenied, ...props}: Parameters<typeof useOwnerDashboard>[0] & {
+  deniedFallback: ReactNode; onDenied?: () => void;
+}) {
+  const {controller, ports, runtime} = props;
+  const {admission} = useDashboardRead(controller, ports);
+  useEffect(() => {
+    if (admission !== 'denied') return;
+    if (onDenied) onDenied();
+    else runtime.onDestination({kind: 'settings'});
+  }, [admission, onDenied, runtime]);
+  return admission === 'denied' ? <>{deniedFallback}</> : <OwnerDashboardPage {...props}/>;
+}
 
 export function OwnerDashboardPage({controller, ports, runtime, inline = false}: Parameters<typeof useOwnerDashboard>[0]) {
   const {
@@ -42,7 +56,7 @@ export function OwnerDashboardPage({controller, ports, runtime, inline = false}:
     </BottomSheet>
     <BottomSheet open={Boolean(fixView)} onOpenChange={open => {if (!open && !busy) setFixView(undefined);}} testID="owner-fix-permissions-sheet"
       title={t('next.dashboard.fixPermissions')} description={fixView?.owner && fixView.path ? dataFolderConfirmText(fixView.owner, fixView.path) : undefined}
-      footer={<><Button variant="glass" disabled={busy} onPress={() => setFixView(undefined)}>{t('action.cancel')}</Button><Button variant="primary" disabled={busy} loading={busy} onPress={confirmPermissions}}>{t('next.dashboard.fixPermissions')}</Button></>}>
+      footer={<><Button variant="glass" disabled={busy} onPress={() => setFixView(undefined)}>{t('action.cancel')}</Button><Button variant="primary" disabled={busy} loading={busy} onPress={confirmPermissions}>{t('next.dashboard.fixPermissions')}</Button></>}>
       {refusal ? <FormError placement="inline">{refusal}</FormError> : null}
     </BottomSheet>
   </>;

@@ -6,15 +6,15 @@ import {SettingsControlRows, SettingsManagementCard, SettingsNavigationGroup, Se
 import {ServerBand, ServerHeader, SettingsRow} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
 import type {NativeDashboardController} from '../../../screens/settings-live/dashboard-controller';
 import {ownerLibraryCounts, ownerLibraryKind, ownerLibraryState} from '../../../screens/settings-live/owner-libraries/presentation';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import {TVRemoteAccessPanel} from '../../../screens/settings-live/server/TVRemoteAccessPanel';
 import {TVPeoplePanel} from '../../../screens/settings-live/server/TVPeoplePanel';
-import {tvServerPageDefinition, tvServerPagesFor, type TVServerPage} from '../../../screens/settings-live/server/TVServerPageMenu';
+import {tvServerPageDefinition, tvServerPagesFor, type TVServerPage} from '../../../screens/settings-live/server/tv-server-pages';
 import {TVServerReadOnlyPanel} from '../../../screens/settings-live/server/TVServerReadOnlyPanel';
 import {useTVServerSettings} from '../../shared/settings/useTVServerSettings';
+import {ServerDashboard} from './ServerDashboard';
 
 export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'general'}: {
   ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; dashboard: NativeDashboardController; initialPage?: TVServerPage;
@@ -33,7 +33,10 @@ export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'ge
     </FocusRegion>
   </>;
   const body = page === 'dashboard'
-    ? <NativeDashboardScreen controller={dashboard} ports={ports} runtime={runtime} deniedFallback={null} tvContainer={{column, rows}}/>
+    ? <SettingsPageFrame title={t('next.shell.dashboard')}
+      server={<ServerHeader serverName={serverName} viewerRole={role} audience="administrators" viewOnly/>}>
+      <ServerDashboard controller={dashboard} ports={ports} runtime={runtime} column={column} rows={rows}/>
+    </SettingsPageFrame>
     : <SettingsPageFrame title={t(tvServerPageDefinition(page).label)}
       server={<ServerHeader serverName={serverName} viewerRole={role} audience={audience} viewOnly/>}>
       <SettingsControlRows key={page} id={rows} orientation="vertical" edges={{left: column}}>

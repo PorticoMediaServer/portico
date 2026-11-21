@@ -26,7 +26,7 @@ import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPa
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
 import {NativeServerHistory} from '../../../screens/settings-live/server/HistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
-import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
+import {OwnerDashboardOpening} from '../../touch/settings/OwnerDashboardPage';
 import {useSettingsPage, type SettingsProps} from './useSettingsPage';
 import {SettingsPreferences} from './SettingsPreferences';
 
@@ -78,7 +78,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/>
     : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
-    : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
+    : dashboardPage ? <OwnerDashboardOpening controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
     : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}

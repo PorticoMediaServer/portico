@@ -34,6 +34,7 @@ export async function settingsFixture(previous) {
     '../../../kit/shell/SettingsProfileCard': {SettingsProfileCard: 'Focusable'}, './useSettingsPreferences': prefs};
   const body = await load('pages/shared/settings/SettingsPreferences.tsx', bindings);
   const page = await load('pages/shared/settings/SettingsPage.tsx', {...bindings, './useSettingsPage': model, './SettingsPreferences': body,
+    '../../touch/settings/OwnerDashboardPage': {OwnerDashboardOpening: 'Dashboard'},
     './ServerGeneralPage': previous['./ServerGeneralPage'] ?? {ServerGeneralPage: 'ServerGeneralPage'},
     './ServerRemoteAccessPage': previous['./ServerRemoteAccessPage'] ?? {ServerRemoteAccessPage: 'ServerRemoteAccessPage'}});
   return {NativeSettingsScreen: page.NativeSettingsPage};

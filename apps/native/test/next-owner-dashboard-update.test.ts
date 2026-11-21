@@ -104,7 +104,7 @@ async function phone(admission: 'owner' | 'administrator') {
   const modelHook = await screenModule(new URL('../src-next/pages/shared/settings/useOwnerDashboard.ts', import.meta.url), imports);
   const {OwnerDashboardPage: NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/pages/touch/settings/OwnerDashboardPage.tsx', import.meta.url), {
     ...imports,
-    '../../shared/settings/useOwnerDashboard': modelHook,
+    '../../shared/settings/useOwnerDashboard': modelHook, '../../shared/settings/useDashboardRead': {},
     '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'},
     '../../../kit/settings/dashboard/OwnerDashboardContent': {OwnerDashboardContent: 'OwnerDashboardPage'},
   });

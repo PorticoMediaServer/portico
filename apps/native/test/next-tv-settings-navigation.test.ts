@@ -62,26 +62,41 @@ test('programme record pairs and later actions retain native horizontal movement
 
 test('server menu exposes the approved owner pages, restricts administrators and changes its pane on focus', async () => {
   const {react} = hooks(), selected: string[] = [];
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/TVServerPageMenu.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
+  const model = await screenModule(new URL('../src-next/screens/settings-live/server/tv-server-pages.ts', import.meta.url), {
+    react,
     '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec},
     '../../../../../../packages/design/src/next-icons': {nextIcons: Object.fromEntries(settingsSpec.map(section => [`i-${section.icon}`, {}]))},
-    '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/Icon': {Icon: 'Icon'},
-    '../../../kit/shell': {ServerHeader: 'ServerHeader'}, '../../../kit/shell/visual': {shellType: (fontSize: number) => ({fontSize})}, '../../../kit/theme': {useTheme: () => theme},
   });
-  const props = {role: 'owner', page: 'general', serverName: 'Server', runtime: {text: {t: (id: string) => id}}, column: 'pages', rows: 'rows', rail: 'rail', onSelect: (id: string) => selected.push(id)};
-  const tree = module.TVServerPageMenu(props), rows = nodes(tree).filter(node => node.type === 'Focusable');
-  assert.deepEqual(rows.map(node => node.props.focusId), module.tvServerPageOrder);
-  assert.equal(rows.some(node => node.props.focusId === 'troubleshooting'), false);
-  assert.equal(tree.props.style.width, 480);
-  rows[0].props.onFocus(); assert.deepEqual(selected, []);
+  let role = 'owner', page = 'general';
+  const module = await screenModule(new URL('../src-next/pages/tv/settings/ServerSettingsPage.tsx', import.meta.url), {
+    react, '../../../kit/controls': {Button: 'Button'}, '../../../kit/focus': {FocusRegion: 'FocusRegion'},
+    '../../../kit/frames': {SettingsListFrame: 'SettingsListFrame', SettingsPageFrame: 'SettingsPageFrame'},
+    '../../../kit/settings/SettingsParts': {SettingsControlRows: 'SettingsControlRows', SettingsManagementCard: 'SettingsManagementCard', SettingsNavigationGroup: 'SettingsNavigationGroup', SettingsPageLink: 'SettingsPageLink'},
+    '../../../kit/shell': {ServerBand: 'ServerBand', ServerHeader: 'ServerHeader', SettingsRow: 'SettingsRow'},
+    '../../../kit/states': {StateView: 'StateView'}, '../../../screens/settings-live/owner-libraries/presentation': {},
+    '../../../screens/settings-live/server/TVRemoteAccessPanel': {TVRemoteAccessPanel: 'TVRemoteAccessPanel'},
+    '../../../screens/settings-live/server/TVPeoplePanel': {TVPeoplePanel: 'TVPeoplePanel'},
+    '../../../screens/settings-live/server/tv-server-pages': model,
+    '../../../screens/settings-live/server/TVServerReadOnlyPanel': {TVServerReadOnlyPanel: 'TVServerReadOnlyPanel'},
+    '../../shared/settings/useTVServerSettings': {useTVServerSettings: () => ({
+      role, page, column: 'pages', rows: 'rows', rail: 'rail', state: {}, select: (id: string) => selected.push(id),
+    })},
+    './ServerDashboard': {ServerDashboard: 'ServerDashboard'},
+  });
+  const props = {ports: {serverName: () => 'Server'}, runtime: {text: {t: (id: string) => id}}};
+  const tree = module.ServerSettingsPage(props);
+  const rows = nodes(tree.props.list).filter(node => node.type === 'SettingsPageLink');
+  assert.deepEqual(rows.map(node => node.props.id), model.tvServerPageOrder);
+  assert.equal(rows.some(node => node.props.id === 'troubleshooting'), false);
+  const region = nodes(tree.props.list).find(node => node.type === 'FocusRegion');
+  assert.deepEqual(region.props.edges, {left: 'rail', right: 'rows'});
+  assert.equal(rows[0].props.selected, true);
+  assert.equal(rows[0].props.onFocus, undefined);
   rows[1].props.onFocus(); assert.deepEqual(selected, ['dashboard']);
-  assert.equal(nodes(rows[0]).find(node => node.type === 'View')!.props.style.width, 4);
-  assert.equal(nodes(rows[1]).find(node => node.type === 'Icon')!.props.color, 'tertiary');
-  assert.equal(nodes(rows[1]).find(node => node.type === 'Text')!.props.style[1].color, 'secondary');
-  const admin = module.TVServerPageMenu({...props, role: 'administrator', page: 'dashboard'});
-  assert.deepEqual(nodes(admin).filter(node => node.type === 'Focusable').map(node => node.props.focusId), ['dashboard', 'people']);
-  assert.equal(module.isTVServerPage('troubleshooting'), false);
+  role = 'administrator'; page = 'dashboard';
+  const admin = module.ServerSettingsPage(props);
+  assert.deepEqual(nodes(admin.props.list).filter(node => node.type === 'SettingsPageLink').map(node => node.props.id), ['dashboard', 'people']);
+  assert.equal(model.isTVServerPage('troubleshooting'), false);
 });
 
 test('screen-reader query rejection emits one sanitized diagnostic and ends cleanly', async () => {
