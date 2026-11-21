@@ -415,12 +415,14 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {supported: true}; return () => snapshot;})()}},
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../../screens/watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'},
     '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'}, '../../../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'Notice'},
-    '../../../screens/destinations/music/NowPlayingQueue': {nowPlayingSource: () => undefined, NowPlayingQueue: 'Queue', nowPlayingQueueRows: () => [], nowPlayingQueueFocusScope: () => '', nowPlayingQueueEditPort: () => undefined},
+    './useNowPlayingQueue': {nowPlayingSource: () => undefined, nowPlayingQueueRows: () => [], nowPlayingQueueFocusScope: () => '', nowPlayingQueueEditPort: () => undefined},
     '../../../screens/destinations/music/ListeningSongActions': {listeningSongFavorite: () => undefined}, '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: b.focus.FocusRegion, TVMusicFocus: 'MusicFocus', TVMusicSeek: 'Seek'}, '../../../screens/destinations/music/TVQueuePolicy': {useTVQueuePolicy: () => ({})},
     '../../../tv/layout/TVPageMotion': {TVPageGroup: 'PageGroup', TVPageTransition: 'Transition', useTVPageMotion: () => ({open: true, ready: motionReady})}};
   const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTVAudioPlayer.ts', import.meta.url), playerBindings);
   const {TVAudioPlayerPage: TVNowPlayingScreen} = await screenModule(new URL('../src-next/pages/tv/player/AudioPlayerPage.tsx', import.meta.url), {
     ...playerBindings, '../../shared/player/useTVAudioPlayer': playerHook,
+    '../../../kit/player/NowPlayingQueue': {NowPlayingQueue: 'Queue'},
+    '../../shared/player/useNowPlayingQueue': playerBindings['./useNowPlayingQueue'],
   });
   const props: any = {occupant: {mode: 'music', playback: {fence: {}, kind: 'music', queue: null, positionSeconds: 5, playing: true},
     presentation: {identity: {title: 'Song', subtitle: []}, durationSeconds: 100, capabilities: {play: true, pause: true, previous: false, next: true}}},
@@ -916,15 +918,25 @@ for (const kind of ['sort', 'filter'] as const) test(`actual Saved directory sup
 test('actual Lyrics read-error Retry keeps its original prefix, native host and reader command through snapshot changes', async () => {
   const b = await bindings(), o = await overlayBindings(b), lyrics = await import('../../../packages/client-core/src/lyrics');
   const committed = await screenModule(new URL('../src-next/kit/overlays/CommittedPaint.tsx', import.meta.url), {react: b.react, './OverlayPaintContext': b.paint});
-  const {NowPlayingLyrics} = await screenModule(new URL('../src-next/screens/destinations/music/NowPlayingLyrics.tsx', import.meta.url), {
-    react: b.react, 'react-native': b.native, '../../../../../../packages/client-core/src/lyrics': lyrics, '../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../kit/controls': {Button: o.Button, Focusable: b.Focusable}, '../../../kit/theme': {useTheme: () => b.theme},
-    '../../../kit/browse/presentation': await import('../src-next/kit/browse/presentation'), '../../../kit/overlays/CommittedPaint': committed});
+  const model = await screenModule(new URL('../src-next/pages/shared/player/useNowPlayingLyrics.ts', import.meta.url), {
+    react: b.react, '../../../../../../packages/client-core/src/lyrics': lyrics, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/overlays/CommittedPaint': committed});
+  const {ListeningLyricsPaint} = await screenModule(new URL('../src-next/kit/player/ListeningPanePaint.tsx', import.meta.url), {
+    react: b.react, 'react-native': b.native, '../../../../../packages/i18n/src': {defaultI18n}, '../overlays/CommittedPaint': committed,
+    '../../../../../packages/client-core/src/presentation/kit-model/text': await import('../../../packages/client-core/src/presentation/kit-model/text'),
+    '../artwork': {Artwork: 'Artwork'}, '../browse/presentation': {browseType: () => ({})},
+    '../controls': {Button: o.Button, Focusable: b.Focusable}, '../theme': {useTheme: () => b.theme},
+    './QueueRow': {QueueRow: 'QueueRow', QueueGroupLabel: 'Text'}});
+  const {NowPlayingLyrics} = await screenModule(new URL('../src-next/kit/player/NowPlayingLyrics.tsx', import.meta.url), {
+    react: b.react, '../../pages/shared/player/useNowPlayingLyrics': model, './ListeningPanePaint': {ListeningLyricsPaint}});
   let snapshot: any = {data: null, candidates: [], warnings: [], preview: null, busy: false, error: 'Read refused', generation: 1}, tree: any, reads = 0, refreshes = 0, disposed = 0;
   const original = {subscribe: () => () => {}, getSnapshot: () => snapshot, async refresh() {refreshes++;}, dispose() {disposed++;}};
   const target = Object.freeze({libraryId: 'music', itemId: 'original-song', sessionId: 'original-session', sessionGeneration: 1, sourceId: 'original-source'});
   const read = (received: unknown) => {assert.equal(received, target); reads++; return {enabled: true, service: original};};
-  const source = createFabricHookHost(() => {tree = NowPlayingLyrics({read, target, positionSeconds: 0, playing: false, onSeek() {assert.fail('Retry never seeks');}, testID: 'original-lyrics'});}); await source.mount();
+  const source = createFabricHookHost(() => {
+    const pane = NowPlayingLyrics({read, target, positionSeconds: 0, playing: false, onSeek() {assert.fail('Retry never seeks');}, testID: 'original-lyrics'});
+    tree = ListeningLyricsPaint(pane.props);
+  }); await source.mount();
   const region = await b.region(() => ({id: 'original.lyrics.panel'})), button = () => nodes(tree).find(node => node.type === o.Button);
   const retry = await b.target('original.lyrics.panel', () => actualButtonProps(o, button().props));
   try {
