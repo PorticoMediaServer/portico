@@ -181,16 +181,13 @@ test('periodical hero inspects My List once per item and route lease, not per pu
   let selected = newest, lease = new AbortController(), tree: any;
   const actions = {actions: {inspect: async (target: any) => {reads.push(target.item.id); return {itemId: target.item.id, listed: false, revision: 1};}}};
   const runtime = {reportError: (error: unknown) => errors.push(error)};
-  const {PeriodicalActions} = await screenModule(new URL('../src-next/screens/read/ReadPeriodicalScreen.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {View: 'View'}, 'react-native-safe-area-context': {}, '@portico/design': {},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'},
-    '../../kit/controls': {Button: 'Button'}, '../../kit/Icon': {}, '../../kit/overlays': {}, '../../kit/states': {}, '../../kit/selection': {},
-    '../../kit/cards/primitives': {}, '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({colors: {}})},
-    '../downloads/request': {}, '../../../platform/offline-reading': {}, '../../kit/reading/ReadingLoading': {}, './ReadingShelf': {}, '../../kit/reading/ReadingActions': {}, '../../pages/shared/read/useReadingActions': {},
-    './periodical-presentation': {},
+  const {usePeriodicalActions} = await screenModule(new URL('../src-next/pages/shared/read/usePeriodicalActions.ts', import.meta.url), {
+    react: {...React, default: React},
   });
-  const driver = createFabricHookHost(() => {tree = PeriodicalActions({issue: selected, showRead: false, onOpen() {}, actions, runtime,
-    offer: (issue: any) => ({item: issue.item, lifetime: {signal: lease.signal, isCurrent: () => !lease.signal.aborted}, open() {}})});});
+  const driver = createFabricHookHost(() => {
+    tree = usePeriodicalActions(selected, {item: selected.item, lifetime: {signal: lease.signal, isCurrent: () => !lease.signal.aborted}, open() {}},
+      actions.actions, runtime.reportError);
+  });
   try {
     await driver.mount(); await new Promise(resolve => setImmediate(resolve)); await driver.flush();
     assert.deepEqual(reads, ['newest']);
