@@ -14,7 +14,7 @@
    clearances. Comics keep their full bleed under translucent chrome. */
 .reader[data-fixed]:not([data-comic]) .surface { inset-block: calc(var(--reader-fit-top, 72px) + 28px) calc(var(--reader-fit-bottom, 88px) + 28px); }
 @media (max-width: 599px) { .reader[data-fixed]:not([data-comic]) .surface { inset-block: calc(var(--reader-fit-top, 68px) + 8px) calc(var(--reader-fit-bottom, 100px) + 8px); padding-inline: 8px; } }
-.runningTitle { position: absolute; inset: 40px 0 auto; text-align: center; font-size: 13px; font-weight: 600; color: rgba(212,221,228,.4); pointer-events: none; }
+.runningTitle { position: absolute; inset: max(40px, calc(var(--reader-safe-top) + 8px)) 0 auto; overflow-wrap: anywhere; text-align: center; font-size: 13px; font-weight: 600; color: rgba(212,221,228,.4); pointer-events: none; }
 .runningFooter { position: absolute; inset: auto 150px 40px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: rgba(212,221,228,.4); pointer-events: none; }
 .runningTitle, .runningFooter { opacity: 1; transition: opacity var(--motion-quick) var(--ease-out); }
 .reader[data-chrome="shown"] :is(.runningTitle,.runningFooter) { opacity: 0; }
@@ -51,7 +51,7 @@
 .progressGroup { min-width: 0; position: relative; }
 @media (pointer: coarse) { .turn { display: none !important; } }
 @media (max-width: 1023px) { .reader[data-panel] .surface { inset-inline-end: 360px; } .bottom { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; height: 100px; padding: 12px 28px 22px; } .progressGroup { grid-row: 2; grid-column: 1 / -1; } .remaining { grid-column: 2; grid-row: 1; } .sectionRemaining { inset: auto 0 23px; } .runningFooter { inset-inline: 40px; } }
-@media (max-width: 599px) { .reader[data-panel] .surface { inset-inline-end: 0; } .top { height: calc(68px + var(--reader-safe-top)); gap: 4px; padding: var(--reader-safe-top) 12px 0; } .title b { font-size: 14px; } .title small { font-size: 11px; } .reader .tool { width: 40px; height: 44px; } .tools { gap: 0; } .bottom { padding-inline: 20px; } .position b, .remaining b { font-size: 13px; } .position small, .remaining small { font-size: 11px; } .runningTitle { top: 24px; } .runningFooter { inset-inline: 28px; bottom: 28px; font-size: 11px; } }
+@media (max-width: 599px) { .reader[data-panel] .surface { inset-inline-end: 0; } .top { height: calc(68px + var(--reader-safe-top)); gap: 4px; padding: var(--reader-safe-top) 12px 0; } .title b { font-size: 14px; } .title small { font-size: 11px; } .reader .tool { width: 40px; height: 44px; } .tools { gap: 0; } .bottom { padding-inline: 20px; } .position b, .remaining b { font-size: 13px; } .position small, .remaining small { font-size: 11px; } .runningTitle { top: max(24px, calc(var(--reader-safe-top) + 8px)); } .runningFooter { inset-inline: 28px; bottom: 28px; font-size: 11px; } }
 .reader[data-reduced-motion] :is(.runningTitle,.runningFooter), :global([data-reduce-motion='true']) .reader :is(.runningTitle,.runningFooter) { transition-duration: var(--motion-reduced); }
 @media (prefers-reduced-motion: reduce) { .reader :is(.runningTitle,.runningFooter) { transition-duration: var(--motion-reduced); } }
 

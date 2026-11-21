@@ -80,7 +80,8 @@ function NativeReading({guest}: {guest: ReadingGuest}) {
       const near = guest.contentsTarget ? undefined : readerNear(guest.initialProgress);
       progress = bindReadingProgress({controller: reader.controller, session: guest.session, initial: guest.initialProgress, authority, reportError: () => {if (alive) {connection.failed(); setFailed(true);}}, held: near !== undefined});
       progressRef.current = progress;
-      setBook({...(guest.session.manifest.canAnnotate === true && guest.session.annotations && guest.session.mutateAnnotation ? {annotations:{manifest:guest.session.manifest,signal:guest.session.signal,annotations:guest.session.annotations,mutateAnnotation:guest.session.mutateAnnotation}} : {}), publication, controller: reader.controller, authority, contentsTarget: guest.contentsTarget, location: publication.resumeLocation(guest.initialProgress) ?? undefined, near, landed: progress.landed});
+      const estimatedSeconds = guest.session.manifest.metadata.estimatedSeconds;
+      setBook({estimatedSeconds, ...(guest.session.manifest.canAnnotate === true && guest.session.annotations && guest.session.mutateAnnotation ? {annotations:{manifest:guest.session.manifest,signal:guest.session.signal,annotations:guest.session.annotations,mutateAnnotation:guest.session.mutateAnnotation}} : {}), publication, controller: reader.controller, authority, contentsTarget: guest.contentsTarget, location: publication.resumeLocation(guest.initialProgress) ?? undefined, near, landed: progress.landed});
     })().catch(() => {if (alive) {connection.failed(); setFailed(true);}});
     return () => {
       alive = false; offActive(); offCrease(); progressRef.current = undefined;
