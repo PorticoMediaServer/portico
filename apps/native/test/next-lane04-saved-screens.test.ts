@@ -29,7 +29,7 @@ function fixture(phone = true) {
     '../home/model': {homeCardText: () => ({caption: []})}, '../read/platform': {isReadingLibraryKind: () => false},
     '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'},
     '../../../../../packages/client-core/src/saved': savedCore, 
-    '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, './paging': {savedNearEnd},
+    '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, '../../kit/saved/SavedReorderList': {SavedReorderList: 'SavedReorderList'}, './paging': {savedNearEnd},
     './presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [], savedDuration: String,
       savedItemCount: String, savedLibraryName: () => undefined, savedPlaylistEyebrow: 'playlist', savedResourceEyebrow: () => 'collection',
       savedTitleCount: String, savedViewCount: String, savedViewConditionCount: () => 1, savedVisibility: () => undefined, savedVisibilityHelp: () => ''},

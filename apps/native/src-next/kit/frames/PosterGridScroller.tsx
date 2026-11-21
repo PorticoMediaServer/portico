@@ -15,7 +15,7 @@ import {browseGridCard} from './BrowseFrame';
 import {useFrameMetrics} from './metrics';
 import type {TitleCollapse} from './TitleFrame';
 import {TitleListRow, titleListArt, titleListRowHeight, type TitleListItem} from './TitleListRow';
-import {MusicScrollView} from '../music/MusicWindow';
+import {MusicScrollView, MusicWindow} from '../music/MusicWindow';
 import {PanelBlock, PanelHeading} from './title-parts';
 
 /** One poster in a page's grid: what the page knows about the title, never how big it is (as `PosterRowItem`). */
@@ -116,4 +116,21 @@ function TitleRowsScroller<T>({collection, getKey, item, testID, content, style,
 export function musicScroller(props: Readonly<{onNearEnd?: () => void; testID?: string}>) {
   return (content: ReactNode, style: ViewStyle, collapse: TitleCollapse) => <MusicScrollView testID={props.testID} style={{flex: 1}} contentContainerStyle={style}
     collapseAt={collapse.at} onCollapse={collapse.onChange} pinAt={collapse.pinAt} onPin={collapse.onPin} onNearEnd={props.onNearEnd}>{content}</MusicScrollView>;
+}
+
+/** A page's grid of posters from the titles it already holds, inside a `musicScroller` (a saved view, collections 13a): the
+ * browse grid's card size and columns, the rows in view mounted, paging left to the scroller's `onNearEnd`. A grid read as a
+ * `WindowedCollection` takes `posterGridScroller` instead. */
+export function PosterGridWindow({items, testID}: Readonly<{items: readonly (PosterGridItem & Readonly<{id: string}>)[]; testID?: string}>) {
+  const theme = useTheme(), frame = useFrameMetrics(), grid = frameSpec.browse.grid;
+  const {width, columns} = browseGridCard(frame), caption = cardCaptionHeight(theme, 2);
+  const prefix = testID ?? 'poster-grid';
+  const context = (item: Readonly<{id: string}>, index: number): LayoutItemContext =>
+    ({index, id: item.id, focusId: `${prefix}-${item.id}`, testID: `${prefix}-${item.id}`, onFocus: () => {}, onBlur: () => {}});
+  return <View testID={testID}>
+    <PanelBlock>
+      <MusicWindow items={items} columns={columns} columnWidth={width} gap={grid.columnGap[frame.form]} itemHeight={width * 1.5 + caption}
+        renderItem={(item, index) => <GridPoster item={item} width={width} context={context(item, index)}/>}/>
+    </PanelBlock>
+  </View>;
 }
