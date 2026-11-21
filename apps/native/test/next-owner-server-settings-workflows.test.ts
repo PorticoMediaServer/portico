@@ -2,7 +2,7 @@ import {routePath} from '../../../packages/contracts/src/route-paths.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
-import {bindingModule, formsFixture as untypedFormsFixture, lifecycleHooks, maintenance, nodes, content, specification, t, i18n, theme} from './helpers/owner-server-settings.mjs';
+import {bindingModule, formsFixture as untypedFormsFixture, lifecycleHooks, maintenance, nodes, content, specification, storagePage, t, i18n, theme} from './helpers/owner-server-settings.mjs';
 import * as values from '../src-next/screens/settings-live/server/settings-values.ts';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 import {presentError, type ErrorContext} from '../../../packages/client-core/src/presentation/errors.ts';
@@ -23,16 +23,13 @@ test('Storage keeping reads only notices and saves their revision, with Messages
   const storage = await import('../../../packages/client-core/src/server-admin/server-storage.ts'), host = lifecycleHooks(), reads: string[] = [], writes: any[] = [], opened: string[] = [];
   const api = {request: async (path: string) => {reads.push(path);return {etag: '"4"', values: {keepDays: 30}};}, requestRaw: async (path: string, method: string, options: unknown) => {writes.push({path, method, options});return {status: 200, headers: {}, body: {}};}};
   const lifetime = {current: () => true};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/KeepRows.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../../packages/client-core/src/server-admin/server-storage': storage,
-    '../../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (value: unknown) => value},
-    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification,
-    '../../../../kit/controls': {Select: 'Select'}, '../../../../kit/shell': {SettingsRow: 'SettingsRow'},
-    '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme},
-    '../../lifetime': {screenScopeEnded: () => new Error('ended')}, '../../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime})},
-  });
-  const render = () => host.render(() => module.StorageKeepRows({context: {api}, t, onOpenPage: (page: string) => opened.push(page)}));
+  const module = await storagePage(host.react, {
+    '../../../../../../packages/client-core/src/server-admin/server-storage': storage,
+    '../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (value: unknown) => value},
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    '../../../screens/settings-live/lifetime': {screenScopeEnded: () => new Error('ended')}, '../../../screens/settings-live/use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime})},
+  }, {'../../../kit/controls': {Select: 'Select'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}});
+  const render = () => host.render(() => module.KeepRows({context: {api}, t, onOpenPage: (page: string) => opened.push(page)}));
   render();host.flush();await settle();
   const rows = nodes(render()).filter((node: any) => node.type === 'SettingsRow');
   assert.equal(rows.length, 2); rows.find((node: any) => node.props.navigates).props.onPress();assert.deepEqual(opened, ['troubleshooting']);
@@ -76,25 +73,19 @@ async function backupsFixture() {
     restart = async () => {calls.push(['restart']); return true;};
     cancelRestore = async () => {calls.push(['cancelRestore']);};
   }
-  const schedule = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupSchedule.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View'},
-    '../../../../../../../packages/client-core/src/presentation/settings-bindings': await import('../../../packages/client-core/src/presentation/settings-bindings.ts'),
-    '../../../../../../../packages/client-core/src/presentation/settings-spec': await import('../../../packages/client-core/src/presentation/settings-spec.ts'),
-    '../../../../kit/controls': {Button: 'Button'}, '../../../../kit/settings/SettingControl': {NativeSettingControl: 'SettingControl'},
-  });
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupsTab.tsx', import.meta.url), {
-    './BackupSchedule': schedule,
-    react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../../packages/client-core/src/server-admin/server-backups': {...real, ServerBackupSource: Source},
-    '../../../../../../../packages/client-core/src/server-admin/restore-gate': await import('../../../packages/client-core/src/server-admin/restore-gate.ts'),
-    '../../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
-    '../../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
-    '../../owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
-    '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, './space-source': {nativeStorageOwner: () => true},
-  });
+  const module = await storagePage(react, {
+    '../../../../../../packages/client-core/src/server-admin/server-backups': {...real, ServerBackupSource: Source},
+    '../../../../../../packages/client-core/src/server-admin/restore-gate': await import('../../../packages/client-core/src/server-admin/restore-gate.ts'),
+    '../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
+    '../../../../../../packages/client-core/src/presentation/settings-bindings': await import('../../../packages/client-core/src/presentation/settings-bindings.ts'),
+    '../../../../../../packages/client-core/src/presentation/settings-spec': await import('../../../packages/client-core/src/presentation/settings-spec.ts'),
+    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: () => true},
+  }, {'../../../kit/controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
+    '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'}, '../../../kit/frames': {SectionCard: 'SectionCard', SettingsPageFrame: 'SettingsPageFrame'},
+    '../../../screens/settings-live/owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    '../../../kit/settings/SettingControl': {NativeSettingControl: 'SettingControl'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}});
   const ports = {context: {api: {request: async () => ({})}}};
-  const render = () => expand(host.render(() => {const outer = module.BackupsTab({ports, runtime, t, advancedContent: {type: 'Limits', props: {}}}); return outer ? outer.type(outer.props) : null;}));
+  const render = () => expand(host.render(() => {const outer = module.ServerBackups({ports, runtime, t, advancedContent: {type: 'Limits', props: {}}}); return outer ? outer.type(outer.props) : null;}));
   render(); host.flush(); render(); host.flush();
   const sheet = (title: string) => nodes(render()).find((node: any) => node.type === 'BottomSheet' && node.props.title === title);
   const footerButton = (title: string, label: string) => nodes(sheet(title).props.footer).find((node: any) => node.type === 'Button' && content(node) === label);
@@ -103,8 +94,10 @@ async function backupsFixture() {
 }
 
 test('Backups lists what the rebuilt server says and keeps typed deletion behind the row menu', async () => {
-  const f = await backupsFixture(), copy = content(nodes(f.render()));
-  for (const text of ['/backups', 'web.maintenance.backupKindScheduled', 'server.backups.madeBy', 'server.backups.protected']) assert.ok(copy.includes(text), text);
+  const f = await backupsFixture(), tree = nodes(f.render());
+  assert.equal(tree.find((node: any) => node.type === 'StoragePath' && node.props.testID === 'server-storage-backups').props.path, '/backups');
+  const facts = tree.find((node: any) => node.props.testID === 'server-backup-backup-1').props.facts;
+  for (const text of ['web.maintenance.backupKindScheduled', 'server.backups.madeBy', 'server.backups.protected']) assert.ok(facts.includes(text), text);
   assert.equal(nodes(f.render()).filter((node: any) => node.type === 'Advanced').length, 1);
   nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-backup-1').props.onPress();
   nodes(f.render()).find((node: any) => node.type === 'Menu').props.items.find((item: any) => item.id === 'delete').onSelect();

@@ -42,6 +42,7 @@ export async function settingsFixture(previous) {
     '../../touch/settings/ServerStreamingPage': previous['../../touch/settings/ServerStreamingPage'] ?? {ServerStreamingPage: 'ServerStreamingPage'},
     '../../touch/settings/ServerSegmentsPage': previous['../../touch/settings/ServerSegmentsPage'] ?? {ServerSegmentsPage: 'ServerSegmentsPage'},
     '../../touch/settings/ServerIntegrationsPage': previous['../../touch/settings/ServerIntegrationsPage'] ?? {ServerIntegrationsPage: 'ServerIntegrationsPage'},
+    '../../touch/settings/ServerStoragePage': previous['../../touch/settings/ServerStoragePage'] ?? {ServerStoragePage: 'ServerStoragePage'},
     '../../touch/settings/ServerMetadataPage': {ServerMetadataPage: function MetadataPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'metadata', back}, e(Metadata));}},
     '../../touch/settings/ServerPeoplePage': {ServerPeoplePage: function PeoplePage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'people', back}, e(People));}},
     '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: function HistoryPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'history', back}, e(History));}}});
