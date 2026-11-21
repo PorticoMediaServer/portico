@@ -159,3 +159,17 @@ test('the owner\'s Let back in sits on a Left row only and asks once before it i
     assert.equal(button(left, 'left-fixture'), undefined, 'only the owner sees it');
   } finally {f.host.dispose();}
 });
+
+test('All invitations sends an unfiltered selection', async () => {
+  const f = await fixture();
+  try {
+    f.state.tab = 'invitations';
+    f.state.invitationStatus = 'pending';
+    const selections: unknown[] = [];
+    Object.assign(f.source, {select: (...args: unknown[]) => selections.push(args)});
+    const picker = nodes(f.page()).find((node: any) => node.type === 'Select' && node.props.value === 'pending');
+    assert.ok(picker.props.options.some((option: any) => option.value === ''));
+    picker.props.onValueChange('');
+    assert.deepEqual(selections, [['invitations', f.state.query, '']]);
+  } finally {f.host.dispose();}
+});

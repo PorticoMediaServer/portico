@@ -48,28 +48,61 @@ export function InvitationPictureCapture({picture, pictureRef}: {picture: Invita
   </View>;
 }
 
+function pictureLines(value: string, max: number) {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of value.trim().split(/\s+/)) {
+    const next = line ? line + ' ' + word : word;
+    if (Array.from(next).length <= max) {
+      line = next;
+      continue;
+    }
+    if (line) lines.push(line);
+    const letters = Array.from(word);
+    while (letters.length > max) lines.push(letters.splice(0, max).join(''));
+    line = letters.join('');
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 /** The card drawn once as a picture: the same facts, never notes or the short code. */
 export const InvitationPicture = React.forwardRef<InvitationPictureHandle, {picture: InvitationPictureData}>(function InvitationPicture({picture}, ref) {
   const {type} = useTheme();
-  const textProps = ({fontFamily, fontSize}: typeof type.caption) => ({fontFamily, fontSize});
+  const width = 512, margin = 26, contentWidth = width - 2 * margin;
   const rows = qrMatrix(picture.link, 'M');
-  const size = rows.length, cell = Math.max(1, Math.floor(260 / (size + 8))), tile = cell * (size + 8), left = (512 - tile) / 2, top = 218;
+  const size = rows.length, cell = Math.max(1, Math.floor(260 / (size + 8))), tile = cell * (size + 8), left = (width - tile) / 2;
+  let baseline = margin;
+  const draw = (value: string, role: typeof type.caption, fill: string) => {
+    const {fontFamily, fontSize, lineHeight} = role;
+    // Leave one em per glyph and spare room for wide fallback glyphs in the exported image.
+    const max = Math.max(1, Math.floor(contentWidth / (1.12 * (fontSize ?? 16))));
+    const height = lineHeight ?? Math.ceil((fontSize ?? 16) * 1.4);
+    return pictureLines(value, max).map((line, index) => {
+      baseline += height;
+      return <SvgText key={index} x={margin} y={baseline} fill={fill} {...{fontFamily, fontSize}}>{line}</SvgText>;
+    });
+  };
+  const brand = draw(picture.brand, type.rowHeading, '#edf5fa');
+  const expiry = draw(picture.expiry, type.caption, '#bdccd6');
+  baseline += margin;
+  const why = draw(picture.why, type.rowLabel, '#5cb3e2');
+  const server = draw(picture.serverName, type.pageTitle, '#edf5fa');
+  const access = draw(picture.access, type.rowHelp, '#bdccd6');
+  const top = baseline + margin;
+  baseline = top + tile + margin;
+  const link = draw(picture.link, type.caption, '#edf5fa');
+  const height = baseline + margin;
   let path = '';
   rows.forEach((row, y) => row.forEach((on, x) => {if (on) path += `M${left + (x + 4) * cell} ${top + (y + 4) * cell}h${cell}v${cell}h-${cell}z`;}));
-  const lines: string[] = [];
-  for (let rest = picture.link; rest && lines.length < 7; rest = rest.slice(58)) lines.push(rest.slice(0, 58));
-  return <Svg ref={ref as never} width={512} height={680} viewBox="0 0 512 680">
+  return <Svg ref={ref as never} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
     <Defs>
-      <RadialGradient id="blue" cx="512" cy="0" r="520" gradientUnits="userSpaceOnUse"><Stop offset="0" stopColor="#2f86bb" stopOpacity={0.5}/><Stop offset="1" stopColor="#2f86bb" stopOpacity={0}/></RadialGradient>
-      <RadialGradient id="green" cx="0" cy="680" r="460" gradientUnits="userSpaceOnUse"><Stop offset="0" stopColor="#1e5b52" stopOpacity={0.5}/><Stop offset="1" stopColor="#1e5b52" stopOpacity={0}/></RadialGradient>
+      <RadialGradient id="blue" cx={width} cy="0" r="520" gradientUnits="userSpaceOnUse"><Stop offset="0" stopColor="#2f86bb" stopOpacity={0.5}/><Stop offset="1" stopColor="#2f86bb" stopOpacity={0}/></RadialGradient>
+      <RadialGradient id="green" cx="0" cy={height} r="460" gradientUnits="userSpaceOnUse"><Stop offset="0" stopColor="#1e5b52" stopOpacity={0.5}/><Stop offset="1" stopColor="#1e5b52" stopOpacity={0}/></RadialGradient>
     </Defs>
-    <Rect width={512} height={680} fill="#0b1822"/><Rect width={512} height={680} fill="url(#blue)"/><Rect width={512} height={680} fill="url(#green)"/>
-    <SvgText x={26} y={42} fill="#edf5fa" {...textProps(type.rowHeading)}>{picture.brand}</SvgText>
-    <SvgText x={26} y={68} fill="#bdccd6" {...textProps(type.caption)}>{picture.expiry}</SvgText>
-    <SvgText x={26} y={110} fill="#5cb3e2" {...textProps(type.rowLabel)}>{picture.why}</SvgText>
-    <SvgText x={26} y={152} fill="#edf5fa" {...textProps(type.pageTitle)}>{picture.serverName}</SvgText>
-    <SvgText x={26} y={184} fill="#bdccd6" {...textProps(type.rowHelp)}>{picture.access}</SvgText>
+    <Rect width={width} height={height} fill="#0b1822"/><Rect width={width} height={height} fill="url(#blue)"/><Rect width={width} height={height} fill="url(#green)"/>
+    {brand}{expiry}{why}{server}{access}
     <Rect x={left} y={top} width={tile} height={tile} fill="#ffffff"/><Path d={path} fill="#000000"/>
-    {lines.map((line, index) => <SvgText key={index} x={26} y={518 + index * 18} fill="#edf5fa" {...textProps(type.caption)} fontFamily="monospace">{line}</SvgText>)}
+    {link}
   </Svg>;
 });

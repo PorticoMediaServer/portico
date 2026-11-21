@@ -59,7 +59,7 @@ async function mount(ready: 'created' | 'shared', options: {save?: boolean} = {}
   const host = createFabricHookHost(() => {tree = InvitationReadySheet({source, opening, runtime, serverName: 'Portico demo', signIn: 'local'});});
   await act(() => host.mount());
   await act(async () => {await new Promise(resolve => setTimeout(resolve, 0));});
-  return {calls, shared, copied, saved, tree: () => tree, host};
+  return {calls, shared, copied, saved, tree: () => tree, host, picture: words.InvitationPicture, theme};
 }
 
 test('a new invitation\'s card shows the server, what they get, the QR of the long link and its one short code, never the notes', async () => {
@@ -95,4 +95,22 @@ test('a waiting invitation opened to share issues no code until asked, and New c
     await act(async () => {await new Promise(resolve => setTimeout(resolve, 0));});
     assert.deepEqual(app.calls.filter(call => call.startsWith('code:')), ['code:op-1', 'code:op-2']);
   } finally {await app.host.unmount();}
+});
+
+test('the exported invitation gives a long server name and full link separate lines', async () => {
+  const app = await mount('shared');
+  const serverName = 'The Family Movie and Music Server';
+  const link = 'https://demo.example/join#code=' + 'C'.repeat(96);
+  try {
+    const image = app.picture.render({picture: {brand: 'Portico', link, expiry: 'Tomorrow', serverName, access: 'Films', why: 'Invitation'}}, null);
+    const lines = nodes(image).filter(node => node.type === 'SvgText').map(node => node.props);
+    const title = lines.filter(line => line.fontSize === app.theme.type.pageTitle.fontSize);
+    assert.ok(title.length > 1);
+    assert.equal(title.map(line => line.children).join(' '), serverName);
+    const urlLines = lines.slice(lines.findIndex(line => String(line.children).startsWith('https://')));
+    assert.ok(urlLines.length > 1);
+    assert.equal(urlLines.map(line => line.children).join(''), link);
+    assert.ok(urlLines.every(line => line.fontFamily === app.theme.type.caption.fontFamily));
+    assert.ok(image.props.height > urlLines.at(-1).y);
+  } finally {await act(() => app.host.unmount());}
 });
