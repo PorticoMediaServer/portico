@@ -100,8 +100,8 @@ export type LiveFrameProps = Readonly<{
 
 /** Live TV (desktop-live, phone-guide, phone-app 10 to 12, final3-mobileweb-05): the guide, the channel list and
  * Recordings on one frame. Fixed: the library-style header (title, source picker, facts; the tabs under it), the chips and
- * the toolbar. Flexible: the guide or the list. The details pane is `SplitFrame`'s. The header is the kit `LibraryHeader`,
- * as the live Recordings page (`kit/dvr` RecordingsLayout) draws it; Stage 2 moves those pages onto this frame. */
+ * the toolbar. Flexible: the guide or the list. The details pane is `SplitFrame`'s. The header is the kit `LibraryHeader`.
+ * The live guide, Recordings and Series rules are drawn on it (screens/live). */
 /** A short, wide window: a phone on its side (600 wide or more and under 600 tall, the guide's own rule). LiveFrame draws its
  * one-row form there; the screen hands it that form's content (the view switch and Recordings, the chips, the sort). */
 export function useShortWide() {

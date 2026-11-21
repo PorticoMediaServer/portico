@@ -12,7 +12,7 @@ import {Icon} from '../../kit/Icon';
 import {CircleCard, EpisodeTile, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
 import {BrowseToolbar, LibraryMenu, LibrarySwitcher, SongRow} from '../../kit/browse';
 import {Button, Chip, Segmented, Switch, Tabs, TextField} from '../../kit/controls';
-import {RecordingStorage} from '../../kit/dvr/RecordingsLayout';
+import {RecordingStorage} from '../../kit/dvr/RecordingStorage';
 import {RuleCard} from '../../kit/dvr/RuleCard';
 import {ArtBox, BrowseFrame, LiveFrame, ReaderFrame, SearchFrame, Section, SectionCard, useShortWide, type FramePane} from '../../kit/frames';
 import {Shelf} from '../../kit/layout';

@@ -6,14 +6,13 @@ import {defaultI18n} from '@i18n';
 import {bytesLabel, dvrMessage, playableRecording, recordingReason, recordingStateLabel,
   type Recording, type RecordingDetail, type RecordingState} from '@core/dvr.ts';
 import {channelTint} from '@portico/client-core/kit-model';
-import {Button, Chip, Segmented, Select} from '../../kit/controls';
+import {Button, Segmented, Select} from '../../kit/controls';
 import {ChannelMark, nameInitials} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Banner, Dialog, Menu, SidePanel, type MenuEntry} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
-import {RecordingsLayout} from '../../kit/dvr/RecordingsLayout';
 import {RuleGap} from '../../kit/dvr/RuleCard';
-import {LiveRecordingTabs, RecordingPhoneTabs} from './SeriesRules';
+import {RecordingsFrame} from './SeriesRules';
 import type {RecordingsController, RecordingsSort, RecordingsView} from './recordings-controller';
 import {readRecordingDetail} from './recording-detail';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from '../browse/screen-context';
@@ -396,27 +395,19 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
         : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot} everyone={everyone} onGuide={goGuide}/>
           : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller} onGuide={goGuide}/>
             : <StorageView snapshot={snapshot} tuners={lease.tuners}/>;
-  return <RecordingsLayout key={lease.id} title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
-    sourceName="" navigation={undefined} tabs={<LiveRecordingTabs view="recordings" conflicts={summary?.conflicts} onChange={value => {if (value === 'guide') goGuide();}}/>}
-    back={{label: t('next.home.shell.live'), title: t('recordings.title'), onBack: goGuide}}>
-    <RecordingPhoneTabs views={views} value={view} onChange={goView}/>
-    <div className={styles.recordingsBar}>
-      <div className={styles.recordingsChips} role="group" aria-label={t('recordings.title')}>
-        {views.map(item => <Chip className={styles.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => goView(item.id)}>{item.label}</Chip>)}
-      </div>
-      {/* Recordings open on this profile's own, with everyone's one tap away for a profile that may see them (rule 48). */}
-      {onScope && summary?.everyonesRecordings !== false && (view === 'upcoming' || view === 'recorded' || view === 'history') && <Segmented className={styles.recordingsScope} aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
+  return <RecordingsFrame key={lease.id} views={views} view={view} onView={goView} conflicts={summary?.conflicts} onGuide={goGuide}
+    storage={snapshot.storage && <button type="button" className={styles.storageButton} aria-label={t('recordings.storage')} onClick={() => goView('storage')}>
+      <span>{t('next.live.storageFree', {amount: Math.round(snapshot.storage.freeBytes / 1e9)})} · {t('recordings.hoursLeft', {count: snapshot.storage.hoursLeft})}</span>
+    </button>}
+    toolbar={/* Recordings open on this profile's own, with everyone's one tap away for a profile that may see them (rule 48). */
+      onScope && summary?.everyonesRecordings !== false && (view === 'upcoming' || view === 'recorded' || view === 'history') && <Segmented aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
         onValueChange={value => {if (lease.current() && (value === 'mine' || value === 'everyone')) onScope(value === 'everyone');}}
-        items={[{value: 'mine', label: t('next.live.mine')}, {value: 'everyone', label: t('next.live.everyones')}]}/>}
-      {snapshot.storage && <button type="button" className={styles.storageButton} aria-label={t('recordings.storage')} onClick={() => goView('storage')}>
-        <span>{t('next.live.storageFree', {amount: Math.round(snapshot.storage.freeBytes / 1e9)})} · {t('recordings.hoursLeft', {count: snapshot.storage.hoursLeft})}</span>
-      </button>}
-    </div>
+        items={[{value: 'mine', label: t('next.live.mine')}, {value: 'everyone', label: t('next.live.everyones')}]}/>}>
     {snapshot.error && <Banner className={styles.recordingsBanner} action={{label: t('next.states.tryAgain'), onAction: retry}}>{snapshot.error}</Banner>}
     {body}
     {conflictOpening && <ConflictDialog key={conflictOpening.id} context={context} opening={conflictOpening} current={lease.current} consume={consumeConflict}
       controller={lease.controller} onClose={dismissConflict}/>}
-  </RecordingsLayout>;
+  </RecordingsFrame>;
 }
 
 export function RecordingsScreen({captured, view, everyone = false, onView, onScope, onGuide}: {captured: ProtectedLibraryScreen; view: RecordingsView; everyone?: boolean; onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide: () => void}) {

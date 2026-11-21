@@ -3,11 +3,10 @@ import {createRoot} from 'react-dom/client';
 import {defaultI18n} from '@i18n';
 import type {GuideProgramme} from '@core/channel-guide.ts';
 import type {Recording, RecordingDetail} from '@core/dvr.ts';
-import {Chip} from '../../kit/controls';
 import {Icon, IconSprite} from '../../kit/Icon';
 import {ProfileAvatarFace, TopBarActivity} from '../../kit/shell';
-import {RecordingsLayout, RecordingStorage as StorageMeter} from '../../kit/dvr/RecordingsLayout';
-import {LiveRecordingTabs} from '../../screens/live/SeriesRules';
+import {RecordingStorage as StorageMeter} from '../../kit/dvr/RecordingStorage';
+import {RecordingsFrame} from '../../screens/live/SeriesRules';
 import {RecordedView, UpcomingView} from '../../screens/live/RecordingsScreen';
 import type {RecordingsController, RecordingsSnapshot} from '../../screens/live/recordings-controller';
 import type {ScreenContext} from '../../screens/detail/context';
@@ -84,21 +83,15 @@ function Specimen() {
     {id: 'history' as const, label: t('saved.tab.history')},
     {id: 'storage' as const, label: t('recordings.storage')},
   ];
-  return <RecordingsLayout title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
-    sourceName={t('next.live.example.source')} channels={t('next.kit.channels', {count: 14})} through={t('next.live.guideThrough', {day: t('next.live.example.saturday')})}>
-    <LiveRecordingTabs view="recordings" conflicts={1} onChange={() => {}}/>
-    <div className={live.recordingsBar}>
-      <div className={live.recordingsChips} role="group" aria-label={t('recordings.title')}>
-        {views.map(item => <Chip className={live.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => {}}>{item.label}</Chip>)}
-      </div>
-      <button type="button" className={live.storageButton} aria-label={t('recordings.storage')}>
-        <StorageMeter used={t('next.live.storageUsed', {amount: 64})} free={t('next.live.storageFree', {amount: 412})} remaining={t('recordings.hoursLeft', {count: 230})}
-          label={t('recordings.storage')} fraction={64 / 476}/>
-      </button>
-    </div>
+  return <RecordingsFrame views={views} view={view} conflicts={1}
+    facts={<span className={live.guideSource}><strong>{t('next.live.example.source')}</strong><span>{t('next.kit.channels', {count: 14})}</span><span>{t('next.live.guideThrough', {day: t('next.live.example.saturday')})}</span></span>}
+    storage={<button type="button" className={live.storageButton} aria-label={t('recordings.storage')}>
+      <StorageMeter used={t('next.live.storageUsed', {amount: 64})} free={t('next.live.storageFree', {amount: 412})} remaining={t('recordings.hoursLeft', {count: 230})}
+        label={t('recordings.storage')} fraction={64 / 476}/>
+    </button>}>
     {view === 'upcoming' ? <UpcomingView context={context} controller={controller} snapshot={snapshot} now={NOW} onResolve={() => {}} conflictDetails={details}/>
       : <RecordedView context={context} controller={controller} current={context.isCurrent} snapshot={snapshot}/>}
-  </RecordingsLayout>;
+  </RecordingsFrame>;
 }
 
 createRoot(document.getElementById('root')!).render(<><IconSprite /><main data-recordings-specimen><div className={shell.shell} data-desktop="true"><GuideNavigation /><Specimen /></div></main></>);

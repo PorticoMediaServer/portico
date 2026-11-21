@@ -1,0 +1,2 @@
+/* A choice's own detail beside it, quieter (desktop-live: "Today  Wed, Oct 21"). */
+.detail { margin-left: var(--space-tight); font-weight: var(--type-body-weight); color: var(--color-text-secondary); }

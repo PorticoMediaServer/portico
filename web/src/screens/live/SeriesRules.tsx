@@ -3,7 +3,9 @@ import {defaultI18n} from '@i18n';
 import {Button, Chip, Segmented, Select, Switch, Tabs} from '../../kit/controls';
 import {Banner, SidePanel} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
-import {RecordingsLayout} from '../../kit/dvr/RecordingsLayout';
+import {LiveFrame} from '../../kit/frames';
+import {usePhone} from '../../kit/overlays/shared';
+import {PickChip} from './PickChip';
 import {RuleCard, RuleDecoration, RuleField, RuleGap} from '../../kit/dvr/RuleCard';
 import {createRulesState, matchingAirings, matchingCount, rulesReducer, type RuleAiring, type SeriesRule, type SeriesRulesView, type RuleSettings} from './series-rules-model';
 import styles from '../../kit/dvr/rules.module.css';
@@ -24,19 +26,27 @@ export type SeriesRulesProps = Readonly<{view: SeriesRulesView; navigation?: Rea
   onDraft?: (rule: SeriesRule | undefined, settings: RuleSettings | undefined) => void;
   preview?: Readonly<{ruleId: string; settings: RuleSettings; count: number; airings: readonly RuleAiring[]}>}>;
 export type RecordingView = 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage';
-/** phone-app 12: on a phone the Recordings views are the page's underline tabs (Upcoming, Recorded, Series rules,
- * History, Storage); the storage meter stays too, as the frame draws both. Wider screens keep the chips. Shown only at
- * phone width (rules.module.css). */
-export function RecordingPhoneTabs({views, value, onChange}: {views: readonly Readonly<{id: RecordingView; label: string}>[]; value: RecordingView; onChange?: (id: RecordingView) => void}) {
-  const shown = views;
-  return <Tabs phone className={styles.phoneViews} value={value} aria-label={t('recordings.title')}
-    onValueChange={id => {const item = shown.find(view => view.id === id); if (item) onChange?.(item.id);}}
-    items={shown.map(item => ({value: item.id, label: item.label}))}/>;
-}
-export function LiveRecordingTabs({view, conflicts, onChange}: {view: 'guide' | 'recordings'; conflicts?: number; onChange?: (value: 'guide' | 'recordings') => void}) {
-  return <Tabs className={styles.tabs} listClassName={styles.tabList} value={view} onValueChange={value => {if (value === 'guide' || value === 'recordings') onChange?.(value);}} aria-label={t('next.home.shell.live')} items={[
-    {value: 'guide', label: t('channels.tabGuide')}, {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.conflictNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>},
-  ]}/>;
+export type RecordingViewChip = Readonly<{id: RecordingView; label: string; count?: number}>;
+/** Recordings and Series rules on the Live TV frame (desktop-live live-recordings, phone-app 12). From 600: the Live TV head
+ * with Guide | Recordings under it ("1 conflict" when there is one), the source's facts, and the views as chips. At phone
+ * width Recordings is a sub-page of Live TV, "‹ Live TV" and its title, with the views as underline tabs. `storage` (the space
+ * left) ends the views' row from 600 and the line under them on a phone; `toolbar` is that line (whose recordings). */
+export function RecordingsFrame({views, view, onView, conflicts, onGuide, facts, storage, toolbar, children}: Readonly<{views: readonly RecordingViewChip[]; view: RecordingView;
+  onView?: (view: RecordingView) => void; conflicts?: number; onGuide?: () => void; facts?: ReactNode; storage?: ReactNode; toolbar?: ReactNode; children: ReactNode}>) {
+  const phone = usePhone(), sub = phone && !!onGuide;
+  const tabs = phone ? <Tabs phone value={view} aria-label={t('recordings.title')} onValueChange={id => {const item = views.find(entry => entry.id === id); if (item) onView?.(item.id);}}
+      items={views.map(item => ({value: item.id, label: item.label}))}/>
+    : <Tabs value="recordings" aria-label={t('next.home.shell.live')} onValueChange={value => {if (value === 'guide') onGuide?.();}} items={[
+      {value: 'guide', label: t('channels.tabGuide')}, {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.conflictNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>},
+    ]}/>;
+  return <LiveFrame title={sub ? t('recordings.title') : t('next.home.shell.live')} back={sub ? {label: t('next.home.shell.live'), onPress: onGuide!} : undefined}
+    switcher={!sub && <PickChip label={t('channels.source')} pill={phone} value="all" options={[{value: 'all', label: t('channels.all')}]} onChange={() => {}}/>}
+    facts={facts} tabs={tabs}
+    chips={!phone && <>{views.map(item => <Chip key={item.id} variant="search" selected={item.id === view} count={item.count} onClick={onView ? () => onView(item.id) : undefined}>{item.label}</Chip>)}
+      {storage && <><span className={live.guideToolbarGap}/>{storage}</>}</>}
+    toolbar={(toolbar || phone && storage) && <>{toolbar}{phone && storage && <><span className={live.guideToolbarGap}/>{storage}</>}</>}>
+    {children}
+  </LiveFrame>;
 }
 export function SeriesRules({view, navigation, busy = false, error, tail, onGuide, onView, onSave, onDelete, onDraft, preview}: SeriesRulesProps) {
   const [state, dispatch] = useReducer(rulesReducer, view, createRulesState);
@@ -65,20 +75,16 @@ export function SeriesRules({view, navigation, busy = false, error, tail, onGuid
     const neighbour = state.rules[index + 1] ?? state.rules[index - 1];
     if (await onDelete(selected)) {dispatch({type: 'cancel'});if (neighbour) cardButtons.current.get(neighbour.id)?.focus();}
   };
-  return <RecordingsLayout title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
-    sourceName={view.sourceName} channels={view.channelCount === undefined ? undefined : t('player.info.channels', {count: view.channelCount})} through={view.guideThrough === undefined ? undefined : t('next.live.guideThrough', {day: view.guideThrough})} navigation={navigation}
-    tabs={<LiveRecordingTabs view="recordings" conflicts={view.conflictCount} onChange={value => {if (value === 'guide') onGuide?.();}}/>}
-    back={onGuide && {label: t('next.home.shell.live'), title: t('recordings.title'), onBack: onGuide}}>
-    <RecordingPhoneTabs views={views} value="rules" onChange={onView}/>
-    <div className={styles.recordingBar}><div className={styles.chips} aria-label={t('recordings.title')}>
-      {views.map(item => <Chip className={styles.chip} key={item.id} selected={item.id === 'rules'} count={item.count} onClick={onView ? () => onView(item.id) : undefined}>{item.label}</Chip>)}
-    </div>{view.storage && <span>{t('next.live.storageFree', {amount: view.storage.free})} · {t('next.live.storageLeft', {hours: view.storage.hoursLeft})}</span>}</div>
+  return <>{navigation}<RecordingsFrame views={views} view="rules" onView={onView} conflicts={view.conflictCount} onGuide={onGuide}
+    facts={view.sourceName || view.channelCount !== undefined || view.guideThrough !== undefined ? <span className={live.guideSource}>{view.sourceName && <strong>{view.sourceName}</strong>}{view.channelCount !== undefined && <span>{t('player.info.channels', {count: view.channelCount})}</span>}{view.guideThrough !== undefined && <span>{t('next.live.guideThrough', {day: view.guideThrough})}</span>}</span> : undefined}
+    storage={view.storage && <span className={styles.storageLine}>{t('next.live.storageFree', {amount: view.storage.free})} · {t('next.live.storageLeft', {hours: view.storage.hoursLeft})}</span>}>
     <div className={styles.body}><div className={styles.rules}>{state.rules.map(rule => <RuleCard key={rule.id} title={rule.title} glyph={rule.glyph} tone={rule.tone}
       selected={selected?.id === rule.id} paused={!rule.settings.enabled} disabled={busy} options={[t(rule.settings.episodes === 'all' ? 'guide.allEpisodes' : 'guide.newOnly'), rule.settings.channel === 'any' ? t('guide.anyChannel') : rule.settings.channel === 'this' ? rule.channelName : undefined, keepLabel(rule.settings.keep)].filter((value): value is string => value !== undefined)}
       next={nextLine(rule)} conflict={rule.conflict}
       state={t(rule.settings.enabled ? 'recordings.on' : 'recordings.paused')} upcoming={rule.settings.enabled && matchingCount(rule) !== undefined ? t('next.live.upcomingCount', {count: matchingCount(rule)!}) : undefined}
       actionsLabel={t('next.live.actionsFor', {title: rule.title})} buttonRef={element => {if (element) cardButtons.current.set(rule.id, element); else cardButtons.current.delete(rule.id); if (selected?.id === rule.id) opener.current = element;}} onOpen={() => dispatch({type: 'select', id: rule.id})}/> )}</div>
-      {tail}<p className={styles.hint}>{t('next.live.addRuleHint')}</p></div>
+      {/* With no rules the empty state already says how to add one. */}
+      {tail}{state.rules.length > 0 && <p className={styles.hint}>{t('next.live.addRuleHint')}</p>}</div>
     <SidePanel open={!!selected} onOpenChange={open => {if (!open) close();}} width={600} topInset={76} className={styles.panel} returnFocusRef={opener}
       accessibilityLabel={selected ? t('next.live.editRule', {title: selected.title}) : undefined}
       title={<><span className={styles.kind}><Icon name="i-series" size={18}/>{t('next.live.seriesRule')}</span><span className={styles.title}>{selected?.title}</span></>}
@@ -93,5 +99,5 @@ export function SeriesRules({view, navigation, busy = false, error, tail, onGuid
         </div>{airings.length > 0 && <h3 className={styles.comingUp}>{t('next.live.comingUp')}</h3>}<div>{airings.map(airing => <div className={styles.airing} key={airing.id}><span className={styles.at}>{airing.time}</span><div><b>{airing.episode && <>{airing.episode}<RuleGap/></>}{airing.title}</b><small>{airing.isNew && <span className={styles.newFlag}>{t('guide.new')}</span>}{airing.day}{airing.channel && <><RuleGap/>{airing.channel}</>}</small></div>{airing.scheduled && <span className={styles.recordDot} role="img" aria-label={t('dvr.state.scheduled')}/>}</div>)}</div>
       </>}
     </SidePanel>
-  </RecordingsLayout>;
+  </RecordingsFrame></>;
 }
