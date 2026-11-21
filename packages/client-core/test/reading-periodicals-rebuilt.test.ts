@@ -20,4 +20,8 @@ test('periodical groups, years and calendar days use the rebuilt lists and facet
  assert.deepEqual(issues.dayChoices,[{value:'2026-11-03',count:1}]);
  assert.ok(calls.every(url=>url.pathname.startsWith('/v1/')));
  assert.equal(calls.find(url=>url.searchParams.get('limit')==='50')?.searchParams.get('released'),'2026-11..2026-11');
+ // A month's calendar asks for its real days: November ends on the 30th (the server refuses the 31st), February 2024 on the 29th.
+ assert.equal(calls.find(url=>url.searchParams.get('facet')==='issueDay')?.searchParams.get('released'),'2026-11-01..2026-11-30');
+ calls.length = 0; await client.periodicalIssues('lib_books','itm_run','newspaper',{month:'2024-02'});
+ assert.equal(calls.find(url=>url.searchParams.get('facet')==='issueDay')?.searchParams.get('released'),'2024-02-01..2024-02-29');
 });
