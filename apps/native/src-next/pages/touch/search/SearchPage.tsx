@@ -85,7 +85,7 @@ export function SearchPage(props: NativeSearchScreenProps) {
       scrollRef={grid} footer={error || (loading ? <SearchLoading elapsed={elapsed}/> : undefined)}
       onMore={selectedGroup?.nextCursor && state.search.phase === 'ready' && active.visible ? () => run(destination.next(selectedGroup.id)) : undefined}/> : undefined;
   return <SearchFrame testID="native-search-screen" title={!typed && !focused ? t('web.shell.search') : undefined}
-    field={<TextField ref={field} testID="search-input" focusId="search-input" variant="search" leadingIcon="i-search"
+    field={<TextField ref={field} testID="search-input" focusId="search-input" variant="search" prominent leadingIcon="i-search"
       value={state.text} accessibilityLabel={t('web.shell.search')} placeholder={t('web.search.placeholder')}
       autoCapitalize="none" autoCorrect={false} returnKeyType="search"
       onChangeText={value => destination.setText(value)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}

@@ -124,6 +124,8 @@ export const field = {
     value: 'fieldValue' as TypeRole, placeholder: 'fieldPlaceholder' as TypeRole, label: 'fieldLabel' as TypeRole,
     muted: 'textTertiary' as ColorToken, labelGap: 12},
   search: {height: all(80, 44, 44, 80), radius: all(18, 12, 12, 16), paddingX: all(26, 12, 12, 24), gap: all(18, 10, 10, 16), focusRing: 4, focusAlpha: 0.16},
+  /** The Search page's own field, where it is larger than a find field: a tablet's is tablet.html `.sf`, 64 high, corners 16, 20 in, 14 between. */
+  searchPage: {height: all(80, 44, 64, 80), radius: all(18, 12, 16, 16), paddingX: all(26, 12, 20, 24), gap: all(18, 10, 14, 16)},
   /** TV: the small find field over a list (tv.html `.s-find`, Settings): a plain fill, no outline, at rest. */
   findTV: {height: 64, radius: 14, paddingX: 20, gap: 16, icon: 26, fillAlpha: 0.06, type: 'meta' as TypeRole},
 } as const;
