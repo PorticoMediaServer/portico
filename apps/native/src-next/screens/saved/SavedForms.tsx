@@ -131,18 +131,23 @@ export type SavedConfirmSheetProps = Readonly<{
 /** A destructive confirm: the phone sheet and the TV dialog share one command. */
 export function SavedConfirmSheet(props: SavedConfirmSheetProps) {
   const theme = useTheme();
-  const footer = <View style={{flexDirection: 'row', gap: 12}}>
-    <Button testID={`${props.testID}-cancel`} focusId={`${props.testID}-cancel`} variant="glass" disabled={props.busy} onPress={props.onClose} style={{flex: 1}}>{t('action.cancel')}</Button>
+  // TV (tv-focus 38): Cancel and the verb at their own widths at the right; touch: equal halves.
+  const grow = theme.isTV ? undefined : {flex: 1};
+  const footer = <View style={{flexDirection: 'row', gap: theme.isTV ? 18 : 12, justifyContent: theme.isTV ? 'flex-end' : undefined}}>
+    <Button testID={`${props.testID}-cancel`} focusId={`${props.testID}-cancel`} variant="glass" disabled={props.busy} onPress={props.onClose} style={grow}>{t('action.cancel')}</Button>
     <Button testID={`${props.testID}-confirm`} focusId={`${props.testID}-confirm`} variant={props.destructive ? 'glass' : 'primary'} loading={props.busy} disabled={props.busy}
-      onPress={props.onConfirm} style={props.destructive ? {flex: 1, backgroundColor: `${theme.colors.record}24`} : {flex: 1}}
+      onPress={props.onConfirm} style={props.destructive ? {...grow, backgroundColor: `${theme.colors.record}24`} : grow}
       textStyle={props.destructive ? {color: theme.colors.record} : undefined}>{props.action}</Button>
   </View>;
   const body = <View style={{gap: 12}}>
     {props.error !== undefined && <Banner testID={`${props.testID}-error`} variant="notice" tone="error" placement="inline" message={props.error}/>}
     <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{props.body}</Text>
   </View>;
-  if (theme.isTV) return <Dialog open={props.open} onOpenChange={open => {if (!open && !props.busy) props.onClose();}} title={props.title}
-    testID={props.testID} width={620} dismissOnBack={!props.busy} dismissOnOutsidePress={!props.busy} footer={footer}>{body}</Dialog>;
+  // TV: the kit dialog's own width and its description under the title (tv-focus 38), the error banner as its content.
+  if (theme.isTV) return <Dialog open={props.open} onOpenChange={open => {if (!open && !props.busy) props.onClose();}} title={props.title} description={props.body}
+    testID={props.testID} dismissOnBack={!props.busy} dismissOnOutsidePress={!props.busy} footer={footer}>
+    {props.error !== undefined && <Banner testID={`${props.testID}-error`} variant="notice" tone="error" placement="inline" message={props.error}/>}
+  </Dialog>;
   return <BottomSheet open={props.open} onOpenChange={open => {if (!open && !props.busy) props.onClose();}} title={props.title} testID={props.testID}
     fitContent dismissOnBack={!props.busy} dismissOnOutsidePress={!props.busy} dismissOnGesture={!props.busy} footer={footer}>{body}</BottomSheet>;
 }
