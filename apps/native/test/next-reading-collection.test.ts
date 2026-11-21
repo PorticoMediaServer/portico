@@ -57,10 +57,13 @@ test('native picker executes the rendered choice and presents the real partial r
     destination: {id: 'c', name: 'Shelf', entryCount: 11}, receipt: {added: 1, alreadyPresent: 0, failed: 1, unknown: 0, complete: true, pending: false, failures: [{itemId: 'two', code: 'not_found'}]}};
   const controller = {items: [{id: 'one', title: 'First'}, {id: 'two', title: 'Second'}], getSnapshot: () => state, subscribe: () => () => {},
     choose: async (...args: any[]) => {chosen.push(args);}, retry: async () => {retried.push(true);}};
-  const {ReadingCollectionPicker} = await screenModule(new URL('../src-next/screens/read/ReadingCollectionPicker.tsx', import.meta.url), {
-    react: hook.react, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Unavailable'})},
-    '../../kit/selection': {CollectionPicker: 'Picker'}, '../../kit/artwork': {CoverMosaic: 'Mosaic'},
+  const {useReadingCollectionPicker} = await screenModule(new URL('../src-next/pages/shared/read/useReadingCollectionPicker.ts', import.meta.url), {
+    react: hook.react, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Unavailable'})},
+  });
+  const {ReadingCollectionPicker} = await screenModule(new URL('../src-next/kit/reading/ReadingCollectionPicker.tsx', import.meta.url), {
+    react: hook.react, '../selection': {CollectionPicker: 'Picker'}, '../artwork': {CoverMosaic: 'Mosaic'},
+    '../../pages/shared/read/useReadingCollectionPicker': {useReadingCollectionPicker},
   });
   const view = hook.render(() => ReadingCollectionPicker({controller, runtime: {artwork: () => undefined, reportError: (error: unknown) => {throw error;}}, onClose() {}}));
   assert.equal(view.type, 'Picker'); assert.equal(view.props.result.inserted, 1); assert.equal(view.props.result.failed, 1);

@@ -7,7 +7,7 @@ import {Menu} from '../overlays';
 import {BulkEditor, SelectionBar} from '../selection';
 import {bulkChangeSummary} from '../../screens/destinations/bulk-media';
 import {useTheme} from '../theme';
-import {ReadingCollectionPicker} from '../../screens/read/ReadingCollectionPicker';
+import {ReadingCollectionPicker} from './ReadingCollectionPicker';
 import type {ReadingActionsPort} from '../../pages/shared/read/useReadingActions';
 
 const {t} = defaultI18n;
