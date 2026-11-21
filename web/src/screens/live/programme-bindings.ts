@@ -24,6 +24,9 @@ export type ProgrammeSnapshot = Readonly<{
   /** A cancel this panel confirmed; the guide's own mark arrives with the next guide read. */
   recordingRemoved?: boolean;
   favorite: boolean;
+  /** False once the server says this viewer can't record this programme (no tuner, not allowed); the panel then offers no
+   * Record. Until the server answers, the channel's own flag stands. */
+  canRecord?: boolean;
   /** `matches` is what a rule would record, only when the server previews it. */
   preview?: Readonly<{matches?: number; airings: readonly PreviewAiring[]}>;
   previewLoading: boolean;
@@ -98,7 +101,7 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
         const airings = (detail.airings as readonly (typeof detail.airings[number] & AiringEpisode & {channelId?: string})[])
           .map(one => airing(one.id, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channelId || one.channel, one))
           .filter(one => one.id !== programme.id && one.start > now()).sort((left, right) => left.start - right.start);
-        publish({phase: 'ready', favorite: detail.channel.favorite, previewLoading: false, ...(detail.recording ? {recording: detail.recording} : {}),
+        publish({phase: 'ready', canRecord, favorite: detail.channel.favorite, previewLoading: false, ...(detail.recording ? {recording: detail.recording} : {}),
           // The title's other airings, not what a rule would record: no count is said for them.
           preview: Object.freeze({airings: Object.freeze(airings.slice(0, 5))})});
       } catch (error) {

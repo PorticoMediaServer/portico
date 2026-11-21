@@ -81,7 +81,7 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
   const episodeNumber = episodeInfo?.number ?? (episodeInfo as {number?: number; episode?: number} | undefined)?.episode;
   const episode = episodeInfo?.display ?? (episodeInfo?.season !== undefined && episodeNumber !== undefined
     ? t('downloads.title.episode', {season: episodeInfo.season, episode: episodeNumber}) : undefined);
-  const canRecord = !!programme && channel.recordAvailable && !ended;
+  const canRecord = !!programme && channel.recordAvailable && snapshot.canRecord !== false && !ended;
   const started = programme ? Math.max(0, Math.round((now - programme.start) / 60_000)) : 0;
   const left = programme ? Math.max(0, Math.round((programme.end - now) / 60_000)) : 0;
   const progress = programme && programme.end > programme.start ? Math.min(1, Math.max(0, (now - programme.start) / (programme.end - programme.start))) : 0;
