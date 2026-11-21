@@ -123,7 +123,8 @@ function NowPlaying({bindings: b, state, phone = false}: {bindings: DashboardBin
   };
   const empty = phone
     ? <div className={styles.phoneCalm}><span className={styles.phoneCalmLead}><Icon name="i-play" size={18} /></span><b>{t('next.dashboard.nobody')}</b>{b.role === 'owner' && <button type="button" className={styles.phoneCalmLink} onClick={b.effects.openHistory}>{t('next.dashboard.history')}</button>}</div>
-    : <p className={styles.empty}>{t('next.dashboard.nobody')}</p>;
+    // owner-dashboard 11: the quiet Now playing is one card across the page, its help line, and Play history at its end.
+    : <div className={styles.calmStreams}><span className={styles.phoneCalmLead}><Icon name="i-play" size={18} /></span><span className={styles.calmText}><b>{t('next.dashboard.nobody')}</b><small>{t('next.dashboard.calmStreamsBody')}</small></span>{b.role === 'owner' && <button type="button" className={styles.phoneCalmLink} onClick={b.effects.openHistory}>{t('next.dashboard.history')}</button>}</div>;
   const count = totals && (phone
     ? totals.streams > 0
       ? <><span>{t('next.dashboard.peopleCount', {count: totals.people})}</span><i className={styles.dotSep} aria-hidden="true" /><small>{t('next.dashboard.locations', {home: totals.atHome, away: totals.away})}</small></>
