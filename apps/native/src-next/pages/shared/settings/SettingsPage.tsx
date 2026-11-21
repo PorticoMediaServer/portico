@@ -14,7 +14,7 @@ import {NativeTVKeyboard} from '../../../screens/destinations';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
 import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
-import {NativeServerTroubleshooting} from '../../../screens/settings-live/server/TroubleshootingPage';
+import {ServerTroubleshootingPage} from '../../touch/settings/ServerTroubleshootingPage';
 import {ServerStoragePage} from '../../touch/settings/ServerStoragePage';
 import {ServerIntegrationsPage} from '../../touch/settings/ServerIntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';
@@ -80,7 +80,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
       onClose={leaveServerPage} initialChannelId={initialChannelId}/>
     : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
-    : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/>
     : undefined;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
@@ -99,6 +98,8 @@ export function NativeSettingsPage(props: SettingsProps) {
     : metadataPage ? <ServerMetadataPage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onLibraries={() => choose('libraries')}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : storagePage ? <ServerStoragePage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onOpenPage={choose}
+      back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : troubleshootingPage ? <ServerTroubleshootingPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : peoplePage ? <ServerPeoplePage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}

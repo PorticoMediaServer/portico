@@ -6,8 +6,7 @@ import {createNativeSettingsPorts} from '../settings-ports';
 import {createNativeRecordingsController} from '../recordings-controller';
 import {RecordingsPage as TouchRecordingsPage} from '../../../pages/touch/live/RecordingsPage';
 import {RecordingsPage as TVRecordingsPage} from '../../../pages/tv/live/RecordingsPage';
-import {NativeServerTroubleshooting} from './TroubleshootingPage';
-import {TopBar} from '../../../kit/layout/TopBar';
+import {ServerTroubleshootingPage} from '../../../pages/touch/settings/ServerTroubleshootingPage';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -51,8 +50,7 @@ function RecordingsDestination({controller, ports, runtime, onGuide}: {controlle
 function ServerFeedbackDestination({ports, runtime, onBack}: {ports: ReturnType<typeof createNativeSettingsPorts>; runtime: NativeShellRuntime; onBack: () => void}) {
   const insets = useSafeAreaInsets();
   return <View style={{flex: 1, paddingTop: insets.top + 14}}>
-    <TopBar safeArea={false} title={runtime.text.t('settings.server.troubleshooting')} back={{label: runtime.text.t('action.back'), onPress: onBack}}/>
-    <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader initialTab="feedback"/>
+    <ServerTroubleshootingPage ports={ports} runtime={runtime} initialTab="feedback" back={{label: runtime.text.t('action.back'), onPress: onBack}}/>
   </View>;
 }
 
