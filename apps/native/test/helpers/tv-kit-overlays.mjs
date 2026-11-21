@@ -39,7 +39,7 @@ export async function tvKitOverlays(kit, {wait = 60} = {}) {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     '../../../../../packages/i18n/src/index': i18n, '../controls/Button': {Button}, '../controls/Focusable': {Focusable}, '../focus': focus,
     '../Icon': {Icon: none}, '../theme': themed, '../useMotion': motion, './OverlayHost': host, './OverlayPaintContext': paint,
-    './TVDesignCanvas': {TVDesignCanvas: ({children}) => children}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})}, './native-dismissal': dismissal, './geometry': geometry};
+    './TVDesignCanvas': {TVDesignCanvas: ({children}) => children}, '../focus/FocusRegion': {FocusWithin: ({children}) => children}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})}, './native-dismissal': dismissal, './geometry': geometry};
   const surface = await screenModule(src('kit/overlays/surface.tsx'), {...common, '../../platform/layout/tv-canvas': tvCanvas, './BottomSheet': {BottomSheet: none}});
   const pan = new Proxy({}, {get: () => () => pan});
   const sheet = await screenModule(src('kit/overlays/BottomSheet.tsx'), {...common, './surface': surface,

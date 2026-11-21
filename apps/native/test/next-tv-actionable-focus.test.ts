@@ -210,7 +210,7 @@ async function overlayBindings(b: Awaited<ReturnType<typeof bindings>>) {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     '../../../../../packages/i18n/src/index': {defaultI18n}, '../controls/Button': {Button}, '../controls/Focusable': {Focusable: b.Focusable},
     '../focus': b.focus, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme, nativeType}, '../useMotion': motion,
-    './OverlayHost': host, './OverlayPaintContext': b.paint, './TVDesignCanvas': {TVDesignCanvas: 'DesignCanvas'}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
+    './OverlayHost': host, './OverlayPaintContext': b.paint, './TVDesignCanvas': {TVDesignCanvas: 'DesignCanvas'}, '../focus/FocusRegion': {FocusWithin: ({children}: any) => children}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
     './native-dismissal': await screenModule(new URL('../src-next/kit/overlays/native-dismissal.ts', import.meta.url), {react: b.react, 'react-native': native, '../focus/layer-stack': {LAYER_FOCUS_WAIT_MS: 1000}})};
   const surface = await screenModule(new URL('../src-next/kit/overlays/surface.tsx', import.meta.url), {...common, '../../platform/layout/tv-canvas': canvas, './BottomSheet': {BottomSheet: 'UnusedTouchSheet'}});
   const pan: any = new Proxy({}, {get: () => () => pan});
