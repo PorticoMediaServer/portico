@@ -98,6 +98,12 @@ export function useWholeItems(axis: 'x' | 'y', mode: 'fit' | 'blank', keys: read
     pad,
     container: {onLayout: (event: LayoutChangeEvent) => setRoom(pick(event))},
     focus: (key: string) => {focused.current = key; later();},
+    /** Focus moved to something before the list: show it from its start. */
+    rest: () => {
+      focused.current = undefined; clearTimeout(settle.current);
+      // As snap does: asked in the same turn as a focus move, tvOS keeps the list where it was.
+      settle.current = setTimeout(() => ref.current?.scrollTo(axis === 'x' ? {x: 0, animated: false} : {y: 0, animated: false}), 50);
+    },
     cut: (key: string) => {const box = boxes.current.get(key); return mode === 'blank' && !!box && room > 0 && !whole(box, offset);},
     item: (key: string) => ({
       onLayout: (event: LayoutChangeEvent) => {const {x, y, width, height} = event.nativeEvent.layout, start = axis === 'x' ? x : y, size = axis === 'x' ? width : height;

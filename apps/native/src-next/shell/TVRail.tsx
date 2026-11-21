@@ -112,7 +112,9 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
         <View accessible={false} style={{height: 40, marginLeft: 16, marginBottom: 64}}>
           {open ? <Image source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tvRail, flexShrink: 0, position: 'absolute', top: (40 - headerWordmark.tvRail.height) / 2}}/> : <BrandSymbol width={28} height={40}/>}
         </View>
-        <View style={{gap: spec.itemGap}}>{pinnedTop.map(entry => item(entry))}</View>
+        {/* The list starts again from its first library when focus is above it, so Down from Home lands on the first library,
+            not on whichever was in view after an earlier visit further down. */}
+        <View style={{gap: spec.itemGap}}>{pinnedTop.map(entry => item(entry, whole.rest))}</View>
         {/* A library name is shown whole or not at all, never cut under the fade (owner, 20 Nov 20:30). */}
         {/* The libraries scroll, so they clip. The list owns the item gaps above and below it (room for the focus ring) and
             glow room at the sides, and reaches no further: past the gaps it would paint under the pinned entries. Where it
