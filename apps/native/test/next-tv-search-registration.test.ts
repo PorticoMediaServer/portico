@@ -132,7 +132,7 @@ async function setup() {
     './selection': {createNativeSearchSelection},
     './controller': {createNativeSearchController}, './actions': {createNativeSearchActions: () => ({dispose() {}})},
     './navigation': navigationPorts, './explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
-    './search-page': {SearchPageFor: 'SearchPageFor'}, './GenreBrowseScreen': {GenreBrowseScreen: 'GenreBrowseScreen'},
+    './search-page': {SearchPageFor: 'SearchPageFor'}, './GenreBrowseScreen': {GenreBrowseScreen: 'GenreBrowseScreen'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'},
     './AllGenresScreen': {AllGenresScreen: 'AllGenresScreen'},
     './reading-register': readingRegister,
   });

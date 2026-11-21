@@ -14,6 +14,9 @@ import {NativeSearchExplore, NativeSearchGenreList} from './explore';
 import {NativeSearchOnNow} from './on-now';
 import {SearchPageFor} from './search-page';
 import {GenreBrowseScreen} from './GenreBrowseScreen';
+import {GenreBrowsePage} from '../../pages/touch/search/GenreBrowsePage';
+import type {GenreBrowseProps} from '../../pages/shared/search/useGenreBrowse';
+import {CoveredLayer} from '../../kit/focus';
 import {AllGenresScreen} from './AllGenresScreen';
 import {createNativeSearchSelection} from './selection';
 import {createNativeReadingSearchModule} from './reading-register';
@@ -98,7 +101,7 @@ export function createNativeSearchModule(context: NativeShellBootstrapContext): 
       reconcile();
       return <>
         {[...roots.values()].map(entry => <SearchHost key={entry.key} entry={entry} runtime={runtime}/>)}
-        {[...genres.values()].map(entry => <GenreBrowseScreen key={entry.key} focusScope={entry.focusScope} name={entry.route.label} value={entry.route.value} destination={entry.controller.source}
+        {[...genres.values()].map(entry => <GenrePage key={entry.key} focusScope={entry.focusScope} name={entry.route.label} value={entry.route.value} destination={entry.controller.source}
           activation={entry.controller.activation} runtime={runtime} actions={entry.actions} owner={context.session()?.viewer.role === 'owner'} onBack={() => back(entry.route)} stackRoute={entry.route}/>)}
         {[...all.values()].map(entry => <AllHost key={entry.key} entry={entry} runtime={runtime} navigation={context.navigation} back={() => back(entry.route)}/>)}
       </>;
@@ -139,3 +142,13 @@ nativeShellRoutes.registerDestination('search', createNativeSearchModule);
 nativeShellRoutes.registerRoute('search-genre', createNativeSearchModule);
 nativeShellRoutes.registerRoute('search-genres', createNativeSearchModule);
 nativeShellRoutes.registerRoute('search-reading', createNativeReadingSearchModule);
+
+/** A genre page on a phone or tablet: the kit page in the touch stack, covered while another page is on top. TV keeps its own screen. */
+const GenrePage = Platform.isTV ? GenreBrowseScreen : GenreHost;
+function GenreHost(props: GenreBrowseProps) {
+  const active = useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot).visible;
+  const place = useNativeStackPlacement(props.stackRoute), stacked = useNativeStackHosted();
+  return <>{place(<CoveredLayer covered={!active} style={{position: 'absolute', inset: 0, opacity: active || stacked ? 1 : 0}}>
+    <GenreBrowsePage {...props}/>
+  </CoveredLayer>)}</>;
+}
