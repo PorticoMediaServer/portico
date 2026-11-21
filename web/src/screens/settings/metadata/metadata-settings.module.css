@@ -26,3 +26,10 @@
   .libraryTable td > button[role='switch'] { justify-self: end; }
   .saveBar { gap: 8px; padding: 12px 8px; border-radius: 14px 14px 0 0; }
 }
+
+/* owner-metadata 14: a provider key's state sits at its row's top end with a dot; the field is 460 wide under the help. */
+.keyControl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+.keyControl > p { position: absolute; top: var(--list-row-padding-y); right: var(--list-row-padding-x); display: inline-flex; align-items: center; gap: 8px; max-width: 40%; margin: 0; font-size: var(--type-caption-size); font-weight: var(--type-row-label-weight); color: var(--color-text-secondary); text-align: right; }
+.keyControl > p::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--color-text-tertiary); }
+.keyControl > div { flex: 0 1 460px; min-width: 0; }
+@media (max-width: 599px) { .keyControl > p { position: static; flex-basis: 100%; max-width: none; text-align: left; } .keyControl > div { flex-basis: 100%; } }
