@@ -52,7 +52,8 @@ const holders: Readonly<Record<string, Holder>> = {
     {id: 'popularTracks', type: 'list', pages: false, limit: 10, query: id => ({artist: id, kind: 'track', sort: 'popular'})},
     {id: 'songs', type: 'list', pages: true, query: id => ({artist: id, kind: 'track', sort: 'title', order: 'asc'})},
   ]},
-  collection: {sections: [{id: 'items', type: 'grid', pages: true, query: id => ({collection: id})}]},
+  // A collection in its own order: the server's position for each title, which the owner can change (desktop-detail f8).
+  collection: {sections: [{id: 'items', type: 'grid', pages: true, query: id => ({collection: id, sort: 'order'})}]},
   // An audiobook series' volumes in volume order, and an author's books in this library.
   book_series: {sections: [{id: 'books', type: 'grid', pages: true, query: id => ({series: id, sort: 'order'})}]},
   author: {person: true, sections: [{id: 'books', type: 'grid', pages: true, query: (id, library) => ({library, author: id})}]},
