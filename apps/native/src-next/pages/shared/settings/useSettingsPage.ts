@@ -330,25 +330,4 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const choose = (id: string) => {if (!viewCurrent()) return; pageState.current = {...pageState.current, selected: id, pushed: !theme.isTV}; setSelected(id); setTarget(undefined); if (!theme.isTV) setPushed(true);};
   const phoneBack = () => {if (!viewCurrent()) return; if (!remoteSourcesPage || !remoteBack.current?.()) popPage();};
   const viewerRole = ports.context.account.account.role === 'owner' ? 'owner' as const : ports.context.account.canManage ? 'administrator' as const : 'member' as const;
-  const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || peoplePage || signInPage || metadataPage || remoteSourcesPage;
-  const accountGroups = compact ? [orderedPages] : grouped(orderedPages, theme.isTV ? tvPageGroups : tabletAccountClusters);
-  const serverGroups = grouped(serverGroupPages, compact ? [] : tabletServerClusters);
-  const focusSearch = () => {if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}};
-  const openDashboard = () => {if (viewCurrent()) navigation.open({kind: 'server-dashboard'}, ports.context.authority());};
-  const openServerPage = (id: string) => {
-    if (id === 'dashboard' && (dashboard === undefined || compact)) openDashboard(); else choose(id);
-  };
-  const sheetChanged = (open: boolean, reason: string) => {
-    if (open || !viewCurrent() || closingRef.current) return;
-    if (pushed && (reason === 'back' || reason === 'escape')) {
-      if (!segmentsPage || !segmentBack.current?.()) phoneBack();
-    } else closeSettings();
-  };
-  return {theme, t, shell, state, ids, page, compact, pushed, query, setQuery, searchRevision, searching, searchField, keyboard, rows, column,
-    selectPage: setSelected, choose, focusSearch, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
-    matches, matchingPages, matchRegions, matchEdges, voiceSearch, sheetChanged, closing, closeSettings, finishClose, phoneBack, signedIn,
-    serverPage, viewerRole, dashboardCard, dashboardDenied, openDashboard, openServerPage, updatePending, leaveServerPage, setRemoteBack, setSegmentBack,
-    librariesPage, livePage, troubleshootingPage, storagePage, integrationsPage, generalPage, streamingPage, segmentsPage, peoplePage,
-    signInPage, metadataPage, historyPage, remoteSourcesPage, remoteAccessPage, dashboardPage, customPage, liveControllers,
-    pageScroll, pageScrollLayout, rowTargeting, aimed, reportedOutputs, awayLimitLabel};
-}
+  const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || signInPage || metadataPage || remoteSourcesPage;
