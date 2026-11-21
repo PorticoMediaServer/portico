@@ -217,7 +217,7 @@ function SetupForm({controller, view, form, setForm, name, mode}: {controller: S
     </RadioGroup.Item>
     <RadioGroup.Item value="local" className={hosted ? styles.qopt : styles.choice}>
       {local && <span className={styles.choiceIcon} aria-hidden="true"><Icon name="i-server" size={22}/></span>}
-      <span className={styles.qoptCopy}><b>{t('web.setup.localSignIn')}</b><br/>{t('web.setup.localSignInBody')}</span>
+      <span className={local ? styles.choiceCopy : styles.qoptCopy}><b>{t('web.setup.localSignIn')}</b><p>{t('web.setup.localSignInBody')}</p></span>
       <span className={local ? styles.rad : styles.radOff} aria-hidden="true"/>
     </RadioGroup.Item>
     </RadioGroup.Root>
