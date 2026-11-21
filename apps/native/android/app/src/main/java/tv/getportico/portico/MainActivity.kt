@@ -13,6 +13,7 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnable
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 import tv.getportico.portico.native.PorticoAccountAuth
 import tv.getportico.portico.native.PorticoOverlayKeys
+import tv.getportico.portico.native.PhoneUpright
 import tv.getportico.portico.native.PorticoPictureInPicture
 
 class MainActivity : ReactActivity() {
@@ -38,6 +39,13 @@ class MainActivity : ReactActivity() {
     intent = PorticoUrlRoutes.filtered(intent)
     super.onCreate(null)
     PorticoBoot.attach(this)
+    PhoneUpright.apply(this)
+  }
+
+  /** A fold opening or closing changes whether this is a phone; the activity is not recreated for it (configChanges). */
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    PhoneUpright.apply(this)
   }
 
   /** The small window opened, or closed: back at full size when the activity is still on screen, dismissed otherwise. */

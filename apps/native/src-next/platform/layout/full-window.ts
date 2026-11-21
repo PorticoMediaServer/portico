@@ -20,6 +20,7 @@ type Bridge = Readonly<{
   orientationSupported?: boolean;
   enter?: (owner: string) => Promise<boolean>;
   leave?: (owner: string) => void;
+  playerOpen?: (open: boolean) => void;
 }>;
 
 /** Televisions have no orientation of their own and never register the module. */
@@ -44,3 +45,9 @@ export const nativeFullWindowOrientation: NativeFullWindowOrientation | undefine
         },
       })
     : undefined;
+
+/** Phones are upright everywhere except the video player (Justin, 21 Nov 2026): the host is told when the player opens
+ * and closes, and a phone may turn only while it is open. Tablets and televisions are not affected. */
+export function nativePlayerOpen(open: boolean): void {
+  try {bridge?.playerOpen?.(open);} catch {}
+}

@@ -72,6 +72,15 @@ class PorticoFullWindow(private val context: ReactApplicationContext) : ReactCon
     }
   }
 
+  /** The video player opened or closed: a phone may turn only while it is open (PhoneUpright). */
+  @ReactMethod fun playerOpen(open: Boolean) {
+    ui.post {
+      PhoneUpright.playerOpen = open
+      val activity = context.currentActivity ?: return@post
+      if (!activity.isFinishing && !activity.isDestroyed) PhoneUpright.apply(activity)
+    }
+  }
+
   @ReactMethod fun leave(owner: String) {
     // Synchronous, so a close that lands before the posted enter cancels it before it turns.
     retireOwner(owner)
@@ -103,5 +112,7 @@ class PorticoFullWindow(private val context: ReactApplicationContext) : ReactCon
     if (activity == null || activity !== context.currentActivity || activity.isFinishing || activity.isDestroyed) return
     if (activity.requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) return
     try {activity.requestedOrientation = previous} catch (failure: RuntimeException) {}
+    // The player may have closed while it was sideways: a phone goes back upright now.
+    PhoneUpright.apply(activity)
   }
 }
