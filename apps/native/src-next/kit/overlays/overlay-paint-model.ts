@@ -161,7 +161,12 @@ export function freezeOverlayPaint(node: OverlayPaintNode, allowedTypes: Overlay
       // config into a warning accessor on the new props object. The key belongs
       // to the element, so transfer it there and leave the frozen props free of
       // any accessor, exactly as the source element's props were.
-      return keyed ? React.cloneElement(built, {key: element.key}) : built;
+      const result = keyed ? React.cloneElement(built, {key: element.key}) : built;
+      // Development React marks the children JSX wrote in place as checked, so their list draws no "key" warning. The rebuilt
+      // element is the same child at the same position (no key added, so its identity is unchanged): it keeps the mark.
+      const source = (element as {_store?: {validated?: unknown}})._store, rebuilt = (result as {_store?: {validated?: unknown}})._store;
+      if (source && rebuilt && source.validated) rebuilt.validated = source.validated;
+      return result;
     } finally {context.path.delete(element as unknown as object);}
   }
 
