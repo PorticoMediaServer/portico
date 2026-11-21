@@ -22,7 +22,7 @@ export function ServerChooserPage({snapshot, busy, error, onBack, onSelect, onSi
       {groups.filter(group => group.rows.length).map(group => <ServerGroup key={group.id} title={t(group.label)}>{group.rows.map(server => row(server))}</ServerGroup>)}
       <AccountFields>
         <Button testID="phone-server-refresh" variant="glass" size="compact" icon="i-refresh" disabled={busy} onPress={onRefresh}>{t('accounts.servers.refresh')}</Button>
-        <Button testID="phone-server-add" variant="glass" size="compact" disabled={busy} onPress={onAdd}>{t('accounts.signIn.local')}</Button>
+        <Button testID="phone-server-add" variant="text" size="compact" disabled={busy} onPress={onAdd}>{t('accounts.signIn.local')}</Button>
       </AccountFields>
       {certificates}
       {footer}
