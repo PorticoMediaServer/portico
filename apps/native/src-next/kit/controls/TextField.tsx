@@ -78,9 +78,10 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
         underlineColorAndroid="transparent"
         onFocus={event => {if (!paint.interactive) return; binding.onFocus(); setFocused(true); onFocus?.(event);}}
         onBlur={event => {if (!paint.interactive) return; binding.onBlur(); setFocused(false); onBlur?.(event);}}
-        style={[theme.type.body, styles.input, {fontFamily: selection || auth ? fontFamilies[600] : search ? fontFamilies[500] : fontFamilies[400],
-          fontWeight: auth ? '600' : theme.type.body.fontWeight,
-          fontSize: auth ? 16 * theme.textScale : search && !theme.isTV ? 15.5 * theme.textScale : theme.type.body.fontSize,
+        style={[theme.type.body, styles.input, {fontFamily: selection || auth ? fontFamilies[600] : search && !theme.isTV ? theme.type.searchQuery.fontFamily : search ? fontFamilies[500] : fontFamilies[400],
+          fontWeight: auth ? '600' : search && !theme.isTV ? theme.type.searchQuery.fontWeight : theme.type.body.fontWeight,
+          letterSpacing: search && !theme.isTV ? theme.type.searchQuery.letterSpacing : undefined,
+          fontSize: auth ? 16 * theme.textScale : search && !theme.isTV ? theme.type.searchQuery.fontSize : theme.type.body.fontSize,
           color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.column])}, style,
           // A one-line field never takes a line height: on iOS it turns the unfocused value into a wrapped paragraph that
           // spills a half-cut second line out of the box; without it the value stays on one line and ends in an ellipsis.
