@@ -10,7 +10,7 @@ import {screenModule} from './helpers/screen-harness.mjs';
 import {freezeOverlayPaint} from '../src-next/kit/overlays/overlay-paint-model.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {activeLyricLine, lyricSeekPosition} from '../../../packages/client-core/src/lyrics';
-import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text';
+import {clockText, durationText} from '../../../packages/client-core/src/presentation/kit-model/text';
 
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes)
   : React.isValidElement<any>(value) ? [value, ...nodes(value.props.children)] : [];
@@ -39,7 +39,7 @@ async function fixture() {
     '../theme': {useTheme: () => ({...common['../../../kit/theme'].useTheme(), gutter: 20, space: {xs: 8, sm: 16, md: 24, lg: 32},
       type: {rowLabel: {}, rowHelp: {}, bodyStrong: {}, body: {}}, targets: {touch: 44}})},
     '../browse/presentation': common['../../../kit/browse/presentation'], '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText},
   });
   return {hooks, panes, common, provider, publish: () => tree.props.value, store: () => tree.props.children.props.value,
     inert() {mode = {...mode, interactive: false};}, hidden() {mode = {...mode, visible: false, interactive: false};},
@@ -96,15 +96,20 @@ test('original scope replacement retires callbacks and old cleanup cannot erase 
 
 test('a full queue display retains committed rows without putting its large data or commands in captured props', async () => {
   const f = await fixture(), owner = Object.freeze({}), calls: string[] = [];
-  const data = {current: [], groups: [{key: 'actual', label: 'Next', rows: Array.from({length: 1000}, (_, i) => ({id: `row-${i}`, title: `Row ${i}`,
-    current: false, playable: true, menu: false}))}], summary: ['1000 songs']};
+  const longTitle = 'Maxwell’s Silver Hammer (2019 Mix)', artist = 'The Beatles';
+  const data = {current: [], groups: [{key: 'actual', label: 'Next', rows: Array.from({length: 1000}, (_, i) => ({id: `row-${i}`,
+    title: i === 999 ? longTitle : `Row ${i}`, detail: [artist], seconds: 207, current: false, playable: true, menu: false}))}], summary: ['1000 songs']};
   const publisher = createFabricHookHost(() => f.hooks.useCommittedPaintPublication(owner, 'listening-queue', 'source', {},
     {data, actions: {play: (id: string) => calls.push(id)}}));
   let tree: any;
   const leaf = createFabricHookHost(() => {tree = f.panes.ListeningQueuePaint({owner, scope: 'source'});});
   try {
     await act(() => publisher.mount());await leaf.mount();
-    const originalPress = nodes(tree).find(node => node.props.testID === 'now-playing-queue-row-row-999').props.onPress;
+    const row = nodes(tree).find(node => node.props.testID === 'now-playing-queue-row-row-999');
+    const labels = nodes(row).filter(node => node.type === 'Text');
+    assert.deepEqual(labels.map(node => node.props.children), [longTitle, artist, '3:27']);
+    assert.ok(labels.every(node => node.props.numberOfLines === undefined));
+    const originalPress = row.props.onPress;
     originalPress();assert.deepEqual(calls, ['row-999']);
     const element = React.createElement(f.panes.ListeningQueuePaint, {owner, scope: 'source'});
     const frozen = freezeOverlayPaint(element, [f.panes.ListeningQueuePaint]);

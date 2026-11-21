@@ -5,7 +5,7 @@ import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
 import {createStableFocusOrder} from '../src-next/kit/focus/stable-order.ts';
 import {createTheme} from '../src-next/kit/theme.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
-import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text';
+import {clockText, durationText} from '../../../packages/client-core/src/presentation/kit-model/text';
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const key = (row: {id: string}) => row.id;
 
@@ -24,29 +24,39 @@ test('stable native order uses only the last committed projection, current sourc
 
 async function fixture() {
   const host = hooks(), registry = createFocusRegistry(), effects: (() => void)[] = [], calls: unknown[] = [];
-  const react = {...host.react, useLayoutEffect: (run: () => void) => effects.push(run)};
+  const react = {...host.react, Fragment: 'Fragment', useLayoutEffect: (run: () => void) => effects.push(run)};
   const modules = {react: {...react, default: react}};
   const {useStableFocusOrder} = await screenModule(new URL('../src-next/kit/focus/useStableFocusOrder.ts', import.meta.url), {
     ...modules, './FocusRegion': {useOptionalFocusRegistry: () => registry}, './stable-order': {createStableFocusOrder},
   });
-  const {useTVQueueSongMenu} = await screenModule(new URL('../src-next/screens/destinations/music/TVQueueSongMenu.tsx', import.meta.url), {
-    ...modules, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/overlays': {Menu: 'Menu'},
+  const {useTVQueueSongMenu} = await screenModule(new URL('../src-next/pages/shared/player/useTVQueueSongMenu.ts', import.meta.url), {
+    ...modules, '../../../../../../packages/i18n/src': {defaultI18n},
   });
-  const {NowPlayingQueue, nowPlayingQueueFocusScope, nowPlayingQueueEditPort} = await screenModule(new URL('../src-next/screens/destinations/music/NowPlayingQueue.tsx', import.meta.url), {
-    ...modules, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
-    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
-    '../../../kit/artwork': {Artwork: 'Artwork'}, '../../../kit/controls': {Focusable: 'Focusable'},
-    '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/focus/useStableFocusOrder': {useStableFocusOrder},
-    './TVQueueSongMenu': {useTVQueueSongMenu}, '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => createTheme({isTV: true, width: 1920})},
-    '../../../kit/browse/presentation': {browseType: () => ({})},
+  const queue = await screenModule(new URL('../src-next/pages/shared/player/useNowPlayingQueue.ts', import.meta.url), {
+    ...modules, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
+    '../../../kit/focus/useStableFocusOrder': {useStableFocusOrder},
+    './useTVQueueSongMenu': {useTVQueueSongMenu},
     '../../../kit/overlays/CommittedPaint': {committedPaintScope: () => ({}), useCommittedPaintPublication() {}},
+  });
+  const {nowPlayingQueueFocusScope, nowPlayingQueueEditPort} = queue;
+  const useTheme = () => createTheme({isTV: true, width: 1920});
+  const {TVQueueRows} = await screenModule(new URL('../src-next/kit/player/TVQueueRows.tsx', import.meta.url), {
+    ...modules, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
+    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText},
+    '../artwork': {Artwork: 'Artwork'}, '../controls': {Focusable: 'Focusable'},
+    '../focus': {FocusRegion: 'FocusRegion'}, '../overlays': {Menu: 'Menu'}, '../theme': {useTheme},
+  });
+  const {NowPlayingQueue} = await screenModule(new URL('../src-next/pages/shared/player/NowPlayingQueue.tsx', import.meta.url), {
+    ...modules, '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/theme': {useTheme},
+    '../../../kit/player/TVQueueRows': {TVQueueRows}, './useNowPlayingQueue': queue,
     '../../../kit/player/ListeningPanePaint': {ListeningQueuePaint: 'ListeningQueuePaint'},
   });
   const entries = ['a', 'b', 'c', 'd'].map(id => ({id, hidden: false, removed: false}));
   const props: any = {testID: 'queue', regionId: 'queue-region', focusScopeKey: 'actual-fence-A', onPlay: (...args: unknown[]) => calls.push(args),
     view: {queue: {id: 'real-queue', revision: '1', currentEntryId: 'a', entries}, items: entries.map(entry => ({entryId: entry.id, itemId: entry.id, title: entry.id, durationMs: 100000}))}};
   let requests = 0;
-  const render = () => {const tree = host.render(() => NowPlayingQueue(props)); effects.splice(0).forEach(run => run()); return tree;};
+  const render = () => {const tree = host.render(() => TVQueueRows(NowPlayingQueue(props).props)); effects.splice(0).forEach(run => run()); return tree;};
   const bind = (tree: any) => {
     const region = nodes(tree).find(node => node.type === 'FocusRegion'); registry.configure(region.props);
     for (const row of nodes(tree).filter(node => node.type === 'Focusable')) registry.attach({regionId: 'queue-region', childId: row.props.focusId}, {requestTVFocus() {requests++;}});
@@ -62,7 +72,7 @@ test('TV Up next retains the genuine playing row and declared row key while focu
   f.registry.didFocus({regionId: 'queue-region', childId: 'queue-b'});
   f.props.view = {...f.props.view, queue: {...f.props.view.queue, currentEntryId: 'b', revision: '2'}};
   tree = f.render(); assert.deepEqual(ids(tree), ['queue-b', 'queue-c', 'queue-d']);
-  assert.equal(rows(tree)[0].props.key, 'b');
+  assert.equal(nodes(tree).find(node => node.type === 'Fragment' && node.props.key === 'b')?.props.key, 'b');
   assert.ok(nodes(rows(tree)[0]).some(node => node.type === 'Text' && node.props.children.includes(defaultI18n.t('player.queueNowPlaying'))));
   const release = f.registry.retain(f.registry.capture()!); f.registry.didFocus({regionId: 'song-menu', childId: 'play-now'});
   f.props.view = {...f.props.view, queue: {...f.props.view.queue, currentEntryId: 'c', revision: '3'}};

@@ -4,7 +4,7 @@ import {GestureDetector} from 'react-native-gesture-handler';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {NativeWatchEqualizer, type NativeEqualizerCopy} from '../../screens/watch/Equalizer';
 import {MusicSignalLine, MusicSignalSheet} from '../../screens/destinations/music/MusicSignal';
-import {NowPlayingQueue} from '../../screens/destinations/music/NowPlayingQueue';
+import {NowPlayingQueue} from '../../pages/shared/player/NowPlayingQueue';
 import {NowPlayingLyrics} from '../../pages/shared/player/NowPlayingLyrics';
 import {ListeningSongActions, ListeningFavoritePaint} from '../../screens/destinations/music/ListeningSongActions';
 import {ListeningQueuePaint, ListeningLyricsPaint} from './ListeningPanePaint';

@@ -11,7 +11,7 @@ import {RetainedOverlay} from '../../../kit/overlays/SurfacePaintHost';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
 import {NativeWatchEqualizer} from '../../../screens/watch/Equalizer';
 import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/music/MusicSignal';
-import {NowPlayingQueue} from '../../../screens/destinations/music/NowPlayingQueue';
+import {NowPlayingQueue} from '../../shared/player/NowPlayingQueue';
 import {TVMusicFocus} from '../../../screens/destinations/music/TVMusicFocus';
 import {listeningChapterSeek} from '../../../screens/destinations/music/audiobook-controls';
 import {NowPlayingLyrics, type NowPlayingLyricsProps} from '../../shared/player/NowPlayingLyrics';

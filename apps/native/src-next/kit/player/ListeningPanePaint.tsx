@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {durationText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
+import {clockText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {Artwork, type ArtworkSource} from '../artwork';
 import {Button, Focusable} from '../controls';
 import {useCommittedPaint} from '../overlays/CommittedPaint';
@@ -30,16 +30,16 @@ export function ListeningQueuePaint({owner, scope = '', data: supplied, onPlay, 
     const body = <>
       {value.source ? <Artwork source={value.source} width={44} height={44} style={{borderRadius: 8, overflow: 'hidden', flexShrink: 0}}/> : null}
       <View style={{flex: 1, minWidth: 0, gap: 3}}>
-        <Text numberOfLines={1} style={[browseType(theme, value.current ? 16 : 15, 700, -0.01), {color: theme.colors.text}]}>{value.title}</Text>
-        {value.detail?.length ? <View style={{flexDirection: 'row', gap: 10}}>{value.detail.map((part, index) => <Text key={index} numberOfLines={1} style={[browseType(theme, 13, 400), {color: theme.colors.textSecondary, flexShrink: 1}]}>{part}</Text>)}</View> : null}
+        <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{value.title}</Text>
+        {value.detail?.length ? <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>{value.detail.map((part, index) => <Text key={index} style={[theme.type.rowHelp, {color: theme.colors.textSecondary, flexShrink: 1}]}>{part}</Text>)}</View> : null}
       </View>
-      {value.seconds ? <Text style={[browseType(theme, 13, 400), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{durationText(value.seconds, t)}</Text> : null}
+      {value.seconds ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{clockText(value.seconds)}</Text> : null}
     </>;
     const main = !value.playable || value.current ? <View key={`${value.id}:main`} testID={`${testID}-row-${value.id}`} accessibilityRole="text" accessibilityLabel={[value.title, ...(value.detail ?? [])].filter(Boolean).join(', ')}
-      style={{flex: 1, minHeight: 52, paddingLeft: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 12}}>{body}</View>
+      style={{flex: 1, minHeight: 52, paddingLeft: theme.space.sm, paddingRight: theme.space.sm, paddingVertical: theme.space.xs, flexDirection: 'row', alignItems: 'center', gap: 12}}>{body}</View>
       : <Focusable key={`${value.id}:main`} testID={`${testID}-row-${value.id}`} focusId={`${testID}-${value.id}`} focusKind="row" focusRadius={10}
         accessibilityRole="button" accessibilityLabel={t('player.queuePlay', {title: value.title})} onPress={() => {if (paint.current()) paint.actions?.play?.(value.id);}}
-        style={({focused}) => ({flex: 1, minHeight: 52, paddingLeft: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 10,
+        style={({focused}) => ({flex: 1, minHeight: 52, paddingLeft: theme.space.sm, paddingRight: theme.space.sm, paddingVertical: theme.space.xs, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 10,
           backgroundColor: focused ? 'rgba(237,245,250,.16)' : 'transparent'})}>{body}</Focusable>;
     return value.menu ? <View key={value.id} style={{flexDirection: 'row', alignItems: 'center'}}>{main}
       <Focusable testID={`${testID}-row-menu-${value.id}`} focusKind="button" accessibilityRole="button" accessibilityLabel={t('server.row.actions', {name: value.title})}
@@ -90,16 +90,17 @@ export function ListeningLyricsPaint({owner, scope = '', data: supplied, onRetry
     if (y !== undefined) scroller.current?.scrollTo({y: Math.max(0, y - viewport / 3), animated: true});
   }, [activeIndex, viewport, paint.interactive]);
   if (!paint.data) return null;
-  if (paint.data.messageOnly) return <View pointerEvents={paint.interactive ? 'auto' : 'none'} style={{paddingHorizontal: theme.gutter, paddingVertical: theme.space.lg}}>
-    <Text style={[theme.type.rowLabel, {textAlign: 'center', color: theme.colors.textSecondary}]}>{message}</Text>
+  const noticeInset = theme.isTV ? theme.space.sm : theme.gutter;
+  if (paint.data.messageOnly) return <View pointerEvents={paint.interactive ? 'auto' : 'none'} style={{paddingHorizontal: noticeInset, paddingVertical: theme.space.lg}}>
+    <Text accessibilityLiveRegion="polite" style={[theme.type.rowLabel, {textAlign: 'center', color: theme.colors.textSecondary}]}>{message}</Text>
   </View>;
   return <View testID={testID} pointerEvents={paint.interactive ? 'auto' : 'none'} accessibilityElementsHidden={!paint.interactive}
     importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} style={{flex: 1, minHeight: 0}}>
-    {error ? <View style={{alignItems: 'center', gap: theme.space.sm, paddingHorizontal: theme.gutter, paddingVertical: theme.space.lg}}>
+    {error ? <View style={{alignItems: 'center', gap: theme.space.sm, paddingHorizontal: noticeInset, paddingVertical: theme.space.lg}}>
       <Text style={[theme.type.rowHelp, {textAlign: 'center', color: theme.colors.textSecondary}]}>{error}</Text>
       <Button align="center" focusId="retry" testID={`${testID}-retry`} variant="glass" size="small" icon="i-restart" onPress={() => {if (paint.current()) paint.actions?.retry?.();}}>{t('action.tryAgain')}</Button>
     </View> : null}
-    {message ? <View style={{paddingHorizontal: theme.gutter, paddingVertical: theme.space.lg}}><Text style={[theme.type.rowLabel, {textAlign: 'center', color: theme.colors.textSecondary}]}>{message}</Text></View> : null}
+    {message ? <View style={{paddingHorizontal: noticeInset, paddingVertical: theme.space.lg}}><Text style={[theme.type.rowLabel, {textAlign: 'center', color: theme.colors.textSecondary}]}>{message}</Text></View> : null}
     {resources.map(resource => <Focusable key={resource.id} focusKind="row" focusRadius={10} focusId={`${testID}-resource-${resource.id}`} testID={`${testID}-resource-${resource.id}`}
       accessibilityRole="button" onPress={() => {if (paint.current()) paint.actions?.choose?.(resource.id);}}
       style={({focused}) => ({minHeight: theme.targets.touch, marginHorizontal: theme.space.sm, paddingHorizontal: theme.space.sm, paddingVertical: theme.space.xs, justifyContent: 'center', borderRadius: 10, backgroundColor: focused ? 'rgba(237,245,250,.16)' : 'transparent'})}>

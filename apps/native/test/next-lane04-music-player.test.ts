@@ -42,7 +42,7 @@ async function fixture(book = false, width = 390) {
     '../../../kit/dock/model': {commandAllowed: () => true, dockCommand: (_occupant: unknown, type: string) => ({type}),
       playbackPosition: (occupant: any) => occupant.playback.positionSeconds, seekBounds: () => ({start: 0, end: 180}),
       seekTo: (_occupant: unknown, seconds: number) => ({type: 'seek', seconds: Math.max(0, Math.min(180, seconds))})},
-    '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerPage'}, '../../../screens/destinations/music/NowPlayingQueue': {nowPlayingSource: () => undefined, NowPlayingQueue: 'QueuePublisher', nowPlayingQueueWindow: (view: any) => view.window,
+    '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerPage'}, './useNowPlayingQueue': {nowPlayingSource: () => undefined, nowPlayingQueueWindow: (view: any) => view.window,
       nowPlayingQueueEntry: () => ({available: true, segmentId: 'segment'})},
     '../../../screens/destinations/music/ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'FavoritePaint', listeningSongFavorite: () => undefined},
     '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: 'MusicFocusRegion', TVMusicFocus: 'TVMusicFocus'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVScreen'},
@@ -56,6 +56,7 @@ async function fixture(book = false, width = 390) {
   const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTouchAudioPlayer.ts', import.meta.url), playerBindings);
   const {AudioPlayerPage} = await screenModule(new URL('../src-next/pages/touch/player/AudioPlayerPage.tsx', import.meta.url), {
     ...playerBindings, '../../shared/player/useTouchAudioPlayer': playerHook,
+    '../../shared/player/NowPlayingQueue': {NowPlayingQueue: 'QueuePublisher'},
     '../../../kit/player/queue': {AudioPanel: 'AudioPanel', ChapterList: 'ChapterList', ChapterTicks: 'ChapterTicks'},
     '../../../kit/player/ListeningSurface': {ListeningCover: 'ListeningCover', ListeningNoticeLine: 'NoticeLine', ListeningPageBackground: 'ListeningPageBackground', ListeningPanel: 'ListeningPanel', ListeningSurface: 'ListeningSurface'},
     '../../../kit/player/listening-presentation': {equalizerCopy: () => ({}), retainedListeningParts: [], omittedListeningParts: []},

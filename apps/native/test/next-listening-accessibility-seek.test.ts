@@ -58,7 +58,7 @@ async function fixture(hosted = true) {
       useListeningScrubberPublication: (value: ListeningScrubber | undefined) => {scrubber = value; return hosted;}},
     '../../../kit/browse/presentation': {alpha: (color: string) => color, browseType: () => ({})},
     '../../../kit/dock/model': {commandAllowed, dockCommand, playbackPosition, seekBounds, seekTo},
-    '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerPage'}, '../../../screens/destinations/music/NowPlayingQueue': {nowPlayingSource: () => undefined, NowPlayingQueue: 'Queue'},
+    '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerPage'}, './useNowPlayingQueue': {nowPlayingSource: () => undefined},
     '../../../screens/destinations/music/ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'Favorite'},
     '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: 'FocusRegion', TVMusicFocus: 'TVFocus', TVMusicSeek: 'TVSeek'},
     '../../../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'Notice'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVNowPlaying'},
@@ -71,6 +71,7 @@ async function fixture(hosted = true) {
   const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTouchAudioPlayer.ts', import.meta.url), playerBindings);
   const {AudioPlayerPage} = await screenModule(new URL('../src-next/pages/touch/player/AudioPlayerPage.tsx', import.meta.url), {
     ...playerBindings, '../../shared/player/useTouchAudioPlayer': playerHook,
+    '../../shared/player/NowPlayingQueue': {NowPlayingQueue: 'Queue'},
     '../../../kit/player/queue': {AudioPanel: 'AudioPanel', ChapterList: 'ChapterList', ChapterTicks: 'ChapterTicks'},
     '../../../kit/player/ListeningSurface': {ListeningCover: 'ListeningCover', ListeningNoticeLine: 'NoticeLine', ListeningPageBackground: 'ListeningPageBackground', ListeningPanel: 'ListeningPanel', ListeningSurface: 'ListeningSurface'},
     '../../../kit/player/listening-presentation': {equalizerCopy: () => ({}), retainedListeningParts: [], omittedListeningParts: []},
