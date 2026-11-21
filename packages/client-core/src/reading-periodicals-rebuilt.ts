@@ -20,6 +20,11 @@ export async function rebuiltPeriodicalGroups(api: ServerRequester, library: str
  }));
  return {libraryId: library, publicationType: kind, groups: groups.filter((v): v is ReadingPeriodicalGroup => !!v), ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})};
 }
+/** A month's last day ("30" for 2026-11, "29" for 2024-02): the server refuses a day that doesn't exist. */
+function monthEnd(month: string): string {
+ const [year, number] = month.split('-').map(Number);
+ return String(new Date(Date.UTC(year!, number!, 0)).getUTCDate()).padStart(2, '0');
+}
 export async function rebuiltPeriodicalIssues(api: ServerRequester, library: string, series: string, kind: ReadingPeriodicalType, options: Options, signal?: AbortSignal) {
  if (options.year && !/^\d{4}$/.test(options.year) || options.month && !/^\d{4}-\d{2}$/.test(options.month) || options.issueDate && !date(options.issueDate)) throw new Error('invalid_request');
  const prefix = options.month ?? options.year;
@@ -28,7 +33,7 @@ export async function rebuiltPeriodicalIssues(api: ServerRequester, library: str
  const [page, years, days, group] = await Promise.all([
   callServer(api, 'GET /v1/items', {query: {...query, released, sort: 'release', order: options.order === 'oldest' ? 'asc' : 'desc', cursor: options.cursor, limit: options.limit ?? 50}, signal}),
   callServer(api, 'GET /v1/facets', {query: {...query, facet: 'issueYear'}, signal}),
-  options.month ? callServer(api, 'GET /v1/facets', {query: {...query, released: `${options.month}-01..${options.month}-31`, facet: 'issueDay'}, signal}) : Promise.resolve({facet: 'issueDay', values: []} as Facets),
+  options.month ? callServer(api, 'GET /v1/facets', {query: {...query, released: `${options.month}-01..${options.month}-${monthEnd(options.month)}`, facet: 'issueDay'}, signal}) : Promise.resolve({facet: 'issueDay', values: []} as Facets),
   callServer(api, 'GET /v1/items/{id}', {id: series, signal}),
  ]);
  if (!Array.isArray(page.items)) throw new ReadingError('invalid_document');
