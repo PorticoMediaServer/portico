@@ -27,8 +27,9 @@ export async function openNativeReadingBookEntry(context: NativeShellBootstrapCo
   try {
     const versions = await nativeReadEligibility(client, entry.id, signal);
     const version = versions?.versions.find(value => value.inventoryAvailable);
+    // A magazine's or newspaper's issue keeps its kind, so the book page's series link opens the archive, not a book series.
     if (version && resident()) item = Object.freeze({id: entry.id, libraryId, title: entry.title, format: version.format,
-      sourceId: version.sourceId, inventoryAvailable: true as const});
+      sourceId: version.sourceId, inventoryAvailable: true as const, ...(entry.publicationType ? {publicationType: Object.freeze({value: entry.publicationType, source: 'file'})} : {})});
   } finally {client.dispose();}
   return item ? openNativeReadBook(scoped, {libraryId, item}, target.origin, signal) : false;
 }
