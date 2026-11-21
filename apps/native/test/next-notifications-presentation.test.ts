@@ -16,24 +16,28 @@ const theme = {platform: 'phone', isTV: false, fontScale: 1, textScale: 1, gutte
 const i18n = {t: (key: string) => key, has: () => true, number: String, relativeTime: () => 'Yesterday'};
 const shellType = (fontSize: number, weight = 600) => ({fontSize, fontWeight: String(weight)});
 
-test('personal and server notices share one inbox count and section', async () => {
-  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
-    react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
-    '../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'})},
-    '../../kit/controls': {Button: 'Button', Tabs: 'Tabs'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/overlays': {Menu: 'Menu'}, '../../kit/shell': {NotificationItem: 'NotificationItem'},
-    '../../kit/states': {Quiet: ({children}: any) => children, StateView: 'StateView'}, '../../kit/shell/visual': {shellType},
-    '../../kit/theme': {useTheme: () => theme}, '../../shell/account': {nativeMenuRouteAvailable: () => true},
-    '../../shell/model': {sameAuthority: (a: any, b: any) => a.serverId === b.serverId},
-    '../../platform/event-resync': {recoverEventState: () => () => {}},
+test('Notifications is a Settings page: Unread with its count, Mark all read, and the notices as one card with rules between them', async () => {
+  const hook = await screenModule(new URL('../src-next/pages/shared/notifications/useNotifications.ts', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'})},
+    '../../../platform/event-resync': {recoverEventState: () => () => {}},
+    '../../../shell/account': {nativeMenuRouteAvailable: () => true},
+    '../../../shell/model': {sameAuthority: (a: any, b: any) => a.serverId === b.serverId},
+    '../../../screens/notifications/notification-route': await import('../src-next/screens/notifications/notification-route.ts'),
   });
-  const item = (id: string, audience: string) => ({id, audience, read: false, archived: false, severity: 'info', revision: '1', source: 'downloads', actions: [], createdAt: '2026-10-01T00:00:00Z'});
-  const service = (audience: string, items: unknown[]) => {
-    const state = {phase: 'ready', audiences: [audience], counts: {unread: items.length}, items, view: 'unread', more: false, busy: false};
-    return {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, readAll: async () => {}};
-  };
-  const profileService = service('profile', [item('one', 'profile'), item('two', 'profile'), item('server', 'profile')]);
+  const {NotificationsPage} = await screenModule(new URL('../src-next/pages/touch/notifications/NotificationsPage.tsx', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../kit/controls': {Button: 'Button', Tabs: 'Tabs'},
+    '../../../kit/frames': {SectionCard: 'SectionCard', SettingsPageFrame: 'SettingsPageFrame', StateRow: 'StateRow'},
+    '../../../kit/overlays': {Menu: 'Menu'},
+    '../../../kit/shell': {NotificationItem: 'NotificationItem', NotificationSubject: 'NotificationSubject', SettingsSheet: 'SettingsSheet'},
+    '../../../kit/shell/OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'},
+    '../../../kit/theme': {useTheme: () => theme},
+    '../../shared/notifications/useNotifications': hook,
+  });
+  const item = (id: string) => ({id, audience: 'profile', read: false, archived: false, severity: 'info', revision: '1', source: 'downloads', actions: [], createdAt: '2026-10-01T00:00:00Z'});
+  const state = {phase: 'ready', audiences: ['profile'], counts: {unread: 3}, items: [item('one'), item('two'), item('three')], view: 'unread', more: false, busy: false};
+  const profileService = {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, readAll: async () => {}};
   const authority = {serverId: 'server'}, route = {kind: 'notifications'};
   const navigation = {route, revision: 1, destination: {kind: 'settings'}};
   const context = {authority: () => authority, account: {account: {role: 'owner'}},
@@ -41,29 +45,20 @@ test('personal and server notices share one inbox count and section', async () =
   const runtime = {getSnapshot: () => ({hasLiveTV: false}), text: i18n};
   const retirement = {subscribe: () => () => {}, getSnapshot: () => undefined};
   let tree: any;
-  const host = createFabricHookHost(() => {tree = NativeNotificationsScreen({context, route, runtime, profileService, retirement});});
+  const host = createFabricHookHost(() => {tree = NotificationsPage({context, route, runtime, profileService, retirement});});
   await host.mount(); await host.flush();
   try {
-    const tabs = all(tree).find(node => node.type === 'Tabs');
-    assert.equal(tabs.props.items[0].label, 'notifications.view.unread');
+    const sheet = all(tree).find(node => node.type === 'SettingsSheet');
+    assert.equal(sheet.props.open, true, 'a phone shows Notifications inside the Settings sheet');
+    const page = all(tree).find(node => node.type === 'SettingsPageFrame');
+    assert.equal(page.props.back.label, 'next.shell.settings');
+    assert.equal(page.props.action.testID, 'notifications-mark-all');
+    const tabs = all(page.props.tabs).find(node => node.type === 'Tabs');
     assert.equal(tabs.props.items[0].count, '3');
-    // LR09: headings, notices and Load more are stable keyed rows of one viewport list.
-    const list = all(tree).find(node => node.type === 'FlatList');
-    assert.deepEqual(list.props.data.map((row: any) => list.props.keyExtractor(row)),
-      ['heading:profile', 'notice:profile:one', 'notice:profile:two', 'notice:profile:server']);
-    const drawn = list.props.data.map((row: any) => list.props.renderItem({item: row}));
-    const rows = all(drawn).filter(node => node.type === 'NotificationItem');
-    assert.deepEqual(rows.map(node => [node.props.notification.id, node.props.separator]), [['one', false], ['two', true], ['server', true]]);
-    assert.ok(all(drawn[0]).some(node => node.props.testID === 'notifications-section-profile'));
-    assert.ok(!all(drawn).some(node => node.props.testID === 'notifications-section-admin'));
-    // The section card is drawn in slices: rounded only at its first and last notice.
-    const card = (row: any) => flatten(row.props.style);
-    assert.equal(card(drawn[1]).borderTopLeftRadius, 14); assert.equal(card(drawn[1]).borderBottomLeftRadius, 0);
-    assert.equal(card(drawn[2]).borderTopLeftRadius, 0); assert.equal(card(drawn[2]).borderBottomLeftRadius, 0);
-    assert.equal(card(drawn[3]).borderBottomLeftRadius, 14);
-    const bar = all(tree).find(node => node.type === 'PhoneServerPageHeader' || node.type === 'TopBar');
-    assert.equal(bar.props.trailing.props.testID, 'notifications-mark-all');
-    assert.equal(flatten(bar.props.trailing.props.textStyle).fontSize, 15);
+    const cards = all(page.props.children).filter(node => node.type === 'SectionCard');
+    assert.equal(cards.length, 1);
+    const rows = all(cards[0].props.children).filter(node => node.type === 'NotificationItem');
+    assert.deepEqual(rows.map(node => [node.props.notification.id, node.props.separator]), [['one', false], ['two', true], ['three', true]]);
   } finally {await host.unmount();}
 });
 

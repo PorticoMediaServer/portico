@@ -127,3 +127,22 @@ export function WatchTogetherPill({name, status, waiting, people, onPress, acces
 }
 
 const controlID = (prefix: string | undefined, ...parts: readonly string[]) => prefix ? focusTestID(prefix, JSON.stringify(parts)) : undefined;
+
+/** A notification's subject in its tile: what it is about (downloads, a recording, a report, sign-in, a scan, the network,
+ * storage), tinted by how serious it is. */
+export function NotificationSubject({source, severity}: {source: string; severity?: Notification['severity']}) {
+  const theme = useTheme();
+  const color = severity === 'critical' ? theme.colors.record : severity === 'warning' ? theme.colors.amber : theme.colors.textSecondary;
+  return <Icon name={notificationSourceIcon(source)} size={theme.scale.icon.tertiary.size} color={color}/>;
+}
+
+function notificationSourceIcon(source: string): IconName {
+  if (source === 'downloads') return 'i-dl';
+  if (source === 'dvr') return 'i-rec';
+  if (source === 'feedback') return 'i-bubble';
+  if (source === 'security') return 'i-shield';
+  if (source === 'scan') return 'i-refresh';
+  if (source === 'networking') return 'i-wifi';
+  if (source === 'storage') return 'i-disk';
+  return 'i-bell';
+}

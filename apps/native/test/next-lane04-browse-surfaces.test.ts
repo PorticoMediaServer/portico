@@ -102,31 +102,6 @@ test('touch See all keeps library Back, the app title and a square album grid', 
   assert.deepEqual(frame.props.toolbar.props.model.quick.map((quick: any) => quick.id), ['unwatched']);
 });
 
-test('Notifications is the Settings sheet on a phone and a plain page on its layer on a tablet (W4 F14)', async () => {
-  const h = host(); let phone = true;
-  const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), 
-    react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34})}, '../../../../../packages/i18n/src': {defaultI18n: {}},
-    '../../../../../packages/client-core/src/notifications': {}, '../../kit/controls': {Button: 'Button', Tabs: 'Tabs'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/overlays': {Menu: 'Menu'}, '../../kit/shell': {NotificationItem: 'NotificationItem', SettingsSheet: 'SettingsSheet'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => ({...theme, platform: phone ? 'phone' : 'tablet'})},
-    '../../shell/account': {}, '../../shell/model': {sameAuthority: (a: any, b: any) => a === b},
-    '../../platform/event-resync': {recoverEventState: () => () => {}},
-  });
-  const feed = {subscribe: () => () => {}, getSnapshot: () => ({})};
-  const pending = h.render(() => NativeNotificationsScreen({context: {}, route: {kind: 'notifications'}, runtime: {text: {t}}, profileService: feed, retirement: {subscribe: () => () => {}, getSnapshot: () => undefined}}));
-  const sheet = h.render(() => pending.type(pending.props));
-  assert.equal(sheet.type, 'SettingsSheet'); assert.equal(sheet.props.open, true);
-  assert.equal(sheet.props.surfaceBackground, undefined, 'a sheet is a plain surface: it draws no backdrop of its own');
-  assert.equal(sheet.props.style.backgroundColor, undefined);
-  assert.deepEqual(sheet.props.detents, [782]);
-  assert.equal(sheet.props.style.paddingTop, 0); assert.equal(sheet.props.showGrabber, false);
-  assert.equal(sheet.props.headerContent.props.style.height, 56);
-  phone = false; const tablet = h.render(() => pending.type(pending.props));
-  assert.equal(tablet.type, 'View'); assert.equal(tablet.props.style.paddingTop, 61);
-  assert.ok(!JSON.stringify(tablet.props.children).includes('Backdrop'), 'a tablet Notifications page stands on its layer and draws no backdrop of its own');
-});
-
 test('the shared touch entry menu composes offered Play, My List, playlist and recommendation actions', async () => {
   const h = host(), calls: string[] = [];
   const value: any = {phase: 'menu', capture: {entry: {id: 'actual', kind: 'movie', title: 'Actual'}},
