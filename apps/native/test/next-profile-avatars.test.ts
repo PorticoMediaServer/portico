@@ -120,7 +120,8 @@ test('upload rejects invalid sizes and paths before sending; full-size binary da
 });
 
 test('the accounts screen uses routed helpers; native byte decoding is limited to bounded avatar PUTs', () => {
-  const accounts = readFileSync(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), 'utf8');
+  const accounts = ['../src-next/screens/accounts/AccountRoutes.tsx', '../src-next/pages/shared/accounts/useProfiles.ts']
+    .map(path => readFileSync(new URL(path, import.meta.url), 'utf8')).join('\n');
   assert.match(accounts, /profilePictureSource\(/); assert.match(accounts, /profileAvatarUpload\(/); assert.doesNotMatch(accounts, /api!?\.baseUrl\s*\+/);
   assert.doesNotMatch(accounts, /await fetch\(/);
   const apple = readFileSync(new URL('../Native/PorticoPlayer.m', import.meta.url), 'utf8');

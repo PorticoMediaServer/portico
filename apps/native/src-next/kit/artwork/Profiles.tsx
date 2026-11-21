@@ -83,6 +83,8 @@ export type ProfilePickerProps = Readonly<{
   profiles: readonly ProfileOption[];
   onSelect: (id: string) => void;
   onAdd?: () => void;
+  /** A line under Add profile ("Up to 8", phone-app 20). */
+  addNote?: string;
   onManage?: () => void;
   selectedId?: string;
   preferredProfileId?: string;
@@ -124,7 +126,7 @@ function ProfileTileContents({profile, focused, selected, layout, retainDisabled
 }
 
 /** Authentication/PIN/management authority stays with these real caller callbacks (Q34). */
-export function ProfilePicker({profiles, onSelect, onAdd, onManage, selectedId, preferredProfileId, focusScope, focusBusy = false, onFocusChange, profileProps, title, description, showTitle = true, layout: requestedLayout, style, testID}: ProfilePickerProps) {
+export function ProfilePicker({profiles, onSelect, onAdd, addNote, onManage, selectedId, preferredProfileId, focusScope, focusBusy = false, onFocusChange, profileProps, title, description, showTitle = true, layout: requestedLayout, style, testID}: ProfilePickerProps) {
   const theme = useTheme();
   const layout = requestedLayout ?? (theme.isTV ? 'tv' : theme.platform === 'phone' ? 'phone' : 'row');
   const phone = layout === 'phone';
@@ -153,7 +155,8 @@ export function ProfilePicker({profiles, onSelect, onAdd, onManage, selectedId, 
     </Focusable>;
     })}
     {onAdd ? <Focusable testID={controlID(testID, 'add')} accessibilityRole="button" accessibilityLabel={defaultI18n.t('profile.add')} onPress={onAdd} focusTreatment="none" style={{width: phone ? '33.333333%' : layout === 'tv' ? 236 : 168, alignItems: 'center', paddingHorizontal: phone ? 4 : 0}}>
-      {state => <><ProfileFace initial="" add size={faceSize} focused={state.focused}/><Text style={{fontFamily: fontFamilies[700], color: theme.colors.text, fontSize: (layout === 'tv' ? 30 : phone ? 15 : 21) * theme.textScale, marginTop: layout === 'tv' ? 26 : phone ? 10 : 18}}>{defaultI18n.t('profile.add')}</Text></>}
+      {state => <><ProfileFace initial="" add size={faceSize} focused={state.focused}/><Text style={{fontFamily: fontFamilies[700], color: theme.colors.text, fontSize: (layout === 'tv' ? 30 : phone ? 15 : 21) * theme.textScale, marginTop: layout === 'tv' ? 26 : phone ? 10 : 18}}>{defaultI18n.t('profile.add')}</Text>
+        {addNote ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, textAlign: 'center', marginTop: 3}]}>{addNote}</Text> : null}</>}
     </Focusable> : null}
   </View>;
   const body = <View style={[{alignItems: phone ? 'stretch' : 'center'}, style]}>

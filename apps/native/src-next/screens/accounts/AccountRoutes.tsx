@@ -39,6 +39,7 @@ import {AccountEntry} from './AccountEntry';
 import {createAccountDownloadsEntry, type AccountDownloadsEntry} from './downloads-entry';
 import {PhonePINEntry} from './PhonePINEntry';
 import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
+import {ProfileSwitchPage, ProfileSwitchStatus} from '../../pages/touch/accounts/ProfileSwitchPage';
 import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {ServerChooserPage} from '../../pages/touch/accounts/ServerChooserPage';
@@ -48,6 +49,7 @@ import {removeCapturedServerDownloads} from './sign-out-downloads';
 import {ProfilesPage as TVProfilesPage} from '../../pages/tv/accounts/ProfilesPage';
 import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage} from '../../tv/auth';
 import {registerBack} from '../../kit/navigation/back';
+import {useProfiles, type ProfileLease, type ProfilesProps} from '../../pages/shared/accounts/useProfiles';
 
 const t = defaultI18n.t;
 type Panel = 'servers' | 'add' | 'sign-out-server' | 'forget-server' | 'sign-out-account' | 'consent-kind' | 'consent-code' | 'consent-review' | 'consent-done';
@@ -59,260 +61,11 @@ export function AccountRoute({route, context}: {route: NativeShellRoute; context
   return route.kind === 'profiles' ? <ProfileRoute context={context} route={route} onBack={back}/> : <ServersRoute context={context} initialPanel={route.kind === 'servers' ? route.initialPanel : undefined} onBack={back}/>;
 }
 
-type ProfileLease = Readonly<{
-  route: NativeShellRoute;
-  revision: number;
-  authority: ShellAuthority;
-  sessionFamilyId: string;
-  accountId: string;
-  profileId: string;
-  lifetime: NativeScreenLifetime;
-  live: {value: boolean};
-  current: () => boolean;
-}>;
-type ProfileManagementOpening = Readonly<{id: string}>;
-type ProfileEditorOpening = Readonly<{
-  kind: 'rename' | 'pin' | 'remove-pin' | 'forget' | 'limits';
-  profile: ManagedProfile;
-  lease: ProfileLease;
-  management?: ProfileManagementOpening;
-}>;
-type ProfileAddOpening = Readonly<{lease: ProfileLease}>;
-type ProfileDeleteOpening = Readonly<{preview: ProfileDeletion; management: ProfileManagementOpening}>;
-
-const profileAbort = () => Object.assign(new Error('profile_command_retired'), {name: 'AbortError'});
-
-export function ProfileRoute({context, route, onBack, embedded = false}: {context: NativeShellBootstrapContext; route: NativeShellRoute; onBack: () => void; embedded?: boolean}) {
-  const theme = useTheme(), [profile, setProfile] = useState<ManagedProfile>(), [pin, setPin] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
-  const [forgotPIN, setForgotPIN] = useState(false), [recovery, setRecovery] = useState<{controller: NativeProfileRecovery; id: string; name: string}>();
-  const [profiles, setProfiles] = useState<readonly ManagedProfile[]>(context.account.profiles);
-  const [management, setManagement] = useState<ProfileManagementOpening>(), [deletion, setDeletion] = useState<ProfileDeleteOpening>(), [deleteName, setDeleteName] = useState('');
-  const [retirement, setRetirement] = useState<'removing' | 'removed'>();
-  const managementRef = useRef<typeof management>(undefined), deletionRef = useRef<typeof deletion>(undefined), deleteNameRef = useRef('');
-  const managedId = management?.id;
-  const setManagedId = (id?: string) => {const next = id ? {id} : undefined; managementRef.current = next; setManagement(next);};
-  const managementCurrent = () => !embedded || !!management && managementRef.current === management;
-  const closeDeletion = () => {deletionRef.current = undefined; deleteNameRef.current = ''; setDeletion(undefined); setDeleteName(''); setRetirement(undefined);};
-  const profileFocus = useRef(new WeakMap<ProfileLease, string>()).current;
-  const [editor, setEditor] = useState<ProfileEditorOpening>(), editorRef = useRef<ProfileEditorOpening | undefined>(undefined);
-  const edit = editor?.kind === 'rename' || editor?.kind === 'pin' ? editor : undefined;
-  const removePin = editor?.kind === 'remove-pin' ? editor.profile : undefined, forgetProfile = editor?.kind === 'forget' ? editor.profile : undefined;
-  const limitsProfile = editor?.kind === 'limits' ? editor.profile : undefined;
-  const [nameDraft, setNameDraft] = useState(''), [pinDraft, setPinDraft] = useState(''), [pinAgain, setPinAgain] = useState('');
-  const editDraftRef = useRef({name: '', pin: '', again: ''});
-  const [addition, setAddition] = useState<ProfileAddOpening>(), additionRef = useRef<ProfileAddOpening | undefined>(undefined);
-  const [addName, setAddName] = useState(''), addNameRef = useRef('');
-  // A new profile's colour is sent only once chosen; until then the server's pick (the first unused) is shown.
-  const [addArt, setAddArt] = useState<ProfileArt>(), [artDraft, setArtDraft] = useState<ProfileArt>('blue');
-  const [actionBusy, setActionBusy] = useState(false), [problem, setProblem] = useState(''), [notice, setNotice] = useState('');
-  const [lease, setLease] = useState<ProfileLease>();
-  const activeTicket = useRef<AbortController | undefined>(undefined);
-  const retireEditor = () => {editorRef.current = undefined; setEditor(undefined); editDraftRef.current = {name: '', pin: '', again: ''}; setNameDraft(''); setPinDraft(''); setPinAgain('');};
-  const retireAddition = () => {additionRef.current = undefined; setAddition(undefined); addNameRef.current = ''; setAddName('');};
-  const alive = useRef(true), starting = useRef(false);
-  useLayoutEffect(() => {
-    const session = context.session(), lifetime = new NativeScreenLifetime(context), live = {value: true};
-    const authority = Object.freeze({...context.authority()}), snapshot = context.navigation.getSnapshot();
-    const sessionFamilyId = session?.sessionFamilyId ?? '', accountId = context.account.account.id, profileId = session?.viewer.profileId ?? '';
-    const next: ProfileLease = Object.freeze({
-      route, revision: snapshot.revision, authority, sessionFamilyId, accountId, profileId, lifetime, live,
-      current: () => live.value && lifetime.current() && !!sessionFamilyId
-        && context.session()?.sessionFamilyId === sessionFamilyId
-        && context.session()?.viewer.accountId === accountId
-        && context.session()?.viewer.profileId === profileId
-        && context.session()?.viewer.serverId === authority.serverId
-        && context.navigation.getSnapshot().revision === snapshot.revision
-        && context.navigation.getSnapshot().route === snapshot.route,
-    });
-    setLease(next);
-    const retire = () => {live.value = false; lifetime.dispose(); activeTicket.current?.abort();};
-    const stopNav = context.navigation.subscribe(() => {
-      const now = context.navigation.getSnapshot();
-      if (now.revision !== snapshot.revision || now.route !== snapshot.route) retire();
-    });
-    const stopAuth = context.subscribeAuthority(() => {if (!sameAuthority(authority, context.authority())) retire();});
-    return () => {
-      stopNav(); stopAuth(); retire(); setLease(current => current === next ? undefined : current);
-      retireEditor(); retireAddition(); setManagedId(undefined); closeDeletion();
-    };
-  }, [context, route]);
-  const scopedTransport = useCallback((ticket: {lease: ProfileLease; controller: AbortController}) => ({
-    request: async <T,>(path: string, method?: string, body?: unknown, _signal?: AbortSignal): Promise<T> => {
-      if (!ticket.lease.current() || ticket.controller.signal.aborted) throw profileAbort();
-      const raw = await ticket.lease.lifetime.request(next => context.api.request<T>(path, method, body, next), ticket.controller.signal);
-      if (!ticket.lease.current() || ticket.controller.signal.aborted) throw profileAbort();
-      return raw;
-    },
-  }), [context]);
-  const scopedManager = (ticket: {lease: ProfileLease; controller: AbortController}) => new ManagedProfilesClient(scopedTransport(ticket), {authority: 'local', accountId: context.account.account.id, serverId: context.account.serverId});
-  const scopedRaw = useCallback((ticket: {lease: ProfileLease; controller: AbortController}) => createProfileAvatarOpeningTransport(context.api, {
-    current: () => ticket.lease.current(), signal: ticket.controller.signal, cancelled: profileAbort,
-    run: (work, signal) => ticket.lease.lifetime.request(work, signal),
-  }), [context]);
-  const scopedIdentity = useCallback((ticket: {lease: ProfileLease; controller: AbortController}) => new IdentityClient(scopedTransport(ticket), profileAvatarUpload(scopedRaw(ticket))), [scopedRaw, scopedTransport]);
-  const limitsLease = useMemo(() => editor?.kind === 'limits' ? {...editor.lease, current: () => editorRef.current === editor && editor.lease.current()
-    && (!embedded || !!editor.management && managementRef.current === editor.management)} : undefined, [editor, embedded]);
-  const identityForLimits = useCallback((controller: AbortController) => new IdentityClient(scopedTransport({lease: limitsLease!, controller}), profileAvatarUpload(scopedRaw({lease: limitsLease!, controller}))), [limitsLease, scopedRaw, scopedTransport]);
-  const [avatars, setAvatars] = useState<readonly ProfileAvatar[]>([]);
-  const avatarsLease = useRef<ProfileLease | undefined>(undefined);
-  useEffect(() => {
-    if (!lease || !lease.current()) {avatarsLease.current = undefined; setAvatars([]); return;}
-    const controller = new AbortController(), identity = scopedIdentity({lease, controller});
-    avatarsLease.current = lease;
-    void identity.avatars(controller.signal).then(found => {if (lease.current() && !controller.signal.aborted) setAvatars(found);}, () => {});
-    return () => {controller.abort(); if (avatarsLease.current === lease) {avatarsLease.current = undefined; setAvatars([]);}};
-  }, [lease, scopedIdentity]);
-  useEffect(() => {alive.current = true; return () => {alive.current = false;};}, [context]);
-  // TV (F-PROFILE-28): a wrong PIN keeps the filled boxes in the error colour for 400 ms, then empties them.
-  const wrongPinTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const cancelWrongPin = () => {if (wrongPinTimer.current) {clearTimeout(wrongPinTimer.current); wrongPinTimer.current = undefined;}};
-  useEffect(() => cancelWrongPin, []);
-  // R-16: a stale context or a missing controller says "this changed" (with Refresh), never nothing.
-  const staleProfiles = () => Object.assign(new Error('native_profiles_changed'), {code: 'stale'});
-  const choose = async (id: string, code?: string) => {if (busy) return;
-    const session = context.session();
-    if (!context.current() || !session) {setError(staleProfiles()); return;}
-    setBusy(true); setError(undefined);
-    // The session lifecycle makes the switch: a profile with a PIN always asks for it.
-    try {await switchNativeProfile(session.sessionFamilyId, id, code);} catch (failure) {if (alive.current) {
-      if (theme.isTV && code !== undefined) {cancelWrongPin(); wrongPinTimer.current = setTimeout(() => {wrongPinTimer.current = undefined; if (alive.current) setPin(current => current === code ? '' : current);}, 400);} else setPin('');
-      setError(failure);
-    }} finally {if (alive.current) setBusy(false);}
-  };
-  // E-mobile-25: "This changed…" always comes with a way to read the list again.
-  const refreshProfiles = async () => {
-    if (busy || !context.current()) return; setBusy(true);
-    try {
-      const raw = await readDirectAccount(context.api);
-      const account = parseDirectSnapshot(raw, {authority: 'local', serverId: context.account.serverId, accountId: context.account.account.id}, true);
-      if (alive.current) {setProfiles(account.profiles); setError(undefined);}
-    } catch (failure) {if (alive.current) setError(failure);} finally {if (alive.current) setBusy(false);}
-  };
-  const errorRefresh = error && presentError(error, 'profiles').action === 'refresh'
+export function ProfileRoute({context, route, onBack, embedded = false}: ProfilesProps) {
+  const theme = useTheme(), view = useProfiles({context, route, onBack, embedded});
+  const {canRefresh, pickPicture, removePicture, actionBusy, active, activeTicket, addArt, addName, addNameRef, additionCurrent, alive, artDraft, avatarSource, avatars, back, backRef, busy, busyRef, cancelWrongPin, choose, closeAddition, closeDeletion, closeEdit, current, deleteName, deleteNameRef, deletion, deletionCurrent, deletionRef, edit, editDraftRef, editorCurrent, error, forgetAction, forgetProfile, forgotPIN, identityForLimits, lease, limitsLease, limitsProfile, localPictures, manage, managedId, management, managementCurrent, moveProfile, nameDraft, notice, openAddition, openEditor, pin, pinAgain, pinDraft, problem, profile, profileActionsCurrent, profileFocus, profiles, recovery, refreshProfiles, removePin, removePinAction, retireEditor, retirement, runAction, setAddArt, setAddName, setArtDraft, setAvatars, setBusy, setDeleteName, setDeletion, setError, setForgotPIN, setManagedId, setNameDraft, setNotice, setPin, setPinAgain, setPinDraft, setProblem, setProfile, setRecovery, setRetirement, startRecovery, submitAdd, submitPin, submitRename, tvLeave} = view;
+  const errorRefresh = canRefresh
     ? <Button variant="text" disabled={busy} onPress={() => {void refreshProfiles();}}>{t('action.refresh')}</Button> : null;
-  const current = context.session();
-  const active = embedded ? profiles.find(value => value.id === managedId) : current ? profiles.find(value => value.id === current.viewer.profileId) : undefined;
-  const manage = context.account.canManage && context.account.capabilities.manageAccount && !context.account.account.disabled
-    && current?.viewer.profileId === context.account.account.primaryProfileId;
-  const editorCurrent = (held: ProfileEditorOpening | undefined = editor): held is ProfileEditorOpening => !!held && editorRef.current === held && manage && held.lease.current()
-    && (!embedded || !!held.management && managementRef.current === held.management);
-  const additionCurrent = (held: ProfileAddOpening | undefined = addition): held is ProfileAddOpening => !!held && additionRef.current === held && manage && held.lease.current();
-  const deletionCurrent = (held: ProfileDeleteOpening | undefined = deletion): held is ProfileDeleteOpening => !!held && deletionRef.current === held && manage && !!lease?.current() && managementRef.current === held.management;
-  const profileActionsCurrent = () => manage && !!lease?.current() && managementCurrent() && !activeTicket.current;
-  const openEditor = (kind: ProfileEditorOpening['kind']) => {
-    if (activeTicket.current) return;
-    if (!active || !lease || !profileActionsCurrent()) {setProblem(presentError(staleProfiles(), 'profiles').body); return;}
-    const next = {kind, profile: active, lease, management};
-    retireEditor(); editorRef.current = next; setEditor(next);
-    editDraftRef.current = {name: active.name, pin: '', again: ''}; setNameDraft(active.name); setArtDraft(active.art); setProblem(''); setNotice('');
-  };
-  const openAddition = () => {
-    // The Add controls are not rendered at the 8-profile limit, so that case never reaches here.
-    if (activeTicket.current || profiles.length >= 8) return;
-    if (!manage || !lease?.current()) {setProblem(presentError(staleProfiles(), 'profiles').body); return;}
-    const next = {lease}; retireAddition(); additionRef.current = next; setAddition(next); setAddArt(undefined); setProblem(''); setNotice('');
-  };
-  const closeAddition = () => {if (additionCurrent()) {activeTicket.current?.abort(); retireAddition();}};
-  const closeEdit = () => {if (editorCurrent()) {activeTicket.current?.abort(); retireEditor();}};
-  const runAction = async (work: (clients: {manager: ManagedProfilesClient; identity: IdentityClient}) => Promise<unknown>, message?: string, admitted?: () => boolean) => {
-    const captured = lease;
-    if (!manage || !captured || !captured.current() || activeTicket.current || (admitted ? !admitted() : embedded && !managementCurrent())) return false;
-    const controller = new AbortController(), ticket = {lease: captured, controller};
-    activeTicket.current = controller;
-    const manager = scopedManager(ticket), identity = scopedIdentity(ticket);
-    setActionBusy(true); setProblem(''); setNotice('');
-    try {
-      await work({manager, identity});
-      if (!captured.current() || controller.signal.aborted) return false;
-      const next = await manager.list(controller.signal);
-      if (!captured.current() || controller.signal.aborted) return false;
-      setProfiles(next);
-      if (message) setNotice(message);
-      return true;
-    } catch (failure) {
-      if (controller.signal.aborted || !captured.current() || !alive.current) return false;
-      setProblem(presentError(failure, 'profiles').body); return false;
-    } finally {
-      if (activeTicket.current === controller) activeTicket.current = undefined;
-      if (alive.current) setActionBusy(false);
-    }
-  };
-  useEffect(() => () => {recovery?.controller.dispose();}, [recovery]);
-  const startRecovery = async () => {
-    const session = context.session(), target = profile;
-    if (busy || starting.current || !session || !target || !context.current()) return;
-    starting.current = true;
-    try {
-      const selected = await nativeAppSessions.selected();
-      if (!selected || !context.current()) return;
-      if (selected.connection.pin.serverId !== session.viewer.serverId
-        || selected.connection.session.sessionFamilyId !== session.sessionFamilyId) return;
-      if (!context.account.profiles.some(value => value.id === target.id)) return;
-      const serverPin = selected.connection.pin;
-      const authorityCurrent = () => {
-        const now = context.session(), live = context.api.getRouteConnection()?.pin;
-        return context.current() && !!now
-          && now.sessionFamilyId === session.sessionFamilyId
-          && now.viewer.serverId === session.viewer.serverId
-          && now.viewer.accountId === session.viewer.accountId
-          && now.viewer.profileId === session.viewer.profileId
-          && now.viewer.authority === session.viewer.authority
-          && !!live && live.serverId === serverPin.serverId && live.publicKey === serverPin.publicKey && live.fingerprint === serverPin.fingerprint;
-      };
-      setRecovery({id: target.id, name: target.name, controller: new NativeProfileRecovery({api: context.api, snapshot: context.account, profileId: target.id, selectedFamilyId: session.sessionFamilyId, kind: selected.signIn, authorityCurrent,
-        temporary: grant => temporaryRecoveryApi(context.api, grant),
-        portico: async () => {
-          const credentials = nativeAccounts.accountCredentials(); await credentials.synchronize();
-          const account = await credentials.accessSession();
-          if (!account) throw new Error('Sign in to your Portico Account first.');
-          return {hosted: new HttpHostedApi(hostedUrl, account.accessToken, nativeNetworkFetch), origin: hostedUrl,
-            accountCurrent: () => {const live = credentials.getSnapshot().session; return !!live && live.account.id === account.account.id && live.familyId === account.familyId;}};
-        }})});
-    } catch (failure) {if (alive.current) setError(failure);}
-    finally {starting.current = false;}
-  };
-  const back = () => {cancelWrongPin(); activeTicket.current?.abort(); setPinDraft(''); setPinAgain(''); if (recovery) {recovery.controller.dispose(); setRecovery(undefined); setPin('');} else if (forgotPIN) {setForgotPIN(false); setPin(''); setError(undefined);} else if (profile) {setProfile(undefined); setPin(''); setError(undefined);} else (tvLeave.current ?? onBack)();};
-  const avatarSource = (profileId: string) => {
-    if (!lease || !lease.current() || avatarsLease.current !== lease) return undefined;
-    const avatar = avatars.find(value => value.profileId === profileId);
-    const picture = profilePictureSource(context.api, current?.accessToken, avatar, 90);
-    return picture && typeof picture === 'object' && 'uri' in picture && typeof picture.uri === 'string'
-      ? {uri: picture.uri, cacheKey: `avatar:${profileId}:${avatar?.url ?? ''}`, ...(picture.headers ? {headers: picture.headers as Readonly<Record<string, string>>} : {})}
-      : undefined;
-  };
-  const submitRename = () => {
-    const target = edit?.kind === 'rename' ? edit.profile : undefined;
-    const admitted = () => editorCurrent(edit) && editDraftRef.current.name === nameDraft;
-    if (!target || !nameDraft.trim() || !admitted()) return;
-    void runAction(({manager}) => manager.edit(target, {name: nameDraft.trim(), art: artDraft}), undefined, admitted).then(ok => {if (ok) closeEdit();});
-  };
-  const submitPin = () => {
-    const target = edit?.kind === 'pin' ? edit.profile : undefined;
-    const admitted = () => editorCurrent(edit) && editDraftRef.current.pin === pinDraft && editDraftRef.current.again === pinAgain;
-    if (!target || !admitted()) return;
-    if (!/^\d{4}$/.test(pinDraft) || pinDraft !== pinAgain) {setProblem(t('profile.pinMismatch')); return;}
-    void runAction(({manager}) => manager.edit(target, {pin: pinDraft}), t('profile.pinSaved', {name: target.name}), admitted).then(ok => {if (ok) closeEdit();});
-  };
-  const removePinAction = () => {
-    const target = removePin;
-    if (!target || !editorCurrent()) return;
-    void runAction(({manager}) => manager.edit(target, {pin: ''}), t('profile.pinRemoved', {name: target.name}), () => editorCurrent()).then(ok => {if (ok) closeEdit();});
-  };
-  const submitAdd = () => {
-    const name = addName.trim();
-    const admitted = () => additionCurrent() && addNameRef.current === addName;
-    if (!name || !admitted()) return;
-    void runAction(({manager}) => manager.create(name, addArt), t('profile.added', {name}), admitted).then(ok => {if (ok && additionCurrent()) retireAddition();});
-  };
-  const forgetAction = () => {
-    const target = forgetProfile;
-    if (!target || !editorCurrent()) return;
-    void runAction(({manager}) => manager.forgetTrust(target.id), t('profile.devicesForgotten', {name: target.name}), () => editorCurrent()).then(ok => {if (ok) closeEdit();});
-  };
-
-  const backRef = useRef(back), busyRef = useRef(busy), tvLeave = useRef<() => void>(undefined);
-  backRef.current = back; busyRef.current = busy;
-  useEffect(() => {if (embedded) return; const subscription = registerBack(() => {if (!busyRef.current) backRef.current(); return true;}, {scope: 'surface'}); return () => subscription();}, [embedded]);
   if (recovery) return <PhoneProfileRecovery controller={recovery.controller} profileName={recovery.name} username={context.account.account.username}
     onOpen={value => {const id = recovery.id; recovery.controller.dispose(); setRecovery(undefined); setPin(value); void choose(id, value);}}
     onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setPin('');}}/>;
@@ -349,34 +102,16 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
       {errorRefresh}
     </>}/>}
   </TVProfileSwitchPage>;
-  const moveProfile = (target: ManagedProfile, direction: -1 | 1) => {
-    if (!profileActionsCurrent()) return;
-    const index = profiles.indexOf(target), next = index + direction;
-    if (index < 0 || next < 0 || next >= profiles.length) return;
-    const order = [...profiles]; [order[index], order[next]] = [order[next], order[index]];
-    void runAction(({manager}) => manager.order(order));
-  };
-  const localPictures = context.signIn !== 'portico' && !context.account.account.hostedAccountId;
   const managementActions = manage && lease && active ? <View testID="profile-actions" style={{marginTop: 18}}>
           <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary, marginBottom: 8}]}>{[active.name, active.primary ? t('profile.main') : active.id === current?.viewer.profileId ? t('profile.current') : ''].filter(Boolean).join(' · ')}</Text>
           <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-            {localPictures && profilePicturePickerAvailable() ? <ProfileActionRow testID="profile-picture" label={t(avatars.some(value => value.profileId === active.id) ? 'profile.changePicture' : 'profile.addPicture')} onPress={() => {
-              void runAction(async ({identity}) => {
-                const picked = await pickProfilePicture(lease!);
-                if (!picked) return;
-                await identity.uploadAvatar(active.id, picked.bytes, picked.contentType);
-                const next = await identity.avatars();
-                if (lease!.current()) setAvatars(next);
-              });
-            }}/> : null}
-            {localPictures && avatars.some(value => value.profileId === active.id) ? <ProfileActionRow testID="profile-remove-picture" label={t('profile.removePicture')} onPress={() => {
-              void runAction(async ({identity}) => {await identity.removeAvatar(active.id); const next = await identity.avatars(); if (lease!.current()) setAvatars(next);});
-            }}/> : null}
             {!localPictures && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('profile.pictureInPorticoAccount')}</Text>}
             <ProfileActionRow testID="profile-rename" label={t('profile.rename')} onPress={() => openEditor('rename')}/>
-            <ProfileActionRow testID="profile-limits" label={t('profile.limits')} description={t('profile.limitsHelp')} onPress={() => openEditor('limits')}/>
-            <ProfileActionRow testID="profile-pin" label={t(active.pinRequired ? 'profile.changePin' : 'profile.setPin')} onPress={() => openEditor('pin')}/>
+            {localPictures && profilePicturePickerAvailable() ? <ProfileActionRow testID="profile-picture" label={t(avatars.some(value => value.profileId === active.id) ? 'profile.changePicture' : 'profile.addPicture')} onPress={() => pickPicture(active)}/> : null}
+            {localPictures && avatars.some(value => value.profileId === active.id) ? <ProfileActionRow testID="profile-remove-picture" label={t('profile.removePicture')} onPress={() => removePicture(active)}/> : null}
+            <ProfileActionRow testID="profile-pin" label={t(active.pinRequired ? 'profile.changePin' : 'profile.setPin')} description={active.pinRequired ? undefined : t('profile.setPinHelp', {name: active.name})} onPress={() => openEditor('pin')}/>
             {active.pinRequired ? <ProfileActionRow testID="profile-remove-pin" label={t('profile.removePin')} onPress={() => openEditor('remove-pin')}/>: null}
+            <ProfileActionRow testID="profile-limits" label={t('profile.limits')} description={t('profile.limitsHelp')} onPress={() => openEditor('limits')}/>
             <ProfileActionRow testID="profile-forget-devices" label={t('profile.forgetDevices')} onPress={() => openEditor('forget')}/>
             {embedded && profiles.indexOf(active) > 0 && <ProfileActionRow testID="profile-move-up" label={t('web.profile.moveUp')} onPress={() => moveProfile(active, -1)}/>}
             {embedded && profiles.indexOf(active) < profiles.length - 1 && <ProfileActionRow testID="profile-move-down" label={t('web.profile.moveDown')} onPress={() => moveProfile(active, 1)}/>}
@@ -405,17 +140,8 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
       value={pin} onChange={setPin} onSubmit={value => {void choose(profile.id, value);}} busy={busy} rejected={!!error}
       status={failureLine}
       onForgot={() => {void startRecovery();}} onBack={back}/>
-    : <StateLayout testID="accounts-profile-switch" title={t('profiles.title')}
-      beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 20}}><>
-        <ProfilePicker focusScope={theme.isTV && lease?.live.value && lease.route === route ? `tv.account.profiles.${JSON.stringify([lease.authority, lease.revision])}` : undefined} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id)}))}
-          selectedId={current?.viewer.profileId} preferredProfileId={theme.isTV && lease ? profileFocus.get(lease) : undefined}
-          onFocusChange={id => {if (id && lease) profileFocus.set(lease, id);}} showTitle={false} {...(manage && profiles.length < 8 ? {onAdd: openAddition} : {})} onSelect={id => {const value = profiles.find(item => item.id === id)!;
-            if (id === current?.viewer.profileId) onBack(); else if (value.pinRequired) {setProfile(value); setPin(''); setError(undefined);} else void choose(id);}}/>
-        {managementActions}
-        </>
-        {failureLine}
-        {errorRefresh}</View>}
-      secondaryAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: back}}/>}
+    : <ProfileSwitchPage view={view} status={<ProfileSwitchStatus canRefresh={canRefresh} busy={busy} onRefresh={() => {void refreshProfiles();}}
+        failure={error ? profilePinFailureText(error) ?? presentError(error, 'profiles').body : undefined}/>}/>}
     <Dialog testID="profile-add" open={additionCurrent()} onOpenChange={open => {if (!open) closeAddition();}} title={t('profile.addTitle')}
       footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeAddition}>{t('action.cancel')}</Button><Button focusId="save" loading={actionBusy} disabled={!addName.trim()} onPress={submitAdd}>{t('action.save')}</Button></View>}>
       <TextField label={t('profile.name')} value={addName} onChangeText={value => {if (additionCurrent() && !activeTicket.current) {addNameRef.current = value; setAddName(value);}}} maxLength={120} testID="profile-add-name"/>
