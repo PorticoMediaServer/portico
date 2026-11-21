@@ -152,14 +152,19 @@ function ChapterLine({chapter, loading, wide}: {chapter: NonNullable<AudioPlayer
 }
 
 /** A phone's bottom-row slot: a glyph over its label, the device with its glyph beside its label, or an audiobook's tile. */
-function Slot({item, loading, tile = false, inline = false}: {item: AudioControl | AudioOption; loading: boolean; tile?: boolean; inline?: boolean}) {
+/** phone-app 16 `.npb button { min-width: 64px }`: the width of the bottom row's end buttons. */
+const slotEnd = 64;
+function Slot({item, loading, tile = false, inline = false, end = false}: {item: AudioControl | AudioOption; loading: boolean; tile?: boolean; inline?: boolean; end?: boolean}) {
   const theme = useTheme(), off = item.disabled || loading, value = 'value' in item ? item.value : undefined, tint = item.active ? theme.colors.accentStrong : theme.colors.text;
-  const glyph = item.icon && <Icon name={item.icon} size={frameSpec.player.promptIcon} color={tile ? item.active ? theme.colors.accentStrong : theme.colors.textSecondary : tint}/>;
+  // phone-app 16 `.npb`: Lyrics and Up next are 11.5/700 in the secondary colour, the output between them 13/700 in the text colour.
+  const quiet = !tile && !inline && !item.active;
+  const glyph = item.icon && <Icon name={item.icon} size={frameSpec.player.promptIcon} color={tile ? item.active ? theme.colors.accentStrong : theme.colors.textSecondary : quiet ? theme.colors.textSecondary : tint}/>;
   return <Focusable ref={item.anchorRef} testID={item.testID} accessibilityRole="button" accessibilityLabel={value !== undefined ? `${item.label}, ${value}` : item.label} accessibilityState={{disabled: !!off, selected: item.active}} disabled={off} onPress={item.onPress} focusRadius={theme.baseRadii.control}
-    style={[{flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', gap: theme.space.tight, opacity: off ? theme.spec.button.disabledOpacity : 1}, inline && !tile && {flexDirection: 'row', gap: theme.space.xs},
+    style={[{...(end ? {minWidth: slotEnd} : {flex: 1}), height: '100%', alignItems: 'center', justifyContent: 'center', gap: theme.space.tight, opacity: off ? theme.spec.button.disabledOpacity : 1}, inline && !tile && {flexDirection: 'row', gap: theme.space.xs},
       tile && {borderRadius: frameSpec.card.radius.phone, paddingHorizontal: theme.space.tight, backgroundColor: item.active ? alpha(theme.colors.accent, .24) : alpha(theme.colors.text, frameSpec.player.tint.pill), borderWidth: theme.space.hairline, borderColor: item.active ? alpha(theme.colors.accentStrong, .7) : 'transparent'}]}>
     {value !== undefined ? <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight}}>{glyph}<Text numberOfLines={1} style={[theme.type.rowLabel, {color: tile && item.active ? theme.colors.accentStrong : theme.colors.text, fontFamily: theme.type.pageTitle.fontFamily}]}>{value}</Text></View> : glyph}
-    <Text numberOfLines={2} style={[inline && !tile ? theme.type.rowLabel : theme.type.rowHelp, {textAlign: 'center', color: tile && item.active ? theme.colors.accentStrong : theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{item.label}</Text>
+    <Text numberOfLines={2} style={tile ? [theme.type.rowHelp, {textAlign: 'center', color: item.active ? theme.colors.accentStrong : theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]
+      : [inline ? theme.type.accountEyebrow : theme.type.badge, {textAlign: 'center', color: item.active ? theme.colors.accentStrong : quiet ? theme.colors.textSecondary : theme.colors.text}]}>{item.label}</Text>
   </Focusable>;
 }
 
@@ -183,7 +188,8 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
     {upcoming.label}  <Text style={{color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}}>{upcoming.title}</Text></Text>}</View>;
   const bottom = <View style={{height: spec.bottomRow[form], flexDirection: 'row', alignItems: 'center', gap: book ? theme.space.xs : 0}}>
     {book ? tiles.map(item => <Slot key={item.label} item={item} loading={loading} tile/>)
-      : <>{lyrics && <Slot item={lyrics} loading={loading}/>}{device && <View style={{flex: 1.6, height: '100%'}}><Slot item={device} loading={loading} inline/></View>}{queue && <Slot item={queue} loading={loading}/>}</>}
+      // phone-app 16 `.npb`: Lyrics and Up next are 64 wide at the row's ends, the output centred between them (an absent end keeps its room).
+      : <>{lyrics ? <Slot item={lyrics} loading={loading} end/> : <View style={{width: slotEnd}}/>}<View style={{flex: 1, height: '100%'}}>{device && <Slot item={device} loading={loading} inline/>}</View>{queue ? <Slot item={queue} loading={loading} end/> : <View style={{width: slotEnd}}/>}</>}
   </View>;
   return <View testID={testID} style={{flex: 1, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, frameSpec.sheet.footerClear)}}>
     <ScrollView style={{flex: 1}} contentContainerStyle={{flexGrow: 1, paddingHorizontal: inset}} keyboardShouldPersistTaps="handled">
