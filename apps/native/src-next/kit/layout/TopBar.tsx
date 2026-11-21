@@ -36,14 +36,18 @@ export function BarScrim() {
   </View>;
 }
 
-/** phone-detail's round control over a page's own artwork: a 38 pt glass circle (blur under ink at .45). */
-export const RoundBarButton = React.forwardRef<View, {icon: IconName; label: string; onPress: () => void; testID?: string; disabled?: boolean; active?: boolean}>(function RoundBarButton({icon, label, onPress, testID, disabled, active = false}, ref) {
-  const theme = useTheme();
-  return <Focusable ref={ref} testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} hitSlop={3} focusRadius={19} style={styles.round}>
-    <View pointerEvents="none" style={{flex: 1, borderRadius: 19, overflow: 'hidden'}}>
+/** The round glass circle's look: the bar's (phone-detail `.gr`, 38 pt, a 22 glyph, ink at .45) unless a part draws a smaller one. */
+export type RoundGlass = Readonly<{size: number; icon: number; ink: number}>;
+const barGlass: RoundGlass = {size: 38, icon: 22, ink: .45};
+
+/** phone-detail's round control over a page's own artwork: a glass circle (blur under ink), the bar's size unless `glass` says otherwise. */
+export const RoundBarButton = React.forwardRef<View, {icon: IconName; label: string; onPress: () => void; testID?: string; disabled?: boolean; active?: boolean; glass?: RoundGlass}>(function RoundBarButton({icon, label, onPress, testID, disabled, active = false, glass = barGlass}, ref) {
+  const theme = useTheme(), radius = glass.size / 2;
+  return <Focusable ref={ref} testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} hitSlop={3 + (barGlass.size - glass.size) / 2} focusRadius={radius} style={{width: glass.size, height: glass.size, borderRadius: radius}}>
+    <View pointerEvents="none" style={{flex: 1, borderRadius: radius, overflow: 'hidden'}}>
       <BlurView blurType="dark" blurAmount={18} overlayColor="transparent" reducedTransparencyFallbackColor={theme.colors.ink} style={{flex: 1}}>
-        <View collapsable={false} style={{flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.ink, .45)}}>
-          <Icon name={icon} size={22} color={active ? theme.colors.accentStrong : theme.colors.text}/>
+        <View collapsable={false} style={{flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.ink, glass.ink)}}>
+          <Icon name={icon} size={glass.icon} color={active ? theme.colors.accentStrong : theme.colors.text}/>
         </View>
       </BlurView>
     </View>
@@ -94,12 +98,11 @@ export function TopBar({back, overArtwork = false, title, leadingTitle, center, 
 /** The widest the labelled back button draws (styles.back maxWidth). */
 const backRoom = 118;
 /** The round glass control's size (phone-detail's 38 pt circle); a frame that places one reads it from here. */
-export const roundBarSize = 38;
+export const roundBarSize = barGlass.size;
 const styles = StyleSheet.create({
   row: {height: 44, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center'},
   back: {height: 38, maxWidth: 118, marginLeft: -4, paddingRight: 6, justifyContent: 'center'},
   backContent: {flexDirection: 'row', alignItems: 'center'},
-  round: {width: roundBarSize, height: roundBarSize, borderRadius: roundBarSize / 2},
   // Symmetric, so the title stays centred on the screen: clear of the arrow and the trailing actions on both sides.
   centre: {position: 'absolute', left: 56, right: 56, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'},
   trailing: {marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6},

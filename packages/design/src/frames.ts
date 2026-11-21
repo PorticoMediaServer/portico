@@ -126,8 +126,9 @@ export const frame = {
          * opened episode's plate under the row puts its still this wide at the left, Previous and Next under it (tablet f7, desktop-detail f5). */
         episodeTile: 264, plateStillWide: 280,
         /** The opened episode's plate (phone-detail d2 frame 4 `.epo`): 12 in from the page's edge, 8 inside (14 at its foot), corners 18 (its still's 12),
-         * a fill and edge of the text colour at these alphas; its credits' label column; guests shown before Show all. */
-        plate: {inset: 12, padding: 8, foot: 14, radius: 18, stillRadius: 12, fill: .045, edge: .06, badge: .65, labelColumn: 86, guests: 6}, castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112,
+         * a fill and edge of the text colour at these alphas; its credits' label column; guests shown before Show all; its close
+         * on the still (`.epo .close`), a 34 glass circle with an 18 glyph on ink at .55, smaller than the bar's 38. */
+        plate: {inset: 12, padding: 8, foot: 14, radius: 18, stillRadius: 12, fill: .045, edge: .06, badge: .65, labelColumn: 86, guests: 6, close: {size: 34, icon: 18, ink: .55}}, castCircle: forms(64, 96, 96, 150), number: 56, numberedArt: forms(56, 106, 106, 140), neighbourArt: 112,
         /** phone-detail d2 frame 4 `.pn button`: Previous and Next side by side as small raised cards with no still. */
         neighbour: {height: 50, radius: 12, chevron: 20, gap: 4}, choiceLabel: 120, choiceMin: 200,
         /** Details beside About from a tablet on its side: Cast & crew takes 1.6 shares to About's 1 (desktop-detail f3). */
