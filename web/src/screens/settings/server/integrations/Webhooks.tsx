@@ -9,6 +9,7 @@ import {Dialog} from '../../../../kit/overlays/Dialog';
 import {usePhone} from '../../../../kit/overlays/shared';
 import {Menu} from '../../../../kit/overlays/Popover';
 import {SettingsWebhooksSource} from './webhooks-source';
+import {StateRow} from '../../../../kit/frames';
 import styles from './integrations.module.css';
 const t = defaultI18n.t;
 type Editor = Readonly<{source: SettingsWebhooksSource; hook?: Webhook}>;
@@ -102,15 +103,14 @@ export function WebhooksPanel({source, isCurrent}: Readonly<{source: SettingsWeb
     {(state.error || state.uncertain) && <p role="alert" className={styles.failure}>{t(state.uncertain ? 'error.unconfirmedChange' : 'error.unavailable')}<Button size="xs" disabled={busy} onClick={() => {if (isCurrent()) {closeEditor(heldEditor);closeConfirmation(heldConfirmation);void source.reconcile();}}}>{t('action.refresh')}</Button></p>}
     {!state.list && busy && <p role="status">{t('next.settings.loading')}</p>}
     {testResult && <p role="status" className={styles.note}>{testResult.delivered ? t('api.webhooks.delivery.delivered') : deliveryProblem(t, defaultI18n.has, {...testResult, state: 'gave_up'})}</p>}
-    {state.list && <ul className={styles.keys}>{state.list.items.map(hook => {const trouble = webhookTrouble(t, hook, defaultI18n.has);return <li className={styles.keyRow} key={hook.id} data-disabled={!hook.enabled || undefined}>
+    {state.list && <div className={styles.card}><ul className={styles.keys}>{state.list.items.map(hook => {const trouble = webhookTrouble(t, hook, defaultI18n.has);return <li className={styles.keyRow} key={hook.id} data-disabled={!hook.enabled || undefined}>
       <span className={styles.keyIcon}><Icon name="i-webhook" size={20}/></span>{(() => {
         const text = <><b>{hook.name}</b><span className={styles.facts}><span className={styles.mono}>{hook.url}</span><span>{t('api.webhooks.eventCount', {count:hook.events.length})}</span>{trouble && <span className={styles.hookTrouble} data-tone={trouble.tone}>{trouble.text}</span>}</span></>;
         return phone ? <button type="button" className={`${styles.keyText} ${styles.keyOpen}`} disabled={!live || busy} onClick={() => openRow(hook)}>{text}</button> : <div className={styles.keyText}>{text}</div>;
       })()}
       <div className={styles.actions}><Switch checked={hook.enabled} disabled={!writable} aria-label={t('api.webhooks.turnOn', {name:hook.name})} onCheckedChange={enabled => {if (!isCurrent() || !writable) return;if (!source.getSnapshot().list?.items.includes(hook)) return;void source.update(hook, {enabled});}}/>{!phone && <HookMenu hook={hook} disabled={busy || !live} action={kind => action(hook, kind)}/>}</div>
-    </li>;})}</ul>}
+    </li>;})}</ul>{!state.list.items.length && <StateRow kind="empty" icon="i-webhook" title={t('api.webhooks.none')} />}</div>}
     {state.list && state.list.items.length >= webhookMaximum && <p className={styles.note}>{t('api.webhooks.full', {count:webhookMaximum})}</p>}
-    {state.list && !state.list.items.length && <p className={styles.note}>{t('api.webhooks.none')}</p>}
     <Dialog footerDismisses open={!!heldEditor} onOpenChange={open => {if (!open && !state.busy) closeEditor(heldEditor);}} title={t(heldEditor?.hook ? 'api.webhooks.editTitle' : 'api.webhooks.add')} width={600} dismissOnBack={!state.busy} dismissOnOutsidePress={!state.busy} showCloseButton={!state.busy}
       footer={<><Button variant="glass" size="compact" disabled={state.busy} onClick={() => closeEditor(heldEditor)}>{t('action.cancel')}</Button><Button variant="primary" size="compact" disabled={!writable || !name.trim() || !webhookAddressOk(url) || !events.size} onClick={() => {void save();}}>{t(heldEditor?.hook ? 'action.save' : 'api.webhooks.add')}</Button></>}>
       <div className={styles.form}><TextField label={t('profile.name')} value={name} maxLength={120} disabled={state.busy || state.uncertain} onChange={event => setName(event.target.value)}/><TextField label={t('api.webhooks.url')} value={url} maxLength={2048} disabled={state.busy || state.uncertain} description={t('api.webhooks.urlHelp')} error={url && !webhookAddressOk(url) ? t('api.webhooks.urlProblem') : undefined} onChange={event => setUrl(event.target.value)}/>

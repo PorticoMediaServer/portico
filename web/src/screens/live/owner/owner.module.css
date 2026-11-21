@@ -11,8 +11,8 @@
 .sourceIcon { display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--color-raised-high);color:var(--color-accent-strong); }
 .facts { flex:1;min-width:0; }
 .facts b { font-size:var(--type-live-owner-source-title-size);line-height:var(--type-live-owner-source-title-line);font-weight:var(--type-live-owner-source-title-weight);letter-spacing:var(--type-live-owner-source-title-tracking); }
-.facts p { display:flex;flex-wrap:wrap;gap:2px 0;margin:4px 0 0;color:var(--color-text-tertiary);font-size:var(--type-report-meta-size);line-height:calc(var(--type-report-meta-size) * 1.4); }
-.facts p span+span { margin-left:14px; }
+.facts p { display:flex;flex-wrap:wrap;gap:2px 14px;margin:4px 0 0;color:var(--color-text-tertiary);font-size:var(--type-report-meta-size);line-height:calc(var(--type-report-meta-size) * 1.4); }
+/* The facts' gap is the space between them, so a wrapped line starts at the edge (live-owner 12a). */
 .badge { display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 11px;border-radius:8px;font-size:var(--type-caption-size);font-weight:var(--type-button-weight);white-space:nowrap;color:var(--color-text-secondary);background:color-mix(in srgb,var(--color-text) 8%,transparent); }
 .badge::before { content:'';width:8px;height:8px;border-radius:50%;background:currentColor; }
 .badge[data-tone=healthy] { color:var(--color-healthy);background:color-mix(in srgb,var(--color-healthy) 12%,transparent); }
@@ -26,7 +26,8 @@
 .empty { text-align:center;padding:44px 24px 40px;border-radius:14px;background:var(--color-raised); }
 .emptyIcon { display:grid;place-items:center;width:60px;height:60px;margin:0 auto 18px;border-radius:14px;background:color-mix(in srgb, var(--color-accent) 16%, transparent);color:var(--color-accent-strong); }
 .empty h4 { margin:0 0 8px;font-size:var(--type-subheading-size); }.empty p { color:var(--color-text-tertiary);font-size:var(--type-caption-size); }
-@media(max-width:700px) { .source { grid-template-columns:44px minmax(0,1fr) auto;gap:10px;padding:14px; }.facts { grid-column:2/4; }.badge { grid-column:2;justify-self:start; }.source>button { margin-left:auto; }.notice { margin-left:14px;margin-right:14px; }.heading { align-items:flex-start; } }
+/* live-owner 12a: on a phone a source is its icon, its facts with the state under them, and ⋯; Source settings is in ⋯. */
+@media(max-width:700px) { .source { grid-template-columns:44px minmax(0,1fr) auto;gap:6px 12px;padding:14px;align-items:start; }.source .facts { grid-column:2;grid-row:1; }.badge { grid-column:2;grid-row:2;justify-self:start; }.source>button:not(:last-child) { display:none; }.source>:last-child { grid-column:3;grid-row:1; }.notice { margin-left:14px;margin-right:14px; }.heading { align-items:flex-start; } }
 .unit { margin-left:10px;color:var(--color-text-tertiary);font-size:var(--type-label-size); }
 .save { position:sticky;bottom:16px;display:flex;justify-content:flex-end;gap:12px;margin-top:20px;padding:12px 16px;border:1px solid var(--color-line);border-radius:12px;background:var(--color-raised); }
 .fields { display:grid;gap:18px; }
@@ -39,7 +40,6 @@
 
 .accountHeading { margin:0;padding:16px 22px;font-size:var(--type-body-size);font-weight:var(--type-button-weight);border-bottom:1px solid var(--color-line-soft); }
 
-@media(max-width:700px) { .source>button { grid-column:3; }.source>button:last-child { grid-row:1; }.source>button:not(:last-child) { grid-row:2; }.source .facts { grid-column:2; } }
 
 .tunerSummary { padding:14px 18px;border-top:1px solid var(--color-line-soft); }
 .tunerSummary:first-child { border-top:0; }

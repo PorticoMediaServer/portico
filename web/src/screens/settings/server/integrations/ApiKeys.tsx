@@ -14,6 +14,7 @@ import {AssistantsPanel} from '../../integrations/Assistants';
 import {SettingsApiKeysSource} from './api-keys-source';
 import {WebhooksPanel} from './Webhooks';
 import type {SettingsWebhooksSource} from './webhooks-source';
+import {StateRow} from '../../../../kit/frames';
 import styles from './integrations.module.css';
 
 const t = defaultI18n.t;
@@ -90,16 +91,16 @@ export function IntegrationsPage({api, source, webhooks, baseUrl, isCurrent, rep
   return <div className={styles.page}>
     <Tabs aria-label={t('next.settingsSpec.server.integrations.title')} value={tab} onValueChange={value => {if (value === 'keys' || value === 'webhooks' || value === 'assistants') setTab(value);}} items={[
       {value: 'keys', label: t('web.access.apiKeys'), panel: <section id="integrations.apiKeys" aria-labelledby="api-keys-title">
-      <div className={styles.heading}><h3 id="api-keys-title">{t('web.access.apiKeys')}</h3><Button size="xs" variant="glass" disabled={busy} onClick={start}>{t('web.access.createKey')}</Button></div>
+      <div className={styles.heading}><h3 id="api-keys-title">{t('web.access.apiKeys')}</h3><Button size="xs" variant="glass" icon="i-plus" disabled={busy} onClick={start}>{t('web.access.createKey')}</Button></div>
       <p className={styles.lede}>{t('server.access.keyLede')}</p>
       {state.error && <div className={styles.failure} role="alert"><span>{state.problem ?? t(state.error === 'read' ? 'error.unavailable' : 'error.unconfirmedChange')}</span><Button size="xs" variant="glass" disabled={busy} onClick={() => {if (isCurrent()) void source.load();}}>{t('action.refresh')}</Button></div>}
       {state.phase === 'loading' && !state.page && <p role="status" className={styles.note}>{t('next.settings.loading')}</p>}
-      {state.page && <><ul className={styles.keys}>{working.map(row)}{ended && stopped.map(row)}</ul>{!working.length && <p className={styles.note}>{t('web.access.noApiKeys')}</p>}
-        {stopped.length > 0 && <Button size="xs" variant="text" aria-expanded={ended} onClick={() => setEnded(value => !value)}>{t(ended ? 'api.credential.hideEnded' : 'api.credential.showEnded', {count: stopped.length})}</Button>}
+      {state.page && <div className={styles.card}><ul className={styles.keys}>{working.map(row)}{ended && stopped.map(row)}</ul>{!working.length && <StateRow kind="empty" icon="i-key" title={t('web.access.noApiKeys')} />}
+        {stopped.length > 0 && <div className={styles.cardRow}><Button size="xs" variant="text" aria-expanded={ended} onClick={() => setEnded(value => !value)}>{t(ended ? 'api.credential.hideEnded' : 'api.credential.showEnded', {count: stopped.length})}</Button></div>}
         {(cursors.length > 1 || state.page.nextCursor) && <div className={styles.pager}><Button size="xs" variant="glass" disabled={busy || cursors.length < 2} onClick={() => {const next = cursors.slice(0, -1);void page(next[next.length - 1] ?? '', next);}}>{t('web.pager.previous')}</Button>
           <Button size="xs" variant="glass" disabled={busy || !state.page.nextCursor} onClick={() => {const next = state.page?.nextCursor;if (next) void page(next, [...cursors, next]);}}>{t('web.pager.next')}</Button></div>}
-      </>}
-      <p className={styles.footnote}>{t('api.tokens.lifetime')}</p>
+        <p className={styles.footnote}>{t('api.tokens.lifetime')}</p>
+      </div>}
     </section>},
       {value: 'webhooks', label: t('api.webhooks.title'), panel: <WebhooksPanel source={webhooks} isCurrent={isCurrent} />},
       {value: 'assistants', label: t('api.mcp.tab'), panel: <div id="integrations.assistantAddress"><div id="integrations.assistantKey"><AssistantsPanel baseUrl={baseUrl} isCurrent={isCurrent} openKeys={() => {if (isCurrent()) setTab('keys');}} reportError={reportError} /></div></div>},
