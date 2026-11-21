@@ -125,11 +125,11 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
     './inventory': downloadInventory,
     './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
     './useReadingFacts': await screenModule(new URL('../src-next/screens/downloads/useReadingFacts.ts', import.meta.url), {react: {...React, default: React}}),
-    '../saved/SavedForms': await screenModule(new URL('../src-next/screens/saved/SavedForms.tsx', import.meta.url), {
-      '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../../kit/browse/presentation': {browseType: () => ({})}, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
+    '../../kit/saved/SavedForms': await screenModule(new URL('../src-next/kit/saved/SavedForms.tsx', import.meta.url), {
+      '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
       react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-      '../../kit/controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'}, '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'},
-      '../../kit/theme': {useTheme: () => theme}}),
+      '../controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'}, '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'},
+      '../theme': {useTheme: () => theme}}),
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);
@@ -181,11 +181,11 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
     './inventory': downloadInventory,
     './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
     './useReadingFacts': await screenModule(new URL('../src-next/screens/downloads/useReadingFacts.ts', import.meta.url), {react: {...React, default: React}}),
-    '../saved/SavedForms': await screenModule(new URL('../src-next/screens/saved/SavedForms.tsx', import.meta.url), {
-      '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../../kit/browse/presentation': {browseType: () => ({})}, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
+    '../../kit/saved/SavedForms': await screenModule(new URL('../src-next/kit/saved/SavedForms.tsx', import.meta.url), {
+      '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
       react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-      '../../kit/controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'}, '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'},
-      '../../kit/theme': {useTheme: () => theme}}),
+      '../controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'}, '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'},
+      '../theme': {useTheme: () => theme}}),
   });
   function nodes(node: any): any[] {
     if (Array.isArray(node)) return node.flatMap(nodes);

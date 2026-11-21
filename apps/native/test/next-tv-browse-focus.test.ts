@@ -76,12 +76,12 @@ test('a focused empty credits host advances cast to crew, stops on blur/loading,
 test('TV saved-name form uses the remote keyboard, authored panel size, trim/bounds, and locked Retry values', async () => {
   const h = hooks(), react: any = {...h.react, useId: () => 'form-instance'}; react.default = react;
   const focused: any[] = [], saved: any[] = [];
-  const {SavedNameSheet} = await screenModule(new URL('../src-next/screens/saved/SavedForms.tsx', import.meta.url), {
+  const {SavedNameSheet} = await screenModule(new URL('../src-next/kit/saved/SavedForms.tsx', import.meta.url), {
     react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
-    '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({focus: (address: any) => focused.push(address)})},
-    '../../kit/browse/presentation': type, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
-    '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/theme': {useTheme: () => theme},
+    '../controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
+    '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({focus: (address: any) => focused.push(address)})},
+    '../browse/presentation': type, '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
+    '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../theme': {useTheme: () => theme},
   });
   const props: any = {open: true, title: 'Name', action: 'Save', initialName: '', withSummary: true, withVisibility: true, busy: false, testID: 'create', onClose() {}, onSave: (input: any) => saved.push(input)};
   const render = () => h.render(() => {const branch = SavedNameSheet(props); return branch.type(branch.props);});

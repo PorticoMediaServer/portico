@@ -8,7 +8,7 @@ import {savedGridCardWidth, savedShelfWidth, SavedGrid, SavedGridControls, Saved
 import {StateView} from '../../../kit/states';
 import {openNativeSavedDownload} from '../../../screens/downloads/playback';
 import {SavedDownloadCard} from '../../../kit/saved/SavedDownloadCard';
-import {SavedLoading, SavedTail} from '../../../screens/saved/SavedLoading';
+import {SavedLoading, SavedTail} from '../../../kit/saved/SavedLoading';
 import {useSavedPage, type SavedPageProps} from '../../shared/saved/useSavedPage';
 
 const t = defaultI18n.t;

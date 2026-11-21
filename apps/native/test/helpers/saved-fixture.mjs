@@ -38,8 +38,36 @@ export async function savedFixture(kind, old) {
   const kit = await load(`kit/saved/${parts}.tsx`, kitBindings);
   const page = await load(`pages/${tv ? 'tv' : 'touch'}/saved/${downloads ? 'Downloads' : 'Saved'}Page.tsx`, {
     ...pageBindings, '../../../kit/frames': {BrowseFrame: pageName},
+    ...(tv ? {'./SavedDirectoryPage': old['./SavedDirectoryPage']} : {}),
     '../../../kit/saved/SavedDownloadCard': old['./SavedDownloadCard'],
     [`../../../kit/saved/${parts}`]: kit, [`../../shared/saved/${hookName}`]: hook,
   });
   return {[`${kind}Screen`]: page[pageName]};
+}
+
+export async function tvSavedDirectoryFixture(bindings) {
+  const react = bindings.react;
+  const i18n = bindings['../../../../../packages/i18n/src'];
+  const model = await load('pages/shared/saved/useTVSavedDirectory.ts', {
+    react, '../../../../../../packages/i18n/src': i18n,
+    '../../../../../../packages/client-core/src/presentation/errors': bindings['../../../../../packages/client-core/src/presentation/errors'],
+    '../../../kit/focus': bindings['../../kit/focus'], '../../../screens/saved/presentation': bindings['./presentation'],
+  });
+  const kit = await load('kit/saved/SavedTVDirectoryParts.tsx', {
+    react, 'react-native': bindings['react-native'], '../../../../../packages/i18n/src': i18n,
+    '../../pages/shared/saved/useTVSavedDirectory': model, '../../screens/saved/presentation': bindings['./presentation'],
+    '../theme': bindings['../../kit/theme'], '../focus': bindings['../../kit/focus'], '../Icon': bindings['../../kit/Icon'],
+    '../artwork': bindings['../../kit/artwork'], '../cards/primitives': bindings['../../kit/cards/primitives'], '../controls': {Button: 'Button'},
+    '../states': bindings['../../kit/states'], '../browse/presentation': bindings['../../kit/browse/presentation'],
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    './SavedTVLoading': bindings['./SavedTVLoading'], './PlaylistToolbar': bindings['./PlaylistToolbar'],
+  });
+  const page = await load('pages/tv/saved/SavedDirectoryPage.tsx', {
+    react, '../../../../../../packages/i18n/src': i18n, '../../shared/saved/useTVSavedDirectory': model,
+    '../../../kit/saved/SavedForms': bindings['../../kit/saved/SavedForms'], '../../../kit/saved/SavedTVDirectoryParts': kit,
+  });
+  return {SavedTVDirectory: props => {
+    const [body, sheet] = page.SavedTVDirectory(props).props.children;
+    return [kit.SavedTVDirectoryBody(body.props), sheet];
+  }};
 }

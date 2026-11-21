@@ -91,7 +91,8 @@ export class NativeTVSavedController {
     const generation = ++this.generation;
     this.publish({phase: 'loading', tab, error: undefined, posters: undefined, squares: undefined, playlists: undefined, resources: [], entries: []});
     if (tab === 'watchlist' || tab === 'favorites') {
-      const base: SavedRoute = {view: tab, shape: 'posters', sort: options.sort ?? 'added', direction: options.direction ?? 'desc', filter: options.filter ?? 'all'};
+      const sort = options.sort ?? 'added';
+      const base: SavedRoute = {view: tab, shape: 'posters', sort, direction: options.direction ?? (sort === 'title' ? 'asc' : 'desc'), filter: options.filter ?? 'all'};
       const squareRoute: SavedRoute = {...base, shape: 'squares'};
       const posters = this.view(`${tab}:posters`), squares = this.square(tab);
       try {
