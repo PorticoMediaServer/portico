@@ -93,8 +93,9 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
         const group = groups.find(value => value.id === state.group);
         if (group?.nextCursor && contentOffset.y + layoutMeasurement.height >= contentSize.height - 600) run(destination.next(group.id));
       }}><View ref={contentRoot} collapsable={false}>
+        {/* The chips' own ring room sits inside the column's: pulled back by it on the left and the top, so the chips start on the field's line (tv.html#f5). */}
         {chipsDrawn && <FocusRegion id={ids.searchChips} enabled={active.visible} orientation="horizontal" entry={`chip:${state.group}`} stops={{up: true}}
-          edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} style={{maxWidth: resultsWidth, marginLeft: -focusRoom}}>
+          edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} style={{maxWidth: resultsWidth, marginLeft: -focusRoom, marginTop: -focusRoom}}>
           <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
             contentContainerStyle={[tvSearchR46.chips, {padding: focusRoom}]}>{chips.map(chip => {
           const group = groups.find(value => value.id === chip.id);
