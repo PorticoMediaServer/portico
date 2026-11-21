@@ -50,9 +50,9 @@ export function SearchHistory({title, clear, items}: SearchHistoryProps) {
     {phone ? items.map(item => <View key={item.query} style={[edge, {flexDirection: 'row', alignItems: 'center', minHeight: theme.targets.touch}]}>
       <Focusable testID={`search-recent-${encodeURIComponent(item.query)}`} accessibilityLabel={item.query} onPress={item.onPress} style={{flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap, minHeight: theme.targets.touch}}>
         <Icon name="i-clock" size={19} color={theme.colors.textTertiary}/>
-        <Text numberOfLines={2} style={[theme.type.rowLabel, {flex: 1, color: theme.colors.textSecondary}]}>{item.query}</Text>
+        <Text style={[theme.type.rowLabel, {flex: 1, color: theme.colors.textSecondary}]}>{item.query}</Text>
       </Focusable>
-      {item.remove && <Button variant="icon" size="small" icon="i-x" iconOnly accessibilityLabel={item.remove.label} onPress={item.remove.onPress}/>}
+      {item.remove && <Button variant="text" size="small" icon="i-x" iconOnly iconColor={theme.colors.textTertiary} accessibilityLabel={item.remove.label} disabled={clear.disabled} onPress={item.remove.onPress}/>}
     </View>)
       : <View style={[edge, {flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}]}>{items.map(item => <Chip key={item.query} icon="i-clock" accessibilityLabel={item.query} onPress={item.onPress}>{item.query}</Chip>)}</View>}
   </View>;
