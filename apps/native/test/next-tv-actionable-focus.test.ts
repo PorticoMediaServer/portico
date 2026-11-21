@@ -229,7 +229,7 @@ function tvPopover(o: any, props: any) {
   return drawn?.type === o.sheet.BottomSheet ? o.sheet.BottomSheet(drawn.props) : drawn;
 }
 
-for (const kind of ['library', 'home'] as const) test(`${kind} actual sort overlay scopes real rows and returns to its original opener`, async t => {
+for (const kind of ['home'] as const) test(`${kind} actual sort overlay scopes real rows and returns to its original opener`, async t => {
   t.mock.timers.enable({apis: ['setTimeout']});
   const b = await bindings(), o = await overlayBindings(b);
   const presentation = await import('../src-next/kit/browse/presentation');
@@ -240,14 +240,15 @@ for (const kind of ['library', 'home'] as const) test(`${kind} actual sort overl
     '../controls': controls, '../../kit/controls': controls, '../overlays': o.menu, '../../kit/overlays': o.menu,
     '../Icon': {Icon: 'Icon'}, '../../kit/Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, '../../kit/theme': {useTheme: () => b.theme},
     '@react-native-masked-view/masked-view': {default: 'MaskedView'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, './presentation': presentation, '../../kit/browse/presentation': presentation};
-  const file = kind === 'library' ? '../src-next/screens/library/LibrarySortMenu.tsx' : '../src-next/kit/browse/Toolbar.tsx';
-  const mod = await screenModule(new URL(file, import.meta.url), {...modules, '../focus': b.focus, '../controls/control-model': controlModel}), component = kind === 'library' ? mod.LibrarySortMenu : mod.SortMenu;
+  // The library's own sort menu was unused and is gone; Library and Home both use the kit's Sort menu.
+  const file = '../src-next/kit/browse/Toolbar.tsx';
+  const mod = await screenModule(new URL(file, import.meta.url), {...modules, '../focus': b.focus, '../controls/control-model': controlModel}), component = mod.SortMenu;
   let tree: any, overlay: any, changes = 0;
   const scope = `${kind}:original-authority:original-route`, props: any = {scope, focusScope: scope,
     sorts: [{id: 'title', directions: ['asc', 'desc'], defaultDirection: 'asc'}, {id: 'added', directions: ['desc'], defaultDirection: 'desc'}],
     value: {field: 'title', direction: 'asc', flippable: true}, label: (value: any) => value.id, onValueChange: () => {changes++;}, onReshuffle() {}};
   const source = createFabricHookHost(() => {tree = component(props);}); await source.mount();
-  // The library's sort draws its own trigger; the kit's Sort menu draws the kit SortButton (its ref is the opener).
+  // The kit's Sort menu draws the kit SortButton (its ref is the opener).
   const trigger = () => nodes(tree).find(node => node.type === b.Focusable || node.type?.name === 'SortButton');
   const anchor = trigger().props.ref ?? trigger().props.anchorRef;
   let restored = 0; anchor.current = {nativeTag: 800, requestTVFocus() {restored++;}, measureInWindow: (fn: any) => fn(0, 0, 40, 40)};
