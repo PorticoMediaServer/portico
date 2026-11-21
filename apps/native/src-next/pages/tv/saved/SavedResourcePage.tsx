@@ -82,7 +82,7 @@ export function SavedResourcePage(props: NativeSavedResourceProps) {
       </PanelBlock>}
       {savedView
         ? <PosterGridWindow testID="saved-view-grid" items={view.media.map(entry => savedViewGridItem(entry, runtime, actions, selection?.item(entry)))}/>
-        : <TitleRowWindow testID="saved-resource-rows" rows={rows} longPressOnly/>}
+        : <TitleRowWindow testID="saved-resource-rows" rows={rows} longPressOnly tvList/>}
       {view.phase === 'loading' && view.rows.length > 0 && <PanelBlock><StateRow kind="loading"/></PanelBlock>}
       {canMoveRows && view.rows.length > 0 && <PanelBlock>
         <KeyHints hints={[{key: t('next.layout.holdOk'), label: t('next.saved.native.rowActions')}]}/>
