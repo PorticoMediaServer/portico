@@ -56,7 +56,7 @@ export function SectionCard({label, help, stale, plain = false, children}: {labe
   const theme = useTheme(), frame = useFrameMetrics();
   return <View>
     {label !== undefined && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, marginHorizontal: frame.gutter, marginBottom: frame.headingGap, minHeight: stale ? theme.targets.pointer : undefined}}>
-      <Text accessibilityRole="header" style={[theme.type.groupLabel, {color: theme.colors.textSecondary, flexShrink: 1}]}>{label}</Text>
+      <Text accessibilityRole="header" style={[theme.type.sectionLabel, {flexShrink: 1}]}>{label}</Text>
       {stale && <><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.amber}]}>{stale.label}</Text>
         <Button variant="glass" size="xs" onPress={stale.onRetry}>{stale.retryLabel}</Button></>}
     </View>}
