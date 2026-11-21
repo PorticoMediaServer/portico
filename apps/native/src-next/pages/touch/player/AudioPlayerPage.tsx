@@ -9,7 +9,7 @@ import {ListeningCover, ListeningNoticeLine, ListeningPageBackground, ListeningP
 import {BottomSheet, Menu} from '../../../kit/overlays';
 import {RetainedOverlay} from '../../../kit/overlays/SurfacePaintHost';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
-import {NativeWatchEqualizer} from '../../../screens/watch/Equalizer';
+import {EqualizerPage} from '../../shared/player/EqualizerPage';
 import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/music/MusicSignal';
 import {NowPlayingQueue} from '../../../kit/player/NowPlayingQueue';
 import {TVMusicFocus} from '../../../screens/destinations/music/TVMusicFocus';
@@ -21,6 +21,7 @@ import {equalizerCopy, retainedListeningParts, omittedListeningParts} from '../.
 import type {NowPlayingScreenProps} from '../../shared/player/audio-player';
 
 const t = defaultI18n.t;
+const omittedPlayerParts = [...omittedListeningParts, EqualizerPage];
 
 export function AudioPlayerPage(props: NowPlayingScreenProps) {
   const {queue, artwork, height, backgroundHosted = false, onQueuePlay, retry, playOn, song, onClose, signal, notice,
@@ -132,10 +133,10 @@ export function AudioPlayerPage(props: NowPlayingScreenProps) {
   return <>
     {paintActive && showingQueue && queue && <NowPlayingQueue paintOwner={paneOwner} paintScope={fenceKey} testID={`${testID}-queue`} view={queue} onPlay={onQueuePlay} artwork={artwork} queueEdit={queueEditPort}/>}
     {paintActive && showingLyrics && knownLyrics && React.cloneElement(knownLyrics, {paintOwner: paneOwner, paintScope: fenceKey})}
-    <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={retainedListeningParts} omitTypes={omittedListeningParts}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !side && !!sheet}>
+    <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={retainedListeningParts} omitTypes={omittedPlayerParts}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !side && !!sheet}>
       {!backgroundHosted && <ListeningPageBackground fence={playback.fence} height={height} ambient={p.ambient}/>}
       {panel === 'signal' && signal ? <ListeningPanel><MusicSignalSheet view={signal} onClose={closePanel} contextTitle={p.identity.title} returnFocusRef={signalRef}/></ListeningPanel> : null}
-      {panel === 'eq' ? <ListeningPanel opaque><NativeWatchEqualizer onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></ListeningPanel> : null}
+      {panel === 'eq' ? <ListeningPanel opaque><EqualizerPage onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></ListeningPanel> : null}
       {column}
     </ListeningSurface></RetainedOverlay></TVMusicFocus>
     <BottomSheet open={paintActive && !side && !!sheet} onOpenChange={open => {if (!open) setSheet(null);}}
