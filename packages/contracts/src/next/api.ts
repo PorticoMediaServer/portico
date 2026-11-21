@@ -1906,6 +1906,7 @@ export interface LiveChannel {
   logo?: string;
   favorite: boolean;
   hidden: boolean;
+  canRecord?: boolean;
   matchedProgramme?: LiveProgramme;
 }
 

@@ -60,7 +60,7 @@ func homeLiveChannel(entry LiveOnNow, at time.Time) HomeChannel {
 	}
 	channel := HomeLiveChannel{ID: ch.ID, SourceID: source.ID, Provenance: source.Provenance, Generation: source.Generation,
 		Name: ch.Name, Number: ch.Number, Group: ch.Group, LogoPath: ch.Logo, Favorite: ch.Favorite,
-		Mark: HomeLiveMark{Text: mark, Seed: ch.ID}, Programmes: []HomeLiveProgramme{}, TuneAvailable: true, Guide: "none"}
+		Mark: HomeLiveMark{Text: mark, Seed: ch.ID}, Programmes: []HomeLiveProgramme{}, TuneAvailable: true, RecordAvailable: ch.CanRecord, Guide: "none"}
 	if entry.Now != nil || entry.Next != nil {
 		channel.Guide = "full"
 	}
