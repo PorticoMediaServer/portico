@@ -12,8 +12,9 @@ export type ShellScope = Readonly<{serverId: string; accountId: string; profileI
 export type ShellAuthority = ShellScope & Readonly<{epoch: string; viewerFence: string; privacyFence?: string}>;
 export type ShellDestination = Readonly<
   | {kind: 'home' | 'libraries' | 'live' | 'saved'}
-  /** `page` opens one account page directly (J-32: a notice's Review security / Review device opens Profile & account). */
-  | {kind: 'settings'; page?: 'profile'}
+  /** `page` opens one account page directly (J-32: a notice's Review security / Review device opens Profile & account; a TV's
+   * Switch server opens its Settings page, connect-24). */
+  | {kind: 'settings'; page?: 'profile' | 'servers'}
   /** An optional initial query seeds one ordinary Search route; the screen owns later edits. */
   | {kind: 'search'; query?: string}
   | {kind: 'library'; libraryId: string; /** An explicit authored opening pivot. */ tab?: LibraryTabId; /** A server-authored query, validated against this library's current capabilities. */ definition?: SavedDefinition; /** Scroll to the profile Mixes row once its data mounts. */ anchor?: 'mixes'}

@@ -61,7 +61,11 @@ export function NativeSettingsPage(props: SettingsProps) {
     <FocusRegion id={column} entry={orderedPages[0]?.id} order={orderedPages.map(value => value.id)} orientation="vertical"
       edges={{left: ids.rail, right: rows, up: searchField}} onLayout={enter}>
       <SettingsSectionLabel label={t('settings.heading.account')} first={!compact}/>
-      {accountGroups.map(group => <SettingsNavigationGroup key={group[0]?.id}>{group.map(value => row(value))}</SettingsNavigationGroup>)}
+      {accountGroups.map(group => <React.Fragment key={group[0]?.id}>
+        {/* connect-24: a TV's Switch server sits under More. */}
+        {tv && group[0]?.id === 'servers' && <SettingsSectionLabel label={t('settings.more')}/>}
+        <SettingsNavigationGroup>{group.map(value => row(value))}</SettingsNavigationGroup>
+      </React.Fragment>)}
     </FocusRegion>
     {!tv && serverGroups.length > 0 && <SettingsNavigationGroup server>
       {serverHeader}
@@ -102,7 +106,7 @@ export function NativeSettingsPage(props: SettingsProps) {
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
-    intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
+    intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : tv && page.id === 'servers' && !tvSearch ? t('settings.switchServerLede') : undefined}
     scrollRef={pageScroll} onScrollLayout={pageScrollLayout}
     panel={custom ? <>{retry}{custom}</> : undefined}>
     {!custom && retry}

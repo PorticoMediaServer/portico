@@ -37,7 +37,8 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
         {id: 'office', name: 'Office', labelKey: 'accounts.servers.local', signIn: 'local'},
       ]}, busy: false, owner: false, onSelect() {}, onSignOut() {}, onRefresh() {}, onAdd() {},
       footer: React.createElement('View', null, React.createElement('Button', {variant: 'text'}, defaultI18n.t('settings.linkTV')))});
-    const chooser = outer.props.children;
+    // FocusProvider > TVAuthLayout > TVAccountRowColumn > the chooser.
+    const chooser = outer.props.children.props.children.props.children;
     tree = chooser.type(chooser.props);
   });
   await act(() => host.mount());
@@ -76,5 +77,48 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
     assert.equal(actionButtons()[0].props.nextFocusDown, undefined, 'detaching clears the old focus destination');
     await act(() => bindAdd({handle: 73}));
     assert.equal(actionButtons()[0].props.nextFocusDown, 73, 'a replacement native button supplies the new focus destination');
+  } finally {await host.unmount();}
+});
+
+/** connect-24: on a TV's Switch server Settings page the same chooser is drawn in Settings. Settings' list keeps focus when
+ * the page opens: nothing asks for the chooser's start or claims preferred focus until a run that detached it ends. */
+test('the TV Switch server Settings panel leaves focus on Settings\' list when it opens', async () => {
+  const entries: any[] = [];
+  let revision = 0;
+  const react = {...React, default: React}, regionType = 'FocusRegion';
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useTVServerChooser.ts', import.meta.url), {
+    react, 'react-native': {findNodeHandle: (view: any) => view.handle}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)},
+    '../../../tv/auth/entry-revision': {useTVBusyEntryRevision: () => revision},
+  });
+  const {TVServerSettingsPanel} = await screenModule(new URL('../src-next/pages/tv/accounts/ServerChooserPage.tsx', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../shared/accounts/useTVServerChooser': hook,
+    '../../shared/accounts/useServerChooser': {serverRowDetail: (server: any) => defaultI18n.t(server.labelKey)},
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/controls/TVAccountRow': {TVAccountRow: 'TVAccountRow', TVAccountRowColumn: 'Column'},
+    '../../../kit/focus': {FocusProvider: 'FocusProvider', FocusRegion: regionType},
+    '../../../kit/frames/TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountActions: regionType},
+    '../../../kit/accounts/AccountParts': {AccountFields: 'Fields'}, '../../../kit/accounts/ServerChooserParts': {ServerGroup: 'Group'},
+    '../../../kit/states': {StateView: 'StateView'},
+  });
+  let tree: any;
+  const host = createFabricHookHost(() => {
+    const outer = TVServerSettingsPanel({snapshot: {selectedServerId: 'living-room', servers: [
+        {id: 'living-room', name: 'Living room', labelKey: 'accounts.servers.local', signIn: 'local'},
+        {id: 'office', name: 'Office', labelKey: 'accounts.servers.local', signIn: 'local'},
+      ]}, busy: false, owner: false, onSelect() {}, onSignOut() {}, onForget() {}, onRefresh() {}, onAdd() {}});
+    assert.equal(outer.type, 'Column', 'drawn in Settings, not on the sign-in canvas');
+    const chooser = outer.props.children;
+    tree = chooser.type(chooser.props);
+  });
+  await act(() => host.mount());
+  try {
+    const all = nodes(tree);
+    assert.equal(all.some((node: any) => node.type === 'FocusProvider' || node.type === 'Layout'), false);
+    assert.equal(entries.at(-1)[0].visible, false, 'opening the page asks for no start');
+    assert.equal(all.some((node: any) => node.props.preferredFocus), false, 'no control claims preferred focus');
+    revision = 1;
+    await act(() => host.rerender());
+    assert.deepEqual(entries.at(-1), [{visible: true, intent: 'enter', revision: 1},
+      {regionId: 'accounts.chooser.rows', childId: 'server:office'}], 'after a run ends the chooser asks for its start again');
   } finally {await host.unmount();}
 });

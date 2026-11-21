@@ -1,4 +1,4 @@
-import {ProfileRoute} from '../accounts/AccountRoutes';
+import {ProfileRoute, ServersRoute} from '../accounts/AccountRoutes';
 import {NativeAccessTokensPanel, NativeAccountSecurityPanel} from './NativeAccountSecurityPanels';
 import {DeviceAboutPanel} from './DeviceAboutPanel';
 import {AllowedDevicesPanel} from './AllowedDevicesPanel';
@@ -63,7 +63,9 @@ function ProfilesPanel({context, t, openRoute}: NativeSettingsPanelDeps) {
 
 function ServersPanel({context, t, openRoute}: NativeSettingsPanelDeps) {
   const theme = useTheme();
-  return <SettingsRow first testID="settings-panel-servers" label={t(theme.isTV ? 'settings.switchServer' : 'settings.section.servers')} value={context.serverName} onPress={() => openRoute({kind: 'servers'})}/>;
+  // connect-24: a TV's Switch server page is the chooser itself, drawn in Settings.
+  return theme.isTV ? <ServersRoute context={context} embedded openPanel={initialPanel => openRoute({kind: 'servers', initialPanel})}/>
+    : <SettingsRow first testID="settings-panel-servers" label={t('settings.section.servers')} value={context.serverName} onPress={() => openRoute({kind: 'servers'})}/>;
 }
 
 function PrivacyNotePanel({t}: NativeSettingsPanelDeps) {
