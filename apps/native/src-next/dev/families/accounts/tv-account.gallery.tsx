@@ -11,6 +11,8 @@ import {TVCodePresenter, TVCredentialForm, TVFrontDoor} from '../../../tv/auth';
 import {AccountEntry} from '../../../screens/accounts/AccountEntry';
 import {ServersRoute} from '../../../screens/accounts/AccountRoutes';
 import {TVServerChooserPage} from '../../../pages/tv/accounts/ServerChooserPage';
+import {NoServersPage} from '../../../pages/tv/accounts/NoServersPage';
+import {OfflineServersPage} from '../../../pages/tv/accounts/OfflineServersPage';
 
 // The five TV account screens, each in the states the review desk signs against: at rest, focused,
 // empty, filled, long value, busy and error. Each case is one whole screen (the account frame owns the
@@ -52,6 +54,12 @@ function Chooser({long = false, busy = false}: {long?: boolean; busy?: boolean})
 }
 
 
+const offlineScope = {}, today = new Date().toISOString();
+const offlineRows = [
+  {id: 'a', name: fixture['next.controls.native.fixture.serverName'], owner: true as const, offline: true, lastSeen: {at: today, recent: true}, subtitle: {key: 'web.chooser.lastSeen' as const, values: {date: fixture['next.controls.native.fixture.lastSeenOctober']}}},
+  {id: 'b', name: fixture['next.controls.native.fixture.cottageServer'], offline: true, subtitle: {key: 'web.chooser.lastSeen' as const, values: {date: fixture['next.controls.native.fixture.lastSeenOctober']}}},
+  {id: 'c', name: fixture['next.controls.native.fixture.familyServer'], offline: true, subtitle: {key: 'web.chooser.lastSeen' as const, values: {date: fixture['next.controls.native.fixture.lastSeenSeptember']}}},
+];
 const T = 'next.shell.native.accountGallery' as const;
 const galleries: readonly Gallery[] = [
   // The TV's first screen (auth.html frame 8): the activation code, Sign in with a Portico Account focused.
@@ -82,5 +90,12 @@ const galleries: readonly Gallery[] = [
   {id: 'tv-account-servers-long', title: T, platforms: ['tv'], render: () => <Chooser long/>},
   {id: 'tv-account-servers-busy', title: T, platforms: ['tv'], render: () => <Chooser busy/>},
   {id: 'tv-account-link', title: T, platforms: ['tv'], render: () => <Whole><ServersRoute initialPanel="consent-kind" onBack={noop}/></Whole>},
+  // connect 35 to 38: a Portico Account with no servers (start; OK on Join opens the code entry), one removed from a server,
+  // and every server offline. Fixture rows only: nothing here reads Portico Services.
+  {id: 'tv-account-no-servers', title: T, platforms: ['tv'], render: () => <Whole><NoServersPage busy={false} isCurrent={() => true} onBack={noop} onJoin={noop} onFind={noop} onRefresh={noop} onSignOut={noop}/></Whole>},
+  {id: 'tv-account-no-servers-removed', title: T, platforms: ['tv'], render: () => <Whole><NoServersPage busy={false} isCurrent={() => true} onBack={noop} onJoin={noop} onFind={noop} onRefresh={noop} onSignOut={noop}
+    notice={{title: t('web.chooser.refusedTitle', {server: fixture['next.controls.native.fixture.cottageServer']}), body: t('web.chooser.refusedBody')}}/></Whole>},
+  {id: 'tv-account-offline', title: T, platforms: ['tv'], render: () => <Whole><OfflineServersPage busy={false} isCurrent={() => true} scope={offlineScope} revision={1} onRetry={noop} onBack={noop} onRefresh={noop}
+    retryIn={40} retryProgress={.3} activeId="a" rows={offlineRows}/></Whole>},
 ];
 export default galleries;
