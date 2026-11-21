@@ -8,7 +8,8 @@ import {readingDuration} from '../../../../../packages/client-core/src/reading-m
 import type {useBooksLibrary} from '../../pages/shared/reading/useBooksLibrary';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeReadingActionOffer} from '../../screens/read/reading-actions';
-import {ReadingMenuAnchor, type useReadingActions} from '../../screens/read/ReadingActions';
+import {ReadingMenuAnchor} from './ReadingActions';
+import type {useReadingActions} from '../../pages/shared/read/useReadingActions';
 import {PhoneReadingBookCard} from './PhoneReadingBookCard';
 import {ReadingLoading, ReadingGridSkeleton} from './ReadingLoading';
 import {GeneratedCover, type ArtworkSource} from '../artwork';

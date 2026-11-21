@@ -1,34 +1,20 @@
-import React, {useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore} from 'react';
+import React, {useRef} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {Button} from '../../kit/controls';
-import {Menu} from '../../kit/overlays';
-import {BulkEditor, SelectionBar} from '../../kit/selection';
-import {bulkChangeSummary} from '../destinations/bulk-media';
-import type {CardSelection} from '../../kit/cards/model';
-import {useTheme} from '../../kit/theme';
-import {ReadingCollectionPicker} from './ReadingCollectionPicker';
-import {NativeReadingActions, type NativeReadingActionOffer} from './reading-actions';
+import {Button} from '../controls';
+import {Menu} from '../overlays';
+import {BulkEditor, SelectionBar} from '../selection';
+import {bulkChangeSummary} from '../../screens/destinations/bulk-media';
+import {useTheme} from '../theme';
+import {ReadingCollectionPicker} from '../../screens/read/ReadingCollectionPicker';
+import type {ReadingActionsPort} from '../../pages/shared/read/useReadingActions';
 
 const {t} = defaultI18n;
 export function ReadingMenuAnchor({children}: {children: (anchor: React.RefObject<View | null>) => React.ReactNode}) {
   const anchor = useRef<View>(null);
   return <>{children(anchor)}</>;
 }
-export function useReadingActions(context: NativeShellBootstrapContext, runtime: NativeShellRuntime, owner: object) {
-  const actions = useMemo(() => new NativeReadingActions(context, runtime.reportError), [context, runtime.reportError]);
-  useLayoutEffect(() => {actions.arm(); return () => actions.release();}, [actions, owner]);
-  // Navigation clears the opening; the retained owner can capture its route again on Back.
-  useEffect(() => actions.reconcile());
-  const state = useSyncExternalStore(actions.subscribe, actions.getSnapshot);
-  const selection = (offer: NativeReadingActionOffer): CardSelection => ({active: state.selecting, selected: actions.selected(offer.item),
-    onToggle: () => actions.toggle(offer), onEnter: () => actions.toggle(offer)});
-  return {actions, state, selection};
-}
-export type ReadingActionsPort = ReturnType<typeof useReadingActions>;
-
 export function ReadingItemMenu({port, runtime}: {port: ReadingActionsPort; runtime: NativeShellRuntime}) {
   const {actions, state} = port, offer = state.menu;
   return <Menu open={!!offer} onOpenChange={open => {if (!open) actions.dismiss(offer);}} title={offer?.item.title} anchorRef={offer?.anchorRef}

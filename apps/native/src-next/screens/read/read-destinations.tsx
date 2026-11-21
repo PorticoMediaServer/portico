@@ -10,7 +10,7 @@ import {NativeReadPeriodical} from './read-periodical-model';
 import {NativeReadSeries} from './read-series-model';
 import {ReadBookHost} from './ReadBookHost';
 import {ReadPeriodicalScreen} from './ReadPeriodicalScreen';
-import {ReadSeriesScreen} from './ReadSeriesScreen';
+import {ReadSeriesPage} from '../../pages/touch/read/ReadSeriesPage';
 
 /** phone-read 3/3c and 4/4c: route-owned book and series destinations. The cache
  * holds inert controllers keyed by the exact route object, so reopening an item
@@ -109,7 +109,7 @@ export function createNativeReadSeriesRenderer(context: NativeShellBootstrapCont
       const controller = controllerFor(route);
       const library = readingLibrary(context, route.libraryId);
       if (!controller || !library) return null;
-      return <ReadSeriesScreen controller={controller} route={route} comic={library.kind === 'comic'} context={context} runtime={runtime}
+      return <ReadSeriesPage controller={controller} route={route} comic={library.kind === 'comic'} context={context} runtime={runtime}
         onBack={() => {if (current() && context.navigation.getSnapshot().route === route) context.navigation.back(context.authority());}}/>;
     },
     dispose: () => {

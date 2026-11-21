@@ -56,7 +56,7 @@ test('a book: its series and place, the author with initials, its facts, Continu
   view.primary.onPress(); assert.deepEqual(calls.at(-1), ['read', epub, undefined]);
   assert.deepEqual(view.actions.map((action: any) => action.testID), ['read-book-list', 'read-book-download']);
   view.actions[0].onPress(); assert.equal(calls.at(-1)![0], 'list');
-  view.actions[1].onPress(); assert.equal(calls.at(-1)![0], 'download');
+  view.actions[1].onPress(); assert.deepEqual(calls.at(-1), ['download', epub, view.actions[1].anchorRef]);
   assert.deepEqual([view.cover, view.glow, view.synopsis, view.firstLines], [{uri: '/dune.jpg'}, {url: '/dune.jpg'}, 'A desert planet.', 'In the week before…']);
   assert.deepEqual([view.readMore.label, view.readMore.expanded], [t('web.person.readMore'), false]);
 });

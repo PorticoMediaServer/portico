@@ -186,7 +186,7 @@ test('periodical hero inspects My List once per item and route lease, not per pu
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'},
     '../../kit/controls': {Button: 'Button'}, '../../kit/Icon': {}, '../../kit/overlays': {}, '../../kit/states': {}, '../../kit/selection': {},
     '../../kit/cards/primitives': {}, '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({colors: {}})},
-    '../downloads/request': {}, '../../../platform/offline-reading': {}, '../../kit/reading/ReadingLoading': {}, './ReadingShelf': {}, './ReadingActions': {},
+    '../downloads/request': {}, '../../../platform/offline-reading': {}, '../../kit/reading/ReadingLoading': {}, './ReadingShelf': {}, '../../kit/reading/ReadingActions': {}, '../../pages/shared/read/useReadingActions': {},
     './periodical-presentation': {},
   });
   const driver = createFabricHookHost(() => {tree = PeriodicalActions({issue: selected, showRead: false, onOpen() {}, actions, runtime,
