@@ -15,7 +15,7 @@ import {useSavedTVTabs} from '../../../screens/saved/useSavedTVTabs';
 import {useTVPageBack} from '../../../screens/destinations/useTVPageBack';
 import {useDestinationEntryFocus} from '../../../screens/destinations/useEntryFocus';
 import {sameAuthority, type ShellAuthority} from '../../../shell/model';
-import type {SavedTVDirectoryHandle} from '../../../screens/saved/SavedTVDirectory';
+import type {SavedTVDirectoryHandle} from './useTVSavedDirectory';
 import type {NativeSavedViewDestination} from '../../../screens/saved/view-model';
 import type {NativeTVSavedController, NativeTVSavedSnapshot, NativeTVSavedTab} from '../../../screens/destinations/saved/model';
 

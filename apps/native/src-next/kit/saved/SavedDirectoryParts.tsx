@@ -6,7 +6,7 @@ import {Artwork, type ArtworkSource} from '../artwork';
 import {Focusable} from '../controls';
 import {Icon, type IconName} from '../Icon';
 import {GuideProgrammeTitle} from '../live/GuideProgrammeTitle';
-import {useTheme} from '../theme';
+import {textLine, useTheme} from '../theme';
 import {alpha} from '../browse/presentation';
 import {savedNearEnd} from '../../screens/saved/paging';
 import {SavedLoading, SavedTail} from './SavedLoading';
@@ -62,7 +62,9 @@ function SavedDirectoryTile({id, title, caption, note, summary, mosaic, filterTi
         {!paths.length && filterTile && <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-filter" size={32} color={theme.colors.text}/></View>}
       </View>
       <View style={{padding: 12, gap: 4}}>
-        <View style={{flexDirection: 'row'}}><GuideProgrammeTitle title={title} lines={2} style={[theme.type.cardTitle, {color: theme.colors.text}]}/></View>
+        <View style={{flexDirection: 'row', minHeight: 2 * textLine(theme.type.cardTitle)}}>
+          <GuideProgrammeTitle title={title} lines={2} style={[theme.type.cardTitle, {color: theme.colors.text}]}/>
+        </View>
         {!!caption.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>{caption.map(part => <Text key={part} style={[theme.type.rowHelp, {color: theme.colors.textTertiary, flexShrink: 1}]}>{part}</Text>)}</View>}
         {note && <View style={{flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1}}><Icon name={note.icon} size={13} color={note.strong ? theme.colors.accentStrong : theme.colors.textTertiary}/>
           <Text style={[note.strong ? theme.type.captionStrong : theme.type.rowHelp, {color: note.strong ? theme.colors.accentStrong : theme.colors.textTertiary, flexShrink: 1}]}>{note.text}</Text></View>}

@@ -3,12 +3,12 @@ import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ContentFilter} from '../../../../../packages/client-core/src/library-content';
 import type {PlaylistListFilter} from '../../../../../packages/client-core/src/saved';
-import {Focusable, Segmented} from '../../kit/controls';
-import {MenuRow, Popover} from '../../kit/overlays';
-import {Icon} from '../../kit/Icon';
+import {Focusable, Segmented} from '../controls';
+import {MenuRow, Popover} from '../overlays';
+import {Icon} from '../Icon';
 import {sortDirectionKind} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
-import {alpha, browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {alpha, browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
 
 const t = defaultI18n.t;
 

@@ -1,4 +1,4 @@
-import {savedFixture} from './helpers/saved-fixture.mjs';
+import {savedFixture, tvSavedDirectoryFixture} from './helpers/saved-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createTheme} from '../src-next/kit/theme.ts';
@@ -29,7 +29,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       '../../../../../../packages/client-core/src/saved': {savedListFilters},
       '../../../tv/layout/TVFocusGrid': {TVFocusGrid: 'TVFocusGrid'},
       '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet'},
-      '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
+      '../../kit/saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
       '../../../kit/browse/LibraryJumpSheet': {LibraryJumpSheet: 'LibraryJumpSheet'},
       '../useTVPageBack': {useTVPageBack(_runtime: unknown, _route: unknown, _enabled: boolean, page: unknown) {back = page;}},
       '../useEntryFocus': {useDestinationEntryFocus(_active: unknown, target: unknown) {entry = target;}},
@@ -46,7 +46,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       '../focus': {nativeDestinationFocusIds: () => ids},
       '../../saved/useSavedTVTabs': {useSavedTVTabs: ({contentRegionId}: any) => ({region: {edges: {down: contentRegionId}}})},
       '../../../pages/tv/saved/SavedPage': {TVSavedPage: 'TVSavedPage'},
-      '../../saved/SavedTVDirectory': {SavedTVDirectory: 'SavedTVDirectory'},
+      './SavedDirectoryPage': {SavedTVDirectory: 'SavedTVDirectory'},
     });
     const snapshot = {phase: 'ready', entries: [], resources: [],
       posters: {sections: [{entries: [{id: 'movie/1', kind: 'movie', title: 'Movie'}]}]},
@@ -131,7 +131,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
 test('TV Saved directory keeps filters, retry and pagination inside its content region', async () => {
   const host = hooks();
   let snapshot: any;
-  const {SavedTVDirectory} = await screenModule(new URL('../src-next/screens/saved/SavedTVDirectory.tsx', import.meta.url), {
+  const {SavedTVDirectory} = await tvSavedDirectoryFixture({
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Saved failed'})},
     '../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
     react: reactFixture(host),

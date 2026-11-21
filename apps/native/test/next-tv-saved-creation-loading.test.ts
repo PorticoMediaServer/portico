@@ -1,3 +1,4 @@
+import {tvSavedDirectoryFixture} from './helpers/saved-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
@@ -19,7 +20,7 @@ async function directory(view = 'collections') {
       if (fail) {state = {...state, personal: {...state.personal, retryPending: true, mutationError: {code: 'transport'}}}; return false;} created(); return true;},
     retryPersonalMutation: async () => {retries++; created(); return true;},
     mutateSaved: async (input: any) => {mutations.push(input); original = input; await held; created();}};
-  const {SavedTVDirectory} = await screenModule(new URL('../src-next/screens/saved/SavedTVDirectory.tsx', import.meta.url), {
+  const {SavedTVDirectory} = await tvSavedDirectoryFixture({
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Save failed'})}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CoverMosaic: 'CoverMosaic', MediaArt: 'MediaArt'},
@@ -72,10 +73,10 @@ test('Saved loading uses 300ms geometry and an 8s polite status, with cleanup an
   t.mock.timers.enable({apis: ['setTimeout', 'Date']});
   const h = hooks(), effects: (() => (() => void))[] = [], cleanups: (() => void)[] = [], react: any = {...h.react}; react.default = react;
   react.useEffect = (effect: () => (() => void), deps: any[]) => {const before = h.react.useRef(undefined); if (!before.current) {before.current = deps; effects.push(effect);}};
-  const {SavedTVLoading} = await screenModule(new URL('../src-next/screens/saved/SavedTVLoading.tsx', import.meta.url), {
+  const {SavedTVLoading} = await screenModule(new URL('../src-next/kit/saved/SavedTVLoading.tsx', import.meta.url), {
     react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../kit/states': {GridSkeleton: 'GridSkeleton', SkeletonBlock: 'SkeletonBlock', isSlowLoading, showSkeleton, skeletonTiming},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
+    '../states': {GridSkeleton: 'GridSkeleton', SkeletonBlock: 'SkeletonBlock', isSlowLoading, showSkeleton, skeletonTiming},
+    '../browse/presentation': {browseType: () => ({})}, '../theme': {useTheme: () => theme},
   });
   let shape = 'views'; const render = () => {const tree = nodes(h.render(() => SavedTVLoading({shape}))); effects.splice(0).forEach(effect => cleanups.push(effect())); return tree;};
   assert.equal(render().some(node => node.type === 'SkeletonBlock'), false);
