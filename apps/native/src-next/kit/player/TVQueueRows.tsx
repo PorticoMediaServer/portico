@@ -14,8 +14,10 @@ export function TVQueueRows({model, testID, interactive, regionId, edges, artwor
   regionId?: string; edges?: NowPlayingQueueProps['edges']; artwork?: NowPlayingQueueProps['artwork'];
 }) {
   const theme = useTheme(), {tvUpcoming, tvSummary, entry, songMenu, labels} = model;
-  const rows = <ScrollView contentContainerStyle={{paddingBottom: theme.space.sm}} showsVerticalScrollIndicator={false}>
-    {!!tvUpcoming.length && !!tvSummary.length && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginBottom: theme.space.sm}]}>
+  // A row and a group label keep their words 16 in from their edges (room for the focused row's fill); the list reaches out by
+  // that much, so covers, songs and group labels line up under "Up next" (tv.html 7 `.qrow`) and the count line keeps its place.
+  const rows = <ScrollView style={{marginHorizontal: -theme.space.sm}} contentContainerStyle={{paddingBottom: theme.space.sm}} showsVerticalScrollIndicator={false}>
+    {!!tvUpcoming.length && !!tvSummary.length && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginBottom: theme.space.sm, paddingHorizontal: theme.space.sm}]}>
       {tvSummary.join(' · ')}
     </Text>}
     {tvUpcoming.map((row, index) => {
@@ -33,7 +35,7 @@ export function TVQueueRows({model, testID, interactive, regionId, edges, artwor
           onLongPress={canHold ? () => songMenu.open(row) : undefined}/>
       </React.Fragment>;
     })}
-    {!tvUpcoming.length && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{t('player.queueEmpty')}</Text>}
+    {!tvUpcoming.length && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, paddingHorizontal: theme.space.sm}]}>{t('player.queueEmpty')}</Text>}
   </ScrollView>;
   return <View testID={testID} style={{flex: 1, minHeight: 0}}>
     {regionId ? <FocusRegion id={regionId} enabled={interactive} entry={entry ? `${testID}-${entry}` : undefined}
