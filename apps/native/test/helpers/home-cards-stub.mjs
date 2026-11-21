@@ -29,6 +29,7 @@ export async function withHomeCards(stubs, actualSpotlight = false) {
   kit['../focus'] ??= {};
   const rows = await screenModule(new URL('../../src-next/kit/home/HomeRows.tsx', import.meta.url), kit);
   const facts = await screenModule(new URL('../../src-next/kit/home/HeroFacts.tsx', import.meta.url), kit);
+  kit['../frames/HomeHero'] ??= {homeLockupStyle: () => ({})};
   const parts = await screenModule(new URL('../../src-next/kit/home/HomeParts.tsx', import.meta.url), kit);
   const metrics = await screenModule(new URL('../../src-next/kit/home/metrics.ts', import.meta.url), {...kit, './HomeRows': rows});
   const home = {...rows, ...facts, ...parts, ...metrics, HomeSpotlight: actualSpotlight ? parts.HomeSpotlight : 'Hero'};

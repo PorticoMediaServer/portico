@@ -9,7 +9,7 @@ const theme = createTheme({isTV: false, width: 390});
 const parts = (current = theme) => screenModule(new URL('../src-next/kit/home/HomeParts.tsx', import.meta.url), {
   react: {...React, default: React}, 'react-native': {View: 'View'},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})},
-  '../layout': {Hero: 'Hero'}, '../layout/TopBar': {roundBarSize: 38}, '../focus': {FocusRegion: 'FocusRegion'},
+  '../layout': {Hero: 'Hero'}, '../frames/HomeHero': {homeLockupStyle: () => ({})}, '../layout/TopBar': {roundBarSize: 38}, '../focus': {FocusRegion: 'FocusRegion'},
   '../artwork': {AmbientArt: 'AmbientArt'}, '../controls': {Button: 'Button'}, '../states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock'},
   '../theme': {useTheme: () => current},
 });
