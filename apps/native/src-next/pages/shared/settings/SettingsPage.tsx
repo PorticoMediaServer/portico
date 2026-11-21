@@ -102,7 +102,7 @@ export function NativeSettingsPage(props: SettingsProps) {
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
-    intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
+    intro={page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
     scrollRef={pageScroll} onScrollLayout={pageScrollLayout}
     panel={custom ? <>{retry}{custom}</> : undefined}>
     {!custom && retry}
