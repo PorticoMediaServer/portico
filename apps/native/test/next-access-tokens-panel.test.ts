@@ -4,7 +4,13 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime.ts';
 import * as security from '../src-next/screens/settings-live/native-account-security.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.footer)] : [];
+const securityParts = new Set(['SecuritySheet', 'SecurityText', 'PasswordMeter', 'EnrolmentCode']);
+const nodes = (tree: any): any[] => {
+  if (Array.isArray(tree)) return tree.flatMap(nodes);
+  if (!tree || typeof tree !== 'object') return [];
+  if (securityParts.has(tree.type?.name)) return nodes(tree.type(tree.props));
+  return [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.footer)];
+};
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 const scopes = ['read', 'playback', 'library', 'admin'];
 
@@ -33,28 +39,37 @@ async function fixture(options: {hosted?: boolean; tokensAllowed?: boolean} = {}
     revokeAccessToken: async (_transport: unknown, id: string) => {calls.push(['revokeAccessToken', id]); page = {items: []};},
   };
   let sequence = 0, current: {key: string; id: string} | undefined;
-  const theme = {isTV: false, platform: 'phone', width: 390, colors: new Proxy({}, {get: (_t, key) => String(key)})};
-  const {NativeAccessTokensPanel} = await screenModule(new URL('../src-next/screens/settings-live/NativeAccountSecurityPanels.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 390, height: 844})}, 'react-native-qrcode-svg': {default: 'QRCode'},
-    '../../../../../packages/client-core/src/identity-client': {IdentityClient: class {}},
-    '../../../../../packages/client-core/src/password-strength': {passwordStrength: () => ({level: 0, label: '', hint: '', acceptable: false})},
-    '../../../../../packages/client-core/src/api-access': apiAccess,
-    '../../../../../packages/client-core/src/playback-v1/http': {idempotencyKey: () => 'fixture-operation'},
-    '../../../../../packages/client-core/src/server-admin/api-words': {EXPIRY_DAYS: [0, 30, 90, 365],
+  const theme = {isTV: false, platform: 'phone', width: 390, type: {rowLabel: {}, rowHelp: {}}, space: {sm: 12, xs: 4, hairline: 1}, baseRadii: {control: 12}, colors: new Proxy({}, {get: (_t, key) => String(key)})};
+  const kit = await screenModule(new URL('../src-next/kit/settings/SecurityParts.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-qrcode-svg': {default: 'QRCode'},
+    '../overlays': {Dialog: 'Dialog', BottomSheet: 'BottomSheet'}, '../overlays/surface': {dialogSheetGutter: 20}, '../theme': {useTheme: () => theme},
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useAccessTokens.ts', import.meta.url), {
+    react: host.react,
+    '../../../../../../packages/client-core/src/api-access': apiAccess,
+    '../../../../../../packages/client-core/src/playback-v1/http': {idempotencyKey: () => 'fixture-operation'},
+    '../../../../../../packages/client-core/src/server-admin/api-words': {EXPIRY_DAYS: [0, 30, 90, 365],
       chosenScopes: (ticked: ReadonlySet<string>) => ticked.has('admin') ? ['admin'] : scopes.filter(scope => ticked.has(scope)),
       expiryInstant: (days: number, now: number) => days > 0 ? new Date(now + days * 86_400_000).toISOString() : undefined,
       expiryLabel: (_t: unknown, days: number) => `expiry-${days}`, scopeTicked: (ticked: ReadonlySet<string>, scope: string) => ticked.has(scope)},
-    '../../../../../packages/client-core/src/server-admin/server-forms': {createOperationIds: () => ({
+    '../../../../../../packages/client-core/src/server-admin/server-forms': {createOperationIds: () => ({
       forPayload: (key: string) => {if (current?.key === key) return current.id; current = {key, id: `operation-${++sequence}`}; return current.id;},
       release: () => {current = undefined;}})},
-    '../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => `date(${value.slice(0, 10)})`}},
-    '../../platform/accounts': {nativeAccounts: {}}, '../../platform/clipboard': {copyText: async (value: string) => {copied.push(value);}},
-    '../../kit/controls': {Button: 'Button', TextField: 'TextField', Select: 'Select', Switch: 'Switch'}, '../../kit/overlays': {Dialog: 'Dialog', BottomSheet: 'BottomSheet'},
-    '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme}, './native-account-security': security, './NativeHostedSignInPanel': {NativeHostedSignInPanel: 'NativeHostedSignInPanel'},
+    '../../../platform/clipboard': {copyText: async (value: string) => {copied.push(value);}},
+    '../../../screens/settings-live/native-account-security': security,
+  });
+  const {AccessTokensPanel} = await screenModule(new URL('../src-next/pages/touch/settings/AccessTokensPanel.tsx', import.meta.url), {
+    react: host.react,
+    '../../../../../../packages/client-core/src/api-access': apiAccess,
+    '../../../../../../packages/client-core/src/server-admin/api-words': {EXPIRY_DAYS: [0, 30, 90, 365], expiryLabel: (_t: unknown, days: number) => `expiry-${days}`},
+    '../../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => `date(${value.slice(0, 10)})`}},
+    '../../../kit/controls': {Button: 'Button', TextField: 'TextField', Select: 'Select', Switch: 'Switch'},
+    '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
+    '../../../kit/settings/SecurityParts': kit, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => theme},
+    '../../shared/settings/useAccessTokens': model,
   });
   let tree: any;
-  const render = () => {tree = host.render(() => NativeAccessTokensPanel({context, lifetime, t: (id: string) => id, runtime: {error: () => ({title: 'Failure'})}})); for (const effect of pendingEffects.splice(0)) effect(); return tree;};
+  const render = () => {tree = host.render(() => AccessTokensPanel({context, lifetime, t: (id: string) => id, runtime: {error: () => ({title: 'Failure'})}})); for (const effect of pendingEffects.splice(0)) effect(); return tree;};
   const settle = async () => {await new Promise(resolve => setImmediate(resolve)); render();};
   render(); render();
   return {calls, copied, render, find: (id: string) => find(tree, id), tree: () => tree,
@@ -73,6 +88,8 @@ test('The token list names each token, when it was made, when it was last used a
     assert.equal(row.props.label, 'Laptop script');
     assert.deepEqual(row.props.description, 'api.scope.read · api.credential.created · api.credential.lastUsed');
     assert.equal(f.find('access-tokens').props.open, true);
+    await f.press('access-token-close-list');
+    assert.equal(f.find('access-tokens').props.open, false);
   } finally {f.dispose();}
 });
 
@@ -90,7 +107,7 @@ test('Creating a token needs a name and a scope, then shows the one-time token i
     const sheet = f.find('access-tokens');
     assert.equal(sheet.props.title, 'api.tokens.copyTitle');
     assert.equal(sheet.props.dismissOnBack, false); assert.equal(sheet.props.dismissOnGesture, false); assert.equal(sheet.props.dismissOnOutsidePress, false); assert.equal(sheet.props.showClose, false);
-    assert.deepEqual(f.find('access-token-secret').props.children, ['pk_fixture-secret']);
+    assert.deepEqual(f.find('access-token-secret').props.children.flat(), ['pk_fixture-secret']);
     await f.press('access-token-copy'); assert.deepEqual(f.copied, ['pk_fixture-secret']);
     await f.press('access-token-copied');
     assert.equal(f.find('access-tokens').props.open, false); assert.equal(f.find('access-token-secret'), undefined);

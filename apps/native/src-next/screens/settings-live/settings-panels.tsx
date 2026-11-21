@@ -1,5 +1,6 @@
 import {ProfileRoute} from '../accounts/AccountRoutes';
-import {NativeAccessTokensPanel, NativeAccountSecurityPanel} from './NativeAccountSecurityPanels';
+import {AccountSecurityPanel} from '../../pages/shared/settings/AccountSecurityPanel';
+import {AccessTokensPanel} from '../../pages/touch/settings/AccessTokensPanel';
 import {DeviceAboutPanel} from './DeviceAboutPanel';
 import {AllowedDevicesPanel} from './AllowedDevicesPanel';
 import {NativeConnectionAddressRow, NativeConnectionStatusRow, NativeInsecureConnectionsRow, NativeTestConnectionRow} from './NativeConnectionRows';
@@ -195,8 +196,8 @@ export function renderNativeSettingsPanel(id: SettingsCustomId, deps: NativeSett
     case 'server.segments': return <IntroCreditsReview {...deps} runtime={_runtime}/>;
     case 'identity': return <IdentityPanel {...deps}/>;
     case 'profiles': return <ProfilesPanel {...deps}/>;
-    case 'password': case 'twoStep': case 'devices': return <NativeAccountSecurityPanel {...deps} kind={id} runtime={_runtime}/>;
-    case 'accessTokens': return <NativeAccessTokensPanel {...deps} runtime={_runtime}/>;
+    case 'password': case 'twoStep': case 'devices': return <AccountSecurityPanel {...deps} kind={id} runtime={_runtime}/>;
+    case 'accessTokens': return <AccessTokensPanel {...deps} runtime={_runtime}/>;
     case 'servers': return <ServersPanel {...deps}/>;
     case 'porticoAccount': return <PorticoAccountPanel {...deps}/>;
     case 'about': return <DeviceAboutPanel {...deps} runtime={_runtime}/>;
