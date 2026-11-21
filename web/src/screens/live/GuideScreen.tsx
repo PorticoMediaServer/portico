@@ -4,7 +4,7 @@ import {defaultI18n} from '@i18n';
 import {layoutRow, legacyChannel, type GuideCell, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {rulerTicks} from '@core/guide/time.ts';
 import {programmeFactParts, type ChannelMarkModel, type FactPart} from '@portico/client-core/kit-model';
-import {ChannelMark} from '../../kit/artwork';
+import {ChannelMark, nameInitials, type ArtworkSource} from '../../kit/artwork';
 import {Button, Chip, Segmented, Select, Tabs} from '../../kit/controls';
 import type {SelectOption} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -59,6 +59,8 @@ export type GuideRowData = Readonly<{
 
 export type GuideScreenProps = Readonly<{
   title: string;
+  /** A channel logo's artwork at the mark's size; absent draws the marks alone. */
+  channelLogo?: (url: string | undefined) => ArtworkSource | undefined;
   switcher?: Readonly<{value: string; options: readonly SelectOption[]; onChange: (value: string) => void}>;
   summary?: Readonly<{name: string; channels?: number; through?: string}>;
   conflicts?: number;
@@ -119,11 +121,15 @@ function CellButton({cell, channel, witness, now, timezone, selected, onSelect}:
   </button>;
 }
 
-function GuideChannelCell({channel, list, phone, landscape = false, children}: Readonly<{channel?: GuideChannelRow; list: boolean; phone: boolean; landscape?: boolean; children?: ReactNode}>) {
+function GuideChannelCell({channel, list, phone, landscape = false, logo, children}: Readonly<{channel?: GuideChannelRow; list: boolean; phone: boolean; landscape?: boolean;
+  /** The channel's own logo, drawn over its mark once it loads. */ logo?: (url: string | undefined) => ArtworkSource | undefined; children?: ReactNode}>) {
   if (!channel) return <div className={styles.guideChannel}><Skeleton width={phone ? 36 : 180} height={34}/></div>;
-  const mark: ChannelMarkModel | undefined = channel.mark ? {sourceId: channel.sourceId ?? '', id: channel.id, text: channel.mark.text, seed: channel.mark.seed} : undefined;
+  // A channel with no published mark still draws one: its initials on its tint (desktop-live: "NN"), never an empty square.
+  const mark: ChannelMarkModel = channel.mark ? {sourceId: channel.sourceId ?? '', id: channel.id, text: channel.mark.text, seed: channel.mark.seed}
+    : {sourceId: channel.sourceId ?? '', id: channel.id, text: nameInitials(channel.name) || channel.number, seed: `${channel.sourceId ?? ''}:${channel.id}`};
+  const size = list && phone ? 46 : landscape ? 32 : 40;
   return <div className={list ? styles.guideListChannel : styles.guideChannel}>
-    {mark ? <ChannelMark className={styles.guideChannelMark} mark={mark} size={list && phone ? 46 : landscape ? 32 : 40}/> : <span className={`${styles.guideChannelMark} ${styles.guideChannelMarkEmpty}`} aria-hidden="true"/>}
+    <ChannelMark className={styles.guideChannelMark} mark={mark} source={logo?.(channel.logoUrl)} size={size}/>
     <span className={styles.guideChannelText}>
       <b>{channel.name}{channel.favorite && <Icon className={styles.guideFavorite} name="i-star-f" size={13}/>}</b>
       <small>{channel.number}{list && channel.group && <span>{channel.group}</span>}</small>
@@ -140,9 +146,13 @@ const channelKey = (channel: GuideChannelRow) => JSON.stringify([channel.kind, c
 function ChannelMenu({channel, items, open, onOpenChange, button, className}: Readonly<{
   channel: GuideChannelRow; items: readonly MenuEntry[]; open: boolean; onOpenChange(open: boolean): void; button: boolean; className?: string;
 }>) {
-  return <Menu open={open} onOpenChange={value => onOpenChange(value)} title={channel.name} items={items}
+  // With no ⋯ (a phone row) the menu stands on the channel cell itself. Without an anchor, a window narrowed from
+  // desktop to phone width threw: the row dropped its button a render before the menu turned into a sheet.
+  const anchor = useRef<HTMLSpanElement>(null);
+  return <>{!button && <span ref={anchor} className={styles.guideChannelAnchor} aria-hidden="true"/>}<Menu open={open} onOpenChange={value => onOpenChange(value)} title={channel.name} items={items}
+    {...(button ? {} : {anchorRef: anchor})}
     trigger={button ? <Button className={className} variant="ghost" size="small" iconOnly icon="i-more" aria-haspopup="menu" data-channel-menu=""
-      aria-label={t('channels.moreFor', {channel: channel.name})}/> : undefined}/>;
+      aria-label={t('channels.moreFor', {channel: channel.name})}/> : undefined}/></>;
 }
 
 /** A guide or list row. A long press, a right-click or the keyboard's menu key on the row opens
@@ -221,7 +231,7 @@ function PhoneListProgramme({channel, current, next, now, timezone, onSelect}: R
   </div>;
 }
 
-export function GuideScreen({title, switcher, summary, conflicts, onTabChange, chips, onNow, problem, notice, empty, day, sort, view, time, onViewChange,
+export function GuideScreen({title, channelLogo, switcher, summary, conflicts, onTabChange, chips, onNow, problem, notice, empty, day, sort, view, time, onViewChange,
   span, rows, total, selected, onSelect, onPlay, channelMenu, onVisibleWindow, onRetry}: GuideScreenProps) {
   const body = useRef<HTMLDivElement>(null);
   const [menuFor, setMenuFor] = useState<string>();
@@ -278,7 +288,7 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
       <h1>{title}</h1>
       <Segmented className={styles.guidePhoneView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
         items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'}, {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>
-      {onTabChange && <Button className={styles.guideRecordings} variant="icon" iconOnly icon="i-rec" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}
+      {onTabChange && <Button className={styles.guideRecordings} variant="icon" iconOnly icon="i-rec-ring" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}
       {source}
     </header>{guideTabs}</> : <LibraryHeader name={title} menu={source}
       switcher={switcher && <Select className={styles.guideSwitcher} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}>{guideTabs}</LibraryHeader>}
@@ -327,7 +337,7 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
           <div className={styles.guideRows} style={{height: Math.max(0, total) * rowHeight}} onKeyDown={onKeyDown}>
             {rows.map(row => <GuideRowFrame className={styles.guideRow} key={row.channel?.id ?? row.index} style={{top: row.index * rowHeight}} channel={row.channel}
               onMenu={row.channel && channelMenu ? () => setMenuFor(channelKey(row.channel!)) : undefined}>
-              <GuideChannelCell channel={row.channel} list={false} phone={phone} landscape={landscape}>
+              <GuideChannelCell channel={row.channel} list={false} phone={phone} landscape={landscape} logo={channelLogo}>
                 {row.channel && channelMenu && <ChannelMenu channel={row.channel} items={channelMenu(row.channel, row.witness)} button={!phone} className={styles.guideChannelMore}
                   open={menuFor === channelKey(row.channel)} onOpenChange={open => setMenuFor(open ? channelKey(row.channel!) : undefined)}/>}
               </GuideChannelCell>
@@ -361,7 +371,7 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
         <div className={styles.guideListRows} ref={body} style={{height: Math.max(0, total) * bodyRowHeight}}>
         {rows.map(row => <GuideRowFrame className={styles.guideListRow} key={row.channel?.id ?? row.index} style={{top: row.index * bodyRowHeight, height: bodyRowHeight}} channel={row.channel}
           onMenu={row.channel && channelMenu ? () => setMenuFor(channelKey(row.channel!)) : undefined}>
-          <GuideChannelCell channel={row.channel} list phone={phone}>
+          <GuideChannelCell channel={row.channel} list phone={phone} logo={channelLogo}>
             {phone && row.channel && channelMenu && <ChannelMenu channel={row.channel} items={channelMenu(row.channel, row.witness)} button={false}
               open={menuFor === channelKey(row.channel)} onOpenChange={open => setMenuFor(open ? channelKey(row.channel!) : undefined)}/>}
           </GuideChannelCell>

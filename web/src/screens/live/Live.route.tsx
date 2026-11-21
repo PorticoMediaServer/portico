@@ -312,7 +312,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   return <>
     {failed === lease ? <div className={styles.guideState}><StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (lease.life.current() && lease.routeCurrent()) setAttempt(value => value + 1);}}}/></div>
       : noChannels && !owner ? <div className={styles.guideState}><StateView title={t('channels.noSourcesTitle')} body={t(context.identity?.viewer.role === 'owner' ? 'channels.noSourcesOwner' : 'channels.noSourcesMember')}/></div>
-        : <GuideScreen title={t('next.home.shell.live')}
+        : <GuideScreen title={t('next.home.shell.live')} channelLogo={url => context.artwork.foreground(url, 92, 1)}
           switcher={hasSources ? {value: search.sourceId ? JSON.stringify(['source', selectedSources[0]?.provenance, search.sourceId]) : 'all', options: sourceOptions, onChange: switchSource} : undefined}
           summary={hasSources ? {name: sourceName ?? t('channels.all'), ...(snapshot.total !== undefined ? {channels: snapshot.total} : {}), ...(throughDay ? {through: t('next.live.guideThrough', {day: throughDay})} : {})} : undefined}
           onTabChange={() => {if (context.isCurrent()) void enterRecordings(JSON.parse(searchKey), 'upcoming').catch(context.effects.reportError);}}

@@ -64,14 +64,17 @@
 .guideRows { position: relative; }
 .guideRow { position: absolute; left: 0; right: 0; height: var(--guide-row); display: flex; }
 .guideChannel { width: var(--guide-column); flex: none; padding: 0 14px 0 var(--shell-gutter); display: flex; align-items: center; gap: 12px; min-width: 0; position: relative; }
-.guideChannelMore { margin-left: auto; flex: none; opacity: 0; transition: opacity var(--motion-quick) var(--ease-out); }
+/* The row's ⋯ lies over the end of the channel cell, so at rest the name has the whole width (desktop-live: no ⋯ is drawn at rest). */
+.guideChannelMore { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); flex: none; opacity: 0; transition: opacity var(--motion-quick) var(--ease-out); }
 .guideRow:hover .guideChannelMore, .guideRow:focus-within .guideChannelMore, .guideChannelMore[aria-expanded='true'] { opacity: 1; }
 @media (hover: none) { .guideChannelMore:not(:focus-visible):not([aria-expanded='true']) { pointer-events: none; } }
 .guideRow[data-hidden], .guideListRow[data-hidden], .guideRow[data-unavailable], .guideListRow[data-unavailable] { opacity: .55; }
 .guideChannel .guideChannelMark { border-radius: 9px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-white) 7%, transparent); }
-.guideChannelMarkEmpty { width: 40px; height: 40px; flex: none; border-radius: 9px; background: var(--color-raised); }
 .guideChannelText { min-width: 0; }
-.guideChannelText b { line-height: normal; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; font-size: calc(var(--type-body-size) - .5px); font-weight: var(--type-row-heading-weight); }
+/* The row menu's anchor on a phone row: the channel cell itself. */
+.guideChannelAnchor { position: absolute; inset: 0; pointer-events: none; }
+/* A long name takes a second line rather than being cut ("Northwind Nev"). */
+.guideChannelText b { line-height: normal; display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; font-size: calc(var(--type-body-size) - .5px); font-weight: var(--type-row-heading-weight); }
 .guideChannelText b > svg { flex: none; }
 .guideFavorite { color: var(--color-accent-strong); }
 .guideChannelText small { line-height: normal; display: block; margin-top: 2px; font-size: calc(var(--type-caption-size) - .5px); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
@@ -125,7 +128,10 @@
   .guideRecordings { flex: none; }
   .guideTabs { display: none; }
   .guideChips { flex-wrap: nowrap; }
-  .guideChips .guideSourceChip { flex: none; min-width: 0; height: 38px; padding: 0 14px; border-radius: 10px; background: var(--color-raised-high); font-size: calc(var(--type-body-size) - .5px); }
+  /* The source chip keeps its own width ("All channels ▾", final3-phone-07); the group chips scroll after it. The select's
+     field wrapper is the rail's item, so it is the one held at its width. */
+  .guideChips > :has(> .guideSourceChip) { flex: none; }
+  .guideChips .guideSourceChip { flex: none; min-width: max-content; height: 38px; padding: 0 14px; border-radius: 10px; background: var(--color-raised-high); font-size: calc(var(--type-body-size) - .5px); }
   .guideStepper { display: none; }
   .guideChannel { padding: 0 10px; gap: 2px; flex-direction: column; justify-content: center; }
   .guideChannelText b { display: none; }
@@ -156,7 +162,7 @@
 .guideListActions { display: flex; justify-content: flex-end; align-items: center; gap: 4px; opacity: 0; transition: opacity var(--motion-quick) var(--ease-out); }
 .guideListRow:hover .guideListActions, .guideListRow:focus-within .guideListActions, .guideListActions[data-menu-open] { opacity: 1; }
 .guideListCount { margin: 0; display: flex; gap: 12px; font-size: calc(var(--type-body-size) - .5px); color: var(--color-text-tertiary); }
-.guideListChannel { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.guideListChannel { position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; }
 .guideListChannelName { display: none; }
 .guideSortField { display: inline-flex; align-items: center; height: 40px; padding: 0 12px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-line); }
 .guideSortField:focus-within { box-shadow: inset 0 0 0 1px var(--color-line), 0 0 0 2px var(--color-focus); }
@@ -168,7 +174,6 @@
   .guideListHead { display: none; }
   .guideListRow { grid-template-columns: 46px minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px 0; overflow: hidden; }
   .guideListChannel { flex-direction: column; gap: 0; text-align: center; }
-  .guideListChannel .guideChannelMarkEmpty { width: 46px; height: 46px; }
   .guideListChannel .guideChannelText small { margin-top: 5px; font-size: var(--type-fixed-size-11point-5px); font-weight: var(--type-row-heading-weight); }
   .guideListChannel .guideChannelText small span { display: none; }
   .guideListChannel .guideChannelText b { display: none; }
