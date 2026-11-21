@@ -388,6 +388,10 @@ test('reconcile: a completed server shows the library only when the owner sessio
   assert.deepEqual(kinds(refused.effects), ['retire-record', 'retire-attempt']);
 });
 
+test('reconcile: the owner of a completed server that already has a library is done, never offered a first library', () => {
+  assert.equal(step(VIEWS.connecting, {...INPUTS['state.complete.held'], librariesExist: true} as typeof INPUTS['state.complete.held']).view.kind, 'done');
+});
+
 test('reconcile: the server fact "slow" and the web reload both land in the right place', () => {
   const slow = step(VIEWS.connecting, {kind: 'state', own: true, state: reading('in_progress', {phase: 'finishing', requestId: 'r1', revision: '1', cancelling: false, renewable: false, delivery: {slow: true}})});
   assert.deepEqual(slow.view, {kind: 'finishing', slow: true, polls: 0});

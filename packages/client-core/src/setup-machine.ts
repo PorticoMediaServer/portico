@@ -100,7 +100,7 @@ export type SetupInput =
   // server readings. `own`: the saved record's requestId is the one the server answered for.
   // `ownerSessionHeld`: an owner session for this server is already held. `hasAttempt`: this tab or app holds the live attempt (default true).
   // `name`: the saved record's name, so the form keeps it.
-  | Readonly<{kind: 'state'; state: SetupReading; own: boolean; ownerSessionHeld?: boolean; hasAttempt?: boolean; name?: string}>
+  | Readonly<{kind: 'state'; state: SetupReading; own: boolean; ownerSessionHeld?: boolean; librariesExist?: boolean; hasAttempt?: boolean; name?: string}>
   | Readonly<{kind: 'readFailed'; error: SetupError}>
   | Readonly<{kind: 'tokenRefused'}>
   | Readonly<{kind: 'notLocalSource'}>
@@ -166,7 +166,8 @@ const waiting = (name: string, own: OwnPhase, polls: number): SetupView => ({kin
 function reconcile(i: StateInput, now: number, from?: SetupView): SetupStep {
   const r = i.state, name = i.name ?? '';
   if (r.status === 'unknown' || r.setup === 'unknown') return go({kind: 'unknown'});
-  if (r.status === 'complete') return i.ownerSessionHeld ? go({kind: 'library'}) : alreadySetUp();
+  // The owner of a server set up earlier: the first library step only while it has none (a server with libraries is done).
+  if (r.status === 'complete') return i.ownerSessionHeld ? go({kind: i.librariesExist ? 'done' : 'library'}) : alreadySetUp();
   const own = ownOf(i);
   if (!own) {
     if (r.status !== 'in_progress') return go(form(name), RETIRE);
