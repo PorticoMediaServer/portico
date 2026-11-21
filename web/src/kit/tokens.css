@@ -1647,6 +1647,10 @@
   --spec-tabs-underline-tablet: 3px;
   --spec-tabs-underline-tv: 4px;
   --spec-tabs-role: tab;
+  --spec-tabs-pivot-size: 24px;
+  --spec-tabs-pivot-gap: 34px;
+  --spec-tabs-pivot-padding-y: 8px;
+  --spec-tabs-pivot-inset-x: 12px;
   --spec-navigation-web-wordmark-scale: 1.25;
   --spec-navigation-top-height: 76px;
   --spec-navigation-top-gap: 40px;

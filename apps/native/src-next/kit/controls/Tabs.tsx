@@ -1,8 +1,8 @@
 import React, {useId} from 'react';
 import {ScrollView, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle} from 'react-native';
-import {tabsSpec} from '@portico/design';
+import {tabsSpec, typeScale} from '@portico/design';
 import {focusTestID} from '../focus';
-import {useTheme} from '../theme';
+import {nativeType, useTheme} from '../theme';
 import {Focusable, type FocusableProps} from './Focusable';
 import {colorAlpha, enabledChoice, minimumHitSlop} from './control-model';
 import {useControlValue} from './useControlValue';
@@ -20,6 +20,8 @@ export type TabsProps = {
   disabled?: boolean;
   /** Section position markers retain typography but offer no focus or action. */
   passive?: boolean;
+  /** TV: the tabs sit beside a title, on its line (tabsSpec.pivot); elsewhere ignored. */
+  pivots?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -39,7 +41,7 @@ function ChoiceLabel({children, style, wrap = false, count, countStyle}: {childr
   return count === undefined ? label : <View style={{flexDirection: 'row', alignItems: 'center'}}>{label}<Text style={countStyle}>{count}</Text></View>;
 }
 
-export function Tabs({items, value, defaultValue, onValueChange, disabled, passive = false, accessibilityLabel, style, contentContainerStyle, itemProps, testID}: TabsProps) {
+export function Tabs({items, value, defaultValue, onValueChange, disabled, passive = false, pivots = false, accessibilityLabel, style, contentContainerStyle, itemProps, testID}: TabsProps) {
   const theme = useTheme();
   const id = useId();
   const [current, setCurrent] = useControlValue(value, defaultValue ?? enabledChoice(items) ?? '', onValueChange);
@@ -50,8 +52,10 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
   // passive (unfocusable) tabs it took D-pad focus itself: no visible focus, and Right went nowhere.
   // A TV strip has a few tabs and never needs to scroll.
   // The rule under the tabs is the strip's box's, not the tabs' own row's: it runs the page's full width however few tabs there are.
-  const inset = tabsSpec.insetX[theme.column];
-  const stripStyle = [styles.tabs, {gap: tabsSpec.gap[theme.column] - 2 * inset, paddingHorizontal: theme.gutter}, contentContainerStyle, inset ? {marginHorizontal: -inset} : null];
+  const pivot = pivots && theme.isTV, inset = pivot ? tabsSpec.pivot.insetX : tabsSpec.insetX[theme.column];
+  const padTop = pivot ? tabsSpec.pivot.paddingY : tabsSpec.paddingTop[theme.column], padBottom = pivot ? tabsSpec.pivot.paddingY : tabsSpec.paddingBottom[theme.column];
+  const labelType = pivot ? nativeType({...typeScale.tenFoot.tab, size: tabsSpec.pivot.size}, theme.textScale) : theme.type.tab;
+  const stripStyle = [styles.tabs, {gap: (pivot ? tabsSpec.pivot.gap : tabsSpec.gap[theme.column]) - 2 * inset, paddingHorizontal: theme.gutter}, contentContainerStyle, inset ? {marginHorizontal: -inset} : null];
   const strip = (children: React.ReactNode) => theme.isTV
     ? <View focusable={false} style={[stripStyle, {alignSelf: 'flex-start'}]} accessibilityRole={passive ? undefined : 'tablist'} accessibilityLabel={accessibilityLabel}>{children}</View>
     : <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} style={{overflow: 'visible'}} contentContainerStyle={stripStyle}
@@ -63,8 +67,8 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
         const blocked = disabled || item.disabled;
         const selected = item.value === current;
         if (passive) return <View key={item.value} testID={testID ? `${testID}-item-${item.value}` : undefined} focusable={false}
-          accessibilityState={{selected}} style={{paddingTop: tabsSpec.paddingTop[theme.column], paddingBottom: tabsSpec.paddingBottom[theme.column], paddingHorizontal: inset}}>
-          <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[theme.type.tab, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
+          accessibilityState={{selected}} style={{paddingTop: padTop, paddingBottom: padBottom, paddingHorizontal: inset}}>
+          <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[labelType, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
           {selected ? <View pointerEvents="none" style={[styles.underline, {left: inset, right: inset, height: tabsSpec.underline[theme.column], backgroundColor: theme.colors.accent}]} /> : null}
         </View>;
         return <Focusable {...childProps} testID={childProps?.testID ?? (testID ? `${testID}-item-${item.value}` : undefined)} focusId={childProps?.focusId ?? (testID ? focusTestID(testID, item.value) : childProps?.testID)} key={item.value} nativeID={`${id}-${item.value}`} accessibilityRole="tab"
@@ -73,9 +77,9 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
           // R1: on TV a tab takes the one focus look, the ring with its gap and glow outside it (a TV strip is a plain row that
           // never clips); the tight inset ring touched the label and the underline (r7 controls-tabs-1).
           focusRadius={theme.isTV ? 12 : 4} focusInset={!theme.isTV} focusKind={theme.isTV ? 'button' : 'row'} onPress={event => {if (!blocked) {setCurrent(item.value); childProps?.onPress?.(event);}}}
-          style={state => [{paddingTop: tabsSpec.paddingTop[theme.column], paddingBottom: tabsSpec.paddingBottom[theme.column], paddingHorizontal: inset, opacity: blocked ? .45 : 1},
+          style={state => [{paddingTop: padTop, paddingBottom: padBottom, paddingHorizontal: inset, opacity: blocked ? .45 : 1},
             typeof childProps?.style === 'function' ? childProps.style(state) : childProps?.style]}>
-          <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[theme.type.tab, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
+          <ChoiceLabel wrap={theme.fontScale > 1} count={item.count} countStyle={countStyle} style={[labelType, {color: selected ? theme.colors.text : theme.colors.textTertiary}]}>{item.label}</ChoiceLabel>
           {selected ? <View pointerEvents="none" style={[styles.underline, {left: inset, right: inset, height: tabsSpec.underline[theme.column], backgroundColor: theme.colors.accent}]} /> : null}
         </Focusable>;
     }))}</View>
