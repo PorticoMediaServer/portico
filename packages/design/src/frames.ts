@@ -137,6 +137,8 @@ export const frame = {
     },
     /** A lockup's line box. The mock-ups' one-line lockups are set at .94; at that a title that wraps has its descenders in the next line's capitals, so the frames use 1.04. */
     lockupLine: 1.04, lockupTracking: -.045,
+    /** The frames' own line box for a lockup (kit.css `.lockup` line-height .94): where its words sit. */
+    lockupFrameLine: .94,
   },
   /** A row of buttons, primary first (kit `ActionRow`): phone-detail `.tact` and tablet `.tact` and `.t-hero .actions` draw
    * 10 between buttons, TV 18 (tv-detail 2). An upright tablet's primary is 300 wide (tablet `.tact .btn.play`); a phone's
