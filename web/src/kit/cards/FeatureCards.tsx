@@ -66,7 +66,7 @@ export function GenreTile({variant, covers = [], tint, ...props}: GenreTileProps
 
 export type LibraryCardProps = NavigationCardProps & Readonly<{covers: readonly ArtworkSource[]; shape: 'poster' | 'square' | 'periodical'}>;
 function Library({row, covers, shape, ...props}: LibraryCardProps & {row: boolean}) {
-  return <CardFrame {...props} onPlay={undefined} kind={row ? 'libraryRow' : 'libraryCard'}><CardAmbient {...props} treatment={row ? 'library-row' : 'library'} /><span className={styles.libraryCopy}><span className={styles.libraryTitle}>{props.model.title}</span><Facts parts={props.model.caption} className={styles.libraryFacts} /></span><BoundedCovers covers={covers} shape={shape} visible={props.visible} arrivalDurationMs={props.arrivalDurationMs} className={styles.libraryFan} /></CardFrame>;
+  return <CardFrame {...props} onPlay={undefined} kind={row ? 'libraryRow' : 'libraryCard'}><CardAmbient {...props} treatment={row ? 'library-row' : 'library'} /><span className={styles.libraryCopy} data-fan={covers?.length ? '' : undefined}><span className={styles.libraryTitle}>{props.model.title}</span><Facts parts={props.model.caption} className={styles.libraryFacts} /></span><BoundedCovers covers={covers} shape={shape} visible={props.visible} arrivalDurationMs={props.arrivalDurationMs} className={styles.libraryFan} /></CardFrame>;
 }
 export function LibraryCard(props: LibraryCardProps) { return <Library {...props} row={false} />; }
 export function LibraryRow(props: LibraryCardProps) { return <Library {...props} row />; }
