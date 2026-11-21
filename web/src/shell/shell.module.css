@@ -95,6 +95,8 @@
 .libraryMenu [data-menu-item] { height: auto; min-height: 38px; padding-block: 9px; }
 .libraryMenu [data-menu-item] > span { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
 .destinations a:hover, .more:hover, .destinations [aria-current='page'], .more[data-active='true'] { color: var(--color-text); }
+/* The current section is underlined in the accent (mock kit .nav a.on::after: 2px, 2px under the words). */
+.destinations [aria-current='page']::after, .more[data-active='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; border-radius: 2px; background: var(--color-accent); pointer-events: none; }
 .tools { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
 .icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--color-text-secondary); position: relative; text-decoration: none;
   /* The bell is a button among links: it takes no browser border or fill. */ border: 0; padding: 0; background: none; font: inherit; cursor: pointer; }
