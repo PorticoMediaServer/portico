@@ -475,6 +475,8 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   // never the playback-control gates (a stopped or failed session still folds away).
   const minimizeCurrent = () => !source.retired && !playback.getSnapshot().retired;
   const icon = (id: string, name: IconName, label: string, onPress: () => void, primary = false, disabled = false, size?: number, gate: () => boolean = controlsCurrent) => <TVControlLabel focused={controlsEnabled && focus?.childId === `watch-${id}`} label={label} primary={primary} align={id === 'options' || id === 'pip' ? 'end' : 'center'}><Button ref={id === 'cast' ? castButton : undefined} focusId={`watch-${id}`} testID={`watch-${id}`} variant={primary ? 'primary' : theme.isTV ? 'icon' : 'text'} iconOnly icon={name} accessibilityLabel={label}
+    // phone-player `.ib`: the player's own glyphs are the text colour; the `text` variant's accent is for words such as Clear.
+    iconColor={primary || theme.isTV ? undefined : theme.colors.text}
     focusable={controlsEnabled} disabled={disabled || !controlsEnabled} onPress={() => {if (gate()) onPress();}} style={{width: size ?? (primary ? big : small), height: size ?? (primary ? big : small), borderRadius: (size ?? (primary ? big : small)) / 2}}
     iconSize={size ? Math.round(size * .6) : primary ? theme.isTV ? 40 : 28 : theme.isTV ? 26 : 22}/></TVControlLabel>;
   const liveButtons = (size?: number, compact = true) => linear && liveOffer && props.liveActions ? <TVLiveActions enabled={controlsEnabled} size={size} compact={compact}
