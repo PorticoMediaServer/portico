@@ -15,7 +15,7 @@ export function SeeAllPage(props: SeeAllProps) {
   const list = view.view === 'list';
   return <BrowseFrame testID="home-see-all-frame"
     header={{title: view.title, back: {label: view.backLabel, onPress: onBack, testID: 'home-see-all-back'},
-      intro: view.intro, ambient: view.ambient && <AmbientArt source={view.ambient} treatment="library" visible={active}/>,
+      intro: view.intro, introParts: view.introParts, ambient: view.ambient && <AmbientArt source={view.ambient} treatment="library" visible={active}/>,
       actions: view.playable ? <><Button icon="i-play" onPress={() => onPlay(false)}>{t('entry.play')}</Button>
         <Button variant="glass" icon="i-shuffle" onPress={() => onPlay(true)}>{t('title.shuffle')}</Button></> : undefined}}
     state={view.failure ?? (!view.ready ? {kind: 'loading', message: view.slow ? view.t('next.states.stillLoading') : undefined} : undefined)}
@@ -25,7 +25,7 @@ export function SeeAllPage(props: SeeAllProps) {
       {view.kinds.map(kind => <Chip key={kind.id} selected={kind.selected} count={kind.count} onPress={kind.onPress}>{kind.id === 'all' ? t('search.chip.all') : kindLabel(kind.id)}</Chip>)}
     </BrowseToolbar> : undefined}
     grid={view.gridFailure ? <StateView {...view.gridFailure} variant="centered"/> : view.empty ? <FilteredEmpty onClearFilters={view.clear}/>
-      : <BrowseGrid cardSizePercent={runtime.appearanceCardSizePercent} shape={list ? 'list' : 'poster'} testID={list ? 'home-see-all-list' : 'home-see-all-grid'} collection={controller.collection}
+      : <BrowseGrid cardSizePercent={runtime.appearanceCardSizePercent} shape={list ? 'list' : view.square ? 'square' : 'poster'} testID={list ? 'home-see-all-list' : 'home-see-all-grid'} collection={controller.collection}
         getKey={item => item.membershipId} selection={selection} renderItem={(item, cell, width, onCaptionLayout) => {
           const current = () => view.isCurrent(item, cell.index);
           const open = () => {if (current()) onOpen(item.entry, current);};
@@ -33,7 +33,7 @@ export function SeeAllPage(props: SeeAllProps) {
           if (list) return <LibraryListRow entry={item.entry} width={width} runtime={runtime} actions={{open, play,
             menu: (_entry, anchor) => {if (anchor && current()) onMenu?.(item.entry, anchor);}, saveView: () => {}}}
             focusId={item.membershipId} onCaptionLayout={onCaptionLayout} onFocus={cell.onFocus} onBlur={cell.onBlur} disabled={!active}/>;
-          return <HomeRowCard onCaptionLayout={onCaptionLayout} entry={item.entry} width={width} runtime={runtime} onOpen={open} onPlay={play}
+          return <HomeRowCard square={view.squareCard(item.entry)} onCaptionLayout={onCaptionLayout} entry={item.entry} width={width} runtime={runtime} onOpen={open} onPlay={play}
             onMenu={onMenu && (anchor => {if (current()) onMenu(item.entry, anchor);})}
             onFocus={cell.onFocus} onBlur={cell.onBlur}/>;
         }}/>}/>;

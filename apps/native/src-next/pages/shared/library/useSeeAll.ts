@@ -5,14 +5,29 @@ import {hasHomeRowQueue} from '../../../../../../packages/client-core/src/home-r
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {homeBrowseLabel} from '../../../screens/home/browse-label';
 import {homeSeeAllQuickOrder} from '../../../screens/home/see-all-model';
-import type {HomeSeeAllProps} from '../../../screens/home/HomeSeeAll';
+import {homeRowReasonParts} from '../../../../../../packages/client-core/src/presentation/home-row-reason';
+import {shapeFor, type ShapeFamily} from '../../../../../../packages/client-core/src/presentation/card-shape';
+import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
+import type {RefObject} from 'react';
+import type {View} from 'react-native';
+import type {LayoutSelection} from '../../../kit/layout';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+import type {NativeHomeRowController} from '../../../screens/home/row-controller';
 import {authorityKey} from '../../../shell/model';
 import {useTheme} from '../../../kit/theme';
 import {browseFailure} from './useLibrary';
 
-export type SeeAllProps = HomeSeeAllProps;
+export type SeeAllProps = {
+  controller: NativeHomeRowController; runtime: NativeShellRuntime; active: boolean;
+  libraryId?: string;
+  onBack: () => void; onPlay: (shuffle: boolean) => void;
+  onOpen: (entry: ContentEntry, current: () => boolean) => void;
+  onPlayEntry: (entry: ContentEntry, current: () => boolean) => void;
+  onMenu?: (entry: ContentEntry, anchor: RefObject<View | null>) => void; onFilters: () => void; onReshuffle: () => void;
+  kindLabel: (id: string) => string; selection?: LayoutSelection;
+};
 
-export function useSeeAll({controller, runtime, active}: SeeAllProps) {
+export function useSeeAll({controller, runtime, active, libraryId}: SeeAllProps) {
   const {isTV} = useTheme(), t = runtime.text.t, catalog = {t, has: defaultI18n.has};
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const data = useSyncExternalStore(controller.collection.subscribe, controller.collection.getSnapshot);
@@ -29,13 +44,21 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
     const timer = setTimeout(() => setSlow(true), 8000);
     return () => clearTimeout(timer);
   }, [ready, active, state.phase]);
-  const title = row ? serverTextLabel(catalog, row.titleText, row.title) : t('next.home.seeAll');
+  const settings = runtime.getSnapshot();
+  const scopedLibrary = libraryId ?? row?.libraryId ?? state.selectedKind;
+  const family = settings.libraries?.find(library => library.id === scopedLibrary)?.kind as ShapeFamily | undefined;
+  const square = family === 'music' || family === 'audiobook';
+  const squareCard = (entry: ContentEntry) => shapeFor(entry.kind, 'grid', family) === 'square';
+  const libraryTitle = libraryId && row && `library.landing.${row.id}`;
+  const title = libraryTitle && catalog.has(libraryTitle) ? t(libraryTitle)
+    : row ? serverTextLabel(catalog, row.titleText, row.title) : t('next.home.seeAll');
   const reason = row?.reason?.text ?? row?.why ?? row?.subtitleText;
   const intro = reason ? serverTextLabel(catalog, reason) : undefined;
+  const introParts = !row?.reason?.text && row?.why ? homeRowReasonParts(row, catalog) : undefined;
   const artwork = row?.entries.find(entry => entry.backdropUrl || entry.posterUrl);
   const total = state.counts.find(count => count.id === (state.selectedKind ?? 'all'));
   const model = state.capabilities && state.sort && browseToolbarModel(state.capabilities, state.capabilities.library.kind || 'movies', state.filters, state.sort, {
-    ...runtime.text, textEntry: !isTV, scope: 'group', owner: runtime.getSnapshot().account.viewerRole === 'owner',
+    ...runtime.text, textEntry: !isTV, scope: 'group', owner: settings.account.viewerRole === 'owner',
   });
   const label = (value: Parameters<typeof homeBrowseLabel>[0]) => homeBrowseLabel(value, catalog);
   const labelCount = (id: string) => state.counts.find(count => count.id === id)?.total;
@@ -45,7 +68,7 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
     const remaining = state.filters.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query));
     controller.setFilters(checked ? [...remaining, quick.query] : remaining);
   };
-  const focusId = isTV ? `home-see-all:${authorityKey(runtime.getSnapshot().authority)}:${controller.rowId}` : undefined;
+  const focusId = isTV ? `home-see-all:${authorityKey(settings.authority)}:${controller.rowId}` : undefined;
   const playable = !!row && hasHomeRowQueue(row.id);
   const labelField = (id: string) => {
     const field = state.capabilities?.fields.find(candidate => candidate.id === id);
@@ -62,9 +85,9 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
       count: data.total, screenStart: {regionId: focusId, childId: playable ? 'play' : 'back'}},
   } : undefined;
   // Back names the page under this one: the library it was opened from, or Home.
-  const origin = runtime.getSnapshot().destination;
-  const backLabel = origin.kind === 'library' ? runtime.getSnapshot().libraries.find(library => library.id === origin.libraryId)?.name ?? t('next.home.shell.home') : t('next.home.shell.home');
-  return {t, title, intro, focus, backLabel, clear, remove, applied, view, setView, ready, slow, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
+  const origin = settings.destination;
+  const backLabel = origin?.kind === 'library' ? settings.libraries.find(library => library.id === origin.libraryId)?.name ?? t('next.home.shell.home') : t('next.home.shell.home');
+  return {t, title, intro, introParts, square, squareCard, focus, backLabel, clear, remove, applied, view, setView, ready, slow, data, labels: {field: label, quick: label, sort: label}, onQuickChange,
     model: model && {...model, applied: state.filters, quick: model.quick.filter(quick => homeSeeAllQuickOrder(quick.id, isTV))},
     failure: state.phase === 'error' ? browseFailure(runtime.error(state.error, retry, 'home')) : undefined,
     gridFailure: data.status === 'error' ? runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home') : undefined,
