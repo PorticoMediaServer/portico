@@ -124,6 +124,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     search={search} profile={profile} shortcuts={shortcuts} list={list} page={settingsPage || undefined} searching={tvSearch} closing={closing}
     hints={tv && !tvSearch ? <SettingsKeyHints t={t}/> : undefined}/>;
   return tv ? content : <SettingsSheet open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'}
-    profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber={compact} headerContent={null}
+    profile={null} shortcuts={null} scrollable={false} contentClearsBottom testID="settings-sheet" showGrabber={compact} headerContent={null}
     onOpenChange={sheetChanged}>{content}</SettingsSheet>;
 }

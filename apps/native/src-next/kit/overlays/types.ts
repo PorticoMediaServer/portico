@@ -77,6 +77,9 @@ export type BottomSheetProps = SurfaceProps & {
   dismissOnBack?: boolean;
   dismissOnGesture?: boolean;
   scrollable?: boolean;
+  /** With `scrollable` off: the content scrolls and clears the bottom itself (Settings' list), so the sheet adds no
+   * bottom room round it and the list runs under the home indicator, as phone-app 21 draws it. */
+  contentClearsBottom?: boolean;
   showClose?: boolean;
   fitContent?: boolean;
   /** Content clearance above a fixed footer; defaults to 16 points. */
