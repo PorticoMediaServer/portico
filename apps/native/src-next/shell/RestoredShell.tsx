@@ -27,7 +27,7 @@ import {NativeContentLinks} from '../screens/share/NativeContentLinks';
 import {nativeContentLinks} from '../platform/content-links';
 import {beginNativeInstallation} from '../platform/installation';
 import {createRememberedDownloadsOpening, type RememberedDownloadsOpening} from './remembered-downloads-opening';
-import {RememberedDownloadsScreen, RememberedDownloadsShortcut} from '../screens/downloads/RememberedDownloadsScreen';
+import {RememberedDownloadsPage, RememberedDownloadsShortcut} from '../pages/touch/downloads/RememberedDownloadsPage';
 import {downloadEntryIdentity} from '../screens/downloads/presentation';
 import {AccessibilityInfo, AppState, Image, Platform, Text, View, findNodeHandle} from 'react-native';
 import {NativeSettingsAppearance} from '../screens/settings/NativeSettingsAppearance';
@@ -342,7 +342,7 @@ export function RestoredShell() {
     onComplete={() => {if (!renderedCurrent() || !incoming.current()) return; incoming.dismiss(); complete();}}/>;
   const remembered = downloads && root.current?.active && root.current.attempt === attempt && downloads.current() ? downloads : undefined;
   const opened = downloadView;
-  if (opened && remembered === opened.source && viewOwner.current === opened) return <RememberedDownloadsScreen key={opened.serial} source={opened.source} onBack={() => {
+  if (opened && remembered === opened.source && viewOwner.current === opened) return <RememberedDownloadsPage key={opened.serial} source={opened.source} onBack={() => {
     if (!renderedCurrent() || viewOwner.current !== opened || !opened.source.current()) return; viewOwner.current = undefined;
     setDownloadView(previous => renderedCurrent() && previous === opened ? undefined : previous);
     renderedRoot?.resumeRecovery?.('downloads');

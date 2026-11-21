@@ -9,14 +9,8 @@ import {createNativeDownloadsDevice} from './device';
 import type {NativeOfflineDownloadsDevice, OfflineEntry} from '../../platform/offline-downloads';
 import {openNativeReadingDetail, type NativeReadOrigin} from '../read/eligibility';
 import {isReadingLibraryKind} from '../read/platform';
-import type {NativeDownloadsCopy} from './presentation';
+import {nativeDownloadsCopy} from './presentation';
 
-export const nativeDownloadsCopy = Object.freeze({
-  emptyBody: 'next.saved.phone.emptyBody', storageLimitHelp: 'next.saved.phone.storageLimitHelp', freeOnPhone: 'next.saved.phone.free',
-  removeFromPhone: 'next.saved.phone.remove', stoppedBody: 'next.saved.stopped', downloading: 'next.saved.downloading',
-  needsCheckIn: 'next.saved.checkIn', goneFromServer: 'next.saved.phone.gone', otherProfiles: 'next.saved.phone.otherProfiles',
-  stoppedAt: 'server.plays.stoppedAt', stoppedHelp: 'next.saved.phone.stoppedHelp',
-} satisfies NativeDownloadsCopy);
 
 /** The route instance this view actually rendered on, committed in layout. A
  * press passes the lease of the render that showed its entry; it never selects

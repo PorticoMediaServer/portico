@@ -1,12 +1,12 @@
 import {useLayoutEffect, useState} from 'react';
 import type {NativeOfflineDownloadsDevice, OfflineEntry, OfflineReadingFacts} from '../../platform/offline-downloads';
 
-type Held = Readonly<{device: NativeOfflineDownloadsDevice; entry: OfflineEntry; facts: OfflineReadingFacts}>;
+type Held = Readonly<{device: object; entry: OfflineEntry; facts: OfflineReadingFacts}>;
 
 /** Read-only display facts for one downloaded publication. The device port applies the
  * same viewer, receipt and lifetime guards as opening it; a refusal simply leaves the
  * row with the facts it already had. Nothing here grants or starts a read. */
-export function useReadingFacts(device: NativeOfflineDownloadsDevice, entry: OfflineEntry, allowed: boolean): OfflineReadingFacts | undefined {
+export function useReadingFacts(device: Partial<Pick<NativeOfflineDownloadsDevice, 'readingFacts'>>, entry: OfflineEntry, allowed: boolean): OfflineReadingFacts | undefined {
   const [held, setHeld] = useState<Held>();
   const kind = entry.info?.kind ?? entry.kind, reading = kind === 'ebook' || kind === 'comic';
   useLayoutEffect(() => {

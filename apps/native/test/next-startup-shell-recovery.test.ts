@@ -46,7 +46,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
     '../screens/accounts/PhoneFirstLibrary': {PhoneFirstLibrary: 'PhoneFirstLibrary'}, '../screens/accounts/ServerIdentityFailure': {ServerIdentityFailure: 'ServerIdentityFailure'},
     '../screens/settings/NativeSettingsAppearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
-    '../screens/downloads/RememberedDownloadsScreen': {RememberedDownloadsScreen: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
+    '../pages/touch/downloads/RememberedDownloadsPage': {RememberedDownloadsPage: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
     '../screens/downloads/presentation': {downloadEntryIdentity: () => ''},
   });
   let tree: any;

@@ -4,12 +4,13 @@ import {downloadEntryIdentity} from './presentation';
 
 /** Only stable cached artwork/media are retained here. An item bookmark is not an
  * artifact completion fact and this hook does not project it into card progress. */
-export function useDownloadArtwork(device: NativeOfflineDownloadsDevice, entry: OfflineEntry) {
+export function useDownloadArtwork(device: Partial<Pick<NativeOfflineDownloadsDevice, 'displayFacts'>>, entry: OfflineEntry) {
   const identity = JSON.stringify([downloadEntryIdentity(entry), entry.artworkUrl]);
   const latestEntry = useRef(entry); latestEntry.current = entry;
-  const [loaded, setLoaded] = useState<{device: NativeOfflineDownloadsDevice; identity: string; facts: OfflineEntryFacts}>();
+  const [loaded, setLoaded] = useState<{device: object; identity: string; facts: OfflineEntryFacts}>();
   useEffect(() => {
     let current = true;
+    if (!device.displayFacts) {setLoaded(undefined); return;}
     void device.displayFacts(latestEntry.current).then(facts => {
       if (current) setLoaded({device, identity, facts: {backdropUrl: facts.backdropUrl, media: facts.media}});
     }).catch(() => {if (current) setLoaded(undefined);});

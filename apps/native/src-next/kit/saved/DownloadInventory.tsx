@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
-import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
+import {FlatList, ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {TrackedDownloadRequest} from '../../../../../packages/client-core/src/downloads-service';
@@ -12,6 +12,7 @@ import {alpha} from '../browse/presentation';
 import {useTheme} from '../theme';
 import type {NativeOfflineDownloadsDevice, OfflineEntry, OfflineSettings, OfflineSnapshot} from '../../platform/offline-downloads';
 import type {NativeShellRuntime} from '../../shell/runtime';
+import type {TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {downloadEntryIdentity, downloadRequestLines, downloadRowText, downloadTransferProgress, type NativeDownloadsCopy} from '../../screens/downloads/presentation';
 import {useDownloadArtwork} from '../../screens/downloads/useDownloadArtwork';
 import {useReadingFacts} from '../../screens/downloads/useReadingFacts';
@@ -117,10 +118,16 @@ export const DownloadInventoryWindow = React.memo(function DownloadInventoryWind
   </View>;
 });
 
-const LiveDownloadRow = React.memo(function LiveDownloadRow({id, inventory, device, runtime, copy, separator, menuOpen, onMenu, onPlay, onRetry, metric, onFocus}: {
-  id: string; inventory: DownloadInventory; device: NativeOfflineDownloadsDevice; runtime: NativeShellRuntime; copy: NativeDownloadsCopy;
-  separator: boolean; menuOpen: boolean; metric?: boolean; onMenu: (entry: OfflineEntry, anchor: RefObject<View | null>) => void;
-  onPlay?: (entry: OfflineEntry) => void; onRetry: (entry: OfflineEntry) => void; onFocus: (id: string) => void;
+/** What a download row reads from the device: whether it plays here, and its cached artwork and reading facts when the
+ * device has them (the remembered offline opening has neither, so its rows show the entry's own artwork). */
+export type DownloadRowDevice = Pick<NativeOfflineDownloadsDevice, 'playabilityReason'> & Partial<Pick<NativeOfflineDownloadsDevice, 'displayFacts' | 'readingFacts'>>;
+type EntryInventory = Pick<DownloadInventory, 'getEntry' | 'subscribe' | 'release'>;
+
+/** One download from an inventory, as Downloads draws it (collections 33). Without `onMenu` it has no ⋯. */
+export const LiveDownloadRow = React.memo(function LiveDownloadRow({id, inventory, device, runtime, copy, separator, menuOpen, onMenu, onPlay, onRetry, metric, onFocus}: {
+  id: string; inventory: EntryInventory; device: DownloadRowDevice; runtime: Readonly<{text: TextEnvironment}>; copy: NativeDownloadsCopy;
+  separator: boolean; menuOpen: boolean; metric?: boolean; onMenu?: (entry: OfflineEntry, anchor: RefObject<View | null>) => void;
+  onPlay?: (entry: OfflineEntry) => void; onRetry?: (entry: OfflineEntry) => void; onFocus?: (id: string) => void;
 }) {
   const read = useCallback(() => inventory.getEntry(id), [inventory, id]);
   const selected = useSyncExternalStore(inventory.subscribe, read);
@@ -128,7 +135,8 @@ const LiveDownloadRow = React.memo(function LiveDownloadRow({id, inventory, devi
   if (!selected) return null;
   const entry = selected.entry;
   return <DownloadRow entry={entry} device={device} runtime={runtime} copy={copy} separator={separator} menuOpen={menuOpen} metric={metric}
-    onFocus={() => onFocus(id)} onMenu={anchor => onMenu(entry, anchor)} onPlay={onPlay ? () => onPlay(entry) : undefined} onRetry={() => onRetry(entry)}/>;
+    onFocus={onFocus ? () => onFocus(id) : undefined} onMenu={onMenu ? anchor => onMenu(entry, anchor) : undefined} onPlay={onPlay ? () => onPlay(entry) : undefined}
+    onRetry={() => onRetry?.(entry)}/>;
 });
 
 function DownloadsSectionHeading({label, count, metric = false}: {label: string; count: number; metric?: boolean}) {
@@ -191,11 +199,11 @@ function DownloadMenuContext({entry, copy}: {entry: OfflineEntry; copy: NativeDo
   </>;
 }
 
-function DownloadRow({entry, device, runtime, copy, separator, menuOpen, onMenu, onPlay, onRetry, metric = false, onFocus}: {entry: OfflineEntry; device: NativeOfflineDownloadsDevice; runtime: NativeShellRuntime; copy: NativeDownloadsCopy; separator: boolean; menuOpen: boolean; onMenu: (anchor: RefObject<View | null>) => void; onPlay?: () => void; onRetry: () => void; metric?: boolean; onFocus?: () => void}) {
+function DownloadRow({entry, device, runtime, copy, separator, menuOpen, onMenu, onPlay, onRetry, metric = false, onFocus}: {entry: OfflineEntry; device: DownloadRowDevice; runtime: Readonly<{text: TextEnvironment}>; copy: NativeDownloadsCopy; separator: boolean; menuOpen: boolean; onMenu?: (anchor: RefObject<View | null>) => void; onPlay?: () => void; onRetry: () => void; metric?: boolean; onFocus?: () => void}) {
   const theme = useTheme(), blocked = entry.state === 'ready' ? device.playabilityReason(entry) : null, opener = useRef<View>(null);
   const facts = useDownloadArtwork(device, entry), reading = useReadingFacts(device, entry, entry.state === 'ready' && !blocked);
   const text = downloadRowText(entry, facts, blocked, copy, runtime.text, reading);
-  const menu = () => onMenu(opener);
+  const menu = () => onMenu?.(opener);
   const playable = entry.state === 'ready' && !blocked, progress = downloadTransferProgress(entry);
   const backdrop = entry.info?.kind === 'episode' ? facts?.backdropUrl : undefined;
   const artwork = backdrop ? {uri: backdrop, cacheKey: JSON.stringify([downloadEntryIdentity(entry), backdrop])} : localArtwork(entry);
@@ -204,7 +212,7 @@ function DownloadRow({entry, device, runtime, copy, separator, menuOpen, onMenu,
     {separator && <View style={{position: 'absolute', top: 0, left: 74, right: 0, height: 1, backgroundColor: alpha(theme.colors.lineStrong, .45)}}/>}
     <View style={{flex: 1, minWidth: 0}}>
       <CardFrame title={entry.title} onFocus={onFocus} menuAnchorRef={opener} moreExpanded={menuOpen} testID={`download-${encodeURIComponent(entry.id)}`}
-        onNavigate={playable && onPlay ? onPlay : menu} onMore={menu} pressableStyle={{flexDirection: 'row', alignItems: 'center', gap: metric ? 14 : 13}}>
+        onNavigate={playable && onPlay ? onPlay : menu} onMore={onMenu ? menu : undefined} pressableStyle={{flexDirection: 'row', alignItems: 'center', gap: metric ? 14 : 13}}>
         {() => <>
           <Artwork source={artwork} width={metric ? 52 : 46} height={metric ? 78 : 69} zoom={backdrop ? 2.2 : 1} saturation={backdrop ? .55 : 1} brightness={backdrop ? .45 : 1} style={{borderRadius: metric ? 5 : 6}}/>
           <View style={{flex: 1, minWidth: 0}}><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{entry.title}</Text>
@@ -338,4 +346,18 @@ export function DownloadEntryMenu({sheetMenu, menu, menuItems, anchor, close, af
       </Focusable>)}</View>
     </BottomSheet> : <Menu testID="downloads-entry-menu" title={undefined} open={!!menu} onOpenChange={open => {if (!open) close();}} anchorRef={anchor} returnFocusRef={anchor} accessibilityLabel={menu?.title}
       context={menu && <DownloadMenuContext entry={menu} copy={copy}/>} items={menuItems} presentation={theme.isTV ? 'sideSheet' : 'anchored'}/>;
+}
+
+/** A short list of downloads in one rounded card under a header (the phone's offline "Your downloads", states 4a): it
+ * scrolls itself, and says `empty` when there's nothing. */
+export function DownloadEntryList({ids, header, empty, renderRow, testID}: {ids: readonly string[]; header?: ReactNode; empty: string;
+  renderRow: (id: string, first: boolean) => ReactNode; testID?: string}) {
+  const theme = useTheme(), insets = useSafeAreaInsets();
+  return <FlatList testID={testID} data={ids} keyExtractor={id => id} initialNumToRender={12} maxToRenderPerBatch={8} windowSize={5}
+    contentContainerStyle={{paddingTop: theme.space.xs, paddingBottom: Math.max(theme.space.md, insets.bottom)}}
+    ListHeaderComponent={header ? <View style={{marginHorizontal: 16, marginBottom: theme.space.sm, gap: theme.space.sm}}>{header}</View> : null}
+    renderItem={({item, index}) => <View style={{marginHorizontal: 16, backgroundColor: theme.colors.raised, overflow: 'hidden',
+      borderTopLeftRadius: index === 0 ? 14 : 0, borderTopRightRadius: index === 0 ? 14 : 0,
+      borderBottomLeftRadius: index === ids.length - 1 ? 14 : 0, borderBottomRightRadius: index === ids.length - 1 ? 14 : 0}}>{renderRow(item, index === 0)}</View>}
+    ListEmptyComponent={<Text style={[theme.type.body, {color: theme.colors.textSecondary, marginHorizontal: 16}]}>{empty}</Text>}/>;
 }
