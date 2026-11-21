@@ -220,7 +220,9 @@
 .programmeFavorite { flex: none; color: var(--color-accent-strong); }
 .programmeLive { margin-left: 14px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: var(--type-label-size); font-weight: var(--type-row-heading-weight); color: var(--color-record); }
 .programmeLive::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--color-record); }
-.programmeTitle { position: relative; z-index: var(--layer-content); margin: 24px 0 10px; font-size: calc(var(--type-lockup-size) * 28 / 23); line-height: calc(var(--type-lockup-size) * 28 / 23 * .94); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); text-wrap: balance; text-shadow: 0 2px 30px color-mix(in srgb, var(--color-ink) 50%, transparent); }
+/* desktop-live programme panel .sh-title: 56 at desktop, the page title's size (34 on a phone, final3-phone-07 3). The hero lockup's
+   size grows to 84 at desktop, so a ratio of it drew the title at 102 and broke a two-word name onto two lines. */
+.programmeTitle { position: relative; z-index: var(--layer-content); margin: 24px 0 10px; font-size: var(--type-page-title-size); line-height: var(--type-page-title-line); font-weight: var(--type-page-title-weight); letter-spacing: var(--type-page-title-tracking); text-wrap: balance; text-shadow: 0 2px 30px color-mix(in srgb, var(--color-ink) 50%, transparent); }
 .programmeEpisode { position: relative; z-index: var(--layer-content); margin: 0 0 12px; font-size: var(--type-subheading-size); font-weight: var(--type-row-heading-weight); color: var(--color-text); }
 .programmeMeta { position: relative; z-index: var(--layer-content); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 14px; font-size: var(--type-body-size); color: var(--color-text-secondary); }
 .programmeMeta strong { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
@@ -235,8 +237,10 @@
 .programmeProgress > span { white-space: nowrap; font-size: calc(var(--type-caption-size) * 25 / 26); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
 .programmeDescription { position: relative; z-index: var(--layer-content); margin: 0 0 24px; font-size: var(--type-tab-size); line-height: calc(var(--type-tab-size) * 1.55); color: var(--color-text-secondary); }
 .programmeBanner { position: relative; z-index: var(--layer-content); margin: 0 0 14px; }
-.programmeActions { position: relative; z-index: var(--layer-content); display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
-.programmeAction { height: 48px; padding: 0 16px; border-radius: 12px; font-size: var(--type-tab-size); gap: 9px; white-space: nowrap; }
+.programmeActions { position: relative; z-index: var(--layer-content); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* desktop-live .sheet .btn: 48 high, 16 in, 15.5 type: four actions share one row of the 520 pane. The tab role (17 at desktop) pushed the
+   last onto a row of its own. */
+.programmeAction { height: 48px; padding: 0 16px; border-radius: 12px; font-size: var(--type-body-size); gap: 9px; white-space: nowrap; }
 .programmeActionOpen { background: color-mix(in srgb, var(--color-text) 24%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-text) 45%, transparent); }
 .programmeFavoriteAction { width: 48px; min-width: 48px; padding: 0; }
 .recordingDot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-record); }
@@ -263,9 +267,11 @@
 .gap { display: inline-block; width: 12px; }
 @media (max-width: 599px) {
   .programmeIn { padding: 26px 22px 32px; }
-  .programmeTitle { font-size: calc(var(--type-display-size) * 19 / 17); line-height: calc(var(--type-display-size) * 19 / 17 * 1.05); letter-spacing: calc(var(--type-lockup-tracking) * 7 / 9); }
   .programmeActions { flex-wrap: wrap; }
-  .programmeAction { flex: 1; min-width: 0; justify-content: center; }
+  /* final3-phone-07 3: the first action takes the row; the rest share the next at their own widths. A label is never broken
+     (owner, 18 Nov): it was squeezed to "Wat / ch / live". */
+  .programmeAction { flex: 1 1 auto; min-width: max-content; justify-content: center; }
+  .programmeActions > :first-child { flex-basis: 100%; }
   .programmeFavoriteAction { flex: none; }
   .seriesRow { align-items: flex-start; flex-direction: column; gap: 6px; }
   .seriesSelect.seriesSelect { width: 100%; min-width: 0; }
