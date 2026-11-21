@@ -76,12 +76,25 @@ test('credential editing starts empty and sends only the explicitly edited crede
   const provider = nodes(tree).find(value => value.type === 'SettingsRow' && value.props.label === t(settingsRowIndex.get('metadata.tmdb')!.row.label))!;
   nodes(provider.props.control).find(value => value.type === 'Button')!.props.onPress(); tree = f.render();
   const field = byId(tree, 'metadata-credential-value')!; assert.equal(field.props.value, ''); assert.equal(field.props.secureTextEntry, true);
+  const untouched = byId(tree, 'metadata-credential-commit')!;
+  assert.equal(untouched.props.disabled, true);
+  untouched.props.onPress(); await Promise.resolve();
+  assert.deepEqual(f.writes, []);
   field.props.onChangeText('synthetic-new-value'); tree = f.render();
   const sheet = nodes(tree).find(value => value.type === 'BottomSheet')!;
   nodes(sheet.props.footer).filter(value => value.type === 'Button')[1]!.props.onPress(); await Promise.resolve();
   assert.deepEqual(f.writes, [{tmdbReadToken: 'synthetic-new-value'}]);
   tree = f.render(); assert.equal(nodes(tree).find(value => value.type === 'BottomSheet')!.props.open, false);
   assert.equal(byId(tree, 'metadata-credential-value')!.props.value, '');
+
+  nodes(provider.props.control).find(value => value.type === 'Button')!.props.onPress(); tree = f.render();
+  byId(tree, 'metadata-credential-remove')!.props.onPress(); tree = f.render();
+  const removal = byId(tree, 'metadata-credential-commit')!;
+  assert.equal(removal.props.variant, 'danger');
+  assert.equal(byId(tree, 'metadata-credential-value'), undefined);
+  assert.equal(f.writes.length, 1, 'opening the confirmation does not remove the value');
+  removal.props.onPress(); await Promise.resolve();
+  assert.deepEqual(f.writes, [{tmdbReadToken: 'synthetic-new-value'}, {tmdbReadToken: ''}]);
 });
 
 

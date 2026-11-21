@@ -14,7 +14,7 @@ const credentialKeys: Readonly<Record<string, CredentialKey>> = {
   'metadata.tmdb': 'tmdbReadToken', 'metadata.tvdb': 'tvdbProjectKey', 'metadata.osKey': 'openSubtitlesApiKey',
   'metadata.osUser': 'openSubtitlesUsername', 'metadata.osPass': 'openSubtitlesPassword', 'metadata.acoustid': 'acoustidKey',
 };
-type CredentialEdit = {row: SettingsRow; original: MetadataSettings; key: CredentialKey};
+type CredentialEdit = {row: SettingsRow; original: MetadataSettings; key: CredentialKey; canRemove: boolean; removing?: boolean};
 
 export function useMetadataController(ports: NativeSettingsLivePorts) {
   const scope = useSettingsRequestScope(ports.context);
@@ -64,16 +64,23 @@ export function useServerMetadata(controller: NativeMetadataController, current:
       status,
       open: () => {
         if (!settings || !current() || disabled) return;
-        const next = {row: definition, original: settings, key};
+        const canRemove = configured || key === 'tmdbReadToken' && settings.tmdbCredentialUnreadable === true;
+        const next = {row: definition, original: settings, key, canRemove};
         editor.current = next;
         setEditing(next);
         setText(key === 'openSubtitlesUsername' ? settings.openSubtitlesUsername : '');
       },
     };
   };
+  const credentialReady = !!editing && (editing.removing ? editing.canRemove : !!text.trim());
+  const openRemoval = () => {
+    if (!editing?.canRemove || editor.current !== editing || !current() || disabled) return;
+    const next = {...editing, removing: true};
+    editor.current = next; setEditing(next); setText('');
+  };
   const saveCredential = async () => {
-    if (!editing || editor.current !== editing || !current()) return;
-    const didSave = await controller.save(editing.original, {[editing.key]: text});
+    if (!editing || editor.current !== editing || !current() || !credentialReady || disabled) return;
+    const didSave = await controller.save(editing.original, {[editing.key]: editing.removing ? '' : text});
     if (didSave && current() && editor.current === editing) closeCredential();
   };
   const closeRefresh = () => {
@@ -88,7 +95,7 @@ export function useServerMetadata(controller: NativeMetadataController, current:
   return {
     state, settings, advanced, disabled, row, groupTitle, advancedTitle, options, credentials, editing, text,
     setText: (next: string) => {if (current() && editing && editor.current === editing) setText(next);},
-    saveCredential, closeCredential, confirmation, closeRefresh, refreshAll,
+    credentialReady, openRemoval, saveCredential, closeCredential, confirmation, closeRefresh, refreshAll,
     openRefresh: () => {if (current()) {const next = {}; refresh.current = next; setConfirmation(next);}},
     save: (patch: MetadataPatch) => {if (settings && current()) void controller.save(settings, patch);},
     reload: () => {void controller.load();},
