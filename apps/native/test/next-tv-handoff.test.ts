@@ -47,12 +47,14 @@ test('TV hand-off URLs contain only a public address, including the real profile
     'server.example:32500/settings?scope=account&section=profile');
   assert.equal(publicTVHandoffAddress('https://server.example/settings/profile').url, 'https://server.example/settings/profile');
   assert.equal(publicTVHandoffAddress('https://server.example/settings?scope=server&section=live').url, 'https://server.example/settings?scope=server&section=live');
+  assert.equal(publicTVHandoffAddress('https://server.example/settings?scope=server&section=signin').url, 'https://server.example/settings?scope=server&section=signin');
   for (const url of ['file:///settings/profile', 'javascript:alert(1)', 'https://user:password@server.example/settings/profile',
     'https://server.example/settings/profile#grant', 'https://server.example/settings/profile?token=private',
     'https://server.example/settings?scope=account&section=profile&token=private',
     'https://server.example/settings?scope=account&scope=profile', 'https://server.example/account?code=private', 'https://server.example/settings?scope=server&section=profile',
     'https://server.example/settings?scope=account&section=live', 'https://server.example/settings?scope=server&section=live&token=private',
-    'https://server.example/settings?scope=server&section=live&section=live']) {
+    'https://server.example/settings?scope=server&section=live&section=live',
+    'https://server.example/settings?scope=server&section=signin&token=private']) {
     assert.throws(() => publicTVHandoffAddress(url));
   }
 });

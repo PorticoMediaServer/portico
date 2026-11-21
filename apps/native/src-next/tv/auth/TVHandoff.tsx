@@ -23,7 +23,8 @@ export function publicTVHandoffAddress(value: string): {url: string; display: st
   // web.getportico.tv opening one server from the account's list (a Portico Accounts server's Forgot PIN).
   if (url.pathname === '/servers' && keys.length === 1 && /^srv_[A-Za-z0-9_-]{43}$/.test(url.searchParams.get('open') ?? ''))
     return {url: url.href, display: `${url.host}${url.pathname}`, pathname: url.pathname, search: url.search};
-  const management = url.searchParams.get('scope') === 'server' && url.searchParams.get('section') === 'live';
+  const section = url.searchParams.get('section');
+  const management = url.searchParams.get('scope') === 'server' && (section === 'live' || section === 'signin');
   const profile = url.searchParams.get('scope') === 'account' && url.searchParams.get('section') === 'profile';
   if (keys.length && (url.pathname !== '/settings' || keys.length !== 2 || new Set(keys).size !== 2
     || !(profile || management))) throw new Error('native_tv_handoff_url_invalid');
