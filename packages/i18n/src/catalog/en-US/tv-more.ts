@@ -12,6 +12,10 @@ export const tvMoreMessages = {
   'music.allSongs': 'All songs',
   'music.showAllSongs': 'Show all {count, plural, one {# song} other {# songs}}',
   'music.moreLikeThis': 'More like this',
+  // listen-2: the album page's row of the artist's other albums, or the note when this is the only one.
+  'music.moreBy': 'More by {name}',
+  'music.onlyAlbumBy': '{title} is the only album by {name} on your server.',
+  'music.goToArtist': 'Go to {name}',
   'music.moreLikeThisHint': 'Same genres first, then what people here play alongside it',
   // music-plus f7 (MC-9): the same row's line once the album is analyzed and ranked by sound.
   'music.moreLikeThisBySound': 'Closest in sound',

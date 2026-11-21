@@ -19,3 +19,5 @@
   .badge { font-size: var(--type-fixed-size-11px); height: 20px; padding: 0 6px; border-radius: 4px; }
   .badges { justify-content: center; }
 }
+/* listen-2: More by the artist, when this is their only album: the heading, then the quiet note with Go to the artist. */
+.moreBy { display: grid; gap: var(--space-sm); padding: 0 var(--g); margin-top: var(--frame-section-gap); }
