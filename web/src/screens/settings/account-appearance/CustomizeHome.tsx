@@ -4,7 +4,8 @@ import type {HomeService} from '@core/home-service.ts';
 import {PersonalSavedService} from '@core/personal-saved.ts';
 import type {SavedApi} from '@core/saved.ts';
 import {randomId} from '@core/random-id.ts';
-import {Button} from '../../../kit/controls';
+import {Icon} from '../../../kit/Icon';
+import serverStyles from '../server/server.module.css';
 import {HomeCustomization, type HomeCustomizationBindings} from '../../home/customization';
 import {HomeCustomizeDialog, homeCopy} from '../../home/Customize';
 import {useShellWidth} from '../../../shell/viewport';
@@ -42,7 +43,8 @@ export function CustomizeHomeRow({api, home, serverId, viewerId, isCurrent}: Cus
     active.current = next; setOpened(next); void next.load();
   };
   return <>
-    <Button ref={trigger} variant="glass" size="small" onClick={open}>{t('next.settingsSpec.account.appearance.groups.0.rows.0.control.label')}</Button>
+    {/* settings-appearance: opening Customize Home is the accent link with its chevron, as section links draw. */}
+    <button type="button" ref={trigger} className={serverStyles.sectionLink} onClick={open}>{t('next.settingsSpec.account.appearance.groups.0.rows.0.control.label')}<Icon name="i-right" size={16} /></button>
     {opened && <HomeCustomizeDialog controller={opened} createSavedViews={binding.createSavedViews} isCurrent={isCurrent} copy={homeCopy(compact)} onClose={close} returnFocusRef={trigger}/>}
   </>;
 }
