@@ -23,9 +23,9 @@ test('on a phone the Recordings head stays one line: title size, no wrap, the so
   assert.match(phone, /\.header \.source \{ flex: none; \}/);
 });
 
-test('on a phone the Channels and Recordings heads, chips and body all sit on the shell gutter, not a hard-coded 18px', () => {
+// The guide's head, chips and time row are the Live TV frame's (kit/frames LiveFrame), on the frame's gutter.
+test('on a phone the Recordings head, chips and body all sit on the shell gutter, not a hard-coded 18px', () => {
   const phone = live.slice(live.lastIndexOf('@media (max-width: 599px)', live.indexOf('.recordingsBar, .recordingsBanner, .recBody { padding-inline:')));
-  assert.match(live, /\.guideHeader, \.guideChips, \.guideTime \{ padding-inline: var\(--shell-gutter\); \}/);
   assert.match(phone, /\.recordingsBar, \.recordingsBanner, \.recBody \{ padding-inline: var\(--shell-gutter\); \}/);
   assert.doesNotMatch(live, /padding-inline: 18px/);
 });

@@ -17,36 +17,12 @@
 .guideScreen { position: relative; min-height: 100vh; }
 .guideState { padding: 122px var(--shell-gutter) 72px; }
 .guideProblem { padding: 16px var(--shell-gutter) 0; }
-.guideHeader { position: relative; padding: 122px var(--shell-gutter) 0; display: flex; align-items: flex-end; gap: 20px; }
-.guidePhoneView { flex-shrink: 0; margin-left: auto; }
-.guideHeader h1 { margin: 0; font-size: calc(var(--type-lockup-long-size) - 4px); line-height: calc(.95em); font-weight: var(--type-lockup-long-weight); letter-spacing: var(--type-lockup-long-tracking); }
-.guideSwitcher.guideSwitcher { min-width: 0; height: 40px; padding: 0 12px 0 16px; gap: 8px; border-radius: 10px; margin-bottom: 2px;
-  background: color-mix(in srgb, var(--color-text) 12%, transparent); backdrop-filter: blur(var(--glass-blur)); font-size: calc(var(--type-body-size) - 0px); }
-.guideSwitcher.guideSwitcher:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 20%, transparent); }
-.guideSource { line-height: normal; margin: 0 0 10px auto; display: flex; gap: 12px; font-size: calc(var(--type-body-size) - 1px); color: var(--color-text-tertiary); }
+.guideSource { display: flex; gap: 12px; font-size: calc(var(--type-body-size) - 1px); color: var(--color-text-tertiary); }
 .guideSource strong { color: var(--color-text-secondary); font-weight: var(--type-row-heading-weight); }
-.guideTabList { padding: 0 var(--shell-gutter); }
-.guideTabs .guideTabList button { font-size: var(--type-tab-size); }
+/* The time row's free space: the day and the steps keep left, the sort and Grid | List right. */
+.guideToolbarGap { flex: 1; }
 .guideTabNote { margin-left: 10px; font-size: var(--type-caption-size); font-weight: var(--type-row-heading-weight); color: var(--color-record); }
-.guideChips { position: relative; display: flex; gap: 8px; padding: 22px var(--shell-gutter) 0; overflow-x: auto; scrollbar-width: none; }
-.guideChips::-webkit-scrollbar { display: none; }
-.guideChips .guideChip { height: 38px; padding: 0 14px; gap: 7px; border-radius: 10px; font-size: calc(var(--type-body-size) - .5px); font-weight: var(--type-chip-weight); color: var(--color-text-secondary); }
-.guideChips .guideChip > svg { color: var(--color-accent-strong); }
-.guideChips .guideChip[data-selected] { background: color-mix(in srgb, var(--color-accent) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 62%, transparent); color: var(--color-text); }
-.guideChips .guideChip[data-selected]:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 28%, transparent); }
-.guideTime { position: relative; display: flex; align-items: center; gap: 12px; padding: 0 var(--shell-gutter); margin-top: 36px; }
-.guideTime .guideDay { min-width: 0; height: 40px; padding: 0 12px 0 14px; gap: 8px; border-radius: 10px; background: var(--color-raised-high); font-size: calc(var(--type-body-size) - .5px); }
-.guideTime .guideSort { min-width: 0; height: 40px; padding: 0 12px; gap: 8px; border-radius: 10px; background: transparent; box-shadow: inset 0 0 0 1px var(--color-line); font-size: calc(var(--type-body-size) - .5px); }
-.guideTime .guideSort:hover:not(:disabled) { background: var(--color-raised-high); }
-.guideRight { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.guideStepper { display: inline-flex; align-items: center; height: 40px; border-radius: 10px; background: var(--color-raised-high); padding: 3px; gap: 2px; }
-.guideStep { height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: none; display: inline-flex; align-items: center; gap: 4px; font-family: var(--font); font-size: calc(var(--type-body-size) - 1px); font-weight: var(--type-row-heading-weight); color: var(--color-text-secondary); white-space: nowrap; cursor: pointer; }
-.guideStep:hover { background: var(--color-raised-bright); color: var(--color-text); }
-.guideStep:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .guideNow { color: var(--color-text); padding: 0 14px; }
-.guideTime .guideView { border-radius: 10px; background: var(--color-raised-high); padding: 3px; gap: 2px; box-shadow: none; }
-.guideTime .guideView button { height: 34px; padding: 0 12px; gap: 6px; font-size: calc(var(--type-body-size) - 1px); }
-.guideTime .guideView button > svg { width: 18px; height: 18px; }
 .guide { position: relative; margin-top: 16px; padding-bottom: 8px; touch-action: pan-y; }
 .guideRuler { display: flex; height: 44px; }
 .guideCorner { width: var(--guide-column); flex: none; padding-left: var(--shell-gutter); display: flex; align-items: center; font-size: var(--type-caption-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); }
@@ -110,11 +86,8 @@
 .guideProgress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .guideProgress i { display: block; height: 100%; background: var(--color-accent-strong); }
 .guideNowLine { position: absolute; top: -6px; bottom: 0; width: 2px; margin-left: -1px; background: var(--color-accent-strong); box-shadow: 0 0 14px color-mix(in srgb, var(--color-accent-strong) 55%, transparent); pointer-events: none; z-index: -1; }
-.guideKbd { line-height: normal; margin: 0; padding: 18px var(--shell-gutter) 44px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 @media (max-width: 1023px) {
   .guideSource { display: none; }
-  .guideTime { flex-wrap: wrap; margin-top: 22px; }
-  .guideRight { flex-wrap: wrap; }
   .guideRuler { height: 30px; }
   .guideTick { top: 0; bottom: 0; font-size: calc(var(--type-label-size) - 2px); }
   .guideCell { padding-inline: 6px; }
@@ -122,17 +95,6 @@
   .guideCellDetail { font-size: calc(var(--type-label-size) - 2px); }
 }
 @media (max-width: 599px) {
-  .guideHeader, .guideChips, .guideTime { padding-inline: var(--shell-gutter); }
-  .guideHeader { padding-top: 44px; gap: 8px; flex-wrap: nowrap; }
-  .guideHeader h1 { font-size: var(--type-title-size); }
-  .guideRecordings { flex: none; }
-  .guideTabs { display: none; }
-  .guideChips { flex-wrap: nowrap; }
-  /* The source chip keeps its own width ("All channels ▾", final3-phone-07); the group chips scroll after it. The select's
-     field wrapper is the rail's item, so it is the one held at its width. */
-  .guideChips > :has(> .guideSourceChip) { flex: none; }
-  .guideChips .guideSourceChip { flex: none; min-width: max-content; height: 38px; padding: 0 14px; border-radius: 10px; background: var(--color-raised-high); font-size: calc(var(--type-body-size) - .5px); }
-  .guideStepper { display: none; }
   .guideChannel { padding: 0 10px; gap: 2px; flex-direction: column; justify-content: center; }
   .guideChannelText b { display: none; }
   .guideChannelText small { font-size: calc(var(--type-label-size) - 2px); }
@@ -164,11 +126,6 @@
 .guideListCount { margin: 0; display: flex; gap: 12px; font-size: calc(var(--type-body-size) - .5px); color: var(--color-text-tertiary); }
 .guideListChannel { position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; }
 .guideListChannelName { display: none; }
-.guideSortField { display: inline-flex; align-items: center; height: 40px; padding: 0 12px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-line); }
-.guideSortField:focus-within { box-shadow: inset 0 0 0 1px var(--color-line), 0 0 0 2px var(--color-focus); }
-.guideSortPrefix { margin-right: 6px; font-size: calc(var(--type-body-size) - .5px); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); }
-.guideSortField .guideSort { height: 40px; min-width: 0; padding: 0 0 0 0; gap: 8px; border-radius: 0; background: none; box-shadow: none; }
-.guideSortField .guideSort:hover:not(:disabled) { background: none; }
 @media (max-width: 599px) {
   .guideListState { margin: 12px 20px 36px; }
   .guideListHead { display: none; }
@@ -191,10 +148,6 @@
   .phoneListTrack > i { display: block; height: 100%; background: var(--color-accent-strong); }
   .phoneListNext { display: block; width: 100%; height: 18px; margin-top: 7px; padding: 0; border: 0; background: none; text-align: left; color: var(--color-text-tertiary); font-family: var(--font); font-size: var(--type-fixed-size-12point-5px); line-height: calc(var(--type-fixed-size-12point-5px) * 1.44); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .guideListChannelName:focus-visible, .phoneListTitle:focus-visible, .phoneListNext:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; border-radius: 4px; }
-}
-@media (max-width: 359px) {
-  .guideHeader h1 { font-size: var(--type-fixed-size-24px); }
-  .guidePhoneView button { padding-inline: 7px; font-size: var(--type-fixed-size-12px); }
 }
 
 /* ---- Programme panel: desktop-live.html#live-sheet ---- */
@@ -388,16 +341,7 @@
 .recMeta > span { display: inline-flex; align-items: center; gap: 6px; }
 .recArtProgress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in srgb, var(--color-ink) 50%, transparent); }
 .recArtProgress > i { display: block; height: 100%; background: var(--color-record); }
-
-/* phone-guide frame 4: landscape guide keeps one compact header and a wide channel column. */
-.guideScreen[data-phone-landscape] .guideChrome { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 6px 20px 0; min-height: 50px; }
-.guideScreen[data-phone-landscape] .guideHeader, .guideScreen[data-phone-landscape] .guideTime, .guideScreen[data-phone-landscape] .guideRight { display: contents; }
-.guideScreen[data-phone-landscape] .guideHeader h1 { grid-column: 1; grid-row: 1; margin: 0; font-size: var(--type-fixed-size-24px); }
-.guideScreen[data-phone-landscape] .guidePhoneView { grid-column: 2; grid-row: 1; }
-.guideScreen[data-phone-landscape] .guideChips { grid-column: 3; grid-row: 1; margin: 0; padding: 0; flex-wrap: nowrap; min-width: 0; overflow-x: auto; overflow-y: hidden; }
-.guideScreen[data-phone-landscape] .guideSortField { grid-column: 4; grid-row: 1; }
-.guideScreen[data-phone-landscape] .guideRecordings { grid-column: 5; grid-row: 1; }
-.guideScreen[data-phone-landscape] .guideTabs, .guideScreen[data-phone-landscape] .guideSource, .guideScreen[data-phone-landscape] .guideStepper, .guideScreen[data-phone-landscape] .guideTime > .guideDay, .guideScreen[data-phone-landscape] .guideListCount { display: none; }
+.guideScreen[data-phone-landscape] .guideListCount { display: none; }
 .guideScreen[data-phone-landscape] .guideChannel { gap: 10px; }
 .guideScreen[data-phone-landscape] .guideChannelText b { font-size: var(--type-fixed-size-12point-5px); }
 .guideScreen[data-phone-landscape] .guideChannelText small { font-size: var(--type-fixed-size-11point-5px); }

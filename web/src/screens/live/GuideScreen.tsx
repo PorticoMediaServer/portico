@@ -5,12 +5,13 @@ import {layoutRow, legacyChannel, type GuideCell, type GuideChannelRow, type Gui
 import {rulerTicks} from '@core/guide/time.ts';
 import {programmeFactParts, type ChannelMarkModel, type FactPart} from '@portico/client-core/kit-model';
 import {ChannelMark, nameInitials, type ArtworkSource} from '../../kit/artwork';
-import {Button, Chip, Segmented, Select, Tabs} from '../../kit/controls';
+import {Button, Chip, Segmented, Tabs} from '../../kit/controls';
 import type {SelectOption} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {Menu, type MenuEntry} from '../../kit/overlays';
+import {Icon, type IconName} from '../../kit/Icon';
+import {Menu, MenuItem, type MenuEntry} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
-import {LibraryHeader} from '../../kit/browse';
+import {LiveFrame} from '../../kit/frames';
+import {GuidePicker} from '../../kit/live';
 import {liveListPrograms} from './program-window';
 import {useGuideSwipe} from './guide-swipe';
 import {useChannelMenuGestures} from './channel-menu';
@@ -273,57 +274,50 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
     if (event.key === 'n' || event.key === 'N') {event.preventDefault();time.onNow();}
   };
 
-  const source = summary && <p className={styles.guideSource}>
+  // desktop-live live-guide, phone-guide g1, final3-phone-07: the guide on the Live TV frame. The frame draws the head (the
+  // library header from 600 with Guide | Recordings under it; at phone width the title with List | Guide and Recordings), the
+  // channel groups, On now, the time row and the keyboard line; the guide below is the frame's one flexible region.
+  const facts = summary && <span className={styles.guideSource}>
     <strong>{summary.name}</strong>
     {summary.channels !== undefined && <span>{t('next.kit.channels', {count: summary.channels})}</span>}
     {summary.through && <span>{summary.through}</span>}
-  </p>;
-  const guideTabs = <Tabs className={styles.guideTabs} data-guide-tabs listClassName={styles.guideTabList} value="guide" aria-label={t('next.home.shell.live')}
+  </span>;
+  const guideTabs = <Tabs value="guide" aria-label={t('next.home.shell.live')}
     onValueChange={value => {if (value === 'recordings') onTabChange?.(value);}}
     items={[{value: 'guide', label: t('channels.tabGuide')},
       {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.guideTabNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>}]}/>;
-  return <section className={styles.guideScreen} data-guide-screen data-phone-landscape={landscape || undefined}>
-    <div className={styles.guideChrome}>
-    {compactHeader ? <><header className={styles.guideHeader} data-guide-header>
-      <h1>{title}</h1>
-      <Segmented className={styles.guidePhoneView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
-        items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'}, {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>
-      {onTabChange && <Button className={styles.guideRecordings} variant="icon" iconOnly icon="i-rec-ring" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}
-      {source}
-    </header>{guideTabs}</> : <LibraryHeader name={title} menu={source}
-      switcher={switcher && <Select className={styles.guideSwitcher} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}>{guideTabs}</LibraryHeader>}
-    <div className={styles.guideChips} data-guide-chips role="group" aria-label={t('channels.filters')}>
-      {compactHeader && switcher && <Select className={styles.guideSourceChip} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}
-      {chips.map(chip => <Chip className={styles.guideChip} key={chip.id} selected={chip.selected} count={chip.count} icon={chip.favorites ? 'i-star' : undefined} onClick={chip.onSelect}>{chip.label}</Chip>)}
-    </div>
-    {view === 'guide' && onNow}
-    <div className={styles.guideTime} data-guide-time>
-      {view === 'list'
-        ? <p className={styles.guideListCount}><span>{t('next.kit.channels', {count: total})}</span><span>{t('guide.onNowAt', {time: defaultI18n.time(now)})}</span></p>
-        : <>
-          <Select className={styles.guideDay} aria-label={day.label} value={day.value} options={day.options} onValueChange={day.onChange}/>
-          <div className={styles.guideStepper} role="group" aria-label={t('guide.twoHours')}>
-            <button type="button" className={styles.guideStep} aria-label={time.earlier} onClick={time.onEarlier}><Icon name="i-left" size={18}/>{t('guide.twoHours')}</button>
-            <button type="button" className={`${styles.guideStep} ${styles.guideNow}`} onClick={time.onNow}>{time.now}</button>
-            <button type="button" className={styles.guideStep} aria-label={time.later} onClick={time.onLater}>{t('guide.twoHours')}<Icon name="i-right" size={18}/></button>
-          </div>
-        </>}
-      <div className={styles.guideRight}>
-        <div className={styles.guideSortField}><span className={styles.guideSortPrefix}>{t('channels.sort')}</span>
-          <Select className={styles.guideSort} aria-label={t('channels.sort')} value={sort.value} options={sort.options} onValueChange={sort.onChange}/>
-        </div>
-        {!compactHeader && <Segmented className={styles.guideView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
-          items={[{value: 'guide', label: t('channels.viewGrid'), icon: 'i-timeline'},
-            {value: 'list', label: t('channels.viewList'), icon: 'i-list'}]}/>}
-      </div>
-    </div>
-    </div>
+  const phoneActions = <>
+    <Segmented variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
+      items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'}, {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>
+    {onTabChange && <Button variant="text" iconOnly icon="i-rec-ring" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}
+  </>;
+  const source = switcher && <PickChip label={t('channels.source')} pill={phone} value={switcher.value} options={switcher.options} onChange={switcher.onChange}/>;
+  const sortChip = <PickChip label={t('channels.sort')} prefix={t('channels.sort')} quiet={phone} value={sort.value} options={sort.options} onChange={sort.onChange}/>;
+  const toolbar = landscape ? sortChip : view === 'list'
+    ? <><p className={styles.guideListCount}><span>{t('next.kit.channels', {count: total})}</span><span>{t('guide.onNowAt', {time: defaultI18n.time(now)})}</span></p><span className={styles.guideToolbarGap}/>{sortChip}</>
+    : <>
+      <PickChip label={day.label} icon="i-cal" quiet={phone} value={day.value} options={day.options} onChange={day.onChange}/>
+      {!compactHeader && <>
+        <Button size="small" icon="i-left" aria-label={time.earlier} onClick={time.onEarlier}>{t('guide.twoHours')}</Button>
+        <Button size="small" onClick={time.onNow}>{time.now}</Button>
+        <Button size="small" aria-label={time.later} onClick={time.onLater}>{t('guide.twoHours')}<Icon name="i-right" size={16}/></Button>
+      </>}
+      <span className={styles.guideToolbarGap}/>
+      {sortChip}
+      {!compactHeader && <Segmented variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
+        items={[{value: 'guide', label: t('channels.viewGrid'), icon: 'i-timeline'},
+          {value: 'list', label: t('channels.viewList'), icon: 'i-list'}]}/>}
+    </>;
+  return <LiveFrame title={title} switcher={source} facts={facts} actions={compactHeader && phoneActions} tabs={!compactHeader && guideTabs}
+    chips={<>{landscape && source}{chips.map(chip => <Chip key={chip.id} variant="search" selected={chip.selected} count={phone ? undefined : chip.count} icon={chip.favorites && !phone ? 'i-star' : undefined} onClick={chip.onSelect}>{chip.label}</Chip>)}</>}
+    lead={view === 'guide' ? onNow : undefined} toolbar={toolbar} hints={view === 'guide' && !compactHeader ? t('guide.keyboardHint') : undefined}>
+    <section className={styles.guideScreen} data-guide-screen data-phone-landscape={landscape || undefined}>
     {notice && <div className={styles.guideProblem}>{notice}</div>}
     {problem && <div className={styles.guideProblem}>{problem}</div>}
     {empty ?? (view === 'guide'
       ? <div {...swipe} className={styles.guide} data-guide-grid role="group" aria-label={t('guide.label')} style={{'--guide-column': `${column}px`, '--guide-row': `${rowHeight}px`} as CSSProperties}>
         <div className={styles.guideRuler}>
-          <div className={styles.guideCorner}>{landscape ? <Select className={styles.guideDay} aria-label={day.label} value={day.value} options={day.options} onValueChange={day.onChange}/> : phone ? <button type="button" className={styles.guideCornerNow} onClick={time.onNow}>{time.now}</button> : t('guide.channelColumn')}</div>
+          <div className={styles.guideCorner}>{landscape ? <PickChip label={day.label} value={day.value} options={day.options} onChange={day.onChange}/> : phone ? <button type="button" className={styles.guideCornerNow} onClick={time.onNow}>{time.now}</button> : t('guide.channelColumn')}</div>
           <div className={styles.guideLane} data-now-outside={nowX === undefined || undefined}>
             {ticks.map(tick => <span key={tick.atMs} className={styles.guideTick} data-kind={tick.kind} style={{left: tick.x}}>{defaultI18n.time(tick.atMs)}</span>)}
             {nowX !== undefined && <span className={styles.guideNowPill} style={{left: nowX}}>{defaultI18n.time(now)}</span>}
@@ -398,6 +392,22 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
             })()}
         </GuideRowFrame>)}</div>
       </div>)}
-    {view === 'guide' && <p className={styles.guideKbd} data-guide-kbd>{t('guide.keyboardHint')}</p>}
-  </section>;
+  </section></LiveFrame>;
+}
+
+/** A choice drawn as a kit chip with its menu (desktop-live: "Today ⌄", "Sort: By number ⌄"; the source picker). At phone width
+ * the day and the sort are the guide's quiet pickers (`quiet`: phone-guide g1) and the source an outlined pill (`pill`). */
+function PickChip({label, prefix, icon, value, options, onChange, quiet = false, pill = false}: Readonly<{label: string; prefix?: string; icon?: IconName; value: string;
+  options: readonly SelectOption[]; onChange: (value: string) => void; quiet?: boolean; pill?: boolean}>) {
+  const [open, setOpen] = useState(false), trigger = useRef<HTMLButtonElement>(null);
+  const current = options.find(option => option.value === value);
+  const items = options.map(option => <MenuItem key={option.value} selected={option.value === value} disabled={option.disabled} onSelect={() => {setOpen(false); if (option.value !== value) onChange(option.value);}}>{option.label}</MenuItem>);
+  if (quiet) return <>
+    <GuidePicker icon={icon} label={current?.label ?? label} onPress={() => setOpen(true)}/>
+    <Menu open={open} onOpenChange={setOpen} title={label}>{items}</Menu>
+  </>;
+  return <Menu presentation="anchored" open={open} onOpenChange={setOpen} title={label} placement="bottom-start" returnFocusRef={trigger}
+    trigger={<Chip ref={trigger} variant={pill ? 'pill' : undefined} icon={icon} prefix={prefix} trailingIcon="i-chdown" trailingSize={16} aria-label={current ? `${label}: ${current.label}` : label} aria-expanded={open}>{current?.label ?? label}</Chip>}>
+    {items}
+  </Menu>;
 }
