@@ -22,6 +22,8 @@ export type TextFieldProps = TextInputProps & {
   trailing?: React.ReactNode;
   /** `find`: a TV list's small find field (Settings); elsewhere the same as `search`. */
   variant?: 'field' | 'search' | 'find';
+  /** The Search page's own field (`search` only): larger on a tablet (tablet.html `.sf`), as any search field elsewhere. */
+  prominent?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
   fieldStyle?: StyleProp<ViewStyle>;
   /** Authored selection/auth fields. Default and TV controls retain their recipe. */
@@ -35,7 +37,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 });
 
 const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTextField({
-  label, description, error, invalid = false, leadingIcon, iconSize, trailing, variant = 'field', containerStyle, fieldStyle, appearance = 'default',
+  label, description, error, invalid = false, leadingIcon, iconSize, trailing, variant = 'field', prominent = false, containerStyle, fieldStyle, appearance = 'default',
   editable = true, focusable, style, onFocus, onBlur, accessibilityLabel, accessibilityState,
   placeholderTextColor, cursorColor, selectionColor, nativeID, multiline, focusId, testID, ...props
 }, ref) {
@@ -48,18 +50,19 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
   const search = variant === 'search' || variant === 'find';
   const selection = appearance === 'selection' && !theme.isTV && !search;
   const auth = appearance === 'auth' && !theme.isTV && !search, glass = glassRecipe();
-  const height = auth ? 48 : search ? fieldSpec.search.height[theme.column] : fieldSpec.height[theme.column];
+  const searchSize = prominent && variant === 'search' ? fieldSpec.searchPage : fieldSpec.search, query = prominent && variant === 'search' ? theme.type.searchPageQuery : theme.type.searchQuery;
+  const height = auth ? 48 : search ? searchSize.height[theme.column] : fieldSpec.height[theme.column];
   const suppliedField = StyleSheet.flatten(fieldStyle);
   const suppliedHeight = suppliedField?.height;
   const inputHeight = typeof suppliedHeight === 'number' ? suppliedHeight : height;
-  const radius = typeof suppliedField?.borderRadius === 'number' ? suppliedField.borderRadius : auth ? 11 : search ? fieldSpec.search.radius[theme.column] : fieldSpec.radius[theme.column];
+  const radius = typeof suppliedField?.borderRadius === 'number' ? suppliedField.borderRadius : auth ? 11 : search ? searchSize.radius[theme.column] : fieldSpec.radius[theme.column];
   const flagged = error !== undefined || invalid;
   const color = flagged ? theme.colors.danger : focused ? theme.colors.accent : theme.colors.lineControl;
   const selectionBorder = focused || flagged ? 2 : suppliedField?.borderWidth ?? 1;
   const labelID = `${id}-label`;
   const faceStyle: StyleProp<ViewStyle> = [styles.field, {minHeight: inputHeight, height: multiline || auth ? undefined : inputHeight, borderRadius: radius,
-      paddingHorizontal: auth ? 14 : search ? fieldSpec.search.paddingX[theme.column] : fieldSpec.paddingX[theme.column],
-      gap: search ? fieldSpec.search.gap[theme.column] : 10,
+      paddingHorizontal: auth ? 14 : search ? searchSize.paddingX[theme.column] : fieldSpec.paddingX[theme.column],
+      gap: search ? searchSize.gap[theme.column] : 10,
       backgroundColor: auth ? glass.nativeBlur ? 'rgba(7,16,24,.62)' : colorAlpha(glass.backgroundColor, glass.backgroundAlpha)
         : search || focused ? theme.colors.raisedHigh : theme.colors.raised,
       borderWidth: search && !flagged ? 0 : fieldSpec.borderWidth[theme.column], borderColor: color,
@@ -78,9 +81,10 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
         underlineColorAndroid="transparent"
         onFocus={event => {if (!paint.interactive) return; binding.onFocus(); setFocused(true); onFocus?.(event);}}
         onBlur={event => {if (!paint.interactive) return; binding.onBlur(); setFocused(false); onBlur?.(event);}}
-        style={[theme.type.body, styles.input, {fontFamily: selection || auth ? fontFamilies[600] : search ? fontFamilies[500] : fontFamilies[400],
-          fontWeight: auth ? '600' : theme.type.body.fontWeight,
-          fontSize: auth ? 16 * theme.textScale : search && !theme.isTV ? 15.5 * theme.textScale : theme.type.body.fontSize,
+        style={[theme.type.body, styles.input, {fontFamily: selection || auth ? fontFamilies[600] : search && !theme.isTV ? query.fontFamily : search ? fontFamilies[500] : fontFamilies[400],
+          fontWeight: auth ? '600' : search && !theme.isTV ? query.fontWeight : theme.type.body.fontWeight,
+          letterSpacing: search && !theme.isTV ? query.letterSpacing : undefined,
+          fontSize: auth ? 16 * theme.textScale : search && !theme.isTV ? (query.fontSize) : theme.type.body.fontSize,
           color: theme.colors.text, minHeight: inputHeight - 2 * (selection ? selectionBorder : fieldSpec.borderWidth[theme.column])}, style,
           // A one-line field never takes a line height: on iOS it turns the unfocused value into a wrapped paragraph that
           // spills a half-cut second line out of the box; without it the value stays on one line and ends in an ellipsis.
