@@ -21,7 +21,8 @@ import {nativePublicationReadsAvailable} from '../../../platform/offline-reading
 import type {NativeReadPeriodical, NativeReadPeriodicalState} from './read-periodical-model';
 import {ReadingLoading} from '../../kit/reading/ReadingLoading';
 import {ReadingShelf} from './ReadingShelf';
-import {ReadingItemMenu, ReadingSelectionToolbar, useReadingActions, type ReadingActionsPort} from './ReadingActions';
+import {ReadingItemMenu, ReadingSelectionToolbar} from '../../kit/reading/ReadingActions';
+import {useReadingActions, type ReadingActionsPort} from '../../pages/shared/read/useReadingActions';
 import type {NativeReadingActionOffer} from './reading-actions';
 import {periodicalDatePreview, periodicalDayRead, periodicalHeroIssue, readingItemIsRead} from './periodical-presentation';
 import {TVRow} from '../../kit/layout/TVRow';

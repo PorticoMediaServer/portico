@@ -69,7 +69,7 @@ test('Read registration retains the original occurrence across Reading Settings 
       '../settings/ReadingSettingsRoute': {openNativeReadingSettings}, './platform': await import('../src-next/screens/read/platform'),
       './read-book-model': await import('../src-next/screens/read/read-book-model'), './read-periodical-model': await import('../src-next/screens/read/read-periodical-model'),
       './read-series-model': await import('../src-next/screens/read/read-series-model'), './ReadBookHost': {ReadBookHost: 'ReadBookHost'},
-      './ReadPeriodicalScreen': {ReadPeriodicalScreen: 'ReadPeriodicalScreen'}, './ReadSeriesScreen': {ReadSeriesScreen: 'ReadSeriesScreen'}}),
+      './ReadPeriodicalScreen': {ReadPeriodicalScreen: 'ReadPeriodicalScreen'}, '../../pages/touch/read/ReadSeriesPage': {ReadSeriesPage: 'ReadSeriesScreen'}}),
   });
   assert.equal(registered, 'read'); assert.equal(f.requests, 0);
   assert.deepEqual(readingDestinations, ['read-book', 'read-series', 'read-periodical'], 'the real side-effect namespace registers its own destinations');

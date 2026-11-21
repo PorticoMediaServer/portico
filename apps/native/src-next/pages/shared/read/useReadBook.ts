@@ -16,7 +16,7 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
 import type {NativeReadBook, NativeReadOwnerEditLease} from '../../../screens/read/read-book-model';
-import type {ReadingActionsPort} from '../../../screens/read/ReadingActions';
+import type {ReadingActionsPort} from './useReadingActions';
 import type {NativeReadingCollectionKind} from '../../../screens/read/read-collection-capability';
 import {useReadingCollectionKind} from '../../../screens/read/use-reading-collection-kind';
 import {askNativeDownload} from '../../../screens/downloads/request';
@@ -143,7 +143,7 @@ export function useReadBook({controller, route, comic, owner, context, runtime, 
         active: state.listed.listed, onPress: () => run(controller.toggleList(state.listed!)), testID: 'read-book-list'}] : []),
       ...(manifest.format !== 'epub' && state.read ? [{icon: 'i-check' as const, label: t(state.read.read ? 'next.reader.markUnread' : 'next.reader.markRead'),
         active: state.read.read, onPress: () => run(controller.toggleRead(state.read!)), testID: 'read-book-mark'}] : []),
-      {icon: 'i-dl', label: t('action.download'), disabled: !canDownload, onPress: () => {controller.download(manifest, downloadAnchor);}, testID: 'read-book-download'},
+      {icon: 'i-dl', label: t('action.download'), disabled: !canDownload, anchorRef: downloadAnchor, onPress: () => {controller.download(manifest, downloadAnchor);}, testID: 'read-book-download'},
     ] : [],
     place: manifest && (state.versions.length > 1 || placeFacts.length) ? {
       version: state.versions.length > 1 ? {label: t('next.reader.version'), value: selected?.format.toUpperCase() ?? '', onPress: () => setVersionsOpen(true)} : undefined,

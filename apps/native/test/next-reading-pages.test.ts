@@ -15,7 +15,7 @@ test('the reading library page keeps its tabs, library picker and selection abov
     react: h.react, '../../../kit/browse': {LibrarySwitcher: 'LibrarySwitcher'}, '../../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../../kit/reading/ReadingLibraryParts': {ReadingLibraryBody: 'Body', ReadingDiscovery: 'Discovery', ReadingFallbackGrid: 'Books',
       useReadingLibraryLayout: () => ({tablet: false, reportWidth() {}})},
-    '../../../kit/overlays': {Menu: 'Menu'}, '../../../screens/read/ReadingActions': {ReadingSelectionToolbar: 'Toolbar', ReadingItemMenu: 'ItemMenu'},
+    '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/reading/ReadingActions': {ReadingSelectionToolbar: 'Toolbar', ReadingItemMenu: 'ItemMenu'},
     '../../shared/reading/useBooksLibrary': {useBooksLibrary: () => model},
   });
   const render = () => h.render(() => BooksPage({libraryId: 'public', onBack: () => actions.push('library picker')}));

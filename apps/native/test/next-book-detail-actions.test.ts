@@ -1,73 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import React, {type ReactElement} from 'react';
-import {readFileSync} from 'node:fs';
-import {fileURLToPath} from 'node:url';
-import {registerHooks} from 'node:module';
-import {transformSync} from 'rolldown/utils';
-import type {ReadingListMembership, ReadingReadMark} from '../../../packages/client-core/src';
+import {defaultI18n} from '../../../packages/i18n/src';
+import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
-const membership = (listed: boolean): ReadingListMembership => Object.freeze({itemId: 'book', listed, revision: 4, viewerFence: 'a'.repeat(64)});
-const mark = (read: boolean): ReadingReadMark => Object.freeze({itemId: 'book', read, revision: 9, viewerFence: 'a'.repeat(64)});
-const target = new URL('../src-next/screens/read/book-detail-actions.tsx', import.meta.url).href;
-const moduleURL = (source: string) => `data:text/javascript,${encodeURIComponent(source)}`;
-registerHooks({
-  resolve(specifier, context, next) {
-    if (context.parentURL === target) {
-      if (specifier === 'react-native') return {url: moduleURL(`export const View='View';`), shortCircuit: true};
-      if (specifier.endsWith('/kit/controls')) return {url: moduleURL(`export const Button='Button',ResumeButton='ResumeButton';`), shortCircuit: true};
-      if (specifier.endsWith('/kit/theme')) return {url: moduleURL(`export const useTheme=()=>({colors:{accentStrong:'accent'}});`), shortCircuit: true};
-      if (specifier.endsWith('/i18n/src')) return {url: moduleURL(`export const defaultI18n={t:key=>key};`), shortCircuit: true};
-    }
-    return next(specifier, context);
-  },
-  load(url, context, next) {
-    if (url !== target) return next(url, context);
-    const filename = fileURLToPath(url), result = transformSync(filename, readFileSync(filename, 'utf8'), {lang: 'tsx', jsx: {runtime: 'automatic'}, target: 'es2022'});
-    if (result.errors.length) throw new AggregateError(result.errors);
-    return {format: 'module', source: result.code, shortCircuit: true};
-  },
-});
-const {BookDetailActions} = await import('../src-next/screens/read/book-detail-actions.tsx');
-type Props = Parameters<typeof BookDetailActions>[0];
-function buttons(props: Partial<Props> = {}) {
-  const tree = BookDetailActions({format: 'epub', canDownload: true, onRead() {}, onReadMark() {}, onList() {}, onDownload() {},
-    downloadRef: {current: null}, ...props});
-  const row = React.Children.toArray(tree.props.children)[0] as ReactElement<{children: React.ReactNode}>;
-  return React.Children.toArray(row.props.children) as ReactElement<Record<string, any>>[];
-}
+const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
 
-// Actual presenter vectors; not a device/frame or service-mutation acceptance test.
-test('EPUB frame3 offers primary, exact My List, Download, More in authored order, not audiobook Finished', () => {
-  const listed = membership(false);
-  const calls: unknown[] = [], anchor = {current: null};
-  const row = buttons({listed, readMark: mark(true), downloadRef: anchor,
-    onList: offer => {calls.push(offer);}, onDownload: () => {calls.push('download');}, onMore: () => {calls.push('more');}});
-  assert.deepEqual(row.map(button => button.props.icon), ['i-book', 'i-plus', 'i-dl', 'i-more']);
-  for (const round of row.slice(1)) assert.deepEqual(round.props.style, {height: 46, width: 46});
-  assert.equal(row[2].props.ref, anchor);
-  row[1].props.onPress();row[2].props.onPress();row[3].props.onPress();
-  assert.equal(calls[0], listed);assert.deepEqual(calls.slice(1), ['download', 'more']);
-});
-
-test('listed EPUB uses the real membership boolean and Resume keeps its original callback', () => {
-  const listed = membership(true);let reads = 0;
-  const row = buttons({listed, saved: .4, onRead: () => {reads++;}, onMore() {}});
-  assert.equal(row[0].type, 'ResumeButton');assert.equal(row[0].props.progress, .4);
-  assert.equal(row[1].props.icon, 'i-check');assert.equal(row[1].props.accessibilityLabel, 'next.home.removeMyList');
-  row[0].props.onPress();assert.equal(reads, 1);
-});
-
-test('missing membership or menu offer never creates an invented or inert action', () => {
-  const row = buttons({canDownload: false});
-  assert.deepEqual(row.map(button => button.props.icon), ['i-book', 'i-dl']);
-  assert.equal(row[1].props.disabled, true);
-});
-
-test('non-EPUB reading keeps its existing offered read mark and download row', () => {
-  const offeredMark = mark(true);let offered: unknown;
-  const row = buttons({format: 'pdf', readMark: offeredMark, onReadMark: value => {offered = value;},
-    listed: membership(false), onMore() {}});
-  assert.deepEqual(row.map(button => button.props.icon), ['i-book', 'i-check', 'i-dl']);
-  assert.equal(row[1].props.accessibilityLabel, 'next.reader.markUnread');row[1].props.onPress();assert.equal(offered, offeredMark);
+test('Book keeps the chapter and details panes on a wide tablet and offers More on TV', async () => {
+  const host = hooks();
+  const calls: string[] = [], reading = () => calls.push('read'), more = () => calls.push('more');
+  let form = 'expanded';
+  const anchor = {current: null};
+  const view = {id: 'book', title: 'Book', primary: {label: 'Read', progress: .4, onPress: reading},
+    contents: {rows: [{id: 'chapter'}], onPlay: (id: string) => calls.push(id)}, tabs: {value: 'contents'}, tab: 'contents',
+    details: [{label: 'Format', values: [{text: 'EPUB'}]}], actions: [{icon: 'i-dl', anchorRef: anchor}],
+    menu: {open: false, items: []}, versions: {open: false, items: []}, more};
+  const {ReadBookPage} = await screenModule(new URL('../src-next/pages/touch/read/ReadBookPage.tsx', import.meta.url), {
+    react: host.react, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/artwork': {AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
+    '../../../kit/frames': {AboutTable: 'AboutTable', musicScroller: () => undefined, PanelBlock: 'PanelBlock',
+      PanelHeading: 'PanelHeading', TitleFrame: 'TitleFrame', TitleSection: 'TitleSection'},
+    '../../../kit/layout': {HeroMetadata: 'HeroMetadata'}, '../../../kit/music/TrackWindow': {TrackWindow: 'TrackWindow'},
+    '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({form, isTV: form === 'tv'})},
+    '../../shared/read/useReadBook': {useReadBook: () => view},
+  });
+  const render = () => nodes(ReadBookPage({onBack() {}})).find(node => node.type === 'TitleFrame');
+  const tablet = render();
+  assert.equal(tablet.props.tabs, undefined);
+  assert.ok(nodes(tablet.props.aside).some(node => node.type === 'AboutTable'));
+  const chapter = nodes(tablet).find(node => node.type === 'TrackWindow');
+  chapter.props.onPlay('chapter');
+  assert.equal(tablet.props.actions[0].anchorRef, anchor);
+  form = 'medium';
+  const upright = render();
+  assert.equal(upright.props.tabs.value, 'contents');
+  assert.equal(upright.props.aside, undefined);
+  form = 'tv';
+  const tv = render();
+  assert.equal(tv.props.topAction, undefined);
+  tv.props.actions.find((action: any) => action.testID === 'read-book-more').onPress();
+  tv.props.primary.onPress();
+  assert.deepEqual(calls, ['chapter', 'more', 'read']);
 });
