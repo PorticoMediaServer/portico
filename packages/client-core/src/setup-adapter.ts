@@ -191,7 +191,10 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
           deps.pageReturn?.(); porticoApproval = undefined; returnedApproval = undefined;
         }
         const ownerSessionHeld = state.status === 'complete' ? await heldOwner(p, context.signal) : undefined;
-        return {server: {kind: 'state', state, ...(ownerSessionHeld !== undefined ? {ownerSessionHeld} : {})}, local};
+        // A server that already has a library is past its first library: setup has nothing left to offer its owner.
+        const librariesExist = ownerSessionHeld && owner ? ((await callServer(owner.api, 'GET /v1/libraries', {signal: context.signal}))?.items?.length ?? 0) > 0 : undefined;
+        if (librariesExist !== undefined) await assertPaired(p);
+        return {server: {kind: 'state', state, ...(ownerSessionHeld !== undefined ? {ownerSessionHeld} : {}), ...(librariesExist ? {librariesExist} : {})}, local};
       } catch (error) {
         if (record && refused(error, 'unauthorized')) return {server: {kind: 'tokenRefused'}, local};
         if (refused(error, 'setup_source_not_local')) return {server: {kind: 'notLocalSource'}, local};

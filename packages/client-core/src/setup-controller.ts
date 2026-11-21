@@ -26,7 +26,7 @@ export type SetupRemoteChoices = Readonly<{remoteAccess: 'on' | 'private' | 'off
 export type SetupLibrary = Readonly<{kind: string; name: string; path: string; folders?: readonly string[]}>;
 
 /** What a read of the server says. The port pairs if needed and asks with the record's token (none when there is no record). */
-export type SetupServerRead = Readonly<{kind: 'state'; state: SetupReading; ownerSessionHeld?: boolean}> | Of<'tokenRefused' | 'notLocalSource' | 'alreadyComplete' | 'approvalReturned' | 'approvalWaiting' | 'approvalNotGiven'>;
+export type SetupServerRead = Readonly<{kind: 'state'; state: SetupReading; ownerSessionHeld?: boolean; librariesExist?: boolean}> | Of<'tokenRefused' | 'notLocalSource' | 'alreadyComplete' | 'approvalReturned' | 'approvalWaiting' | 'approvalNotGiven'>;
 /** A read and the records it was made with: the port reads the store after pairing, since a store can be per server. */
 export type SetupRead = Readonly<{server: SetupServerRead; local: SetupLocal}>;
 
@@ -215,7 +215,7 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
     else if (verdict === 'retire-attempt') await retireQuietly('attempt');
     const {record} = local, setup = result.state.setup;
     return {kind: 'state', state: result.state, own: !!record && typeof setup === 'object' && setup.requestId === record.requestId,
-      hasAttempt: !!local.attempt && verdict === 'keep', ...(result.ownerSessionHeld !== undefined ? {ownerSessionHeld: result.ownerSessionHeld} : {}), ...(record ? {name: record.name} : {})};
+      hasAttempt: !!local.attempt && verdict === 'keep', ...(result.ownerSessionHeld !== undefined ? {ownerSessionHeld: result.ownerSessionHeld} : {}), ...(result.librariesExist ? {librariesExist: true} : {}), ...(record ? {name: record.name} : {})};
   }
   /** The port call may have written a record or an attempt, so the ids are read again before anything retires them. */
   const written = async <T>(call: Promise<T>): Promise<T> => {
