@@ -16,11 +16,15 @@ import {showPeople} from '@core/presentation/title-page.ts';
 import {createWindowedCollection} from '@core/collections/index.ts';
 import type {ShowBindings} from './show-bindings';
 
+/** A crew job arrives as the provider's lower-case word ("director", "writer"); it reads in sentence case. A character name
+ * (cast) is left exactly as written. */
+const roleText = (credit: DetailCredit) => !credit.role || /acting|cast/i.test(credit.department ?? '') ? credit.role
+  : credit.role.charAt(0).toLocaleUpperCase(locale()) + credit.role.slice(1);
 function Person({credit, binding, data}: {credit: DetailCredit; binding: DetailBindings; data: DetailProjection}) {
   const art = binding.context.artwork.foreground(credit.portraitUrl, 208, 1);
   return <button type="button" disabled={!credit.personId} onClick={() => runScreenCommand(binding.context, () => {
     binding.current(data); if (credit.personId) binding.context.effects.openEntry({id: credit.personId, kind: 'person', title: credit.name, navigation: {view: 'person', entityId: credit.personId}});
-  })}><PersonCircle covers={art ? [art] : []} initials={nameInitials(credit.name)} alt="" /><b>{credit.name}</b>{credit.role && <small>{credit.role}</small>}</button>;
+  })}><PersonCircle covers={art ? [art] : []} initials={nameInitials(credit.name)} alt="" /><b>{credit.name}</b>{credit.role && <small>{roleText(credit)}</small>}</button>;
 }
 const castCredit = (credit: DetailCredit) => credit.department.toLowerCase() === 'acting' || credit.department.toLowerCase() === 'cast';
 export function CreditNames({binding, data, credits}: {binding: DetailBindings; data: DetailProjection; credits: readonly DetailCredit[]}) {
