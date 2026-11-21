@@ -27,6 +27,7 @@ const initial: Snapshot = Object.freeze({tab: 'people', query: nativePeopleQuery
  * query, tab, account, profile, or screen lifetime. */
 export class NativePeopleSource {
   private state = initial;
+  private refusal?: Snapshot;
   private readonly lifetime: NativeScreenLifetime;
   private readonly people: SettingsPeopleClient;
   private readonly invitations: PeopleInvitationsClient;
@@ -56,13 +57,19 @@ export class NativePeopleSource {
       && account.account.id === authority.accountId && account.account.primaryProfileId === authority.profileId;
     return this.lifetime.current() && (this.ownerControls() || administrator) && account.capabilities.managePeople;
   };
-  getSnapshot = (): Snapshot => this.current() ? this.state : initial;
+  getSnapshot = (): Snapshot => this.current() ? this.state : this.refusal ?? initial;
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   private publish(patch: Partial<Snapshot>) {if (this.current()) {this.state = Object.freeze({...this.state, ...patch}); for (const listener of this.listeners) listener();}}
   private fail(error: unknown) {
     if (!this.current()) return;
     const status = (error as {status?: number} | null)?.status;
-    if (status === 401 || status === 403) {this.dispose(); this.reportError(error);} else this.publish({error});
+    if (status === 401 || status === 403) {
+      const listeners = [...this.listeners];
+      this.dispose();
+      this.refusal = Object.freeze({...initial, error: {status}});
+      for (const listener of listeners) listener();
+      this.reportError(error);
+    } else this.publish({error});
   }
   select(tab: Tab, query = this.state.query, invitationStatus = this.state.invitationStatus) {
     if (!this.current() || this.state.busy) return;
@@ -262,5 +269,5 @@ export class NativePeopleSource {
     catch (error) {if (this.current() && this.mutation === token) this.fail(error);}
     finally {if (this.current() && this.mutation === token) {this.mutation = undefined; this.publish({busy: false}); if (revoked) void this.load(this.state.cursor);}}
   };
-  dispose = () => {this.listFlight?.abort(); this.personFlight?.abort(); this.deviceFlight?.abort(); this.libraryFlight?.abort(); this.mutation = undefined; this.deletion = undefined; this.people.dispose(); this.lifetime.dispose(); this.state = initial; this.listeners.clear();};
+  dispose = () => {this.listFlight?.abort(); this.personFlight?.abort(); this.deviceFlight?.abort(); this.libraryFlight?.abort(); this.mutation = undefined; this.deletion = undefined; this.people.dispose(); this.lifetime.dispose(); this.state = initial; this.refusal = undefined; this.listeners.clear();};
 }
