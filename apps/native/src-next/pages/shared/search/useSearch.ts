@@ -24,7 +24,11 @@ export function useSearch({destination, runtime, explore, activation, actions, o
   const problem = state.problem === 'long' ? t('web.search.tooLong') : state.problem === 'words' ? t('web.search.tooManyWords') : state.problem ? t('web.search.tooShort') : undefined;
   const capabilities = state.search.data?.capabilities ?? state.capabilities;
   const chips = SEARCH_CHIPS.filter(chip => chip.id === 'all' || capabilities?.groups.some(group => group.id === chip.id && group.available))
-    .filter(chip => chip.id === 'all' || state.group !== 'all' || !groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0));
+    // tv.html#f5: a chip shows only for a type with results. The server leaves out a type that matched nothing, so once
+    // the results are in, a type it did not send has no chip either.
+    .filter(chip => chip.id === 'all' || state.group !== 'all' || (state.search.phase === 'ready'
+      ? groups.some(group => group.id === chip.id && (group.status !== 'success' || group.totalCount > 0))
+      : !groups.some(group => group.id === chip.id && group.status === 'success' && group.totalCount === 0)));
   const hasLive = useSyncExternalStore(onNow ? runtime.subscribe : noSubscribe, onNow ? () => runtime.getSnapshot().hasLiveTV : noLiveTV);
   const live = useSyncExternalStore(onNow?.subscribe ?? noSubscribe, onNow?.getSnapshot ?? noLive);
   const [now, setNow] = useState(() => serverNow());
