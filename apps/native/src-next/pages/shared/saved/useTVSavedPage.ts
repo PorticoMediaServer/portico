@@ -108,13 +108,6 @@ export function useTVSavedPage({controller, runtime, activation, authority, init
   const directoryPage = useRef<SavedTVDirectoryHandle | null>(null);
   const measured = useRef({scope: '', region: 0, body: 0, section: 0, grids: new Map<'posters' | 'squares', number>(),
     cards: new Map<string, Readonly<{section: 'posters' | 'squares'; y: number}>>()});
-  type JumpOpening = Readonly<{token: number; scope: string}>;
-  const jump = useRef<JumpOpening | undefined>(undefined), jumpToken = useRef(0), jumpAlive = useRef(true);
-  const [jumpOpening, setJumpOpening] = useState<JumpOpening>();
-  useLayoutEffect(() => {
-    jumpAlive.current = true;
-    return () => {jumpAlive.current = false; jump.current = undefined;};
-  }, []);
   // The confirm and its flight die with the screen; a late completion cannot touch a successor.
   useLayoutEffect(() => {clearAlive.current = true; return () => {
     clearAlive.current = false;
@@ -166,8 +159,6 @@ export function useTVSavedPage({controller, runtime, activation, authority, init
   const replaced = owner.current === undefined || owner.current.controller !== controller || !sameAuthority(owner.current.authority, authority);
   if (replaced) owner.current = {controller, authority};
   if (replaced || measured.current.scope !== scope) measured.current = {scope, region: 0, body: 0, section: 0, grids: new Map(), cards: new Map()};
-  if (jump.current && (replaced || jump.current.scope !== scope || !active.visible)) jump.current = undefined;
-  const opening = jumpOpening && jump.current === jumpOpening && jumpOpening.scope === scope && active.visible ? jumpOpening : undefined;
   // The confirm retires with the query, the period, the destination revision, the authority or
   // a replaced controller, before any of its callbacks can run. Leaving Saved is a navigation
   // change: the activation revision is the route proof here, because the destination lifetime
@@ -222,22 +213,19 @@ export function useTVSavedPage({controller, runtime, activation, authority, init
   /** The exact object this render draws into; a late callback from another scope writes only its
    * own retired object, never this one. */
   const measurement = measured.current;
-  const openJump = () => {const next = {token: ++jumpToken.current, scope}; jump.current = next; setJumpOpening(next);};
-  const closeJump = (target: JumpOpening) => {
-    if (jump.current !== target) return;
-    jump.current = undefined;
-    if (jumpAlive.current) setJumpOpening(current => current === target ? undefined : current);
-  };
-  const jumpCurrent = (target: JumpOpening) => jumpAlive.current && jump.current === target && target.scope === scope && active.visible;
   const cardTop = (id: string): number | undefined => {
     const at = measurement.cards.get(id), grid = at ? measurement.grids.get(at.section) : undefined;
     return at && grid !== undefined ? measurement.region + measurement.body + measurement.section + grid + at.y : undefined;
   };
-  const selectedLetter = (() => {
-    if (!jumpLetters.length) return undefined;
-    const edge = scrollY + 140; let found: string | undefined;
-    for (const letter of jumpLetters) {const top = cardTop(letter.id); if (top !== undefined && top <= edge) found = letter.key;}
-    return found ?? jumpLetters[0]!.key;
+  // Owner, 20 Nov 19:45: on TV Jump to is the letter rail at the right, as on phones. It draws the letters of the titles
+  // this page has loaded, the band over the cards in view, and scrolls to a letter's first card.
+  const inView = (() => {
+    let first: number | undefined, last: number | undefined;
+    list.forEach(({entry}, index) => {
+      const top = cardTop(entry.id);
+      if (top !== undefined && top >= scrollY - 1 && top < scrollY + viewportHeight) {first ??= index; last = index;}
+    });
+    return {first: first ?? 0, last: last ?? first ?? 0};
   })();
   const directoryView = tab === 'playlists' || tab === 'collections' || tab === 'views' ? tab : undefined;
   const posterGeometry = useCallback((columns: number, stride: number) => posters.forEach((entry, index) => measurement.cards.set(entry.id, {section: 'posters', y: Math.floor(index / columns) * stride})), [posters, measurement]);
@@ -250,7 +238,7 @@ export function useTVSavedPage({controller, runtime, activation, authority, init
   const posterRegion = `${ids.savedGrid}.posters`, squareRegion = `${ids.savedGrid}.squares`, historyRegion = `${ids.savedGrid}.history`;
   const firstSection = tab === 'history' ? snapshot.entries.some(historyFocusable) ? historyRegion : undefined : posters.length ? posterRegion : squares.length ? squareRegion : undefined;
   const gridFocus = (id: string, getFocusId: (entry: ContentEntry) => string) => ({id, getFocusId, enabled: active.visible,
-    edges: {left: ids.rail, up: id === squareRegion && posters.length ? posterRegion : ids.savedToolbar,
+    edges: {left: ids.rail, up: id === squareRegion && posters.length ? posterRegion : ids.savedToolbar, ...showJump ? {right: `${ids.savedGrid}.alphabet`} : {},
       ...(id === posterRegion && squares.length ? {down: squareRegion} : {})},
     neighbors: {previous: id === squareRegion && posters.length ? posterRegion : ids.savedToolbar,
       ...(id === posterRegion && squares.length ? {next: squareRegion} : {})},
@@ -288,15 +276,19 @@ export function useTVSavedPage({controller, runtime, activation, authority, init
     scrollTop: () => {directoryPage.current?.scrollTop(); page.current?.scrollTo({y: 0, animated: false});},
   });
   const sortLabel = sorts.find(value => value.id === sort)?.label ?? 'web.saved.sort.added';
-  const onJump = (key: string) => {
-    if (!opening || !jumpCurrent(opening)) return;
-    const target = jumpLetters.find(letter => letter.key === key), top = target ? cardTop(target.id) : undefined;
-    if (top !== undefined) page.current?.scrollTo({y: Math.max(0, top - 24), animated: true});
-    closeJump(opening);
-  };
+  const alphabetId = `${ids.savedGrid}.alphabet`;
+  const alphabet = showJump && active.visible ? {
+    positionIndex: Object.fromEntries(jumpLetters.map(letter => [letter.key, letter.index])), total: list.length, firstVisible: inView.first, lastVisible: inView.last,
+    // Left goes back into the cards (the rail runs beside the toolbar too, and tvOS would pick a chip by position).
+    focus: {id: alphabetId, enabled: active.visible, edges: {left: firstSection ?? ids.savedGrid}},
+    onJump: (_index: number, key: string) => {
+      const target = jumpLetters.find(letter => letter.key === key), top = target ? cardTop(target.id) : undefined;
+      if (top !== undefined) page.current?.scrollTo({y: Math.max(0, top - 24), animated: true});
+    },
+  } : undefined;
   return {snapshot, ids, active, tab, sort, setSort, filter, setFilter, period, setPeriod, sortOpen, setSortOpen, filterOpen, setFilterOpen,
     sortAnchor, filterAnchor, tabs, posterRegion, squareRegion, historyRegion, posters, squares, posterCount, squareCount, gridFocus,
     page, contentRoot, directoryPage, scrollY, setScrollY, viewportHeight, setViewportHeight, contentHeight, setContentHeight, count, theme,
     measurement, scope, posterGeometry, squareGeometry, firstSection, directoryView, historyHeight, publishedFilters, quickFilters, emptyEntry,
-    openJump, opening, jumpLetters, selectedLetter, onJump, closeJump, showJump, run, openClear, clearView, closeClear, confirmClear, clearing, sortLabel};
+    alphabet, run, openClear, clearView, closeClear, confirmClear, clearing, sortLabel};
 }
