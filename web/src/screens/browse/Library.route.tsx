@@ -380,7 +380,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   // or other session's playback is never substituted for it.
   const playbackSnapshot = useSyncExternalStore<WebPlaybackRuntimeSnapshot | undefined>(runtime?.subscribe ?? noPlaybackSubscribe,
     runtime?.getSnapshot ?? noPlaybackSnapshot, runtime?.getSnapshot ?? noPlaybackSnapshot);
-  const nowPlayingAlbumId = useMemo(() => {
+  const nowPlaying = useMemo(() => {
     const snapshot = playbackSnapshot;
     if (!snapshot || snapshot.disposed || snapshot.problem || !context.isCurrent()) return undefined;
     // A retained dock snapshot must not mark a remote (Cast/Play on) session as local playback.
@@ -391,8 +391,10 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     if (!presentation.playing || presentation.finished || snapshot.playback.phase !== 'ready') return undefined;
     const entryId = view.queue.currentEntryId;
     if (!entryId || presentation.fence.entryId !== entryId) return undefined;
-    return view.items.find(item => item.entryId === entryId)?.albumId;
+    const item = view.items.find(item => item.entryId === entryId);
+    return item ? {albumId: item.albumId, itemId: item.itemId} : undefined;
   }, [playbackSnapshot, context]);
+  const nowPlayingAlbumId = nowPlaying?.albumId;
   type SelectionLease = Readonly<{resources: BrowseLease; controller: BrowseController; runtime: typeof runtime; queryRevision: number; current: () => boolean; playSelection: ReturnType<typeof createLibraryPlaySelection>; selection: ReturnType<typeof createLibrarySelection>}>;
   const [selectionLease, publishSelection] = useState<SelectionLease>();
   // The grid reports its visible range only when it changes; a selection built afterwards (another
@@ -574,7 +576,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
     : view === 'collection' && search.entityId ? <CollectionScreen context={context} libraryId={library.id} collectionId={search.entityId} onOpen={entry => actions(entry).onOpen()}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {pivot: 'collections'}}).catch(context.effects.reportError);}} />
-    : view === 'album' && search.entityId ? <AlbumScreen context={context} libraryId={library.id} albumId={search.entityId} actions={actions}
+    : view === 'album' && search.entityId ? <AlbumScreen context={context} libraryId={library.id} albumId={search.entityId} actions={actions} playingItemId={nowPlaying?.itemId}
       onArtist={artistId => navigate({view: 'artist', entityId: artistId})}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
     : browse ? <LibraryScreen {...bindings}/> : <LibraryDiscoveryScreen menuContext={context} service={resources.service} route={contentRoute} musicMixes={musicMixes} mixesTarget={search.section === 'mixes'} reportError={context.effects.reportError} header={<LibraryIdentity {...header} action={shuffleAll}/>} empty={empty}
