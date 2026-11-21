@@ -67,7 +67,9 @@ export function historyLine(entry: ContentEntry): string {
   if (entry.kind === 'episode') return [entry.seasonNumber !== undefined && entry.episodeNumber !== undefined ? t('title.episodeCode', {season: entry.seasonNumber, episode: entry.episodeNumber}) : undefined, entry.title].filter(Boolean).join(' · ');
   if (['song', 'album', 'artist'].includes(entry.kind)) return [entry.artist?.name, entry.album?.name].filter(Boolean).join(' · ') || entry.subtitle || '';
   if (entry.kind === 'book' || entry.kind === 'audiobook_file') return entry.author ?? '';
-  if (entry.kind === 'movie') return [t('search.kind.movie'), entry.year === undefined ? undefined : defaultI18n.number(entry.year, {useGrouping: false})].filter(Boolean).join(' · ');
+  // Saved mixes kinds, so a card says its kind (tv-more 1, 2): "2024 · Movie", "Show · 1 season".
+  if (entry.kind === 'movie') return [entry.year === undefined ? undefined : defaultI18n.number(entry.year, {useGrouping: false}), t('search.kind.movie')].filter(Boolean).join(' · ');
+  if (entry.kind === 'show') return [t('search.kind.show'), entry.seasonCount ? t('title.seasonCount', {count: entry.seasonCount}) : undefined].filter(Boolean).join(' · ');
   return entry.subtitle ?? '';
 }
 
