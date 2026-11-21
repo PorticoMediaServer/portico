@@ -231,3 +231,23 @@ test('credits cards preserve the published after-scene and automatic-countdown t
   assert.equal(t('player.upNext.sceneAfterCredits'), "There's a scene after the credits. Skip credits takes you straight to it.");
   assert.equal(t('player.upNext.playingIn', {seconds: 7}), 'Playing in 7s');
 });
+
+test('an engine that never makes the byte word plural shows whole bytes with the abbreviation ("0 B", not "0 byte")', () => {
+  const Original = Intl.NumberFormat;
+  // Hermes on tvOS: unit formatting works, but the long byte word stays singular.
+  const Singular = function (locale?: string | string[], options?: Intl.NumberFormatOptions) {
+    const real = new Original(locale, options);
+    return options?.style === 'unit' && options.unit === 'byte' && options.unitDisplay === 'long'
+      ? {format: (value: number) => `${new Original(locale).format(value)} byte`} : real;
+  } as unknown as typeof Intl.NumberFormat;
+  Intl.NumberFormat = Singular;
+  try {
+    const {bytes} = createI18n('en-US');
+    assert.equal(bytes(0), '0 B');
+    assert.equal(bytes(512), '512 B');
+    assert.equal(bytes(1536), '1.5 kB');
+  } finally {
+    Intl.NumberFormat = Original;
+  }
+  assert.equal(createI18n('en-US').bytes(0), '0 bytes', 'an engine with plurals keeps the spelled-out word');
+});
