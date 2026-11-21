@@ -60,7 +60,9 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
   useSyncExternalStore(bindings.presentation?.subscribe ?? noPresentation, bindings.presentation?.getSnapshot ?? emptyPresentation, emptyPresentation);
   const width = useShellWidth(), compact = width < 600, feedback = useWebAction('feedback');
   const [quietOpen]=useState(createSettingsOpen);
-  const [query, setQuery] = useState(''), [compactPage, setCompactPage] = useState(() => compact && openDetail), [advanced, setAdvanced] = useState(false);
+  const [query, setQuery] = useState(''), [advanced, setAdvanced] = useState(false);
+  // At phone width the URL decides: a link that names a section shows that page, the bare /settings shows the list.
+  const compactPage = compact && openDetail;
   const [panel, setPanel] = useState<{id: string; recordId?: string; tab?: string} | undefined>();
   // O-151: the few remote-access edits that can cut people off ask once; everything else still saves at once.
   const [confirming, setConfirming] = useState<{row: SettingsRow; value: SettingsValue; context: SettingsContext; message: string}>();
@@ -102,9 +104,8 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
     const configuration = row && bindings.configurationMatches?.(query).find(field => field.key === row && field.configOnly);
     navigate({scope, section: page, ...(row && !configuration ? {row} : {})}); setConfigurationKey(configuration ? row : undefined);
     setPanel(current => current && location && location.panelId === current.id && selected.scope === scope && selected.section === page ? {...current, tab: location.tabId} : undefined);
-    setAdvanced(false); setCompactPage(true);
+    setAdvanced(false);
   };
-  useEffect(() => { if (openDetail) setCompactPage(true); }, [openDetail, route.scope, route.section]);
   useEffect(() => {void bindings.load(section);}, [bindings, section]);
   useEffect(() => {void bindings.loadContext?.({section, panelId: panel?.id, recordId: panel?.recordId});}, [bindings, section, panel?.id, panel?.recordId]);
   useEffect(() => {
@@ -112,7 +113,6 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
     if (!found) return;
     if (found.advanced) setAdvanced(true);
     if (found.panelId) setPanel(current => ({id: found.panelId!, tab: found.tabId, ...(current && current.id === found.panelId ? {recordId: current.recordId} : {})}));
-    setCompactPage(true);
     const frame = requestAnimationFrame(() => document.getElementById(found.row.id)?.scrollIntoView({block: 'center', behavior: 'instant'}));
     return () => cancelAnimationFrame(frame);
   }, [selected.scope, selected.section, selected.row]);
@@ -141,7 +141,7 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
   const fact = configuration.find(fact => fact.key === configurationKey);
   const editing = (target: EventTarget | null) => target instanceof HTMLElement && (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement && !['button','checkbox','radio','range','submit','reset','file','color','hidden'].includes(target.type));
   return <SettingsOpenContext.Provider value={quietOpen}><div className={styles.screen} onFocusCapture={event => {if(editing(event.target))bindings.inputActive?.(true);}}
-    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}><SettingsWorkspace scope={selected.scope} navigation={navigation} compactPage={compactPage} onBack={() => setCompactPage(false)}
+    onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}><SettingsWorkspace scope={selected.scope} navigation={navigation} compactPage={compactPage} onBack={() => {setPanel(undefined); void router.navigate({to: '/settings'});}}
       title={libraryPage ? String(libraryTitle) : t(section.title)} onDone={() => {void router.navigate({href: settingsReturnHref()});}}>
     {selected.scope === 'server' && bindings.role !== 'member' && (bindings.role === 'owner' ? <ServerHeader serverName={bindings.serverName} viewerRole="owner" audience={audience} health={bindings.serverHealth?.()} facts={bindings.serverFacts()} /> : <ServerHeader serverName={bindings.serverName} viewerRole="administrator" audience="administrators" facts={bindings.serverFacts()} />)}
     {libraryPage && <Button variant="glass" size="small" icon="i-left" onClick={() => {setPanel(undefined);opener.current?.focus();}}>{t(section.title)}</Button>}
