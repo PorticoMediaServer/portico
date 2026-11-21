@@ -92,7 +92,7 @@ export function EpisodePlate({still, length, code, title, facts, synopsis, prima
     {still && <Artwork source={still} width={stillWidth} height={stillWidth * 9 / 16}/>}
     {length !== undefined && <View style={{position: 'absolute', top: theme.space.controlGap, right: theme.space.controlGap, paddingHorizontal: theme.space.xs, borderRadius: theme.space.tight, backgroundColor: alpha(theme.colors.ink, plateSpec.badge)}}>
       <Text style={[theme.type.badge, {color: theme.colors.text}]}>{length}</Text></View>}
-    <View style={{position: 'absolute', right: theme.space.xs, bottom: theme.space.xs}}><RoundBarButton icon="i-up" label={close.label} onPress={close.onPress}/></View>
+    <View style={{position: 'absolute', right: theme.space.xs, bottom: theme.space.xs}}><RoundBarButton icon="i-up" label={close.label} onPress={close.onPress} glass={plateSpec.close}/></View>
   </View>;
   const wordsBlock = <View style={[words, {gap: theme.space.tight}]}>
     {code !== undefined && <Text style={[theme.type.episodeCode, {color: theme.colors.textTertiary}]}>{code}</Text>}
