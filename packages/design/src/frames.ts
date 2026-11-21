@@ -123,7 +123,9 @@ export const frame = {
       // bylineCircle: the small initials circle before a byline's name (phone-read 7's author, 28).
       // listRow: a title in a phone's list of titles (phone-detail d3 frame 8's films in a collection): poster 56 wide, the
       // watched bar 72, the ⋯ target 44; a book's square cover in such a list 66 (collections 41b/41c).
-      parts: {aboutLabel: forms(104, 140, 140, 170), /* TV: detail-tv 4 `.about dl` 170 */ aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, bylineCircle: 28, artistCircleTV: {size: 360, right: 280, ring: 80, top: 150, rings: [40, 80] as readonly number[]}, listRow: {poster: 56, square: 66, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
+      parts: {aboutLabel: forms(104, 140, 140, 170), /* TV: detail-tv 4 `.about dl` 170 */ aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, bylineCircle: 28,
+        // A saved list's cover mosaic on TV (collections 18 to 21): 280 square at the head's top, its name at 72.
+        savedCoverTV: {size: 280, top: 70, lockup: 72}, artistCircleTV: {size: 360, right: 280, ring: 80, top: 150, rings: [40, 80] as readonly number[]}, listRow: {poster: 56, square: 66, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
         /** An episode row's still from a tablet up (tablet f7, 210) and the narrowest a Previous / Next card goes before the pair stacks (desktop-detail f5). */
         episodeArt: 210, neighbourMin: 220,
         /** A tablet on its side: the season's episodes are a sideways row of tiles this wide (tablet f7, three and a bit in view), and the
