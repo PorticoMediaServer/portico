@@ -357,7 +357,7 @@ test('the real rail declares current-page entry and semantic Right return; nativ
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
     '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/shell/BrandSymbol': {BrandSymbol: 'BrandSymbol'}, '../kit/theme': {useTheme: () => theme},
     '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
-    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
+    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, focus() {}, cut: () => false, item: () => ({})})},
   });
   const render = () => h.render(() => TVRail({authority, libraries: [], hasLiveTV: false, destination: {kind: 'home'}, profile: {id: 'p', name: 'Actual'},
     onNavigate: (next: unknown) => navigations.push(next), onProfile() {}, profileRef: {current: null}, onExpandedChange: (open: boolean) => changes.push(open),
@@ -434,7 +434,7 @@ test('the rail pins Search and Home above and Live TV and Saved over Settings; o
     '../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
     '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
     '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
-    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges, scroll: {}})},
+    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, focus() {}, cut: () => false, item: () => ({})})},
   });
   const libraries = Array.from({length: 10}, (_, index) => ({id: `lib${index}`, name: `Library ${index}`, kind: 'movies'}));
   const render = (live: boolean) => nodes(h.render(() => TVRail({authority, libraries, hasLiveTV: live, destination: {kind: 'home'}, profile: {id: 'p', name: 'Actual'},

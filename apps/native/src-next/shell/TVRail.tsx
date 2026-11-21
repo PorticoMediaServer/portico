@@ -13,7 +13,7 @@ import {ProfileFace, type ProfileOption} from '../kit/artwork';
 import {Icon, type IconName} from '../kit/Icon';
 import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
-import {ListEdgeFade, useListEdges} from '../kit/layout/ListEdgeFade';
+import {ListEdgeFade, useListEdges, useWholeItems} from '../kit/layout/ListEdgeFade';
 import {libraryIcon, visibleLibraries, type ShellAuthority, type ShellDestination} from './model';
 
 type RailEntry = {key: string; label: string; icon: IconName; destination: ShellDestination};
@@ -87,14 +87,15 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     {key: 'saved', icon: 'i-bookmark', label: defaultI18n.t('saved.title'), destination: {kind: 'saved'}},
   ];
   const entries = [...pinnedTop, ...libraryEntries, ...pinnedBottom], {edges, scroll} = useListEdges();
-  const item = (entry: RailEntry) => {
+  const whole = useWholeItems('y', 'blank', libraryEntries.map(entry => entry.key), spec.itemGap, spec.itemGap);
+  const item = (entry: RailEntry, onFocus?: () => void, blank = false) => {
     const selected = sameDestination(entry.destination, destination);
-    return <Focusable key={entry.key} {...returnProps} focusId={entry.key} testID={focusTestID(ids.rail, entry.key)} accessibilityRole="button" accessibilityLabel={entry.label} accessibilityState={{selected}} onPress={() => onNavigate(entry.destination)} focusRadius={spec.itemRadius} focusKind="button"
+    return <Focusable key={entry.key} {...returnProps} focusId={entry.key} testID={focusTestID(ids.rail, entry.key)} accessibilityRole="button" accessibilityLabel={entry.label} accessibilityState={{selected}} onPress={() => onNavigate(entry.destination)} onFocus={onFocus} focusRadius={spec.itemRadius} focusKind="button"
       style={({focused}) => ({height: spec.itemSize, width: spec.openItemWidth, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: spec.labelGap, borderRadius: spec.itemRadius, backgroundColor: focused ? `${theme.colors.text}0F` : undefined})}>
-      {({focused}) => <>{selected && <View pointerEvents="none" style={{position: 'absolute', left: -16, top: 18, bottom: 18, width: 4, borderRadius: 2, backgroundColor: theme.colors.accent}}/>}
-        <Icon name={entry.icon} size={30} color={selected || focused ? theme.colors.text : theme.colors.textTertiary}/>
+      {({focused}) => <>{selected && !blank && <View pointerEvents="none" style={{position: 'absolute', left: -16, top: 18, bottom: 18, width: 4, borderRadius: 2, backgroundColor: theme.colors.accent}}/>}
+        <Icon name={entry.icon} size={30} color={blank && !focused ? 'transparent' : selected || focused ? theme.colors.text : theme.colors.textTertiary}/>
         {/* The mock's 320-wide item fits short names; a long library name shrinks to 80% before it truncates. */}
-        <Animated.Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={.8} style={[theme.type.bodyStrong, {color: selected || focused ? theme.colors.text : theme.colors.textTertiary, flexShrink: 1}, labels]}>{entry.label}</Animated.Text></>}
+        <Animated.Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={.8} style={[theme.type.bodyStrong, {color: blank && !focused ? 'transparent' : selected || focused ? theme.colors.text : theme.colors.textTertiary, flexShrink: 1}, labels]}>{entry.label}</Animated.Text></>}
     </Focusable>;
   };
   return <View pointerEvents="box-none" style={{position: 'absolute', left: 0, top: 0, bottom: 0, width: open ? spec.openWidth : spec.width, zIndex: theme.layers.navigation}}>
@@ -111,12 +112,14 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
         <View accessible={false} style={{height: 40, marginLeft: 16, marginBottom: 64}}>
           {open ? <Image source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tvRail, flexShrink: 0, position: 'absolute', top: (40 - headerWordmark.tvRail.height) / 2}}/> : <BrandSymbol width={28} height={40}/>}
         </View>
-        <View style={{gap: spec.itemGap}}>{pinnedTop.map(item)}</View>
+        <View style={{gap: spec.itemGap}}>{pinnedTop.map(entry => item(entry))}</View>
+        {/* A library name is shown whole or not at all, never cut under the fade (owner, 20 Nov 20:30). */}
         {/* The libraries scroll, so they clip. The list owns the item gaps above and below it (room for the focus ring) and
             glow room at the sides, and reaches no further: past the gaps it would paint under the pinned entries. Where it
             continues, the kit's edge fade says so. */}
         {libraryEntries.length > 0 && <View testID="tv-rail-libraries" style={{flexShrink: 1, marginLeft: -24, marginRight: -tvRailGlow}}>
-          <ScrollView {...scroll} style={{flexGrow: 0, flexShrink: 1}} contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: spec.itemGap}} showsVerticalScrollIndicator={false}>{libraryEntries.map(item)}</ScrollView>
+          <ScrollView {...scroll} ref={whole.scroll.ref} scrollEventThrottle={whole.scroll.scrollEventThrottle} onScroll={event => {scroll.onScroll?.(event); whole.scroll.onScroll(event);}}
+            onLayout={event => {scroll.onLayout?.(event); whole.scroll.onLayout?.(event);}} style={{flexGrow: 0, flexShrink: 1}} contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: spec.itemGap}} showsVerticalScrollIndicator={false}>{libraryEntries.map(entry => <View key={entry.key} {...whole.item(entry.key)}>{item(entry, () => whole.focus(entry.key), whole.cut(entry.key))}</View>)}</ScrollView>
           {/* Closed, the fades cover the icons only: the list's box runs on under the page's first column (its glow room and
               the column's last pixels), and a fade there drew a dark block with a hard foot across a focused card's glow. */}
           {(edges.top || edges.bottom) && <View pointerEvents="none" style={{position: 'absolute', top: 0, bottom: 0, left: 0, ...(open ? {right: tvRailGlow} : {width: tvRailClosedFade})}}>
@@ -124,7 +127,7 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
             {edges.bottom && <ListEdgeFade testID="tv-rail-fade-bottom" edge="bottom" length={spec.itemSize} opacity={0.9}/>}
           </View>}
         </View>}
-        <View style={{gap: spec.itemGap, marginTop: libraryEntries.length ? 0 : spec.itemGap}}>{pinnedBottom.map(item)}</View>
+        <View style={{gap: spec.itemGap, marginTop: libraryEntries.length ? 0 : spec.itemGap}}>{pinnedBottom.map(entry => item(entry))}</View>
         <View style={{flex: 1}}/>
         <View style={{gap: spec.itemGap, paddingTop: 8}}>
           {item({key: 'settings', label: defaultI18n.t('settings.title'), icon: 'i-settings', destination: {kind: 'settings'}})}
