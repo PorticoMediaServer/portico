@@ -1,20 +1,14 @@
-import {linkNativeAbortSignals} from '../../../../platform/abort-signals';
-import React,{useEffect,useLayoutEffect,useState,useSyncExternalStore} from 'react';
-import {ScrollView,Text,View} from 'react-native';
-import {OwnerAppLogsSource,type AppReport} from '../../../../../../../packages/client-core/src/server-admin/owner-app-logs';
-import {when} from '../../../../../../../packages/client-core/src/server-admin/console-words';
-import {defaultI18n} from '../../../../../../../packages/i18n/src';
-import type {NativeShellBootstrapContext} from '../../../../shell/bootstrap';
-import type {NativeShellRuntime} from '../../../../shell/runtime';
-import type {NativeSettingsLivePorts} from '../../ports';
-import {NativeScreenLifetime,screenScopeEnded} from '../../lifetime';
-import {nativeStorageOwner} from '../storage/space-source';
-import {Button,Select} from '../../../../kit/controls';
-import {BottomSheet} from '../../../../kit/overlays';
-import {shellType} from '../../../../kit/shell/visual';
-import {diagnosticsSavePort} from '../../../../platform/diagnostics-save';
-import {useTheme} from '../../../../kit/theme';
-const LANES=[{value:'runtime',label:'web.logs.laneServer'},{value:'audit',label:'web.logs.laneAudit'}] as const;
+import {linkNativeAbortSignals} from '../../../platform/abort-signals';
+import {useEffect,useLayoutEffect,useState,useSyncExternalStore} from 'react';
+import {OwnerAppLogsSource,type AppReport} from '../../../../../../packages/client-core/src/server-admin/owner-app-logs';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
+import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
+import {NativeScreenLifetime,screenScopeEnded} from '../../../screens/settings-live/lifetime';
+import {nativeStorageOwner} from '../../../screens/settings-live/server/storage/space-source';
+import {diagnosticsSavePort} from '../../../platform/diagnostics-save';
+
 function createReports(context:NativeShellBootstrapContext,reportError:NativeShellRuntime['reportError']){
   const lifetime=new NativeScreenLifetime(context),current=()=>lifetime.current()&&nativeStorageOwner(context);
   const api={request:<T,>(path:string,method?:string,body?:unknown,caller?:AbortSignal):Promise<T>=>current()?lifetime.request(signal=>context.api.request<T>(path,method,body,signal),caller):Promise.reject(screenScopeEnded())};
@@ -23,7 +17,7 @@ function createReports(context:NativeShellBootstrapContext,reportError:NativeShe
   const source=new OwnerAppLogsSource({...api,readReportLog:context.api.readReportLog.bind(context.api)},lifetime.authority.serverId,lifetime.authority.profileId,current,error=>{const owned=current();source.dispose();lifetime.dispose();if(owned)reportError(error);},{reports:true,stuckFiles:false});
   return {context,source,current,signal:lifetime.signal,dispose:()=>{source.dispose();lifetime.dispose();}};
 }
-type Group=ReturnType<typeof createReports>;
+export type Group=ReturnType<typeof createReports>;
 export function useNativeReports(ports:NativeSettingsLivePorts,runtime:NativeShellRuntime){
   const context=ports.context,reportError=runtime.reportError,[group,setGroup]=useState<Group>();
   useLayoutEffect(()=>{const next=createReports(context,reportError);setGroup(next);return next.dispose;},[context,reportError]);
@@ -37,8 +31,8 @@ type Confirmation=Readonly<{dialog:Dialog;report:AppReport}>;
 type Scope={active:boolean;dialog?:Dialog;confirmation?:Confirmation;flight?:object};
 /** What a report says, with its attached app log when it has one. */
 const reportText=(report:AppReport&{log?:string}):string=>[report.message,report.log].filter(Boolean).join('\n\n');
-export function NativeReports({group}:{group:Group}){
-  const {source}=group,state=useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot),theme=useTheme(),t=defaultI18n.t;
+export function useReportsControls({group}:{group:Group}){
+  const {source}=group,state=useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot),t=defaultI18n.t;
   const [savePort]=useState(()=>diagnosticsSavePort());
   const [scope,setScope]=useState<Scope>(),[dialog,setDialog]=useState<Dialog>(),[confirmation,setConfirmation]=useState<Confirmation>(),[body,setBody]=useState<string>(),[busy,setBusy]=useState(false),[error,setError]=useState(false);
   useLayoutEffect(()=>{const next:Scope={active:true};setScope(next);return()=>{next.active=false;next.dialog?.abort.abort();next.confirmation?.dialog.abort.abort();next.dialog=undefined;next.confirmation=undefined;};},[source]);
@@ -71,9 +65,8 @@ export function NativeReports({group}:{group:Group}){
   };
   const refresh=()=>{if(current()&&!scope?.dialog&&!scope?.flight)void source.load();};
   const records=state.records;
-  return <View style={{marginTop:14,gap:12}}><Text style={[shellType(17,800),{color:theme.colors.text}]}>{t('web.diagnostics.clientReports')}</Text><Text style={{color:theme.colors.textSecondary}}>{t('server.reports.lede')}</Text>{state.phase==='error'&&<Text accessibilityRole="alert" style={{color:theme.colors.record}}>{t('error.unavailable')}</Text>}<Button size="compact" variant="glass" disabled={state.phase==='loading'} onPress={refresh}>{t('web.selection.refresh')}</Button>{state.phase==='loading'&&<Text style={{color:theme.colors.textSecondary}}>{t('next.settings.loading')}</Text>}{state.phase==='ready'&&!state.reports.length&&<Text style={{color:theme.colors.textSecondary}}>{t('server.reports.none')}</Text>}{state.reports.map(report=><Button key={report.id} variant="glass" size="compact" disabled={state.phase!=='ready'} onPress={()=>{void open(report);}}><View style={{gap:4}}><View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3}}>{[report.deviceName||t('server.reports.unknownSender'), report.message?.split('\n')[0]].filter(Boolean).map((part, index) => <Text key={index} style={[shellType(15,700),{color:theme.colors.text}]}>{part}</Text>)}</View><View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3}}>{[when(Date.parse(report.createdAt))].filter(Boolean).map((part, index) => <Text key={index} style={{color:theme.colors.textSecondary}}>{part}</Text>)}</View></View></Button>)}{state.next&&<Button size="compact" disabled={state.phase!=='ready'} onPress={()=>{if(current()&&!scope?.dialog&&!scope?.flight&&source.getSnapshot()===state)void source.more();}}>{t('action.showMore')}</Button>}
-    {records&&<><Text style={[shellType(17,800),{color:theme.colors.text}]}>{t('settings.server.records')}</Text><Text style={{color:theme.colors.textSecondary}}>{t('next.settings.recordsHelp')}</Text><Select label={t('settings.server.records')} value={records.lane} options={LANES.map(lane=>({value:lane.value,label:t(lane.label)}))} onValueChange={value=>{const lane=LANES.find(lane=>lane.value===value);if(current()&&lane&&source.getSnapshot().records===records)void source.selectLane(lane.value);}}/>{records.items.map((record,index)=><View key={`${record.at}:${index}`} style={{gap:4}}><Text style={{color:theme.colors.text}}>{when(Date.parse(record.at))} · {record.message}</Text>{(record.actor||record.target||record.detail)&&<Text style={{color:theme.colors.textSecondary}}>{[record.actor,record.target,record.detail].filter(Boolean).join(' · ')}</Text>}</View>)}{!records.items.length&&<Text style={{color:theme.colors.textSecondary}}>{t('settings.server.records.none')}</Text>}<View style={{flexDirection:'row',gap:8}}><Button size="compact" variant="glass" onPress={()=>{if(current()&&source.getSnapshot().records===records)void source.latestRecords();}}>{t('next.settings.recordsLatest')}</Button>{records.next&&<Button size="compact" variant="glass" onPress={()=>{if(current()&&source.getSnapshot().records===records)void source.moreRecords();}}>{t('next.settings.recordsOlder')}</Button>}</View></>}
-    <BottomSheet open={!!held} onOpenChange={value=>{if(!value)close();}} title={held?held.report.deviceName||t('server.reports.unknownSender'):undefined} footer={<View style={{flexDirection:'row',gap:8}}><Button variant="glass" onPress={close}>{t('action.close')}</Button>{savePort&&<Button variant="glass" disabled={busy||state.phase!=='ready'} onPress={()=>{void save();}}>{t('action.save')}</Button>}<Button variant="glass" disabled={busy||state.phase!=='ready'} onPress={ask}>{t('action.delete')}</Button></View>}><ScrollView style={{maxHeight:320}}>{busy&&body===undefined&&<Text style={{color:theme.colors.textSecondary}}>{t('next.settings.loading')}</Text>}{body!==undefined&&<Text selectable style={{color:theme.colors.textSecondary,fontFamily:'monospace'}}>{body||t('server.reports.empty')}</Text>}{error&&<Text accessibilityRole="alert" style={{color:theme.colors.record}}>{t('error.unavailable')}</Text>}</ScrollView></BottomSheet>
-    <BottomSheet open={!!heldConfirmation} onOpenChange={value=>{if(!value)closeConfirmation();}} title={t('server.reports.deleteTitle')} description={t('server.reports.deleteBody')} footer={<View style={{flexDirection:'row',gap:8}}><Button variant="glass" onPress={closeConfirmation}>{t('action.cancel')}</Button><Button variant="glass" disabled={busy||state.phase!=='ready'} loading={busy} onPress={()=>{void remove();}}>{t('action.delete')}</Button></View>}><View/></BottomSheet>
-  </View>;
+  const more = () => {
+    if (current() && !scope?.dialog && !scope?.flight && source.getSnapshot() === state) void source.more();
+  };
+  return {state, t, records, source, current, refresh, more, open, held, heldConfirmation, close, closeConfirmation, save, savePort, ask, remove, busy, body, error};
 }

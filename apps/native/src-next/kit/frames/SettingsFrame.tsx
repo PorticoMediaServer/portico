@@ -105,6 +105,7 @@ export type SettingsPageFrameProps = Readonly<{
   /** The page's scroll, for a screen that brings a found row into view (Settings search), and its height once laid out. */
   scrollRef?: Ref<ScrollView>;
   onScrollLayout?: (height: number) => void;
+  onScrollOffset?: (y: number) => void;
 }>;
 
 /** Frame 4, one settings or owner page, or a form: its header, an intro, then sections of rows. Which header it
@@ -113,7 +114,7 @@ export type SettingsPageFrameProps = Readonly<{
 export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps) {
   return <StartFocusScope id={startFocus}><SettingsPageBody {...props}/></StartFocusScope>;
 }
-function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, panel, hideHeader, state, testID, scrollRef, onScrollLayout}: Omit<SettingsPageFrameProps, 'startFocus'>) {
+function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, panel, hideHeader, state, testID, scrollRef, onScrollLayout, onScrollOffset}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), parentColumn = useContext(FrameColumn), inListPlace = useContext(InListPlace), inSheet = useInSheet() || inListPlace, beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
@@ -147,6 +148,7 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     {!hideHeader && header}
     {!beside && strip}
     {panel ?? (state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
+      scrollEventThrottle={onScrollOffset ? 100 : undefined} onScroll={onScrollOffset && (event => onScrollOffset(event.nativeEvent.contentOffset.y))}
       fadingEdgeLength={ring ? frame.bottomClear : undefined} style={{flex: 1, marginLeft: -ring}}
       contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingLeft: ring, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
       {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One

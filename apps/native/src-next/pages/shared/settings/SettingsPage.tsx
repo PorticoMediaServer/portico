@@ -14,7 +14,7 @@ import {NativeTVKeyboard} from '../../../screens/destinations';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
 import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
-import {NativeServerTroubleshooting} from '../../../screens/settings-live/server/TroubleshootingPage';
+import {ServerTroubleshootingPage} from '../../touch/settings/ServerTroubleshootingPage';
 import {NativeServerStorage} from '../../../screens/settings-live/server/StoragePage';
 import {ServerIntegrationsPage} from '../../touch/settings/ServerIntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';
@@ -82,7 +82,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
       onClose={leaveServerPage} initialChannelId={initialChannelId}/>
     : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
-    : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/>
     : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : undefined;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
@@ -97,6 +96,9 @@ export function NativeSettingsPage(props: SettingsProps) {
     : integrationsPage ? <ServerIntegrationsPage ports={ports} runtime={runtime} compact={compact} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : segmentsPage ? <ServerSegmentsPage lifetime={controller.lifetime} ports={ports} runtime={runtime} server={serverHeader} retry={retry} onBackHandlerChange={setSegmentBack}
+      back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : troubleshootingPage ? <ServerTroubleshootingPage ports={ports} runtime={runtime} retry={retry}
+      server={<ServerHeader serverName={ports.serverName()} viewerRole={viewerRole} audience="administrators" variant={compact ? 'phone' : undefined}/>}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
