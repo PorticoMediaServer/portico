@@ -666,24 +666,12 @@ test('Home filters footer has an actual named Button host and preserves apply-th
   } finally {await source.unmount(); await b.dispose();}
 });
 
-test('actual Search registration keeps equal-value retained genre R1/R2 sort roots, openers and commands distinct', async t => {
-  t.mock.timers.enable({apis: ['setTimeout']});
-  const b = await bindings(), o = await overlayBindings(b), direction = await import('../../../packages/client-core/src/presentation/browse-toolbar');
-  const presentation = await import('../src-next/kit/browse/presentation'), {authorityKey} = await import('../src-next/shell/model');
+test('actual Search registration keeps equal-value retained genre R1/R2 focus roots and sort commands distinct', async () => {
+  const b = await bindings(), direction = await import('../../../packages/client-core/src/presentation/browse-toolbar');
+  const {authorityKey} = await import('../src-next/shell/model');
   const genres = await import('../../../packages/client-core/src/search-genres');
   const sorts = [{id: 'title', labelKey: 'next.browse.native.sort', directions: ['asc', 'desc'], defaultDirection: 'asc'}, {id: 'added', labelKey: 'next.browse.native.sort', directions: ['desc'], defaultDirection: 'desc'}];
   const sort = {field: 'title', direction: 'asc', flippable: true}, toolbar = {sorts, sort, applied: [], quick: []};
-  const sortModule = await screenModule(new URL('../src-next/screens/library/LibrarySortMenu.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': direction,
-    '../../kit/controls': {Focusable: b.Focusable, Segmented: 'Segmented'}, '../../kit/overlays': o.menu, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/theme': {useTheme: () => b.theme}, '../../kit/browse/presentation': presentation});
-  const genreModule = await screenModule(new URL('../src-next/screens/search/GenreBrowseScreen.tsx', import.meta.url), {...stackSlotFixture, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, react: b.react, 'react-native': b.native,
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/browse-toolbar': direction, '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},
-    '../../../../../packages/client-core/src/search-genres': genres, '../../kit/browse': {FiltersButton: 'Filters'}, '../../kit/controls': {Focusable: b.Focusable},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/layout': {WindowedGrid: 'Grid'}, '../../kit/states': {GridSkeleton: 'Skeleton', StateView: 'State'},
-    '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme}, '../library/LibrarySortMenu': sortModule,
-    '../library/model': {nativeLibraryEntryKey: (entry: any) => entry.id}, '../home/model': {}, '../../kit/cards': {PosterCard: 'Poster'}, './GenreFilters': {GenreFilters: 'GenreFilters'}});
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
   const r1 = {kind: 'search-genre', label: 'Drama', value: 'Drama'}, r2 = {...r1}; let showing = r2;
   const commands: {route: unknown; sort: unknown}[] = [], collection = {subscribe: () => () => {}, subscribePage: () => () => {}, getSnapshot: (() => {const snapshot = {status: 'ready', total: 0}; return () => snapshot;})(), pageOf: () => 0, getPageVersion: () => 0};
@@ -697,41 +685,37 @@ test('actual Search registration keeps equal-value retained genre R1/R2 sort roo
       const snapshot = {phase: 'ready', capabilities: {library: {kind: 'movie'}, sorts}, sort, predicates: [], collection, queryRevision: 0};
       return {source: {subscribe: () => () => {}, getSnapshot: () => snapshot, getMemory: () => ({firstVisibleIndex: 0, offset: 0}), contains: () => false,
         setQuery: (_: any, sort: any) => commands.push({route, sort})}, activation: {subscribe: () => () => {}, getSnapshot: (() => {const visible = {visible: true}, hidden = {visible: false}; return () => showing === route ? visible : hidden;})()}, dispose() {}};
-    }}, './GenreBrowseScreen': genreModule, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'}, '../../shell/model': {authorityKey}});
+    }}, '../../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'},
+    '../../kit/focus': {CoveredLayer: 'CoveredLayer'}, '../../shell/model': {authorityKey}});
+  // The TV page's regions and sort come from its hook over the shared genre read.
+  const shared = await screenModule(new URL('../src-next/pages/shared/search/useGenreBrowse.ts', import.meta.url), {react: b.react,
+    '../../../../../../packages/client-core/src/presentation/browse-toolbar': direction, '../../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},
+    '../../../../../../packages/client-core/src/search-genres': genres, '../../../../../../packages/i18n/src': {defaultI18n}, '../library/useLibrary': {browseFailure: (value: unknown) => value}});
+  const {useTVGenreBrowse} = await screenModule(new URL('../src-next/pages/shared/search/useTVGenreBrowse.ts', import.meta.url), {react: b.react, './useGenreBrowse': shared});
   const context = {authority: () => authority, subscribeAuthority: () => () => {}, session: () => ({viewer: {role: 'member'}}), navigation: {
     subscribe: () => () => {}, retainedRoutes: () => [r1], getSnapshot: () => ({route: showing}), back() {} }};
   let latestReads = 0;
   const controller = register.createNativeSearchModule(context), runtime = {text: {t: defaultI18n.t, locale: 'en-US'}, getSnapshot() {latestReads++; return {authority};}};
-  const elements = nodes(controller.renderRetained(runtime)).filter(node => node.type === genreModule.GenreBrowseScreen);
-  const drivers: Awaited<ReturnType<typeof createFabricHookHost>>[] = [], menus: any[] = [], scopes: string[] = [];
+  const pages = () => nodes(controller.renderRetained(runtime)).filter(node => typeof node.props?.focusScope === 'string' && node.props?.destination);
+  const drivers: Awaited<ReturnType<typeof createFabricHookHost>>[] = [];
   try {
+    const elements = pages(), scopes = elements.map(element => element.props.focusScope);
     assert.equal(elements.length, 2); assert.notEqual(elements[0]!.key, elements[1]!.key);
-    for (const element of elements) {
-      let parentTree: any, gridTree: any, sortTree: any;
-      const parent = createFabricHookHost(() => {parentTree = element.type(element.props);}); await parent.mount(); drivers.push(parent);
-      const grid = () => nodes(parentTree).find(node => node.type?.name === 'GenreGrid');
-      const gridDriver = createFabricHookHost(() => {gridTree = grid().type(grid().props);}); await gridDriver.mount(); drivers.push(gridDriver);
-      const leaf = () => nodes(gridTree).find(node => node.type === sortModule.LibrarySortMenu);
-      const sortDriver = createFabricHookHost(() => {sortTree = leaf().type(leaf().props);}); await sortDriver.mount(); drivers.push(sortDriver);
-      nodes(sortTree).find(node => node.type === b.Focusable).props.onPress(); await sortDriver.rerender();
-      const pop = nodes(sortTree).find(node => node.type === o.menu.Popover); scopes.push(pop.props.testID);
-      let restored = 0; const anchor = pop.props.anchorRef, original = {nativeTag: 900 + menus.length, requestTVFocus() {restored++;}, measureInWindow: (fn: any) => fn(0, 0, 40, 40)}; anchor.current = original;
-      let surfaceTree: any, popProps = pop.props; const overlay = createFabricHookHost(() => {surfaceTree = tvPopover(o, popProps);}); await overlay.mount(); await overlay.flush(); drivers.push(overlay);
-      const boundary = nodes(surfaceTree).find(node => node.type === o.surface.FocusBoundary), actual = boundary.type(boundary.props); await b.region(() => actual.props);
-      const row = nodes(sortTree).find(node => node.type === o.menu.MenuRow && node.props.focusId === 'sort:added');
-      const target = await b.target(actual.props.id, () => row.type.render(row.props, row.props.ref).props); target.props.onPress(); await sortDriver.rerender();
-      popProps = nodes(sortTree).find(node => node.type === o.menu.Popover).props; await overlay.rerender(); t.mock.timers.tick(500); await overlay.rerender();
-      assert.equal(restored, 1); assert.equal(anchor.current, original);
-      menus.push({element, parent, gridDriver, sortDriver, getScope: () => nodes(sortTree).find(node => node.type === o.menu.Popover).props.testID});
-    }
     assert.notEqual(scopes[0], scopes[1], 'same genre value/authority has two distinct actual retained occurrence roots');
     assert.ok(scopes.every(scope => scope.startsWith(`genre:${authorityKey(authority)}:"Drama":`)));
+    for (const element of elements) {
+      let view: any;
+      const driver = createFabricHookHost(() => {view = useTVGenreBrowse(element.props);}); await driver.mount(); drivers.push(driver);
+      assert.deepEqual([view.focus.header.id, view.focus.toolbar.id, view.focus.grid.id], [element.props.focusScope, `${element.props.focusScope}.toolbar`, `${element.props.focusScope}.grid`],
+        'the page\'s regions are named by its own occurrence');
+      view.onSort({field: 'added', direction: 'desc'});
+    }
     assert.deepEqual(commands.map(command => command.route), [r1, r2], 'each real sort callback retains its original controller');
-    showing = r1; controller.renderRetained(runtime);
-    for (const menu of menus) {await menu.parent.rerender(); await menu.gridDriver.rerender(); await menu.sortDriver.rerender();}
-    assert.deepEqual(menus.map(menu => menu.getScope()), scopes, 'Back/retained visibility never renames either occurrence');
+    showing = r1;
+    // Back to R1: R2 is no longer retained; R1 is drawn again under its original name.
+    assert.deepEqual(pages().map(element => element.props.focusScope), [scopes[0]], 'Back/retained visibility never renames the occurrence that stays');
     assert.equal(latestReads, 0, 'scope uses the original registration authority, never a latest runtime lookup');
-  } finally {for (const driver of drivers.reverse()) await driver.unmount(); controller.dispose(); await b.dispose(); t.mock.timers.reset();}
+  } finally {for (const driver of drivers.reverse()) await driver.unmount(); controller.dispose(); await b.dispose();}
 });
 
 function actualButtonProps(o: Awaited<ReturnType<typeof overlayBindings>>, props: any) {

@@ -132,7 +132,7 @@ async function setup() {
     './selection': {createNativeSearchSelection},
     './controller': {createNativeSearchController}, './actions': {createNativeSearchActions: () => ({dispose() {}})},
     './navigation': navigationPorts, './explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
-    './search-page': {SearchPageFor: 'SearchPageFor'}, './GenreBrowseScreen': {GenreBrowseScreen: 'GenreBrowseScreen'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'},
+    './search-page': {SearchPageFor: 'SearchPageFor'}, '../../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'},
     './AllGenresScreen': {AllGenresScreen: 'AllGenresScreen'},
     './reading-register': readingRegister,
   });
@@ -187,7 +187,7 @@ test('the TV entry registers the real Search module against the TV surface, with
     assert.ok(all.props.explore instanceof NativeSearchGenreList);
     assert.equal(s.navigation.open({kind: 'search-genre', value: 'drama', label: 'Drama'}, s.authority), true);
     const genre = states.render(() => expand(bound!.renderRetained(runtime)));
-    const browse = find(genre, 'GenreBrowseScreen') as Element | undefined;
+    const browse = find(genre, 'TVGenreBrowsePage') as Element | undefined;
     assert.ok(browse, 'search-genre registers at the TV entry');
     assert.equal(browse.props.value, 'drama');
 
