@@ -7,6 +7,8 @@ import {sameAuthority, selectedTab, type ShellAuthority, type ShellDestination} 
 
 /** Descriptors are requests to the registered phase owner, never synthesized screen content. */
 export type NativeContinueWatchingOffer = Readonly<{itemId: string; revision: number}>;
+/** Where Switch server opens: Link a TV, or (from a TV's Switch server Settings page) Use a local server or Sign out of Portico Account. */
+export type NativeServersPanel = 'consent-kind' | 'add' | 'sign-out-account';
 export type NativeShellRoute = Readonly<
   | {kind: 'shell'; destination: ShellDestination}
   | {kind: 'title'; entry: ContentEntry; continueWatching?: NativeContinueWatchingOffer}
@@ -29,7 +31,7 @@ export type NativeShellRoute = Readonly<
   | {kind: 'home-see-all'; destination: Extract<HomeSeeAll, {type: 'row'}>}
   | {kind: 'home-customize'}
   | {kind: 'profiles'; profileId?: string}
-  | {kind: 'servers'; initialPanel?: 'consent-kind'}
+  | {kind: 'servers'; initialPanel?: NativeServersPanel}
   | {kind: 'notifications'}
   | {kind: 'licenses'}
   /** `joinCode`: a Watch Together link's code, filled into Join with a code once. */

@@ -28,9 +28,12 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
     visible, enabled, change, showSafeMode, showDynamicRange, skipMatrix, managementURL, actionError, setActionError, actionBusy, confirmFlight,
     shown, openConfirm, closeConfirm, confirm, cancel, engineShown, openEngine, closeEngine, selectEngine,
     choices, setChoices, languages, setLanguages, firstLanguage} = useSettingsPreferences(props);
-  return <><SettingsControlRows id={region} entry={hostedRows ? rowIds[0] : undefined} entryPolicy="entry" order={hostedRows ? rowIds : undefined} orientation="vertical" edges={{left: column, ...verticalEdges}}>
+  return <><SettingsControlRows id={region} entry={hostedRows ? rowIds[0] : undefined}
+    // A TV's Switch server page enters through its chooser's region (pages/tv/accounts/ServerChooserPage).
+    entryRegion={isTV && page.id === 'servers' ? 'accounts.chooser' : undefined} entryPolicy="entry"
+    order={hostedRows ? rowIds : undefined} orientation="vertical" edges={{left: column, ...verticalEdges}}>
     {actionError !== undefined && <StateView {...runtime.error(actionError, () => setActionError(undefined), 'settings')}/>}
-    {sections.map(section => <React.Fragment key={section.id}><SectionCard label={section.title && t(section.title)} help={section.description && t(section.description)} plain={isTV && section.id === 'note'}>
+    {sections.map(section => <React.Fragment key={section.id}><SectionCard label={section.title && t(section.title)} help={section.description && t(section.description)} plain={isTV && (section.id === 'note' || page.id === 'servers')}>
       {section.rows.filter(visible).map((row, index) => {
         const id = settingsRowId(row);
         // Frame 12's Apple passthrough is the rows.7 capability line, not the rows.6

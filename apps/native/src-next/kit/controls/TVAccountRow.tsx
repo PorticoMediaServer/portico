@@ -6,7 +6,8 @@ import {Focusable, type FocusableProps} from './Focusable';
 import {Icon, type IconName} from '../Icon';
 import {useTheme} from '../theme';
 
-type TVAccountRowProps = Pick<FocusableProps, 'focusId' | 'preferredFocus' | 'disabled' | 'accessibilityLabel' | 'accessibilityState' | 'onPress'> & {
+type TVAccountRowProps = Pick<FocusableProps,
+  'focusId' | 'preferredFocus' | 'disabled' | 'accessibilityLabel' | 'accessibilityState' | 'onPress' | 'nextFocusDown'> & {
   title: string; detail: string; icon: IconName; badge?: string; children?: React.ReactNode;
   /** The server this device is on: its tile takes the brand gradient, as connect24 draws it. */
   active?: boolean;
