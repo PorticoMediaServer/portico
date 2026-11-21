@@ -10,7 +10,8 @@ import {useMotion} from '../useMotion';
 export function TVHomeSpotlight({hero, preview}: {hero: ReactNode; preview?: ReactNode}) {
   const {spec} = useTheme();
   return <View style={{height: preview ? spec.hero.tvHome.preview : spec.hero.tvHome.spotlight}}>
-    <View pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>{hero}</View>
+    {/* With a focused card the hero is that card's (owner, 18 Nov); the spotlight is drawn only when Home has no card. */}
+    {!preview && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>{hero}</View>}
     {preview && <View pointerEvents="none" style={{position: 'absolute', inset: 0, height: spec.hero.tvHome.artwork}}>{preview}</View>}
   </View>;
 }
