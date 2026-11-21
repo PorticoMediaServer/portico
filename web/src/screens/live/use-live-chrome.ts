@@ -17,12 +17,15 @@ import type {WebPlaybackRuntimeSnapshot, WebShellPlaybackRuntime} from '../../pl
 import {fenceKey as shellFenceKey} from '../../shell/playback-model';
 import type {ShellAssemblyContext} from '../../shell/bootstrap';
 import {router} from '../../router';
+import {nameInitials} from '../../kit/artwork';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {liveChannelCurrent, liveNavigationAllowed, liveRecordCommand} from './live-chrome-model';
 import type {LiveChromeChannel, LiveChromeGuideChannel, LiveChromeGuideTarget, LiveChromePort, LiveChromeProgramme} from './live-chrome-types';
 
 const asChromeChannel = (channel: GuideChannel): LiveChromeChannel => ({id: channel.id, sourceId: channel.sourceId, kind: channel.provenance,
-  generation: channel.generation, number: channel.number, name: channel.name, ...(channel.mark ? {mark: {text: channel.mark.text, seed: channel.mark.seed}} : {}),
+  generation: channel.generation, number: channel.number, name: channel.name,
+  // A channel the server gives no mark is drawn by its initials, as the guide and the programme panel draw it (live-7).
+  mark: channel.mark ? {text: channel.mark.text, seed: channel.mark.seed} : {text: nameInitials(channel.name) || channel.number, seed: `${channel.sourceId ?? ''}:${channel.id}`},
   favorite: channel.favorite, recordAvailable: channel.recordAvailable, tuneAvailable: channel.tuneAvailable});
 const asChromeProgramme = (programme: GuideProgram): LiveChromeProgramme => ({id: programme.id, title: programme.title,
   ...(programme.subtitle ? {subtitle: programme.subtitle} : {}), ...(programme.episode ? {episode: programme.episode} : {}),
