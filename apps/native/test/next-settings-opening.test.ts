@@ -27,7 +27,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
       back: () => {backs++; navigation = {revision: navigation.revision + 1, route: {kind: 'shell', destination: {kind: 'home'}}};},
       open: (route: any) => {opens.push(route); navigation = {revision: navigation.revision + 1, route};}}};
   const page = (id: string) => ({id, title: id, icon: 'settings', sections: []});
-  const structure = {headings: [{id: 'account', pages: ['profile', 'playback', 'region'].map(page)}, {id: 'server', pages: ['dashboard', 'history', 'metadata', 'people', 'remote-sources'].map(page)}]};
+  const structure = {headings: [{id: 'account', pages: ['profile', 'playback', 'region'].map(page)}, {id: 'server', pages: ['dashboard', 'history', 'metadata', 'segments', 'people', 'remote-sources'].map(page)}]};
   const theme: any = {isTV: search.tv, width: initialWidth, platform: initialWidth < 600 ? 'phone' : 'tablet', colors: new Proxy({}, {get: (_t, key) => String(key)})};
   const {NativeSettingsScreen} = await settingsFixture({'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},  './tv-settings-focus': tvSettingsFocus,
     react: host.react,
@@ -44,7 +44,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     '../../../../../packages/contracts/src/routes': {}, '../../../../../packages/client-core/src/settings-configuration': {}, '../../../../../packages/client-core/src/presentation/settings-bindings': {}, '../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec: [{id: 'signin', scope: 'server', title: 'signin', icon: 'settings'}]},
     './owner-libraries/OwnerLibrariesPanel': {NativeOwnerLibrariesPanel: 'Libraries'}, '../../kit/shell/ServerIdentity': {ServerBand: 'ServerBand', ServerHeader: 'ServerHeader'},
     './LiveOwnerScreen': {NativeLiveOwnerScreen: 'LiveOwner'}, './live-owner-controller': {NativeLiveOwnerController: class {}}, './recordings-controller': {createNativeRecordingsController: () => ({})}, '../../platform/server-connections': {nativeRouteCrypto: {}},
-    './server/TroubleshootingPage': {NativeServerTroubleshooting: 'Troubleshooting'}, './server/StoragePage': {NativeServerStorage: 'Storage'}, '../../touch/settings/ServerIntegrationsPage': {ServerIntegrationsPage: 'Integrations'}, './ServerGeneralPage': {ServerGeneralPage: 'General'}, './ServerRemoteAccessPage': {ServerRemoteAccessPage: 'RemoteAccess'}, '../../touch/settings/ServerStreamingPage': {ServerStreamingPage: 'Streaming'}, './server/SegmentsPage': {NativeServerSegments: 'Segments'}, './server/PeoplePage': {NativeServerPeople: 'People'}, './server/SignInPage': {NativeServerSignIn: 'SignIn'}, './server/MetadataPage': {NativeServerMetadata: 'Metadata'}, '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: 'History'},
+    './server/TroubleshootingPage': {NativeServerTroubleshooting: 'Troubleshooting'}, './server/StoragePage': {NativeServerStorage: 'Storage'}, '../../touch/settings/ServerIntegrationsPage': {ServerIntegrationsPage: 'Integrations'}, './ServerGeneralPage': {ServerGeneralPage: 'General'}, './ServerRemoteAccessPage': {ServerRemoteAccessPage: 'RemoteAccess'}, '../../touch/settings/ServerStreamingPage': {ServerStreamingPage: 'Streaming'}, '../../touch/settings/ServerSegmentsPage': {ServerSegmentsPage: 'Segments'}, './server/PeoplePage': {NativeServerPeople: 'People'}, './server/SignInPage': {NativeServerSignIn: 'SignIn'}, './server/MetadataPage': {NativeServerMetadata: 'Metadata'}, '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: 'History'},
     './server/PhoneServerPageHeader': {PhoneServerPageHeader: 'PhoneHeader'}, '../settings/remote-sources/NativeRemoteSourcesScreen': {NativeRemoteSourcesScreen: 'RemoteSources'}, './DashboardScreen': {NativeDashboardScreen: 'Dashboard'},
     '../../platform/playback/equalizer': {}, '../../tv/auth/TVHandoff': {},
     './use-tv-voice-search': {useTVVoiceSearch: () => ({})}, '../../platform/playback/passthrough-formats': {}, './NativeDynamicRangeRow': {}, '../../platform/playback/dynamic-range-matching': {}, './NativeApplePassthroughRow': {}, '../../kit/settings/DeviceCapabilityRows': {}, './NativeFrameRateRow': {}, './NativePassthroughRow': {}, './NativeLossNoticesRow': {}, './NativeServerOfflineNoticeRow': {}, './NativeSafeModeRow': {},
@@ -90,6 +90,27 @@ test('A phone page owns Back before sheet dismissal; stale hub and page callback
     assert.equal(f.find('settings-sheet').props.open, false, 'Done first plays the sheet exit'); assert.equal(f.backs(), 0);
     f.find('settings-sheet-done').props.onPress(); f.find('settings-sheet').props.onOpenChange(false, 'outside'); f.render(); assert.equal(f.backs(), 0);
     f.find('settings-sheet').props.onExited(); assert.equal(f.backs(), 1, 'Back follows the finished exit once');
+  } finally {f.unmount();}
+});
+
+test('phone Settings gives hardware Back to marker review before popping Intros and credits', async () => {
+  const f = await fixture();
+  try {
+    f.find('settings-page-segments').props.onPress();
+    f.render();
+    const view = () => f.nodes().find(node => node.type === 'Segments');
+    let depth = 2;
+    view().props.onBackHandlerChange(() => depth > 0 && (--depth >= 0));
+    const back = () => {f.find('settings-sheet').props.onOpenChange(false, 'back'); f.render();};
+    back();
+    assert.ok(view());
+    assert.equal(depth, 1);
+    back();
+    assert.ok(view());
+    assert.equal(depth, 0);
+    back();
+    assert.equal(view(), undefined);
+    assert.equal(f.backs(), 0);
   } finally {f.unmount();}
 });
 

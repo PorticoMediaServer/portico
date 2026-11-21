@@ -56,7 +56,8 @@ import {remeasureAllSegments,retryUnreadableSegments} from '../src/segment-revie
 test('bulk measurement actions use the rebuilt server routes and return queued counts',async()=>{
  const calls:unknown[]=[];
  const api={request:async(...args:unknown[])=>{calls.push(args);return {changed:3};}} as any;
- assert.equal(await remeasureAllSegments(api),3);
+ const {signal} = new AbortController();
+ assert.equal(await remeasureAllSegments(api, signal),3);
  assert.equal(await retryUnreadableSegments(api),3);
- assert.deepEqual(calls,[['/v1/admin/segments/redetect','POST',{}],['/v1/admin/segments/retry','POST',{}]]);
+ assert.deepEqual(calls,[['/v1/admin/segments/redetect','POST',{}, signal],['/v1/admin/segments/retry','POST',{}, undefined]]);
 });
