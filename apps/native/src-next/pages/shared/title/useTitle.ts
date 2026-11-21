@@ -246,7 +246,7 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
         ...(props.download ? {onDownload: () => props.download!(episode)} : {})};
     });
     const plate = opened ? episodePlate(opened, space.show) : undefined;
-    // The season sheet: each season with its count and watched progress, then the owner's episode groups (screens/watch/SeasonsSheet.tsx's rows).
+    // The season sheet: each season with its count and watched progress, then the owner's episode groups (kit/layout/ShowSeasonsSheet.tsx's rows).
     const rows: SeasonSheetRow[] = [...seasons.map(season => {
       const watched = season.watchedCount, total = season.episodeCount, complete = watched !== undefined && total !== undefined && total > 0 && watched >= total;
       const partial = watched !== undefined && total !== undefined && !complete && watched > 0;
