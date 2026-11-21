@@ -41,88 +41,8 @@ test('a failed management read is simply not a first scan, and stopping silences
   assert.deepEqual(seen, []);
 });
 
-async function emptyPage(isTV: boolean) {
-  const theme = createTheme({width: isTV ? 1920 : 390, isTV}), registry = {};
-  const modules = {
-    react,
-    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: theme.isTV ? 1920 : 390, height: 844}),
-      StyleSheet: {create: (styles: unknown) => styles, absoluteFill: {}}},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
-    'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: unknown) => ({value}), withTiming: (value: unknown) => value},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id, number: (value: number) => String(value), has: () => true}},
-    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({})},
-    '../../../../../packages/client-core/src/presentation/library-tabs': {libraryTabs: () => []},
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: () => ''},
-    '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt'},
-    '../../kit/controls': {Focusable: 'Focusable', Button: 'Button'},
-    '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
-    '../../kit/browse': {}, '../../kit/overlays': {Menu: 'Menu'},
-    '../../kit/browse/presentation': {alpha: (color: string) => color, browseType: () => ({})}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/layout': {WindowedGrid: 'WindowedGrid', AlphabetRail: 'AlphabetRail', Row: 'Row'},
-    '../../../../../packages/client-core/src/presentation/card-shape': await import('../../../packages/client-core/src/presentation/card-shape.ts'), './discover-cells': {discoverCell: () => ({})}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
-    '../../kit/states': {StateView: 'StateView'}, '../../kit/theme': {useTheme: () => theme}, '../../kit/useMotion': {useMotion: () => ({})},
-    '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})}, '../home/model': {homeCardText: () => ({})},
-    '../destinations/focus': {createDestinationEntryFocus: () => ({}), nativeDestinationFocusIds: () => ({rail: 'rail'})},
-    '../destinations/useTVPageBack': {useTVPageBack: () => {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus: () => {}},
-    './model': {NativeLibraryDestination: 'NativeLibraryDestination', nativeLibraryEntryKey: (entry: any) => entry.id, nativeLibraryCanSave: () => true},
-    '@portico/design': {frameSpec: {browse: {listRow: {phone: 76, medium: 76, expanded: 76, tv: 84}}}}, '../../kit/browse/LibraryCard': {LibraryCard: 'LibraryCard'},
-    '../../pages/shared/library/useFirstScanning': await screenModule(new URL('../src-next/pages/shared/library/useFirstScanning.ts', import.meta.url), {react}),
-    './LibraryToolbar': {LibraryToolbar: 'LibraryToolbar'}, '../../kit/browse/LibraryListRow': {LibraryListRow: 'LibraryListRow'}, './directory': {NativeLibraryDirectory: 'NativeLibraryDirectory'},
-    '../../kit/browse/LibraryFilterFields': {useLibraryFrameFilters: () => undefined},
-    './LibraryFilters': {LibraryFilters: 'LibraryFilters', libraryFiltersDockWidth: 380}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, './applied-filters': {libraryAppliedFilters: () => []}, './library-grid': {libraryTabletGridGeometry: () => ({})},
-    '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'},
-    '../read/platform': {hiddenReadingLibraryOnTV: () => false, isReadingLibraryKind: () => false}, '../share/share-actions': {shareLinkActions: () => []},
-    '../../kit/browse/LibraryJumpSheet': {}, './jump': {}, '../../kit/cards/TVSparseCardFrame': {}, '../../platform/home-action-diagnostics': {homeActionDiagnostics: () => {}},
-  };
-  const {LibraryEmpty, useFirstScanning} = await screenModule(new URL('../src-next/screens/library/LibraryScreen.tsx', import.meta.url), modules);
-  return {LibraryEmpty, useFirstScanning};
-}
-
-async function mountEmpty(isTV: boolean, props: Record<string, unknown>) {
-  const {LibraryEmpty} = await emptyPage(isTV);
-  const home: unknown[] = [];
-  let tree: any;
-  const host = createFabricHookHost(() => {tree = LibraryEmpty({runtime: {getSnapshot: () => ({authority: {}}), onDestination: (value: unknown) => home.push(value)}, regionId: 'region', upRegionId: 'tabs',
-    surface: 'grid', libraryName: 'Films', ...props});});
-  await host.mount();
-  return {host, home, tree: () => tree};
-}
-const buttons = (tree: any) => descendants(tree).filter(node => node.type === 'Button');
-
-for (const isTV of [false, true]) {
-  test(`${isTV ? 'TV' : 'phone'}: a library on its first scan draws only View activity, and the page entry is that action`, async () => {
-    const opened: string[] = [];
-    const page = await mountEmpty(isTV, {firstScanning: true, onActivity: () => opened.push('activity')});
-    try {
-      const state = descendants(page.tree()).find(node => node.props.testID === 'library-empty');
-      assert.equal(state.props.title, 'next.states.firstScan');
-      assert.equal(state.props.body, 'next.states.firstScanBody');
-      const actions = buttons(page.tree());
-      assert.deepEqual(actions.map(node => node.props.testID), ['library-empty-view-activity'], 'states.html #15 draws View activity alone: no Browse home');
-      assert.equal(text(actions[0]), 'next.states.viewActivity');
-      assert.equal(actions[0]!.props.variant, 'glass', 'the frame draws a glass button');
-      actions[0]!.props.onPress();
-      assert.deepEqual(opened, ['activity']);
-      const region = descendants(page.tree()).find(node => node.type === 'FocusRegion');
-      assert.equal(region.props.entry, 'view-activity');
-      assert.deepEqual(region.props.order, ['view-activity']);
-    } finally {await page.host.unmount();}
-  });
-}
-
-test('a member, or a scan not yet known, keeps the generic empty state with Browse home as the entry', async () => {
-  for (const props of [{}, {firstScanning: true}, {firstScanning: false, onActivity: () => {}}]) {
-    const page = await mountEmpty(false, props);
-    try {
-      assert.equal(descendants(page.tree()).find(node => node.props.testID === 'library-empty').props.title, 'library.emptyLibrary');
-      assert.deepEqual(buttons(page.tree()).map(node => node.props.testID), ['library-empty-browse-home']);
-      assert.equal(descendants(page.tree()).find(node => node.type === 'FocusRegion').props.entry, 'browse-home');
-    } finally {await page.host.unmount();}
-  }
-});
-
 test('the first-scan read is made once while the titles page is empty, follows the answer and is released', async () => {
-  const {useFirstScanning} = await emptyPage(false);
+  const {useFirstScanning} = await screenModule(new URL('../src-next/pages/shared/library/useFirstScanning.ts', import.meta.url), {react});
   const observed: {id: string; onChange: (value: boolean) => void; stopped: boolean}[] = [];
   const port = {observe: (id: string, onChange: (value: boolean) => void) => {const entry = {id, onChange, stopped: false}; observed.push(entry); return () => {entry.stopped = true;};}, openActivity: () => {}};
   let enabled = true, scanning: boolean | undefined;

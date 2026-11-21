@@ -20,7 +20,7 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeLibraryFilterDraft} from '../../../screens/library/filters';
 import type {HomeSeeAll} from '../../../../../../packages/client-core/src/home';
 import {hiddenReadingLibraryOnTV} from '../../../screens/read/platform';
-import type {NativeLibraryScreenProps} from '../../../screens/library/LibraryScreen';
+import type {NativeLibraryScreenProps} from '../../../screens/library/types';
 import type {PageStateProps} from '../../../kit/frames';
 import type {StateViewProps} from '../../../kit/states';
 import type {WindowedGridHandle} from '../../../kit/layout';

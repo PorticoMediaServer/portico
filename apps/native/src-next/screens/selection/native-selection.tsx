@@ -396,7 +396,11 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
     batchGeneration++; pending?.abort(); closePersonal(); closeDestinations(); model?.clear(); started = false; emit(); return true;
   };
   const store: Store = {selectAll: options.selectAll === true, area,
-    subscribe: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
+    subscribe: listener => {
+      if (disposed) return () => {};
+      listeners.add(listener);
+      return () => {listeners.delete(listener);};
+    },
     getSnapshot: () => revision, loadedCount: () => distinctLeaves().length, snapshot: () => model?.getSnapshot(), personal: () => personal?.service.getSnapshot(),
     busy: () => !!pending || !!personal?.service.getSnapshot().busy || !!destinations?.snapshot().busy || !!bulk, queueControl, started: () => started,
     clear, selectLoaded, execute, applyPersonal, retryPersonal, openDestination, closeDestinations, destination: () => destinations, destinationKind: () => destinationKind,
@@ -415,7 +419,14 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
       return {active: snapshot.active || started && visible(), selected: !!registered && snapshot.selectedKeys.includes(registered.key), onEnter: toggle, onToggle: toggle};
     },
     render: artwork => visible() ? <NativeSelectionBars store={store} artwork={artwork ?? (() => null)}/> : null,
-    dispose: () => {if (disposed) return; disposed = true; off.forEach(stop => stop()); reset(); listeners.clear();},
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      off.forEach(stop => stop());
+      // The shell can replace a page during render. Retire its operations without updating the discarded page.
+      listeners.clear();
+      reset();
+    },
   });
 }
 

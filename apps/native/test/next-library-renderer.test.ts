@@ -29,7 +29,7 @@ test('the Library descriptor requires the actual authorized ID and never supplie
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
     '../../pages/touch/library/LibraryPage': {}, '../../pages/tv/library/LibraryPage': {}, '../../kit/browse/LibraryCard': {}, '../destinations/music/MusicMixesRow': {},
     './first-scan': {observeFirstScan: () => () => {}},
-    react: {default: React}, 'react-native': {Platform: platform}, './LibraryScreen': {LibraryScreen: 'LibraryScreen'}, './model': {NativeLibraryDestination}, './directory': {NativeLibraryDirectory},
+    react: {default: React}, 'react-native': {Platform: platform}, './types': {}, './model': {NativeLibraryDestination}, './directory': {NativeLibraryDirectory},
     '../../shell/model': {sameAuthority},
     '../read/platform': readPlatform,
     '../../pages/touch/reading/BooksPage': {BooksPage: 'BooksPage'},

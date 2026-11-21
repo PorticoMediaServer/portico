@@ -14,10 +14,6 @@ test('E-tv-27: a failure after Try again is a new entry that focuses Try again a
   const afterRetry = createDestinationEntryFocus({focus: (address: {childId: string}) => {focused.push(address.childId); return true;}} as any);
   assert.equal(afterRetry({visible: true, intent: 'enter', revision: 4}, address), true, 'a fresh request focuses Try again again');
   assert.deepEqual(focused, ['retry', 'retry']);
-  const library = source('screens/library/LibraryScreen.tsx');
-  assert.match(library, /retryPressed\.current = true; destination\.retry\(\)/);
-  assert.match(library, /runtime\.error\(state\.error, retryPage, 'library'\)/);
-  assert.match(library, /createDestinationEntryFocus\(registry\), \[registry, retryEpoch\]/);
 });
 
 test('E-tv-25: every anchor move is observable to the scroll reaction', () => {

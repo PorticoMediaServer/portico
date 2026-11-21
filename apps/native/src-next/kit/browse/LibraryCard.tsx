@@ -11,7 +11,7 @@ import type {CardProps} from '../cards/primitives';
 import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {homeCardText} from '../../screens/home/model';
-import type {NativeLibraryActions} from '../../screens/library/LibraryScreen';
+import type {NativeLibraryActions} from '../../screens/library/types';
 
 export function LibraryCard({entry, family, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect, onCaptionLayout}: {entry?: ContentEntry; /** The grid's own library kind (the server does not put it on each entry); the shared shape rule's family. */ family?: string; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void; onCaptionLayout?: CardProps['onCaptionLayout']}) {
   const menuAnchorRef = useRef<View>(null);
