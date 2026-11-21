@@ -119,7 +119,8 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
             continues, the kit's edge fade says so. */}
         {libraryEntries.length > 0 && <View testID="tv-rail-libraries" style={{flexShrink: 1, marginLeft: -24, marginRight: -tvRailGlow}}>
           <ScrollView {...scroll} ref={whole.scroll.ref} scrollEventThrottle={whole.scroll.scrollEventThrottle} onScroll={event => {scroll.onScroll?.(event); whole.scroll.onScroll(event);}}
-            onLayout={event => {scroll.onLayout?.(event); whole.scroll.onLayout?.(event);}} style={{flexGrow: 0, flexShrink: 1}} contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: spec.itemGap}} showsVerticalScrollIndicator={false}>{libraryEntries.map(entry => <View key={entry.key} {...whole.item(entry.key)}>{item(entry, () => whole.focus(entry.key), whole.cut(entry.key))}</View>)}</ScrollView>
+            onLayout={event => {scroll.onLayout?.(event); whole.scroll.onLayout?.(event);}}
+            onContentSizeChange={(width, height) => {scroll.onContentSizeChange?.(width, height); whole.scroll.onContentSizeChange(width, height);}} style={{flexGrow: 0, flexShrink: 1}} contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: spec.itemGap}} showsVerticalScrollIndicator={false}>{libraryEntries.map(entry => <View key={entry.key} {...whole.item(entry.key)}>{item(entry, () => whole.focus(entry.key), whole.cut(entry.key))}</View>)}</ScrollView>
           {/* Closed, the fades cover the icons only: the list's box runs on under the page's first column (its glow room and
               the column's last pixels), and a fade there drew a dark block with a hard foot across a focused card's glow. */}
           {(edges.top || edges.bottom) && <View pointerEvents="none" style={{position: 'absolute', top: 0, bottom: 0, left: 0, ...(open ? {right: tvRailGlow} : {width: tvRailClosedFade})}}>

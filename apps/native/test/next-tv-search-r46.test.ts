@@ -70,7 +70,7 @@ async function screen(react: unknown) {
     '../theme': {useTheme: () => theme}, '../destinations/focus': {nativeDestinationFocusIds}, '../../screens/home/model': {homeSubject: (content: unknown) => content},
     '../../screens/search/model': {nativeSearchEntryKey}, './TVSearchSection': {TVSearchSection: 'TVSearchSection'},
     '../../screens/search/genre-tiles': {nativeSearchGenreTiles},
-    '../layout/ListEdgeFade': {useWholeItems: () => ({scroll: {}, container: {}, focus() {}, cut: () => false, item: () => ({})})},
+    '../layout/ListEdgeFade': {useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})},
     '../frames/metrics': {useFrameMetrics: () => ({width: 1140, rightGutter: 96, bottomClear: 72, sectionGap: 44, headingGap: 22})},
   });
   const {useSearch} = await screenModule(new URL('../src-next/pages/shared/search/useSearch.ts', import.meta.url), {

@@ -1,9 +1,10 @@
 import React, {type ReactNode, type Ref, type ComponentProps} from 'react';
-import {FlatList, Text, View} from 'react-native';
+import {FlatList, ScrollView, Text, View} from 'react-native';
 import {Button, Chip, Segmented, Select} from '../controls';
 import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
 import {TVRow} from '../layout/TVRow';
+import {useWholeItems} from '../layout/ListEdgeFade';
 import {Banner} from '../overlays';
 import {NativeLivePhonePicker} from './LivePhonePicker';
 import {useTheme} from '../theme';
@@ -26,6 +27,14 @@ export function GuideFilterStrip({choices, leading, region}: {
   leading?: ReactNode; region: FocusRegionProps;
 }) {
   const theme = useTheme(), focusRoom = theme.isTV ? theme.space.sm : 0;
+  const whole = useWholeItems('x', 'fit', choices.map(choice => choice.id), theme.gutter, theme.space.sm);
+  // TV: whole chips only, never one cut at the row's end (owner, 20 Nov 20:30). A TV has a handful of groups, so a plain row.
+  if (theme.isTV) return <FocusRegion {...region} {...whole.container}><TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} {...whole.scroll}
+    contentContainerStyle={{gap: theme.space.xs, paddingLeft: theme.gutter, paddingRight: theme.gutter + whole.pad, paddingVertical: focusRoom}}>
+    {leading}
+    {choices.map(item => <View key={item.id} {...whole.item(item.id)}><Chip focusId={item.id} testID={item.testID} count={item.count} selected={item.selected}
+      onPress={item.onPress} onFocus={() => whole.focus(item.id)}>{item.label}</Chip></View>)}
+  </ScrollView></TVRow></FocusRegion>;
   return <FocusRegion {...region}><TVRow><FlatList horizontal data={choices} keyExtractor={choice => choice.id} showsHorizontalScrollIndicator={false}
     initialNumToRender={10} maxToRenderPerBatch={10} windowSize={3}
     contentContainerStyle={{gap: theme.space.xs, paddingHorizontal: theme.gutter, paddingVertical: focusRoom}}
