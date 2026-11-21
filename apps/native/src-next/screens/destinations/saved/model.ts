@@ -109,6 +109,17 @@ export class NativeTVSavedController {
     try {await view.select(route); if (generation === this.generation) this.refresh();}
     catch (error) {if (generation === this.generation) this.publish({phase: 'error', error});}
   };
+  /** Read the shown tab again where it stands (same route, nothing cleared first), for a page that comes back into
+   * view: a playlist deleted or renamed on its own page must not linger in the list until the app is relaunched. */
+  reload = async (): Promise<void> => {
+    if (!this.live()) return;
+    const tab = this.state.tab;
+    if (tab === 'watchlist' || tab === 'favorites') {
+      await Promise.all([this.views.get(`${tab}:posters`)?.refresh(), this.squares.get(tab)?.refresh()]);
+      return;
+    }
+    await this.views.get(tab)?.refresh();
+  };
   /** The body from screens/saved reads this exact source and owns no route. */
   source = (view: 'playlists' | 'collections' | 'views'): NativeSavedViewDestination => this.view(view);
   summary = async (): Promise<SavedShapeCounts | undefined> => {
