@@ -133,7 +133,7 @@ async function setup() {
     './controller': {createNativeSearchController}, './actions': {createNativeSearchActions: () => ({dispose() {}})},
     './navigation': navigationPorts, './explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
     './search-page': {SearchPageFor: 'SearchPageFor'}, '../../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'},
-    './AllGenresScreen': {AllGenresScreen: 'AllGenresScreen'},
+    '../../pages/touch/search/AllGenresPage': {AllGenresPage: 'AllGenresPage'}, '../../pages/tv/search/AllGenresPage': {AllGenresPage: 'TVAllGenresPage'},
     './reading-register': readingRegister,
   });
   return {context, navigation, authority, paths, errors, authorityListeners, preferenceListeners, appStateListeners,
@@ -181,7 +181,7 @@ test('the TV entry registers the real Search module against the TV surface, with
 
     assert.equal(navigationPorts.openNativeSearchGenres(s.context), true);
     const genres = states.render(() => expand(bound!.renderRetained(runtime)));
-    const all = find(genres, 'AllGenresScreen') as Element | undefined;
+    const all = find(genres, 'TVAllGenresPage') as Element | undefined;
     assert.ok(all, 'search-genres registers at the TV entry');
     assert.notEqual(all.props.explore, screen.props.explore, 'All genres owns its independent directory');
     assert.ok(all.props.explore instanceof NativeSearchGenreList);
