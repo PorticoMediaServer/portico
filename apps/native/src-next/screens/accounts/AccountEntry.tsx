@@ -52,7 +52,7 @@ import type {AccountDownloadsEntry} from './downloads-entry-model';
 import type {NativeInvitationLink} from '../../platform/invitation-links';
 import {PhoneAccountWorkspace} from './PhoneAccountWorkspace';
 import {NativeAccountWorkspace} from '../../platform/account-workspace';
-import {TVNoServers} from './TVNoServers';
+import {TVNoServers} from '../../pages/tv/accounts/NoServersPage';
 import {OfflineServersPage} from '../../pages/touch/accounts/OfflineServersPage';
 import {TVOfflineServersPage} from '../../pages/tv/accounts/OfflineServersPage';
 import {PhoneAccountMoveNotice} from './PhoneAccountMoveNotice';

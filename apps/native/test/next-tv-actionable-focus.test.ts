@@ -74,14 +74,27 @@ async function bindings() {
     async dispose() {for (const driver of drivers.splice(0).reverse()) await driver.unmount();}};
 }
 
+async function tvNoServersFixture(b: Awaited<ReturnType<typeof bindings>>, controls: object, native: object = b.native) {
+  const frames = {TVAccountCanvas: 'TVAccountCanvas', TVAuthLayout: 'TVAuthLayout', TVAccountFields: 'TVAccountFields',
+    TVAccountActions: 'TVAccountActions'};
+  const parts = await screenModule(new URL('../src-next/kit/accounts/TVNoServersParts.tsx', import.meta.url), {
+    react: b.react, 'react-native': native, 'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n},
+    '../controls': {...controls, Focusable: b.Focusable, TextField: 'TextField'}, '../focus': b.focus, '../Icon': {Icon: 'Icon'},
+    '../theme': {useTheme: () => b.theme}, '../frames/TVAuthLayout': frames,
+    '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../screens/destinations/useEntryFocus': b.entry,
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/accounts/useTVNoServers.ts', import.meta.url), {
+    react: b.react, 'react-native': native, '../../../tv/auth/entry-revision': {useTVBusyEntryRevision},
+  });
+  return screenModule(new URL('../src-next/pages/tv/accounts/NoServersPage.tsx', import.meta.url), {
+    react: b.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/controls': controls, '../../../kit/focus': b.focus,
+    '../../../kit/accounts/TVNoServersParts': parts, '../../../kit/frames/TVAuthLayout': frames, '../../shared/accounts/useTVNoServers': model,
+  });
+}
+
 test('DoorTiles original helper enters once, retains Setup host through busy, and INERT wins', async () => {
   const b = await bindings(); let busy = false, tree: any, door: any, joined = 0; const isCurrent = () => true;
-  const {TVNoServers} = await screenModule(new URL('../src-next/screens/accounts/TVNoServers.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
-    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/focus': b.focus,
-    '../search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ColourBackdrop: 'Backdrop'},
-    '../../kit/controls': {Focusable: b.Focusable, Button: 'Button', TextField: 'TextField'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/theme': {useTheme: () => b.theme, nativeType}, '../destinations/useEntryFocus': b.entry,
-    '../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})}, '../../tv/auth/entry-revision': {useTVBusyEntryRevision}});
+  const {TVNoServers} = await tvNoServersFixture(b, {Button: 'Button'});
   const parent = createFabricHookHost(() => {tree = TVNoServers({busy, isCurrent, onJoin() {}, onFind() {}, onRefresh() {}, onSignOut() {}, onBack() {}});}); await parent.mount();
   const original = () => nodes(tree).find(node => node.type?.name === 'DoorTiles');
   let doorDriver = createFabricHookHost(() => {const node = original(); door = node.type({...node.props, onJoin: () => {joined++;}});}); await doorDriver.mount();
@@ -744,21 +757,20 @@ function actualButtonProps(o: Awaited<ReturnType<typeof overlayBindings>>, props
 test('Join caller binds Find/Sign out to its real field region and preserves commands through busy and Back', async () => {
   const b = await bindings(), o = await overlayBindings(b), backs = new Set<() => boolean>();
   const native = {...b.native, BackHandler: {addEventListener: (_: string, fn: () => boolean) => {backs.add(fn); return {remove: () => backs.delete(fn)};}}};
-  const {TVNoServers} = await screenModule(new URL('../src-next/screens/accounts/TVNoServers.tsx', import.meta.url), {
-    react: b.react, 'react-native': native, 'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/focus': b.focus, '../search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ColourBackdrop: 'Backdrop'},
-    '../../kit/controls': {Button: o.Button, Focusable: b.Focusable, TextField: 'TextField'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/theme': {useTheme: () => b.theme, nativeType}, '../destinations/useEntryFocus': b.entry,
-    '../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})}, '../../tv/auth/entry-revision': {useTVBusyEntryRevision}});
+  const {TVNoServers} = await tvNoServersFixture(b, {Button: o.Button}, native);
   let tree: any, busy = false, current = true; const calls: unknown[] = [];
   const props = {isCurrent: () => current, onJoin: (...value: string[]) => calls.push(value), onFind: () => calls.push('find'),
     onSignOut: () => calls.push('sign-out'), onRefresh() {}, onBack: () => calls.push('back')};
   const source = createFabricHookHost(() => {tree = TVNoServers({...props, busy});}); await source.mount(); await flush();
   nodes(tree).find(node => node.type?.name === 'DoorTiles').props.onJoin(); await flush();
-  const region = () => nodes(tree).find(node => node.type === b.focus.FocusRegion && node.props.id === 'accounts.empty.fields');
-  const field = (id: string) => nodes(tree).find(node => node.type === 'TextField' && node.props.focusId === id);
+  const fields = () => {
+    const node = nodes(tree).find(node => node.type?.name === 'TVJoinInvitationFields');
+    return node && node.type(node.props);
+  };
+  const region = () => nodes(fields()).find(node => node.type === b.focus.FocusRegion && node.props.id === 'accounts.empty.fields');
+  const field = (id: string) => nodes(fields()).find(node => node.type === 'TextField' && node.props.focusId === id);
   await act(() => {field('address').props.onChangeText('https://original.example'); field('invitation').props.onChangeText('ORIGINAL-CODE');});
-  const guide = await b.region(() => region().props), button = (id: string) => nodes(tree).find(node => node.type === o.Button && node.props.focusId === id);
+  const guide = await b.region(() => region().props), button = (id: string) => nodes(fields()).find(node => node.type === o.Button && node.props.focusId === id);
   const find = await b.target('accounts.empty.fields', () => actualButtonProps(o, button('find').props));
   const signOut = await b.target('accounts.empty.fields', () => actualButtonProps(o, button('sign-out').props));
   const join = await b.target('accounts.empty.fields', () => actualButtonProps(o, button('join').props));
