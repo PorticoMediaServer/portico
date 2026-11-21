@@ -134,7 +134,9 @@ export const field = {
 export const tvAccount = {column: 900, fieldsWidth: 860, titleGap: 22, ledeGap: 48, eyebrowGap: 14, fieldGap: 22, actionGap: 20, beforeActionsGap: 32,
   wordmark: {top: 72, width: 174, height: 40}, footerBottom: 64,
   /** connect24 .sgr .si: a server or certificate row's glyph sits in its own tile. */
-  rowIcon: {box: 52, radius: 14, glyph: 28}} as const;
+  rowIcon: {box: 52, radius: 14, glyph: 28},
+  /** connect-24 on TV: the Switch server Settings page's chooser reaches this far down the page, beside every row of the list. */
+  settingsPanelMinHeight: 720} as const;
 
 /** R11, TV key hints (tv.html, tv-detail, tv-player, tv-more `.key-cap` and `.hint`): a key cap 36 high with its key in
  * the badge role, then what the key does in the caption role, quieter than the cap. */
