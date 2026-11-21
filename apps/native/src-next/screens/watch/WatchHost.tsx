@@ -27,6 +27,7 @@ import {NativeHandheldMiniGuide} from './HandheldMiniGuide';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from './live-guide';
 import {nativeWatchTVPresentation} from './tv-presentation';
 import type {NativeWatchControls, NativeWatchControlContext, NativeWatchControlState, NativeWatchPanel} from './controls';
+import {nativePlayerOpen} from '../../platform/layout/full-window';
 
 export type NativeWatchHostContext = Readonly<{
   source: NativePlaybackRuntimeSnapshot;
@@ -104,6 +105,12 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
   const panelOpen = guideOpen || expanded && sameFence(state.fence, fence) && !!state.panel;
   const [lossNotice, setLossNotice] = useState<{key: string; value: NativeWatchNotice}>();
   const [waitingBottomInset, setWaitingBottomInset] = useState(0);
+  // A phone turns only while the video player is open (Justin, 21 Nov 2026).
+  useEffect(() => {
+    if (isTV) return;
+    nativePlayerOpen(expanded);
+    return () => nativePlayerOpen(false);
+  }, [expanded, isTV]);
   const noticeLive = useRef({read: bindings.notice, runtime, playback, fence, authority: source.authority, disposed: source.retired, expanded});
   noticeLive.current = {read: bindings.notice, runtime, playback, fence, authority: source.authority, disposed: source.retired, expanded};
   const noticeKey = fence ? JSON.stringify(fence) : undefined;

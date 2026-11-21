@@ -11,6 +11,7 @@ RCT_EXPORT_MODULE()
 + (BOOL)requiresMainQueueSetup { return NO; }
 - (NSDictionary *)constantsToExport { return @{@"orientationSupported": @NO}; }
 - (NSArray<NSString *> *)supportedEvents { return @[@"portico.fullwindow"]; }
+RCT_EXPORT_METHOD(playerOpen:(BOOL)open) {}
 RCT_EXPORT_METHOD(enter:(NSString *)owner resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {resolve(@NO);}
 RCT_EXPORT_METHOD(leave:(NSString *)owner) {}
 @end
@@ -32,7 +33,6 @@ static __weak PorticoFullWindow *PorticoFullWindowOwnerModule;
 static NSString *PorticoFullWindowOwner;
 static __weak UIWindow *PorticoFullWindowWindow;
 static __weak UIWindowScene *PorticoFullWindowScene;
-static UIInterfaceOrientationMask PorticoFullWindowRestoreMask;
 
 /** Owners retired before their posted turn ran. The only state touched across threads. */
 static NSMutableSet<NSString *> *PorticoFullWindowRetiredOwners;
@@ -92,8 +92,17 @@ static void PorticoFullWindowAsk(UIWindowScene *scene, UIInterfaceOrientationMas
   }
 }
 
+/** Phones are upright everywhere except the video player (Justin, 21 Nov 2026): while the player is open an iPhone may
+ * turn as it did before; otherwise it keeps the app's own (portrait) set. iPads always keep their own set. */
+static BOOL PorticoFullWindowPlayerOpen = NO;
+
+static UIInterfaceOrientationMask PorticoFullWindowFreeMask(void) {
+  BOOL phone = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone;
+  return phone && PorticoFullWindowPlayerOpen ? UIInterfaceOrientationMaskAllButUpsideDown : PorticoFullWindowDefaultMask();
+}
+
 UIInterfaceOrientationMask PorticoFullWindowSupportedOrientations(void) {
-  return PorticoFullWindowOwner ? UIInterfaceOrientationMaskLandscape : PorticoFullWindowDefaultMask();
+  return PorticoFullWindowOwner ? UIInterfaceOrientationMaskLandscape : PorticoFullWindowFreeMask();
 }
 
 void PorticoFullWindowAdoptHostWindow(UIWindow *window) {
@@ -117,6 +126,18 @@ RCT_EXPORT_MODULE()
   return @{@"orientationSupported": @NO};
 }
 
+/** The video player opened or closed. Closing it turns an iPhone back upright unless a sideways request still holds. */
+RCT_EXPORT_METHOD(playerOpen:(BOOL)open) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (PorticoFullWindowPlayerOpen == open) return;
+    PorticoFullWindowPlayerOpen = open;
+    if (PorticoFullWindowOwner) return;
+    UIWindow *window = PorticoFullWindowHostWindow;
+    if (window.rootViewController) PorticoFullWindowRefresh(window.rootViewController);
+    if (!open) PorticoFullWindowAsk(window.windowScene, PorticoFullWindowFreeMask());
+  });
+}
+
 RCT_EXPORT_METHOD(enter:(NSString *)owner resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   if (@available(iOS 16.0, *)) {} else {resolve(@NO); return;}
   __weak PorticoFullWindow *weakSelf = self;
@@ -131,7 +152,6 @@ RCT_EXPORT_METHOD(enter:(NSString *)owner resolver:(RCTPromiseResolveBlock)resol
     PorticoFullWindowOwnerModule = module;
     PorticoFullWindowWindow = window;
     PorticoFullWindowScene = scene;
-    PorticoFullWindowRestoreMask = PorticoFullWindowDefaultMask();
     PorticoFullWindowRefresh(root);
     if (@available(iOS 16.0, *)) {
       __weak PorticoFullWindow *weakOwner = module;
@@ -160,7 +180,8 @@ RCT_EXPORT_METHOD(leave:(NSString *)owner) {
     if (PorticoFullWindowOwnerModule != self || !PorticoFullWindowOwner || ![PorticoFullWindowOwner isEqualToString:owner]) return;
     UIWindow *window = PorticoFullWindowWindow;
     UIWindowScene *scene = PorticoFullWindowScene;
-    UIInterfaceOrientationMask restore = PorticoFullWindowRestoreMask;
+    // The set that applies now: the player may have closed while it was sideways.
+    UIInterfaceOrientationMask restore = PorticoFullWindowFreeMask();
     PorticoFullWindowOwner = nil;
     PorticoFullWindowOwnerModule = nil;
     PorticoFullWindowWindow = nil;
@@ -182,7 +203,8 @@ RCT_EXPORT_METHOD(leave:(NSString *)owner) {
     if (PorticoFullWindowOwnerModule != module) return;
     UIWindow *window = PorticoFullWindowWindow;
     UIWindowScene *scene = PorticoFullWindowScene;
-    UIInterfaceOrientationMask restore = PorticoFullWindowRestoreMask;
+    // The set that applies now: the player may have closed while it was sideways.
+    UIInterfaceOrientationMask restore = PorticoFullWindowFreeMask();
     PorticoFullWindowOwner = nil;
     PorticoFullWindowOwnerModule = nil;
     PorticoFullWindowWindow = nil;
