@@ -199,7 +199,7 @@ test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and 
   const host = hooks();
   const {NativeTVKeyboard} = await screenModule(new URL('../src-next/screens/search/TVKeyboard.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()}, '../../kit/Icon': {Icon: 'Icon'},
+    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => theme},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: (_activation: unknown, address: unknown) => {entryRequests.push(address);}},
     '../destinations/focus': {}, './keyboard': {applyNativeTVKeyboardKey, nativeTVKeyboardRows},
@@ -209,7 +209,8 @@ test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and 
     activation, leftRegionId: ids.rail, rightRegionId: ids.searchResults, onRowFocus: (row: string) => rows.push(row)}));
   assert.deepEqual(entryRequests, [{regionId: `${ids.searchKeyboard}.row.0`, childId: 'a'}]);
   const regions = elements(tree).filter(node => node.type === 'FocusRegion');
-  assert.deepEqual(regions.map(node => node.props.id), [ids.searchKeyboard, ...[0, 1, 2, 3, 4, 5, 6].map(row => `${ids.searchKeyboard}.row.${row}`)]);
+  // The letter rows are one grid region (Up and Down keep the column); the action row is its own.
+  assert.deepEqual(regions.map(node => node.props.id), [ids.searchKeyboard, `${ids.searchKeyboard}.row.0`, `${ids.searchKeyboard}.row.6`]);
   const keys = elements(tree).filter(node => node.type === 'Focusable');
   assert.equal(keys.length, 39);
   assert.deepEqual(keys.slice(0, 6).map(key => key.props.focusId), ['a', 'b', 'c', 'd', 'e', 'f']);
@@ -227,17 +228,18 @@ test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and 
   assert.deepEqual({name: backspace.props.name, size: backspace.props.size, color: backspace.props.color}, {name: 'i-backspace', size: 32, color: colors.textSecondary});
   key('space').props.onPress(); key('delete').props.onPress(); key('clear').props.onPress();
   assert.deepEqual(typed, ['the l ', 'the ', '']);
-  // Row edges are the drawn ones: Left opens the rail, Right enters the results.
-  const row = regions.find(node => node.props.id === `${ids.searchKeyboard}.row.1`)!;
-  assert.deepEqual(row.props.edges, {left: ids.rail, right: ids.searchResults});
-  assert.equal(row.props.entry, 'g');
-  assert.equal(row.props.orientation, 'horizontal');
+  // Edges are the drawn ones: Left opens the rail, Right enters the results, Down from the last letter row reaches the actions.
+  const row = regions.find(node => node.props.id === `${ids.searchKeyboard}.row.0`)!;
+  assert.deepEqual(row.props.edges, {left: ids.rail, right: ids.searchResults, down: `${ids.searchKeyboard}.row.6`});
+  assert.equal(row.props.entry, 'a');
+  assert.deepEqual(row.props.grid, {columns: 6, count: 36, shortRow: 'last'});
   assert.equal(row.props.screenStart.regionId, `${ids.searchKeyboard}.row.0`);
+  assert.deepEqual(elements(tree).find(node => node.type === 'FocusItem' && node.props.focusId === 'g')!.props.cell, {index: 6});
   assert.deepEqual(regions.find(node => node.props.id === `${ids.searchKeyboard}.row.6`)!.props.order, ['space', 'delete', 'clear']);
   // The screen is told which row holds focus, so its results can return to that row's remembered key.
   assert.deepEqual(rows, []);
   row.props.onFocusChange(true); row.props.onFocusChange(false);
-  assert.deepEqual(rows, [`${ids.searchKeyboard}.row.1`]);
+  assert.deepEqual(rows, [`${ids.searchKeyboard}.row.0`]);
 });
 
 test('Left from a result returns to the last keyboard row, and that key returns Right to the same card', async () => {

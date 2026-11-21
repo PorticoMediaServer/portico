@@ -158,3 +158,13 @@ test('numeric Help Up uses the same pad original key memory without a command or
   assert.equal(registry.entryAddress('pad')?.childId, '0');
   assert.deepEqual(requests, [], 'semantic native destination selection never moves focus in JavaScript');
 });
+test('a keyboard grid keeps the column, and a row one key short gives its last key', () => {
+  // Three rows of three with the middle row one short: a b c / d e / g h i.
+  const keys = [[0, 'a'], [1, 'b'], [2, 'c'], [3, 'd'], [4, 'e'], [6, 'g'], [7, 'h'], [8, 'i']] as const;
+  const members = keys.map(([index, id]) => ({id, cell: {index}}));
+  const config = {grid: {columns: 3, count: 9, shortRow: 'last' as const}, edges: {down: 'actions'}};
+  assert.deepEqual(createCellNavigator(members, config, {column: 1})('b').down, {childId: 'e'});
+  assert.deepEqual(createCellNavigator(members, config, {column: 2})('c').down, {childId: 'e'});
+  assert.deepEqual(createCellNavigator(members, config, {column: 2})('e').down, {childId: 'i'});
+  assert.deepEqual(createCellNavigator(members, config, {column: 0})('g').down, {regionId: 'actions'});
+});

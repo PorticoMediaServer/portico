@@ -2,7 +2,7 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Focusable} from '../../kit/controls';
-import {FocusRegion} from '../../kit/focus';
+import {FocusItem, FocusRegion} from '../../kit/focus';
 import {Icon} from '../../kit/Icon';
 import {alpha, browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
@@ -48,16 +48,24 @@ export function NativeTVKeyboard({id, value, onChangeText, activation, leftRegio
     backgroundColor: alpha(theme.colors.text, .05), justifyContent: 'center' as const, alignItems: 'center' as const});
   const edges = {left: leftRegionId, ...(rightRegionId ? {right: rightRegionId} : {})};
   const rowFocus = (row: string) => (owns: boolean) => {if (owns) onRowFocus?.(row);};
+  // The letter rows are one grid, so Up and Down keep the column (after typing "d", Down goes to "j", not back to the
+  // row's remembered key). A key's cell is its row times the columns plus its place in the row; a short row leaves a gap.
+  const letters = `${id}.row.0`, actionRow = `${id}.row.${rows.length}`;
+  const count = rows.length ? (rows.length - 1) * columns + rows[rows.length - 1]!.length : 0;
   return <FocusRegion id={id} enabled={activation.visible} testID={testID} style={{width, gap: 10}}>
-    {rows.map((row, index) => <FocusRegion key={index} id={`${id}.row.${index}`} entry={row[0]} order={row} orientation="horizontal"
-      enabled={activation.visible} screenStart={first} edges={edges} onFocusChange={rowFocus(`${id}.row.${index}`)} style={{flexDirection: 'row', gap: 10}}>
-      {row.map(key => <Focusable key={key} focusId={key} testID={`${testID}-key-${key}`} disabled={!activation.visible} accessibilityLabel={key}
-        onPress={() => choose(key)} focusRadius={14} style={keyStyle()}>
-        <Text style={[browseType(theme, 28, 700), {color: /\d/.test(key) ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{key}</Text>
-      </Focusable>)}
-    </FocusRegion>)}
-    <FocusRegion id={`${id}.row.${rows.length}`} entry={lead ?? 'space'} order={actions} orientation="horizontal" enabled={activation.visible}
-      screenStart={first} edges={edges} onFocusChange={rowFocus(`${id}.row.${rows.length}`)} style={{flexDirection: 'row', gap: 10}}>
+    <FocusRegion id={letters} entry={first.childId} grid={{columns, count, shortRow: 'last'}} enabled={activation.visible} screenStart={first}
+      edges={{...edges, down: actionRow}} onFocusChange={rowFocus(letters)} style={{gap: 10}}>
+      {rows.map((row, rowIndex) => <View key={rowIndex} style={{flexDirection: 'row', gap: 10}}>
+        {row.map((key, column) => <FocusItem key={key} focusId={key} cell={{index: rowIndex * columns + column}}>
+          <Focusable focusId={key} testID={`${testID}-key-${key}`} disabled={!activation.visible} accessibilityLabel={key}
+            onPress={() => choose(key)} focusRadius={14} style={keyStyle()}>
+            <Text style={[browseType(theme, 28, 700), {color: /\d/.test(key) ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{key}</Text>
+          </Focusable>
+        </FocusItem>)}
+      </View>)}
+    </FocusRegion>
+    <FocusRegion id={actionRow} entry={lead ?? 'space'} order={actions} orientation="horizontal" enabled={activation.visible}
+      screenStart={first} edges={{...edges, up: letters}} onFocusChange={rowFocus(actionRow)} style={{flexDirection: 'row', gap: 10}}>
       {lead && <Focusable focusId={lead} testID={`${testID}-key-${lead}`} disabled={!activation.visible} accessibilityLabel={lead}
         onPress={() => choose(lead)} focusRadius={14} style={keyStyle()}>
         <Text style={[browseType(theme, 28, 700), {color: /\d/.test(lead) ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{lead}</Text>

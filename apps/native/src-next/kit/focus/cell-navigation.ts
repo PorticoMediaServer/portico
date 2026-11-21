@@ -3,7 +3,7 @@ export type FocusCell = Readonly<{index?: number; generation?: string; row?: num
 export type CellDirection = 'up' | 'down' | 'left' | 'right';
 export type CellMember = Readonly<{id: string; cell: FocusCell}>;
 export type CellEdges = Readonly<Partial<Record<CellDirection, string>>>;
-export type CellNavigation = Readonly<{grid?: Readonly<{columns: number; count?: number; shortRow?: 'clamp' | 'exit'}>;
+export type CellNavigation = Readonly<{grid?: Readonly<{columns: number; count?: number; shortRow?: 'clamp' | 'exit' | 'last'}>;
   timeGrid?: Readonly<{initialTime: number; start: number; end: number}>; edges?: CellEdges}>;
 export type CellDestination = Readonly<{childId: string}> | Readonly<{regionId: string}>;
 const self = (id: string): CellDestination => ({childId: id});
@@ -42,7 +42,10 @@ export function createCellNavigator(members: readonly CellMember[], config: Cell
         // A deliberate hole in a keypad exits to its actual neighboring region.
         // Poster grids keep the existing short-row column clamp by default.
         if (target > last && config.grid!.shortRow === 'exit') return edge(id, direction < 0 ? config.edges?.up : config.edges?.down);
-        return at(Math.min(last, target));
+        let landing = Math.min(last, target);
+        // `last`: rows may end early (a keyboard row one key short); the move takes that row's last key.
+        if (config.grid!.shortRow === 'last') while (landing > first && !known.has(landing)) landing--;
+        return at(landing);
       };
       return {left: column === 0 ? edge(id, config.edges?.left) : at(index - 1),
         right: column === columns - 1 || config.grid.count !== undefined && index === config.grid.count - 1 ? edge(id, config.edges?.right) : at(index + 1),
