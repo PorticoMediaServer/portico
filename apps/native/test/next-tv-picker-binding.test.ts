@@ -151,7 +151,7 @@ test('TV profile-switch hand-off preserves its current family, selection control
     '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
     '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
     '../../../../../packages/client-core/src/profile-management': profileManagement, '../../../../../packages/client-core/src/identity-client': identityClient,
-    '../../platform/profile-avatars': profileAvatars, '../settings-live/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
+    '../../platform/profile-avatars': profileAvatars, '../../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
     '../settings-live/lifetime': lifetime, '../../shell/model': shellModel,
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
     '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
@@ -237,7 +237,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
     '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
     '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
     '../../../../../packages/client-core/src/profile-management': profileManagement, '../../../../../packages/client-core/src/identity-client': identityClient,
-    '../../platform/profile-avatars': profileAvatars, '../settings-live/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
+    '../../platform/profile-avatars': profileAvatars, '../../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
     '../settings-live/lifetime': lifetime, '../../shell/model': shellModel,
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
     '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {

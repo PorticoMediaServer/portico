@@ -9,14 +9,14 @@ import {createTheme} from '../src-next/kit/theme';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.footer)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.type?.name === 'InvitationCard' ? nodes(node.type(node.props)) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.footer)] : [];
 const texts = (node: any) => nodes(node).filter(item => item.type === 'Text').map(item => [item.props.children].flat().join(''));
 const button = (tree: any, testID: string) => nodes(tree).find(node => node.type === 'Button' && node.props.testID === testID);
 const t = defaultI18n.t;
 const LINK = 'https://demo.example/join#code=' + 'c'.repeat(43);
 // The card's wordmark is a bundled image; the harness has no asset loader.
 const previousRequire = Object.getOwnPropertyDescriptor(globalThis, 'require');
-test.before(() => {Object.defineProperty(globalThis, 'require', {configurable: true, value: (path: string) => {assert.equal(path, '../../../../assets/wordmark.png'); return 'wordmark';}});});
+test.before(() => {Object.defineProperty(globalThis, 'require', {configurable: true, value: (path: string) => {assert.equal(path, '../../../assets/wordmark.png'); return 'wordmark';}});});
 test.after(() => {if (previousRequire) Object.defineProperty(globalThis, 'require', previousRequire); else delete (globalThis as {require?: unknown}).require;});
 
 async function mount(ready: 'created' | 'shared', options: {save?: boolean} = {}) {
@@ -32,21 +32,27 @@ async function mount(ready: 'created' | 'shared', options: {save?: boolean} = {}
     invitationShareLink: async () => {calls.push('link'); return LINK;},
     invitationShortCode: async (_: unknown, operationId: string) => {calls.push('code:' + operationId); return {serverId: 'srv', expiresAt: '2099-01-01T00:00:00Z', shortCode: '7QK29MXPABCD1234'};},
   };
-  const {InvitationReadySheet} = await screenModule(new URL('../src-next/screens/settings-live/server/InvitationReadySheet.tsx', import.meta.url), {
-    react: {...React, default: React},
-    'react-native': {Image: 'Image', Text: 'Text', View: 'View', Share: {share: async (value: unknown) => {shared.push(value);}}},
+  const theme = createTheme({isTV: false, width: 390});
+  const words = await screenModule(new URL('../src-next/kit/settings/InvitationCard.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Image: 'Image', Text: 'Text', View: 'View'},
     'react-native-qrcode-svg': {default: 'QR'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', Path: 'Path', RadialGradient: 'RadialGradient', Rect: 'Rect', Stop: 'Stop', Text: 'SvgText'},
+    '../qr-matrix': {qrMatrix: () => [[true, false], [false, true]]}, '../theme': {useTheme: () => theme},
+    '../frames/metrics': {useFrameMetrics: () => ({rowTwoLine: 56})},
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useInvitationReady.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Share: {share: async (value: unknown) => {shared.push(value);}}},
     '../../../../../../packages/client-core/src/invitation-card': card,
     '../../../../../../packages/client-core/src/invitation-short-code-issuer': issuer,
     '../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../kit/controls': {Button: 'Button'},
-    '../../../kit/qr-matrix': {qrMatrix: () => [[true, false], [false, true]]},
-    '../../../kit/overlays': {BottomSheet: 'Sheet'},
-    '../../../kit/states': {StateView: 'StateView'},
-    '../../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../../platform/clipboard': {copyText: async (value: string) => {copied.push(value);}},
     '../../../platform/invitation-picture-save': {invitationPictureSavePort: () => options.save ? async (png: string) => {saved.push(png); return 'saved';} : undefined},
+  });
+  const {InvitationReadySheet} = await screenModule(new URL('../src-next/pages/shared/settings/ServerInvitationReady.tsx', import.meta.url), {
+    react: {...React, default: React}, './useInvitationReady': model, '../../../kit/settings/InvitationCard': words,
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/frames': {PanelBlock: 'PanelBlock'},
+    '../../../kit/overlays': {BottomSheet: 'Sheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'FooterRow'},
+    '../../../kit/states': {StateView: 'StateView'}, '../../../kit/settings/SettingsParts': {SettingsHelp: 'Text'},
   });
   const runtime = {text: {t}, error: (error: unknown) => ({title: String(error)})};
   let tree: any;
