@@ -4,6 +4,7 @@ import Animated, {Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTi
 import {ScreenStack, ScreenStackItem, type StackAnimationTypes} from 'react-native-screens';
 import {NativeStackSlotOutlet, type NativeStackSlots} from '../kit/navigation/stack-slot';
 import {Layer} from '../kit/shell/Layer';
+import {pageInsetElement} from '../kit/layout/page-inset';
 import {isModalRoot, type NativeRoutePresentation, type NativeShellRoute, type NativeTabStack} from './routes';
 import type {NativeTouchStacksPort} from './runtime';
 
@@ -108,9 +109,10 @@ function Stack({id, presentations, modal, tabActive, active, port, slots, tier, 
       const key = index === 0 ? `${id}:root` : presentation.occurrence;
       const outlet = <NativeStackSlotOutlet slots={slots} route={presentation.route}/>;
       // A first screen's retained views (Search) take its page's box: the whole screen on a phone, beside the rail on a
-      // tablet (they drew under the rail there). A pushed page and its retained views share one box.
+      // tablet (they drew under the rail there), and are told that box's width (usePageWidth): Search's genre tiles were sized
+      // for the whole window and fell into one column. A pushed page and its retained views share one box.
       const page = shell ? <>{renderShell({presentation, top, tabActive, modal: modal && index === 0})}
-        <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: shellInset}}>{outlet}</View></>
+        <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: shellInset}}>{pageInsetElement(shellInset, outlet)}</View></>
         : routeStyle ? routeStyle(presentation.route, <>{port.renderRoute(presentation.route)}{outlet}</>) : <>{port.renderRoute(presentation.route)}{outlet}</>;
       // Reduced: a pushed page fades in, and so does the page a pop returns to (the same 160 ms).
       // Only this stack's own pushes and pops count; a tab switch has the tab's fade.
