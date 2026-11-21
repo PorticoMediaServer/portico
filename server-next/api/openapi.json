@@ -6347,6 +6347,9 @@
       },
       "LiveChannel": {
         "properties": {
+          "canRecord": {
+            "type": "boolean"
+          },
           "favorite": {
             "type": "boolean"
           },

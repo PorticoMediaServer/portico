@@ -14,7 +14,7 @@ import type {ChannelPage, GuideChannelRow, GuideDataSource, GuideProgram} from '
 const liveRows = new WeakSet<GuideChannelRow>();
 export function nextChannelRow(channel: LiveChannel): GuideChannelRow {
   const row: GuideChannelRow = Object.freeze({id: channel.id, kind: channel.kind === 'library' ? 'library' : 'live', number: channel.number, name: channel.name, group: channel.group ?? '',
-    ...(channel.logo ? {logoUrl: channel.logo} : {}), favorite: channel.favorite, tuneAvailable: true, recordAvailable: channel.kind !== 'library', guide: 'full', native: channel});
+    ...(channel.logo ? {logoUrl: channel.logo} : {}), favorite: channel.favorite, tuneAvailable: true, recordAvailable: channel.canRecord === true, guide: 'full', native: channel});
   liveRows.add(row);
   return row;
 }
@@ -38,7 +38,7 @@ export function liveGuideChannel(row: GuideChannelRow): GuideChannel | undefined
   const library = channel.kind === 'library';
   return Object.freeze({id: channel.id, sourceId: library ? channel.id : NEXT_CHANNEL_SOURCE, provenance: library ? 'library-channel' : 'live-source', name: channel.name,
     number: channel.number, group: channel.group ?? '', generation: NEXT_CHANNEL_GENERATION, ...(channel.logo ? {logoPath: channel.logo} : {}), programmes: [],
-    tuneAvailable: true, recordAvailable: channel.kind !== 'library', tuneUnavailableReason: '', recordUnavailableReason: '', guide: 'full',
+    tuneAvailable: true, recordAvailable: channel.canRecord === true, tuneUnavailableReason: '', recordUnavailableReason: '', guide: 'full',
     favorite: channel.favorite, hidden: channel.hidden, preferenceRevision: 0}) as GuideChannel;
 }
 export function nextProgram(channelId: string, programme: LiveProgramme): GuideProgram {

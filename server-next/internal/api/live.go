@@ -24,6 +24,10 @@ type LiveChannel struct {
 	Logo     string `json:"logo,omitempty"`
 	Favorite bool   `json:"favorite"`
 	Hidden   bool   `json:"hidden"`
+	// CanRecord says this viewer may book a recording from this channel: the profile may
+	// record and the channel comes from a source (a Library Channel plays what is already
+	// in a library). A programme's own detail can still say no, for one that has ended.
+	CanRecord bool `json:"canRecord,omitempty"`
 	// MatchedProgramme is the visible now/next listing whose title matched a search.
 	MatchedProgramme *LiveProgramme `json:"matchedProgramme,omitempty"`
 }
@@ -118,9 +122,9 @@ func rated(v db.LiveViewer, age *int) bool {
 	return v.MaxAge == nil || age == nil || *age <= *v.MaxAge
 }
 
-func channelOut(c db.LiveChannel) LiveChannel {
+func channelOut(lv db.LiveViewer, c db.LiveChannel) LiveChannel {
 	out := LiveChannel{ID: c.PublicID, Name: c.Name, Kind: "library", Group: c.Group, Favorite: c.Favorite, Hidden: c.Hidden,
-		Number: strconv.Itoa(c.Number)}
+		Number: strconv.Itoa(c.Number), CanRecord: lv.Record && c.Kind == db.ChannelFromSource}
 	if c.LogoHash != "" {
 		out.Logo = "/v1/images/" + c.LogoHash
 	}
@@ -202,7 +206,7 @@ func (s *Server) liveChannels(r *http.Request, _ None) (LiveChannelPage, error) 
 			return LiveChannelPage{}, err
 		}
 		for _, row := range rows {
-			out.Items = append(out.Items, channelOut(row))
+			out.Items = append(out.Items, channelOut(lv, row))
 		}
 		return out, nil
 	}
@@ -227,7 +231,7 @@ func (s *Server) liveChannels(r *http.Request, _ None) (LiveChannelPage, error) 
 		return LiveChannelPage{}, err
 	}
 	for _, row := range rows {
-		out.Items = append(out.Items, channelOut(row))
+		out.Items = append(out.Items, channelOut(lv, row))
 	}
 	if next != nil {
 		out.NextCursor = encodeOpaque(next)
@@ -361,7 +365,7 @@ func (s *Server) liveGuide(r *http.Request, _ None) (LiveGuide, error) {
 	}
 	out := LiveGuide{Items: []LiveGuideRow{}}
 	for n, ch := range channels {
-		out.Items = append(out.Items, LiveGuideRow{Channel: channelOut(ch), Programmes: progs[n]})
+		out.Items = append(out.Items, LiveGuideRow{Channel: channelOut(lv, ch), Programmes: progs[n]})
 	}
 	if out.OutOfDate, err = s.guideOutOfDate(r.Context(), channels); err != nil {
 		return LiveGuide{}, err
@@ -414,7 +418,7 @@ func (s *Server) liveNowAt(r *http.Request, now time.Time) (Page[LiveOnNow], err
 	}
 	out := Page[LiveOnNow]{Items: []LiveOnNow{}}
 	for n, ch := range channels {
-		item := LiveOnNow{Channel: channelOut(ch)}
+		item := LiveOnNow{Channel: channelOut(lv, ch)}
 		for k := range progs[n] {
 			p := &progs[n][k]
 			if !p.StartsAt.After(now) && item.Now == nil {

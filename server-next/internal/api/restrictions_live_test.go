@@ -19,7 +19,11 @@ func TestProfileLiveAndRecordingChoicesAreEnforced(t *testing.T) {
 		t.Fatalf("defaults: %+v", read)
 	}
 	programme := programmeID(t, s, owner, "Late News")
-	channel := get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items[0].ID
+	first := get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items[0]
+	if !first.CanRecord {
+		t.Fatal("the owner's channel does not offer Record")
+	}
+	channel := first.ID
 	save := func(body any) Restrictions {
 		t.Helper()
 		var out Restrictions
@@ -32,7 +36,8 @@ func TestProfileLiveAndRecordingChoicesAreEnforced(t *testing.T) {
 	if got := save(map[string]any{"allowDownloads": false}); *got.AllowDVR || !*got.AllowLiveTV || !got.AccountAllowDVR {
 		t.Fatalf("another field undid the recording choice: %+v", got)
 	}
-	if get[DvrOverview](t, s, onKid.AccessToken, "/v1/dvr").CanRecord || get[LiveProgrammeDetail](t, s, onKid.AccessToken, "/v1/live/programmes/"+programme).CanRecord {
+	if get[DvrOverview](t, s, onKid.AccessToken, "/v1/dvr").CanRecord || get[LiveProgrammeDetail](t, s, onKid.AccessToken, "/v1/live/programmes/"+programme).CanRecord ||
+		get[Page[LiveChannel]](t, s, onKid.AccessToken, "/v1/live/channels").Items[0].CanRecord {
 		t.Fatal("the profile still offers Record")
 	}
 	for path, body := range map[string]any{

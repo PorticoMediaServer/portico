@@ -66,9 +66,11 @@ test('a linked channel the profile may not see is simply not found', async () =>
 });
 
 test('a row made from a new-server channel names that channel; any other row names none', () => {
-  const channel = {id: 'chn_1', name: 'Harbour News', number: '101', kind: 'source', favorite: false, hidden: true};
+  const channel = {id: 'chn_1', name: 'Harbour News', number: '101', kind: 'source', favorite: false, hidden: true, canRecord: false};
   const row = nextChannelRow(channel);
   assert.equal(liveChannel(row)?.hidden, true);
+  assert.equal(row.recordAvailable, false, 'Record follows what the server says this viewer may do');
+  assert.equal(nextChannelRow({...channel, canRecord: true}).recordAvailable, true);
   assert.equal(liveChannel({...row}), undefined, 'a copy, or a row of the old guide, is not one');
 });
 
@@ -76,13 +78,13 @@ test('a new-server row starts as a channel the player\'s identity accepts: a Lib
   const {liveGuideChannel, NEXT_CHANNEL_SOURCE, NEXT_CHANNEL_GENERATION} = await import('../src/guide/next-source.ts');
   const {playbackFence} = await import('../../player-core/src/identity.ts');
   const scope = {serverId: 's', authority: 'local' as const, accountId: 'a', profileId: 'p', controllerId: 'c', controllerEpoch: 'e', commandLaneId: 'l'};
-  const library = liveGuideChannel(nextChannelRow({id: 'chn_lib', name: 'Harbour Classics', number: '1', kind: 'library', favorite: false, hidden: false}))!;
-  const live = liveGuideChannel(nextChannelRow({id: 'chn_1', name: 'Dockside News', number: '201', kind: 'source', favorite: false, hidden: false}))!;
+  const library = liveGuideChannel(nextChannelRow({id: 'chn_lib', name: 'Harbour Classics', number: '1', kind: 'library', favorite: false, hidden: false, canRecord: false}))!;
+  const live = liveGuideChannel(nextChannelRow({id: 'chn_1', name: 'Dockside News', number: '201', kind: 'source', favorite: false, hidden: false, canRecord: true}))!;
   assert.deepEqual([library.provenance, library.sourceId, library.generation], ['library-channel', 'chn_lib', NEXT_CHANNEL_GENERATION]);
   assert.deepEqual([live.provenance, live.sourceId], ['live-source', NEXT_CHANNEL_SOURCE]);
   for (const channel of [library, live]) assert.doesNotThrow(() => playbackFence({kind: 'channel', playback: {scope, run: 1}, sessionId: 'ses_1', generation: 1,
     channelKind: channel.provenance, sourceId: channel.sourceId, channelId: channel.id, channelGeneration: channel.generation} as never));
-  assert.equal(liveGuideChannel({...nextChannelRow({id: 'x', name: 'x', number: '1', kind: 'source', favorite: false, hidden: false})}), undefined, 'only a row made from the new server');
+  assert.equal(liveGuideChannel({...nextChannelRow({id: 'x', name: 'x', number: '1', kind: 'source', favorite: false, hidden: false, canRecord: true})}), undefined, 'only a row made from the new server');
 });
 
 

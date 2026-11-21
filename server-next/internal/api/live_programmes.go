@@ -70,7 +70,7 @@ func (s *Server) getProgramme(r *http.Request, _ None) (LiveProgrammeDetail, err
 	if err != nil {
 		return LiveProgrammeDetail{}, err
 	}
-	out := LiveProgrammeDetail{Channel: channelOut(ch), Airings: []LiveAiring{}, CanRecord: lv.Record && ch.Kind == db.ChannelFromSource}
+	out := LiveProgrammeDetail{Channel: channelOut(lv, ch), Airings: []LiveAiring{}, CanRecord: lv.Record && ch.Kind == db.ChannelFromSource}
 	for _, item := range rows[0] {
 		if item.StartsAt.Equal(p.StartsAt) {
 			out.LiveProgramme = item

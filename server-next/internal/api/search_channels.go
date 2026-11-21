@@ -81,7 +81,7 @@ func (s *Server) searchChannels(r *http.Request, q db.SearchQuery) (group Search
 	}
 	end := min(from.Offset+limit, len(shown))
 	for _, m := range shown[min(from.Offset, end):end] {
-		channel := channelOut(m.LiveChannel)
+		channel := channelOut(lv, m.LiveChannel)
 		channel.MatchedProgramme = programmes[m.ID]
 		group.Channels = append(group.Channels, channel)
 	}
