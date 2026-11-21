@@ -9,6 +9,8 @@ import {settingsRowIndex} from '@core/presentation/settings-spec.ts';
 import {Button, Select} from '../../../../kit/controls';
 import {SettingsGroup} from '../../../../kit/settings';
 import {SettingsRow} from '../../../../kit/shell/SettingsSurfaces';
+import {Icon} from '../../../../kit/Icon';
+import serverStyles from '../server.module.css';
 import {FeedbackPanel} from './Feedback';
 import {ReportsPanel} from './Reports';
 import {SupportPanel} from './Support';
@@ -87,7 +89,8 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
       {tabs.map(tab => {
         const row = settingsRowIndex.get(`troubleshooting.${tab.id}`)!.row, stuckRow = tab.id === 'reports' && stuck;
         return <SettingsRow key={tab.id} label={stuckRow ? t('next.settings.troubleshootingStuckFiles') : t(row.label)} help={stuckRow ? t('next.settings.troubleshootingStuckFilesHelp') : row.help && t(row.help)}>
-          <Button ref={element => {openers.current[tab.id] = element;}} variant="glass" size="small" icon="i-right" onClick={() => {if (isCurrent()) {opener.current = tab.id;setView(tab.id);}}}>{stuckRow ? t('next.settings.troubleshootingOpenStuckFiles') : t(row.control.label ?? row.label)}</Button>
+          {/* settings-troubleshooting: opening a viewer is the accent link with its chevron, as every section link draws. */}
+          <button type="button" ref={element => {openers.current[tab.id] = element;}} className={serverStyles.sectionLink} onClick={() => {if (isCurrent()) {opener.current = tab.id;setView(tab.id);}}}>{stuckRow ? t('next.settings.troubleshootingOpenStuckFiles') : t(row.control.label ?? row.label)}<Icon name="i-right" size={16} /></button>
         </SettingsRow>;
       })}
     </SettingsGroup>
