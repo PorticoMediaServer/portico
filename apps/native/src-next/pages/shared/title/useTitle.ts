@@ -98,10 +98,11 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   const title = workspace?.show.title ?? entry.displayTitle ?? detail?.item.title ?? entry.title;
   const backdrop = workspace?.show.backdropUrl ?? detail?.item.backdropUrl ?? entry.backdropUrl;
 
-  // Facts: year, genres, length; the rating as its outlined tag at the end (phone-detail d1).
+  // Facts: year, genres, then a movie's length or a show's seasons (final3-tv-03 "1 season"); the rating as its outlined tag
+  // at the end (phone-detail d1).
   const contentRating = workspace?.show.contentRating ?? detail?.facts?.contentRating ?? entry.contentRating, duration = detail?.item.duration ?? entry.duration;
   const factSource = titleFactParts({year: workspace?.show.year ?? detail?.item.year ?? entry.year, durationSeconds: show ? undefined : duration,
-    genres: workspace?.show.genres ?? detail?.metadata.genres.map(genre => genre.name) ?? entry.genres, contentRating, seasonCount: show ? workspace?.seasonTotalCount : undefined}, text, 'home-movie');
+    genres: workspace?.show.genres ?? detail?.metadata.genres.map(genre => genre.name) ?? entry.genres, contentRating, seasonCount: show ? workspace?.seasonTotalCount : undefined}, text, show ? 'home-show' : 'home-movie');
   const facts = [...factSource.filter(fact => fact.id !== 'content-rating'), ...(contentRating ? [{id: 'content-rating', text: contentRating, role: 'context' as const}] : [])];
 
   // Play or Resume, with the played part, the time left and Start over.
