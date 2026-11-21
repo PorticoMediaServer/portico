@@ -9,7 +9,7 @@ import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {NativeRemoteSourcesController} from '../../settings/remote-sources/controller';
-import {RemoteSourcesPage} from '../../../pages/shared/settings/RemoteSourcesPage';
+import {RemoteSourcesPage} from '../../../pages/touch/settings/RemoteSourcesPage';
 import {SourceFolderBrowser} from '../../../kit/settings/remote-sources/SourceFolderBrowser';
 import {Problem} from '../../../kit/settings/remote-sources/RemoteSourceForms';
 import {remoteSourceError, type ChosenSourceFolder} from '../../settings/remote-sources/messages';

@@ -8,7 +8,7 @@ import {SettingsRow} from '../../../kit/shell';
 import {remoteSourceError, stateWords, type ChosenSourceFolder} from '../../../screens/settings/remote-sources/messages';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useRemoteSources} from './useRemoteSources';
+import {useRemoteSources} from '../../shared/settings/useRemoteSources';
 
 type Props = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'> & {
   ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; retry?: React.ReactNode;
