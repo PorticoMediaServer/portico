@@ -85,7 +85,9 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
         // settings.html `.sel`: at least 176 wide off TV, the value then the chevron spaced apart.
         // A value that took the row's leftover width (flex: 1) collapsed to nothing in a row's
         // trailing slot, which has none (walk, 1 Nov).
-        if (inline) return [styles.trigger, {minHeight: 44, gap: 4, justifyContent: 'flex-end', borderColor: 'transparent', opacity: blocked ? .45 : 1}, supplied, {backgroundColor: 'transparent', paddingHorizontal: 0}];
+        // In a settings row the 44-point target reaches into the row's own 8-point padding, so a select row is the row's
+        // height (music-plus 6 `.lr`), not 44 plus the padding.
+        if (inline) return [styles.trigger, {minHeight: 44, marginVertical: -8, gap: 4, justifyContent: 'flex-end', borderColor: 'transparent', opacity: blocked ? .45 : 1}, supplied, {backgroundColor: 'transparent', paddingHorizontal: 0}];
         return [styles.trigger, {height: theme.isTV ? 64 : 44, borderRadius: theme.isTV ? 14 : 10, minWidth: theme.isTV ? undefined : 176,
           paddingHorizontal: theme.isTV ? 20 : 16, gap: theme.isTV ? 20 : 14,
           borderColor: error ? theme.colors.danger : isOpen ? theme.colors.accent : 'transparent',
