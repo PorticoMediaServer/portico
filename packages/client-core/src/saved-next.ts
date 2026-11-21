@@ -76,12 +76,21 @@ async function playlists(api: SavedNextApi, bound: SavedScope, selected: SavedRo
   const page: ListPage = await callServer(api, 'GET /v1/lists', {query: {kind: 'playlist', limit: PAGE, cursor: cursor ?? undefined}, signal});
   if (!page || !Array.isArray(page.items)) throw new CodedError('invalid_saved', 'The playlists could not be read.');
   const shown = page.items.filter(list => list.kind === 'playlist' && (filter === 'all' || (filter === 'mine') === (list.role === 'owner')));
+  // The chips count every playlist the profile can see, not just this page. One page holds them all in the usual case;
+  // otherwise the whole list is read once more, in large pages, only to count it.
+  const all: List[] = cursor === null && !page.nextCursor ? page.items.filter(list => list.kind === 'playlist') : [];
+  if (cursor !== null || page.nextCursor) for (let next: string | undefined = '', first = true; first || next; first = false) {
+    const more: ListPage = await callServer(api, 'GET /v1/lists', {query: {kind: 'playlist', limit: 200, cursor: next || undefined}, signal});
+    all.push(...(more?.items ?? []).filter(list => list.kind === 'playlist')); next = more?.nextCursor ?? undefined;
+  }
+  const mine = all.filter(list => list.role === 'owner').length;
+  const counts: Readonly<Record<string, number>> = {all: all.length, mine, shared: all.length - mine};
   const cards = shown.map(list => ({id: list.id, kind: 'playlist', title: list.name, ...(list.description ? {subtitle: list.description} : {}), count: list.count,
     ...(list.updatedAt ? {lastChanged: list.updatedAt.replace(/\.\d+Z$/, 'Z')} : {}), artworkPaths: list.covers.map(images => images.poster ?? images.cover ?? images.thumb).filter(Boolean).slice(0, 4),
     navigation: {view: 'playlist', entityId: list.id}}));
   return {scope: scopeOf(bound, 'playlists'), revision: {catalog: 0, viewer: 0}, heading: {key: 'saved.playlists', fallback: ''},
-    query: {sort: selected.sort ?? 'updated', direction: selected.direction ?? 'desc', category: '', q: '', limit: PAGE, searchMode: 'none'}, navigation,
-    sorts: [], filters: [{id: 'filter', labelKey: 'saved.filter', options: ['all', 'mine', 'shared'].map(id => ({id, label: id, count: 0}))}], actions: ['create_playlist'],
+    query: {sort: selected.sort ?? 'updated', direction: selected.direction ?? 'desc', category: filter, q: '', limit: PAGE, searchMode: 'none'}, navigation,
+    sorts: [], filters: [{id: 'filter', labelKey: 'saved.filter', options: ['all', 'mine', 'shared'].map(id => ({id, label: id, count: counts[id]!}))}], actions: ['create_playlist'],
     sections: [{id: 'playlists', type: 'grid', heading: {key: 'saved.playlists', fallback: ''}, entries: cards, totalCount: cards.length, nextCursor: page.nextCursor ?? '', start: 0}]};
 }
 
