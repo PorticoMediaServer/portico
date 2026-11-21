@@ -61,8 +61,9 @@ function HistoryTable({bindings: b}: {bindings: DashboardBindings}) {
       // The person column holds an avatar beside the name, so it needs more than its text.
       {id: 'title', label: t('next.dashboard.titleColumn'), kind: 'main', sortable: false, width: '25%'},
       {id: 'person', label: t('next.dashboard.person'), kind: 'main', sortable: false, width: '20%'},
-      {id: 'player', label: t('next.dashboard.player'), kind: 'text', sortable: false, width: '19%'},
-      {id: 'played', label: t('next.dashboard.played'), kind: 'text', sortable: false, width: '14%'},
+      {id: 'player', label: t('next.dashboard.player'), kind: 'text', sortable: false, width: '17%'},
+      // "Today, 3:01 PM" stays on one line (settings-history): the column takes its words' width.
+      {id: 'played', label: t('next.dashboard.played'), kind: 'text', sortable: false, width: '16%'},
       {id: 'for', label: t('next.dashboard.playedFor'), kind: 'text', sortable: false, width: '12%'},
       {id: 'where', label: t('next.dashboard.where'), kind: 'badge', sortable: false, width: '10%'},
     ]} query={query} onQueryChange={setQuery} filters={[
