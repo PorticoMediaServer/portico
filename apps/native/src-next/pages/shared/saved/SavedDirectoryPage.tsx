@@ -31,7 +31,7 @@ export function SavedDirectoryPage(props: NativeSavedDirectoryProps) {
     {!!sorts.length && <SavedSortMenu scope="saved-directory" sorts={sorts} sort={query?.sort} direction={query?.direction} onChange={model.chooseSort}/>}
     {filters.flatMap(filter => filter.options.map(option => <Chip key={`${filter.id}:${option.id}`} focusId={`dir-filter-${option.id}`}
       selected={(query?.category ?? 'all') === option.id} count={option.count}
-      onPress={() => model.chooseFilter(option.id as PlaylistListFilter)}>{option.label}</Chip>))}
+      onPress={() => model.chooseFilter(option.id as PlaylistListFilter)}>{t('playlists.filter.option', {group: option.id})}</Chip>))}
   </SavedListTools>;
   const state = error && !loading ? <StateView variant="inline" {...runtime.error(error, model.retry)}/>
     : !rows.length ? <StateView variant="inline" title={t(empty[route.view].title)} body={t(empty[route.view].body)}/> : undefined;
