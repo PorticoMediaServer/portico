@@ -1,13 +1,13 @@
 import React,{useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {Text,View} from 'react-native';
-import type {LibraryChannel} from '../../../../../../../packages/client-core/src/server-admin/owner-library-channels';
-import {uploadNativeOwnerChannelLogo,removeOwnerChannelLogo} from '../../../../../../../packages/client-core/src/server-admin/owner-library-channels';
-import {defaultI18n} from '../../../../../../../packages/i18n/src';
-import {Button} from '../../../../kit/controls';
-import {BottomSheet,MenuRow} from '../../../../kit/overlays';
-import {useTheme} from '../../../../kit/theme';
-import type {NativeChannelsGroup} from './model';
-import {pickNativeChannelLogo,type NativeLogoImage} from './logo-upload';
+import type {LibraryChannel} from '../../../../../../packages/client-core/src/server-admin/owner-library-channels';
+import {uploadNativeOwnerChannelLogo,removeOwnerChannelLogo} from '../../../../../../packages/client-core/src/server-admin/owner-library-channels';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {Button} from '../../controls';
+import {BottomSheet,MenuRow} from '../../overlays';
+import {useTheme} from '../../theme';
+import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
+import {pickNativeChannelLogo,type NativeLogoImage} from '../../../screens/settings-live/server/channels/logo-upload';
 const t=defaultI18n.t;
 export function NativeChannelLogo({group,channel}:{group:NativeChannelsGroup;channel:LibraryChannel}){
  const {source}=group,state=useSyncExternalStore(source.subscribe,source.getSnapshot),theme=useTheme(),[open,setOpen]=useState(false),[image,setImage]=useState<NativeLogoImage>(),[picking,setPicking]=useState(false),[error,setError]=useState(false),attempt=useRef<AbortController|undefined>(undefined);

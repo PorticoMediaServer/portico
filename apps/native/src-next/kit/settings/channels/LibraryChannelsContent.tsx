@@ -1,49 +1,38 @@
-import React,{useEffect,useLayoutEffect,useMemo,useState,useSyncExternalStore} from 'react';
-import {Text,View} from 'react-native';
-import type {LibraryChannel,LibraryChannelTemplate} from '../../../../../../../packages/contracts/src/next/api';
-import {channelMonograms} from '../../../../../../../packages/client-core/src/presentation/kit-model/channels';
-import {defaultI18n} from '../../../../../../../packages/i18n/src';
-import {ChannelMark} from '../../../../kit/artwork';
-import {Button,Focusable} from '../../../../kit/controls';
-import {BottomSheet,MenuRow} from '../../../../kit/overlays';
-import {shellType} from '../../../../kit/shell/visual';
-import {useTheme} from '../../../../kit/theme';
-import type {NativeSettingsLivePorts} from '../../ports';
-import type {NativeShellRuntime} from '../../../../shell/runtime';
-import {createNativeChannels,type NativeChannelsGroup} from './model';
+import React from 'react';
+import {Text, View} from 'react-native';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {useChannelRows} from '../../../pages/shared/settings/useLibraryChannels';
+import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+import {ChannelMark} from '../../artwork';
+import {Button, Focusable} from '../../controls';
+import {PanelBlock, SectionCard} from '../../frames';
+import {BottomSheet, MenuRow} from '../../overlays';
+import {OverlayFootRow} from '../../overlays/surface';
+import {useTheme} from '../../theme';
 import {NativeChannelEditor} from './ChannelEditor';
 import {NativeBlockPresets} from './BlockPresets';
 import {NativeChannelLogo} from './ChannelLogo';
-const t=defaultI18n.t;
-export function NativeLibraryChannelsPage({ports,runtime,initialChannelId}:{ports:Pick<NativeSettingsLivePorts,'context'|'requestId'>;runtime:NativeShellRuntime;initialChannelId?:string}){
- const context=ports.context,[group,setGroup]=useState<NativeChannelsGroup>();
- useLayoutEffect(()=>{const next=createNativeChannels(context,runtime.reportError);setGroup(next);return next.dispose;},[context,runtime.reportError]);
- return group?.context===context?<Channels group={group} runtime={runtime} initialChannelId={initialChannelId}/>:null;
-}
-export function Channels({group,runtime,initialChannelId}:{group:NativeChannelsGroup;runtime:NativeShellRuntime;initialChannelId?:string}){
- const {source}=group,state=useSyncExternalStore(source.subscribe,source.getSnapshot),theme=useTheme(),[menu,setMenu]=useState<{row:LibraryChannel;token:object}>(),[templates,setTemplates]=useState<object>(),[remove,setRemove]=useState<{row:LibraryChannel;token:object}>();
- const openings=useMemo(()=>({active:group.current(),menu:undefined as typeof menu,templates:undefined as object|undefined,remove:undefined as typeof remove}),[group]);
- useLayoutEffect(()=>{openings.active=group.current();return()=>{openings.active=false;openings.menu=undefined;openings.templates=undefined;openings.remove=undefined;};},[group,openings]);
- if(openings.menu&&!state.channels.includes(openings.menu.row))openings.menu=undefined;
- if(openings.remove&&!state.channels.includes(openings.remove.row))openings.remove=undefined;
- const closeMenu=()=>{if(openings.active&&openings.menu===menu){openings.menu=undefined;setMenu(undefined);}};
- const closeTemplates=()=>{if(openings.active&&openings.templates===templates){openings.templates=undefined;setTemplates(undefined);}};
- const closeRemove=()=>{if(openings.active&&openings.remove===remove){openings.remove=undefined;setRemove(undefined);}};
- useEffect(()=>{void source.load().then(()=>{if(initialChannelId&&group.current())void source.openId(initialChannelId);});},[group,source,initialChannelId]);
- const blocked=!!(state.loading||state.busy||state.uncertain||state.editor||state.presetEditor||state.pendingCreate||state.pendingPreset),held=menu&&openings.menu===menu&&state.channels.includes(menu.row)&&group.current()?menu:undefined,removal=remove&&openings.remove===remove&&state.channels.includes(remove.row)&&group.current()?remove:undefined;
- const marks=channelMonograms({kind:'complete-authorized',channels:state.channels.map(row=>({sourceId:row.id,id:row.id,name:row.name}))});
- const open=(template?:LibraryChannelTemplate)=>{if(openings.active&&templates&&openings.templates===templates&&!blocked&&group.current()&&(!template||state.choices?.items.includes(template)&&template.available)){source.blank(template);closeTemplates();}};
- const action=(run:(row:LibraryChannel)=>void)=>{if(openings.active&&held&&openings.menu===held&&!blocked&&group.current()&&source.getSnapshot().channels.includes(held.row)){closeMenu();run(held.row);}};
- return <View style={{marginTop:14,gap:12}} testID="server-library-channels"><Text style={[shellType(17,800),{color:theme.colors.text}]}>{t('settings.server.libraryChannels')}</Text><View style={{flexDirection:'row',gap:8}}><Button testID="channels-new" disabled={blocked||!state.choices} onPress={()=>{if(!blocked&&group.current()){const token={};openings.templates=token;setTemplates(token);}}}>{t('builder.newTitle')}</Button><Button size="compact" variant="glass" disabled={blocked} onPress={()=>{if(group.current())void source.load();}}>{t('web.selection.refresh')}</Button></View>
+
+const t = defaultI18n.t;
+
+export function Channels({group, runtime, initialChannelId}: {
+  group: NativeChannelsGroup; runtime: NativeShellRuntime; initialChannelId?: string;
+}) {
+ const theme = useTheme();
+ const {source, state, setMenu, templates, setTemplates, setRemove, openings, closeMenu, closeTemplates, closeRemove,
+  blocked, held, removal, marks, open, action} = useChannelRows({group, runtime, initialChannelId});
+ return <View style={{gap:theme.space.controlGap}} testID="server-library-channels">
+  <SectionCard label={t('settings.server.libraryChannels')}><PanelBlock><OverlayFootRow layout="halves"><Button testID="channels-new" disabled={blocked||!state.choices} onPress={()=>{if(!blocked&&group.current()){const token={};openings.templates=token;setTemplates(token);}}}>{t('builder.newTitle')}</Button><Button size="compact" variant="glass" disabled={blocked} onPress={()=>{if(group.current())void source.load();}}>{t('web.selection.refresh')}</Button></OverlayFootRow></PanelBlock></SectionCard>
   {state.loading&&<Text style={{color:theme.colors.textSecondary}}>{t('next.settings.loading')}</Text>}
   {!!state.error&&<><Text accessibilityRole="alert" style={{color:theme.colors.record}}>{t(state.pendingCreate?'error.unconfirmedChange':'error.unavailable')}</Text><Button size="compact" onPress={()=>{if(state.pendingCreate)source.resume();else void source.load();}}>{t('action.tryAgain')}</Button></>}
-  {!state.loading&&!state.channels.length&&<><Text style={[shellType(17,700),{color:theme.colors.text}]}>{t('builder.empty.title')}</Text><Text style={{color:theme.colors.textSecondary}}>{t('builder.empty.body')}</Text></>}
+  {!state.loading&&!state.channels.length&&<><Text style={[theme.type.rowLabel,{color:theme.colors.text}]}>{t('builder.empty.title')}</Text><Text style={{color:theme.colors.textSecondary}}>{t('builder.empty.body')}</Text></>}
   {state.channels.map(row=>{
    const word=!row.on?'web.libraryChannels.offState':row.state==='onAir'?'web.libraryChannels.onAir':row.state==='building'?'web.libraryChannels.healthBeingMade':row.state==='needsSchedule'?'web.ownerChannels.needsSchedule':'web.ownerChannels.needsAttention';
    const ink=!row.on?theme.colors.textTertiary:row.state==='onAir'?theme.colors.textSecondary:row.state==='building'?theme.colors.accentStrong:row.state==='needsSchedule'?theme.colors.amber:theme.colors.record;
    return <View key={row.id} style={{padding:12,gap:8,borderRadius:12,backgroundColor:theme.colors.raised}}><Focusable testID={`channel-${row.id}`} accessibilityRole="button" accessibilityLabel={row.name} disabled={blocked} onPress={()=>{if(!blocked&&group.current()&&source.getSnapshot().channels.includes(row)){const next={row,token:{}};openings.menu=next;setMenu(next);}}} style={{gap:8}}>
-    <View style={{flexDirection:'row',alignItems:'center',gap:12}}><ChannelMark mark={marks.get(row.id)!.get(row.id)!} source={row.logo?runtime.artwork(row.logo):undefined} size={44} sized/><Text style={[shellType(15,700),{color:theme.colors.text,flex:1}]}>{row.name}</Text></View>
-    <View style={{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:12}}><Text style={[shellType(13),{color:theme.colors.textSecondary}]}>{t('server.channels.titles',{count:row.titles})}</Text><View style={{flexDirection:'row',alignItems:'center',gap:7}}><View style={{width:7,height:7,borderRadius:3.5,backgroundColor:row.state==='onAir'?theme.colors.healthy:ink}}/><Text style={[shellType(13,700),{color:ink}]}>{t(word)}</Text></View></View>
+    <View style={{flexDirection:'row',alignItems:'center',gap:12}}><ChannelMark mark={marks.get(row.id)!.get(row.id)!} source={row.logo?runtime.artwork(row.logo):undefined} size={44} sized/><Text style={[theme.type.rowLabel,{color:theme.colors.text,flex:1}]}>{row.name}</Text></View>
+    <View style={{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:12}}><Text style={[theme.type.rowHelp,{color:theme.colors.textSecondary}]}>{t('server.channels.titles',{count:row.titles})}</Text><View style={{flexDirection:'row',alignItems:'center',gap:7}}><View style={{width:7,height:7,borderRadius:3.5,backgroundColor:row.state==='onAir'?theme.colors.healthy:ink}}/><Text style={[theme.type.rowHelp,{color:ink}]}>{t(word)}</Text></View></View>
     {row.scheduledThrough&&<Text style={{color:theme.colors.textTertiary}}>{t('server.channels.through',{when:defaultI18n.dateTime(row.scheduledThrough)})}</Text>}{row.summary&&<Text style={{color:theme.colors.textSecondary}}>{row.summary}</Text>}
    </Focusable></View>;
   })}

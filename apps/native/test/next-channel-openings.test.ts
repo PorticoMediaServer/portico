@@ -37,10 +37,17 @@ test('a replaced native channel menu cannot invoke or dismiss its predecessor',a
  const {hooks,screenModule}=await import('./helpers/screen-harness.mjs'),host=hooks(),calls:string[]=[];
  Object.assign(host.react,{useLayoutEffect:()=>{}});Object.assign(host.react.default,{useLayoutEffect:()=>{}});
  const rows=[row,{...row,id:'second',name:'Second'}],state={channels:rows,choices:{items:[]},presets:[]},source={subscribe:()=>()=>{},getSnapshot:()=>state,action:async(value:any)=>{calls.push(value.id);},load:async()=>{},open:async(value:any)=>{calls.push(value.id);}};
- const {Channels}=await screenModule(new URL('../src-next/screens/settings-live/server/channels/LibraryChannelsPage.tsx',import.meta.url),{
-  react:host.react,'react-native':{Text:'Text',View:'View'},'../../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v,number:String,dateTime:String}},
-  '../../../../../../../packages/client-core/src/presentation/kit-model/channels':{channelMonograms:()=>new Map(rows.map(v=>[v.id,new Map([[v.id,{text:'CH',seed:v.id}]])]))},
-  '../../../../kit/artwork':{ChannelMark:'ChannelMark'},'../../../../kit/controls':{Button:'Button',Focusable:'Focusable'},'../../../../kit/overlays':{BottomSheet:'BottomSheet',MenuRow:'MenuRow'},'../../../../kit/shell/visual':{shellType:()=>({})},'../../../../kit/theme':{useTheme:()=>({colors:{}})},'./model':{},'./ChannelEditor':{NativeChannelEditor:'Editor'},'./BlockPresets':{NativeBlockPresets:'Presets'},'./ChannelLogo':{NativeChannelLogo:'Logo'},
+ const imports={
+  react:host.react,'react-native':{Text:'Text',View:'View'},'../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v,number:String,dateTime:String}},
+  '../../../../../../packages/client-core/src/presentation/kit-model/channels':{channelMonograms:()=>new Map(rows.map(v=>[v.id,new Map([[v.id,{text:'CH',seed:v.id}]])]))},
+  '../../artwork':{ChannelMark:'ChannelMark'},'../../controls':{Button:'Button',Focusable:'Focusable'},'../../overlays':{BottomSheet:'BottomSheet',MenuRow:'MenuRow'},'../../shell/visual':{shellType:()=>({})},'../../theme':{useTheme:()=>({colors:{},space:{},type:{rowLabel:{},rowHelp:{}}})},'../../../screens/settings-live/server/channels/model':{},'./ChannelEditor':{NativeChannelEditor:'Editor'},'./BlockPresets':{NativeBlockPresets:'Presets'},'./ChannelLogo':{NativeChannelLogo:'Logo'},
+ };
+ const rowHooks = await screenModule(new URL('../src-next/pages/shared/settings/useLibraryChannels.ts', import.meta.url), {
+  ...imports, '../../../screens/settings-live/server/channels/model': {},
+ });
+ const {Channels} = await screenModule(new URL('../src-next/kit/settings/channels/LibraryChannelsContent.tsx', import.meta.url), {
+  ...imports, '../../../pages/shared/settings/useLibraryChannels': rowHooks,
+  '../../frames': {SectionCard: 'SectionCard', PanelBlock: 'PanelBlock'}, '../../overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
  });
  const nodes=(v:any):any[]=>Array.isArray(v)?v.flatMap(nodes):v?.props?[v,...nodes(v.props.children),...nodes(v.props.footer)]:[];
  const group={source,current:()=>true},render=()=>host.render(()=>Channels({group,runtime:{artwork:()=>undefined}})),menu=(tree:any)=>nodes(tree).filter(v=>v.type==='BottomSheet')[1];let tree=render();
@@ -51,15 +58,15 @@ test('a replaced native channel menu cannot invoke or dismiss its predecessor',a
 
 test('the native channel preview requests the server-projected sample poster', async () => {
  const {hooks,screenModule}=await import('./helpers/screen-harness.mjs'),host=hooks(),paths:unknown[]=[];
- const {NativeChannelEditor}=await screenModule(new URL('../src-next/screens/settings-live/server/channels/ChannelEditor.tsx',import.meta.url),{
+ const {NativeChannelEditor}=await screenModule(new URL('../src-next/kit/settings/channels/ChannelEditor.tsx',import.meta.url),{
   react:host.react,'react-native':{Modal:'Modal',Text:'Text',View:'View'},
   'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0})},
-  '../../../../../../../packages/client-core/src/server-admin/owner-channel-draft':{validBuilder},
-  '../../../../../../../packages/i18n/src':{defaultI18n:{t:(value:string)=>value}},
-  '../../../../kit/artwork':{Artwork:'Artwork',StandardBackdrop:'Backdrop'},
-  '../../../../kit/controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},
-  '../../../../kit/shell/visual':{shellType:()=>({})},'../../../../kit/theme':{useTheme:()=>({colors:{}})},
-  '../../../../kit/useMotion':{useMotion:()=>({reduce:true})},'../../../../platform/keyboard':{FormScrollView:'ScrollView'},
+  '../../../../../../packages/client-core/src/server-admin/owner-channel-draft':{validBuilder},
+  '../../../../../../packages/i18n/src':{defaultI18n:{t:(value:string)=>value}},
+  '../../artwork':{Artwork:'Artwork',StandardBackdrop:'Backdrop'},
+  '../../controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},
+  '../../shell/visual':{shellType:()=>({})},'../../theme':{useTheme:()=>({colors:{},space:{},type:{rowLabel:{},rowHelp:{}}})},
+  '../../useMotion':{useMotion:()=>({reduce:true})},'../../../platform/keyboard':{FormScrollView:'ScrollView'},
   './ChannelSelection':{NativeChannelSelection:'Selection'},'./ChannelHours':{NativeChannelHours:'Hours'},
  });
  const draft={name:'',description:'',timeZone:'UTC',on:true,builder},editor={draft};

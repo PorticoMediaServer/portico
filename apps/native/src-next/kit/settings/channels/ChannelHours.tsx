@@ -1,14 +1,14 @@
 import React,{useState,useSyncExternalStore} from 'react';
 import {Text,View} from 'react-native';
-import {clonePortableDto} from '../../../../../../../packages/client-core/src';
-import type {LibraryChannelBlock,LibraryChannelBuilder} from '../../../../../../../packages/client-core/src/server-admin/owner-library-channels';
-import {week,clockMinute,copyBlockPreset,blockOverlap,validSelection} from '../../../../../../../packages/client-core/src/server-admin/owner-channel-draft';
-import {newChannelOperation} from '../../../../../../../packages/client-core/src/server-admin/owner-library-channels';
-import {defaultI18n,type MessageId} from '../../../../../../../packages/i18n/src';
-import {Button,Select,Switch,TextField} from '../../../../kit/controls';
-import {BottomSheet} from '../../../../kit/overlays';
-import {useTheme} from '../../../../kit/theme';
-import type {NativeChannelsGroup} from './model';
+import {clonePortableDto} from '../../../../../../packages/client-core/src';
+import type {LibraryChannelBlock,LibraryChannelBuilder} from '../../../../../../packages/client-core/src/server-admin/owner-library-channels';
+import {week,clockMinute,copyBlockPreset,blockOverlap,validSelection} from '../../../../../../packages/client-core/src/server-admin/owner-channel-draft';
+import {newChannelOperation} from '../../../../../../packages/client-core/src/server-admin/owner-library-channels';
+import {defaultI18n,type MessageId} from '../../../../../../packages/i18n/src';
+import {Button,Select,Switch,TextField} from '../../controls';
+import {BottomSheet} from '../../overlays';
+import {useTheme} from '../../theme';
+import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
 import {NativeChannelSelection} from './ChannelSelection';
 const t=defaultI18n.t;
 export function NativeChannelDays({days,locked,change}:{days:string[];locked:boolean;change:(days:string[])=>void}){

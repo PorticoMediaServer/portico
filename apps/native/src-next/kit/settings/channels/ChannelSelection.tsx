@@ -1,10 +1,10 @@
 import React from 'react';
 import {Text,View} from 'react-native';
-import type {LibraryChannelSelection} from '../../../../../../../packages/client-core/src/server-admin/owner-library-channels';
-import {defaultI18n,type MessageId} from '../../../../../../../packages/i18n/src';
-import {Button,Select,Switch,TextField} from '../../../../kit/controls';
-import {useTheme} from '../../../../kit/theme';
-import type {NativeChannelsGroup} from './model';
+import type {LibraryChannelSelection} from '../../../../../../packages/client-core/src/server-admin/owner-library-channels';
+import {defaultI18n,type MessageId} from '../../../../../../packages/i18n/src';
+import {Button,Select,Switch,TextField} from '../../controls';
+import {useTheme} from '../../theme';
+import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
 import {NativeChannelConditions} from './ChannelConditions';
 import {NativeChannelPins} from './ChannelPins';
 const t=defaultI18n.t;

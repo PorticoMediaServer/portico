@@ -1,20 +1,19 @@
 import React,{useEffect,useState,useSyncExternalStore} from 'react';
 import {Modal,Text,View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {validBuilder} from '../../../../../../../packages/client-core/src/server-admin/owner-channel-draft';
-import {defaultI18n,type MessageId} from '../../../../../../../packages/i18n/src';
-import {Artwork} from '../../../../kit/artwork';
-import {Layer} from '../../../../kit/shell/Layer';
-import {Button,Select,Switch,TextField} from '../../../../kit/controls';
-import {shellType} from '../../../../kit/shell/visual';
-import {useTheme} from '../../../../kit/theme';
-import {useMotion} from '../../../../kit/useMotion';
-import {FormScrollView} from '../../../../platform/keyboard';
-import type {NativeShellRuntime} from '../../../../shell/runtime';
-import type {NativeChannelsGroup} from './model';
+import {validBuilder} from '../../../../../../packages/client-core/src/server-admin/owner-channel-draft';
+import {defaultI18n,type MessageId} from '../../../../../../packages/i18n/src';
+import {Artwork} from '../../artwork';
+import {Layer} from '../../shell/Layer';
+import {Button,Select,Switch,TextField} from '../../controls';
+import {useTheme} from '../../theme';
+import {useMotion} from '../../useMotion';
+import {FormScrollView} from '../../../platform/keyboard';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
 import {NativeChannelSelection} from './ChannelSelection';
 import {NativeChannelHours} from './ChannelHours';
-import type {Editor} from './source';
+import type {Editor} from '../../../screens/settings-live/server/channels/source';
 const t=defaultI18n.t;
 export function NativeChannelEditor({group,runtime,editor}:{group:NativeChannelsGroup;runtime:NativeShellRuntime;editor:Editor}){
  const {source}=group,state=useSyncExternalStore(source.subscribe,source.getSnapshot),theme=useTheme(),insets=useSafeAreaInsets(),motion=useMotion(),[advanced,setAdvanced]=useState(false),[tried,setTried]=useState(false),[previewOpen,setPreviewOpen]=useState<typeof state.preview>(),draft=editor.draft,builder=draft.builder;
@@ -25,7 +24,7 @@ export function NativeChannelEditor({group,runtime,editor}:{group:NativeChannels
  useEffect(()=>{if(!valid||locked||editor.conflict)return;const timer=setTimeout(()=>{if(group.current()&&source.getSnapshot().editor===editor)void source.preview(editor);},600);return()=>clearTimeout(timer);},[source,editor,valid,locked,group]);
  const close=()=>{if(current()&&!state.busy){if(previewOpen)setPreviewOpen(undefined);else source.close(editor);}};
  return <Modal visible={current()} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={close}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}>
-  <View style={{minHeight:56,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:10}}><Button variant="text" size="compact" disabled={state.busy} onPress={close}>{t('builder.cancel')}</Button><Text style={[shellType(17,700),{flex:1,textAlign:'center',color:theme.colors.text}]}>{editor.templateName?t('builder.reviewTemplate',{name:editor.templateName}):t(editor.document?'builder.editTitle':'builder.newTitle')}</Text><Button size="compact" disabled={state.busy||state.uncertain||editor.conflict} loading={state.busy} onPress={()=>{if(!current())return;setTried(true);if(valid)void source.save(editor);}}>{t(state.pendingCreate?'action.tryAgain':editor.document?'builder.save':'builder.create')}</Button></View>
+  <View style={{minHeight:56,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:10}}><Button variant="text" size="compact" disabled={state.busy} onPress={close}>{t('builder.cancel')}</Button><Text style={[theme.type.rowHelp,{flex:1,textAlign:'center',color:theme.colors.text}]}>{editor.templateName?t('builder.reviewTemplate',{name:editor.templateName}):t(editor.document?'builder.editTitle':'builder.newTitle')}</Text><Button size="compact" disabled={state.busy||state.uncertain||editor.conflict} loading={state.busy} onPress={()=>{if(!current())return;setTried(true);if(valid)void source.save(editor);}}>{t(state.pendingCreate?'action.tryAgain':editor.document?'builder.save':'builder.create')}</Button></View>
   <FormScrollView contentContainerStyle={{padding:20,gap:14,paddingBottom:40}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
    <TextField label={t('builder.name')} value={draft.name} maxLength={120} editable={!locked} error={tried&&!draft.name.trim()?t('builder.error.name'):undefined} onChangeText={name=>change({name})}/><TextField label={t('builder.description')} value={draft.description} maxLength={2048} editable={!locked} onChangeText={description=>change({description})}/>
    <NativeChannelSelection group={group} value={builder} locked={locked} onChange={value=>change({builder:{...builder,...value}})}/>

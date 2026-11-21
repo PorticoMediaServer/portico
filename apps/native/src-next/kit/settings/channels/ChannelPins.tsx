@@ -1,11 +1,11 @@
 import React,{useEffect,useState} from 'react';
 import {Text,View} from 'react-native';
-import {findChannelTitles,readChannelTitle} from '../../../../../../../packages/client-core/src/server-admin/owner-library-channels';
-import {defaultI18n} from '../../../../../../../packages/i18n/src';
-import {Button,Chip,Select,TextField} from '../../../../kit/controls';
-import {useTheme} from '../../../../kit/theme';
-import type {NativeChannelsGroup} from './model';
-import {terminal} from './source';
+import {findChannelTitles,readChannelTitle} from '../../../../../../packages/client-core/src/server-admin/owner-library-channels';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {Button,Chip,Select,TextField} from '../../controls';
+import {useTheme} from '../../theme';
+import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
+import {terminal} from '../../../screens/settings-live/server/channels/source';
 const t=defaultI18n.t;
 export function NativeChannelPins({group,libraryIds,ids,locked,label,onChange,limit=500,weight,setWeight}:{group:NativeChannelsGroup;libraryIds:readonly string[];ids:readonly string[];locked:boolean;label:string;onChange:(ids:string[])=>void;limit?:number;weight?:(id:string)=>number;setWeight?:(id:string,value:number)=>void}){
  const {lookup,libraries}=group,theme=useTheme(),[library,setLibrary]=useState(libraryIds[0]??''),[anime,setAnime]=useState<'movie'|'show'>('show'),[query,setQuery]=useState(''),[names,setNames]=useState<Record<string,{title:string;kind:string}>>({}),[found,setFound]=useState<{id:string;title:string;kind:string}[]>([]),[cursor,setCursor]=useState<string>(),[page,setPage]=useState<{key:string;cursor:string}>(),[shown,setShown]=useState(20),[error,setError]=useState(false),[loading,setLoading]=useState(false);
