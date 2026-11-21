@@ -21,7 +21,7 @@ test('server notices use the profile inbox and its unread count in one read', as
 });
 
 test('native Notifications has one profile feed for every role and the badge uses the modern unread reader', () => {
-  const source = readFileSync(new URL('../../../apps/native/src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../../apps/native/src-next/pages/shared/notifications/useNotifications.ts', import.meta.url), 'utf8');
   const registration = readFileSync(new URL('../../../apps/native/src-next/screens/notifications/register.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(source + registration, /readsAdminInbox|account-admin|adminService|notifications\.audience\.admin/);
   const services = readFileSync(new URL('../../../apps/native/src-next/shell/bootstrap-services.ts', import.meta.url), 'utf8');

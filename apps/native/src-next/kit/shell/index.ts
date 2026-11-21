@@ -2,7 +2,7 @@ export {ServerMark, OwnerTag, ServerBand, ServerHeader, ServerAudienceTag, Edito
 export type {ServerMarkVariant, OwnerTagProps, ServerHeaderProps, ServerFact, ShellTranslate, EditorAudience, ServerAudienceTagProps, EditorHeaderProps} from './ServerIdentity';
 export {canSeeServerPage, serverVisibilityKey, serverRoleKey} from './authority';
 export type {ServerRole, ServerAudience} from './authority';
-export {ProfileAvatar, ProfileSwitchRow, AccountMenu, NotificationItem, WatchTogetherPill, FactParts} from './AccountShell';
+export {ProfileAvatar, ProfileSwitchRow, AccountMenu, NotificationItem, NotificationSubject, WatchTogetherPill, FactParts} from './AccountShell';
 export type {AccountAction, ProfileSwitchRowProps, AccountMenuProps, NotificationItemProps, WatchTogetherPillProps} from './AccountShell';
 export {SettingsSectionLabel, SettingsSheet, ShortcutTiles, LargeTitleHeader, SettingsNav, SettingsSearchResults} from './SettingsShell';
 export type {SettingsNavPage, SettingsNavProps, SettingsSearchResultsProps} from './SettingsShell';
