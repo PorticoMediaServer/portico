@@ -16,7 +16,7 @@ import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {FolderExplorer} from './owner-libraries/FolderExplorer';
+import {FolderExplorer} from '../../kit/settings/FolderExplorer';
 import {screenScopeEnded} from './lifetime';
 import {useSettingsRequestScope} from './use-settings-request-scope';
 

@@ -132,7 +132,7 @@ test('a folder row names the bound directory and picks one through the shared ex
   const module = await screenModule(new URL('../src-next/kit/settings/SettingControl.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
     '../shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../theme': {useTheme: () => theme},
-    '../../screens/settings-live/owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../screens/settings-live/server/settings-values': values,
+    './FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../screens/settings-live/server/settings-values': values,
   });
   let changed: unknown, opened = false;
   const api = {request: async () => ({})};

@@ -12,7 +12,7 @@ import {NativeRemoteSourcesController} from '../../settings/remote-sources/contr
 import {NativeRemoteSourcesScreen} from '../../settings/remote-sources/NativeRemoteSourcesScreen';
 import {SourceFolderBrowser} from '../../settings/remote-sources/SourceFolderBrowser';
 import {Problem, remoteSourceError, type ChosenSourceFolder} from '../../settings/remote-sources/RemoteSourceForms';
-import {FolderExplorer, type ExplorerFolder} from './FolderExplorer';
+import {FolderExplorer, type ExplorerFolder} from '../../../kit/settings/FolderExplorer';
 import {SettingsGroup, SettingsRow} from '../../../kit/shell';
 
 export type LibraryFolderChoice = Readonly<{folders: readonly ExplorerFolder[]; source?: RemoteSource; remoteFolders?: readonly ChosenSourceFolder[]}>;

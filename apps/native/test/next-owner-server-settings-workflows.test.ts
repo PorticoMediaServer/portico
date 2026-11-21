@@ -82,7 +82,7 @@ async function backupsFixture() {
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: () => true},
   }, {'../../../kit/controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
     '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'}, '../../../kit/frames': {SectionCard: 'SectionCard', SettingsPageFrame: 'SettingsPageFrame'},
-    '../../../screens/settings-live/owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    '../../../kit/settings/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
     '../../../kit/settings/SettingControl': {NativeSettingControl: 'SettingControl'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}});
   const ports = {context: {api: {request: async () => ({})}}};
   const render = () => expand(host.render(() => {const outer = module.ServerBackups({ports, runtime, t, advancedContent: {type: 'Limits', props: {}}}); return outer ? outer.type(outer.props) : null;}));
