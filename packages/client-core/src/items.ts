@@ -78,6 +78,8 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
       ? {view: 'series', entityId: item.id, ...(periodicalPivots[item.publicationType] ? {pivot: periodicalPivots[item.publicationType]} : {})}
       : {view: view ?? 'item', entityId: item.id},
     // An album's own read carries the server's summary of its songs' format; list rows do not.
+    // A magazine's or newspaper's issue says so, so its page links to the archive rather than a book series.
+    publicationType: (kind === 'ebook' || kind === 'comic') && (item.publicationType === 'book' || item.publicationType === 'magazine' || item.publicationType === 'newspaper') ? item.publicationType : undefined,
     badges: item.kind === 'album' ? albumAudioBadges(item.albumAudio) : undefined,
     albumAudio: item.kind === 'album' && item.albumAudio ? item.albumAudio : undefined,
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
