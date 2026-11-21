@@ -118,16 +118,20 @@ function CollectionLink(props: CollectionCardProps) {
 export type GenreTileProps = CardProps & ArtCollection & {variant: 'video' | 'music'; backdrop?: ArtworkSource; height?: number};
 export function GenreTile(props: GenreTileProps) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 320 : 174), height = props.height ?? (t.isTV ? 180 : 84);
-  const Frame = props.frame ?? CardFrame;
+  const Frame = props.frame ?? CardFrame, musicTV = t.isTV && props.variant === 'music';
   return <Frame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
     {s => <ArtFrame height={height} radius={12} focused={s.focused} hovered={s.hovered} holding={s.holding} hoverScale={1.03} selected={props.selection?.selected}>
       <AmbientArt source={props.ambient} palette={props.palette} treatment="cover" visible={props.visible} priority={props.priority} />
       {props.variant === 'video' ? t.isTV || props.backdrop ? <><MediaArt kind="wide" source={props.backdrop} width={width} height={height} visible={props.visible} priority={props.priority} /><Scrim start={0} opacity={0.75} /></>
         : props.covers.slice(0, 2).map((source, index) => <Artwork key={source.cacheKey} source={source} width={42} height={63} visible={props.visible} priority={props.priority} fallback={props.renderCoverFallback?.(index)} style={{position: 'absolute', right: index ? -2 : 30, top: index ? 30 : 38, borderRadius: 5, transform: [{rotate: index ? '10deg' : '-8deg'}]}} />)
-        : <CoverFan covers={props.covers} shape="square" variant="music" width={t.isTV ? 180 : 112} height={t.isTV ? 140 : 84} visible={props.visible} renderFallback={props.renderCoverFallback} style={{position: 'absolute', right: -2, top: 18}} />}
-      {/* The title wraps before the art at the right: the music fan, or the two covers of a video tile without a backdrop. */}
-      <View style={{position: 'absolute', left: t.isTV ? 22 : 14, top: t.isTV ? 22 : 12, right: props.variant === 'music' ? width * 0.42 : !t.isTV && !props.backdrop && props.covers.length ? 30 + 42 + t.space.xs : 14}}>
-        <Text numberOfLines={2} style={[titleStyle(t, t.isTV ? 26 : 15, 800, -0.01), {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+        : <CoverFan covers={props.covers} shape="square" variant="music" width={musicTV ? width * 120 / 250 : 112} height={musicTV ? width * 90 / 250 : 84} visible={props.visible} renderFallback={props.renderCoverFallback}
+          style={musicTV ? {position: 'absolute', right: width * 18 / 250, top: width * 16 / 250} : {position: 'absolute', right: -2, top: 18}} />}
+      {/* The title wraps before the art at the right: the music fan, or the two covers of a video tile without a backdrop.
+          A TV music tile is desktop-listen's .genre: the fan at the top right, the name and count at the bottom left, across. */}
+      <View style={musicTV ? {position: 'absolute', left: 22, right: 22, bottom: 20}
+        : {position: 'absolute', left: t.isTV ? 22 : 14, top: t.isTV ? 22 : 12, right: props.variant === 'music' ? width * 0.42 : !t.isTV && !props.backdrop && props.covers.length ? 30 + 42 + t.space.xs : 14}}>
+        <Text numberOfLines={2} style={[titleStyle(t, t.isTV ? 26 : 15, 800, -0.01), {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text},
+          musicTV && {textShadowColor: `${t.colors.ink.slice(0, 7)}99`, textShadowOffset: {width: 0, height: 2}, textShadowRadius: 16}]}>{props.title}</Text>
         <Parts parts={props.caption} />
       </View>
     </ArtFrame>}
