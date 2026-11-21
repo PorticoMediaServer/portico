@@ -8,6 +8,7 @@ import {Button, Select, Switch} from '../../../kit/controls';
 import {ChoiceMatrix, LanguageList, SettingsRow} from '../../../kit/shell';
 import {SectionCard} from '../../../kit/frames';
 import {SettingsControlRows, SettingsManagementCard} from '../../../kit/settings/SettingsParts';
+import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
 import {StateView} from '../../../kit/states';
 import {Dialog, Menu} from '../../../kit/overlays';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
@@ -148,7 +149,7 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
       </>
     )}
     {managementURL && section.id === 'who' && <SettingsManagementCard url={managementURL} text={runtime.text}/>}</React.Fragment>)}
-    {hasAdvanced && <SectionCard><Button testID="settings-advanced" variant="glass" size="small" trailingIcon={advanced ? 'i-up' : 'i-down'} onPress={() => setAdvanced(value => !value)}>{t('settings.section.advanced')}</Button></SectionCard>}
+    {hasAdvanced && <NativeAdvancedSection testID="settings-advanced" summary="" open={advanced} onOpenChange={setAdvanced}>{null}</NativeAdvancedSection>}
   </SettingsControlRows>
     <Dialog testID="settings-action-confirm" open={shown !== undefined} onOpenChange={open => {if (!open && !confirmFlight.current && shown) closeConfirm(shown);}} initialFocusRef={cancel}
       title={shown?.kind === 'signOut' ? t('settings.signOutConfirm.title', {server: ports.serverName(), device: t(device)}) : t('settings.resetRecommendations.confirmTitle')}
