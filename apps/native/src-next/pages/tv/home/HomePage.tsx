@@ -3,7 +3,7 @@ import {heroSpec} from '@portico/design';
 import {Artwork} from '../../../kit/artwork';
 import {FocusItem, FocusRegion} from '../../../kit/focus';
 import {BrowseFrame} from '../../../kit/frames';
-import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroActions, HomeHeroArt, HomeHeroFacts,
+import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroArt, HomeHeroFacts,
   HomeLiveRow, HomePendingRow, HomeRemoteHint, HomeRowPlace, HomeWindow} from '../../../kit/home';
 import {TVHomeCustomize, TVHomeRow, TVHomeSpotlight} from '../../../kit/home/HomeTVParts';
 import {Parts} from '../../../kit/cards/primitives';
@@ -39,7 +39,7 @@ export function TVHomePage(props: TVHomeProps) {
     visible={home.visible && home.heroVisible} variant="tv" height={home.heroHeight}
     copyTop={home.preview ? heroSpec.tvHome.previewCopyTop : undefined}
     renderArtwork={renderArtwork} renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []}/>}
-    renderActions={candidate => {const {region, buttons} = home.actions(candidate); return <HomeHeroActions focus={region} actions={buttons}/>;}}
+    renderActions={() => null}
     renderThumbnail={candidate => <Artwork source={runtime.artwork(candidate.entry.backdropUrl ?? candidate.entry.posterUrl)}
       width={heroSpec.thumbnail.width} height={heroSpec.thumbnail.height}/>}
     onArtworkError={(error, candidate) => runtime.onArtworkError(error, candidate.entry)}/>;

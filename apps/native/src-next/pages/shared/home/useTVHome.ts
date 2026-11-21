@@ -151,17 +151,26 @@ export function useTVHome({runtime, authority, active = true, heroObscured = fal
   const holdCustomize = pendingRows.length > 0;
   const mixes = useSyncExternalStore(runtime.mixes?.subscribe ?? noMixesSubscription, runtime.mixes?.getSnapshot ?? noMixesSnapshot);
   const hasMixes = mixes?.phase === 'ready' && mixes.rows.length > 0;
-  const regionMap = tvHomeRegionMap(authority, [...rows.map(row => row.id), ...(hasMixes ? [mixesFocusRow] : [])], {spotlightFocusable: homeStartModel(document, authority, {rows: rows.map(row => row.id)}).spotlightActions});
+  // Owner, 18 Nov (TV Home): Home opens on the first Continue Watching card under a moderate hero that follows focus; there is
+  // no rotating spotlight with buttons. So the spotlight offers no focus stop: the start is the first row's first card, Up
+  // from that row stops there, and the hero shows the focused card (FocusPreviewHero).
+  const regionMap = tvHomeRegionMap(authority, [...rows.map(row => row.id), ...(hasMixes ? [mixesFocusRow] : [])], {spotlightFocusable: false});
   const mixesRegion = regionMap.rows.get(mixesFocusRow);
-  const startModel = homeStartModel(document, authority, {rows: rows.map(row => row.id), readLibraryIds: readLibraries, mixesReady: hasMixes, playbackAvailable: !!runtime.playback});
+  const startModel = {...homeStartModel(document, authority, {rows: rows.map(row => row.id), readLibraryIds: readLibraries, mixesReady: hasMixes, playbackAvailable: !!runtime.playback}), spotlightActions: false};
   const resolveStart = useCallback(() => resolveTVHomeStart(registry, startModel), [registry, startModel]);
   useTVPageBack(runtime, {kind: 'home'}, true, {
     // A pending jump from removed content cannot survive an actionless page.
     scope: startModel.actionless ? 'empty' : 'content', registerTop: true,
     current: () => active && foreground && sameAuthority(authority, runtime.getSnapshot().authority),
-    start: () => resolveStart().address,
+    // Back to the top lands on the card last held in the first row: the row's first card may be scrolled under the side menu,
+    // where tvOS will not focus it.
+    start: () => {
+      const start = resolveStart().address, kept = start && registry.remembered(start.regionId);
+      return start && kept && registry.child({regionId: start.regionId, childId: kept}) ? {regionId: start.regionId, childId: kept} : start;
+    },
     atTop: () => {const start = resolveStart(); return start.kind === 'empty' || vertical.offset.value <= 0 && start.kind === 'ready';},
-    scrollTop: () => {moveToTop(0, true); setFocus(undefined);},
+    // The hero keeps showing the focused card while Home scrolls back up, so the first row stays where focus can reach it.
+    scrollTop: () => moveToTop(0, true),
   });
   useLayoutEffect(() => {
     if (startModel.actionless && scrolled.current && !runtime.retirementSignal?.aborted && current()) {

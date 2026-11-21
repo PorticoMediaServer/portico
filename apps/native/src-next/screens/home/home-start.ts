@@ -68,7 +68,9 @@ export function resolveTVHomeStart(registry: StartRegistry, model: HomeStartMode
   const declared = registry.config(model.ids.spotlight);
   const emptyLiveSpotlight = !!registry.host(model.ids.spotlight) && declared?.enabled !== false && declared?.order?.length === 0;
   if (model.spotlightActions && !emptyLiveSpotlight) return waiting;
-  const fallbacks = renderedFallbacks(registry, model);
+  // Without spotlight buttons (TV Home, owner 18 Nov) rows further down are not mounted yet, so the committed chain is
+  // incomplete; the declared rows are in order, and the loop below still waits on an unmounted first row.
+  const fallbacks = renderedFallbacks(registry, model) ?? (model.spotlightActions ? undefined : model.fallbacks);
   if (!fallbacks) return waiting;
   // Skeleton rows have no focus target, so the first real stop is Customize; landing there scrolls Home to the
   // bottom (E-tv-02/03). Wait for the rows instead; the page owns the hold on Customize until they arrive.

@@ -31,7 +31,9 @@ const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
 const entry = {id: 'movie', libraryId: 'movies', kind: 'movie', title: 'Actual title', overview: 'Server supplied overview.', available: true,
   homeActions: {play: true, myList: true, details: true, state: {watchlisted: false}}, playback: {itemId: 'movie'}, navigation: {view: 'item', entityId: 'movie'}, watchlisted: false};
-const document = () => ({serverId: 'server', viewerFence: 'fence', spotlight: [{entry, reason: {text: {code: 'recently_added', fallback: 'New in Movies'}}}], rows: []});
+// Owner, 18 Nov: TV Home opens on the first Continue Watching card; the spotlight has no buttons.
+const row = {id: 'continue', kind: 'continue', artworkShape: 'landscape', entries: [entry]};
+const document = () => ({serverId: 'server', viewerFence: 'fence', spotlight: [{entry, reason: {text: {code: 'recently_added', fallback: 'New in Movies'}}}], rows: [row]});
 
 // Actual Home hooks + guide/target hooks, with native refs and focus events
 // delivered at separate commits. This catches the async mount gap that a
@@ -49,7 +51,7 @@ async function fixture() {
     react, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
   });
   // The guide Region must not inherit the injected RegionContext as its own
-  // parent; only the standalone Play target needs the spotlight region identity.
+  // parent; only the standalone card target needs the row region identity.
   const targetContexts: {current: unknown}[] = [];
   const targetReact = {...React, default: React, createContext: (current: unknown) => {const context = {current}; targetContexts.push(context); return context;},
     useContext: (context: {current: unknown}) => context.current};
@@ -57,13 +59,13 @@ async function fixture() {
     react: targetReact, 'react-native': native, '../theme': {useTheme: () => theme}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
   });
   contexts[0].current = registry;
-  targetContexts[0].current = registry; targetContexts[1].current = ids.spotlight;
+  targetContexts[0].current = registry; targetContexts[1].current = ids.row(row.id);
   const listeners = new Set<() => void>();
   let snapshot: any = {phase: 'loading'}, currentAuthority = authority, selectionActive = false;
   const home = {subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}, getSnapshot: () => snapshot,
     load: async () => {}, recoverDroppedRows: async () => {}, setRowDemand() {}, demand() {}, registerWindow() {}, subscribeRowPages: () => () => {}, rowPageReceipt: () => undefined};
   const runtime = {home, getSnapshot: () => ({authority: currentAuthority, libraries: [], selectionActive}), text: {t: defaultI18n.t, locale: 'en-US'},
-    registerScrollToTop: () => () => {}, registerTVPageBack: () => () => {}, reportError(error: unknown) {throw error;}, actions: {}, playback: {}};
+    registerScrollToTop: () => () => {}, registerTVPageBack: () => () => {}, reportError(error: unknown) {throw error;}, actions: {}, playback: {}, selection: () => ({})};
   const useFocusAnchor = () => React.useMemo(() => ({scrollRef: {current: null}, offset: {value: 0}, repeating: false, stop() {}, move() {}, anchor() {}}), []);
   // HomeScreen's TV entry/retry lifetime guard is real source, run on this fixture's hook host
   // with the screen's own runtime, authority, error, active and resolved inputs.
@@ -83,29 +85,32 @@ async function fixture() {
     '../../../../../packages/client-core/src/presentation/kit-model': {}, '../../platform/ArtworkPipeline': {}, '../../kit/artwork': {ArtworkArrivalContext: React.createContext(undefined)},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},
     '../../kit/focus/initial-entry': {createInitialRegionEntry},
-    '../../kit/controls': {Button: 'Button'}, '../../kit/cards': {}, '../../kit/focus': {...focus, useFocusRegistry: () => registry},
+    '../../kit/controls': {Button: 'Button'}, '../../kit/cards': {wideDetailHeight: () => 0}, '../../kit/focus': {...focus, useFocusRegistry: () => registry},
     '../../shell/tv-focus': tvFocus, '../../shell/home-paging': {NativeHomePaging}, './tv-presentation': {tvHomeRows},
-    '../../kit/layout': {Hero: 'Hero'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, '../../kit/layout/FocusAnchor': {useFocusAnchor}, '../../kit/layout/types': {},
+    '../../kit/layout': {Hero: 'Hero', Row: 'Row', FocusPreviewHero: 'FocusPreviewHero'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, '../../kit/layout/FocusAnchor': {useFocusAnchor}, '../../kit/layout/types': {},
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {skeletonTiming: {delayMs: 300, slowMs: 8000}, LoadingPaint: 'LoadingPaint', HomeSkeleton: 'HomeSkeleton'}, '../../platform/home-action-diagnostics': {homeActionDiagnostics}, '../../kit/theme': {nativeType, useTheme: () => theme}, '../../shell/model': shellModel,
     './home-window': homeWindow, './home-start': homeStart, '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'},
     './TvHomeRecovery': {TvHomeRecovery: 'TvHomeRecovery'}, './useTvHomeRecovery': recovery,
     './HomeHeroFacts': {}, './model': homeModel,
   })));
-  let props: any = {}, tree: any, guide: any, target: any, requests = 0;
+  let props: any = {}, tree: any, guide: any, target: any, requests = 0, card = '';
   const host = createFabricHookHost(() => {tree = HomeScreen({runtime, authority, ...props});}); await host.mount();
   const childHosts: Awaited<ReturnType<typeof createFabricHookHost>>[] = [], cleanups: (() => void)[] = [], destinations: number[][] = [];
   return {
-    registry, ids, get tree() {return tree;}, get guide() {return guide;}, get requests() {return requests;}, destinations,
+    registry, ids, get tree() {return tree;}, get guide() {return guide;}, get requests() {return requests;}, get card() {return card;}, destinations,
     async publish(value = document()) {await act(async () => {await Promise.resolve(); snapshot = {phase: 'ready', document: value}; for (const listener of listeners) listener();});},
     async update(value: any) {await act(async () => {props = {...props, ...value}; await host.rerender();});},
     async foreign() {await act(async () => {currentAuthority = {...authority, epoch: 'different'}; await host.rerender();});},
     async selection(value: boolean) {await act(async () => {selectionActive = value; await host.rerender();});},
     async mountGuide() {
-      const hero = nodes(expandFrames(tree)).find(node => node.type === 'Hero');
+      const drawn = nodes(expandFrames(tree)), hero = drawn.find(node => node.type === 'Hero');
       const candidate = hero.props.candidates[0];
       assert.equal(candidate.overview, entry.overview, 'genuine server overview reaches Hero unchanged');
       assert.notEqual(hero.props.showOverview, false, 'Home never suppresses the available overview');
-      const wrapper = hero.props.renderActions(candidate), region = wrapper.type(wrapper.props);
+      assert.equal(hero.props.renderActions(candidate), null, 'the TV spotlight has no buttons (owner, 18 Nov)');
+      const shelf = drawn.find(node => node.type === 'Row');
+      card = shelf.props.getFocusId(shelf.props.items[0]);
+      const region = {props: {...shelf.props.focus, orientation: 'horizontal'}};
       let outer: any;
       const outerHost = createFabricHookHost(() => {outer = focus.FocusRegion.render(region.props, null);}); await outerHost.mount(); childHosts.push(outerHost);
       const guideHost = createFabricHookHost(() => {guide = outer.type.render(outer.props, null);}); await guideHost.mount(); childHosts.push(guideHost);
@@ -114,14 +119,14 @@ async function fixture() {
       return region;
     },
     async mountPlay() {
-      const targetHost = createFabricHookHost(() => {target = targetFocus.useFocusTarget({focusId: 'play'});}); await targetHost.mount(); childHosts.push(targetHost);
+      const targetHost = createFabricHookHost(() => {target = targetFocus.useFocusTarget({focusId: card});}); await targetHost.mount(); childHosts.push(targetHost);
       cleanups.push(target.ref({nativeTag: 102, requestTVFocus() {requests++; target.onFocus();}}));
     },
     async dispose() {await host.unmount(); cleanups.reverse().forEach(cleanup => cleanup?.()); for (const child of childHosts.reverse()) await child.unmount();},
   };
 }
 
-test('async empty Home acquires Play exactly once only after both real guide and real target mount', async () => {
+test('async empty Home acquires the first Continue Watching card exactly once only after both real guide and real target mount', async () => {
   const f = await fixture();
   try {
     assert.equal(f.tree.type, 'LoadingPaint'); assert.equal(f.tree.props.skeleton.type, 'HomeSkeleton'); assert.equal(f.requests, 0);
@@ -129,14 +134,13 @@ test('async empty Home acquires Play exactly once only after both real guide and
     const region = await f.mountGuide(); await act(() => {});
     assert.equal(f.requests, 0, 'guide alone cannot focus an unmounted target');
     assert.equal(f.guide.type, 'TVFocusGuideView'); assert.equal(f.guide.props.autoFocus, true);
-    assert.equal(f.guide.props.trapFocusRight, true); assert.equal(f.guide.props.trapFocusLeft ?? false, false);
-    assert.equal(f.guide.props.style.flexDirection, 'row'); assert.equal(f.guide.props.style.gap, 18);
-    assert.equal(f.guide.props.testID, `portico.region.${encodeURIComponent(f.ids.spotlight)}`);
-    assert.deepEqual(region.props.order, ['play', 'my-list', 'details']);
+    assert.equal(f.guide.props.testID, `portico.region.${encodeURIComponent(f.ids.row('continue'))}`);
+    assert.equal(region.props.id, f.ids.row('continue'));
     await f.mountPlay(); await act(() => {});
-    assert.deepEqual(f.destinations.at(-1), [102], 'platform guide targets the actual native Play handle');
-    assert.equal(f.requests, 1); assert.equal(f.registry.capture()?.childId, 'play');
-    const other = {regionId: f.ids.row('continue'), childId: 'actual-card'};
+    assert.deepEqual(f.destinations.at(-1), [102], 'platform guide targets the actual native card handle');
+    assert.equal(f.requests, 1); assert.equal(f.registry.capture()?.childId, f.card);
+    // The person moves on to another row's card.
+    const other = {regionId: f.ids.row('recent'), childId: 'actual-card'};
     await act(() => f.registry.didFocus(other)); await f.publish();
     await act(() => f.registry.didBlur(other)); await f.publish();
     assert.equal(f.requests, 1, 'revalidation and a later blur never reacquire entry');
