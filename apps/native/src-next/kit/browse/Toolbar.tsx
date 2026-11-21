@@ -129,7 +129,9 @@ export function ChipRail({children}: {children: ReactNode}) {
     accessibilityElementsHidden={!room} importantForAccessibility={room ? 'auto' : 'no-hide-descendants'}>
     {/* The rail is as tall as its chips (their measured content): a flex height in this row came out shorter on the tablet and cut
         the chips' bottom edge. */}
-    <MaskedView style={{height: height || chipGeometry('quick', theme.column).height}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id={gradient} x1="0" y1="0" x2="1" y2="0">
+    {/* The mask is drawn at the rail's measured width and again whenever it changes: a percentage mask kept its first size when
+        a tablet turned, so the rail stayed cut where the old width ended (iPad, 21 Nov). */}
+    <MaskedView style={{height: height || chipGeometry('quick', theme.column).height}} maskElement={<Svg key={Math.round(box)} width={box || '100%'} height="100%"><Defs><LinearGradient id={gradient} x1="0" y1="0" x2="1" y2="0">
       <Stop offset={0} stopColor="#fff" stopOpacity={lead ? 0 : 1}/><Stop offset={lead} stopColor="#fff" stopOpacity={1}/><Stop offset={solid} stopColor="#fff" stopOpacity={1}/><Stop offset={clear} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
       <Stop offset={1} stopColor="#fff" stopOpacity={cut === undefined ? 1 : 0}/>
     </LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${gradient})`}/></Svg>}>
