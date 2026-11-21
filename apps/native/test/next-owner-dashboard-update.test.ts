@@ -5,17 +5,17 @@ import * as model from '../src-next/screens/settings-live/owner-dashboard/model'
 import * as nowPlaying from '../../../packages/client-core/src/server-admin/now-playing';
 
 // owner-dashboard 2b: the update has its own tinted card at the end of Alerts, and Portico never installs an update by itself.
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.panel)] : [];
 const texts = (tree: any) => nodes(tree).filter(node => node.type === 'Text').map(node => [node.props.children].flat().join(''));
 const t = (id: string, values?: Record<string, unknown>) => values ? `${id}:${JSON.stringify(values)}` : id;
 const build = (version: string, url = '') => ({version, ...(url ? {url} : {})});
 // The rebuilt server's answer (contract State): the build it runs, and the newer one when there is one.
 const report = (latest?: ReturnType<typeof build>) => ({version: '0.1.0', newer: !!latest, install: 'docker', ...(latest ? {newest: latest} : {})});
 
-const cardModule = async (react: any) => screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/update-card.tsx', import.meta.url), {
+const cardModule = async (react: any) => screenModule(new URL('../src-next/kit/settings/dashboard/update-card.tsx', import.meta.url), {
   react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
-  '../../../kit/controls': {Button: 'Button'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: new Proxy({}, {get: (_t, key) => String(key)})})},
-  '../../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
+  '../../controls': {Button: 'Button'}, '../../Icon': {Icon: 'Icon'}, '../../theme': {useTheme: () => ({isTV: false, colors: new Proxy({}, {get: (_t, key) => String(key)})})},
+  '../../shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
 });
 
 test('the card is drawn only while the release check reports a newer build, and release notes open only an https page', async () => {
@@ -47,19 +47,20 @@ const pageProps = (role: string, update?: unknown) => ({t, role, serverName: 'Po
   streams: [], streamTotals: {streams: 0, converting: 0, bandwidth: 0}, expanded: false, allStreams: [], people: '', alerts: [], jobs: [], healthWindow: 'live', viewingPeriod: '30d', update,
   onShowAll() {}, onShowFewer() {}, onRetryAll() {}, onBack() {}, onRetry() {}, onHealthWindow() {}, onViewingPeriod() {}, onAcknowledge() {}, onFixPermissions() {}, onJobMenu() {}, onStop() {}, onStreamMenu() {}});
 
-const pageModule = (react: any) => screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/page.tsx', import.meta.url), {
+const pageModule = (react: any) => screenModule(new URL('../src-next/kit/settings/dashboard/OwnerDashboardContent.tsx', import.meta.url), {
+  '../../layout/TopBar': {TopBar: 'TopBar', BarSurface: 'BarSurface'},
   react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
-  '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../platform/native-blur': {BlurView: 'BlurView'},
-  '../../../kit/shell': {ServerBand: 'ServerBand'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})}, '../../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
-  './model': model, './parts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
+  '../../controls': {Focusable: 'Focusable'}, '../../Icon': {Icon: 'Icon'}, '../../../platform/native-blur': {BlurView: 'BlurView'},
+  '../../shell': {ServerHeader: 'ServerHeader'}, '../../theme': {useTheme: () => ({isTV: false, colors: {}, space: {}})}, '../../shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
+  '../../../screens/settings-live/owner-dashboard/model': model, './parts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
   './health': {OwnerHealthSection: 'OwnerHealthSection'}, './statistics': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
   './streams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
-  '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, './update-card': {OwnerUpdateCard: 'OwnerUpdateCard'},
+  '../../artwork': {StandardBackdrop: 'StandardBackdrop'}, './update-card': {OwnerUpdateCard: 'OwnerUpdateCard'},
 });
 
 test('the owner\'s Alerts section ends with the update card, after the alerts or the calm line; administrators never see it', async () => {
   const h = hooks();
-  const {OwnerDashboardPage} = await pageModule(h.react);
+  const {OwnerDashboardContent: OwnerDashboardPage} = await pageModule(h.react);
   const update = {latest: '0.2.0', current: '0.1.0', checking: false};
   const alerts = nodes(h.render(() => OwnerDashboardPage(pageProps('owner', update)))).find(node => node.type === 'OwnerSection' && node.props.title === 'next.dashboard.alerts');
   const order = nodes(alerts.props.children).map(node => node.type).filter(type => type === 'OwnerCalm' || type === 'OwnerUpdateCard');
@@ -86,7 +87,7 @@ async function phone(admission: 'owner' | 'administrator') {
     load = async () => {calls.push('load');}; check = async () => {calls.push('check');}; dispose = () => {calls.push('dispose');};
   }
   const card = await cardModule(h.react);
-  const {NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/use-owner-dashboard.tsx', import.meta.url), {
+  const imports = {
     '../../../../../../packages/client-core/src/admin/data-folder': {dataFolderConfirmText: () => ''},
     '../../../../../../packages/client-core/src/http': {ApiError: class extends Error {}},
     react: h.react, 'react-native': {View: 'View', Linking: {openURL: async (url: string) => {opened.push(url);}}}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 0})},
@@ -95,8 +96,17 @@ async function phone(admission: 'owner' | 'administrator') {
     '../../../../../../packages/client-core/src/server-admin/updates-source': {SettingsUpdatesSource},
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})},
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>) => ({type: 'Pull', props: {run}})},
-    './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
-    './update-card': card,
+    '../../../screens/settings-live/owner-dashboard/reader': {createNativeOwnerDashboardReader: () => reader}, '../../../screens/settings-live/owner-dashboard/model': model,
+    '../../../kit/settings/dashboard/update-card': card,
+  };
+  Object.assign(h.react, {useLayoutEffect: h.react.useEffect});
+  Object.assign(h.react.default, {useLayoutEffect: h.react.useEffect});
+  const modelHook = await screenModule(new URL('../src-next/pages/shared/settings/useOwnerDashboard.ts', import.meta.url), imports);
+  const {OwnerDashboardPage: NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/pages/touch/settings/OwnerDashboardPage.tsx', import.meta.url), {
+    ...imports,
+    '../../shared/settings/useOwnerDashboard': modelHook,
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'},
+    '../../../kit/settings/dashboard/OwnerDashboardContent': {OwnerDashboardContent: 'OwnerDashboardPage'},
   });
   const runtime = {text: {t: (id: string) => id}, artwork: () => undefined, reportError() {}};
   const ports = {serverName: () => 'Portico demo', context: {navigation: {back() {}}}, requestId: () => 'request'};
@@ -143,7 +153,7 @@ test('Sol 8 on #830: a pressed check that fails keeps the last report and draws 
 
 test('the page draws the failed check as an error card after the update card; Try again checks again', async () => {
   const h = hooks(), calls: string[] = [];
-  const {OwnerDashboardPage} = await pageModule(h.react);
+  const {OwnerDashboardContent: OwnerDashboardPage} = await pageModule(h.react);
   const update = {latest: '0.2.0', current: '0.1.0', checking: false, checkFailed: true};
   const alerts = nodes(h.render(() => OwnerDashboardPage({...pageProps('owner', update), onCheckUpdate: () => calls.push('check')}))).find(node => node.type === 'OwnerSection' && node.props.title === 'next.dashboard.alerts');
   const after = nodes(alerts.props.children).filter(node => node.type === 'OwnerCalm' || node.type === 'OwnerUpdateCard');

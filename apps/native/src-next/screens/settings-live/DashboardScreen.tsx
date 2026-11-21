@@ -23,7 +23,7 @@ import {Screen, ScreenText, useScreenEntry} from './Screen';
 import type {NativeSettingsLivePorts} from './ports';
 import type {NativeDashboardController} from './dashboard-controller';
 import {nativeDashboardIdentity} from './dashboard-presentation';
-import {NativeOwnerDashboardPhone} from './owner-dashboard/use-owner-dashboard';
+import {OwnerDashboardPage} from '../../pages/touch/settings/OwnerDashboardPage';
 import {TopBar} from '../../kit/layout/TopBar';
 
 /** TV never exposes a mutation, secret, settings document or inferred administrator action. */
@@ -55,7 +55,7 @@ export function NativeDashboardScreen({controller, ports, runtime, deniedFallbac
   // Settings page. Render that genuine surface while Accounts performs the route transition.
   if (state.admission === 'denied') return <>{deniedFallback}</>;
   // The phone draws the owner Dashboard page from owner-dashboard.html; the TV keeps its Settings surface.
-  if (!theme.isTV) return <NativeOwnerDashboardPhone controller={controller} ports={ports} runtime={runtime} inline={inline}/>;
+  if (!theme.isTV) return <OwnerDashboardPage controller={controller} ports={ports} runtime={runtime} inline={inline}/>;
   // The rebuilt server's facts: needs attention while any alert is major, free space and the database's size.
   const health = state.health ?? {degraded: false};
   // Only the owner's header says how the server is: an administrator is sent only some alerts (console rule 4).
