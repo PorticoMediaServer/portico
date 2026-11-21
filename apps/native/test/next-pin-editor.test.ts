@@ -24,13 +24,17 @@ test('ruling39 pin rows keep immediate toggles and handle accessibility moves wi
     react: host.react, 'react-native-reanimated': motion,
   });
   const pan = () => {const builder: any = new Proxy({}, {get: () => (..._args: unknown[]) => builder}); return builder;};
-  const {NativePinEditorSheet} = await screenModule(new URL('../src-next/screens/destinations/PinEditorSheet.tsx', import.meta.url), {
+  const {usePinEditor} = await screenModule(new URL('../src-next/pages/shared/pins/usePinEditor.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/presentation/errors': {},
+  });
+  const {PinEditorSheet: NativePinEditorSheet} = await screenModule(new URL('../src-next/kit/pins/PinEditor.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-reanimated': motion,
     'react-native-gesture-handler': {Gesture: {Pan: pan}, GestureDetector: 'GestureDetector'},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet'},
-    '../../kit/browse/presentation': {browseType: () => ({}), alpha: (color: string) => color}, '../../kit/theme': {useTheme: () => theme},
-    './pins-drag': {nativePinDrop}, './pins-drag-paint': {usePinDragPaint},
+    '../../../../../packages/i18n/src': {defaultI18n},
+    '../controls': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet'},
+    '../browse/presentation': {alpha: (color: string) => color}, '../theme': {useTheme: () => theme},
+    '../../screens/destinations/pins-drag': {nativePinDrop}, '../../screens/destinations/pins-drag-paint': {usePinDragPaint},
+    '../../pages/shared/pins/usePinEditor': {usePinEditor}, '../settings/StorageParts': {StorageSheetBody: 'StorageSheetBody'},
   });
   const controller = {subscribe() {}, getSnapshot: () => state, pinLibrary: (...value: unknown[]) => calls.push(value), placeLibrary() {}, moveLibrary() {}};
   const tree = host.render(() => NativePinEditorSheet({controller, libraries: [{id: 'a', name: 'Actual A'}, {id: 'b', name: 'Actual B'}, {id: 'c', name: 'Actual C'}], onClose() {}}));
@@ -63,7 +67,7 @@ test('all pin entries use one real route factory and Back retires its captured c
   const {createNativeHandheldPinsModule} = await screenModule(new URL('../src-next/screens/destinations/PinsRoute.tsx', import.meta.url), {
     react: host.react, '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (kind: string, factory: any) => registrations.set(kind, factory)}},
     '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'actual-operation'})}, './lifetime': {nativeDestinationLifetime},
-    './pins': {NativeDestinationPins}, './PinEditorSheet': {NativePinEditorSheet: 'PinEditor'},
+    './pins': {NativeDestinationPins}, '../../kit/pins/PinEditor': {PinEditorSheet: 'PinEditor'},
   });
   assert.equal(registrations.get('edit-pins'), createNativeHandheldPinsModule);
   assert.equal(registrations.get('library-edit-pins'), createNativeHandheldPinsModule);

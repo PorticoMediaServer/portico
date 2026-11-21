@@ -1,51 +1,39 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import Animated, {runOnJS} from 'react-native-reanimated';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import type {Library} from '../../../../../packages/client-core/src';
-import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Focusable} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {Banner, BottomSheet} from '../../kit/overlays';
-import {browseType, alpha} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
-import {NativeDestinationPins} from './pins';
-import {nativePinDrop, type NativePinRowBounds} from './pins-drag';
-import {usePinDragPaint} from './pins-drag-paint';
+import {Focusable} from '../controls';
+import {Icon} from '../Icon';
+import {Banner, BottomSheet} from '../overlays';
+import {alpha} from '../browse/presentation';
+import {useTheme} from '../theme';
+import {StorageSheetBody} from '../settings/StorageParts';
+import type {NativeDestinationPins} from '../../screens/destinations/pins';
+import {nativePinDrop, type NativePinRowBounds} from '../../screens/destinations/pins-drag';
+import {usePinDragPaint} from '../../screens/destinations/pins-drag-paint';
+import {usePinEditor} from '../../pages/shared/pins/usePinEditor';
 
 type PinRow = Readonly<{id: string; name: string; pinned: boolean; moveable: boolean; toggle: () => void; move: (by: -1 | 1) => void}>;
 type Drag = Readonly<{id: string; translation: number; beforeId?: string; lineY: number}>;
 const t = defaultI18n.t;
 
-/** Ruling 39: frame25's grouped rows, genuine immediate pin writes, no footer. */
-export function NativePinEditorSheet({controller, libraries, onClose}: {
-  controller: NativeDestinationPins; libraries: readonly Library[]; onClose: () => void;
-}) {
-  const theme = useTheme(), state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const [dragging, setDragging] = useState(false);
-  useEffect(() => {void controller.load();}, [controller]);
-  const byId = new Map(libraries.map(library => [library.id, library])), pinned = state.libraries?.pinnedLibraryIds ?? [];
-  const ordered = state.libraries ? [...pinned.map(id => byId.get(id)).filter((value): value is Library => !!value), ...libraries.filter(library => !pinned.includes(library.id))] : [];
-  const libraryRows = ordered.map(library => ({id: library.id, name: library.name, pinned: pinned.includes(library.id), moveable: pinned.includes(library.id),
-    toggle: () => {void controller.pinLibrary(library.id, !pinned.includes(library.id));}, move: (by: -1 | 1) => {void controller.moveLibrary(library.id, by);}}));
-  const resources = state.resources?.order ?? [], resourceKey = (entry: typeof resources[number]) => JSON.stringify([entry.kind, entry.id]);
-  const resourceRows = resources.map(entry => ({id: resourceKey(entry), name: entry.name, pinned: true, moveable: true,
-    toggle: () => {void controller.unpinResource(entry);}, move: (by: -1 | 1) => {void controller.moveResource(entry, by);}}));
+/** Ruling 39: frame25's grouped rows, genuine immediate pin writes, no footer. Libraries, then pinned Saved items; a
+ * row's handle drags it (long press) or moves it by the accessibility actions; its bookmark pins or unpins it. */
+export function PinEditorSheet({controller, libraries, onClose}: {controller: NativeDestinationPins; libraries: readonly Library[]; onClose: () => void}) {
+  const theme = useTheme(), view = usePinEditor({controller, libraries}), {state, dragging} = view;
   return <BottomSheet open testID="native-pin-editor" title={t('pins.editTitle')} description={t('pins.librariesHint')} showClose={false}
     dismissOnBack={!state.busy} dismissOnOutsidePress={!state.busy && !dragging} dismissOnGesture={!state.busy && !dragging}
     onOpenChange={open => {if (!open && !state.busy) onClose();}}>
-    <View style={{gap: 16}}>
-      {state.error !== undefined && <Banner testID="pins-error" variant="notice" tone="error" placement="inline" message={presentError(state.error, 'library', {operation: 'save'}).body}/>}
+    <StorageSheetBody>
+      {view.error !== undefined && <Banner testID="pins-error" variant="notice" tone="error" placement="inline" message={view.error}/>}
       <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{t('pins.libraries')}</Text>
-      <PinGroup id="pin-libraries" rows={libraryRows} busy={state.busy || !state.libraries} onDragging={setDragging}
-        place={(id, before) => {void controller.placeLibrary(id, before);}}/>
+      <PinGroup id="pin-libraries" rows={view.libraryRows} busy={state.busy || !state.libraries} onDragging={view.setDragging} place={view.placeLibrary}/>
       <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{t('pins.saved')}</Text>
-      {resources.length ? <PinGroup id="pin-resources" rows={resourceRows} busy={state.busy} onDragging={setDragging} place={(id, before) => {
-        const entry = resources.find(value => resourceKey(value) === id), target = before === undefined ? undefined : resources.find(value => resourceKey(value) === before);
-        if (entry && (before === undefined || target)) void controller.placeResource(entry, target);
-      }}/> : state.phase === 'ready' && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('pins.noneSaved')}</Text>}
-    </View>
+      {view.resourceRows.length ? <PinGroup id="pin-resources" rows={view.resourceRows} busy={state.busy} onDragging={view.setDragging} place={view.placeResource}/>
+        : view.noneSaved && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('pins.noneSaved')}</Text>}
+    </StorageSheetBody>
   </BottomSheet>;
 }
 
@@ -94,7 +82,7 @@ function PinGroup({id, rows, busy, place, onDragging}: {id: string; rows: readon
         {row.moveable ? <PinHandle id={`${id}-${row.id}`} row={row} disabled={busy || !!drag && drag.id !== row.id}
           first={!rows.slice(0, index).some(value => value.moveable)} last={!rows.slice(index + 1).some(value => value.moveable)} callbacks={callbacks} paint={paint}/>
           : <View style={{width: 36, height: 40}}/>}
-        <Text numberOfLines={1} style={[browseType(theme, 15.5, 600), {color: theme.colors.text, flex: 1}]}>{row.name}</Text>
+        <Text style={[theme.type.rowLabel, {color: theme.colors.text, flex: 1}]}>{row.name}</Text>
         <Focusable testID={`${id}-toggle-${encodeURIComponent(row.id)}`} focusId={`${id}-toggle:${row.id}`} accessibilityRole="togglebutton"
           accessibilityState={{checked: row.pinned}} accessibilityLabel={t(row.pinned ? 'pins.unpinNamed' : 'pins.pinNamed', {name: row.name})}
           disabled={busy || !!drag} onPress={row.toggle} style={{width: 32, height: 40, alignItems: 'center', justifyContent: 'center'}}>
@@ -108,7 +96,7 @@ function PinGroup({id, rows, busy, place, onDragging}: {id: string; rows: readon
         backgroundColor: theme.colors.raisedBright, borderRadius: 12, borderWidth: 2, borderColor: theme.colors.accent,
         paddingLeft: 12, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: 8}]}>
       <View style={{width: 36, height: 40, justifyContent: 'center', alignItems: 'center'}}><Icon name="i-drag" size={20} color={theme.colors.text}/></View>
-      <Text numberOfLines={1} style={[browseType(theme, 15.5, 600), {color: theme.colors.text, flex: 1}]}>{selected.name}</Text>
+      <Text style={[theme.type.rowLabel, {color: theme.colors.text, flex: 1}]}>{selected.name}</Text>
       <Icon name="i-bookmark-f" size={20} color={theme.colors.accentStrong}/>
     </Animated.View>}
   </View>;
