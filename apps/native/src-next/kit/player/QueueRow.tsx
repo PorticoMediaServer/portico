@@ -6,6 +6,7 @@ import {clockText} from '../../../../../packages/client-core/src/presentation/ki
 import {Artwork, type ArtworkSource} from '../artwork';
 import {Focusable} from '../controls';
 import {Icon} from '../Icon';
+import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
 
 const t = defaultI18n.t;
@@ -46,7 +47,8 @@ export function QueueRow({testID, menuTestID, focusId, title, detail, seconds, s
     alignItems: 'center' as const,
     gap: theme.space.sm,
     borderRadius: theme.baseRadii.control,
-    backgroundColor: focused ? theme.colors.raisedHigh : 'transparent',
+    // tablet-play 8 `.q.now`: the row playing now has the neutral fill (text at .1) on a touch screen.
+    backgroundColor: focused ? theme.colors.raisedHigh : current && !theme.isTV ? alpha(theme.colors.text, .1) : 'transparent',
   });
   const row = <Focusable testID={testID} focusId={focusId} focusKind="row" focusRadius={theme.baseRadii.control}
     accessibilityRole={onPress ? 'button' : 'text'} accessibilityLabel={[label, ...(detail ?? [])].join(', ')}
@@ -74,10 +76,11 @@ export function QueueRow({testID, menuTestID, focusId, title, detail, seconds, s
   </View>;
 }
 
-/** A group's label in Up next ("Now playing", "From Abbey Road", "Added by you"). */
+/** A group's label in Up next ("Now playing", "From Abbey Road", "Added by you"): tablet-play 8 `.q-sec`, 13/700 in the quiet
+ * colour, a small label over the rows rather than a heading (TV's caption and group label are both 20, so TV does not move). */
 export function QueueGroupLabel({children}: {children: string}) {
   const theme = useTheme();
-  return <Text accessibilityRole="header" style={[theme.type.groupLabel, {
+  return <Text accessibilityRole="header" style={[theme.type.captionStrong, {fontFamily: theme.type.groupLabel.fontFamily, fontWeight: theme.type.groupLabel.fontWeight,
     color: theme.colors.textTertiary, paddingHorizontal: theme.space.sm, paddingTop: theme.space.sm, paddingBottom: theme.space.tight,
   }]}>{children}</Text>;
 }
