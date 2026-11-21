@@ -57,7 +57,7 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
       return row.id === 'storage.networkNotice' ? <span className={styles.storageWarning} role="status">{t('next.settings.storage.sharedDrive')}</span>
         : row.id === 'storage.emptyCache' ? <EmptyCache source={storage}/>
         : row.id === 'storage.dataFolder' ? <StorageDataFolder source={storage} label={label} />
-        : row.id === 'storage.usage' ? <StorageUsage source={storage} label={label} />
+        : row.id === 'storage.usage' ? <StorageUsage source={storage} label={label} help={row.help && t(row.help)} />
         : row.id === 'storage.backupKeysNote' ? <span className={styles.storageNote}>{t('next.settings.backup.keysNotice')}</span>
         : row.id === 'storage.backupFolder' ? <StorageBackupFolder {...backups} api={options.transport} />
         : row.id === 'storage.backupNow' ? <StorageBackupNow {...backups} />

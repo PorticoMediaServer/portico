@@ -40,7 +40,8 @@ test('Storage answers for its own rows and leaves every other row to the shared 
   const live = {live: true, backups: true};
   for (const id of [...sectionLinkRows]) assert.deepEqual(storageRowState(row(id), live), {present: true});
   for (const id of [...factRows, ...fileRestoreRows]) {
-    assert.deepEqual(storageRowState(row(id), {live: true, backups: false}), {present: true}, `${id} draws as soon as its own read is live`);
+    // What's using space draws its own rows (owner-server 8), so it is bare; the others are ordinary rows.
+    assert.deepEqual(storageRowState(row(id), {live: true, backups: false}), id === 'storage.usage' ? {present: true, bare: true} : {present: true}, `${id} draws as soon as its own read is live`);
     assert.deepEqual(storageRowState(row(id), {live: false, backups: true}), {present: false}, `${id} is not drawn outside a live session`);
   }
   for (const id of [...backupRows]) {
