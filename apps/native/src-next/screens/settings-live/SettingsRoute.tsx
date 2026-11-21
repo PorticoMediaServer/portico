@@ -52,7 +52,8 @@ function createComposition(context: NativeShellBootstrapContext) {
       render: (route, runtime) => {
         lifetime.assert();
         if (route.kind !== 'shell' || route.destination.kind !== 'settings') throw new Error('native_settings_route_mismatch');
-        return <NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.destination.page}/>;
+        // A TV's side menu opens Switch server on Settings even while Settings is open: the page it names is a fresh opening.
+        return <NativeSettingsPage key={Platform.isTV ? route.destination.page ?? 'list' : undefined} ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.destination.page}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,

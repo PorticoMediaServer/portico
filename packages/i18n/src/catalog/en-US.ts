@@ -315,6 +315,7 @@ export const enUS = {
   'launch.approvedConnecting': 'Approved. Connecting…',
   'savedServer.title': 'Can’t reach {host}',
   'settings.switchServer': 'Switch server',
+  'settings.switchServerLede': 'Choose where to watch from. Your profile and progress stay with each server.',
   'savedServer.titleGeneric': 'Can’t reach your server',
   'savedServer.lead': 'You’re still signed in. Portico is trying again automatically and will open as soon as the server answers.',
   'savedServer.checking': 'Checking…',

@@ -12,6 +12,8 @@ export async function settingsFixture(previous) {
     modules[revised] = value;
   }
   modules['react-native'] = {Keyboard: {dismiss() {}}, ...modules['react-native']};
+  // A TV's More links (Watch Together) are offered when their routes are registered, as they are in the app.
+  modules['../../../shell/account'] ??= {nativeMenuRouteAvailable: () => true};
   const react = modules.react;
   const e = react.createElement ?? react.default.createElement;
   const FocusRegion = modules['../../../kit/focus'].FocusRegion;

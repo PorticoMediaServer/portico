@@ -19,6 +19,7 @@ import {setNativeScreenChromeHidden} from '../../../shell/chrome';
 import {useScreenBack, useScreenEntry} from '../../../screens/settings-live/Screen';
 import {registerBack} from '../../../kit/navigation/back';
 import type {NativeShellRoute} from '../../../shell/routes';
+import {nativeMenuRouteAvailable} from '../../../shell/account';
 import {readSettingsBinding, settingsBinding, type SettingsBindingValue} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {NativeLiveOwnerController} from '../../../screens/settings-live/live-owner-controller';
@@ -35,7 +36,7 @@ const serverPageOrder = ['general', 'dashboard', 'history', 'libraries', 'remote
 
 
 /** A page Settings can open on: Profile & account, or a server page a route names. */
-export type NativeSettingsInitialPage = 'profile' | NonNullable<Extract<NativeShellRoute, {kind: 'server-settings'}>['page']>;
+export type NativeSettingsInitialPage = 'profile' | 'servers' | NonNullable<Extract<NativeShellRoute, {kind: 'server-settings'}>['page']>;
 export type SettingsProps = {ports: NativeSettingsLivePorts; controller: NativeSettingsController; runtime: NativeShellRuntime;
   devicePreferences: NativeDevicePreferences; dashboard?: NativeDashboardController; initialPage?: NativeSettingsInitialPage; initialChannelId?: string};
 
@@ -131,7 +132,8 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const tabletDefaultPage = accountPages.some(value => value.id === 'playback') ? 'playback' : accountPages[0]?.id;
   // J-32: an account page (Profile & account) opens for every profile; a server page only for one that may see it.
   // A route's page opens only when this viewer has it (a server page needs its own admission).
-  const opensInitial = !theme.isTV && !!initialPage && [...accountPages, ...serverPages].some(value => value.id === initialPage);
+  // A TV opens on a page only for Switch server (its side menu's entry, connect-24); the list then starts on that page.
+  const opensInitial = (!theme.isTV || initialPage === 'servers') && !!initialPage && [...accountPages, ...serverPages].some(value => value.id === initialPage);
   const [selected, setSelected] = useState(() => opensInitial ? initialPage : !theme.isTV && !compact ? tabletDefaultPage : accountPages[0]?.id), [query, setQuery] = useState(''), [pushed, setPushed] = useState(!theme.isTV && (opensInitial || !compact));
   // Once the wide pane is visible, shrinking keeps that same editor on screen.
   // Explicit phone Back still returns to the hub and releases its page normally.
@@ -142,8 +144,8 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     && pageState.current.compact === compact && pageState.current.television === theme.isTV, [routeCurrent, selected, pushed, compact, theme.isTV]);
   const popPage = () => {if (!viewCurrent()) return; pageState.current = {...pageState.current, pushed: false}; setPushed(false);};
   // tv-more frame 22: the list keeps the spec's three groups, in the drawn order; Reading is not on TV.
-  const tvPageOrder = ['profile', 'privacy', 'playback', 'languages', 'quality', 'music', 'appearance', 'region', 'device'];
-  const tvPageGroups: readonly (readonly string[])[] = [['profile', 'privacy'], ['playback', 'languages', 'quality', 'music'], ['appearance', 'region', 'device']];
+  const tvPageOrder = ['profile', 'privacy', 'playback', 'languages', 'quality', 'music', 'appearance', 'region', 'device', 'servers'];
+  const tvPageGroups: readonly (readonly string[])[] = [['profile', 'privacy'], ['playback', 'languages', 'quality', 'music'], ['appearance', 'region', 'device'], ['servers']];
   const accountOrder = theme.isTV ? tvPageOrder : compact ? phoneAccountOrder : tabletAccountOrder;
   const orderedPages = [
     ...accountOrder.flatMap(id => accountPages.filter(value => value.id === id)),
@@ -232,7 +234,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   // Conditional/unavailable rows must not strand focus in an empty intermediate group.
   const matchRegions = tvSettingsResultGroups(matchingPages.map(value => ids.surface(`settings.matches.${value.id}`)), registry.entryAddress);
   const matchEdges = (id: string) => tvGroupEdges(matchRegions, id, searchField);
-  const enter = useScreenEntry(theme.isTV && page ? {regionId: column, childId: accountPages[0].id} : undefined, controller.lifetime.current);
+  const enter = useScreenEntry(theme.isTV && page ? {regionId: column, childId: opensInitial ? page.id : accountPages[0].id} : undefined, controller.lifetime.current);
   useDestinationEntryFocus({visible: theme.isTV && !searching, intent: restoreRevision ? 'enter' : 'restore', revision: restoreRevision}, page ? {regionId: column, childId: page.id} : undefined);
   // TV: the page a match opened enters on that row. Asked once per opening and only while Settings is the top layer: an
   // opening that was covered before its row took focus never asks, then or after it is uncovered.
@@ -335,6 +337,13 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const serverGroups = grouped(serverGroupPages, compact ? [] : tabletServerClusters);
   const focusSearch = () => {if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}};
   const openDashboard = () => {if (viewCurrent()) navigation.open({kind: 'server-dashboard'}, ports.context.authority());};
+  // connect-24: a TV's More group lists Notifications and Watch Together under Switch server. They open their own routes, so
+  // focusing one leaves the page shown as it is.
+  const tvMoreLinks = theme.isTV ? ([
+    {id: 'notifications', title: 'notifications.title', icon: 'i-bell', route: {kind: 'notifications'}},
+    {id: 'together', title: 'entry.group.together', icon: 'i-people', route: {kind: 'together'}},
+  ] as const).filter(link => nativeMenuRouteAvailable(link.route)) : [];
+  const openTVLink = (route: NativeShellRoute) => {if (viewCurrent()) navigation.open(route, ports.context.authority());};
   const openServerPage = (id: string) => {
     if (id === 'dashboard' && (dashboard === undefined || compact)) openDashboard(); else choose(id);
   };
@@ -345,7 +354,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     } else closeSettings();
   };
   return {theme, t, shell, state, ids, page, compact, pushed, query, setQuery, searchRevision, searching, searchField, keyboard, rows, column,
-    selectPage: setSelected, choose, focusSearch, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
+    selectPage: setSelected, choose, focusSearch, tvMoreLinks, openTVLink, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
     matches, matchingPages, matchRegions, matchEdges, voiceSearch, sheetChanged, closing, closeSettings, finishClose, phoneBack, signedIn,
     serverPage, viewerRole, dashboardCard, dashboardDenied, openDashboard, openServerPage, updatePending, leaveServerPage, setRemoteBack, setSegmentBack,
     librariesPage, livePage, troubleshootingPage, storagePage, integrationsPage, generalPage, streamingPage, segmentsPage, peoplePage,

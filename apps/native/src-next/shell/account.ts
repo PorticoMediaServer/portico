@@ -23,7 +23,10 @@ export function nativeAccountMenu(account: DirectSnapshot, open: (route: NativeS
   const viewerRole = account.account.role === 'admin' ? 'administrator' : account.account.role;
   const entries: MenuEntry[] = [
     ...(!tv || account.profiles.length > 1 ? [{id: 'profiles', label: t('settings.switchProfile'), icon: 'i-switch' as const, route: {kind: 'profiles' as const}, onPress: () => open({kind: 'profiles'})}] : []),
-    {id: 'servers', label: t('settings.switchServer'), icon: 'i-server' as const, route: {kind: 'servers' as const}, onPress: () => open({kind: 'servers'})},
+    // connect-24: on a TV, Switch server is a Settings page.
+    tv ? {id: 'servers', label: t('settings.switchServer'), icon: 'i-server' as const, route: {kind: 'shell' as const, destination: {kind: 'settings' as const, page: 'servers' as const}},
+      onPress: () => open({kind: 'shell', destination: {kind: 'settings', page: 'servers'}})}
+      : {id: 'servers', label: t('settings.switchServer'), icon: 'i-server' as const, route: {kind: 'servers' as const}, onPress: () => open({kind: 'servers'})},
     {id: 'notifications', label: t('notifications.title'), icon: 'i-bell' as const, route: {kind: 'notifications' as const}, onPress: () => open({kind: 'notifications'})},
     {id: 'together', label: t('entry.group.together'), icon: 'i-people' as const, route: {kind: 'together' as const}, onPress: () => open({kind: 'together'})},
     ...(!tv ? [{id: 'settings', label: t('settings.title'), icon: 'i-settings' as const, route: {kind: 'shell' as const, destination: {kind: 'settings' as const}}, onPress: () => open({kind: 'shell', destination: {kind: 'settings'}})}] : []),
