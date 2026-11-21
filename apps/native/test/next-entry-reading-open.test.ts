@@ -45,3 +45,17 @@ test('failed and unavailable versions never open a Reading successor', async () 
     assert.equal(navigation.getSnapshot(), origin); navigation.dispose();
   }
 });
+
+
+test('a comic series card opens the existing series destination without asking for a leaf version', async () => {
+  const navigation = new NativeShellNavigation(authority, () => authority), origin = navigation.getSnapshot();
+  const context: any = {current: () => true, session: () => ({sessionFamilyId: 'family', viewer: {}}), authority: () => authority, navigation,
+    api: {reading: () => assert.fail('a series has no readable leaf version')}};
+  const entry = {id: 'itm_series', libraryId: 'library', kind: 'book_series' as const, title: 'Tiny Hero'};
+  const target = {libraryId: 'library', entry, origin: {route: origin.route, revision: origin.revision}, resident: () => true};
+  assert.equal(await openNativeReadingBookEntry(context, target), true);
+  assert.deepEqual(navigation.getSnapshot().route, {kind: 'audiobook', entry});
+  assert.equal(await openNativeReadingBookEntry(context, target), false, 'a retained card cannot replace the successor');
+  navigation.back(authority); assert.equal(navigation.getSnapshot().route, origin.route);
+  navigation.dispose();
+});
