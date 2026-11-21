@@ -71,7 +71,7 @@ test('TV Library connects Filters to its grid and jumps from the letter rail bes
     region: {id: 'grid', edges: {up: 'toolbar', right: 'grid.alphabet'}}, alphabet: {id: 'grid.alphabet', edges: {left: 'grid'}},
     onJump: (index: number) => actions.push(`jump ${index}`)};
   const {LibraryPage} = await screenModule(new URL('../src-next/pages/tv/library/LibraryPage.tsx', import.meta.url), {
-    ...modules, '../../../kit/focus': {FocusItem: 'FocusItem'},
+    ...modules, '../../../kit/focus': {FocusItem: 'FocusItem'}, '../../../screens/destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'},
     '../../shared/library/useLibrary': {useTVLibrary: () => view, useTVLibraryGrid: () => grid},
   });
   const page = LibraryPage({runtime: {}, destination: {}, actions: {}}) as Node;
