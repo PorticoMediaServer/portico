@@ -48,7 +48,10 @@ function FittedGuideText({title, lines, style, width, maxHeight, whole, onHeight
         const measured = event.nativeEvent.lines;
         for (const line of measured.slice(0, lines)) {
           height += line.height;
-          if (line.width > width || (maxHeight !== undefined && height > maxHeight)) break;
+          // iOS counts a line's trailing space in its width ("Stress Test Book - A Deliberately " measured 250 in a 249 box on
+          // an iPad, and the title was cut to "Stres…"); a line the breaker ended at a space fits, so only a line with no break
+          // in it (one word wider than the box) is too wide.
+          if ((line.width > width && !/\s$/.test(line.text)) || (maxHeight !== undefined && height > maxHeight)) break;
           while (/\s/.test(trial[end] ?? '')) end++;
           end += line.text.replace(/[\r\n]+$/, '').length;
           if (end < trial.length && !/\s/.test(trial[end] ?? '') && !/\s/.test(trial[end - 1] ?? '')) break;
