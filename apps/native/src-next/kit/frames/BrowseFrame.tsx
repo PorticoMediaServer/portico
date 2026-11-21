@@ -1,3 +1,4 @@
+import type {RowReasonPart} from '../../../../../packages/client-core/src/presentation/home-row-reason';
 import React, {useState, type ReactNode} from 'react';
 import {RefreshControl, ScrollView, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle} from 'react-native';
 import Animated, {type AnimatedRef} from 'react-native-reanimated';
@@ -34,6 +35,7 @@ export type BrowseHeaderProps = PageHeaderProps & Readonly<{
     {region?: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>};
   /** A pushed list's one line saying why these titles are here (desktop-browse seeall, collections-46). */
   intro?: ReactNode;
+  introParts?: readonly RowReasonPart[];
   /** Labelled buttons under the intro: Play and Shuffle on See all. */
   actions?: ReactNode;
 }>;
@@ -153,7 +155,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
 
 /** The header per form (frameRegions.browse `header.*`). A library: the phone's top bar with the switcher centred and ⋯, the
  * upright tablet's 24 pt name, the landscape tablet's large title, TV's title with its tabs beside it. A plain page: rule 3's header. */
-function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, tabs: tabItems, intro, actions}: BrowseHeaderProps) {
+function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, tabs: tabItems, intro, introParts, actions}: BrowseHeaderProps) {
   const frame = useFrameMetrics(), form = frame.form;
   // TV sets the tabs beside the title, in the header's own row; elsewhere they run from the gutter under it.
   const strip = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange}
@@ -166,7 +168,7 @@ function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, t
   }
   if (!switcher) return <>
     <PageHeader title={title} back={back} trailing={trailing} showTVBack list={!!(intro || actions)}/>
-    {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}, form === 'tv' ? {marginTop: frameSpec.browse.listHeadTV.introGap - frame.headerGap} : undefined]}>{intro}</Text>}
+    {intro && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: frame.gutter, maxWidth: frameSpec.settings.paragraphMax}, form === 'tv' ? {marginTop: frameSpec.browse.listHeadTV.introGap - frame.headerGap} : undefined]}>{introParts?.map((part, index) => part.titleId ? <Text key={index} style={{color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}}>{part.text}</Text> : part.text) ?? intro}</Text>}
     {/* On a phone a pushed list's actions share their row in equal halves (collections 46a: Play and Shuffle). */}
     {actions && <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, marginTop: form === 'tv' ? frameSpec.browse.listHeadTV.actionsGap : frame.headerGap}}>
       {form === 'phone' ? halves(actions) : actions}</View>}
