@@ -1,14 +1,23 @@
-import {useId, useLayoutEffect, useRef, useState, type ReactNode} from 'react';
+import {createContext, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode} from 'react';
+import {createPortal} from 'react-dom';
 import {defaultI18n} from '@i18n';
 import {Icon} from '../Icon';
 import styles from './settings.module.css';
 
 const t = defaultI18n.t;
+const GroupActionSlot = createContext<HTMLElement | null>(null);
+/** A control's own section action (Add library, Add a profile) drawn at the end of its group's heading, as the mock-ups
+ * draw it; outside a titled group it stays where it is. */
+export function SettingsGroupAction({children}: {children: ReactNode}) {
+  const slot = useContext(GroupActionSlot);
+  return slot ? createPortal(children, slot) : <>{children}</>;
+}
 export function SettingsGroup({title, description, actions, children, advanced = false, deviceLabel, plain = false}: {title?: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; advanced?: boolean; deviceLabel?: string; plain?: boolean}) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   return <section className={styles.group} data-advanced={advanced || undefined}>
-    {(title || actions) && <div className={styles.groupHeading}><h3>{title}{deviceLabel && <small>{deviceLabel}</small>}</h3>{actions && <div className={styles.groupActions}>{actions}</div>}</div>}
+    {(title || actions) && <div className={styles.groupHeading}><h3>{title}{deviceLabel && <small>{deviceLabel}</small>}</h3><div ref={setSlot} className={styles.groupActions}>{actions}</div></div>}
     {description && <p className={styles.groupDescription}>{description}</p>}
-    <div className={styles.groupRows} data-plain={plain || undefined}>{children}</div>
+    <GroupActionSlot.Provider value={slot}><div className={styles.groupRows} data-plain={plain || undefined}>{children}</div></GroupActionSlot.Provider>
   </section>;
 }
 

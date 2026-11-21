@@ -6,7 +6,6 @@ export * from './SettingNumber';
 export * from './ServerFolderPicker';
 export * from './SettingsOrderedList';
 export * from './SettingsRows';
-export * from './SettingsWorkspace';
 export * from './search';
 export * from './SettingsAction';
 export * from './MemberResetCodeSheet';

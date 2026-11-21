@@ -145,6 +145,9 @@ export type SettingsPageFrameProps = Readonly<{
   intro?: string;
   /** The page's own tabs (People: Accounts, Invitations, Devices), the kit `Tabs`, under the intro. */
   tabs?: ReactNode;
+  /** A page pushed from another page with its own header band (a library's artwork band from Libraries, owner-libraries 2):
+   * it takes the title's place from 600, and Back stays above it beside the list. */
+  header?: ReactNode;
   /** Sections of rows (`SectionCard`): the one flexible region. */
   children?: ReactNode;
   /** The whole page can't load. One section failing is a `StateRow` in that section's card instead. */
@@ -153,16 +156,16 @@ export type SettingsPageFrameProps = Readonly<{
 /** Frame 4, one settings or owner page, or a form. At phone width its header is the compact bar ("‹ Settings · title ·
  * action"); from 600 the page title in the column beside the list, with the intro at most 720 wide. A page shown alone
  * (not beside the list) keeps Back above its title, the gutter and the page's column limit (tablets SC-8). */
-export function SettingsPageFrame({title, back, action, status, actions, server, intro, tabs, children, state}: SettingsPageFrameProps) {
+export function SettingsPageFrame({title, back, action, status, actions, server, intro, tabs, header, children, state}: SettingsPageFrameProps) {
   const t = defaultI18n.t;
-  return <div className={`${styles.frame} ${styles.page}`}>
+  return <div className={`${styles.frame} ${styles.page}`} data-pushed={header ? true : undefined}>
     <div className={styles.pageBar}><SheetBar title={title} back={back} action={action} /></div>
     {/* The server strip leads an owner page, over its title (final3-desktop-09; phone-app 19's card under the bar). */}
     {back && <div className={styles.pageBack}><Back back={back} /></div>}
     {server && !state && <div className={styles.pageServer}>{server}</div>}
-    <header className={styles.pageHead}><h1 className={styles.pageTitle}>{title}</h1>
+    {header ? <div className={styles.pageOwnHead}>{header}</div> : <header className={styles.pageHead}><h1 className={styles.pageTitle}>{title}</h1>
       <span role="status" className={styles.pageStatus}>{status === 'saving' ? t('next.settings.saving') : status === 'saved' ? <><Icon name="i-check" size={16} />{t('next.settings.saved')}</> : null}</span>
-      {actions && <span className={styles.pageActions}>{actions}</span>}</header>
+      {actions && <span className={styles.pageActions}>{actions}</span>}</header>}
     {state ? <PageStateFrame {...state} /> : <>{intro !== undefined && <p className={styles.intro}>{intro}</p>}{tabs && <div className={styles.pageTabs}>{tabs}</div>}
       {/* The flexible region is a column at the card inset: whatever a page puts there (sections, rows, a page's own lists)
           lines up with the cards, on every width. */}

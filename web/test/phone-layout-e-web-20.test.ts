@@ -8,7 +8,7 @@ const css = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8
 // phone forms draw it; the A–Z rail keeps its own gutter and never widens the page.
 test('E-web-20: phone settings rows stack a typed field under its label', () => {
   const rows = css('../src/kit/shell/settings.module.css');
-  assert.match(rows, /\.row:has\(> \.rowControl :is\(input\[type='text'\][^)]*\)\) \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  assert.match(rows, /\.row:is\(\[data-stacked\], \[data-path\], :has\(> \.rowControl :is\(code, pre, \[role='radiogroup'\], input\[type='text'\].*\) > \* \{ flex-basis: 100%; margin-left: 0; \}/);
   const controls = css('../src/kit/settings/settings.module.css');
   assert.match(controls, /\.control > div:has\(> div > :is\(input\[type='text'\][^)]*\)\) \{ width: 100%; \}/);
 });

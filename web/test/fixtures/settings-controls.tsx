@@ -3,7 +3,8 @@ import {useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {defaultI18n} from '@i18n';
 import {settingsSpec, settingsRowIndex, type SettingsRow, type SettingsValue} from '../../../packages/client-core/src/presentation/settings-spec';
-import {SettingsAdvanced, SettingsGroup, SettingsOrderedList, SettingsPanel, SettingsPageHeading, SettingsRows, SettingsTable, SettingsWorkspace, SettingNumber, type TableQuery} from '../../src/kit/settings';
+import {SettingsAdvanced, SettingsGroup, SettingsOrderedList, SettingsPanel, SettingsRows, SettingsTable, SettingNumber, type TableQuery} from '../../src/kit/settings';
+import {SettingsListFrame, SettingsPageFrame} from '../../src/kit/frames';
 import {SettingsNav, SettingsRow as Row} from '../../src/kit/shell/SettingsSurfaces';
 import {ServerHeader} from '../../src/kit/shell/ServerIdentity';
 import {Button, RichSelect, TextField} from '../../src/kit/controls';
@@ -31,9 +32,8 @@ function Fixture() {
     const value = values[row.id] ?? fallback;
     return {present: true, value, defaultValue: fallback, changed: JSON.stringify(value) !== JSON.stringify(fallback), displayValue: String(value)};
   };
-  return <><IconSprite /><SettingsWorkspace scope={page === 'playback' ? 'account' : 'server'} compactPage onBack={() => setPage('people')} navigation={<SettingsNav accountName="Synthetic profile" serverName="Synthetic server" viewerRole="owner" account={nav('account')} server={nav('server')} selectedId={page} query="" onQueryChange={() => {}} onNavigate={setPage} onSearchResult={() => {}} />}>
-    {page !== 'playback' && <ServerHeader serverName="Synthetic server" viewerRole="owner" audience="administrators" health="normal" />}
-    <SettingsPageHeading title={page === 'playback' ? 'Playback' : 'People'} />
+  return <><IconSprite /><SettingsListFrame bar={{title: 'Settings'}} list={<SettingsNav accountName="Synthetic profile" serverName="Synthetic server" viewerRole="owner" account={nav('account')} server={nav('server')} selectedId={page} query="" onQueryChange={() => {}} onNavigate={setPage} onSearchResult={() => {}} />} page={<SettingsPageFrame title={page === 'playback' ? 'Playback' : 'People'} back={{label: 'Settings', onPress: () => setPage('people')}}
+    server={page !== 'playback' ? <ServerHeader serverName="Synthetic server" viewerRole="owner" audience="administrators" health="normal" /> : undefined}>
     {page === 'playback' ? <SettingsRows holder={settingsSpec.find(section => section.id === 'playback')!} state={state} change={(row,value) => {proof.changes.push({id:row.id,value});setValues(old => ({...old,[row.id]:value}));}} reset={row => setValues(old => ({...old,[row.id]:state(row).defaultValue!}))} renderSpecial={() => null} advancedOpen={advanced} onAdvancedChange={setAdvanced} /> : <>
       <SettingsGroup title="People" plain actions={<Button size="compact" variant="primary" onClick={event => pick('new',event.currentTarget)}>Invite someone</Button>}>
         <SettingsTable label="Synthetic people" searchLabel="Search people" countLabel={`${rows.length} of 500 people`} emptyLabel="No one matches." rows={rows} columns={[
@@ -45,7 +45,7 @@ function Fixture() {
       <SettingsAdvanced open={advanced} onOpenChange={setAdvanced} summary={['One change','A deliberately very long setting value that must be ellipsized in narrow windows','Another change','A fourth changed setting']}><SettingsGroup title="Order" advanced><SettingsOrderedList label="Synthetic libraries" items={order.map(id=>({id,label:id}))} numbered onReorder={ids=>setOrder([...ids])} onError={error=>{throw error;}} /></SettingsGroup></SettingsAdvanced>
       <SettingsGroup title="Menu"><Row label="Quality"><RichSelect aria-label="Quality" value="custom" options={[{value:'original',label:'Original',description:'The file as it is',isDefault:true},{value:'720p',label:'720p High',description:'4 Mbps, about 1.8 GB an hour'},{value:'custom',label:'Custom (set in Advanced)',description:'Shown when Advanced values match none of the choices above',disabled:true}]} /></Row></SettingsGroup>
     </>}
-  </SettingsWorkspace>
+  </SettingsPageFrame>} />
     <SettingsPanel open={!!panel} onClose={()=>setPanel(undefined)} title={panel==='new'?'Invite someone':initialPeople.find(row=>row.id===panel)?.label??''} audience="Only you and administrators see this" returnFocusRef={opener}
       selectedTab={tab} onTabChange={setTab} create={panel==='new'?{label:'Make invitation',pending:false,onCreate:()=>{proof.creates++;setPanel(undefined);}}:undefined}
       tabs={panel==='new'?undefined:[{id:'account',title:'Account',content:<SettingsGroup title="Account"><Row label="Notes"><TextField aria-label="Notes" /></Row></SettingsGroup>},{id:'access',title:'Access',content:<SettingsGroup title="Access"><Row label="Streams at once"><SettingNumber label="Streams at once" value={2} min={1} max={10} onCommit={()=>{}} /></Row></SettingsGroup>},{id:'profiles',title:'Profiles',content:<p>Synthetic profile boundary</p>},{id:'devices',title:'Devices',content:<p>Synthetic device boundary</p>},{id:'advanced',title:'Advanced',content:<p>Synthetic permission boundary</p>}]}

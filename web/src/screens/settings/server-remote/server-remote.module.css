@@ -1,5 +1,5 @@
-.page { min-width: 0; }
-.reach { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 28px; padding: 22px 24px; border-radius: 14px; background: var(--color-raised); }
+.page { min-width: 0; display: flex; flex-direction: column; gap: var(--frame-section-gap); }
+.reach { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 22px 24px; border-radius: 14px; background: var(--color-raised); }
 .reach[data-tone='ok'] { background: radial-gradient(80% 160% at 100% 0%, color-mix(in srgb, var(--color-healthy) 12%, transparent), transparent 60%), var(--color-raised); }
 .reach[data-tone='warn'] { background: radial-gradient(80% 160% at 100% 0%, color-mix(in srgb, var(--color-amber) 12%, transparent), transparent 60%), var(--color-raised); }
 .reachTitle { display: flex; align-items: center; gap: 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-02em); }
@@ -27,5 +27,6 @@
   .reachTitle { font-size: var(--type-fixed-size-20px); }
 }
 
-.ownAddress { display: grid; gap: 16px; width: 100%; }
-.ownAddress > button { justify-self: start; }
+.ownAddress { display: block; margin: 0; }
+@media (min-width: 600px) { .ownAddress input:is([type='text'], :not([type])) { width: 300px; max-width: 100%; } }
+.identityCode { font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--type-row-label-size); color: var(--color-text-secondary); }

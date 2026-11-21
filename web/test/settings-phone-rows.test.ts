@@ -7,11 +7,15 @@ const shell = readFileSync(new URL('../src/kit/shell/settings.module.css', impor
 const server = readFileSync(new URL('../src/screens/settings/server/server.module.css', import.meta.url), 'utf8');
 const phone = (css: string) => css.slice(css.lastIndexOf('@media (max-width: 599px) {'));
 
-// Desk B on #3317: one rule, a select row stacks at phone width whether or not it has a help line.
-test('at phone width a row with a select, help line or not, or a path value, stacks its control under the label', () => {
+// Desk B on #3317 kept a label from being crushed by a select; phone-app 18 and phone-web 9 then drew a select as its
+// value at the row's end. One rule now: a phone row wraps, its label keeps 10em, and a control that would crowd it moves
+// under it; a path, code, a typed field or a segmented choice always takes the row's width under the label.
+test('at phone width a row keeps its label readable: a select is its value at the end, a path stacks under the label', () => {
   const rules = phone(shell);
-  assert.match(rules, /\.row:has\(> \.rowControl \[role='combobox'\]\), \.row\[data-path\], \.row:has\(> \.rowControl :is\(code, pre\)\) \{ grid-template-columns: minmax\(0, 1fr\);/);
-  assert.doesNotMatch(rules, /\.rowLabel > p\):has\(> \.rowControl \[role='combobox'\]\)/, 'no select row waits for a help line to stack');
+  assert.match(rules, /\.row \{ display: flex; flex-wrap: wrap;/);
+  assert.match(rules, /\.rowLabel \{ flex: 1 1 10em; min-width: 0; \}/);
+  assert.match(rules, /\.row:is\(\[data-stacked\], \[data-path\], :has\(> \.rowControl :is\(code, pre, \[role='radiogroup'\]/);
+  assert.match(rules, /\.row > \.rowControl \[role='combobox'\]\[aria-haspopup\][^{]*\{ min-width: 0; width: auto;[^}]*background: none; color: var\(--color-accent-strong\);/);
   // Nothing truncates a select's value or forces a share on short rows.
   assert.doesNotMatch(rules, /minmax\(45%/);
 });

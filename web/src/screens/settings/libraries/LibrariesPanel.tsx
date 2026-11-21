@@ -17,6 +17,7 @@ import {Artwork} from '../../../kit/artwork/Artwork';
 import type {ShellArtwork} from '../../../shell/artwork';
 import styles from './libraries.module.css';
 import {libraryRows, movedIds, movedLibraryIds, type LibraryKind} from './model';
+import {SettingsGroupAction} from '../../../kit/settings/SettingsGroups';
 import {AddLibrary} from './AddLibrary';
 import {libraryCountText} from '@core/presentation/library-counts.ts';
 const t = defaultI18n.t;
@@ -122,9 +123,9 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName, artwo
   if (!directory.data) return <p role="status" className={styles.loading}>{t('next.settings.loading')}</p>;
   const rows = libraryRows(libraries);
   return <>
-    <div className={styles.listHeader}>
+    <SettingsGroupAction>
       <Button variant="primary" size="small" icon="i-plus" disabled={!!busy} onClick={() => { if (!lifetime.current?.running) setAdding(true); }}>{t('next.settingsSpec.server.libraries.groups.0.rows.0.control.addLabel')}</Button>
-    </div>
+    </SettingsGroupAction>
     {!libraries.length && <p className={styles.empty}>{t('next.settings.libraries.empty')}</p>}
     <ol ref={list} className={styles.list} aria-label={t('next.settingsSpec.server.libraries.title')}>
     {rows.map((row, index) => <li key={row.id} className={styles.row} data-library-row={row.id} data-drop-target={dropTarget === row.id || undefined}>
