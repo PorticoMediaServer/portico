@@ -6,7 +6,7 @@ import {DownloadEntryMenu, DownloadInventoryWindow, DownloadStorage, DownloadsEm
   DownloadsRules, DownloadsScroll, DownloadsTransfers, OtherProfileDownloads, useDownloadsLayout} from '../../../kit/saved/DownloadInventory';
 import {StateView} from '../../../kit/states';
 import {downloadEntryIdentity} from '../../../screens/downloads/presentation';
-import {SavedConfirmSheet} from '../../../screens/saved/SavedForms';
+import {SavedConfirmSheet} from '../../../kit/saved/SavedForms';
 import {limits, useDownloads, type DownloadsPageProps} from '../../shared/saved/useDownloads';
 
 const t = defaultI18n.t;

@@ -27,7 +27,7 @@ function fixture(phone = true) {
     '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Menu: 'Menu', ToastHost: 'ToastHost'},
     '../../shell/model': {sameAuthority: (a: any, b: any) => a === b}, '../destinations/focus': {nativeDestinationFocusIds: () => ({rail: 'rail'})},
     '../home/model': {homeCardText: () => ({caption: []})}, '../read/platform': {isReadingLibraryKind: () => false},
-    './SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'},
+    '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'},
     '../../../../../packages/client-core/src/saved': savedCore, 
     '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, './paging': {savedNearEnd},
     './presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [], savedDuration: String,
@@ -169,11 +169,34 @@ test('Saved delayed initial skeleton retains its shape and adds the quiet line a
 });
 
 test('Phone playlist directory exposes the producer pin and the shared field/direction picker', async () => {
-  const f = fixture(), {SavedDirectoryScreen} = await f.load('saved/SavedDirectoryScreen'), calls: unknown[] = [];
+  const f = fixture(), calls: unknown[] = [];
+  const kit = await screenModule(new URL('../src-next/kit/saved/SavedDirectoryParts.tsx', import.meta.url), {
+    react: f.modules.react, 'react-native': f.modules['react-native'], 'react-native-safe-area-context': f.modules['react-native-safe-area-context'],
+    '../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../screens/saved/paging': {savedNearEnd},
+    '../artwork': f.modules['../../kit/artwork'], '../controls': f.modules['../../kit/controls'], '../Icon': f.modules['../../kit/Icon'],
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../theme': f.modules['../../kit/theme'], '../browse/presentation': f.modules['../../kit/browse/presentation'],
+    './SavedLoading': f.modules['../../kit/saved/SavedLoading'],
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/saved/useSavedDirectory.ts', import.meta.url), {
+    react: f.modules.react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../../../../packages/client-core/src/presentation/errors': f.modules['../../../../../packages/client-core/src/presentation/errors'],
+    '../../../screens/saved/presentation': f.modules['./presentation'],
+  });
+  const {SavedDirectoryPage} = await screenModule(new URL('../src-next/pages/shared/saved/SavedDirectoryPage.tsx', import.meta.url), {
+    react: f.modules.react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../kit/controls': f.modules['../../kit/controls'], '../../../kit/frames': {BrowseFrame: 'BrowseFrame'},
+    '../../../kit/layout/TopBar': {TopBar: 'TopBar'}, '../../../kit/overlays': f.modules['../../kit/overlays'],
+    '../../../kit/saved/SavedDirectoryParts': kit, '../../../kit/saved/SavedForms': f.modules['../../kit/saved/SavedForms'],
+    '../../../kit/saved/SavedListParts': {SavedListTools: 'SavedListTools'}, '../../../kit/saved/SavedSortMenu': f.modules['../../kit/saved/SavedSortMenu'],
+    '../../../kit/states': f.modules['../../kit/states'], './useSavedDirectory': model,
+  });
   const playlist = {kind: 'playlist', id: 'p', title: 'Pinned playlist', count: 2, pinned: true, artworkPaths: []};
   const snapshot = {phase: 'ready', saved: {projection: {...projection, sections: [{id: 'playlists', entries: [playlist], nextCursor: '', totalCount: 1}]}, pagination: {next: []}}};
-  const tree = f.host.render(() => SavedDirectoryScreen({route: {view: 'playlists'}, activation, runtime, libraries: [], actions: {}, back() {}, open() {},
+  const page = f.host.render(() => SavedDirectoryPage({route: {view: 'playlists'}, activation, runtime, libraries: [], back() {}, open() {},
     destination: {subscribe: () => () => {}, getSnapshot: () => snapshot, select: async (route: unknown) => {calls.push(route);}}}));
+  assert.equal(page.type, 'BrowseFrame'); assert.equal(page.props.header.back.testID, 'saved-directory-back');
+  const tree = f.host.render(() => kit.SavedDirectoryBody(page.props.grid.props));
   const row = nodes(tree).find(node => node.type?.name === 'SavedDirectoryRow'); assert.equal(row.props.pinned, true);
   nodes(tree).find(node => node.type === 'SavedSortMenu').props.onChange('added', 'desc');
   assert.deepEqual(calls, [{view: 'playlists', sort: 'added', direction: 'desc', filter: 'all'}]);

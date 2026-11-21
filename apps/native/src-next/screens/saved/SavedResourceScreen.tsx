@@ -31,7 +31,7 @@ import {savedNearEnd} from './paging';
 import {SavedReorderList} from './SavedReorderList';
 import {SavedSortMenu} from '../../kit/saved/SavedSortMenu';
 import {homeCardText} from '../home/model';
-import {SavedConfirmSheet, SavedNameSheet} from './SavedForms';
+import {SavedConfirmSheet, SavedNameSheet} from '../../kit/saved/SavedForms';
 import {isReadingLibraryKind} from '../read/platform';
 import {exactDurationSeconds, personalMosaic, playlistEntryMosaic, savedDuration, savedItemCount, savedLibraryName, savedPlaylistEyebrow,
   savedResourceEyebrow, savedTitleCount, savedViewConditionCount, savedVisibility, savedVisibilityHelp} from './presentation';

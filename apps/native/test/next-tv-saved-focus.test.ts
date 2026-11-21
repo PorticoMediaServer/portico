@@ -28,7 +28,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       '../../../../../../packages/client-core/src/browse-buckets': {titleBucketValue},
       '../../../../../../packages/client-core/src/saved': {savedListFilters},
       '../../../tv/layout/TVFocusGrid': {TVFocusGrid: 'TVFocusGrid'},
-      '../../saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet'},
+      '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet'},
       '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
       '../../../kit/browse/LibraryJumpSheet': {LibraryJumpSheet: 'LibraryJumpSheet'},
       '../useTVPageBack': {useTVPageBack(_runtime: unknown, _route: unknown, _enabled: boolean, page: unknown) {back = page;}},
@@ -133,7 +133,7 @@ test('TV Saved directory keeps filters, retry and pagination inside its content 
   let snapshot: any;
   const {SavedTVDirectory} = await screenModule(new URL('../src-next/screens/saved/SavedTVDirectory.tsx', import.meta.url), {
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Saved failed'})},
-    './SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
+    '../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
     react: reactFixture(host),
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},

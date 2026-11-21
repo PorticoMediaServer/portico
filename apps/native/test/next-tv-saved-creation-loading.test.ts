@@ -25,7 +25,7 @@ async function directory(view = 'collections') {
     '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CoverMosaic: 'CoverMosaic', MediaArt: 'MediaArt'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({focus: (address: any) => focused.push(address)})},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/browse/presentation': {alpha: () => '', browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
-    './SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, './PlaylistToolbar': {PlaylistToolbar: 'PlaylistToolbar'},
+    '../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, './PlaylistToolbar': {PlaylistToolbar: 'PlaylistToolbar'},
     './presentation': Object.fromEntries(['savedCollectionCount', 'savedItemCount', 'savedLibraryName', 'savedTitleCount', 'savedViewCount', 'savedVisibility'].map(key => [key, String])),
   });
   const props: any = {view, destination, runtime: {}, libraries: [], enabled: true, activation: {getSnapshot: () => active, subscribe: () => () => {}}, regionId: 'directory', select() {}, openPlaylist() {}, openResource() {}};

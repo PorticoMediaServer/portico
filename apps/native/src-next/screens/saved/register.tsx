@@ -11,7 +11,8 @@ import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-reg
 import {useTheme} from '../../kit/theme';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {SavedPage} from '../../pages/touch/saved/SavedPage';
-import {SavedDirectoryScreen, type NativeSavedDirectoryRoute} from './SavedDirectoryScreen';
+import {SavedDirectoryPage} from '../../pages/shared/saved/SavedDirectoryPage';
+import type {NativeSavedDirectoryRoute} from '../../pages/shared/saved/useSavedDirectory';
 import {SavedListPage} from '../../pages/shared/saved/SavedListPage';
 import type {NativeSavedListRoute} from '../../pages/shared/saved/useSavedList';
 import {SavedResourceScreen} from './SavedResourceScreen';
@@ -120,7 +121,7 @@ function SavedInlineHost({tab, context, runtime, activation, open, changed}: {
   const common = {destination: owner.source, activation, runtime, actions: owner.actions, inline: true, back: () => {}};
   return tab === 'favorites' || tab === 'history'
     ? <SavedListPage {...common} route={route as NativeSavedListRoute} selection={owner.selection}/>
-    : <SavedDirectoryScreen {...common} route={route as NativeSavedDirectoryRoute} libraries={context.libraries()} open={open} changed={changed}
+    : <SavedDirectoryPage {...common} route={route as NativeSavedDirectoryRoute} libraries={context.libraries()} open={open} changed={changed}
         commands={owner.commands} summaries={owner.summaries} routeCurrent={owner.current}/>;
 }
 
@@ -173,7 +174,7 @@ function SavedRouteHost({entry, runtime, libraries, open, back, changed, showOnH
   useLayoutEffect(() => () => commands.dispose(), [commands]);
   const common = {destination: entry.view.source, activation: entry.view.activation, runtime};
   const body = route.view === 'playlists' || route.view === 'collections' || route.view === 'views'
-    ? <SavedDirectoryScreen {...common} route={route as NativeSavedDirectoryRoute} actions={entry.view.actions} libraries={libraries} back={back} open={open} changed={changed}
+    ? <SavedDirectoryPage {...common} route={route as NativeSavedDirectoryRoute} libraries={libraries} back={back} open={open} changed={changed}
         summaries={'summaries' in entry.view ? entry.view.summaries : undefined} commands={commands}
         routeCurrent={() => context.current() && context.navigation.getSnapshot().route === entry.route}/>
     : route.view === 'watchlist' || route.view === 'favorites' || route.view === 'history'

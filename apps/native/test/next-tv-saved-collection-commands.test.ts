@@ -24,7 +24,7 @@ async function fixture() {
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: () => '', browseType: () => ({})},
     '../../kit/theme': {useTheme: () => theme}, '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)},
     '../destinations/focus': {nativeDestinationFocusIds: () => ({rail: 'rail'})}, '../home/model': {homeCardText: () => ({})},
-    './SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../read/platform': {isReadingLibraryKind: () => false},
+    '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../read/platform': {isReadingLibraryKind: () => false},
     './presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [], savedDuration: String,
       savedItemCount: String, savedLibraryName: () => 'Movies', savedPlaylistEyebrow: 'Playlist', savedResourceEyebrow: () => 'Collection',
       savedTitleCount: String, savedViewConditionCount: () => 0, savedVisibility: () => ({text: 'Private'}), savedVisibilityHelp: () => ''},
