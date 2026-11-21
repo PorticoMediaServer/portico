@@ -15,7 +15,7 @@ import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
 import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
 import {NativeServerTroubleshooting} from '../../../screens/settings-live/server/TroubleshootingPage';
-import {NativeServerStorage} from '../../../screens/settings-live/server/StoragePage';
+import {ServerStoragePage} from '../../touch/settings/ServerStoragePage';
 import {ServerIntegrationsPage} from '../../touch/settings/ServerIntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';
 import {ServerRemoteAccessPage} from './ServerRemoteAccessPage';
@@ -82,8 +82,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
       onClose={leaveServerPage} initialChannelId={initialChannelId}/>
     : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
-    : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/>
-    : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/> : undefined;
+    : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/> : undefined;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
   const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
@@ -97,6 +96,8 @@ export function NativeSettingsPage(props: SettingsProps) {
     : integrationsPage ? <ServerIntegrationsPage ports={ports} runtime={runtime} compact={compact} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : segmentsPage ? <ServerSegmentsPage lifetime={controller.lifetime} ports={ports} runtime={runtime} server={serverHeader} retry={retry} onBackHandlerChange={setSegmentBack}
+      back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : storagePage ? <ServerStoragePage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onOpenPage={choose}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}

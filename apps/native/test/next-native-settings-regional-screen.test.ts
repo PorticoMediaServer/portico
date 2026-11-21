@@ -88,7 +88,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './recordings-controller': {createNativeRecordingsController: () => ({dispose: () => {}})},
     '../../platform/server-connections': {nativeRouteCrypto: {random: (size: number) => new Uint8Array(size)}},
     './server/TroubleshootingPage': {NativeServerTroubleshooting: 'NativeServerTroubleshooting'},
-    './server/StoragePage': {NativeServerStorage: 'NativeServerStorage'},
+    '../../touch/settings/ServerStoragePage': {ServerStoragePage: 'NativeServerStorage'},
     '../../touch/settings/ServerIntegrationsPage': {ServerIntegrationsPage: 'NativeServerIntegrations'},
     './ServerGeneralPage': {ServerGeneralPage: 'ServerGeneralPage'},
     '../../touch/settings/ServerStreamingPage': {ServerStreamingPage: 'NativeServerStreaming'},
