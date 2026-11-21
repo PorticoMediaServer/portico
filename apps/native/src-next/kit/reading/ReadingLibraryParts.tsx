@@ -104,10 +104,12 @@ export function ReadingFallbackGrid({model, runtime, metrics}: {model: LibraryVi
 }
 
 /** The drawn Read row heading and its horizontal track (phone-read frames 1-3). */
+// A reading shelf takes the shelf spec's spacing, as every kit Row does (phone-read `.phone .row`, `.row-head`, `.track`:
+// 28 above, 4 under the heading, the track 8 / 10 round its cards and 12 between them on a phone); the first sits 14 down.
 function DiscoveryRow({title, sub, first = false, onSeeAll, onNearEnd, children}: {title: string; sub?: string; first?: boolean; onSeeAll?: () => void; onNearEnd?: () => void; children?: ReactNode}) {
-  const theme = useTheme();
-  return <View style={{marginTop: first ? 14 : 44}}>
-    <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 14, paddingHorizontal: theme.gutter, marginBottom: 14}}>
+  const theme = useTheme(), shelf = theme.spec.shelf, phone = theme.platform === 'phone';
+  return <View style={{marginTop: first ? 14 : shelf.marginTop[theme.column]}}>
+    <View style={{flexDirection: 'row', alignItems: 'baseline', gap: shelf.headingGap[theme.column], paddingHorizontal: theme.gutter, marginBottom: shelf.headingMargin[theme.column]}}>
       <Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text>
       {sub ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, flexShrink: 1}]}>{sub}</Text> : null}
       {onSeeAll ? <Focusable accessibilityRole="button" accessibilityLabel={title} focusKind="row" onPress={onSeeAll}
@@ -120,7 +122,7 @@ function DiscoveryRow({title, sub, first = false, onSeeAll, onNearEnd, children}
       onScroll={onNearEnd ? ({nativeEvent: {contentOffset, layoutMeasurement, contentSize}}) => {
         if (contentOffset.x + layoutMeasurement.width * 3 >= contentSize.width) onNearEnd();
       } : undefined}
-      contentContainerStyle={{gap: theme.platform === 'phone' ? 16 : 14, paddingHorizontal: theme.gutter, paddingTop: 10, paddingBottom: 14}}>{children}</ScrollView></TVRow>
+      contentContainerStyle={{gap: shelf.gap[theme.column], paddingHorizontal: theme.gutter, paddingTop: phone ? shelf.phonePaddingTop : shelf.paddingTop[theme.column], paddingBottom: phone ? shelf.phonePaddingBottom : shelf.paddingBottom[theme.column]}}>{children}</ScrollView></TVRow>
   </View>;
 }
 
