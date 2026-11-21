@@ -16,6 +16,7 @@ import {FrameRhythm, useFrameMetrics, type FrameMetrics} from './metrics';
 import {PageHeader, type PageHeaderProps} from './PageHeader';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
 import {HeroWordsTop} from '../layout/Hero';
+import {pageInsetElement, usePageInset} from '../layout/page-inset';
 
 /** The header regions (`frameRegions.browse`): a library's title is its switcher; a pushed list has Back and a plain title. */
 export type BrowseHeaderProps = PageHeaderProps & Readonly<{
@@ -109,7 +110,8 @@ export function BrowseFrame({startFocus, focus, ...props}: BrowseFrameProps) {
   </StartFocusScope>;
 }
 function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, gridState, children, testID, scroller, onRowsLayout, notice, foot, scroll}: Omit<BrowseFrameProps, 'startFocus' | 'focus'>) {
-  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), form = frame.form;
+  const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), form = frame.form, pageInset = usePageInset();
+  const docked = !!filters?.open && form === 'expanded';
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   // A library's header and toolbar stay put while its grid or rows scroll under them; a plain page's title scrolls away.
   const pinned = !!header && (!!header.switcher || !!toolbar || !!grid);
@@ -142,7 +144,9 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
     {header?.ambient && (form === 'phone' || !header.switcher) && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}>{header.ambient}</View>}
     {pinned && top}{toolbar}{body}</View>;
   return <View testID={testID} style={{flex: 1}}>
-    <View style={{flex: 1, flexDirection: 'row'}}>{page}{filters?.open && form === 'expanded' && <FiltersDock testID={testID && `${testID}-filters`}><Pane filters={filters}/></FiltersDock>}</View>
+    {/* Docked filters take their width from the page, so the page is told (as a sidebar's width is): otherwise the grid sized
+        its cards for the whole room and drew fewer columns, leaving a gap before the letters (iPad, 21 Nov). */}
+    <View style={{flex: 1, flexDirection: 'row'}}>{docked ? pageInsetElement(pageInset + frameSpec.browse.filtersWidth.expanded, page) : page}{docked && <FiltersDock testID={testID && `${testID}-filters`}><Pane filters={filters}/></FiltersDock>}</View>
     {filters && <FiltersSurface filters={filters} testID={testID && `${testID}-filters`}/>}
   </View>;
 }
