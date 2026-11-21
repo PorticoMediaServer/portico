@@ -239,11 +239,14 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   if (covered && aimed) aimedCovered.current = aimed.serial;
   useDestinationEntryFocus({visible: theme.isTV && !searching && !covered && !!aimed && aimedCovered.current !== aimed.serial, intent: 'enter', revision: aimed?.serial ?? 0},
     aimed ? {regionId: rows, childId: aimed.rowId} : undefined);
-  const remoteSourcesPage = !theme.isTV && page?.id === 'remote-sources';
+  const remoteSourcesPage = !theme.isTV && page?.id === 'remote-sources', segmentsPage = !theme.isTV && page?.id === 'segments';
+  const segmentBack = useRef<(() => boolean) | undefined>(undefined);
+  const setSegmentBack = useCallback((handler: (() => boolean) | undefined) => {segmentBack.current = handler;}, []);
   const remoteBack = useRef<(() => boolean) | undefined>(undefined);
   const setRemoteBack = useCallback((handler: (() => boolean) | undefined) => {remoteBack.current = handler;}, []);
   const back = useCallback(() => {
     if (!viewCurrent()) return false;
+    if (segmentsPage && segmentBack.current?.()) return true;
     if (remoteSourcesPage) {
       if (remoteBack.current?.()) return true;
       pageState.current = {...pageState.current, pushed: false}; setPushed(false);
@@ -258,7 +261,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     if (registry.capture()?.regionId === rows && page) return registry.focus({regionId: column, childId: page.id});
     if (page && page.id !== accountPages[0]?.id) {pageState.current = {...pageState.current, selected: accountPages[0].id}; setSelected(accountPages[0].id); registry.focus({regionId: column, childId: accountPages[0].id}); return true;}
     return false;
-  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, theme.platform, theme.isTV, viewCurrent, searchField, keyboard, ids]);
+  }, [registry, column, rows, page, accountPages, searching, remoteSourcesPage, segmentsPage, theme.platform, theme.isTV, viewCurrent, searchField, keyboard, ids]);
   const account = ports.context.account.account;
   const signedIn = account.hostedAccountId
     ? t('settings.signedInWithAccount', {server: ports.serverName()})
@@ -310,7 +313,6 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const integrationsPage = !theme.isTV && page.id === 'integrations';
   const generalPage = !theme.isTV && page.id === 'general';
   const streamingPage = !theme.isTV && page.id === 'streaming';
-  const segmentsPage = !theme.isTV && page.id === 'segments';
   const peoplePage = !theme.isTV && page.id === 'people';
   const signInPage = !theme.isTV && page.id === 'signin';
   const metadataPage = !theme.isTV && page.id === 'metadata';
@@ -328,7 +330,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const choose = (id: string) => {if (!viewCurrent()) return; pageState.current = {...pageState.current, selected: id, pushed: !theme.isTV}; setSelected(id); setTarget(undefined); if (!theme.isTV) setPushed(true);};
   const phoneBack = () => {if (!viewCurrent()) return; if (!remoteSourcesPage || !remoteBack.current?.()) popPage();};
   const viewerRole = ports.context.account.account.role === 'owner' ? 'owner' as const : ports.context.account.canManage ? 'administrator' as const : 'member' as const;
-  const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || segmentsPage || peoplePage || signInPage || metadataPage || remoteSourcesPage;
+  const customPage = dashboardPage || librariesPage || livePage || troubleshootingPage || storagePage || peoplePage || signInPage || metadataPage || remoteSourcesPage;
   const accountGroups = compact ? [orderedPages] : grouped(orderedPages, theme.isTV ? tvPageGroups : tabletAccountClusters);
   const serverGroups = grouped(serverGroupPages, compact ? [] : tabletServerClusters);
   const focusSearch = () => {if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}};
@@ -338,13 +340,14 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   };
   const sheetChanged = (open: boolean, reason: string) => {
     if (open || !viewCurrent() || closingRef.current) return;
-    if (pushed && (reason === 'back' || reason === 'escape')) phoneBack();
-    else closeSettings();
+    if (pushed && (reason === 'back' || reason === 'escape')) {
+      if (!segmentsPage || !segmentBack.current?.()) phoneBack();
+    } else closeSettings();
   };
   return {theme, t, shell, state, ids, page, compact, pushed, query, setQuery, searchRevision, searching, searchField, keyboard, rows, column,
     selectPage: setSelected, choose, focusSearch, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
     matches, matchingPages, matchRegions, matchEdges, voiceSearch, sheetChanged, closing, closeSettings, finishClose, phoneBack, signedIn,
-    serverPage, viewerRole, dashboardCard, dashboardDenied, openDashboard, openServerPage, updatePending, leaveServerPage, setRemoteBack,
+    serverPage, viewerRole, dashboardCard, dashboardDenied, openDashboard, openServerPage, updatePending, leaveServerPage, setRemoteBack, setSegmentBack,
     librariesPage, livePage, troubleshootingPage, storagePage, integrationsPage, generalPage, streamingPage, segmentsPage, peoplePage,
     signInPage, metadataPage, historyPage, remoteSourcesPage, remoteAccessPage, dashboardPage, customPage, liveControllers,
     pageScroll, pageScrollLayout, rowTargeting, aimed, reportedOutputs, awayLimitLabel};

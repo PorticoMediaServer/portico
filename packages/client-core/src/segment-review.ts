@@ -145,9 +145,9 @@ export const approveSegments = async (api: SegmentApi, id: string, kinds: readon
 export const redetectSegments = async (api: SegmentApi, id: string) => changed(await api.request(routePath('post_admin_segments_titles_id_redetect', {id}), 'POST', {}));
 
 /** Queue every measurable version again, preserving the owner's marker decisions. */
-export const remeasureAllSegments = async (api: SegmentApi) => changed(await api.request(serverPath('POST /v1/admin/segments/redetect'), 'POST', {}));
+export const remeasureAllSegments = async (api: SegmentApi, signal?: AbortSignal) => changed(await api.request(serverPath('POST /v1/admin/segments/redetect'), 'POST', {}, signal));
 /** Queue only versions whose last measurement failed. */
-export const retryUnreadableSegments = async (api: SegmentApi) => changed(await api.request(serverPath('POST /v1/admin/segments/retry'), 'POST', {}));
+export const retryUnreadableSegments = async (api: SegmentApi, signal?: AbortSignal) => changed(await api.request(serverPath('POST /v1/admin/segments/retry'), 'POST', {}, signal));
 
 export type SegmentEdit = Readonly<{action: 'create' | 'edit' | 'approve' | 'dismiss'; markerId?: string; kind?: SegmentKind; startUS?: string; endUS?: string}>;
 let sequence = 0;
