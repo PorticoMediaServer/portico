@@ -147,8 +147,13 @@ test('TV profile-switch hand-off preserves its current family, selection control
   const back = backOwner(), attempts: unknown[][] = [];
   let calls = 0, exited = 0;
   const current = {sessionFamilyId: 'current-family', viewer: {serverId: 'server', accountId: 'account', profileId: 'current'}};
+  const {ProfilesPage} = await screenModule(new URL('../src-next/pages/tv/accounts/ProfilesPage.tsx', import.meta.url), {
+    react: React, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/artwork': {ProfilePicker: 'Picker'},
+    '../../../kit/frames/TVAuthLayout': {TVAccountCanvas: 'TVAccountCanvas'},
+  });
   const {AccountRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), {'../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
     '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
+    '../../pages/tv/accounts/ProfilesPage': {ProfilesPage},
     '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
     '../../../../../packages/client-core/src/profile-management': profileManagement, '../../../../../packages/client-core/src/identity-client': identityClient,
     '../../platform/profile-avatars': profileAvatars, '../../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
@@ -189,7 +194,10 @@ test('TV profile-switch hand-off preserves its current family, selection control
   await act(() => host.mount());
   try {
     assert.equal(page.type, 'SwitchPage', 'the TV picker is drawn as a page over the shell, not in the route layer');
-    await act(() => nodes(tree.props.children).find(n => n.type === 'Picker').props.onSelect(profile.id));
+    assert.equal(tree.type, ProfilesPage);
+    const picker = nodes(ProfilesPage(tree.props)).find(node => node.type === 'Picker');
+    assert.equal(picker.props.title, 'Who’s watching on Verified server?');
+    await act(() => picker.props.onSelect(profile.id));
     await act(() => tree.props.onSubmit('1234'));
     assert.deepEqual(attempts, [[profile.id, '1234']]); assert.equal(tree.props.code, '');
     // F-PROFILE-28: a wrong PIN leaves the four boxes filled (error colour) for 400 ms, then empties them.
@@ -219,8 +227,8 @@ test('TV profile-switch hand-off preserves its current family, selection control
     page.props.leave.current = () => {left++;};
     await act(() => tree.props.onSubmit('0000'));
     await act(() => page.props.onBack());
-    assert.equal(tree.type, 'WhosWatching'); assert.equal(exited, 0);
-    assert.equal(nodes(tree.props.children).some(n => n?.props?.accessibilityRole === 'alert'), false, 'the PIN page\'s refusal does not follow onto the picker');
+    assert.equal(tree.type, ProfilesPage); assert.equal(exited, 0);
+    assert.equal(nodes(tree.props.status).some(n => n?.props?.accessibilityRole === 'alert'), false, 'the PIN page\'s refusal does not follow onto the picker');
     await act(() => page.props.onBack());
     assert.equal(left, 1); assert.equal(exited, 0, 'the route closes once the page has gone (onGone), not on Back itself');
     await act(() => page.props.onGone());
@@ -235,6 +243,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
   const current = {sessionFamilyId: 'current-family', viewer: {serverId: 'server', accountId: 'account', profileId: 'current'}};
   const {AccountRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), {'../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
     '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
+    '../../pages/tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'},
     '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
     '../../../../../packages/client-core/src/profile-management': profileManagement, '../../../../../packages/client-core/src/identity-client': identityClient,
     '../../platform/profile-avatars': profileAvatars, '../../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
@@ -272,7 +281,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
   const host = createFabricHookHost(() => {const opened = AccountRoute({route, context}); tree = screen(opened.type(opened.props));});
   await act(() => host.mount());
   try {
-    await act(() => nodes(tree.props.children).find(n => n.type === 'Picker').props.onSelect(profile.id));
+    await act(() => tree.props.picker.onSelect(profile.id));
     live = false;
     await act(() => tree.props.onSubmit('1234'));
     assert.deepEqual(attempts, [], 'a stale context never selects');
