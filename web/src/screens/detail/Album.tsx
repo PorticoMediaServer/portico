@@ -1,4 +1,4 @@
-import {Fragment, useEffect, useRef, useState} from 'react';
+import {cloneElement, Fragment, useEffect, useRef, useState, type MouseEvent, type ReactElement, type RefObject} from 'react';
 import {t, environment as env} from './text';
 import {cardText, type FactPart} from '@core/presentation/kit-model';
 import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection, type LibraryContentSnapshot} from '@core/library-content.ts';
@@ -9,8 +9,11 @@ import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
 import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
-import {GeneratedCover} from '../../kit/artwork';
-import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
+import {Artwork, GeneratedCover} from '../../kit/artwork';
+import {CoverHeroLink} from '../../kit/title/CoverHero';
+import {PanelBlock, TitleFrame, type TitleAction} from '../../kit/frames';
+import {TitleFactsLine} from '../../kit/title/TitleParts';
+import {setContainerFlag} from '@core/container-state.ts';
 import {Button} from '../../kit/controls';
 import {SortMenu, TrackTable} from '../../kit/browse';
 import {FileInfo, Menu, MenuItem} from '../../kit/overlays';
@@ -26,7 +29,6 @@ import {SimilarTitleRow, TitleRow} from './Detail';
 import type {ListeningSimilarRead} from '@core/relation-rows.ts';
 import type {ListeningViewerScope} from '@core/listening.ts';
 import {albumSortRoute, albumTrackGroups} from './album-model';
-import {MusicDetailLoading} from './MusicLoading';
 import styles from './album.module.css';
 
 export type AlbumActions = (entry: ContentEntry) => Readonly<{onOpen: () => void; onPlay?: () => void}>;
@@ -44,6 +46,8 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
   const width = useShellWidth(), phone = width < 1024, more = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState<Page>(), [retry, setRetry] = useState(0);
   const [similar, setSimilar] = useState<Similar>(), [menu, setMenu] = useState<OpenMenu>(), [fileInfo, setFileInfo] = useState(false);
+  /** The favourite as this page last set it, until the album is read again. */
+  const [favourite, setFavourite] = useState<Readonly<{album: string; value: boolean}>>();
   useEffect(() => {
     // The album is a document in the viewer's cache: Back draws it at once, and the hub reads it again in place only if it moved.
     const life = screenLifetime(context), service = new LibraryContentService({queries: context.queries, scope: context.scope});
@@ -77,7 +81,7 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
   const snapshot = active?.snapshot, album = projection?.entity;
   if (!active || !snapshot || !projection || !album || album.id !== albumId || album.kind !== 'album' || album.libraryId !== libraryId) {
     if (snapshot?.phase === 'error' || snapshot?.phase === 'refresh-required') return <ScreenProblem context={context} error={snapshot.error} retry={() => setRetry(value => value + 1)}/>;
-    return <div className={styles.page}><div className={styles.bar} /><MusicDetailLoading kind="album" /></div>;
+    return <TitleFrame title="" cover={{shape: 'square', node: null}} state={{kind: 'loading'}} />;
   }
   const {life, service} = active;
   const current = () => life.current() && service.getSnapshot().phase === 'ready' && service.getSnapshot().projection === projection;
@@ -107,9 +111,7 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
     && (menu.seed === album || songs.includes(menu.seed));
   const menuAnchor = {current: menu?.anchor ?? null};
   const recommendations = similar?.life === life && similar.projection === projection ? similar : undefined;
-  // desktop-listen#album sets After Hours (11 characters) at the xl size; music-plus#album sets
-  // Abbey Road (2019 Mix) (21) at the long one. Past 16 characters the xl line no longer fits.
-  const long = album.title.length > 16, locale = env.locale ?? 'en', genres = album.genres?.filter(Boolean) ?? [];
+  const locale = env.locale ?? 'en', genres = album.genres?.filter(Boolean) ?? [];
   // desktop-listen#album: artist, year, genre, then the song count.
   const metaParts: FactPart[] = [...parts.filter(part => part.id === 'year'), ...(genres.length ? [{id: 'genres', role: 'supplement' as const, text: genres.join(', ')}] : []), ...parts.filter(part => part.id !== 'year')];
   const details: [string, string][] = [];
@@ -121,32 +123,42 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
   fact(t('title.genres'), genres.join(', '));
   fact(t('title.added'), instantDate(album.addedAt, locale));
   const hasDetails = !!album.overview || details.length > 0;
-  return <div className={styles.page}>
-    <div className={styles.bar}>
-      {onBack && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={() => runScreenCommand(context, () => {if (life.current()) onBack();})}/>}
-      <span className={styles.barTitle}>{album.title}</span>
-    </div>
-    {/* desktop-listen #album, music-plus #album, phone-app r5: the kit's cover hero, square, as an audiobook's. */}
-    <div className={styles.heroBleed}><CoverHero title={album.title} titleStyle={long ? 'long' : undefined} shape="square" eyebrow={phone ? undefined : t('next.browse.album')}
-      cover={context.artwork.foreground(album.posterUrl, 760, 1)} ambient={context.artwork.ambient(album.posterUrl)} palette={generatedCoverTint(album.title)}
-      fallback={<GeneratedCover title={album.title} author={album.artist?.name} glyph={Array.from(album.title.trim())[0] ?? ''} tint={generatedCoverTint(album.title)}/>}
-      byline={album.artist?.name ? <CoverHeroLink picture={album.posterUrl ? context.artwork.foreground(album.posterUrl, 56, 1) : undefined}
-        href={onArtist && album.artist.id ? `/library/${encodeURIComponent(libraryId)}?${new URLSearchParams({view: 'artist', entityId: album.artist.id})}` : undefined}
-        onOpen={onArtist && album.artist.id ? () => {const artistId = album.artist!.id!; runScreenCommand(context, () => {if (life.current()) onArtist(artistId);});} : undefined}>{album.artist.name}</CoverHeroLink> : undefined}
-      facts={metaParts} metaEnd={badges.length > 0 ? <span className={styles.badges}>{badges.map(badge => {
+  // The album on the title frame (desktop-listen album; phone-app 13): the square cover, Album, the artist and facts, Play,
+  // Shuffle, the favourite, Add to playlist and More; the songs are the panel and Details the side.
+  const favorite = favourite?.album === album.id ? favourite.value : album.favorite === true;
+  const setFavorite = () => runScreenCommand(context, async () => {
+    if (!current()) return;
+    const next = !favorite; setFavourite({album: album.id, value: next});
+    try { await setContainerFlag(life.api, 'album', album.id, 'favorite', next, life.signal()); }
+    catch (error) { if (life.current()) setFavourite(undefined); throw error; }
+  });
+  const addToPlaylist = context.effects.addToPlaylist;
+  const actions: TitleAction[] = [
+    ...(context.effects.playAlbum ? [{icon: 'i-shuffle' as const, label: t('title.shuffle'), labelled: true, disabled: !current() || unplayable, onPress: () => runScreenCommand(context, () => context.effects.playAlbum!(albumId, true, life.signal(), current))}] : []),
+    {icon: 'i-heart', label: t(favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites'), active: favorite, disabled: !current(), onPress: setFavorite},
+    ...(addToPlaylist ? [{icon: 'i-listadd' as const, label: t('next.selection.addToPlaylist'), disabled: !current(), onPress: () => {}, wrap: (button: ReactElement) => cloneElement(button as ReactElement<{onClick?: (event: MouseEvent<HTMLButtonElement>) => void}>, {onClick: (event: MouseEvent<HTMLButtonElement>) => { const anchor = event.currentTarget; runScreenCommand(context, () => addToPlaylist({libraryId, itemId: album.id, kind: 'album', title: album.title}, anchor)); }})}] : []),
+    {icon: 'i-more', label: t('card.more', {title: album.title}), disabled: !current(), onPress: () => {}, wrap: (button: ReactElement) => cloneElement(button as ReactElement<{ref?: RefObject<HTMLButtonElement | null>; onClick?: (event: MouseEvent<HTMLButtonElement>) => void}>, {ref: more, onClick: (event: MouseEvent<HTMLButtonElement>) => open(album, event.currentTarget)})},
+  ];
+  // desktop-listen album: the artist leads the facts, with the album's cover in its circle, and opens the artist's page.
+  const artist = album.artist?.name ? <CoverHeroLink picture={album.posterUrl ? context.artwork.foreground(album.posterUrl, 56, 1) : undefined}
+    href={onArtist && album.artist.id ? `/library/${encodeURIComponent(libraryId)}?${new URLSearchParams({view: 'artist', entityId: album.artist.id})}` : undefined}
+    onOpen={onArtist && album.artist.id ? () => {const artistId = album.artist!.id!; runScreenCommand(context, () => {if (life.current()) onArtist(artistId);});} : undefined}>{album.artist.name}</CoverHeroLink> : null;
+  return <><TitleFrame back={onBack ? {label: t('next.states.back'), onPress: () => runScreenCommand(context, () => {if (life.current()) onBack();})} : undefined}
+    cover={{shape: 'square', node: album.posterUrl ? <Artwork source={context.artwork.foreground(album.posterUrl, 760, 1)} alt="" /> : <GeneratedCover title={album.title} author={album.artist?.name} glyph={Array.from(album.title.trim())[0] ?? ''} tint={generatedCoverTint(album.title)}/>}}
+    kicker={{label: t('next.browse.album')}}
+    title={album.title} metadata={<><TitleFactsLine lead={artist} parts={metaParts} />{badges.length > 0 && <span className={styles.badges}>{badges.map(badge => {
         const label = typeof badge === 'string' ? badge : formatSignalText(badge, t);
         return <span key={label} className={styles.badge}>{label}</span>;
-      })}</span> : undefined}
-      actions={<>
-          {context.effects.playAlbum && <>
-            <Button variant="primary" icon="i-play" disabled={!current() || unplayable} aria-describedby={unplayable ? `${albumId}-unplayable` : undefined} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, false, life.signal(), current))}>{t('next.controls.play')}</Button>
-            <Button variant="glass" icon="i-shuffle" disabled={!current() || unplayable} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, true, life.signal(), current))}>{t('title.shuffle')}</Button>
-          </>}
-          <Button ref={more} variant="glass" icon="i-more" iconOnly disabled={!current()} aria-label={t('card.more', {title: album.title})} onClick={event => open(album, event.currentTarget)}/>
-        </>}
-      under={context.effects.playAlbum && unplayable ? <p id={`${albumId}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p> : undefined}/></div>
-    <section className={hasDetails ? styles.split : styles.full}>
-      <div className={styles.tracks}>
+      })}</span>}</>}
+    primary={context.effects.playAlbum ? {icon: 'i-play', label: t('next.controls.play'), disabled: !current() || unplayable, onPress: () => runScreenCommand(context, () => context.effects.playAlbum!(albumId, false, life.signal(), current)),
+      ...(unplayable ? {note: t('title.fileUnavailable')} : {})} : undefined}
+    actions={actions}
+    aside={hasDetails ? <div className={styles.aside}>
+        <h2 className={styles.detailsTitle}>{t('title.details')}</h2>
+        {album.overview && <><TitleProse className={styles.overview} markup={album.overview} />{album.overviewSource && <small className={styles.source}>{t('web.person.biographyFrom', {source: album.overviewSource})}</small>}</>}
+        {details.length > 0 && <dl className={styles.facts}>{details.map(([label, value]) => <Fragment key={label}><dt>{label}</dt><dd>{value}</dd></Fragment>)}</dl>}
+      </div> : undefined}>
+      <PanelBlock label={t('music.allSongs')}><div className={styles.tracks}>
         {sorts.length > 0 && <div className={styles.sortBar}><SortMenu sorts={sorts} value={sort}
           label={value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has); return id && defaultI18n.has(id) ? t(id) : value.labelKey;}}
           onValueChange={value => runScreenCommand(context, () => {const route = albumSortRoute(projection, value); if (route && current()) return service.select(route);})} /></div>}
@@ -164,15 +176,10 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
         {snapshot.appended.filter(section => section.nextCursor).map(section => <Button key={section.id} variant="glass" disabled={snapshot.phase !== 'ready'} onClick={() => runScreenCommand(context, () => {if (current()) return service.next(section.id);})}>{t('next.settings.loadMore')}</Button>)}
         {snapshot.phase === 'loading' && <p role="status">{t('music.loading')}</p>}
         {(snapshot.phase === 'error' || snapshot.phase === 'refresh-required') && <ScreenProblem context={context} error={snapshot.error} retry={() => setRetry(value => value + 1)}/>}
-      </div>
-      {hasDetails && <aside className={styles.aside}>
-        <h2 className={styles.detailsTitle}>{t('title.details')}</h2>
-        {album.overview && <><TitleProse className={styles.overview} markup={album.overview} />{album.overviewSource && <small className={styles.source}>{t('web.person.biographyFrom', {source: album.overviewSource})}</small>}</>}
-        {details.length > 0 && <dl className={styles.facts}>{details.map(([label, value]) => <Fragment key={label}><dt>{label}</dt><dd>{value}</dd></Fragment>)}</dl>}
-      </aside>}
-    </section>
+      </div></PanelBlock>
     {recommendations && <SimilarTitleRow first={recommendations.value} scope={recommendations.scope} heading={t('music.moreLikeThis')}
       subtitle={t(recommendations.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={{context}}/>}
+  </TitleFrame>
     {menu && <Menu open={menuCurrent()} onOpenChange={open => {if (!open) setMenu(undefined);}} anchorRef={menuAnchor} returnFocusRef={menuAnchor} title={menu.seed.title} placement="bottom-end">
       <MusicEntryMenu context={context} seed={menu.seed} signal={menu.page.life.signal()} current={menuCurrent}>
         {/* music-plus frame 7: the album's ⋯ offers File info with the format its songs share; a mixed or unknown album has none to show. */}
@@ -188,5 +195,5 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
       return rows ? <FileInfo open onOpenChange={open => {if (!open) setFileInfo(false);}} model={{heading: t('next.overlays.fileInfo'), files: [], album: rows}} subject={album.title}
         layout={phone ? 'phone' : 'desktop'} returnFocusRef={more} onManage={() => {}}/> : null;
     })()}
-  </div>;
+  </>;
 }
