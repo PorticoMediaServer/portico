@@ -24,7 +24,7 @@ import {NativeServerSegments} from '../../../screens/settings-live/server/Segmen
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
-import {NativeServerHistory} from '../../../screens/settings-live/server/HistoryPage';
+import {ServerHistoryPage} from '../../touch/settings/ServerHistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
 import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
 import {useSettingsPage, type SettingsProps} from './useSettingsPage';
@@ -74,8 +74,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     {!!sheetShortcuts.length && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts.map(action => action.id === 'notifications' && unreadNotifications > 0
       ? {...action, trailing: <SettingsNotificationCount count={defaultI18n.number(unreadNotifications)}/>} : action)}/>}
   </>;
-  const custom = historyPage ? <NativeServerHistory ports={ports} runtime={runtime} compactHeader={compact}/>
-    : peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/>
+  const custom = peoplePage ? <NativeServerPeople ports={ports} runtime={runtime} compactHeader={compact}/>
     : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
@@ -94,6 +93,8 @@ export function NativeSettingsPage(props: SettingsProps) {
     : remoteAccessPage ? <ServerRemoteAccessPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : streamingPage ? <ServerStreamingPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : historyPage ? <ServerHistoryPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}

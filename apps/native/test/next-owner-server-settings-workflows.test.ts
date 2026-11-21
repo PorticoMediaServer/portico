@@ -227,11 +227,27 @@ test('History draws rebuilt play history and loads more with the server cursor',
   const second: PlayEntryPage = {items: [{...entry, playedAt: '2026-10-27T11:00:00Z', title: 'Older film', away: true}]};
   class Lifetime {signal = new AbortController().signal;authority = {serverId: 'server', accountId: 'a0', profileId: 'p0'};current = fixture.group.context.current;request = (run: any) => run(this.signal);dispose() {}}
   const adminDocuments = await import('../../../packages/client-core/src/query/admin-documents.ts'), shellFreshness = await import('../src-next/shell/freshness.ts');
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/HistoryPage.tsx', import.meta.url), {
-    ...chrome, react: host.react, 'react-native': {Text: 'Text', View: 'View', FlatList: 'FlatList'}, '../../../../../../packages/client-core/src/play-history': playHistory,
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerHistory.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/play-history': playHistory,
+    '../../../../../../packages/client-core/src/timer': await import('../../../packages/client-core/src/timer.ts'),
     '../../../../../../packages/client-core/src/query/admin-documents': adminDocuments, '../../../shell/freshness': shellFreshness,
-    '../../../../../../packages/client-core/src/admin/server-play-history': serverHistory, '../../../../../../packages/client-core/src/report-context': reports, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/client-core/src/server-admin/console-words': {duration: (seconds: number) => `${seconds}s`}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../lifetime': {NativeScreenLifetime: Lifetime, screenScopeEnded: () => new Error('ended')}, './history-source': history, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
+    '../../../../../../packages/client-core/src/admin/server-play-history': serverHistory, '../../../../../../packages/client-core/src/report-context': reports, '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/client-core/src/server-admin/console-words': {duration: (seconds: number) => `${seconds}s`}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../screens/settings-live/lifetime': {NativeScreenLifetime: Lifetime, screenScopeEnded: () => new Error('ended')},
+    '../../../screens/settings-live/server/history-source': history,
+    '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: (context: any) => context.current()},
+  });
+  let form: 'phone' | 'expanded' = 'phone';
+  const list = await screenModule(new URL('../src-next/kit/settings/SettingsHistoryList.tsx', import.meta.url), {
+    react: host.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
+    '../frames/metrics': {useFrameMetrics: () => ({form, bottomClear: 0})},
+    '../layout/TVRow': {TVRow: ({children}: any) => children},
+    '../shell': {SettingsRow: 'SettingsRow'},
+    '../theme': {useTheme: () => ({colors: {}, type: {}, space: {xs: 4, sm: 8, hairline: 1}})},
+  });
+  const {ServerHistoryPage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerHistoryPage.tsx', import.meta.url), {
+    ...chrome, react: host.react, '../../shared/settings/useServerHistory': model, '../../../kit/settings/SettingsHistoryList': list,
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame', PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
+    '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
   });
   const historyPath = serverPath('GET /v1/admin/play-history'), membersPath = serverPath('GET /v1/admin/members');
   const historyReads: URL[] = [], peopleReads: string[] = [];
@@ -251,29 +267,46 @@ test('History draws rebuilt play history and loads more with the server cursor',
   const historyRuntime = {...runtime, error: (error: unknown, _retry: () => void, context: ErrorContext) => {
     const notice = presentError(error, context);errors.push(notice.body);return notice;
   }};
-  const render = () => host.render(() => {const outer = module.NativeServerHistory({ports: {context: fixture.group.context}, runtime: historyRuntime});return outer ? outer.type(outer.props) : null;});
+  const render = () => host.render(() => {
+    const page = ServerHistoryPage({ports: {context: fixture.group.context}, runtime: historyRuntime});
+    const panel = page.props.panel;
+    return panel ? panel.type(panel.props) : page;
+  });
+  const rowText = (row: any) => [row.props.label, ...row.props.description].join(' ');
   render();host.flush();await settle();render();host.flush();
   const tree = render();assert.equal(tree.type, 'FlatList');
   assert.deepEqual(errors, []);
   assert.equal(tree.props.data.length, 1);
-  const row = tree.props.renderItem({item: tree.props.data[0]});
-  assert.match(content(row), /Film.*sam_k.*Kids.*Living room.*42s.*next\.kit\.session\.local/);
+  const row = tree.props.renderItem({item: tree.props.data[0], index: 0});
+  assert.match(rowText(row), /Film.*sam_k.*Kids.*Living room.*42s.*next\.kit\.session\.local/);
   assert.deepEqual(historyReads.map(url => url.search), ['']);
   const more = nodes(tree.props.ListFooterComponent).find((node: any) => node.type === 'Button' && content(node) === 'action.showMore');
   more.props.onPress();await settle();
   const next = render();
   assert.deepEqual(next.props.data.map((play: {title: string}) => play.title), ['Film', 'Older film']);
-  assert.match(content(next.props.renderItem({item: next.props.data[1]})), /Older film.*next\.kit\.session\.remote/);
+  assert.match(rowText(next.props.renderItem({item: next.props.data[1], index: 1})), /Older film.*next\.kit\.session\.remote/);
   assert.deepEqual(historyReads.map(url => url.search), ['', '?cursor=42']);
   assert.equal(nodes(next.props.ListFooterComponent).some((node: any) => node.type === 'Button'), false);
   assert.deepEqual(peopleReads, [membersPath, `${membersPath}?cursor=next`]);
-  const person = nodes(tree).find((node: any) => node.props.testID === 'server-history-person');
+  const filter = (tree: any, id: string) => nodes(tree.props.ListHeaderComponent).find((node: any) => node.props.testID === id);
+  assert.ok(filter(tree, 'server-history-media').props.rowLabel, 'the filter label belongs to the picker trigger');
+  const person = filter(tree, 'server-history-person');
   assert.deepEqual(person.props.options.slice(1), [{value: 'a1', label: 'sam_k'}, {value: 'a2', label: 'alex'}]);
   person.props.onValueChange('a2');await settle();assert.equal(historyReads.at(-1)?.searchParams.get('person'), 'a2');
-  nodes(render()).find((node: any) => node.props.testID === 'server-history-period').props.onValueChange('7d');await settle();
+  filter(render(), 'server-history-period').props.onValueChange('7d');await settle();
   assert.match(historyReads.at(-1)?.searchParams.get('from') ?? '', /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   // Play history is kept indefinitely (owner, 16 Nov): the page offers no keep choice.
   assert.equal(nodes(render()).some((node: any) => node.props.testID === 'history.keepHistory'), false);
+
+  form = 'expanded';
+  const tablet = render(), tabletNodes = nodes(tablet);
+  const columnHeader = tabletNodes.find((node: any) => node.props.testID === 'server-history-column-header');
+  const table = tabletNodes.find((node: any) => node.props.testID === 'server-history-list');
+  assert.equal(table.props.ListHeaderComponent, undefined, 'search and column headings stay outside the results scroller');
+  assert.ok(tabletNodes.some((node: any) => node.props.testID === 'server-history-search'));
+  assert.equal(nodes(columnHeader).filter((node: any) => node.props.accessibilityRole === 'header').length, 6);
+  assert.match(content(table.props.renderItem({item: table.props.data[0], index: 0})), /Film.*sam_k[\s\S]*Kids.*Living room.*42s/);
+  form = 'phone';
 
   const {readTVServerPage} = await import('../src-next/screens/settings-live/server/tv-server-page-data.ts');
   const report = reports.captureReportContext('UTC'), signal = new AbortController().signal;
