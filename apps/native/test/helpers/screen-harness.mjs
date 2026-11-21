@@ -231,10 +231,14 @@ export async function screenModule(file, modules) {
       } : value]));
     modules = withModules(modules, Object.fromEntries(hostedImports.map(d => [d.source.value, factories])));
   }
-  // A screen's logic that moved into a `pages/shared` hook keeps running for real: when a fixture names no
-  // namespace for it, the hook is loaded with the fixture's own namespaces, each re-pointed from the hook's folder.
-  for (const declaration of parsed.program.body.filter(d => d.type === 'ImportDeclaration' && /\/pages\/shared\//.test(d.source.value)
+  // A screen's logic that moved into a `pages/shared` hook, or its drawing into a kit part, keeps running for real: when a
+  // fixture names no namespace for it, the file is loaded with the fixture's own namespaces, each re-pointed from its folder.
+  for (const declaration of parsed.program.body.filter(d => d.type === 'ImportDeclaration' && /\/(?:pages\/shared|kit)\//.test(d.source.value)
     && !Object.hasOwn(modules, d.source.value))) {
+    // A kit part the harness already stands in for (its leaf stubs) keeps that stand-in.
+    // So does one the fixture's own namespaces already answer (a fallback proxy answers any path).
+    if (/\/kit\//.test(declaration.source.value) && (modules[declaration.source.value] != null
+      || leaf(declaration.source.value, modules.react?.default ?? modules.react, modules['react-native']) !== undefined)) continue;
     const target = await sharedHookFile(new URL(declaration.source.value, file));
     if (!target) continue;
     const rebased = Object.fromEntries(Object.entries(modules).map(([key, value]) => {
