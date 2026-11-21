@@ -1,7 +1,7 @@
 import {createSettingsOpen, SettingsOpenContext} from './quiet-refresh';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import {settingsRowIndex, settingsSpec, type SettingsHolder, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
+import {settingsRowIndex, settingsSectionTab, settingsSpec, type SettingsHolder, type SettingsSectionTab, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {SettingsNav, SettingsProfileCard, ShortcutTiles, type SettingsSearchGroup} from '../../kit/shell/SettingsSurfaces';
 import type {ProfileIdentity, ShellAction} from '../../kit/shell';
 import {SettingsPageFailure, SettingsPanel, SettingsRows, searchSettings, settingsRoute, type SettingPresentation, type SettingsRoute, type SettingsPanelProps} from '../../kit/settings';
@@ -25,7 +25,16 @@ import styles from './settings.module.css';
 const t = defaultI18n.t;
 const noPresentation = () => () => {};
 const emptyPresentation = () => undefined;
-export type SettingsContext = Readonly<{section: SettingsSection; panelId?: string; tabId?: string; recordId?: string}>;
+export type SettingsContext = Readonly<{section: SettingsSection; panelId?: string; tabId?: string; recordId?: string;
+  /** The page's own tab (`section.tabs`, owner-server 8, live-owner 1), for a page that draws itself. */
+  pageTab?: string}>;
+/** The groups one page tab holds. A tab made only of Advanced groups (Limits and retention) draws them as its own
+ * sections, open, as owner-server 9 draws it; otherwise they stay under the tab's Advanced. */
+function tabHolder(section: SettingsSection, tab: SettingsSectionTab): SettingsHolder {
+  const advanced = (tab.advanced ?? []).map(index => section.advanced!.groups![index]!);
+  if (!tab.groups.length) return {groups: advanced};
+  return {groups: tab.groups.map(index => section.groups![index]!), ...(advanced.length ? {advanced: {groups: advanced}} : {})};
+}
 export type SettingsPageSnapshot = Readonly<{loading: boolean; error?: unknown; saveState?: 'saving' | 'saved'}>;
 export type SettingsConfigurationMatch = Readonly<{id: string; key: string; label: string; current: unknown; effective: unknown; default: unknown; source: string; configOnly: boolean; path: string}>;
 /** Session-owned, checked readers and commands. The screen holds navigation and focus only. */
@@ -87,7 +96,12 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false, p
   const selected = settingsRoute(route, sectionVisible, (row, section) => rowState(row, rowContext(row, section)).present);
   const section = settingsSpec.find(section => section.scope === selected.scope && section.id === selected.section)!;
   const snapshot = useSyncExternalStore(bindings.subscribe, () => bindings.getSnapshot(section), () => bindings.getSnapshot(section));
-  const context: SettingsContext = {section};
+  // A page with tabs opens on the tab holding a found row, else its first; changing page starts at the first again.
+  const [pageTabs, setPageTabs] = useState<Readonly<Record<string, string>>>({});
+  const sectionKey = `${section.scope}/${section.id}`, foundTab = selected.row ? settingsSectionTab(section, selected.row)?.id : undefined;
+  const pageTab = section.tabs ? pageTabs[sectionKey] ?? foundTab ?? section.tabs[0]!.id : undefined;
+  useEffect(() => {if (foundTab) setPageTabs(current => ({...current, [sectionKey]: foundTab}));}, [foundTab, sectionKey]);
+  const context: SettingsContext = pageTab ? {section, pageTab} : {section};
   const openPanel = (id: string, recordId?: string) => {
     if (!id) {setPanel(undefined);opener.current?.focus();return;}
     if (!section.panels?.[id]) return;
@@ -154,7 +168,9 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false, p
     header={libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : undefined}>
     {libraryPage && panelSpec?.tabs ? <Tabs aria-label={libraryTitle} value={panel?.tab ?? panelSpec.tabs[0]?.id} onValueChange={value => setPanel(current => current && {...current, tab: value})}
       phone={compact} items={panelSpec.tabs.map(item => ({value: item.id, label: t(item.title), panel: <>{bindings.panelIntro?.({...panelContext, tabId: item.id})}{rows(item, {...panelContext, tabId: item.id})}</>}))}/> : fact ? <ConfigurationFact fact={fact} /> : snapshot.error ? <SettingsPageFailure retry={() => {void bindings.load(section);}} home={bindings.openHome} error={snapshot.error}
-      server={section.scope === 'server' ? {name: bindings.serverName, openMySettings: () => go('account/profile')} : undefined} /> : snapshot.loading ? <p role="status">{t('next.settings.loading')}</p> : bindings.section?.(context, openPanel, holder => rows(holder, context)) ?? rows(section, context)}
+      server={section.scope === 'server' ? {name: bindings.serverName, openMySettings: () => go('account/profile')} : undefined} /> : snapshot.loading ? <p role="status">{t('next.settings.loading')}</p> : (section.tabs ? <Tabs aria-label={t(section.title)} value={pageTab} phone={compact} onValueChange={value => setPageTabs(current => ({...current, [sectionKey]: value}))}
+        items={section.tabs.map(tab => ({value: tab.id, label: t(tab.title), panel: bindings.section?.({...context, pageTab: tab.id}, openPanel, holder => rows(holder, context)) ?? rows(tabHolder(section, tab), context)}))} />
+        : bindings.section?.(context, openPanel, holder => rows(holder, context)) ?? rows(section, context))}
   </SettingsPageFrame>;
   return <SettingsOpenContext.Provider value={quietOpen}><div className={styles.screen} onFocusCapture={event => {if(editing(event.target))bindings.inputActive?.(true);}}
     onBlurCapture={event => {if(editing(event.target) && !editing(event.relatedTarget))bindings.inputActive?.(false);}}>

@@ -71,7 +71,9 @@ export function createOwnerSources(options: OwnerSourcesOptions) {
     subscribe: (listener: () => void) => {listeners.add(listener);return () => {listeners.delete(listener);};}, dispose};
 }
 export type OwnerSources = ReturnType<typeof createOwnerSources>;
-export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSources; libraryChannels?: ReactNode}) {
+export function OwnerSourcesPage({source, libraryChannels, tab}: {source: OwnerSources; libraryChannels?: ReactNode;
+  /** The page's tab (live-owner 1: Sources, Recording, Library Channels); left out, the whole page. */
+  tab?: string}) {
   const {hub}=useFreshness();
   const visibility=useContext(SettingsOpenContext);
   const snapshot = useSyncExternalStore(source.sources.subscribe, source.sources.getSnapshot, source.sources.getSnapshot);
@@ -189,23 +191,25 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
   };
   const advancedSummary: string[] = [];
   const liveDraft = defaults.draft, recordingDraft = recordingDefaults.draft, storageDraft = recordingStorage.draft;
-  if (liveDraft) {
+  // Each tab's Advanced names only its own changes.
+  if (liveDraft && (!tab || tab === 'sources')) {
     if (liveDraft.bufferSeconds !== 8) advancedSummary.push(t('web.dvrSettings.buffer'));
     if (liveDraft.retrySeconds !== 60) advancedSummary.push(t('web.dvrSettings.retryWindow'));
     if (liveDraft.guideDays !== 7) advancedSummary.push(t('web.dvrSettings.guideDays'));
     if (liveDraft.userAgent) advancedSummary.push(t('web.dvrSettings.userAgent'));
     if (!liveDraft.discoveryEnabled) advancedSummary.push(t('web.dvrSettings.discovery'));
   }
-  if (recordingDraft) {
+  if (recordingDraft && (!tab || tab === 'recording')) {
     if (recordingDraft.beforeMs !== 60000 || recordingDraft.afterMs !== 180000) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.0.label'));
   }
-  if (storageDraft) {
+  if (storageDraft && (!tab || tab === 'recording')) {
     if (storageDraft.keepDays || storageDraft.keepNewest) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.2.label'));
     if (storageDraft.floorBytes !== 10 * 1024**3 || storageDraft.capBytes) advancedSummary.push(t('next.settingsSpec.server.live.groups.7.rows.1.label'));
   }
+  const show = (part: 'sources' | 'recording' | 'library') => !tab || tab === part;
   return <>
     {!!snapshot.error && <p role="alert" className={styles.error}>{errorMessage(snapshot.error)}</p>}
-    <SourceList snapshot={snapshot} refresh={() => {if (sourceCurrent()) void source.sources.load();}} add={kind => {
+    {show('sources') && <SourceList snapshot={snapshot} refresh={() => {if (sourceCurrent()) void source.sources.load();}} add={kind => {
       if (!sourceCurrent()) return;
       if (kind === 'remote') openRemote();else if (kind === 'discover') openDiscover();else openUpload();
     }} configure={selected => {
@@ -214,16 +218,16 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
         groups: source.track(new SourceChoicesController(source.api, selected.id, 'groups', source.current, source.reportError)), channels: source.track(new SourceChoicesController(source.api, selected.id, 'channels', source.current, source.reportError)),
       }});
     }} channels={selected => {if (sourceCurrent()) replaceModal({kind: 'channels', source: selected, controller: source.track(new ChannelMapController(source.api, source.serverId, selected.id, source.current, source.reportError))});}}
-      act={(selected, action) => {if (!sourceCurrent()) return;if (action === 'remove') replaceModal({kind: 'remove', source: selected});else void source.sources.act(selected, action);}}/>
-    {!!defaults.loadError && <p role="alert" className={styles.error}>{errorMessage(defaults.loadError)}<Button size="small" onClick={() => {if (sourceCurrent()) void source.defaults.load();}}>{t('action.tryAgain')}</Button></p>}
-    {!!defaults.saveError && <p role="alert" className={styles.error}>{errorMessage(defaults.saveError)}</p>}
-    <LiveDefaults form={source.defaults} isCurrent={sourceCurrent}/>
-    <RecordingPage source={source} sources={snapshot.document?.sources ?? []}/>
-    {libraryChannels}
-    <SettingsAdvanced open={advanced} onOpenChange={setAdvanced} summary={advancedSummary}>
-      <LiveDefaults form={source.defaults} isCurrent={sourceCurrent} advanced/>
-      <RecordingAdvanced source={source}/>
-    </SettingsAdvanced>
+      act={(selected, action) => {if (!sourceCurrent()) return;if (action === 'remove') replaceModal({kind: 'remove', source: selected});else void source.sources.act(selected, action);}}/>}
+    {show('sources') && !!defaults.loadError && <p role="alert" className={styles.error}>{errorMessage(defaults.loadError)}<Button size="small" onClick={() => {if (sourceCurrent()) void source.defaults.load();}}>{t('action.tryAgain')}</Button></p>}
+    {show('sources') && !!defaults.saveError && <p role="alert" className={styles.error}>{errorMessage(defaults.saveError)}</p>}
+    {show('sources') && <LiveDefaults form={source.defaults} isCurrent={sourceCurrent}/>}
+    {show('recording') && <RecordingPage source={source} sources={snapshot.document?.sources ?? []}/>}
+    {show('library') && libraryChannels}
+    {(show('sources') || show('recording')) && <SettingsAdvanced open={advanced} onOpenChange={setAdvanced} summary={advancedSummary}>
+      {show('sources') && <LiveDefaults form={source.defaults} isCurrent={sourceCurrent} advanced/>}
+      {show('recording') && <RecordingAdvanced source={source}/>}
+    </SettingsAdvanced>}
     {modal?.kind === 'remote' && <RemoteSourceDialog key={modal.id} openingId={modal.id} opening={modal.token} api={source.api} serverId={source.serverId} isCurrent={source.current} reportError={source.reportError} tuner={modal.tuner} close={modal.close} saved={modal.saved}/>}
     {modal?.kind === 'upload' && <UploadSourceDialog key={modal.id} openingId={modal.id} opening={modal.token} api={source.api} serverId={source.serverId} isCurrent={source.current} reportError={source.reportError} close={modal.close} saved={modal.saved}/>}
     {modal?.kind === 'discover' && <DiscoverTuners key={modal.id} openingId={modal.id} opening={modal.token} api={source.api} serverId={source.serverId} isCurrent={source.current} reportError={source.reportError} close={modal.close} onUseTuner={modal.useTuner}/>}
