@@ -1466,6 +1466,7 @@ export const enUS = {
   'auth.backToSavedServer': 'Back to saved server',
   'auth.enterProfilePin': 'Enter profile PIN',
   'auth.whosWatching': 'Who’s watching?',
+  'auth.whosWatchingOnServer': 'Who’s watching on {server}?',
   'auth.enterVerificationCode': 'Enter your verification code',
   'auth.chooseUsername': 'Choose a username',
   'auth.welcomeBack': 'Welcome back.',
