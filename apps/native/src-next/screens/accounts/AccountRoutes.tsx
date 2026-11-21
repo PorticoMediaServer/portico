@@ -627,6 +627,7 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   // Sign out and Forget share one confirmation: the same downloads choice, a different title, line and action.
   const forgetting = panel === 'forget-server';
   const signOutSheet = captured ? <BottomSheet open={panel === 'sign-out-server' || forgetting} onOpenChange={open => {if (!open) {setRemoveDownloads(false); close();}}} testID="accounts-sign-out-sheet"
+    contentStyle={theme.isTV ? undefined : {paddingHorizontal: theme.gutter}}
     title={forgetting ? t('connection.identity.forgetTitle', {server: captured.name}) : t('settings.signOutConfirm.title', {server: captured.name, device: t(deviceNoun)})}
     footer={<View style={{gap: 10}}>
       <Focusable focusId="sign-out-confirm" accessibilityRole="button" accessibilityLabel={forgetting ? t('connection.identity.forgetAction') : t('action.signOut')} disabled={busy}
