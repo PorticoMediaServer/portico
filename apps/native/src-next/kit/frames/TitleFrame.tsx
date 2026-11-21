@@ -388,7 +388,10 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   </View>;
   // On TV the strip marks the section that holds focus and takes no focus itself: Down from the buttons goes straight into
   // the first row and Up from it back to the buttons (detail-tv-3).
-  const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} passive={tv} disabled={loading} style={style} contentContainerStyle={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
+  // TV: the rule under the tabs runs from the gutter to the safe edge (detail-tv 1 to 5), so the strip's box is set in, not its row.
+  const tabBar = (style?: object) => tabs && <Tabs items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} passive={tv} disabled={loading}
+    style={[tv ? {marginLeft: frame.gutter, marginRight: frame.rightGutter, borderBottomWidth: spec.tvTabRule, borderBottomColor: theme.colors.line} : null, style]}
+    contentContainerStyle={tv ? {paddingLeft: 0, paddingRight: 0} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
 
   // The collapsed bar (touch): it shows once the hero (the art and the title on it) has scrolled away under it, so Back
   // and the title are never lost (phone-detail d1 frame 2); the tabs join it once the page's own tabs reach it. A phone
@@ -449,14 +452,14 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // TV: the art stays where it is while the page moves under it (the title page's backdrop never follows focus), and the
   // folded band (the title at display size and the tabs over a wash of ink) sits over the top of the page.
   const band = tv && !scroller && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" onLayout={event => setBandHeight(event.nativeEvent.layout.height)}
-    style={[{position: 'absolute', left: 0, right: 0, top: 0, paddingTop: frame.titleTop, paddingBottom: frame.headingGap}, bandStyle]}>
+    style={[{position: 'absolute', left: 0, right: 0, top: 0, height: spec.tvFoldedSectionTop, paddingTop: frame.titleTop}, bandStyle]}>
     {/* Sized and placed by number: tvOS draws nothing for this wash when it is laid out by absoluteFill. */}
     {bandHeight > 0 && <Svg pointerEvents="none" accessible={false} width="100%" height={bandHeight} style={{position: 'absolute', left: 0, top: 0}}>
       <Defs><LinearGradient id="title-band" x1="0" y1="0" x2="0" y2="1">{spec.tvBand.map(([opacity, at]) => <Stop key={at} offset={at} stopColor={theme.colors.ink} stopOpacity={opacity}/>)}</LinearGradient></Defs>
       <Rect width="100%" height="100%" fill="url(#title-band)"/>
     </Svg>}
     <View style={{paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}><Lockup title={title} size={spec.tvFoldedLockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking}/></View>
-    {tabs && tabBar({marginTop: frame.headerGap})}
+    {tabs && <View style={{position: 'absolute', left: 0, right: 0, top: spec.tvFoldedTabsTop}}>{tabBar()}</View>}
   </Animated.View>;
   return <View testID={testID} style={{flex: 1}}>
     {held && bar}
