@@ -100,7 +100,8 @@ button.audioSquare.audioSquare { background: none; backdrop-filter: none; -webki
 .audioColumn { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .audioArt { flex: none; align-self: center; width: 100%; max-width: var(--frame-audio-artwork); aspect-ratio: 1; margin-top: var(--frame-audio-gap); box-shadow: 0 40px 70px -30px color-mix(in srgb, var(--color-shadow) 90%, transparent); }
 .audio[data-book] .audioArt { max-width: calc(var(--frame-audio-artwork) * var(--frame-audio-book-art-share)); }
-.audioWords { flex: none; min-height: var(--frame-audio-title-slot); margin-top: var(--space-sm); display: flex; align-items: flex-start; gap: var(--space-xs); }
+/* Positioned, so the words paint after the cover and its drop shadow never greys the title under it. */
+.audioWords { position: relative; flex: none; min-height: var(--frame-audio-title-slot); margin-top: var(--space-sm); display: flex; align-items: flex-start; gap: var(--space-xs); }
 .audioWords > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-tight); }
 .audioWords h1 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); letter-spacing: var(--type-title-tracking); overflow-wrap: anywhere; }
 .audioWords p { margin: 0; min-height: var(--type-intro-line); font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-group-label-weight); color: var(--color-text-secondary); }
