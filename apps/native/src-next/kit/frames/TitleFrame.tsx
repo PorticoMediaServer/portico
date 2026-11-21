@@ -249,19 +249,29 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       // The ring is drawn outside the line: its room comes on top of the gap, so it never touches the title (R1).
       style={[kickerRow, {alignSelf: 'flex-start', marginBottom: theme.space.controlGap + theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv}]}>{kickerWords}</Focusable>)
     : <View style={[kickerRow, {marginBottom: theme.space.controlGap}]}>{kickerWords}</View>);
+  const tvCover = tv && !!cover;
+  const tvByline = (value: NonNullable<typeof byline>) => <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+    {value.initials && <PersonCircle size={spec.parts.bylineRowTV.circle} initials={value.initials}/>}
+    <Text style={[theme.type.meta, {fontFamily: theme.type.listLabel.fontFamily, color: theme.colors.text}]}>{value.text}</Text></View>;
   const identity = <>
     {kickerLine}
     {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} style={{textAlign: stacked ? 'center' : 'left'}}/>}
-    {byline && (byline.onPress
-      ? headLink('byline', <Focusable focusId="title-byline" accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
-        <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>{byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
-          <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View></Focusable>)
-      : <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
-        {byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
-        <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View>)}
-    <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/>
-      // A stacked head is centred, so its facts are too, line by line when they wrap: the page passes facts, never alignment.
-      : <HeroFactsCentred.Provider value={stacked}>{metadata}</HeroFactsCentred.Provider>}</View>
+    {byline && tvCover ? <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spec.parts.bylineRowTV.gap, rowGap: theme.space.controlGap, marginTop: theme.space.lg}}>
+      {/* tv-more 6 `.mrow`: the artist (a 44 circle and the name in bold) and the facts on one line, in the line's colours. */}
+      {byline.onPress ? headLink('byline', <Focusable focusId="title-byline" accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} focusRadius={spec.parts.bylineRowTV.circle / 2}>{tvByline(byline)}</Focusable>) : tvByline(byline)}
+      {!loading && metadata}
+    </View> : <>
+      {byline && (byline.onPress
+        ? headLink('byline', <Focusable focusId="title-byline" accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>{byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
+            <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View></Focusable>)
+        : <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
+          {byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
+          <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View>)}
+      <View style={{minHeight: theme.type.rowLabel.lineHeight, marginTop: theme.space.controlGap, alignItems: centre, justifyContent: 'center'}}>{loading ? <SkeletonBlock width="40%" height={theme.type.meta.fontSize}/>
+        // A stacked head is centred, so its facts are too, line by line when they wrap: the page passes facts, never alignment.
+        : <HeroFactsCentred.Provider value={stacked}>{metadata}</HeroFactsCentred.Provider>}</View>
+    </>}
   </>;
   const names = (value: TitleCredit['names']) => typeof value === 'string' ? value : value.map((name, index) => <Text key={index}>{index > 0 ? ', ' : ''}
     {name.onPress && !theme.isTV ? <Text accessibilityRole="link" onPress={name.onPress} style={{textDecorationLine: 'underline', textDecorationColor: alpha(theme.colors.text, .35)}}>{name.text}</Text> : name.text}</Text>);
