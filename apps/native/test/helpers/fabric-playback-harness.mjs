@@ -115,7 +115,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     session: () => ({viewer: {authority: 'local', profileId: 'profile'}}), authority: () => runtime.getSnapshot().authority,
     subscribeSettings: () => () => {}, settings: () => ({engine: 'native'})});
   const signalFacts = await screenModule(new URL('../../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {react, 'react-native': native});
-  const signalView = await screenModule(new URL('../../src-next/screens/destinations/music/MusicSignal.tsx', import.meta.url), {react, 'react-native': native, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop', Path: 'Path'}, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../../kit/overlays': {SidePanel: 'SidePanel'}, '../../../kit/theme': {useTheme: () => theme, nativeType: () => ({})}, './signal-path-model': signalPath});
+  const signalView = signalPath; // The projection lives beside the path model (kit/player/SignalPath draws it).
   const {NativePlaybackLayer} = await screenModule(new URL('../../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'../platform/tv-keys': {useTVKeyEvent() {}}, 
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
     '../kit/dock/video-exit-paint': {DockVideoExitImages},
@@ -135,7 +135,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},
     '../kit/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
     '../kit/player/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
-    '../screens/destinations/music/MusicSignal': signalView, '../screens/destinations/music/signal-facts': signalFacts,
+    '../screens/destinations/music/signal-path-model': signalView, '../screens/destinations/music/signal-facts': signalFacts,
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': {listeningNoticeKey},
     '../kit/dock': {DockHost, PlayerMorph, usePlayerMorph, bindNativeDock},
     '../kit/dock/model': model,
