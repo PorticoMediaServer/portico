@@ -74,7 +74,7 @@ test('every original type role keeps its full handheld and ten-foot definition',
 });
 
 test('lockups, row headings and controls carry exact sizes, weights and tracking', () => {
-  assert.deepEqual([typeScale.desktop.lockup.size, typeScale.handheld.lockup.size, typeScale.tenFoot.lockup.size], [84, 46, 120]);
+  assert.deepEqual([typeScale.desktop.lockup.size, typeScale.handheld.lockup.size, typeScale.tenFoot.lockup.size], [84, 46, 100]);
   assert.equal(typeScale.desktop.lockupLong.size, 64);
   for (const column of Object.values(typeScale)) {
     assert.equal(column.lockup.weight, 800);

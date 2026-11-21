@@ -4951,14 +4951,14 @@
   --type-label-tracking: 0em;
   --type-label-transform: none;
   --type-label-color: var(--emphasis-primary);
-  --type-lockup-size: 7.5rem;
-  --type-lockup-line: 7.05rem;
+  --type-lockup-size: 6.25rem;
+  --type-lockup-line: 5.875rem;
   --type-lockup-weight: 800;
   --type-lockup-tracking: -0.045em;
   --type-lockup-transform: none;
   --type-lockup-color: var(--emphasis-primary);
-  --type-lockup-long-size: 7.5rem;
-  --type-lockup-long-line: 7.05rem;
+  --type-lockup-long-size: 6.25rem;
+  --type-lockup-long-line: 5.875rem;
   --type-lockup-long-weight: 800;
   --type-lockup-long-tracking: -0.045em;
   --type-lockup-long-transform: none;
