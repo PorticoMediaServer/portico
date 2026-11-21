@@ -1,15 +1,14 @@
 import {CatalogueSelectionEntry, useCatalogueSelectionActive, type CatalogueDocumentSelection} from '../browse/document-selection';
 import {t, locale, environment as env} from './text';
 import {useWatchBodyPlayback, watchEpisodeLine, watchHeaderFacts} from './watch-body-playback';
-import {Fragment, useId, useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {cloneElement, Fragment, useId, useEffect, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode, type RefObject} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import type {ShowWorkspaceRoute, ShowWorkspaceData, WorkspaceSeason, WorkspaceShowCredit} from '@core/show-workspace.ts';
 import {cardText, episodeLabel, titleFactParts, type FactPart} from '@core/presentation/kit-model';
 import {Button, Chip, ResumeButton, Tabs} from '../../kit/controls';
 import {AmbientArt} from '../../kit/artwork';
-import {Lockup, layoutType, platformType} from '../../kit/layout';
 import {EpisodeTile} from '../../kit/cards';
-import {Menu, MenuItem} from '../../kit/overlays';
+import {Menu, MenuGroup, MenuItem, MenuSeparator} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import {DetailLoading, ScreenFailure, TitleActions, TitleRecommendationRow} from './Detail';
@@ -31,7 +30,7 @@ import {runScreenCommand} from './context';
 import {GenreNames} from './GenreNames';
 import type {ContainerState} from '@core/container-state.ts';
 import {SeasonMenu} from './SeasonMenu';
-import {EpisodeList, EpisodeListOpened, EpisodeNeighbour, SeasonBar, episodeRowClass} from '../../kit/frames';
+import {EpisodeList, EpisodeListOpened, EpisodeNeighbour, SeasonBar, TitleFrame, episodeRowClass, type TitleAction, type TitleCredit, type TitlePrimary} from '../../kit/frames';
 import {showPrimary} from './show-primary';
 import {OwnerMetadataGroup} from './OwnerMetadataGroup';
 
@@ -49,7 +48,9 @@ function manageGuard(binding: ShowBindings, data: ShowWorkspaceData) {
 }
 
 /** Root §14: complete-season actions; the display editor remains show-scoped. */
-export function SeasonOptions({binding, data, label}: {binding: ShowBindings; data: ShowWorkspaceData; label: string}) {
+export function SeasonOptions({binding, data, label, extra}: {binding: ShowBindings; data: ShowWorkspaceData; label: string;
+  /** The season's view choices (episode order, which episodes, list or tiles), folded into this one menu (desktop-detail f4, f5 draw Season, the count and Hide watched only). */
+  extra?: ReactNode}) {
   const [open, setOpen] = useState(false), [state, setState] = useState<ContainerState>();
   const anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
   useEffect(() => {
@@ -64,6 +65,7 @@ export function SeasonOptions({binding, data, label}: {binding: ShowBindings; da
     <Menu presentation="anchored" open={open} onOpenChange={setOpen} title={t('next.detail.seasonOptions', {season: label})} trigger={<Button ref={anchor} variant="icon" size="small" icon="i-more" iconOnly aria-label={t('next.detail.seasonOptions', {season: label})} />}>
       <MenuItem onSelect={() => runScreenCommand(binding.context, () => binding.playSeason(data))}>{t('next.detail.playSeason')}</MenuItem>
       <MenuItem disabled={!state} onSelect={() => runScreenCommand(binding.context, () => { if (!state) return; return binding.setSeasonWatched(data, state, !complete); })}>{t(complete ? 'next.detail.markSeasonUnwatched' : 'next.detail.markSeasonWatched')}</MenuItem>
+      {extra && <><MenuSeparator />{extra}</>}
       {owner && <OwnerMetadataGroup separated context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
         target={data.selected.seasonId ? {entityKind: 'season', entityId: data.selected.seasonId, libraryId: data.scope.libraryId, title: label} : undefined} />}
     </Menu>
@@ -82,12 +84,13 @@ export function seasonMenuDescription(season: WorkspaceSeason): ReactNode {
 }
 
 /** Show-level commands must not target the next episode's detail binding. */
-function ShowMore({binding, data, personal, busy, watchedInMenu = false}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean; watchedInMenu?: boolean}) {
+function ShowMore({binding, data, personal, busy, watchedInMenu = false, trigger: drawn}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean; watchedInMenu?: boolean;
+  /** The title frame's own More button. */ trigger?: ReactElement}) {
   const [open, setOpen] = useState(false), anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
   useEffect(() => { setOpen(false); }, [data]);
   if (!personal && !owner) return null;
   return <>
-    <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={<Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
+    <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={drawn ? cloneElement(drawn as ReactElement<{ref?: RefObject<HTMLButtonElement | null>}>, {ref: anchor}) : <Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
       {personal && watchedInMenu && <MenuItem icon="i-check" disabled={busy} selected={personal.watched} onSelect={() => runScreenCommand(binding.context, () => binding.setWatched(data, !personal.watched))}>{t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')}</MenuItem>}
       {personal && <MenuItem icon="i-heart" disabled={busy} selected={personal.favorite} onSelect={() => runScreenCommand(binding.context, () => binding.setFavorite(data, !personal.favorite))}>{t(personal.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</MenuItem>}
       {owner && <OwnerMetadataGroup separated={!!personal} context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
@@ -109,7 +112,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const personal = useSyncExternalStore(binding.personal.subscribe, binding.personal.getSnapshot, binding.personal.getSnapshot);
   const busy = useSyncExternalStore(binding.personal.subscribe, binding.personal.getBusy, binding.personal.getBusy);
   const primary = useSyncExternalStore(binding.primary.service.subscribe, binding.primary.service.getSnapshot, binding.primary.service.getSnapshot);
-  const {tab: requestedTab, layout} = useSyncExternalStore(binding.view.subscribe, binding.view.getSnapshot, binding.view.getSnapshot), [seasonMenu, setSeasonMenu] = useState(false), [filterMenu, setFilterMenu] = useState(false), [orderMenu, setOrderMenu] = useState(false);
+  const {tab: requestedTab, layout} = useSyncExternalStore(binding.view.subscribe, binding.view.getSnapshot, binding.view.getSnapshot), [seasonMenu, setSeasonMenu] = useState(false), [viewMenu, setViewMenu] = useState(false);
   const width = useShellWidth(), phone = width < 1024, data = snapshot.data;
   const recommendations = useSyncExternalStore(binding.recommendations.subscribe, binding.recommendations.getSnapshot, binding.recommendations.getSnapshot);
   useEffect(() => { if (data && requestedTab === 'related') void binding.recommendations.select(data, () => binding.service.getSnapshot().data === data); }, [binding, data, requestedTab]);
@@ -117,13 +120,11 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const relatedRows = titleRecommendationRows(recommendations.data), hasRelated = recommendations.phase !== 'ready' || relatedRows.length > 0;
   const tab = requestedTab === 'related' && !hasRelated ? 'details' : requestedTab;
   const {show} = data, selectedSeason = data.seasons.find(season => season.id === data.selected.seasonId);
-  const selectedProgress = selectedSeason ? seasonProgress(selectedSeason.watchedCount, selectedSeason.unwatchedCount) : undefined;
   const seasonLabel = selectedSeason ? selectedSeason.number === 0 ? t('next.kit.special') : t('next.kit.season', {number: selectedSeason.number}) : data.groups.find(group => group.id === data.selected.group)?.title ?? t('next.controls.episodes');
   const selectSeason = (id: string) => { runScreenCommand(binding.context, () => { binding.current(data); return binding.selectSeason(id).then(() => setSeasonMenu(false)); }); };
   const pageSeasons = (next: boolean) => { runScreenCommand(binding.context, () => { binding.current(data); return next ? binding.service.nextSeasons() : binding.service.previousSeasons(); }); };
   const setPlayState = (state: 'all' | 'played' | 'unplayed' | 'in-progress') => {
     runScreenCommand(binding.context, () => { binding.current(data); const route = snapshot.route; if (route) return binding.select({...route, playState: state === 'all' ? undefined : state}); });
-    setFilterMenu(false);
   };
   const jumpSeason = async (number: number) => {
     try {
@@ -153,30 +154,34 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     {personal && !threeControls && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
     <ShowMore binding={binding} data={data} personal={personal} busy={busy} watchedInMenu={threeControls} />
   </div>;
-  const unplayableNote = !offer && nextUnplayable ? <p id={`${show.id}-unplayable`} className={detail.unplayable}>{t('title.fileUnavailable')}</p> : null;
-  // The pinned bar carries the drawn Resume Sx Ey and My List controls once the hero is gone.
-  const pin = offer && (offer.resume ? <ResumeButton size="small" progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" size="small" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>);
   const facts = titlePageFacts({year: show.year, seasonCount: data.seasonTotalCount, genres: show.genres, contentRating: show.contentRating}, env);
   // phone-player 4: under the playing video, the episode stays on one line.
   const episodeLine = compact ? watchEpisodeLine(watch?.subject, env) : [];
   const starring = showPeople(show.credits).cast.slice(0, 4), [starringBefore, starringAfter] = t('title.starring', {names: '\uFFF0'}).split('\uFFF0');
-  const credits = starring.length > 0 && <div className={styles.starring}>{starringBefore}<ShowPersonLinks credits={starring} binding={binding} data={data} />{starringAfter}</div>;
   const titleFacts = <TitleFactsLine parts={facts} genres={<GenreNames names={show.genres ?? []} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} />} />;
   // Phone frames always list episodes; retain the desktop choice across rotation.
   const episodeLayout = phone ? 'list' : layout, columns = 4;
-  return <article className={`${detail.page} ${styles.showPage}`} data-show-id={show.id} data-compact={compact || undefined}>
-    {!compact ? phone ? <header className={styles.phoneHero}>
-      <div className={styles.phonePicture}>
-        {preferenceValue<boolean>(preferences, 'appearance.showBackdrops') && <AmbientArt className={`${detail.phoneHeroArt} ${styles.phoneArt}`} treatment="phone" position={width < 600 ? '44% 20%' : '30% 30%'} source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, width < 600 ? 800 : 1600, 16 / 9)} />}
-        <div className={styles.phoneCopy}><Lockup title={show.title} platform="phone-web" style={width < 600 ? undefined : layoutType(platformType('desktop').lockupLong)} />{titleFacts}</div>
-      </div>
-      {actions}{unplayableNote}{show.overview && <TitleProse variant="hero" className={styles.phoneSynopsis}>{show.overview}</TitleProse>}{credits}
-    </header> : <header className={detail.hero}>
-      {preferenceValue<boolean>(preferences, 'appearance.showBackdrops') && <AmbientArt className={detail.heroArt} treatment="title" source={art.ambient(show.backdropUrl ?? show.posterUrl)} foreground={art.foreground(show.backdropUrl ?? show.posterUrl, 1920, 16 / 9)} />}
-      <div className={detail.copy}><Lockup title={show.title} platform="desktop" />{titleFacts}{show.overview && <TitleProse variant="hero" className={detail.blurb}>{show.overview}</TitleProse>}{credits}{actions}{unplayableNote}</div>
-    </header> : <div className={detail.compactHeader}><h1>{show.title}</h1>{episodeLine.length > 0 && <p className={detail.episodeLine}>{episodeLine.map(part => <span key={part.id} data-fact={part.id}>{part.text}</span>)}</p>}<TitleFactsLine parts={watchHeaderFacts(facts, watch?.leftSeconds, env)} />{actions}</div>}
-    <TitleTabs title={show.title} compact={compact} onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined} actions={!compact ? <div className={`${detail.actions} ${styles.pinActions}`}>{pin}{personal && <Button size="small" disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} iconOnly aria-label={t('next.controls.myList')} title={t('next.controls.myList')} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }} />}</div> : undefined}><Tabs externalPanelId={tabPanelId} value={tab} onValueChange={value => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'episodes' || value === 'related' || value === 'details') binding.view.tab(value); })} items={[{value: 'episodes', label: t('next.controls.episodes')}, ...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}]} /></TitleTabs>
-    <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={detail.tabPanel}>
+  // The season's view choices, in its ⋯ (desktop-detail f4, f5: the bar itself is Season, the count and Hide watched).
+  const playState = snapshot.route?.playState;
+  const viewChoices = <>
+    <MenuGroup label={t('next.detail.episodeOrder')}>
+      <MenuItem selected={(snapshot.route?.episodeDirection ?? 'asc') === 'asc'} onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); return binding.service.selectEpisodeDirection('asc'); })}>{t('next.detail.episodeOrder')}</MenuItem>
+      <MenuItem selected={snapshot.route?.episodeDirection === 'desc'} onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); return binding.service.selectEpisodeDirection('desc'); })}>{t('next.detail.reverseEpisodeOrder')}</MenuItem>
+    </MenuGroup>
+    <MenuGroup label={t('next.controls.filters')}>
+      <MenuItem selected={!playState} onSelect={() => setPlayState('all')}>{t('next.controls.all')}</MenuItem>
+      <MenuItem selected={playState === 'unplayed'} onSelect={() => setPlayState('unplayed')}>{t('filter.quick.unplayed')}</MenuItem>
+      <MenuItem selected={playState === 'played'} onSelect={() => setPlayState('played')}>{t('filter.quick.played')}</MenuItem>
+      <MenuItem selected={playState === 'in-progress'} onSelect={() => setPlayState('in-progress')}>{t('filter.quick.inProgress')}</MenuItem>
+    </MenuGroup>
+    {!phone && <MenuGroup label={t('next.controls.layout')}>
+      <MenuItem icon="i-list" selected={layout !== 'grid'} onSelect={() => runScreenCommand(binding.context, () => binding.view.layout('list'))}>{t('next.controls.list')}</MenuItem>
+      <MenuItem icon="i-grid" selected={layout === 'grid'} onSelect={() => runScreenCommand(binding.context, () => binding.view.layout('grid'))}>{t('next.controls.grid')}</MenuItem>
+    </MenuGroup>}
+  </>;
+  const tabItems = [{value: 'episodes', label: t('next.controls.episodes')}, ...(hasRelated ? [{value: 'related', label: t('next.controls.moreLikeThis')}] : []), {value: 'details', label: t('next.controls.details')}];
+  const onTab = (value: string) => runScreenCommand(binding.context, () => { binding.current(data); if (value === 'episodes' || value === 'related' || value === 'details') binding.view.tab(value); });
+  const panel = <>
     {tab === 'episodes' && <section className={styles.episodes}>
       {selection?.toolbar}
       {!selecting && <SeasonBar season={<>
@@ -190,21 +195,9 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
             {snapshot.seasonPagination.nextCursor && <MenuItem onSelect={() => pageSeasons(true)}>{t('title.laterSeasons')}</MenuItem>}
           </Menu>}</>}
         count={selectedSeason?.episodeCount !== undefined ? t('count.episodes', {count: selectedSeason.episodeCount}) : undefined}
-        progress={selectedProgress ? {watched: selectedProgress.watched, total: selectedProgress.total, label: t('title.seasonProgress', {watched: selectedProgress.watched, total: selectedProgress.total})} : undefined}
-        actions={<>
-        <Menu presentation="anchored" open={orderMenu} onOpenChange={setOrderMenu} title={t('next.detail.episodeOrder')} trigger={<Chip variant="toolbar" icon="i-sort" iconSize={18} trailingIcon="i-down" trailingSize={16}>{t('next.detail.episodeOrder')}</Chip>}>
-          <MenuItem selected={(snapshot.route?.episodeDirection ?? 'asc') === 'asc'} onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); setOrderMenu(false); return binding.service.selectEpisodeDirection('asc'); })}>{t('next.detail.episodeOrder')}</MenuItem>
-          <MenuItem selected={snapshot.route?.episodeDirection === 'desc'} onSelect={() => runScreenCommand(binding.context, () => { binding.current(data); setOrderMenu(false); return binding.service.selectEpisodeDirection('desc'); })}>{t('next.detail.reverseEpisodeOrder')}</MenuItem>
-        </Menu>
-        <Menu open={filterMenu} onOpenChange={setFilterMenu} title={t('next.controls.filters')} trigger={<Chip variant="toolbar">{t('next.controls.filters')}</Chip>}>
-          <MenuItem selected={!snapshot.route?.playState} onSelect={() => setPlayState('all')}>{t('next.controls.all')}</MenuItem>
-          <MenuItem selected={snapshot.route?.playState === 'unplayed'} onSelect={() => setPlayState('unplayed')}>{t('filter.quick.unplayed')}</MenuItem>
-          <MenuItem selected={snapshot.route?.playState === 'played'} onSelect={() => setPlayState('played')}>{t('filter.quick.played')}</MenuItem>
-          <MenuItem selected={snapshot.route?.playState === 'in-progress'} onSelect={() => setPlayState('in-progress')}>{t('filter.quick.inProgress')}</MenuItem>
-        </Menu></>}
         hideWatched={{label: t('next.controls.hideWatched'), checked: snapshot.route?.playState === 'unplayed', onCheckedChange: checked => runScreenCommand(binding.context, () => { binding.current(data); const route = snapshot.route; if (route) return binding.select({...route, playState: checked ? 'unplayed' : 'all'}); })}}
-        layout={{value: layout === 'grid' ? 'grid' : 'list', onValueChange: value => runScreenCommand(binding.context, () => binding.view.layout(value)), label: t('next.controls.layout'), listLabel: t('next.controls.list'), gridLabel: t('next.controls.grid')}}
-        more={data.selected.seasonId ? <SeasonOptions binding={binding} data={data} label={seasonLabel} /> : undefined} />}
+        more={data.selected.seasonId ? <SeasonOptions binding={binding} data={data} label={seasonLabel} extra={viewChoices} />
+          : <Menu presentation="anchored" open={viewMenu} onOpenChange={setViewMenu} title={t('next.controls.more')} trigger={<Button variant="icon" size="small" icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>{viewChoices}</Menu>} />}
       {snapshot.phase === 'error' || snapshot.phase === 'refresh-required' ? <ScreenFailure retry={() => { void binding.service.retry(); }} /> : null}
       {!episodes.length && snapshot.phase === 'ready' && <StateView title={t('title.noEpisodes')} body={t('title.noEpisodesBody')} />}
       <EpisodeList layout={episodeLayout} columns={columns}>
@@ -225,7 +218,34 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     </section>}
     {tab === 'details' && <ShowDetails binding={binding} data={data} />}
     {tab === 'related' && (recommendations.phase === 'error' ? <ScreenFailure retry={() => { void binding.recommendations.select(data, () => binding.service.getSnapshot().data === data); }} /> : recommendations.phase !== 'ready' ? <DetailLoading /> : <div className={styles.relatedRows}>{relatedRows.map(row => <TitleRecommendationRow key={row.id} binding={binding} row={row} owner={{kind: 'show', id: data.show.id}} guard={() => binding.current(data)} />)}</div>)}
-    </div>
+  </>;
+  if (!compact) {
+    // The show on the title frame (desktop-detail f4, f5; phone-detail d2): the frame places the art, words, actions and
+    // tabs on every form and collapses to its bar on scroll; the screen hands it the parts.
+    const showBackdrops = preferenceValue<boolean>(preferences, 'appearance.showBackdrops');
+    const run = (task: Promise<unknown>) => { void task.catch(binding.context.effects.reportError); };
+    const framePrimary: TitlePrimary | undefined = offer ? {icon: 'i-play', label: primaryLabel!, onPress: playPrimary, ...(offer.resume ? {progress: offer.progress} : {})}
+      : nextUnplayable ? {icon: 'i-play', label: t('next.controls.play'), disabled: true, onPress: () => {}, note: t('title.fileUnavailable')} : undefined;
+    const frameActions: TitleAction[] = [
+      ...(personal ? [{icon: personal.watchlisted ? 'i-check' as const : 'i-plus' as const, label: t('next.controls.myList'), labelled: true, pinned: true, active: personal.watchlisted, disabled: busy,
+        onPress: () => run(binding.setMyList(data, !personal.watchlisted))},
+      {icon: 'i-check' as const, label: t(personal.watched ? 'title.markUnwatched' : 'title.markWatched'), wide: true, active: personal.watched, disabled: busy,
+        onPress: () => run(binding.setWatched(data, !personal.watched))}] : []),
+      ...(personal || binding.canManage() ? [{icon: 'i-more' as const, label: t('next.controls.more'), onPress: () => {}, wrap: (button: ReactElement) => <ShowMore binding={binding} data={data} personal={personal} busy={busy} watchedInMenu={width < 1024} trigger={button} />}] : []),
+    ];
+    const person = (credit: WorkspaceShowCredit) => ({text: credit.name, ...(credit.id ? {onPress: () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.openEntry({id: credit.id!, kind: 'person', title: credit.name, navigation: {view: 'person', entityId: credit.id!}}); })} : {})});
+    const frameCredits: TitleCredit[] = starring.length ? [{label: (starringBefore ?? '').trim(), names: starring.map(person)}] : [];
+    const source = show.backdropUrl ?? show.posterUrl;
+    return <div data-show-id={show.id}><TitleFrame
+      art={showBackdrops && <AmbientArt treatment={phone ? 'phone' : 'title'} source={art.ambient(source)} foreground={art.foreground(source, phone ? 800 : 1920, 16 / 9)} />}
+      back={binding.context.effects.back ? {label: t('next.states.back'), onPress: () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); })} : undefined}
+      title={show.title} metadata={titleFacts} primary={framePrimary} actions={frameActions} synopsis={show.overview} credits={frameCredits}
+      tabs={{items: tabItems, value: tab, onValueChange: onTab}}>{panel}</TitleFrame></div>;
+  }
+  return <article className={`${detail.page} ${styles.showPage}`} data-show-id={show.id} data-compact>
+    <div className={detail.compactHeader}><h1>{show.title}</h1>{episodeLine.length > 0 && <p className={detail.episodeLine}>{episodeLine.map(part => <span key={part.id} data-fact={part.id}>{part.text}</span>)}</p>}<TitleFactsLine parts={watchHeaderFacts(facts, watch?.leftSeconds, env)} />{actions}</div>
+    <TitleTabs title={show.title} compact onBack={binding.context.effects.back ? () => runScreenCommand(binding.context, () => { binding.current(data); binding.context.effects.back?.(); }) : undefined}><Tabs externalPanelId={tabPanelId} value={tab} onValueChange={onTab} items={tabItems} /></TitleTabs>
+    <div key={tab} id={tabPanelId} role="tabpanel" aria-labelledby={`${tabPanelId}-tab-${tab}`} tabIndex={0} className={detail.tabPanel}>{panel}</div>
   </article>;
 }
 
