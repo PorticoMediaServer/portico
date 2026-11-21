@@ -316,7 +316,10 @@ export function useTVLibrary(props: LibraryProps) {
   useDestinationEntryFocus(active, firstAction ? {regionId: stateId, childId: firstAction} : undefined, undefined, request);
   // F-LIB-13/14: moving along the tabs changes the page as focus lands, and focus stays on the tab. The catalogue and the
   // shelves are different pages, so the tabs are drawn anew; the tab chosen asks for focus as it is drawn, until it has it.
+  // Between two catalogues (Artists to Albums) the page is drawn twice, loading then the grid, so the ask lasts until the
+  // tab has focus on the loaded page, or focus leaves it there.
   const tabChosen = useRef<number | undefined>(undefined), [refocusTab, setRefocusTab] = useState<string>();
+  const settled = state.phase !== 'loading' && state.phase !== 'idle';
   const rowId = (index: number) => `${gridId}.row.${index}`;
   return {...view, failure, emptyState, gridId, toolbarId, tabsId, stateId, tabChosen: tabChosen.current === active.revision,
     switcher: {id: switcherId, enabled: active.visible, edges: {left: ids.rail, right: tabsId, down: tabsId}},
@@ -324,8 +327,8 @@ export function useTVLibrary(props: LibraryProps) {
       down: firstAction ? stateId : state.collection ? toolbarId : view.rows.length && !props.tvMusicDiscover ? rowId(0) : undefined}},
       itemProps: (item: {value: string}) => ({focusId: item.value, preferredFocus: refocusTab === item.value, onFocus: () => {
         if (state.tab.id !== item.value) {tabChosen.current = active.revision; setRefocusTab(item.value); view.tabs.onValueChange(item.value);}
-        else if (refocusTab) setRefocusTab(undefined);
-      }})},
+        else if (refocusTab && settled) setRefocusTab(undefined);
+      }, onBlur: () => {if (refocusTab && settled) setRefocusTab(undefined);}})},
     shelves: view.rows.map((row, index) => ({...row, focus: {id: rowId(index), enabled: active.visible,
       edges: {left: ids.rail, up: index ? rowId(index - 1) : tabsId, down: index + 1 < view.rows.length ? rowId(index + 1) : undefined}}})),
     pageState: firstAction ? {id: stateId, entry: firstAction,
