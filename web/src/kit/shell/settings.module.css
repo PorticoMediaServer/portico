@@ -154,10 +154,10 @@ input:focus-visible + .radio { outline: 3px solid var(--color-focus); outline-of
 @media (max-width: 599px) {
   .matrixLabel { min-width: 0; flex-wrap: wrap; gap: 6px; }
   .matrixLabel .defaultHint { flex-basis: 100%; }
-  /* On a phone a row wraps: the label keeps at least 10em beside a short control (a switch, a button, a select's value),
+  /* On a phone a row wraps: the label keeps at least 8em beside a short control (a switch, a button, a select's value),
      and a control that would crowd it moves under it at its own width (desk B on #3317: a label is never crushed). */
   .row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 10px; }
-  .rowLabel { flex: 1 1 10em; min-width: 0; }
+  .rowLabel { flex: 1 1 8em; min-width: 0; }
   .rowControl { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-left: auto; }
   /* These take the row's whole width under the label (E-web-20, owner-server 43c): a typed field, a path or code, a
      segmented choice (its choices share the width, so none is cut) and a stacked control. */
@@ -169,6 +169,31 @@ input:focus-visible + .radio { outline: 3px solid var(--color-focus); outline-of
   .row > .rowControl [role='radiogroup'] { display: flex; width: 100%; box-sizing: border-box; }
   .row > .rowControl [role='radiogroup'] > [role='radio'] { flex: 1 1 auto; min-width: 0; white-space: normal; }
   /* A select stays at the row's end as its value in the accent with a chevron, no box (phone-app 18, phone-web 9). */
-  .row > .rowControl [role='combobox'][aria-haspopup], .matrixRow .phoneChoice [role='combobox'][aria-haspopup] { min-width: 0; width: auto; height: auto; min-height: 32px; padding: 0; gap: 4px; background: none; color: var(--color-accent-strong); font-size: var(--type-row-label-size); font-weight: 600; }
-  .row > .rowControl [role='combobox'][aria-haspopup] > span:last-child, .matrixRow .phoneChoice [role='combobox'][aria-haspopup] > span:last-child { color: var(--color-accent-strong); }
+  .row > .rowControl [role='combobox'][role], .matrixRow .phoneChoice [role='combobox'][role] { min-width: 0; width: auto; height: auto; min-height: 32px; padding: 0; gap: 4px; background: none; color: var(--color-accent-strong); font-size: var(--type-row-label-size); font-weight: 600; }
+  .row > .rowControl [role='combobox'][role] > span:last-child, .matrixRow .phoneChoice [role='combobox'][role] > span:last-child { color: var(--color-accent-strong); }
+}
+
+/* The same row rules hold wherever a settings card is narrow: a phone, or the page beside the list on a tablet
+   (600 to 1023, the web's rail beside it). The card is the query's container (kit/settings .groupRows). */
+@container settings-card (max-width: 559px) { .matrixHead { display: none; } .matrixRow { grid-template-columns: 1fr; } .matrixChoice { display: none; } .matrixRow { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } /* A phone's skipping row is one row: the label, then its choice at the end, under one rule (phone-app 18). */
+  .matrixRow { border-top: 1px solid var(--color-line-soft); } .matrixLabel { border-top: 0; } .phoneChoice { display: block; padding-right: var(--list-row-padding-x); } .row { gap: 12px; } 
+  .matrixLabel { min-width: 0; flex-wrap: wrap; gap: 6px; }
+  .matrixLabel .defaultHint { flex-basis: 100%; }
+  /* On a phone a row wraps: the label keeps at least 8em beside a short control (a switch, a button, a select's value),
+     and a control that would crowd it moves under it at its own width (desk B on #3317: a label is never crushed). */
+  .row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 10px; }
+  .rowLabel { flex: 1 1 8em; min-width: 0; }
+  .rowControl { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-left: auto; }
+  /* These take the row's whole width under the label (E-web-20, owner-server 43c): a typed field, a path or code, a
+     segmented choice (its choices share the width, so none is cut) and a stacked control. */
+  .row:is([data-stacked], [data-path], :has(> .rowControl :is(code, pre, [role='radiogroup'], input[type='text'], input[type='email'], input[type='url'], input[type='password'], input:not([type])))) > * { flex-basis: 100%; margin-left: 0; }
+  .row:is([data-path], :has(> .rowControl :is(code, pre))) > .rowControl, .row:is([data-path], :has(> .rowControl :is(code, pre))) > .rowControl > * { justify-content: flex-start; }
+  .row:has(> .rowControl :is(input[type='text'], input[type='email'], input[type='url'], input[type='password'], input:not([type]))) > .rowControl { justify-content: stretch; }
+  .row:has(> .rowControl :is(input[type='text'], input[type='email'], input[type='url'], input[type='password'], input:not([type]))) > .rowControl :is(input) { width: 100%; }
+  .row > .rowControl:has([role='radiogroup']), .row > .rowControl:has([role='radiogroup']) > * { justify-content: stretch; width: 100%; }
+  .row > .rowControl [role='radiogroup'] { display: flex; width: 100%; box-sizing: border-box; }
+  .row > .rowControl [role='radiogroup'] > [role='radio'] { flex: 1 1 auto; min-width: 0; white-space: normal; }
+  /* A select stays at the row's end as its value in the accent with a chevron, no box (phone-app 18, phone-web 9). */
+  .row > .rowControl [role='combobox'][role], .matrixRow .phoneChoice [role='combobox'][role] { min-width: 0; width: auto; height: auto; min-height: 32px; padding: 0; gap: 4px; background: none; color: var(--color-accent-strong); font-size: var(--type-row-label-size); font-weight: 600; }
+  .row > .rowControl [role='combobox'][role] > span:last-child, .matrixRow .phoneChoice [role='combobox'][role] > span:last-child { color: var(--color-accent-strong); }
 }
