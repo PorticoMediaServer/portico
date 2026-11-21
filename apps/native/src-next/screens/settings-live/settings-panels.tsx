@@ -3,7 +3,7 @@ import {NativeAccessTokensPanel, NativeAccountSecurityPanel} from './NativeAccou
 import {DeviceAboutPanel} from './DeviceAboutPanel';
 import {AllowedDevicesPanel} from './AllowedDevicesPanel';
 import {NativeConnectionAddressRow, NativeConnectionStatusRow, NativeInsecureConnectionsRow, NativeTestConnectionRow} from './NativeConnectionRows';
-import {IntroCreditsReview} from './owner-libraries/IntroCreditsReview';
+import {ServerSegmentReview} from '../../pages/shared/settings/ServerSegmentReview';
 import React, {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Text, View} from 'react-native';
 import {repeat} from '../../../../../packages/client-core/src/timer';
@@ -180,7 +180,7 @@ function nativeRequestId(): string {
 }
 
 /** The account pages' custom surfaces this build draws with real data. Server pages are their own routes. */
-export function renderNativeSettingsPanel(id: SettingsCustomId, deps: NativeSettingsPanelDeps, _runtime: NativeShellRuntime): React.ReactNode {
+export function renderNativeSettingsPanel(id: SettingsCustomId, deps: NativeSettingsPanelDeps, _runtime: NativeShellRuntime, onBackHandlerChange?: (handler: (() => boolean) | undefined) => void): React.ReactNode {
   switch (id) {
     case 'downloadsStorage': return deps.downloads ? <DownloadsStoragePanel {...deps} downloads={deps.downloads}/> : null;
     case 'deviceName': {
@@ -192,7 +192,7 @@ export function renderNativeSettingsPanel(id: SettingsCustomId, deps: NativeSett
     case 'deviceServerAddress': deps.lifetime.assert(); return <NativeConnectionAddressRow {...deps}/>;
     case 'deviceTestConnection': deps.lifetime.assert(); return <NativeTestConnectionRow {...deps} runtime={_runtime}/>;
     case 'deviceInsecureConnections': deps.lifetime.assert(); return <NativeInsecureConnectionsRow {...deps} runtime={_runtime}/>;
-    case 'server.segments': return <IntroCreditsReview {...deps} runtime={_runtime}/>;
+    case 'server.segments': return <ServerSegmentReview {...deps} runtime={_runtime} onBackHandlerChange={onBackHandlerChange}/>;
     case 'identity': return <IdentityPanel {...deps}/>;
     case 'profiles': return <ProfilesPanel {...deps}/>;
     case 'password': case 'twoStep': case 'devices': return <NativeAccountSecurityPanel {...deps} kind={id} runtime={_runtime}/>;

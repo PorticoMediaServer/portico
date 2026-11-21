@@ -51,7 +51,7 @@ export function createNativeSettingsPorts(context: NativeShellBootstrapContext, 
       // N2-6: the row named Link a TV opens the code entry itself, as Play On does; the server list stays on Back.
       linkTV: () => open({kind: 'servers', initialPanel: 'consent-kind'}),
     }),
-    renderSettingsPanel: (id, runtime): ReactNode => renderNativeSettingsPanel(id, {context, lifetime, t: runtime.text.t, openRoute: open, downloads}, runtime),
+    renderSettingsPanel: (id, runtime, onBackHandlerChange): ReactNode => renderNativeSettingsPanel(id, {context, lifetime, t: runtime.text.t, openRoute: open, downloads}, runtime, onBackHandlerChange),
     ...(downloads ? {downloads} : {}),
   });
 }
