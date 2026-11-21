@@ -28,10 +28,12 @@ export function GuideFilterStrip({choices, leading, region}: {
   leading?: ReactNode; region: FocusRegionProps;
 }) {
   const theme = useTheme(), focusRoom = theme.isTV ? theme.space.sm : 0;
-  const whole = useWholeItems('x', 'fit', choices.map(choice => choice.id), theme.gutter, theme.space.sm);
+  const whole = useWholeItems('x', 'fit', choices.map(choice => choice.id), focusRoom, theme.space.sm);
   // TV: whole chips only, never one cut at the row's end (owner, 20 Nov 20:30). A TV has a handful of groups, so a plain row.
-  if (theme.isTV) return <FocusRegion {...region} {...whole.container}><TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} {...whole.scroll}
-    contentContainerStyle={{gap: theme.space.xs, paddingLeft: theme.gutter, paddingRight: theme.gutter + whole.pad, paddingVertical: focusRoom}}>
+  // The frame sets the row on the page's gutters (tv.html 6: All starts under the title's first letter); the row reaches
+  // out by the focus ring's room on each side so a focused chip's ring is not clipped.
+  if (theme.isTV) return <FocusRegion {...region} {...whole.container} style={{marginHorizontal: -focusRoom}}><TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} {...whole.scroll}
+    contentContainerStyle={{gap: theme.space.xs, paddingLeft: focusRoom, paddingRight: focusRoom + whole.pad, paddingVertical: focusRoom}}>
     {leading}
     {choices.map(item => <View key={item.id} {...whole.item(item.id)}><Chip focusId={item.id} testID={item.testID} count={item.count} selected={item.selected}
       onPress={item.onPress} onFocus={() => whole.focus(item.id)}>{item.label}</Chip></View>)}
