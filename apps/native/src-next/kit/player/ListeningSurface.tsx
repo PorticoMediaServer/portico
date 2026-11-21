@@ -13,7 +13,7 @@ import {ListeningGroup, useListeningCoverSlot, useListeningPageOwner, useListeni
 import type {DockOccupant} from '../dock/types';
 import {usePublishedPlayerMorph} from '../dock/PlayerMorphBridge';
 import {useOverlayPaintMode} from '../overlays/OverlayPaintContext';
-import {nowPlayingSource} from '../../screens/destinations/music/NowPlayingQueue';
+import {nowPlayingSource} from '../../pages/shared/player/useNowPlayingQueue';
 
 const t = defaultI18n.t;
 const QUEUE_WIDTH = 366;

@@ -128,7 +128,7 @@ async function rig({reduced = false, docked = false, kind = 'video', os = 'andro
     '../kit/player/ListeningSurface': {ListeningPagePreview: 'ListeningPagePreview', ListeningPageBackground: 'ListeningPageBackground'},
     '../pages/touch/player/AudioPlayerPage': {AudioPlayerPage: 'NowPlayingScreen'},
     '../pages/tv/player/ListeningRoute': {TVListeningRoute: 'TVListeningRoute'},
-    '../screens/destinations/music/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
+    '../kit/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
     '../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
     '../screens/destinations/music/MusicSignal': signalView, '../screens/destinations/music/signal-facts': signalFacts,
     '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'}, './use-listening-song': {useListeningSong},

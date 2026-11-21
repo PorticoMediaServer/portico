@@ -16,7 +16,8 @@ async function fixture(noService = false) {
   const react = {...ui.react, useSyncExternalStore: (_subscribe: unknown, get: () => unknown) => {
     const first = get(); assert.equal(get(), first, 'useSyncExternalStore snapshot must be cached'); snapshots++; return first;
   }};
-  const {NowPlayingLyrics} = await screenModule(new URL('../src-next/screens/destinations/music/NowPlayingLyrics.tsx', import.meta.url), {
+  const {useNowPlayingLyrics} = await screenModule(new URL('../src-next/pages/shared/player/useNowPlayingLyrics.ts', import.meta.url), {
+    '../../../../../../packages/client-core/src/timer': await import('../../../packages/client-core/src/timer.ts'),
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../../packages/client-core/src/lyrics': {activeLyricLine: core.activeLyricLine,
       lyricSeekPosition: (...args: unknown[]) => {seekDerivations++; return core.lyricSeekPosition(...args);}},
@@ -28,7 +29,7 @@ async function fixture(noService = false) {
   const owner = {}, target = {}, seeks: string[] = [];
   const props: any = {read: () => noService ? undefined : {enabled: true, service}, target, paintOwner: owner,
     paintScope: 'source', positionSeconds: 1, playing: true, onSeek: (at: number) => seeks.push(`original:${at}`)};
-  const render = () => ui.render(() => NowPlayingLyrics(props));
+  const render = () => ui.render(() => useNowPlayingLyrics(props));
   return {props, render, seeks, publication: () => publication, seekDerivations: () => seekDerivations, snapshots: () => snapshots,
     replace: (value: any) => {snapshot = value;}, snapshot: () => snapshot};
 }
@@ -63,8 +64,8 @@ test('a changed selected document/source rebuilds seek positions once', async ()
 
 test('a missing or throwing lyrics service retains one frozen empty snapshot', async () => {
   const f = await fixture(true);
-  assert.equal(f.render(), null); assert.equal(f.render(), null);
+  assert.equal(f.render(), undefined); assert.equal(f.render(), undefined);
   f.props.read = () => {throw new Error('unavailable');};
-  assert.equal(f.render(), null); assert.equal(f.render(), null);
+  assert.equal(f.render(), undefined); assert.equal(f.render(), undefined);
   assert.equal(f.publication(), undefined); assert.equal(f.snapshots(), 4);
 });
