@@ -5839,11 +5839,11 @@
   --frame-hero-home-synopsis-lines: 2;
   --frame-hero-title-height: 628px;
   --frame-hero-title-lockup: 6.25rem;
-  --frame-hero-title-copy-bottom: 72px;
+  --frame-hero-title-copy-bottom: 106px;
   --frame-hero-title-synopsis-lines: 2;
   --frame-hero-home-row-offset: 56px;
   --frame-hero-home-lockup-long: 6.25rem;
-  --frame-title-action-gap: 26px;
+  --frame-title-action-gap: 30px;
   --frame-title-cover-square: 480px;
   --frame-title-cover-poster: 340px;
   --frame-title-cover-circle: 280px;
