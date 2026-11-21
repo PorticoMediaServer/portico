@@ -13,7 +13,7 @@
 .rowLabel { font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); color: var(--type-row-label-color); }
 .rowHelp { font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--type-row-help-color); }
 .intro { font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--type-intro-color); max-width: var(--frame-paragraph-max); }
-.barTitle { font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); }
+.barTitle { min-width: 0; text-align: center; font-size: var(--type-bar-title-size); line-height: var(--type-bar-title-line); font-weight: var(--type-bar-title-weight); }
 .oneLine { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
@@ -62,11 +62,15 @@
 .settingsBar, .pageBar { margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
 .page { --body-inset: var(--card); display: flex; flex-direction: column; gap: var(--frame-section-gap); padding-bottom: var(--frame-bottom-clear); }
 /* The page's flexible region: one column at the card inset; the parts in it start at its edges. */
+/* The body's gap is the space between its parts; their own top margins are taken back (rule 5). */
+.pageBody.pageBody > * { margin-top: 0; }
 .pageBody { display: flex; flex-direction: column; gap: var(--frame-section-gap); margin: 0 var(--body-inset); --g: 0px; --card: 0px; }
 .page > .intro { margin: 0 var(--g); }
 .pageHead { display: none; }
 .sheetBar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-xs); height: var(--frame-header-bar); padding: 0 var(--space-control-gap); }
 .sheetBar > :first-child { justify-self: start; } .sheetBar > :last-child { justify-self: end; }
+/* Back and the action keep their words on one line; a long title takes the room between them. */
+.sheetBar > .back, .sheetBar > .back > *, .sheetBar > .barAction, .sheetBar > .barAction > * { white-space: nowrap; }
 /* Rule 3: Back and the title share the bar's centre line. */
 .sheetBar > .back { align-self: center; }
 /* R9: Done and a bar's own action are the accent; a task's Cancel is the plain text colour. */
@@ -78,6 +82,8 @@
 .popoverHead { display: flex; flex-direction: column; gap: 2px; padding-bottom: var(--space-xs); color: var(--color-text-tertiary); font-weight: 600; }
 .popoverHead > b { color: var(--color-text); font-size: var(--type-row-label-size); font-weight: 700; }
 .pageBack { display: none; }
+/* At phone width the compact bar names the page; a header band of its own still shows under it. */
+.page > .pageOwnHead { margin: 0 var(--g); }
 .pageStatus { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-row-help-size); font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
 .pageActions { margin-left: auto; display: flex; gap: var(--space-control-gap); align-self: center; }
 .page > .pageServer, .page > .pageTabs { margin: 0 var(--g); }
@@ -89,12 +95,16 @@
   .settingsMaster, .settingsDetail .page { --g: 0px; --card: 0px; }
   .settingsDetail { flex: 1; min-width: 0; max-width: var(--frame-settings-page-max); }
   .settingsBar, .pageBar { display: none; }
+  /* With no intro or tabs, the first section starts a section's gap under the title, as under an intro. */
+  .pageHead + .pageBody { margin-top: calc(var(--frame-section-gap) - var(--frame-header-gap)); }
   .pageHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm); padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(var(--frame-header-gap) - var(--frame-section-gap)); }
   /* A page shown alone (an owner page opened on its own, a form): Back above its title and the page's column limit. */
   .page:not(.settingsDetail .page) { max-width: calc(var(--frame-settings-page-max) + 2 * var(--g)); }
   /* The first of Back (alone), the server strip and the head starts at the title line; the others follow it. */
   .page:not(.settingsDetail .page) > .pageBack { display: block; padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(-1 * var(--frame-section-gap)); }
   .page > .pageServer { padding-top: var(--frame-title-top); }
+  /* A pushed page beside the list keeps Back above its own header band. */
+  .page[data-pushed] > .pageBack { display: block; padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(-1 * var(--frame-section-gap)); }
   .page:not(.settingsDetail .page) > .pageBack ~ .pageServer, .page:not(.settingsDetail .page) > .pageBack ~ .pageHead, .page > .pageServer + .pageHead { padding-top: 0; }
 }
 .signInForm { display: grid; gap: var(--space-px-12); }

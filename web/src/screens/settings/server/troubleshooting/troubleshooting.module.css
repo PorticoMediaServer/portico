@@ -40,7 +40,7 @@
 
 /* An opened viewer starts where the landing's first group does (kit settings .group:first-child),
    so its way back never touches the page heading; the way back is a button, not a full-width bar. */
-.page { display: flex; flex-direction: column; gap: 22px; margin-top: 28px; }
+.page { display: flex; flex-direction: column; gap: 22px; }
 .back { align-self: flex-start; }
 .tabs + * { margin-top: 6px; }
 .landing { min-width: 0; }
