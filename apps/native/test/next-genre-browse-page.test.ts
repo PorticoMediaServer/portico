@@ -8,7 +8,7 @@ async function page(view: Record<string, unknown>) {
   const {GenreBrowsePage} = await screenModule(new URL('../src-next/pages/touch/search/GenreBrowsePage.tsx', import.meta.url), {
     react: {...React, default: React}, '../../../kit/browse': {BrowseToolbar: 'BrowseToolbar'}, '../../../kit/browse/HomeRowCard': {HomeRowCard: 'HomeRowCard'},
     '../../../kit/frames': {BrowseFrame: 'BrowseFrame'}, '../../../kit/frames/BrowseGrid': {BrowseGrid: 'BrowseGrid'}, '../../../kit/states': {StateView: 'StateView'},
-    '../../../screens/library/model': {nativeLibraryEntryKey: (entry: any) => entry.id}, '../../../screens/search/GenreFilters': {GenreFilters: 'GenreFilters'},
+    '../../../screens/library/model': {nativeLibraryEntryKey: (entry: any) => entry.id}, '../../../kit/search/GenreFilterSheet': {GenreFilters: 'GenreFilters'},
     '../../shared/search/useGenreBrowse': {useGenreBrowse: () => view},
   });
   const actions = {open: () => calls.push('open'), play: () => calls.push('play'), menu: () => calls.push('menu')};

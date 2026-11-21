@@ -5,7 +5,7 @@ import {BrowseFrame} from '../../../kit/frames';
 import {BrowseGrid} from '../../../kit/frames/BrowseGrid';
 import {StateView} from '../../../kit/states';
 import {nativeLibraryEntryKey} from '../../../screens/library/model';
-import {GenreFilters} from '../../../screens/search/GenreFilters';
+import {GenreFilters} from '../../../kit/search/GenreFilterSheet';
 import {useGenreBrowse, type GenreBrowseProps} from '../../shared/search/useGenreBrowse';
 
 /** A genre from Search's Browse by genre on a phone or tablet: the kit browse page with "‹ Search", the genre's name, Filters

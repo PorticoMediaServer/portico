@@ -6,7 +6,7 @@ import {BrowseFrame} from '../../../kit/frames';
 import {BrowseGrid} from '../../../kit/frames/BrowseGrid';
 import {StateView} from '../../../kit/states';
 import {nativeLibraryEntryKey} from '../../../screens/library/model';
-import {GenreFilters} from '../../../screens/search/GenreFilters';
+import {GenreFilters} from '../../../kit/search/GenreFilterSheet';
 import type {GenreBrowseProps} from '../../shared/search/useGenreBrowse';
 import {useTVGenreBrowse} from '../../shared/search/useTVGenreBrowse';
 
