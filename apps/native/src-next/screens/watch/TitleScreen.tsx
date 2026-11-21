@@ -1,5 +1,5 @@
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {TitleSeasonBar} from './TitleSeasonBar';
+import {SeasonBar as TitleSeasonBar} from '../../kit/layout/SeasonBar';
 import {Lockup} from '../../kit/layout/Lockup';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';

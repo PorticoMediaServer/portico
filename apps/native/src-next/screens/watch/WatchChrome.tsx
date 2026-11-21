@@ -28,7 +28,7 @@ import {NativeWatchTimeline} from './WatchTimeline';
 import {createLandingStore, type LandingStore} from './landing-store';
 import {useSkipPromptMotion} from './useSkipPromptMotion';
 import {useInitialPlayerPaint, usePublishedPlayerMorph} from '../../kit/dock/PlayerMorphBridge';
-import {NativeUpNextCard} from './UpNextCard';
+import {PlayerUpNext as NativeUpNextCard} from '../../kit/player/PlayerUpNext';
 import {NativeStillWatchingCard} from '../../kit/player/StillWatchingCard';
 import {Artwork, type ArtworkSource} from '../../kit/artwork';
 import type {NativeWatchNotice} from './playback-info';
@@ -36,7 +36,7 @@ import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from '.
 import {nowNext} from '../../../../../packages/client-core/src/guide/now-next';
 import {playbackUserMessage} from '../../../../../packages/client-core/src/playback-messages';
 import {NativeMiniGuide} from './TVMiniGuide';
-import {TVLiveActions} from './TVLiveActions';
+import {PlayerLiveActions as TVLiveActions} from '../../kit/player/PlayerLiveActions';
 import {emptyLiveActions, noLiveActionsSubscription, type NativeTVLiveActions} from './live-actions';
 
 export type NativeWatchChromeProps = Readonly<{
