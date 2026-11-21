@@ -172,7 +172,8 @@
 .trackRow:hover, .trackRow:focus-within { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
 .trackRow[data-playing] { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
 .trackRow[data-playing] b { color: var(--color-accent-strong); }
-.trackNumber { position: relative; height: 24px; display: grid; place-items: center; }
+/* The cell grows to its button's touch height on a phone, so the number stays on the row's middle with its title. */
+.trackNumber { position: relative; min-height: 24px; display: grid; place-items: center; }
 .trackPlay { height: 28px; width: 32px; border: 0; background: none; color: var(--browse-muted); display: grid; place-items: center; font: inherit; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; padding: 0; }
 .trackPlay > .ordinalPlay { display: none; }
 .trackRow:hover .trackOrdinal, .trackRow:focus-within .trackOrdinal { display: none; }
