@@ -37,10 +37,12 @@ export function sectionTarget(to: string | undefined): SettingsTarget | undefine
 }
 
 /** The Storage surfaces answer for their own rows and leave every other row to the shared reader. */
-export function storageRowState(row: SettingsRow, facts: StorageRowFacts): Readonly<{present: boolean}> | undefined {
+export function storageRowState(row: SettingsRow, facts: StorageRowFacts): Readonly<{present: boolean; bare?: boolean}> | undefined {
   if (row.id === 'storage.backupKeysNote') return {present: facts.live && facts.backupsReadable === true};
   if (row.id === 'storage.networkNotice') return {present: facts.live && facts.dataDirectoryOnNetwork === true};
   if (pendingServerRows.has(row.id)) return {present: false};
+  // What's using space draws its own rows (owner-server 8: Total, then a row per part with its bar and size).
+  if (row.id === 'storage.usage') return facts.live ? {present: true, bare: true} : {present: false};
   if (factRows.has(row.id) || fileRestoreRows.has(row.id)) return {present: facts.live};
   if (backupRows.has(row.id)) return {present: facts.backups};
   if (!sectionLinkRows.has(row.id)) return undefined;

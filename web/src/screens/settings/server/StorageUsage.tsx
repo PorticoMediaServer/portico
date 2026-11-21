@@ -40,18 +40,18 @@ export function StorageDataFolder({source, label}: RowProps) {
 }
 
 /** What's using space: the data folder's parts, then conversion and recording places outside it (rule: never counted twice). */
-export function StorageUsage({source, label}: RowProps) {
+export function StorageUsage({source, label, help}: RowProps & {help?: string}) {
   const state = useStorage(source);
   if (state.phase === 'error') return <Failure source={source} />;
   if (!state.storage) return <p role="status">{t('next.settings.loading')}</p>;
   const lines = storageUsageLines(state.storage), total = lines.reduce((sum, line) => sum + (line.bytes ?? 0), 0);
-  return <div className={styles.storage} role="group" aria-label={label}>
-    <div className={styles.storageTotal}><b>{t('web.maintenance.totalLabel')}</b><span>{defaultI18n.bytes(total)}</span></div>
+  return <div className={styles.usage} role="group" aria-label={label}>
+    <div className={styles.usageRow} data-total><div className={styles.storageText}><b>{t('web.maintenance.totalLabel')}</b>{help && <small>{help}</small>}</div><span className={styles.usageTotal}>{defaultI18n.bytes(total)}</span></div>
     <ul className={styles.storageList}>{lines.map(line => {
       const {name, help} = words(line), share = total > 0 && line.bytes !== undefined ? Math.max(0, Math.min(1, line.bytes / total)) : 0;
-      return <li key={line.id}><div className={styles.storageText}><b>{name}</b>{help && <small>{help}</small>}</div>
-        <span className={styles.storageSize}>{line.bytes === undefined ? t('server.space.sizeUnknown') : defaultI18n.bytes(line.bytes)}</span>
-        <span className={styles.storageBar} aria-hidden="true"><i style={{width: `${(share * 100).toFixed(1)}%`}} /></span></li>;
+      return <li key={line.id} className={styles.usageRow}><div className={styles.storageText}><b>{name}</b>{help && <small>{help}</small>}</div>
+        <span className={styles.storageBar} aria-hidden="true"><i style={{width: `${(share * 100).toFixed(1)}%`}} /></span>
+        <span className={styles.storageSize}>{line.bytes === undefined ? t('server.space.sizeUnknown') : defaultI18n.bytes(line.bytes)}</span></li>;
     })}</ul>
   </div>;
 }
