@@ -10,10 +10,9 @@ import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScr
 import type {NativeDashboardController} from '../../../screens/settings-live/dashboard-controller';
 import {ownerLibraryCounts, ownerLibraryKind, ownerLibraryState} from '../../../screens/settings-live/owner-libraries/presentation';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
-import {TVRemoteAccessPanel} from '../../../screens/settings-live/server/TVRemoteAccessPanel';
 import {TVPeoplePanel} from '../../../screens/settings-live/server/TVPeoplePanel';
 import {tvServerPageDefinition, tvServerPagesFor, type TVServerPage} from '../../../screens/settings-live/server/TVServerPageMenu';
-import {TVServerReadOnlyPanel} from '../../../screens/settings-live/server/TVServerReadOnlyPanel';
+import {ServerDetails} from './ServerDetails';
 import {useTVServerSettings} from '../../shared/settings/useTVServerSettings';
 
 export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'general'}: {
@@ -38,8 +37,7 @@ export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'ge
       server={<ServerHeader serverName={serverName} viewerRole={role} audience={audience} viewOnly/>}>
       <SettingsControlRows key={page} id={rows} orientation="vertical" edges={{left: column}}>
         {page === 'people' ? <TVPeoplePanel ports={ports} runtime={runtime} lifetime={lifetime}/>
-          : page === 'remote' ? <TVRemoteAccessPanel ports={ports} runtime={runtime} lifetime={lifetime}/>
-          : page !== 'libraries' ? <TVServerReadOnlyPanel page={page} ports={ports} runtime={runtime} lifetime={lifetime}/>
+          : page !== 'libraries' ? <ServerDetails page={page} ports={ports} runtime={runtime} lifetime={lifetime}/>
           : <>
             {state.phase === 'loading' && <StateView title={t('status.loading')}/>}
             {state.error && <StateView {...runtime.error(state.error, () => {void service.loadLibraries();})}/>}

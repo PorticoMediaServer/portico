@@ -100,3 +100,25 @@ test('screen-reader query rejection emits one sanitized diagnostic and ends clea
   } finally {console.warn = warn; cleanup();}
   assert.equal(removed, 1);
 });
+
+test('TV server details expose readonly facts and their paging actions through Settings rows', async () => {
+  const host = hooks(), visits: string[] = [];
+  const details = {t: (id: string) => id, empty: 'No plays', snapshot: undefined as undefined | {facts: {id: string; label: string; value: string; detail: string}[]},
+    previous: () => visits.push('previous'), next: () => visits.push('next')};
+  const {ServerDetails} = await screenModule(new URL('../src-next/pages/tv/settings/ServerDetails.tsx', import.meta.url), {
+    react: host.react, '../../../kit/controls': {Button: 'Button'}, '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/states': {StateView: 'StateView'},
+    '../../shared/settings/useTVServerDetails': {useTVServerDetails: () => details},
+  });
+  const render = () => host.render(() => ServerDetails({page: 'history'}));
+  assert.equal(render().props.title, 'status.loading');
+  details.snapshot = {facts: []};
+  assert.ok(nodes(render()).some(node => node.props.title === details.empty));
+  details.snapshot = {facts: [{id: 'play1', label: 'Long film title', value: 'Visitor', detail: 'Living room'}]};
+  const tree = render(), row = nodes(tree).find(node => node.props.testID === 'tv-server:history:play1');
+  assert.equal(row.props.accessibilityLabel, 'Long film title. Visitor. Living room');
+  assert.equal(row.props.readable, true);
+  assert.equal(row.props.onPress, undefined);
+  for (const step of ['previous', 'next']) nodes(tree).find(node => node.props.focusId === `tv-server:history:${step}`).props.onPress();
+  assert.deepEqual(visits, ['previous', 'next']);
+});
