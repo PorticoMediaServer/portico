@@ -240,6 +240,8 @@ test('History draws rebuilt play history and loads more with the server cursor',
   const list = await screenModule(new URL('../src-next/kit/settings/SettingsHistoryList.tsx', import.meta.url), {
     react: host.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../frames/metrics': {useFrameMetrics: () => ({form, bottomClear: 0})},
+    '../controls': {Button: 'Button', Chip: 'Chip', Select: 'Select'}, '../overlays': {BottomSheet: 'BottomSheet'},
+    '../browse/Toolbar': {ChipRail: 'ChipRail'},
     '../layout/TVRow': {TVRow: ({children}: any) => children},
     '../shell': {SettingsRow: 'SettingsRow'},
     '../theme': {useTheme: () => ({colors: {}, type: {}, space: {xs: 4, sm: 8, hairline: 1}})},
@@ -270,7 +272,9 @@ test('History draws rebuilt play history and loads more with the server cursor',
   const render = () => host.render(() => {
     const page = ServerHistoryPage({ports: {context: fixture.group.context}, runtime: historyRuntime});
     const panel = page.props.panel;
-    return panel ? panel.type(panel.props) : page;
+    if (!panel) return page;
+    const header = panel.props.header;
+    return panel.type({...panel.props, header: header.type(header.props)});
   });
   const rowText = (row: any) => [row.props.label, ...row.props.description].join(' ');
   render();host.flush();await settle();render();host.flush();
@@ -290,6 +294,11 @@ test('History draws rebuilt play history and loads more with the server cursor',
   assert.deepEqual(peopleReads, [membersPath, `${membersPath}?cursor=next`]);
   const filter = (tree: any, id: string) => nodes(tree.props.ListHeaderComponent).find((node: any) => node.props.testID === id);
   assert.ok(filter(tree, 'server-history-media').props.rowLabel, 'the filter label belongs to the picker trigger');
+  const toolbar = nodes(tree.props.ListHeaderComponent);
+  const rail = toolbar.find((node: any) => node.type === 'ChipRail');
+  assert.deepEqual(nodes(rail).flatMap((node: any) => node.props?.testID ? [node.props.testID] : []),
+    ['server-history-media', 'server-history-person', 'server-history-period', 'server-history-sort-menu']);
+  assert.equal(toolbar.some((node: any) => node.type === 'Button' && content(node) === 'action.tryAgain'), false);
   const person = filter(tree, 'server-history-person');
   assert.deepEqual(person.props.options.slice(1), [{value: 'a1', label: 'sam_k'}, {value: 'a2', label: 'alex'}]);
   person.props.onValueChange('a2');await settle();assert.equal(historyReads.at(-1)?.searchParams.get('person'), 'a2');

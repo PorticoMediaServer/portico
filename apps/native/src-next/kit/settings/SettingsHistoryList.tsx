@@ -5,19 +5,40 @@ import {useFrameMetrics} from '../frames/metrics';
 import {TVRow} from '../layout/TVRow';
 import {SettingsRow} from '../shell';
 import {useTheme} from '../theme';
+import {Button, Chip, Select, type SelectProps} from '../controls';
+import {BottomSheet} from '../overlays';
+import {ChipRail} from '../browse/Toolbar';
 
-export function SettingsHistoryToolbar({search, actions, filters, children}: {
-  search: ReactNode; actions: ReactNode; filters: readonly ReactNode[]; children: ReactNode;
+export function SettingsHistoryFilter({rowLabel, ...props}: SelectProps) {
+  const frame = useFrameMetrics(), theme = useTheme();
+  return <Select {...props} rowLabel={frame.form === 'phone' ? undefined : rowLabel}
+    style={frame.form === 'phone' ? {minWidth: 0, height: theme.targets.touch, borderRadius: theme.baseRadii.pill,
+      paddingHorizontal: theme.space.sm, gap: theme.space.xs} : undefined}/>;
+}
+
+export function SettingsHistoryToolbar({search, actions, filters, sort, sortLabel, doneLabel, children}: {
+  search: ReactNode; actions: ReactNode; filters: readonly ReactNode[]; sort: readonly ReactNode[];
+  sortLabel: string; doneLabel: string; children: ReactNode;
 }) {
   const frame = useFrameMetrics(), theme = useTheme(), wide = frame.form !== 'phone';
+  const [sortOpen, setSortOpen] = React.useState(false);
   return <View style={{marginHorizontal: frame.cardInset, gap: theme.space.sm, paddingVertical: theme.space.sm}}>
-    <View style={{flexDirection: wide ? 'row' : 'column', gap: theme.space.sm, alignItems: wide ? 'flex-end' : undefined}}>
-      <View style={wide ? {flex: 1} : undefined}>{search}</View>
-      <View style={wide ? {flex: 1} : undefined}>{actions}</View>
-    </View>
-    <View style={{flexDirection: wide ? 'row' : 'column', flexWrap: wide ? 'wrap' : undefined, gap: theme.space.xs}}>
-      {filters.map((control, index) => <View key={index} style={wide ? {flexGrow: 1, flexBasis: 205} : undefined}>{control}</View>)}
-    </View>
+    {wide ? <>
+      <View style={{flexDirection: 'row', gap: theme.space.sm, alignItems: 'flex-end'}}>
+        <View style={{flex: 1}}>{search}</View>
+        <View style={{flex: 1}}>{actions}</View>
+      </View>
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+        {[...filters, ...sort].map((control, index) => <View key={index} style={{flexGrow: 1, flexBasis: 205}}>{control}</View>)}
+      </View>
+    </> : <>
+      {search}
+      <ChipRail>{filters}<Chip testID="server-history-sort-menu" onPress={() => setSortOpen(true)}>{sortLabel}</Chip></ChipRail>
+      <BottomSheet open={sortOpen} title={sortLabel} onOpenChange={setSortOpen} fitContent
+        footer={<Button onPress={() => setSortOpen(false)}>{doneLabel}</Button>}>
+        <View style={{paddingHorizontal: frame.cardInset, gap: theme.space.sm}}>{sort}</View>
+      </BottomSheet>
+    </>}
     {children}
   </View>;
 }
