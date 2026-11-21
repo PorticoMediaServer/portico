@@ -35,13 +35,7 @@ test('actual playback layer converts measured window slot to its own origin and 
   const signalFacts = await screenModule(new URL('../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {
     react, 'react-native': {Platform: {OS: 'android'}},
   });
-  const musicSignal = await screenModule(new URL('../src-next/screens/destinations/music/MusicSignal.tsx', import.meta.url), {
-    react, 'react-native': {Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop', Path: 'Path'},
-    '../../../../../../packages/i18n/src': {defaultI18n}, './signal-path-model': signalPath,
-    '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../../kit/overlays': {SidePanel: 'SidePanel'},
-    '../../../kit/theme': {useTheme: () => theme, nativeType: () => ({})},
-  });
+  const musicSignal = signalPath; // The projection lives beside the path model (kit/player/SignalPath draws it).
   const {NativePlaybackLayer} = await screenModule(new URL('../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'../platform/tv-keys': {useTVKeyEvent() {}}, './StartTimedOut': {StartTimedOut: 'StartTimedOut'}, '../kit/dock/StartingDock': {StartingDock: 'StartingDock'}, 
     './use-listening-song': {useListeningSong: () => ({song: undefined, pending: false, favorite() {}})},
     './listening-presentation': {captureListeningOpening, expandedListeningOccupant, localListeningOccupant},
@@ -65,7 +59,7 @@ test('actual playback layer converts measured window slot to its own origin and 
     '../kit/dock/model': dockModel, './model': {authorityKey, sameAuthority}, './playback': {nativeShellBackTransition},
     '../kit/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
     '../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
-    '../screens/destinations/music/MusicSignal': musicSignal, '../screens/destinations/music/signal-facts': signalFacts,
+    '../screens/destinations/music/signal-path-model': musicSignal, '../screens/destinations/music/signal-facts': signalFacts,
     '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'},
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': {listeningNoticeKey},
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},

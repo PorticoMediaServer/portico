@@ -6,7 +6,7 @@ import type {PlaybackFence} from '../../../../../../packages/player-core/src';
 import type {MessageId} from '../../../../../../packages/i18n/src';
 import type {DockCommand, DockOccupant} from '../../../kit/dock/types';
 import type {NowPlayingQueueProps} from './useNowPlayingQueue';
-import type {MusicSignalView} from '../../../screens/destinations/music/MusicSignal';
+import type {MusicSignalView} from '../../../screens/destinations/music/signal-path-model';
 import type {AudiobookRead} from '../../../screens/destinations/music/use-audiobook-read';
 import type {NativeListeningQueuePolicy} from '../../../shell/listening-queue-policy';
 import type {NativePlaybackReadLifetime, NativeSleepChoice, NativeSleepEnd} from '../../../platform/playback/types';

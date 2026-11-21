@@ -10,7 +10,7 @@ import {BottomSheet, Menu} from '../../../kit/overlays';
 import {RetainedOverlay} from '../../../kit/overlays/SurfacePaintHost';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
 import {EqualizerPage} from '../../shared/player/EqualizerPage';
-import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/music/MusicSignal';
+import {SignalLine, SignalSheet} from '../../../kit/player/SignalPath';
 import {NowPlayingQueue} from '../../../kit/player/NowPlayingQueue';
 import {TVMusicFocus} from '../../../screens/destinations/music/TVMusicFocus';
 import {listeningChapterSeek} from '../../../screens/destinations/music/audiobook-controls';
@@ -98,7 +98,7 @@ export function AudioPlayerPage(props: NowPlayingScreenProps) {
     chapter={book ? {label: chapter?.title ?? '', of: wide && chapter ? t('player.clockOf', {position: clockText(Math.max(0, position - chapter.startSeconds)), duration: clockText(chapter.endSeconds - chapter.startSeconds)}) : chapterTotal === undefined ? '' : t('player.chapterTotal', {total: chapterTotal})} : undefined}
     panel={widePanel}
     signal={signal || retry?.enabled || notice ? <>
-      {signal && <MusicSignalLine view={signal} focusRef={signalRef} onPress={() => setPanel('signal')}/>}
+      {signal && <SignalLine path={signal.path} focusRef={signalRef} onPress={() => setPanel('signal')}/>}
       {retry?.enabled && <Button testID={`${testID}-retry`} variant="primary" icon="i-retry" onPress={() => retry.run(playback.fence)}>{t('next.states.tryAgain')}</Button>}
       {notice && <ListeningNoticeLine text={t(notice)}/>}
     </> : undefined}
@@ -135,7 +135,7 @@ export function AudioPlayerPage(props: NowPlayingScreenProps) {
     {paintActive && showingLyrics && knownLyrics && React.cloneElement(knownLyrics, {paintOwner: paneOwner, paintScope: fenceKey})}
     <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={retainedListeningParts} omitTypes={omittedPlayerParts}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !side && !!sheet}>
       {!backgroundHosted && <ListeningPageBackground fence={playback.fence} height={height} ambient={p.ambient}/>}
-      {panel === 'signal' && signal ? <ListeningPanel><MusicSignalSheet view={signal} onClose={closePanel} contextTitle={p.identity.title} returnFocusRef={signalRef}/></ListeningPanel> : null}
+      {panel === 'signal' && signal ? <ListeningPanel><SignalSheet path={signal.path} onClose={closePanel}/></ListeningPanel> : null}
       {panel === 'eq' ? <ListeningPanel opaque><EqualizerPage onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></ListeningPanel> : null}
       {column}
     </ListeningSurface></RetainedOverlay></TVMusicFocus>

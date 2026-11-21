@@ -6,7 +6,7 @@ import {TVAudioCanvas, TVAudioEqualizer, TVAudioLyrics, TVAudioSurface} from '..
 import {Menu} from '../../../kit/overlays';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
 import {EqualizerPage} from '../../shared/player/EqualizerPage';
-import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/music/MusicSignal';
+import {SignalLine, TVSignalSheet} from '../../../kit/player/SignalPath';
 import {NativeListeningNotice} from '../../../screens/destinations/music/ListeningNotice';
 import {NowPlayingQueue} from '../../../kit/player/NowPlayingQueue';
 import {nowPlayingQueueFocusScope, nowPlayingQueueEditPort} from '../../shared/player/useNowPlayingQueue';
@@ -34,7 +34,7 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
         byline={[artist.map(part => part.text).join(' '), album.map(part => part.text).join(' ') || currentItem?.album || '']} close={{icon: 'i-down', label: t('player.minimize'), onPress: onClose}}
         more={equalizer.supported ? {icon: 'i-more', label: t('next.controls.more'), focusId: 'more', testID: `${testID}-more`,
           anchorRef: moreRef, onPress: () => setMore(true)} : undefined}
-        signal={signal && <MusicSignalLine view={signal} focusRef={signalRef} onPress={() => setPanel('signal')}/>}
+        signal={signal && <SignalLine path={signal.path} focusRef={signalRef} onPress={() => setPanel('signal')}/>}
         scrubber={<TVMusicSeek occupant={occupant} onAction={onAction} enabled={enabled} testID={`${testID}-scrubber`}/>}
         times={{position: clockText(Math.max(0, position - (bounds?.start ?? 0))) ?? '', end: clockText(span) ?? ''}}
         transport={[
@@ -71,7 +71,7 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
       </TVAudioCanvas>
       <Menu testID={`${id}.more`} open={more} onOpenChange={setMore} title={t('next.controls.more')} presentation="sideSheet" returnFocusRef={moreRef} restoreFocus={panel !== 'eq'}
         items={equalizer.supported ? [{id: 'eq', label: t('next.media.eq.title'), icon: 'i-gauge', onSelect: () => {setMore(false); setPanel('eq');}}] : []}/>
-      {panel === 'signal' && signal && <MusicSignalSheet view={signal} contextTitle={p.identity.title} onClose={close} returnFocusRef={signalRef}/>}
+      {panel === 'signal' && signal && <TVSignalSheet path={signal.path} contextTitle={p.identity.title} onClose={close} returnFocusRef={signalRef}/>}
       {panel === 'lyrics' && lyrics && <TVAudioLyrics testID={`${id}.lyrics`} open title={t('player.lyrics')} onOpenChange={open => {if (!open) close();}} returnFocusRef={lyricsRef} restoreFocus={false}>{lyrics}</TVAudioLyrics>}
       {panel === 'eq' && <TVAudioEqualizer canvas={canvas}>
         <EqualizerPage focusScope={`${id}.eq`} onBack={close}

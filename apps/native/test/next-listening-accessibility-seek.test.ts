@@ -47,7 +47,7 @@ async function fixture(hosted = true) {
       useSharedValue: (value: unknown) => React.useRef({value}).current, useAnimatedStyle: (read: () => unknown) => read()},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: () => equalizer}},
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}},
-    '../../shared/player/EqualizerPage': {EqualizerPage: 'Equalizer'}, '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'},
+    '../../shared/player/EqualizerPage': {EqualizerPage: 'Equalizer'}, '../../../kit/player/SignalPath': {SignalLine: 'Signal', SignalSheet: 'SignalSheet', TVSignalSheet: 'SignalSheet'},
     '../../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': {clockText},
     '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork'},

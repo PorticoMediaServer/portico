@@ -28,7 +28,7 @@ import {TVListeningRoute} from '../pages/tv/player/ListeningRoute';
 import type {NowPlayingScreenProps} from '../pages/shared/player/audio-player';
 import {NowPlayingLyrics} from '../kit/player/NowPlayingLyrics';
 import type {LyricsTarget} from '../../../../packages/client-core/src/lyrics';
-import {musicSignalView} from '../screens/destinations/music/MusicSignal';
+import {musicSignalView} from '../screens/destinations/music/signal-path-model';
 import {NativeListeningNotice} from '../screens/destinations/music/ListeningNotice';
 import {NativePlayOnSheets} from '../screens/watch/PlayOnSheets';
 import {useListeningSong} from './use-listening-song';
