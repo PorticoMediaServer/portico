@@ -28,7 +28,7 @@ import type {NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPa
 import type {NativeWatchMenuExtra} from '../watch/factory';
 import {SavedLoading, SavedTail} from '../../kit/saved/SavedLoading';
 import {savedNearEnd} from './paging';
-import {SavedReorderList} from './SavedReorderList';
+import {SavedReorderList} from '../../kit/saved/SavedReorderList';
 import {SavedSortMenu} from '../../kit/saved/SavedSortMenu';
 import {homeCardText} from '../home/model';
 import {SavedConfirmSheet, SavedNameSheet} from '../../kit/saved/SavedForms';
