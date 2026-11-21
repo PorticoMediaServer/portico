@@ -155,7 +155,6 @@
 .songSelection[data-selected="true"] .song b { color: var(--color-accent-strong); }
 .songSelection[data-preview="true"] .song { background: color-mix(in srgb,var(--color-accent-strong) 12%,transparent); }
 .songSelection[data-preview="true"] > button[data-variant="row"][aria-pressed="false"] { background: color-mix(in srgb,var(--color-accent-strong) 45%,transparent); box-shadow: inset 0 0 0 2px var(--color-accent-strong); }
-.sectionActions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .section .selectGroup { opacity: 0; }
 .section:hover .selectGroup,.section:focus-within .selectGroup { opacity: 1; }
 /* Touch has no hover: a section's Select all shows once something in that section is selected (long press, Select), not in
