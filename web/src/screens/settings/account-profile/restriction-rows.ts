@@ -7,6 +7,7 @@ import {CodedError} from '@core/server-messages.ts';
 /** Allow unrated titles, downloads, Live TV, recordings and Watch Together are not limits the server keeps yet,
  * so their rows are not shown. */
 const absent = ['profile.allowUnrated', 'profile.allowDownloads', 'profile.allowLiveTv', 'profile.allowRecordings', 'profile.allowWatchTogether'];
+const noLimit = 'noLimit';
 export const isProfileRestriction = (id: string) => absent.includes(id) || ['profile.maxRating', 'profile.hiddenLabels'].includes(id);
 export function restrictionRow(source: ProfileRestrictionsSource, profiles: ProfileSettingsSource, id: string, _serverOwner = false): SettingPresentation | undefined {
   if (!isProfileRestriction(id)) return undefined;
@@ -22,8 +23,10 @@ export function restrictionRow(source: ProfileRestrictionsSource, profiles: Prof
     ...(state.problem ? {error: state.problem} : {})};
   if (id === 'profile.maxRating') {
     const system = state.systems?.find(system => system.id === document.ratingSystem) ?? (document.ratingSystem === '' ? state.systems?.[0] : undefined);
-    return {...common, value: document.maximumAgeRating, choices: [
-      {value: '', label: defaultI18n.t('next.settingsSpec.account.profile.groups.3.rows.0.control.options.0.label')},
+    // "No limit" is the empty rating; a select can't hold an empty value (the desktop one draws nothing and won't open),
+    // so the row names it `noLimit` and a change maps it back.
+    return {...common, value: document.maximumAgeRating || noLimit, choices: [
+      {value: noLimit, label: defaultI18n.t('next.settingsSpec.account.profile.groups.3.rows.0.control.options.0.label')},
       ...(system?.values.map(value => ({value: value.code, label: value.label})) ?? []),
     ], disabled: common.disabled || !system};
   }
@@ -33,6 +36,7 @@ export function changeRestriction(source: ProfileRestrictionsSource, id: string,
   const document = source.getSnapshot().document;
   if (!document) return undefined;
   if (id === 'profile.maxRating' && typeof value === 'string') {
+    if (value === noLimit) value = '';
     const system = source.getSnapshot().systems?.find(system => system.id === document.ratingSystem) ?? (document.ratingSystem === '' ? source.getSnapshot().systems?.[0] : undefined);
     if (value !== '' && !system?.values.some(option => option.code === value)) return undefined;
     return source.save({maximumAgeRating: value, ratingSystem: system?.id ?? document.ratingSystem});
