@@ -171,7 +171,7 @@ export function AudioPlayerFrame({close, context, source, device, more, notice, 
         {!loading && !book && <span className={styles.audioMarks}>{favourite && glyph(favourite, styles.audioMark)}{titleMore && glyph(titleMore, `${styles.audioMark} ${styles.audioTitleMore}`)}</span>}
       </div>
       {signal !== undefined && !loading && <div className={styles.audioSignal}>{signal}</div>}
-      {chapter && <p className={styles.audioChapter}><Icon name="i-list" /><b>{loading ? '' : chapter.label}</b><span>{loading ? '' : chapter.of}</span></p>}
+      {chapter && <p className={styles.audioChapter}>{(loading || chapter.label) && <Icon name="i-list" />}<b>{loading ? '' : chapter.label}</b><span>{loading ? '' : chapter.of}</span></p>}
       <div className={styles.audioSeek} data-group="1"><span>{loading ? '' : times.position}</span><div>{scrubber}</div>{times.middle !== undefined && <span className={styles.audioMiddle}>{loading ? '' : times.middle}</span>}<span>{loading ? '' : times.end}</span></div>
       <div className={styles.audioTransport} data-group="1">{transport.map((item, index) => <PlayerControl key={item.label} audio icon={item.icon} label={item.label} primary={index === 2} skip={item.skip} active={item.active}
         tone={!book && (index === 0 || index === 4) ? 'secondary' : undefined} disabled={item.disabled || loading} onPress={item.onPress} />)}</div>
