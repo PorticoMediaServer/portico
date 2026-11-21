@@ -33,22 +33,54 @@ export function useWebhookGroup({ports,runtime}:{ports:NativeSettingsLivePorts;r
 export function useServerWebhooks({group,runtime}:{group:WebhookGroup;runtime:NativeShellRuntime}) {
   const {source}=group,t=runtime.text.t as typeof defaultI18n.t,state=useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot);
   const [editor,setEditor]=useState<Editor>(),[confirmation,setConfirmation]=useState<Confirmation>(),[card,setCard]=useState<Card>(),[name,setName]=useState(''),[url,setUrl]=useState(''),[events,setEvents]=useState<readonly string[]>([]),[copied,setCopied]=useState(false),[copyError,setCopyError]=useState(false),[log,setLog]=useState<Readonly<{hook:Webhook}>>(),[menu,setMenu]=useState<ActionMenu>(),[testResult,setTestResult]=useState<WebhookTest>();
-  const view=useMemo(()=>({source,active:true,editor:undefined as Editor|undefined,confirmation:undefined as Confirmation|undefined,card:undefined as Card|undefined,io:undefined as object|undefined,log:undefined as Readonly<{hook:Webhook}>|undefined,menu:undefined as ActionMenu|undefined}),[source]);
-  useLayoutEffect(()=>{setTestResult(undefined);view.active=true;return()=>{view.active=false;view.editor=undefined;view.confirmation=undefined;view.card=undefined;view.io=undefined;view.log=undefined;view.menu=undefined;};},[view]);
+  const [pending, setPending] = useState<Editor | Confirmation>();
+  const view=useMemo(()=>({source,active:true,write:undefined as Editor | Confirmation | undefined,editor:undefined as Editor|undefined,confirmation:undefined as Confirmation|undefined,card:undefined as Card|undefined,io:undefined as object|undefined,log:undefined as Readonly<{hook:Webhook}>|undefined,menu:undefined as ActionMenu|undefined}),[source]);
+  useLayoutEffect(()=>{setTestResult(undefined);view.active=true;return()=>{view.active=false;view.write=undefined;view.editor=undefined;view.confirmation=undefined;view.card=undefined;view.io=undefined;view.log=undefined;view.menu=undefined;};},[view]);
   useEffect(()=>{void source.load();},[source]);
   const current=()=>view.active&&view.source===source&&group.current()&&source.getSnapshot().phase!=='idle';
   const listed=(hook:Webhook)=>!!source.getSnapshot().list?.items.includes(hook);
-  const heldEditor=editor&&view.editor===editor&&current()&&(!editor.hook||listed(editor.hook))?editor:undefined;
-  const heldConfirmation=confirmation&&view.confirmation===confirmation&&current()&&listed(confirmation.hook)?confirmation:undefined;
+  const heldEditor=editor&&view.editor===editor&&current()&&(view.write === editor || !editor.hook || listed(editor.hook))?editor:undefined;
+  const heldConfirmation=confirmation&&view.confirmation===confirmation&&current()&&(view.write === confirmation || listed(confirmation.hook))?confirmation:undefined;
   const heldCard=card&&view.card===card&&current()?card:undefined;
-  const writable=()=>current()&&!source.getSnapshot().busy&&!source.getSnapshot().uncertain&&source.getSnapshot().phase==='ready';
-  const openEditor=(hook?:Webhook)=>{if(!writable()||hook&&!listed(hook))return;const next={...(hook?{hook}:{})};view.confirmation=undefined;setConfirmation(undefined);view.editor=next;setEditor(next);setName(hook?.name??'');setUrl(hook?.url??'');setEvents(hook?.events??[]);view.card=undefined;view.io=undefined;setCard(undefined);};
-  const closeEditor=()=>{if(!heldEditor||view.editor!==heldEditor||!current())return;view.editor=undefined;setEditor(undefined);};
-  const closeConfirmation=()=>{if(!heldConfirmation||view.confirmation!==heldConfirmation||!current())return;view.confirmation=undefined;setConfirmation(undefined);};
+  const writable=()=>current()&&!view.write&&!source.getSnapshot().busy&&!source.getSnapshot().uncertain&&source.getSnapshot().phase==='ready';
+  const openEditor=(hook?:Webhook)=>{if(!writable() || view.editor || view.confirmation || view.card || view.log || hook && !listed(hook))return;const next={...(hook?{hook}:{})};view.confirmation=undefined;setConfirmation(undefined);view.editor=next;setEditor(next);setName(hook?.name??'');setUrl(hook?.url??'');setEvents(hook?.events??[]);view.card=undefined;view.io=undefined;setCard(undefined);};
+  const closeEditor=()=>{if(!heldEditor||view.editor!==heldEditor||view.write===heldEditor||!current())return;view.editor=undefined;setEditor(undefined);};
+  const closeConfirmation=()=>{if(!heldConfirmation||view.confirmation!==heldConfirmation||view.write===heldConfirmation||!current())return;view.confirmation=undefined;setConfirmation(undefined);};
   const closeCard=()=>{if(!heldCard||view.card!==heldCard)return;view.card=undefined;view.io=undefined;setCard(undefined);setCopied(false);setCopyError(false);};
   const showIssued=(issued:IssuedWebhook)=>{if(!issued.secret)return;const next={issued};view.card=next;setCard(next);setCopied(false);setCopyError(false);};
-  const save=async()=>{const captured=heldEditor;if(!captured||!writable()||view.editor!==captured||!name.trim()||!webhookAddressOk(url)||!events.length)return;const draft=Object.freeze({name:name.trim(),url:url.trim(),events:Object.freeze([...events])});const issued=captured.hook?await source.update(captured.hook,webhookEdits(captured.hook,draft)):await source.create(draft);if(!issued||!current()||view.editor!==captured)return;view.editor=undefined;setEditor(undefined);if('webhook' in issued)showIssued(issued);};
-  const confirm=async()=>{const captured=heldConfirmation;if(!captured||!writable()||view.confirmation!==captured||!listed(captured.hook))return;const result=await(captured.kind==='remove'?source.remove(captured.hook):source.rotate(captured.hook));if(!result||!current()||view.confirmation!==captured)return;view.confirmation=undefined;setConfirmation(undefined);if(typeof result==='object')showIssued(result);};
+  // The source clears busy before it refreshes the list. The opening owns the
+  // request until its returned one-time secret has been handed to the receipt.
+  const write = async (opening: Editor | Confirmation, work: () => Promise<void>) => {
+    view.write = opening;
+    setPending(opening);
+    try {await work();}
+    finally {
+      if (view.write === opening) {view.write = undefined; setPending(undefined);}
+    }
+  };
+  const save = async () => {
+    const captured = heldEditor;
+    if (!captured || !writable() || view.editor !== captured || !name.trim() || !webhookAddressOk(url) || !events.length) return;
+    const draft = Object.freeze({name: name.trim(), url: url.trim(), events: Object.freeze([...events])});
+    await write(captured, async () => {
+      const issued = captured.hook ? await source.update(captured.hook, webhookEdits(captured.hook, draft)) : await source.create(draft);
+      if (!issued || !current() || view.editor !== captured) return;
+      view.editor = undefined;
+      setEditor(undefined);
+      if ('webhook' in issued) showIssued(issued);
+    });
+  };
+  const confirm = async () => {
+    const captured = heldConfirmation;
+    if (!captured || !writable() || view.confirmation !== captured || !listed(captured.hook)) return;
+    await write(captured, async () => {
+      const result = await (captured.kind === 'remove' ? source.remove(captured.hook) : source.rotate(captured.hook));
+      if (!result || !current() || view.confirmation !== captured) return;
+      view.confirmation = undefined;
+      setConfirmation(undefined);
+      if (typeof result === 'object') showIssued(result);
+    });
+  };
   const cardIO=async(kind:'copy'|'share')=>{const captured=heldCard;if(!captured?.issued.secret||!current()||view.card!==captured||view.io)return;const io={};view.io=io;try{if(!current()||view.card!==captured||view.io!==io)return;if(kind==='copy')await copyText(captured.issued.secret);else await Share.share({title:captured.issued.webhook.name,message:captured.issued.secret});if(current()&&view.card===captured&&view.io===io){setCopied(kind==='copy');setCopyError(false);}}catch{if(current()&&view.card===captured&&view.io===io)setCopyError(true);}finally{if(view.io===io)view.io=undefined;}};
   const ask=(hook:Webhook,kind:Confirmation['kind'])=>{if(!writable()||!listed(hook))return;const next={hook,kind};view.editor=undefined;setEditor(undefined);view.card=undefined;view.io=undefined;setCard(undefined);view.confirmation=next;setConfirmation(next);};
   const edit=()=>!!heldEditor&&view.editor===heldEditor&&writable();
@@ -91,11 +123,11 @@ export function useServerWebhooks({group,runtime}:{group:WebhookGroup;runtime:Na
     if (edit()) setEvents(old => selectWebhookEventGroup(old, groupEvents, selected));
   };
   return {
-    state, testResult, writable: writable(), canSave: writable() && !!name.trim() && webhookAddressOk(url) && !!events.length,
+    state, pending: pending !== undefined && view.write === pending, testResult, writable: writable(), canSave: writable() && !!name.trim() && webhookAddressOk(url) && !!events.length,
     heldMenu, menuItems, openMenu, closeMenu, enable, openEditor, heldEditor, closeEditor, name, url, events, toggleEvent, toggleGroup,
     changeName: (value: string) => {if (edit()) setName(value);}, changeUrl: (value: string) => {if (edit()) setUrl(value);}, save,
     heldConfirmation, closeConfirmation, confirm, heldCard, closeCard, cardIO, copied, copyError,
     log: log && view.log === log && current() && listed(log.hook) ? log : undefined, closeLog, refreshLog, more,
-    refresh: () => {if (current()) void (state.uncertain ? source.reconcile() : source.load());},
+    refresh: () => {if (current() && !view.write) void (state.uncertain ? source.reconcile() : source.load());},
   };
 }
