@@ -17,7 +17,8 @@ export function RecordingsLayout({title, sourceLabel, allChannels, sourceName, c
 }) {
   const compact = useWindowWidth() < 600;
   const source = <Select className={styles.source} aria-label={sourceLabel} value="all" options={[{value: 'all', label: allChannels}]}/>;
-  const facts = <p><strong>{sourceName}</strong>{channels && <><RuleGap/>{channels}</>}{through && <><RuleGap/>{through}</>}</p>;
+  // The source's facts, as the guide states them; a page that has none to state draws none (never the server's name alone).
+  const facts = sourceName || channels || through ? <p>{sourceName && <strong>{sourceName}</strong>}{channels && <>{sourceName && <RuleGap/>}{channels}</>}{through && <><RuleGap/>{through}</>}</p> : undefined;
   return <section className={styles.page} data-live-rules>{navigation}
     {back && <div className={styles.phoneNav}><PushedNavBar safeArea={false} backLabel={back.label} title={back.title} onBack={back.onBack}/></div>}
     {compact ? <><header className={styles.header}><h1>{title}</h1>{source}{facts}</header>{tabs}</>

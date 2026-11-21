@@ -225,7 +225,8 @@ export function RecordingsPager({controller, snapshot}: {controller: RecordingsC
   </div>;
 }
 
-export function UpcomingView({context, controller, snapshot, now, onResolve, conflictDetails, canChange = true}: {context: ScreenContext; controller: RecordingsController; snapshot: ReturnType<RecordingsController['getSnapshot']>; now: number; onResolve: (recording: Recording, detail?: RecordingDetail) => void; conflictDetails?: Readonly<Record<string, RecordingDetail>>; canChange?: boolean}) {
+export function UpcomingView({context, controller, snapshot, now, onResolve, conflictDetails, canChange = true, onGuide}: {context: ScreenContext; controller: RecordingsController; snapshot: ReturnType<RecordingsController['getSnapshot']>; now: number; onResolve: (recording: Recording, detail?: RecordingDetail) => void; conflictDetails?: Readonly<Record<string, RecordingDetail>>; canChange?: boolean;
+  /** The empty state's way on (states-17b: Open the guide). */ onGuide?: () => void}) {
   const refusal = (recording: Recording) => snapshot.commandRecordingId === recording.id ? snapshot.commandError : undefined;
   const cancel = (recording: Recording) => mayCancel(recording, canChange) ? () => {void controller.cancel(recording);} : undefined;
   const recordings = snapshot.page?.recordings ?? [];
@@ -241,14 +242,14 @@ export function UpcomingView({context, controller, snapshot, now, onResolve, con
       {current.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} refusal={refusal(recording)}/>)}</section>}
     {later.length > 0 && <section className={styles.recSection}><h2>{t('next.live.laterToday')}<span>{dateOf(later[0]!.start)}</span></h2>
       {later.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
-    {!conflicted.length && !current.length && !later.length && <StateView title={t('recordings.noneScheduled')} body={t('recordings.noneScheduledBody')}/>}
+    {!conflicted.length && !current.length && !later.length && <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneScheduled')} body={t('recordings.noneScheduledBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
     <Dialog footerDismisses open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
       footer={<Button variant="glass" onClick={() => closeShown(shown)}>{t('next.overlays.close')}</Button>}>{shown && <p className={`${styles.dialogText} ${styles.dialogFacts}`}><span>{recordingStateLabel(shown.state)}</span>{shown.reason && <span>{recordingReason(shown.reason)}</span>}</p>}</Dialog>
   </div>;
 }
 
-export function RecordedView({context, controller, current, snapshot, everyone = false}: {context: ScreenContext; controller: RecordingsController; current: () => boolean; snapshot: ReturnType<RecordingsController['getSnapshot']>; everyone?: boolean}) {
+export function RecordedView({context, controller, current, snapshot, everyone = false, onGuide}: {context: ScreenContext; controller: RecordingsController; current: () => boolean; snapshot: ReturnType<RecordingsController['getSnapshot']>; everyone?: boolean; onGuide?: () => void}) {
   const [open, setOpen] = useState<{key: string; title: string}>();
   const sort = (snapshot.groupsSort ?? 'recent') as RecordingsSort;
   const groups = snapshot.groups?.groups ?? [];
@@ -260,7 +261,7 @@ export function RecordedView({context, controller, current, snapshot, everyone =
       <RecordingArt recording={group.recording} large={true} badges={<>{group.unwatched > 0 && <em className={styles.recArtCount}>{group.unwatched}</em>}{group.kept > 0 && <em>{t('recordings.kept')}</em>}{group.exceptions > 0 && <em>{t('dvr.state.incomplete')}</em>}</>}/>
       <span className={styles.recordedCopy}><b>{group.title}</b><small>{group.recording.channel?.name}</small>
         <small>{group.unwatched ? t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched}) : t('recordings.showCount', {count: group.recordings})}</small></span>
-    </button>)}</div> : <StateView title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')}/>}
+    </button>)}</div> : <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
     {open && <RecordedGroupPanel key={open.key} context={context} current={current} group={open.key} title={open.title} sort={sort} everyone={everyone} onClose={() => setOpen(value => value === open ? undefined : value)}/>}
   </div>;
@@ -330,12 +331,12 @@ function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGr
   </SidePanel>;
 }
 
-export function HistoryView({snapshot, now, controller}: {controller: RecordingsController; snapshot: ReturnType<RecordingsController['getSnapshot']>; now: number}) {
+export function HistoryView({snapshot, now, controller, onGuide}: {controller: RecordingsController; snapshot: ReturnType<RecordingsController['getSnapshot']>; now: number; onGuide?: () => void}) {
   const recordings = snapshot.page?.recordings ?? [], [shown, setShown] = useState<Recording>();
   const closeShown = (target: Recording | undefined) => setShown(current => current === target ? undefined : current);
   return <div className={styles.recBody}>{recordings.length
     ? recordings.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onDetails={() => setShown(recording)}/>)
-    : <StateView title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')}/>}
+    : <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
     <Dialog footerDismisses open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
       footer={<Button variant="glass" onClick={() => closeShown(shown)}>{t('next.overlays.close')}</Button>}>{shown && <p className={`${styles.dialogText} ${styles.dialogFacts}`}><span>{recordingStateLabel(shown.state)}</span>{shown.reason && <span>{recordingReason(shown.reason)}</span>}</p>}</Dialog>
@@ -391,12 +392,12 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
   const loading = snapshot.phase === 'loading' || snapshot.phase === 'idle';
   const body = loading ? <p role="status">{t('recordings.loading')}</p>
     : snapshot.error && !snapshot.page && !snapshot.storage ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: retry}}/>
-      : view === 'upcoming' ? <UpcomingView context={context} controller={lease.controller} snapshot={snapshot} now={now} onResolve={openConflict} canChange={!everyone || changesEveryones(context)}/>
-        : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot} everyone={everyone}/>
-          : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller}/>
+      : view === 'upcoming' ? <UpcomingView context={context} controller={lease.controller} snapshot={snapshot} now={now} onResolve={openConflict} canChange={!everyone || changesEveryones(context)} onGuide={goGuide}/>
+        : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot} everyone={everyone} onGuide={goGuide}/>
+          : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller} onGuide={goGuide}/>
             : <StorageView snapshot={snapshot} tuners={lease.tuners}/>;
   return <RecordingsLayout key={lease.id} title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
-    sourceName={context.identity?.serverName ?? ''} navigation={undefined} tabs={<LiveRecordingTabs view="recordings" conflicts={summary?.conflicts} onChange={value => {if (value === 'guide') goGuide();}}/>}
+    sourceName="" navigation={undefined} tabs={<LiveRecordingTabs view="recordings" conflicts={summary?.conflicts} onChange={value => {if (value === 'guide') goGuide();}}/>}
     back={{label: t('next.home.shell.live'), title: t('recordings.title'), onBack: goGuide}}>
     <RecordingPhoneTabs views={views} value={view} onChange={goView}/>
     <div className={styles.recordingsBar}>
