@@ -1,10 +1,12 @@
-import {Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
-import {playbackIdentity, type FactPart} from '@core/presentation/kit-model/index.ts';
+import {playbackIdentity} from '@core/presentation/kit-model/index.ts';
 import {sameFence, type PlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import {Icon, type IconName} from '../../kit/Icon';
 import {Artwork} from '../../kit/artwork';
-import {Button, Slider} from '../../kit/controls';
+import {Button} from '../../kit/controls';
+import {PlayerChromeFrame, type PlayerForm} from '../../kit/frames';
+import {PlayerControl, PlayerPill, PlayerTitle, PlayerVolume} from '../../kit/player';
 import {Menu, PanelPresence, useLeavingPresence, type MenuEntry} from '../../kit/overlays';
 import {KeyboardShortcuts} from '../../kit/states';
 import {LossNotice, SeekLine} from '../../kit/media';
@@ -37,19 +39,6 @@ const windowSize = () => `${window.innerWidth}:${window.innerHeight}`;
 const serverSize = () => '1440:810';
 const rectStyle = (rect: WatchRect | undefined): CSSProperties | undefined => rect ? {position: 'absolute', left: rect.left, top: rect.top, width: rect.width, height: rect.height, right: 'auto', bottom: 'auto'} : undefined;
 
-function Facts({parts}: {parts: readonly FactPart[]}) {
-  return parts.map((part, index) => <Fragment key={part.id}>{index > 0 && <span className={styles.gap} aria-hidden="true" />}<span data-fact={part.id}>{part.text}</span></Fragment>);
-}
-function Control({icon, label, action, disabled, main, skip, large, buttonRef, active}: {
-  icon: IconName; label: string; action: (button: HTMLButtonElement) => void; disabled?: boolean; main?: boolean; skip?: number; large?: boolean;
-  buttonRef?: RefObject<HTMLButtonElement | null>; active?: boolean;
-}) {
-  return <button ref={buttonRef} type="button" className={styles.control} data-main={main || undefined} data-large={large || undefined}
-    aria-label={label} title={label} disabled={disabled} aria-pressed={active} onClick={event => action(event.currentTarget)}>
-    <Icon name={icon} size={large ? 24 : skip !== undefined || main ? 28 : 22} />
-    {skip !== undefined && <small aria-hidden="true">{skip}</small>}
-  </button>;
-}
 
 /** The "Ends 4:48 PM" clock formatter, one per locale rather than one per progress tick. */
 const endClocks = new Map<string, Intl.DateTimeFormat>();
@@ -312,24 +301,30 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
       : t(kind === 'previous' ? 'next.dock.previous' : 'next.dock.next');
   };
   const skip = (delta: number) => { const seconds = watchSeek(snapshot, position + delta); if (seconds !== null) send({kind: 'seek', seconds}); };
-  const panelButton = (name: WatchPanel, icon: IconName, label: string, large = false) => surfaces?.available.includes(name) ? <Control icon={icon} label={label} large={large} active={panel === name} action={button => showPanel(name, button)} /> : null;
-  const transport = <div className={styles.transport}>
-    <Control icon="i-prev" label={neighbourLabel('previous')} disabled={!can('previous')} action={() => send({kind: 'previous'})} />
-    <Control icon={portrait ? 'i-rew' : 'i-back'} label={t('next.dock.back', {seconds: binding.skips.back})} skip={binding.skips.back} disabled={!can('seek')} action={() => skip(-binding.skips.back)} />
-    <Control main icon={mainKind === 'replay' ? 'i-back' : mainKind === 'pause' ? 'i-pause' : 'i-play'} label={t(mainKind === 'replay' ? 'next.dock.replay' : mainKind === 'pause' ? 'next.dock.pause' : 'next.dock.play')} disabled={!can(mainKind)} action={() => send({kind: mainKind})} />
-    <Control icon={portrait ? 'i-ffw' : 'i-fwd'} label={t('next.dock.forward', {seconds: binding.skips.forward})} skip={binding.skips.forward} disabled={!can('seek') || presentation?.finished} action={() => skip(binding.skips.forward)} />
-    <Control icon="i-next" label={neighbourLabel('next')} disabled={!can('next')} action={() => send({kind: 'next'})} />
-  </div>;
+  const panelButton = (name: WatchPanel, icon: IconName, label: string, onPicture = false) => surfaces?.available.includes(name) ? <PlayerControl icon={icon} label={label} onPicture={onPicture} tool={!onPicture} open={panel === name} onPress={button => showPanel(name, button)} /> : null;
+  const transport = <>
+    <PlayerControl icon="i-prev" label={neighbourLabel('previous')} disabled={!can('previous')} onPress={() => send({kind: 'previous'})} />
+    <PlayerControl icon={mobile ? 'i-rew' : 'i-back'} label={t('next.dock.back', {seconds: binding.skips.back})} skip={binding.skips.back} disabled={!can('seek')} onPress={() => skip(-binding.skips.back)} />
+    <PlayerControl primary icon={mainKind === 'replay' ? 'i-back' : mainKind === 'pause' ? 'i-pause' : 'i-play'} label={t(mainKind === 'replay' ? 'next.dock.replay' : mainKind === 'pause' ? 'next.dock.pause' : 'next.dock.play')} disabled={!can(mainKind)} onPress={() => send({kind: mainKind})} />
+    <PlayerControl icon={mobile ? 'i-ffw' : 'i-fwd'} label={t('next.dock.forward', {seconds: binding.skips.forward})} skip={binding.skips.forward} disabled={!can('seek') || presentation?.finished} onPress={() => skip(binding.skips.forward)} />
+    <PlayerControl icon="i-next" label={neighbourLabel('next')} disabled={!can('next')} onPress={() => send({kind: 'next'})} />
+  </>;
+  // The three drawn forms (frame 7): an upright phone's strip, a short or full-window phone with the transport in the
+  // picture, and the wide player. The player's own geometry decides the strip; the frame draws inside it.
+  const form: PlayerForm = portrait ? 'upright' : mobile && (height <= 500 || width < 600) ? 'sideways' : 'wide';
+  // The title's second line: the episode's number said first and brighter, then the rest (desktop-player: "S1 E2  Infected").
+  const episodeLead = identity?.subtitle.find(part => part.id === 'episode-label')?.text;
+  const subtitleRest = identity?.subtitle.filter(part => part.id !== 'episode-label').map(part => part.text).join('  ') || undefined;
   const quality = surfaces?.quality && fence && sameFence(surfaces.quality.fence, fence) ? surfaces.quality : undefined;
   // desktop-player f4b: the film-end card stands in for the transport once nothing follows.
   const endCard = surfaces?.end && presentation?.finished && snapshot.queueView?.next.available !== true ? surfaces.end : undefined;
   const tracks = surfaces?.tracks && fence && sameFence(surfaces.tracks.fence, fence) ? surfaces.tracks : undefined;
-  const namedTrack = (section: 'audio' | 'subtitles', label: string | undefined) => tracks && label !== undefined && surfaces?.available.includes(section) ? <button type="button" className={styles.trackPill} onClick={event => showPanel(section, event.currentTarget)}>
-    <Icon name={section === 'subtitles' ? 'i-cc' : 'i-audio'} size={17} />{t(section === 'subtitles' ? 'player.opt.subtitles' : 'player.opt.audio')}<span>{label}</span>
-  </button> : null;
-  const qualityButton = quality && surfaces?.available.includes('quality') ? <button type="button" className={styles.pill} aria-label={quality.accessibleLabel} title={t('player.opt.quality')} onClick={event => showPanel('quality', event.currentTarget)}>
-    {portrait && <Icon name="i-quality" size={15} />}{quality.automatic && <span>{t('next.controls.auto')}</span>}{quality.label}
-  </button> : null;
+  const namedTrack = (section: 'audio' | 'subtitles', label: string | undefined) => tracks && label !== undefined && surfaces?.available.includes(section)
+    ? <PlayerPill icon={section === 'subtitles' ? 'i-cc' : 'i-audio'} name={t(section === 'subtitles' ? 'player.opt.subtitles' : 'player.opt.audio')} value={label}
+      label={`${t(section === 'subtitles' ? 'player.opt.subtitles' : 'player.opt.audio')} ${label}`} open={panel === section} onPress={button => showPanel(section, button)} /> : null;
+  const qualityButton = quality && surfaces?.available.includes('quality')
+    ? <PlayerPill icon={portrait ? 'i-quality' : undefined} qualifier={quality.automatic ? t('next.controls.auto') : undefined} value={quality.label} label={quality.accessibleLabel}
+      open={panel === 'quality'} onPress={button => showPanel('quality', button)} /> : null;
   const menuItems: MenuEntry[] = [
     ...(surfaces?.available.includes('info') ? [{id: 'info', label: t('player.opt.info'), icon: 'i-info' as const, onSelect: () => showPanel('info', moreAnchor.current ?? undefined)}] : []),
     ...(windowPort?.fit ? [{id: 'fit', label: t(windowPort.fit.value === 'cover' ? 'web.player.fit.contain' : 'web.player.fit.fill'), icon: 'i-fith' as const, onSelect: () => effect(windowPort.fit!.toggle)}] : []),
@@ -338,12 +333,12 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
     {id: 'shortcuts', label: t('player.shortcuts'), icon: 'i-kbd', onSelect: () => setShortcuts(true)},
   ];
   const liveRight = <>
-    {!coarsePointer && can('volume') && <span className={styles.volume}><Control icon="i-vol" label={t(presentation?.muted ? 'player.unmute' : 'player.mute')} action={() => send({kind: 'mute'})} />
-      <Slider min={0} max={1} step={.01} value={presentation?.muted ? 0 : presentation?.volume} aria-label={t('player.volume')} onValueChange={volume => send({kind: 'volume', volume})} /></span>}
+    {!coarsePointer && can('volume') && <PlayerVolume value={presentation?.volume ?? 1} muted={!!presentation?.muted} label={t('player.volume')} muteLabel={t(presentation?.muted ? 'player.unmute' : 'player.mute')}
+      onChange={volume => send({kind: 'volume', volume})} onMute={() => send({kind: 'mute'})} />}
     {panelButton('subtitles-audio', 'i-cc', t('next.dock.subtitlesAudio'))}
     {qualityButton}
-    {windowPort?.pictureInPicture && <Control icon="i-pip" label={t('player.pictureInPicture')} active={windowPort.pictureInPicture.active} action={() => effect(windowPort.pictureInPicture!.toggle)} />}
-    {!touchTablet && (portrait || !windowPort?.fullscreen || !mobile) && <Control icon="i-full" label={t('next.states.shortcut.fullscreen')} active={fullWindow || windowPort?.fullscreen?.active} action={toggleFullscreen} />}
+    {windowPort?.pictureInPicture && <PlayerControl tool icon="i-pip" label={t('player.pictureInPicture')} active={windowPort.pictureInPicture.active} onPress={() => effect(windowPort.pictureInPicture!.toggle)} />}
+    {!touchTablet && (portrait || !windowPort?.fullscreen || !mobile) && <PlayerControl tool icon="i-full" label={t('next.states.shortcut.fullscreen')} active={fullWindow || windowPort?.fullscreen?.active} onPress={toggleFullscreen} />}
   </>;
   const stillWatching = surfaces?.modal === 'still-watching';
   useLayoutEffect(() => {gestureGate.current = valid && mobile && !panel && !externalPanel && !more && !shortcuts
@@ -442,27 +437,23 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
           right={liveRight} onMiniGuideOpenChange={setLiveGuideOpen}
           onDragChange={dragging => {liveDrag.current = dragging; if (dragging) {clearTimer(); setVisible(true);} else reveal();}} canPlayPause={can(mainKind)} canSeek={can('seek')} reportError={binding.reportError}/>
       </div> : <>
-        <div className={styles.shade} />
-        {endCard?.backdrop && <><div className={styles.endAmbient} aria-hidden="true"><Artwork source={endCard.backdrop} alt="" width="100%" height="100%" /></div><div className={styles.endVeil} aria-hidden="true" /></>}
-        {!(endCard && mobile) && <div className={styles.top} inert={!chromeVisible || videoGesture?.active || undefined}>
-          <Control large icon="i-down" label={t('player.minimize')} action={onCollapse} />
-          <div className={styles.identity}><h2>{identity?.title}</h2><p>{identity && <Facts parts={identity.subtitle} />}</p></div>
-          <div className={styles.together}>{surfaces?.together}</div>
-          <div className={styles.tools}>
+        {/* desktop-player f4b: the end card stands on its veil (over the film's blurred backdrop when it has one); the frame's
+            own scrim gives way while a card covers the stage. */}
+        {endCard && <>{endCard.backdrop && <div className={styles.endAmbient} aria-hidden="true"><Artwork source={endCard.backdrop} alt="" width="100%" height="100%" /></div>}<div className={styles.endVeil} aria-hidden="true" /></>}
+        {/* frame 7: the chrome is the kit's PlayerChromeFrame over the retained video (the picture and the watch page under an
+            upright phone's strip stay where the player's geometry puts them; the frame fills the chrome's box). */}
+        <PlayerChromeFrame fill form={form} picture={null} chromeVisible={chromeVisible && !stillWatching && !videoGesture?.active} scrubbing={!!activeScrub && mobile}
+          close={<PlayerControl onPicture icon="i-down" label={t('player.minimize')} onPress={onCollapse} />}
+          title={identity && <span className={styles.titleRow}><PlayerTitle title={identity.title} lead={episodeLead} subtitle={subtitleRest} /><span className={styles.together}>{surfaces?.together}</span></span>}
+          tools={<>
             {!endCard && panelButton('play-on', 'i-cast', t('player.playOn'), true)}
-            {mobile && windowPort?.pictureInPicture && <Control large icon="i-pip" label={t('player.pictureInPicture')} action={() => effect(windowPort.pictureInPicture!.toggle)} active={windowPort.pictureInPicture.active} />}
-            {portrait && panelButton('subtitles-audio', 'i-cc', t('next.dock.subtitlesAudio'))}
-            {mobile && panelButton('options', 'i-gear', t('next.dock.options'))}
-            {!mobile && !endCard && <Control large buttonRef={moreAnchor} icon="i-more" label={t('player.more')} active={more} action={() => { setPanel(null); setMore(value => !value); }} />}
-            {!mobile && <Control large icon="i-close" label={t('player.close')} action={() => send({kind: 'stop'})} />}
-          </div>
-        </div>}
-        {endCard ? <WatchEndCardView card={endCard} canReplay={can('replay')} onReplay={() => send({kind: 'replay'})} onClose={() => send({kind: 'stop'})} layout={mobile ? 'phone' : 'desktop'} reportError={binding.reportError}
-          artwork={url => binding.artwork.foreground(url, 512, 16 / 9, {group: 'playback', priority: 'high'})} /> : <>
-        {!playbackFailed && <div className={styles.center} inert={!chromeVisible || videoGesture?.active || undefined}>{transport}</div>}
-        <div className={styles.bottom} inert={!chromeVisible || videoGesture?.active || undefined}>
-          {/* The kit's seek line (one with the reader's): the screen keeps its own handlers, preview and layouts of it. */}
-          <SeekLine variant="player" dir="ltr" className={styles.seek} barClassName={styles.rail} inputRef={promptSeek}
+            {mobile && windowPort?.pictureInPicture && <PlayerControl onPicture icon="i-pip" label={t('player.pictureInPicture')} onPress={() => effect(windowPort.pictureInPicture!.toggle)} active={windowPort.pictureInPicture.active} />}
+            {portrait && panelButton('subtitles-audio', 'i-cc', t('next.dock.subtitlesAudio'), true)}
+            {mobile && panelButton('options', 'i-gear', t('next.dock.options'), true)}
+            {!mobile && !endCard && <PlayerControl onPicture icon="i-more" label={t('player.more')} active={more} onPress={button => { moreAnchor.current = button; setPanel(null); setMore(value => !value); }} />}
+            {!mobile && <PlayerControl onPicture icon="i-close" label={t('player.close')} onPress={() => send({kind: 'stop'})} />}
+          </>}
+          scrubber={<SeekLine variant="player" dir="ltr" inputRef={promptSeek}
             value={watchLineValue(bounds, drawnPosition, duration)}
             buffered={buffered.map(range => ({start: range.left / 100, end: (range.left + range.width) / 100}))}
             hover={hoverPercent === null ? null : hoverPercent / 100}
@@ -506,29 +497,26 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
                   if (seconds === null) return;
                   if (captured) { const next = {...captured, seconds}; scrubDrag.current = next; setScrub(next); }
                   else { setHoverSeconds(seconds); send({kind: 'seek', seconds}); }
-                }}} />
-          <div className={styles.times}>{portrait
-            ? <span className={styles.clock}><b>{watchClock(drawnPosition)}</b>{duration > 0 && <span>{`/ ${watchClock(duration)}`}</span>}</span>
-            : <><b>{watchClock(drawnPosition)}</b><span>{!mobile && endsAt && <>{t('guide.ends', {time: endsAt})}<span className={styles.gap} aria-hidden="true" /></>}<b>{duration > 0 ? `−${watchClock(Math.max(0, duration - drawnPosition))}` : ''}</b></span></>}</div>
-          <div className={styles.controls}>
-            <div className={styles.leading}>{surfaces?.available.includes('episodes')
-              ? <Button size="small" variant="glass" icon="i-stack" onClick={event => showPanel('episodes', event.currentTarget)}>{t('next.controls.episodes')}</Button>
-              : <>{chapterOffer.drawer && <Button size="small" variant="glass" icon="i-list" onClick={event => showPanel('chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
-                {surfaces?.available.includes('queue') && <Button size="small" variant="glass" icon="i-queue" onClick={event => showPanel('queue', event.currentTarget)}>{t('player.queue')}</Button>}</>}</div>
-            {playbackFailed ? <span aria-hidden="true" /> : transport}
-            <div className={styles.trailing}>
-              {!coarsePointer && can('volume') && <span className={styles.volume}><Control icon="i-vol" label={t(presentation?.muted ? 'player.unmute' : 'player.mute')} action={() => send({kind: 'mute'})} />
-                <Slider min={0} max={1} step={.01} value={presentation?.muted ? 0 : presentation?.volume} aria-label={t('player.volume')} onValueChange={volume => send({kind: 'volume', volume})} /></span>}
-              {!portrait && !mobile && panelButton('subtitles-audio', 'i-cc', t('next.dock.subtitlesAudio'))}
-              {!portrait && mobile && <>{namedTrack('subtitles', tracks?.subtitles)}{namedTrack('audio', tracks?.audio)}</>}
-              {qualityButton}
-              {!mobile && surfaces?.available.includes('speed') && <button type="button" className={styles.pill} aria-label={t('next.dock.speed', {rate: presentation?.rate ?? 1})} onClick={event => showPanel('speed', event.currentTarget)}>{t('next.dock.rate', {rate: presentation?.rate ?? 1})}</button>}
-              {!mobile && windowPort?.pictureInPicture && <Control icon="i-pip" label={t('player.pictureInPicture')} active={windowPort.pictureInPicture.active} action={() => effect(windowPort.pictureInPicture!.toggle)} />}
-              {!touchTablet && (portrait || !windowPort?.fullscreen || !mobile) && <Control icon="i-full" label={t('next.states.shortcut.fullscreen')} active={fullWindow || windowPort?.fullscreen?.active} action={toggleFullscreen} />}
-            </div>
-          </div>
-        </div>
-        </>}
+                }}} />}
+          times={{position: watchClock(drawnPosition), ...(duration > 0 ? {remaining: `−${watchClock(Math.max(0, duration - drawnPosition))}`, duration: watchClock(duration)} : {}),
+            ...(!mobile && endsAt ? {endsAt: t('guide.ends', {time: endsAt})} : {})}}
+          transport={playbackFailed || endCard ? null : transport}
+          leading={surfaces?.available.includes('episodes')
+            ? <Button size="small" variant="glass" icon="i-stack" onClick={event => showPanel('episodes', event.currentTarget)}>{t('next.controls.episodes')}</Button>
+            : <>{chapterOffer.drawer && <Button size="small" variant="glass" icon="i-list" onClick={event => showPanel('chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
+              {surfaces?.available.includes('queue') && <Button size="small" variant="glass" icon="i-queue" onClick={event => showPanel('queue', event.currentTarget)}>{t('player.queue')}</Button>}</>}
+          trailing={<>
+            {!coarsePointer && can('volume') && <PlayerVolume value={presentation?.volume ?? 1} muted={!!presentation?.muted} label={t('player.volume')} muteLabel={t(presentation?.muted ? 'player.unmute' : 'player.mute')}
+              onChange={volume => send({kind: 'volume', volume})} onMute={() => send({kind: 'mute'})} />}
+            {!portrait && !mobile && panelButton('subtitles-audio', 'i-cc', t('next.dock.subtitlesAudio'))}
+            {!portrait && mobile && <>{namedTrack('subtitles', tracks?.subtitles)}{namedTrack('audio', tracks?.audio)}</>}
+            {qualityButton}
+            {!mobile && surfaces?.available.includes('speed') && <PlayerPill value={t('next.dock.rate', {rate: presentation?.rate ?? 1})} label={t('next.dock.speed', {rate: presentation?.rate ?? 1})} open={panel === 'speed'} onPress={button => showPanel('speed', button)} />}
+            {!mobile && windowPort?.pictureInPicture && <PlayerControl tool icon="i-pip" label={t('player.pictureInPicture')} active={windowPort.pictureInPicture.active} onPress={() => effect(windowPort.pictureInPicture!.toggle)} />}
+            {!touchTablet && (portrait || !windowPort?.fullscreen || !mobile) && <PlayerControl tool icon="i-full" label={t('next.states.shortcut.fullscreen')} active={fullWindow || windowPort?.fullscreen?.active} onPress={toggleFullscreen} />}
+          </>}
+          card={endCard ? <WatchEndCardView card={endCard} canReplay={can('replay')} onReplay={() => send({kind: 'replay'})} onClose={() => send({kind: 'stop'})} layout={mobile ? 'phone' : 'desktop'} reportError={binding.reportError}
+            artwork={url => binding.artwork.foreground(url, 512, 16 / 9, {group: 'playback', priority: 'high'})} /> : undefined} />
       </>}
     </div>
     {open && surfaces?.loss && <LossNotice notice={surfaces.loss.notice} enabled={surfaces.loss.enabled} layout={mobile ? 'phone' : 'desktop'} />}
