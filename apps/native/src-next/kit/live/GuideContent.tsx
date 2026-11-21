@@ -210,9 +210,11 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
     <ToastHost toast={toast} onDismiss={() => setToast(null)} bottomOffset={phone ? 96 : 0} obstructionTop={dockTop}/>
   </>;
   return {title: t('search.chip.liveTV'), switcher: expandedTouch ? sourcePicker : undefined,
-    actions: theme.isTV ? controlsRow : expandedTouch ? undefined : phoneActions,
-    tabs: <>{expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts}
-      onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>{viewSwitch}</NativeLiveTabs>}{channelFilters}</>,
+    // A tablet's Guide / Recordings pair and the view switch sit on the title's line, inside the gutter (tablet-play 6), as on
+    // the Recordings page; the row under the title is the channel filters.
+    actions: theme.isTV ? controlsRow : expandedTouch ? <NativeLiveTabs value="guide" t={t} conflicts={conflicts}
+      onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>{viewSwitch}</NativeLiveTabs> : phoneActions,
+    tabs: channelFilters,
     toolbar: theme.isTV ? undefined : phoneChrome ? phoneToolbar : timeRow,
     list: guideView, overlay: overlays, flushList: theme.isTV, testID: theme.isTV ? 'tv-live-guide' : 'phone-live-guide'};
 }
