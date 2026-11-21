@@ -1,9 +1,9 @@
 import React, {useRef, useState} from 'react';
 import {Text, View, type LayoutChangeEvent} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button, Switch} from '../controls';
+import {Button, Chip, Switch} from '../controls';
 import {Menu} from '../overlays';
-import {useTheme} from '../theme';
+import {fontFamilies, useTheme} from '../theme';
 
 type Widths = Readonly<{row: number; chip: number; count: number; end: number}>;
 
@@ -22,7 +22,7 @@ export function SeasonBar({label, count, onSeasons, hideWatched, onHideWatched, 
    * per-show Episode display, DEFERRED row 258), so the menu offers only what works. */
   settings?: Readonly<{label: string; onPress?: () => void}>;
 }) {
-  const theme = useTheme(), t = defaultI18n.t, phone = theme.platform === 'phone', gap = phone ? 8 : 10;
+  const theme = useTheme(), t = defaultI18n.t, phone = theme.platform === 'phone', gap = phone ? 12 : 10;
   const more = useRef<View>(null), [open, setOpen] = useState(false);
   const [widths, setWidths] = useState<Widths>({row: 0, chip: 0, count: 0, end: 0});
   const measure = (key: keyof Widths) => (event: LayoutChangeEvent) => {
@@ -32,16 +32,17 @@ export function SeasonBar({label, count, onSeasons, hideWatched, onHideWatched, 
   const switchRow = !theme.isTV && !settings, end = switchRow || !!settings;
   // Every part keeps its natural width (the count is still measured while dropped), so this never flips back and forth.
   const dropCount = !!count && widths.row > 0 && widths.chip + gap + widths.count + (end ? gap + widths.end : 0) > widths.row;
-  // A phone's season chip is the frames' `.ep-bar .chip` (phone-player, phone-app: 36 tall, radius 9, 13 across, 13.5 type):
-  // the xs button (34, 9, 13, 14), the kit's nearest, in place of the 42 pt small button.
+  // The season picker is the frames' `.ep-bar .chip` (phone-app, phone-player): the kit Chip, raised-high fill, chip type, with
+  // its chevron; a glass button drew it as grey frosted glass on the title art.
   return <View testID="watch-season-bar" onLayout={measure('row')} style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap}}>
-    <Button testID="watch-seasons-open" variant="glass" size={phone ? 'xs' : 'small'} trailingIcon="i-chdown" labelLines={2} onLayout={measure('chip')}
-      accessibilityLabel={dropCount ? `${label}, ${count}` : undefined} style={{flexShrink: 0, maxWidth: '100%'}} onPress={onSeasons}>{label}</Button>
+    <Chip testID="watch-seasons-open" trailingIcon="i-chdown" labelLines={2} onLayout={measure('chip')}
+      accessibilityLabel={dropCount ? `${label}, ${count}` : undefined} style={{flexShrink: 0, maxWidth: '100%'}} onPress={onSeasons}>{label}</Chip>
     {count ? <Text testID="watch-season-count" onLayout={measure('count')} numberOfLines={1} accessibilityElementsHidden={dropCount} importantForAccessibility={dropCount ? 'no-hide-descendants' : 'auto'}
-      style={[theme.type.caption, {color: theme.colors.textTertiary, flexShrink: 0}, dropCount ? {position: 'absolute', opacity: 0} : null]}>{count}</Text> : null}
+      style={[theme.type.rowSubtitle, {color: theme.colors.textTertiary, flexShrink: 0}, dropCount ? {position: 'absolute', opacity: 0} : null]}>{count}</Text> : null}
     {end && <View testID="watch-season-end" onLayout={measure('end')} style={{marginLeft: 'auto', flexShrink: 0}}>
-      {switchRow ? <View testID="watch-season-controls" style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-        <Text style={[theme.type.bodyStrong, {fontSize: 12.5, color: theme.colors.textSecondary}]}>{t('next.controls.hideWatched')}</Text>
+      {switchRow ? <View testID="watch-season-controls" style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+        {/* The frame's `.ep-bar .right`: 14 / 600 in the second text colour, the count 14 in the third, the bar 12 apart. */}
+        <Text style={[theme.type.rowSubtitle, {fontFamily: fontFamilies[600], color: theme.colors.textSecondary}]}>{t('next.controls.hideWatched')}</Text>
         <Switch testID="watch-hide-watched" variant={phone ? 'episode' : 'selection'} checked={hideWatched} accessibilityLabel={t('next.controls.hideWatched')} onCheckedChange={onHideWatched}/>
       </View> : <Button ref={more} testID="watch-show-settings-open" variant="icon" icon="i-more" iconOnly accessibilityLabel={settings!.label} accessibilityState={{expanded: open}} onPress={() => setOpen(true)}/>}
     </View>}

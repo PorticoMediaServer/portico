@@ -22,11 +22,13 @@ export type ChipProps = Omit<FocusableProps, 'children'> & {
   trailingIcon?: IconName;
   iconSize?: number;
   textStyle?: StyleProp<TextStyle>;
+  /** Lines the label may take before it is cut; the chip grows from its height to hold them (a season's long name). */
+  labelLines?: number;
 };
 
 export const Chip = forwardRef<View, ChipProps>(function Chip({
   children, variant = 'default', selected, defaultSelected, onSelectedChange, count, countStyle = 'text', dim = false, retry = false, prefix,
-  icon, trailingIcon, iconSize, disabled, accessibilityState, style, textStyle, hitSlop, onPress, ...props
+  icon, trailingIcon, iconSize, disabled, accessibilityState, style, textStyle, hitSlop, onPress, labelLines = 1, ...props
 }, ref) {
   const theme = useTheme();
   const geometry = chipGeometry(variant, theme.column);
@@ -46,7 +48,7 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
     accessibilityRole={checkbox ? 'checkbox' : props.accessibilityRole ?? 'button'} accessibilityState={{...accessibilityState, ...(checkbox ? {checked} : toggle ? {selected: checked} : {})}}
     onPress={event => {if (!disabled) {onPress?.(event); if (toggle && !event.defaultPrevented) setChecked(!checked);}}}
     hitSlop={hitSlop ?? {top: slop, bottom: slop, left: slop, right: slop}}
-    style={state => [styles.chip, {height: geometry.height, borderRadius: geometry.radius, paddingHorizontal: geometry.paddingX, paddingRight: geometry.paddingRight,
+    style={state => [styles.chip, {...(labelLines > 1 ? {minHeight: geometry.height, paddingVertical: theme.space.hairline * 3} : {height: geometry.height}), borderRadius: geometry.radius, paddingHorizontal: geometry.paddingX, paddingRight: geometry.paddingRight,
       gap: geometry.gap, borderWidth: theme.isTV ? 1.5 : 1, borderColor: border,
       opacity: disabled ? .45 : dim ? .5 : 1,
       backgroundColor: dim ? 'transparent' : desktop && variant === 'pill' ? colorAlpha(theme.colors.text, .1) : desktop && applied ? theme.colors.raisedBright : checked ? colorAlpha(theme.colors.accent, theme.isTV ? .24 : desktopChoice ? variant === 'facet' ? .2 : .18 : .28) : isFacet ? 'transparent' : theme.isTV && !applied ? colorAlpha(theme.colors.text, .08) : theme.colors.raisedHigh},
@@ -56,7 +58,7 @@ export const Chip = forwardRef<View, ChipProps>(function Chip({
     {icon ? <Icon name={icon} size={glyphSize} color={checked ? theme.colors.accentStrong : color} /> : null}
     {/* A face or other drawn prefix (the saved accounts on sign-in, auth 4) sits as itself; words take the chip's quiet type. */}
     {prefix !== undefined && typeof prefix !== 'string' ? prefix : prefix !== undefined ? <Text numberOfLines={1} style={[theme.type.chip, {color: theme.colors.textTertiary, fontFamily: fontFamilies[600], fontSize: geometry.fontSize * theme.textScale}]}>{prefix}</Text> : null}
-    <Text numberOfLines={1} ellipsizeMode="tail" style={[theme.type.chip, styles.label, {color, fontFamily: fontFamilies[labelWeight], fontSize: geometry.fontSize * theme.textScale}, textStyle]}>{children}</Text>
+    <Text numberOfLines={labelLines} ellipsizeMode="tail" style={[theme.type.chip, styles.label, {color, fontFamily: fontFamilies[labelWeight], fontSize: geometry.fontSize * theme.textScale}, textStyle]}>{children}</Text>
     {count !== undefined && count !== null ? <Text numberOfLines={1} style={[theme.type.captionStrong, {color: theme.isTV ? color : checked ? theme.colors.textSecondary : theme.colors.textTertiary, opacity: theme.isTV && countStyle === 'text' ? .7 : 1, fontSize: (theme.isTV ? geometry.fontSize : theme.platform === 'web' ? 13 : 12) * theme.textScale, fontFamily: fontFamilies[theme.isTV || theme.platform === 'web' ? 600 : 700]},
       countStyle === 'badge' ? {color: theme.colors.actionInk, backgroundColor: theme.colors.accentStrong, minWidth: theme.isTV ? 30 : 21, height: theme.isTV ? 30 : 21, borderRadius: theme.isTV ? 15 : 11, paddingHorizontal: 6, textAlign: 'center', textAlignVertical: 'center', fontFamily: fontFamilies[800]} : undefined]}>{count}</Text> : null}
     {retry ? <Icon name="i-retry" size={theme.isTV ? 24 : 16} color={theme.colors.accentStrong} /> : null}
