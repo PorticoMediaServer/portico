@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {View} from 'react-native';
 import {Select} from '../../kit/controls';
 import {StateView} from '../../kit/states';
+import {SettingsRow} from '../../kit/shell';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeDevicePreferences} from './device-preference-consumer';
 
@@ -31,9 +32,12 @@ export function NativeSafeModeRow({source, runtime, current}: {source: NativeDev
     } catch (failure) {if (alive.current && current()) setError(failure);}
     finally {inFlight.current = false; if (alive.current && current()) setBusy(false);}
   };
-  return <View style={{marginBottom: 30}}>
-    <Select focusId={nativeSafeModeFocusId} testID={nativeSafeModeFocusId} disabled={busy} rowLabel={t('next.settingsSpec.account.quality.groups.2.rows.1.label')} description={t('next.settingsSpec.account.quality.groups.2.rows.1.help')} value={value}
-      options={(['automatic', 'safe', 'custom'] as const).map((choice, index) => ({value: choice, label: t(`next.settingsSpec.account.quality.groups.2.rows.1.control.options.${index}.label` as Parameters<typeof t>[0]), disabled: choice === 'custom'}))} onValueChange={choice => {void apply(choice);}}/>
+  // tv-more 22: an ordinary row of the Screen and sound card (label, help, This device, the value), as every choice row is.
+  return <View>
+    <SettingsRow testID={`${nativeSafeModeFocusId}-row`} label={t('next.settingsSpec.account.quality.groups.2.rows.1.label')}
+      description={t('next.settingsSpec.account.quality.groups.2.rows.1.help')} scope={t('settings.thisDevice')}
+      control={<Select focusId={nativeSafeModeFocusId} testID={nativeSafeModeFocusId} disabled={busy} accessibilityLabel={t('next.settingsSpec.account.quality.groups.2.rows.1.label')} value={value}
+        options={(['automatic', 'safe', 'custom'] as const).map((choice, index) => ({value: choice, label: t(`next.settingsSpec.account.quality.groups.2.rows.1.control.options.${index}.label` as Parameters<typeof t>[0]), disabled: choice === 'custom'}))} onValueChange={choice => {void apply(choice);}} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>
     {error !== undefined && <StateView variant="inline" {...runtime.error(error, () => setError(undefined))}/>}
   </View>;
 }

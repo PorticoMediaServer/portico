@@ -188,6 +188,7 @@ export function useSettingsPreferences({page, ports, controller, runtime, device
   const showDynamicRange = theme.isTV && nativeDynamicRangeMatchingAvailable();
   const rowIds = sections.flatMap(section => [...section.rows.filter(visible).map(settingsRowId).filter(id => id !== 'equalizer'),
     ...(showEqualizer && section.id === 'sound' ? ['settings-equalizer'] : []),
+    ...(showSafeMode && section.id === 'tvOutputs' ? [nativeSafeModeFocusId] : []),
     ...(section.id === 'limits' && awayLimitLabel ? ['settings-away-limit', ...(!theme.isTV ? ['settings-away-limit-change'] : [])] : []),
     ...(theme.isTV && Platform.OS === 'android' && page.id === 'device' && advanced && section.id === 'about' ? passthroughFormats.map(format => `settings-passthrough-${format}`) : []),
     ...(theme.isTV && page.id === 'device' && section.id === 'device' ? [...(Platform.OS === 'android' ? [nativeFrameRateFocusId, nativePassthroughFocusId] : []), ...(showDynamicRange ? [nativeDynamicRangeFocusId] : []), nativeLossNoticesFocusId] : [])]);
@@ -208,7 +209,6 @@ export function useSettingsPreferences({page, ports, controller, runtime, device
     if (!scope) throw new Error('native_settings_scope_unavailable');
     void controller.apply(scope, patch).catch(runtime.reportError);
   };
-  if (showSafeMode) rowIds.unshift(nativeSafeModeFocusId);
   if (pageSections.some(section => section.advanced)) rowIds.push('settings-advanced');
   const device: MessageId = Platform.isTV ? Platform.OS === 'ios' ? 'device.noun.appleTV' : String((Platform.constants as {Manufacturer?: string}).Manufacturer ?? '').toLowerCase() === 'amazon' ? 'device.noun.fireTV' : 'device.noun.androidTV'
     : Platform.OS === 'ios' ? (Platform as {isPad?: boolean}).isPad ? 'device.noun.iPad' : 'device.noun.iPhone' : Math.min(Dimensions.get('screen').width, Dimensions.get('screen').height) >= 600 ? 'device.noun.tablet' : 'device.noun.phone';

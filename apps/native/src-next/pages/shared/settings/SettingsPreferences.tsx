@@ -34,7 +34,6 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
     choices, setChoices, languages, setLanguages, firstLanguage} = useSettingsPreferences(props);
   return <><SettingsControlRows id={region} entry={hostedRows ? rowIds[0] : undefined} entryPolicy="entry" order={hostedRows ? rowIds : undefined} orientation="vertical" edges={{left: column, ...verticalEdges}}>
     {actionError !== undefined && <StateView {...runtime.error(actionError, () => setActionError(undefined), 'settings')}/>}
-    {showSafeMode && <NativeSafeModeRow source={devicePreferences} runtime={runtime} current={controller.lifetime.current}/>}
     {sections.map(section => <React.Fragment key={section.id}><SectionCard label={section.title && t(section.title)} help={section.description && t(section.description)} plain={isTV && section.id === 'note'}>
       {section.rows.filter(visible).map((row, index) => {
         const id = settingsRowId(row);
@@ -126,13 +125,14 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
       })}
       {/* PX-05 sits under the Notification dot; the shared structure stays web's (Portico Account only). */}
       {!isTV && page.id === 'profile' && section.id === 'notifications' && <NativeServerOfflineNoticeRow context={ports.context} runtime={runtime} lifetime={controller.lifetime}/>}
+      {showSafeMode && section.id === 'tvOutputs' && <NativeSafeModeRow source={devicePreferences} runtime={runtime} current={controller.lifetime.current}/>}
       {section.id === 'limits' && awayLimitLabel ? <>
         <SettingsRow testID="settings-away-limit" label={t('next.settingsSpec.account.quality.groups.0.rows.3.label')} description={t('next.settingsSpec.account.quality.groups.0.rows.3.help')} value={awayLimitLabel}/>
         {!isTV && <SettingsRow navigates testID="settings-away-limit-change" label={t('next.settingsSpec.account.quality.groups.0.rows.3.children.0.label')} onPress={onStreaming}/>}
       </> : null}
     </SectionCard>
     {isTV && page.id === 'device' && section.id === 'device' && (
-      <>
+      <SectionCard label={t('next.settingsSpec.account.device.groups.1.title')}>
         {android && (
           <>
             <NativeFrameRateRow context={ports.context} runtime={runtime}/>
@@ -141,7 +141,7 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
         )}
         {showDynamicRange && <NativeDynamicRangeRow context={ports.context} runtime={runtime}/>}
         <NativeLossNoticesRow context={ports.context} runtime={runtime}/>
-      </>
+      </SectionCard>
     )}
     {isTV && android && page.id === 'device' && advanced && section.id === 'about' && (
       <>

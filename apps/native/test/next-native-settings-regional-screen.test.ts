@@ -35,7 +35,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
   react.default = react;
   const theme = createTheme({width: isTV ? 1920 : 800, isTV});
   const safeMode = await screenModule(new URL('../src-next/screens/settings-live/NativeSafeModeRow.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View'}, '../../kit/controls': {Select: 'Select'}, '../../kit/states': {StateView: 'StateView'},
+    react, 'react-native': {View: 'View'}, '../../kit/controls': {Select: 'Select'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell': {SettingsRow: 'SettingsRow'},
   });
   const module = await settingsFixture({'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},
     './use-tv-voice-search': {useTVVoiceSearch: () => ({start: undefined, busy: false})},

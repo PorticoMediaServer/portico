@@ -2,6 +2,7 @@ import React, {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore}
 import {View} from 'react-native';
 import {Select} from '../../kit/controls';
 import {StateView} from '../../kit/states';
+import {SettingsRow} from '../../kit/shell';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeDeviceSettings} from '../../platform/device-settings';
@@ -25,13 +26,15 @@ export function NativeDynamicRangeRow({context, runtime}: {context: NativeShellB
     catch (failure) {if (live.current && live.owner.current()) setError(failure);}
     finally {pending.current = false; if (live.current && live.owner.current()) setBusy(false);}
   };
+  // tv-more 31: an ordinary row of the Picture and sound card, as every choice row is.
   return <View>
-    <Select testID={nativeDynamicRangeFocusId} focusId={nativeDynamicRangeFocusId} rowLabel={t('next.settingsSpec.account.device.groups.1.rows.2.label')}
-      disabled={busy} value={value}
-      options={[
-        {value: 'auto', label: t('next.settingsSpec.account.device.groups.1.rows.2.control.options.0.label')},
-        {value: 'off', label: t('next.settingsSpec.account.device.groups.1.rows.2.control.options.1.label')},
-      ]} onValueChange={next => {void apply(next);}}/>
+    <SettingsRow testID={`${nativeDynamicRangeFocusId}-row`} label={t('next.settingsSpec.account.device.groups.1.rows.2.label')} scope={t('settings.thisDevice')}
+      control={<Select testID={nativeDynamicRangeFocusId} focusId={nativeDynamicRangeFocusId} accessibilityLabel={t('next.settingsSpec.account.device.groups.1.rows.2.label')}
+        disabled={busy} value={value}
+        options={[
+          {value: 'auto', label: t('next.settingsSpec.account.device.groups.1.rows.2.control.options.0.label')},
+          {value: 'off', label: t('next.settingsSpec.account.device.groups.1.rows.2.control.options.1.label')},
+        ]} onValueChange={next => {void apply(next);}} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>
     {error !== undefined && <StateView variant="inline" {...runtime.error(error, () => setError(undefined))}/>}
   </View>;
 }
