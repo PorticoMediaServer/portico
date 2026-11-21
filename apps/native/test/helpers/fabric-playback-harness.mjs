@@ -134,7 +134,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},
     '../kit/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
-    '../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
+    '../kit/player/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
     '../screens/destinations/music/MusicSignal': signalView, '../screens/destinations/music/signal-facts': signalFacts,
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': {listeningNoticeKey},
     '../kit/dock': {DockHost, PlayerMorph, usePlayerMorph, bindNativeDock},

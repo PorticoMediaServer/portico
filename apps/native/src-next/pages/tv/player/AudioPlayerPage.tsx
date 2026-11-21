@@ -7,7 +7,7 @@ import {Menu} from '../../../kit/overlays';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
 import {EqualizerPage} from '../../shared/player/EqualizerPage';
 import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/music/MusicSignal';
-import {NativeListeningNotice} from '../../../screens/destinations/music/ListeningNotice';
+import {NativeListeningNotice} from '../../../kit/player/ListeningNotice';
 import {NowPlayingQueue} from '../../../kit/player/NowPlayingQueue';
 import {nowPlayingQueueFocusScope, nowPlayingQueueEditPort} from '../../shared/player/useNowPlayingQueue';
 import {TVMusicFocus, TVMusicSeek} from '../../../screens/destinations/music/TVMusicFocus';
