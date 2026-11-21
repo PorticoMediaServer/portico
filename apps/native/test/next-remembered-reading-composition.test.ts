@@ -69,12 +69,12 @@ test(`remembered ${format} composition: ${mixed ? 'mixed' : 'publication only'},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, './asset-origin': {readerAssetEntry}, './ReadingGuestView': {ReadingGuestView, createReadingGuestBridge},
   });
-  const {RememberedReadingScreen} = await screenModule(new URL('../src-next/screens/downloads/RememberedReadingScreen.tsx', import.meta.url), {
+  const {RememberedReadingPage: RememberedReadingScreen} = await screenModule(new URL('../src-next/pages/touch/downloads/RememberedReadingPage.tsx', import.meta.url), {
     react: {...fabricReact, default: fabricReact}, 'react-native': {View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../kit/overlays/surface': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
-    '../../kit/states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../pages/touch/reading/ReaderGuestPage': {ReaderGuestPage: 'NativeReadingGuestHost'},
+    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})}, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../kit/overlays/surface': {Dialog: 'Dialog'}, '../../../kit/controls': {Button: 'Button'}, '../../../kit/frames/ReaderFrame': {ReaderFrame: 'ReaderFrame'},
+    '../reading/ReaderGuestPage': {ReaderGuestPage: 'NativeReadingGuestHost'},
+    '../../shared/downloads/useRememberedReading': await screenModule(new URL('../src-next/pages/shared/downloads/useRememberedReading.ts', import.meta.url), {react: {...fabricReact, default: fabricReact}}),
   });
   let opened: any;
   const original = await createRememberedDownloadsOpening({current: () => root}, {signal: new AbortController().signal, isCurrent: () => root,
