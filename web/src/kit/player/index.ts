@@ -12,4 +12,5 @@ export {PlayerEpisodes} from './PlayerEpisodes';
 export {PlayerUpNext, type PlayerUpNextAction, type PlayerUpNextProps} from './PlayerUpNext';
 export type {PlayerPanel, PlayerPanelContext, PlayerOptionsModel, PlayerRadioChoice, PlayerEpisodeList, PlayerEpisodeRow, PlayerEpisodeSeason} from './panel-types';
 export {PlayerLive, type PlayerLiveProps} from './PlayerLive';
+export {LivePage} from './LivePage';
 export type * from './live-types';

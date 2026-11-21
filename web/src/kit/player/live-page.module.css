@@ -1,0 +1,12 @@
+/* The channel's page under an upright live picture (phone-player 1c and 1e, phone-app 11), on the page gutter. */
+.page { display: grid; gap: var(--space-sm); padding: var(--space-md) var(--shell-gutter) var(--frame-bottom-clear); color: var(--color-text); }
+.channel { margin: 0; display: flex; align-items: center; gap: var(--space-xs); font-size: var(--type-row-label-size); color: var(--color-text-secondary); }
+.channel b { color: var(--color-text); font-weight: var(--type-row-label-weight); }
+.mark { flex: none; border-radius: var(--radius-artwork); }
+.live { display: inline-flex; align-items: center; gap: var(--space-tight); color: var(--color-record); font-weight: var(--type-button-weight); }
+.live i { width: var(--space-px-8); height: var(--space-px-8); border-radius: 50%; background: var(--color-record); }
+.title { margin: 0; font-size: var(--type-page-title-size); line-height: var(--type-page-title-line); font-weight: var(--type-page-title-weight); letter-spacing: var(--type-page-title-tracking); }
+.when { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-tight) var(--space-md); font-size: var(--type-intro-size); line-height: var(--type-intro-line); color: var(--color-text-secondary); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-xs); }
+/* Record is the red mark, as in the player's top bar. */
+.record svg { color: var(--color-record); }

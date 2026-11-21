@@ -29,6 +29,7 @@ import {watchQueueNeighbours} from './queue-neighbours';
 import {WatchDockPanelOpening, type WatchDockPanel} from './dock-panel-opening';
 import {PlayerEndCard as WatchEndCardView} from '../../kit/player/EndCard';
 import {PlayerLive} from '../../kit/player/PlayerLive';
+import {LivePage} from '../../kit/player/LivePage';
 import type {LiveChromePort} from '../live/live-chrome-types';
 import {WatchPromptFocus, type PromptFocusHost} from './prompt-focus';
 import {bufferedSegments} from './buffered-ranges';
@@ -528,7 +529,8 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
       const anchor = Array.from(element.querySelectorAll<HTMLElement>('[data-episode-id],[data-entry-id],[data-item-id],h2,h3')).find(value => value.getBoundingClientRect().bottom > top);
       bodyScroll.current = {identity: surfaces?.bodyIdentity, top: element.scrollTop, left: element.scrollLeft, anchor, offset: anchor ? anchor.getBoundingClientRect().top - top : undefined};
     }}>
-      {surfaces?.body}
+      {/* A live channel has no title page: under an upright picture the watch page is the channel's (the owner's 18 Nov ruling). */}
+      {surfaces?.body ?? (liveChrome && <LivePage port={liveChrome} reportError={binding.reportError}/>)}
     </div>
     {panelPresence.shown === 'chapters' ? <PanelPresence leaving={panelPresence.leaving}><WatchChaptersDrawer chapters={chapters} onSeek={seconds => send({kind: 'seek', seconds})} onClose={() => setPanel(null)} /></PanelPresence>
       : surfaces && panelPresence.shown && <PanelPresence leaving={panelPresence.leaving}>{surfaces.render({panel: panelPresence.shown, snapshot, available: surfaces.available, reportProblem: surfaces.more?.find(action => action.id === 'report-problem'), layout: width < 1024 ? 'phone' : 'desktop', landscape: width < 1024 && width > height, phoneTop: portrait ? geometry?.picture ? geometry.picture.top + geometry.picture.height : width * 9 / 16 + (window.visualViewport?.offsetTop ?? 0) : 0, close: () => setPanel(null), show: next => showPanel(next), returnFocusRef: panelAnchor})}</PanelPresence>}
