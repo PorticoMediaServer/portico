@@ -19,3 +19,9 @@ test('Now playing names a buffering stream Buffering, and one that is starting S
   assert.equal(stateId('buffering'), 'web.nowPlaying.state.buffering');
   assert.equal(stateId('preparing'), 'web.nowPlaying.state.starting');
 });
+
+test('an episode keeps its show and its season and episode numbers, so the card names the show, not "Episode 2"', () => {
+  const episode = adminSessionFromServer(stream({itemId: 'itm_ep2', title: 'Episode 2', image: '/v1/images/abc', showId: 'itm_show', showTitle: 'Breaking Bad', seasonNumber: 1, episodeNumber: 2}));
+  assert.deepEqual([episode.title, episode.item?.showTitle, episode.item?.seasonNumber, episode.item?.episodeNumber, episode.image], ['Episode 2', 'Breaking Bad', 1, 2, '/v1/images/abc']);
+  assert.equal(adminSessionFromServer(stream({itemId: 'itm_film', title: 'Dune'})).item, undefined, 'a film has no show');
+});

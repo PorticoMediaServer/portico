@@ -30,6 +30,9 @@ export function adminSessionFromServer(value: unknown): AdminSession {
   return parseAdminSession({
     id: value.id, user: value.username, profile: text(value.profile) ? value.profile : value.username, device: value.deviceName,
     ...(text(value.itemId) ? {itemId: value.itemId, image: value.image} : {}), title: text(value.title) ? value.title : '',
+    // An episode is named by its show and its season and episode numbers (the card's "Breaking Bad · S1 E4").
+    ...(text(value.itemId) && text(value.title) && text(value.showTitle) ? {item: {id: value.itemId, title: value.title, kind: 'episode', art: [], showTitle: value.showTitle,
+      ...(text(value.showId) ? {showId: value.showId} : {}), ...(whole(value.seasonNumber) ? {seasonNumber: value.seasonNumber} : {}), ...(whole(value.episodeNumber) ? {episodeNumber: value.episodeNumber} : {})}} : {}),
     kind: value.kind, state: value.state, positionMs: value.positionMs,
     ...(whole(value.durationMs) && (value.durationMs as number) > 0 ? {durationMs: value.durationMs} : {}),
     ...(whole(value.bitrateKbps) && (value.bitrateKbps as number) > 0 ? {bitrateKbps: value.bitrateKbps} : {}),
