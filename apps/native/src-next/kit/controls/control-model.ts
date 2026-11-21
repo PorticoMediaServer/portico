@@ -67,7 +67,8 @@ export function chipGeometry(variant: ChipVariant, platform: ControlPlatform): C
   if (variant === 'facet') return {...standard, height: chipSpec.facet.height[platform], radius: chipSpec.facet.radius[platform], paddingX: chipSpec.facet.paddingX[platform], gap: isTV ? 10 : 6};
   if (variant === 'applied') return {...standard, height: isTV ? 52 : 30, radius: isTV ? 14 : 9, paddingX: isTV ? 20 : 11, fontSize: isTV ? 20 : 13};
   if (variant === 'pill') return {...standard, height: isTV ? 64 : 34, radius: isTV ? 14 : 17, paddingX: isTV ? 26 : 12};
-  if (variant === 'quick') return {...standard, radius: isTV ? 14 : 17};
+  // A quick filter is the toolbar's plain chip, filled like Filters and Sort beside it (phone-app `.phone .chip`, tv.html `.tv .chip`).
+  if (variant === 'quick') return standard;
   return standard;
 }
 
