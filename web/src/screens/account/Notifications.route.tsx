@@ -57,10 +57,11 @@ function PhoneNotifications({captured}: {captured: Captured}) {
     }
   };
   const back = () => {if (!context.isCurrent()) return; if (window.history.length > 1) router.history.back(); else void router.navigate({to: '/settings'});};
+  // Nothing unread in either inbox: Mark all read is dimmed, as the desktop panel draws it.
   const unread = sharedState.unread;
   return <div className={styles.phonePage}>
     <PushedNavBar safeArea={false} backLabel={t('next.shell.settings')} title={t('notifications.title')} onBack={back}
-      trailing={<Button variant="text" size="small" className={styles.markAll} onClick={readAll}>{t('notifications.markAllRead')}</Button>}/>
+      trailing={<Button variant="text" size="small" className={styles.markAll} disabled={unread === 0 && !serverState?.unread} onClick={readAll}>{t('notifications.markAllRead')}</Button>}/>
     <Tabs phone className={styles.phoneViews} value={view} aria-label={t('web.notifications.show')}
       onValueChange={value => {if (value === 'unread' || value === 'all' || value === 'archived') setView(value);}}
       items={(['unread', 'all', 'archived'] as const).map(value => ({value, label: value === 'unread' && unread > 0
