@@ -4,13 +4,16 @@ import {Icon} from '../Icon';
 import {MenuRow} from '../overlays';
 import {useTheme} from '../theme';
 
-/** One choice in the Download sheet's "Which episodes" or "Keep the next" card (collections 32): its label, ticked when chosen
- * (the menu row draws the tick). */
-export function DownloadChoiceRow({label, selected, disabled, onPress, testID}: {
-  label: string; selected: boolean; disabled?: boolean; onPress: () => void; testID?: string;
+/** One choice in the Download sheet's "Which episodes" or "Keep the next" card (collections 32), or a book's version
+ * (tablet-read 12b): its label, ticked when chosen (the menu row draws the tick), and a version's size at its end. A
+ * version this device can't take is dimmed in place with the reason under it. */
+export function DownloadChoiceRow({label, description, detail, selected, disabled, onPress, testID}: {
+  label: string; description?: string; detail?: string; selected: boolean; disabled?: boolean; onPress: () => void; testID?: string;
 }) {
-  return <MenuRow testID={testID} variant="grouped" label={label} selected={selected} disabled={disabled}
-    accessibilityState={{selected, disabled}} onPress={onPress}/>;
+  const theme = useTheme();
+  const trailing = detail ? <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{detail}</Text> : undefined;
+  return <MenuRow testID={testID} variant="grouped" label={label} description={description} trailing={trailing} selected={selected}
+    disabled={disabled} accessibilityState={{selected, disabled}} onPress={onPress}/>;
 }
 
 /** One quality in the Download sheet (collections 31a, 31c): its name and any note under it, then its size

@@ -6,7 +6,7 @@ import {SectionCard, SheetFrame} from '../../../kit/frames';
 import {RetainedOverlay} from '../../../kit/overlays/SurfacePaintHost';
 import {DownloadChoiceRow, DownloadQualityRow} from '../../../kit/saved/DownloadChoiceRows';
 import {StateView} from '../../../kit/states';
-import {NativeReadingDownloadSheet} from '../../../screens/downloads/ReadingDownloadSheet';
+import {ReadingDownloadSheet} from './ReadingDownloadSheet';
 import {getNativeDownloadSnapshot, nativeDownloadRequestKey, subscribeNativeDownload, type NativeDownloadRequest}
   from '../../../screens/downloads/request';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
@@ -24,7 +24,7 @@ const keepCounts = [1, 3, 5] as const;
 export function NativeDownloadSheet({context}: {context: NativeShellBootstrapContext}) {
   const request = useSyncExternalStore(subscribeNativeDownload, getNativeDownloadSnapshot);
   if (!request) return null;
-  if (request.reading) return <NativeReadingDownloadSheet context={context} request={request}/>;
+  if (request.reading) return <ReadingDownloadSheet context={context} request={request}/>;
   return <DownloadChoice context={context} request={request} key={nativeDownloadRequestKey(request)}/>;
 }
 
