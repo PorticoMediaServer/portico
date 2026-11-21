@@ -26,6 +26,8 @@ export type HomeStartModel = Readonly<{
 /** Only a document admitted to this immutable authority proves permanent absence. */
 export function homeStartModel(document: HomeDocument | undefined, authority: ShellAuthority, options: Readonly<{
   rows?: readonly string[]; readLibraryIds?: ReadonlySet<string>; mixesReady?: boolean; playbackAvailable?: boolean;
+  /** false: the spotlight offers no buttons (TV, owner 18 Nov), so the start is the first row. */
+  spotlight?: boolean;
 }> = {}): HomeStartModel {
   const ids = tvFocusIds(authority), admitted = authorizedHome(document, authority);
   if (!admitted) return {ids, resolved: false, actionless: false, spotlightActions: false, fallbacks: []};
@@ -34,7 +36,7 @@ export function homeStartModel(document: HomeDocument | undefined, authority: Sh
   const noContent = !admitted.spotlight.length && !rows.length && !options.mixesReady;
   const deferred = eligible.some(row => row.deferred === true && !homeRowHasContent(row));
   return {ids, resolved: !noContent || !deferred, actionless: noContent && !deferred, deferredPending: deferred,
-    spotlightActions: homeSpotlightModels(admitted).some(model => homeSpotlightFocusActions(model.entry, model.primary?.entry, {platform: 'tv', playbackAvailable: options.playbackAvailable === true}).order.length > 0),
+    spotlightActions: options.spotlight !== false && homeSpotlightModels(admitted).some(model => homeSpotlightFocusActions(model.entry, model.primary?.entry, {platform: 'tv', playbackAvailable: options.playbackAvailable === true}).order.length > 0),
     fallbacks: noContent ? [] : [...rows.map(ids.row), ...(options.mixesReady ? [ids.row(homeMixesFocusRow)] : []), ids.customize]};
 }
 export type HomeStartResolution = Readonly<{kind: 'waiting'; address?: undefined}>
@@ -68,7 +70,9 @@ export function resolveTVHomeStart(registry: StartRegistry, model: HomeStartMode
   const declared = registry.config(model.ids.spotlight);
   const emptyLiveSpotlight = !!registry.host(model.ids.spotlight) && declared?.enabled !== false && declared?.order?.length === 0;
   if (model.spotlightActions && !emptyLiveSpotlight) return waiting;
-  const fallbacks = renderedFallbacks(registry, model);
+  // Without spotlight buttons (TV Home, owner 18 Nov) rows further down are not mounted yet, so the committed chain is
+  // incomplete; the declared rows are in order, and the loop below still waits on an unmounted first row.
+  const fallbacks = renderedFallbacks(registry, model) ?? (model.spotlightActions ? undefined : model.fallbacks);
   if (!fallbacks) return waiting;
   // Skeleton rows have no focus target, so the first real stop is Customize; landing there scrolls Home to the
   // bottom (E-tv-02/03). Wait for the rows instead; the page owns the hold on Customize until they arrive.
