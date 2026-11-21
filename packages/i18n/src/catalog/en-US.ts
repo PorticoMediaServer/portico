@@ -830,6 +830,9 @@ export const enUS = {
   'library.tab.authors': 'Authors',
   'library.tab.series': 'Series',
   'library.tab.unmatched': 'Unmatched',
+  // A library Discover row's heading by its row id, in the mock-ups' sentence case (the server sends "Recently Added").
+  'library.landing.recently_added': 'Recently added',
+  'library.landing.recently_released': 'Recently released',
   'library.column.title': 'Title',
   'library.column.author': 'Author',
   'library.column.progress': 'Progress',
