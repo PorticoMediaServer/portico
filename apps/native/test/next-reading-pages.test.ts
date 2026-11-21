@@ -11,7 +11,7 @@ test('the reading library page keeps its tabs, library picker and selection abov
     waiting: false, showSelection: true, readingActions, startDownload: () => actions.push('download')};
   const {BooksPage} = await screenModule(new URL('../src-next/pages/touch/reading/BooksPage.tsx', import.meta.url), {
     '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../../kit/controls': {Button: 'Button'}, '../../../screens/read/ReadingBooks': {NativeReadingBooks: 'Grid'},
+    '../../../kit/controls': {Button: 'Button'}, '../../../screens/read/ReadingBooks': {NativeReadingBooks: 'Grid'}, './ReadingPeriodicalShelf': {ReadingPeriodicalShelf: 'PeriodicalShelf'},
     react: h.react, '../../../kit/browse': {LibrarySwitcher: 'LibrarySwitcher'}, '../../../kit/frames': {BrowseFrame: 'BrowseFrame'},
     '../../../kit/reading/ReadingLibraryParts': {ReadingLibraryBody: 'Body', ReadingDiscovery: 'Discovery', ReadingFallbackGrid: 'Books',
       useReadingLibraryLayout: () => ({tablet: false, reportWidth() {}})},

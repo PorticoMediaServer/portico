@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {categoryDestination, libraryTab, libraryTabForPivot, libraryTabSort, libraryTabs, readingTabModel} from '../src/presentation/library-tabs.ts';
+import {categoryDestination, libraryTab, libraryTabForPivot, libraryTabSort, libraryTabs, readingPeriodicalTabs, readingTabModel} from '../src/presentation/library-tabs.ts';
 
 test('Recently aired opens latest episode first and leaves the order to the viewer', () => {
   const aired = libraryTab('tv', 'aired');
@@ -59,7 +59,7 @@ test('a book library offers Discover and the bounded Books list, a comic library
   }
 });
 
-const readingCapabilities = (kind: string, pivots: ReadonlyArray<{id: string; browsable?: boolean; members?: boolean; facetSource?: {endpoint: string; field: 'author' | 'series'}}>) => ({
+const readingCapabilities = (kind: string, pivots: ReadonlyArray<{id: string; browsable?: boolean; members?: boolean; facetSource?: {endpoint: string; field: 'author' | 'series' | 'publicationType'}}>) => ({
   library: {id: 'lib-reading', name: 'Books', kind, defaultView: 'discover', pinned: false},
   pivots: pivots.map(pivot => ({id: pivot.id, labelKey: `library.tab.${pivot.id}`, entityKinds: [], defaultSort: [], supportedViews: ['list'],
     browsable: pivot.browsable === true, ...(pivot.members ? {members: true} : {}), ...(pivot.facetSource ? {facetSource: pivot.facetSource} : {})})),
@@ -95,4 +95,14 @@ test('a member pivot never becomes a reading tab', () => {
     {id: 'books', browsable: true}, {id: 'authors', members: true, browsable: true},
   ]))!;
   assert.deepEqual(tabs.map(tab => tab.id), ['discover', 'browse']);
+});
+
+test('a book library\'s Magazines and Newspapers tabs are the periodical pivots it publishes, in its order; a comic library has none', () => {
+  const periodical = (id: string) => ({id, facetSource: {endpoint: 'periodicals', field: 'publicationType' as const}});
+  const book = readingCapabilities('book', [{id: 'books', browsable: true}, periodical('magazines'), periodical('newspapers'), {id: 'series', browsable: true}]);
+  assert.deepEqual(readingPeriodicalTabs(book).map(tab => [tab.id, tab.label, tab.publicationType]),
+    [['magazines', 'library.tab.magazines', 'magazine'], ['newspapers', 'library.tab.newspapers', 'newspaper']]);
+  assert.deepEqual(readingPeriodicalTabs(readingCapabilities('book', [{id: 'books', browsable: true}, periodical('newspapers')])).map(tab => tab.id), ['newspapers']);
+  assert.deepEqual(readingPeriodicalTabs(readingCapabilities('comic', [{id: 'comics', browsable: true}, periodical('magazines')])), []);
+  assert.deepEqual(readingPeriodicalTabs(undefined), []);
 });
