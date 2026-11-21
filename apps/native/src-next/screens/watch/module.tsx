@@ -29,7 +29,7 @@ import {NativeLiveActionPanels} from './LiveActionPanels';
 import {NativePlaybackFailed} from './PlaybackFailed';
 import {failureWhatHappened} from './failure-words';
 import {NativeHandheldPlaybackFailed} from './HandheldPlaybackFailed';
-import {NativeWatchPostPlay} from './PostPlayScreen';
+import {NativeWatchPostPlay} from '../../kit/player/WatchPostPlay';
 import {createNativeWatchPanelNames} from './panel-names';
 import {nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../../platform/playback/subtitle-style-choices';
 import {browseValueLabel} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
