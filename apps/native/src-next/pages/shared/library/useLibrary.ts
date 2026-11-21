@@ -317,7 +317,7 @@ export function useTVLibrary(props: LibraryProps) {
   // F-LIB-13/14: moving along the tabs changes the page as focus lands, and focus stays on the tab. The catalogue and the
   // shelves are different pages, so the tabs are drawn anew; the tab chosen asks for focus as it is drawn, until it has it.
   // Between two catalogues (Artists to Albums) the page is drawn twice, loading then the grid, so the ask lasts until the
-  // tab has focus on the loaded page, or focus leaves it there.
+  // tab has focus on the loaded page.
   const tabChosen = useRef<number | undefined>(undefined), [refocusTab, setRefocusTab] = useState<string>();
   const settled = state.phase !== 'loading' && state.phase !== 'idle';
   const rowId = (index: number) => `${gridId}.row.${index}`;
@@ -328,7 +328,7 @@ export function useTVLibrary(props: LibraryProps) {
       itemProps: (item: {value: string}) => ({focusId: item.value, preferredFocus: refocusTab === item.value, onFocus: () => {
         if (state.tab.id !== item.value) {tabChosen.current = active.revision; setRefocusTab(item.value); view.tabs.onValueChange(item.value);}
         else if (refocusTab && settled) setRefocusTab(undefined);
-      }, onBlur: () => {if (refocusTab && settled) setRefocusTab(undefined);}})},
+      }})},
     shelves: view.rows.map((row, index) => ({...row, focus: {id: rowId(index), enabled: active.visible,
       edges: {left: ids.rail, up: index ? rowId(index - 1) : tabsId, down: index + 1 < view.rows.length ? rowId(index + 1) : undefined}}})),
     pageState: firstAction ? {id: stateId, entry: firstAction,
