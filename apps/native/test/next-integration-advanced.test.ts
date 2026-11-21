@@ -20,15 +20,23 @@ async function fixture(refuse = false) {
     return kept;
   }}};
   class Lifetime {live = true; private abort = new AbortController(); signal = this.abort.signal; current = () => this.live; dispose() {this.live = false; this.abort.abort();}}
-  const {NativeIntegrationAdvanced} = await screenModule(new URL('../src-next/screens/settings-live/server/integrations/Advanced.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../../packages/client-core/src/server-admin/integration-switches': {IntegrationSwitchesSource},
-    '../../../../kit/controls': {Switch: 'Switch'}, '../../../../kit/theme': {useTheme: () => ({colors: {textSecondary: '#ccc'}})},
-    '../../../../kit/states': {StateView: 'StateView'}, '../../lifetime': {NativeScreenLifetime: Lifetime},
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerIntegrations.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Share: {}},
+    '../../../../../../packages/client-core/src/server-admin/integration-switches': {IntegrationSwitchesSource},
+    '../../../../../../packages/client-core/src/server-admin/api-words': {},
+    '../../../platform/clipboard': {}, '../../../screens/settings-live/lifetime': {NativeScreenLifetime: Lifetime},
+    './useServerApiKeys': {},
+  });
+  const {IntegrationCompatibility} = await screenModule(new URL('../src-next/pages/touch/settings/ServerIntegrationsPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/controls': {Switch: 'Switch'},
+    '../../../kit/frames': {SectionCard: 'SectionCard', StateRow: 'StateRow'}, '../../../kit/states': {StateView: 'StateView'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/overlays/surface': {},
+    '../../../kit/settings/SettingsParts': {}, '../../../kit/settings/IntegrationParts': {},
+    '../../shared/settings/ServerApiKeys': {}, '../../shared/settings/ServerWebhooks': {}, '../../shared/settings/useServerIntegrations': model,
   });
   let tree: any;
   const runtime = {text: {t: (key: string) => key}, error: (_error: unknown, retry: () => void) => ({retry})};
-  const host = createFabricHookHost(() => {tree = NativeIntegrationAdvanced({ports: {context}, runtime});});
+  const host = createFabricHookHost(() => {tree = IntegrationCompatibility({ports: {context}, runtime});});
   return {sent, host, tree: () => tree};
 }
 
@@ -36,7 +44,7 @@ test('the compatible routes switch reads GET /v1/admin/settings/integrations and
   const f = await fixture();
   try {
     await act(() => f.host.mount());
-    const control = () => nodes(f.tree()).find(node => node.type === 'Switch')!;
+    const control = () => nodes(f.tree()).find(node => node.props.control?.type === 'Switch')!.props.control;
     assert.equal(control().props.checked, false);
     await act(() => control().props.onCheckedChange(true));
     assert.equal(control().props.checked, true);
@@ -49,7 +57,7 @@ test('a refused read draws no switch and offers Try again', async () => {
   const f = await fixture(true);
   try {
     await act(() => f.host.mount());
-    assert.equal(nodes(f.tree()).some(node => node.type === 'Switch'), false);
+    assert.equal(nodes(f.tree()).some(node => node.props.control?.type === 'Switch'), false);
     assert.ok(nodes(f.tree()).some(node => node.type === 'StateView'));
   } finally {await f.host.unmount();}
 });

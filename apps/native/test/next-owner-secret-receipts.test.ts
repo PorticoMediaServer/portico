@@ -23,40 +23,51 @@ const settle = async () => {await Promise.resolve(); await Promise.resolve();};
 
 async function fixture(kind: 'key' | 'webhook') {
   const host = hooks(); Object.assign(host.react, {useLayoutEffect: () => {}});
-  const t = (key: string) => key, colors = new Proxy({}, {get: () => '#123456'});
+  const t = (key: string) => key;
   const hook = {id: 'hook-fixture', revision: 3, name: 'Receiver', url: 'https://receiver.invalid/events', events: ['playback.started'], enabled: true};
   const calls: unknown[] = [];
   let alive = true, sequence = 0;
   const state: any = {phase: 'ready', busy: false, options: {scopes: ['read']}, page: {items: [], nextCursor: ''}, list: {items: kind === 'webhook' ? [hook] : [], events: ['playback.started', 'playback.stopped', 'library.scanned'], maximum: 20}};
   const issued = () => kind === 'key' ? {key: {id: 'key', name: 'Fixture key'}, secret: `test-only-key-${++sequence}`} : {webhook: hook, secret: `test-only-webhook-${++sequence}`};
   const source: any = {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, create: async (value: unknown) => {calls.push(value); return issued();}, update: async (_: unknown, value: unknown) => {calls.push(value); return issued();}, test: async (target: unknown) => {calls.push({test: target});}, rotate: async () => {calls.push({rotate: hook.id}); return issued();}, close() {}, select: async () => {calls.push({select: hook}); state.selected = hook; state.deliveries = {items: [], nextCursor: ''};}};
-  const modules: any = {
+  const modules = {
     react: host.react,
     'react-native': {Platform: {OS: 'ios', isTV: false}, Text: 'Text', View: 'View', Share: {share: async () => {}}},
-    '../../../../../../../packages/i18n/src': {defaultI18n: {t, date: String, dateTime: String, time: String, has: () => true}},
-    '../../../../platform/clipboard': {copyText: async () => {}},
-    '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', Select: 'Select', TextField: 'TextField'},
-    '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
-    '../../../../kit/shell/visual': {shellType: () => ({}), alpha: (value: unknown) => value},
-    '../../../../kit/Icon': {Icon: 'Icon'},
-    '../../../../kit/theme': {useTheme: () => ({colors})},
-    '../../lifetime': {NativeScreenLifetime: class {}, screenScopeEnded: () => new Error('ended')},
-    '../storage/space-source': {nativeStorageOwner: () => true},
-    '../../../../../../../packages/client-core/src/server-admin/api-words': {
+    '../../../../../../packages/i18n/src': {defaultI18n: {t, date: String, dateTime: String, time: String, has: () => true}},
+    '../../../platform/clipboard': {copyText: async () => {}},
+    '../../../kit/controls': {Button: 'Button', Switch: 'Switch', Select: 'Select', TextField: 'TextField'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
+    '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
+    '../../../kit/settings/IntegrationParts': {IntegrationNotice: 'IntegrationNotice', IntegrationValue: 'IntegrationValue', SettingsCheckRow: 'SettingsCheckRow'},
+    '../../../kit/settings/SettingsParts': {SettingsHelp: 'SettingsHelp'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    '../../../screens/settings-live/lifetime': {NativeScreenLifetime: class {}, screenScopeEnded: () => new Error('ended')},
+    '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: () => true},
+    '../../../../../../packages/client-core/src/server-clock': {serverNow: Date.now},
+    '../../../../../../packages/client-core/src/server-admin/api-words': {
       EXPIRY_DAYS: [0], chosenScopes: (value: Set<string>) => [...value], scopeTicked: (value: Set<string>, scope: string) => value.has(scope),
       credentialWorks: () => true, expiryInstant: () => '', expiryLabel: () => 'Never',
       webhookTrouble: () => undefined, webhookAddressOk: (url: string) => url.startsWith('https://'), webhookEventLabel: (_: unknown, __: unknown, event: string) => event,
       webhookEventGroups, deliveryTone, deliveryProgress: () => '', deliveryProblem: () => '',
     },
-    '../../../../../../../packages/client-core/src/server-admin/owner-api-keys': {OwnerApiKeysSource: class {}},
-    '../../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api},
-    '../../../../../../../packages/client-core/src/server-admin/webhooks-source': {SettingsWebhooksSource: class {}},
-    '../../../../../../../packages/client-core/src/api-access': {apiScopes: ['read'], webhookEvents, webhookMaximum: 20, webhookEdits: (_: unknown, next: unknown) => next},
-    './webhook-form': {selectWebhookEventGroup},
+    '../../../../../../packages/client-core/src/server-admin/owner-api-keys': {OwnerApiKeysSource: class {}},
+    '../../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api},
+    '../../../../../../packages/client-core/src/server-admin/webhooks-source': {SettingsWebhooksSource: class {}},
+    '../../../../../../packages/client-core/src/api-access': {apiScopes: ['read'], webhookEvents, webhookMaximum: 20, webhookEdits: (_: unknown, next: unknown) => next},
+    '../../../screens/settings-live/server/integrations/webhook-form': {selectWebhookEventGroup},
   };
-  const module = await screenModule(new URL(`../src-next/screens/settings-live/server/integrations/${kind === 'key' ? 'ApiKeys' : 'Webhooks'}.tsx`, import.meta.url), modules);
-  const component = kind === 'key' ? module.NativeApiKeys : module.Webhooks;
-  const render = () => host.render(() => component({group: {source, current: () => alive}, runtime: {text: {t}}, consumeCreateRequest: () => false}));
+  const group = {source, current: () => alive};
+  const hooksPath = kind === 'key' ? 'useServerApiKeys' : 'useServerWebhooks';
+  const model = await screenModule(new URL(`../src-next/pages/shared/settings/${hooksPath}.ts`, import.meta.url), modules);
+  const name = kind === 'key' ? 'ServerApiKeys' : 'ServerWebhooks';
+  const pages = await screenModule(new URL(`../src-next/pages/shared/settings/${name}.tsx`, import.meta.url), {
+    ...modules, [`./${hooksPath}`]: {...model, useWebhookGroup: () => group},
+  });
+  const render = () => host.render(() => {
+    const page = pages[name]({group, runtime: {text: {t}}, createRequest: 0, consumeCreateRequest: () => false});
+    return kind === 'webhook' ? page.type(page.props) : page;
+  });
   return {render, calls, source, state, retire: () => {alive = false;}};
 }
 
@@ -65,7 +76,7 @@ test('API key receipt blocks every incidental dismissal and stale Done handler c
   const issue = async () => {
     find(f.render(), 'Button', 'web.access.createKey').props.onPress();
     find(f.render(), 'TextField', 'builder.name').props.onChangeText('Fixture key');
-    const scope = nodes(f.render()).find(node => node.type === 'Button' && words(node).startsWith('api.scope.read'))!;
+    const scope = find(f.render(), 'SettingsCheckRow', 'api.scope.read');
     scope.props.onPress();
     const form = find(f.render(), 'BottomSheet', 'web.access.createKeyTitle');
     find(form.props.footer, 'Button', 'web.access.createKey').props.onPress(); await settle();
@@ -83,7 +94,7 @@ test('API key receipt blocks every incidental dismissal and stale Done handler c
 
 test('webhook rotation keeps the generated secret receipt until acknowledgement', async () => {
   const f = await fixture('webhook');
-  nodes(f.render()).find(node => node.type === 'Focusable' && node.props.accessibilityLabel === 'Receiver')!.props.onPress();
+  find(f.render(), 'SettingsRow', 'Receiver').props.onPress();
   nodes(f.render()).find(node => node.type === 'Menu')!.props.items.find((item: any) => item.id === 'rotate').onSelect();
   const sheet = find(f.render(), 'BottomSheet', 'api.webhooks.rotateTitle');
   assert.equal(nodes(sheet).some(node => node.type === 'TextField'), false);
@@ -98,7 +109,7 @@ test('webhook rotation keeps the generated secret receipt until acknowledgement'
 
 test('webhook delivery log is an opening-specific full-height sheet, and deletion is visibly destructive', async () => {
   const f = await fixture('webhook');
-  const openMenu = () => {nodes(f.render()).find(node => node.type === 'Focusable')!.props.onPress(); return nodes(f.render()).find(node => node.type === 'Menu')!;};
+  const openMenu = () => {find(f.render(), 'SettingsRow', 'Receiver').props.onPress(); return nodes(f.render()).find(node => node.type === 'Menu')!;};
   openMenu().props.items.find((item: any) => item.id === 'log').onSelect(); await settle();
   const log = nodes(f.render()).find(node => node.type === 'BottomSheet' && node.props.title === 'api.webhooks.log')!;
   assert.equal(log.props.open, true); assert.equal(log.props.defaultDetent, 1);
@@ -110,7 +121,7 @@ test('webhook delivery log is an opening-specific full-height sheet, and deletio
 
 test('webhook menus consume their exact opening and reject retained actions or dismissals', async () => {
   const f = await fixture('webhook');
-  const open = () => {nodes(f.render()).find(node => node.type === 'Focusable')!.props.onPress(); return nodes(f.render()).find(node => node.type === 'Menu')!;};
+  const open = () => {find(f.render(), 'SettingsRow', 'Receiver').props.onPress(); return nodes(f.render()).find(node => node.type === 'Menu')!;};
   const first = open();
   first.props.onOpenChange(false);
   const second = open();
@@ -134,34 +145,36 @@ test('webhook menus consume their exact opening and reject retained actions or d
 
 test('webhook checklist uses the localized canonical groups and independent checkbox selections', async () => {
   const f = await fixture('webhook');
-  nodes(f.render()).find(node => node.type === 'Focusable')!.props.onPress();
+  find(f.render(), 'SettingsRow', 'Receiver').props.onPress();
   nodes(f.render()).find(node => node.type === 'Menu')!.props.items.find((item: any) => item.id === 'edit').onSelect();
   let sheet = find(f.render(), 'BottomSheet', 'web.selection.edit');
-  const check = (label: string) => nodes(sheet).find(node => node.props.accessibilityRole === 'checkbox' && node.props.accessibilityLabel === label)!;
-  assert.equal(check('playback.started').props.accessibilityState.checked, true);
+  const check = (label: string) => find(sheet, 'SettingsCheckRow', label);
+  assert.equal(check('playback.started').props.checked, true);
   check('playback.stopped').props.onPress(); sheet = find(f.render(), 'BottomSheet', 'web.selection.edit');
-  assert.equal(check('playback.started').props.accessibilityState.checked, true);
-  assert.equal(check('playback.stopped').props.accessibilityState.checked, true);
+  assert.equal(check('playback.started').props.checked, true);
+  assert.equal(check('playback.stopped').props.checked, true);
   find(sheet.props.footer, 'Button', 'action.save').props.onPress(); await settle();
   assert.deepEqual((f.calls.at(-1) as any).events, ['playback.started', 'playback.stopped']);
 });
 
 test('delivery log refresh/retry/Done retain the exact opening and render empty, failed and delivery states', async () => {
   const f = await fixture('webhook');
-  const open = () => {nodes(f.render()).find(node => node.type === 'Focusable')!.props.onPress(); nodes(f.render()).find(node => node.type === 'Menu')!.props.items.find((item: any) => item.id === 'log').onSelect(); return find(f.render(), 'BottomSheet', 'api.webhooks.log');};
+  const open = () => {find(f.render(), 'SettingsRow', 'Receiver').props.onPress(); nodes(f.render()).find(node => node.type === 'Menu')!.props.items.find((item: any) => item.id === 'log').onSelect(); return find(f.render(), 'BottomSheet', 'api.webhooks.log');};
   const first = open();
   assert.equal(first.props.description, 'Receiver');
-  assert.ok(words(first).includes('api.webhooks.logEmpty'));
+  assert.ok(find(first, 'StateRow', 'api.webhooks.logEmpty'));
   const refresh = find(first.props.footer, 'Button', 'web.selection.refresh').props.onPress;
   refresh(); assert.equal(f.calls.length, 2);
   f.state.error = 'deliveries';
   const failed = find(f.render(), 'BottomSheet', 'api.webhooks.log');
-  assert.ok(!words(failed).includes('api.webhooks.logEmpty'));
-  find(failed, 'Button', 'action.tryAgain').props.onPress(); assert.equal(f.calls.length, 3);
+  assert.ok(!nodes(failed).some(node => node.props.title === 'api.webhooks.logEmpty'));
+  const retry = find(failed, 'StateRow', 'error.unavailable').props.action;
+  assert.equal(retry.label, 'action.tryAgain');
+  retry.onPress(); assert.equal(f.calls.length, 3);
   f.state.error = undefined;
   f.state.deliveries = {items: [{event: 'test', state: 'gave_up', createdAt: '2026-10-01T00:00:00Z', tries: 1}], nextCursor: ''};
   const delivered = find(f.render(), 'BottomSheet', 'api.webhooks.log');
-  assert.ok(words(delivered).includes('api.webhooks.delivery.failed'));
+  assert.ok(find(delivered, 'SettingsRow', 'api.webhooks.testEvent').props.description.includes('api.webhooks.delivery.failed'));
   find(delivered.props.footer, 'Button', 'action.done').props.onPress();
   open(); refresh(); first.props.onOpenChange(false);
   assert.equal(f.calls.length, 4); assert.equal(find(f.render(), 'BottomSheet', 'api.webhooks.log').props.open, true);
