@@ -237,6 +237,9 @@ const handheldType = {
   // System rule 6 (design/ui-v1 system-rules.html): the roles a screen on a frame picks from. Row and section headings are `rowHeading`,
   // card text `cardTitle` and `cardSubtitle`, tabs `tab`; these are the roles the scale lacked.
   pageTitle: type(34, 38, 800, -.03), /** A list page stepped into (See all, collections 46-48): the page title, larger on TV. */ listTitle: type(34, 38, 800, -.03), barTitle: type(17, 'normal', 700), groupLabel: type(15, 'normal', 700), listLabel: type(15, 'normal', 700),
+  /** A settings or list section's small heading over its card (music-plus `.psec`, collections `.phone .sec`, auth `.grp-t`, phone-app `.nxl h5`:
+   * 13.5/700 in the tertiary colour on a phone); wider forms keep their group label's size. */
+  sectionLabel: type(13.5, 'normal', 700),
   rowLabel: type(15.5, 20, 600), rowHelp: type(12.5, 17.5, 500), intro: type(14.5, 21.75, 500),
   // A title's About table and its cast circles on a phone (phone-detail d1 frame 2: `.kv`, `.pp b`, `.pp small`).
   about: type(14, 19.6, 600), castName: type(12.5, 'normal', 700), castRole: type(11.5, 'normal', 500),
@@ -271,7 +274,7 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     synopsis: type(17, 26.35, 400), button: type(17, 'normal', 700), tab: type(17, 'normal', 700), chip: type(15, 'normal', 700),
     liveTitle: type(18, 'normal', 700, -.01), bannerTitle: type(52, 52, 800, -.04), bannerBody: type(16, 24, 400), rank: type(168, 131.04, 800, -.08),
     episodeTitle: type(16, 'normal', 700, -.01), episodeBody: type(14, 21, 400), fallbackLockup: type(52, 48.88, 800, -.045),
-    pageTitle: type(56, 60, 800, -.03), listTitle: type(56, 60, 800, -.03), groupLabel: type(22, 'normal', 700, -.015), listLabel: type(14, 'normal', 700),
+    pageTitle: type(56, 60, 800, -.03), listTitle: type(56, 60, 800, -.03), groupLabel: type(22, 'normal', 700, -.015), sectionLabel: type(22, 'normal', 700, -.015), listLabel: type(14, 'normal', 700),
     rowLabel: type(17, 22, 600), rowHelp: type(15, 21, 500), intro: type(17, 25.5, 500),
     playerTitle: type(34, 36.72, 800, -.035), playerSubtitle: type(15, 'normal', 400), playerTime: type(13.5, 'normal', 600),
     playerPreviewTime: type(15, 'normal', 800), playerPrompt: type(16.5, 'normal', 800),
@@ -288,7 +291,7 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     meta: type(24, 'normal', 400), eyebrow: type(24, 'normal', 600), synopsis: type(24, 34.8, 400), button: type(26, 'normal', 700), tab: type(26, 'normal', 700), chip: type(22, 'normal', 700),
     badge: type(18, 'normal', 800), tag: type(20, 'normal', 600), episodeTitle: type(24, 'normal', 700, -.01), episodeBody: type(22, 33, 400),
     liveTitle: type(26, 'normal', 700, -.01), liveChannel: type(22, 'normal', 600), liveLabel: type(20, 'normal', 700),
-    pageTitle: type(44, 50, 800, -.03), listTitle: type(62, 62, 800, -.04), groupLabel: type(20, 'normal', 700), listLabel: type(20, 'normal', 700),
+    pageTitle: type(44, 50, 800, -.03), listTitle: type(62, 62, 800, -.04), groupLabel: type(20, 'normal', 700), sectionLabel: type(20, 'normal', 700), listLabel: type(20, 'normal', 700),
     rowLabel: type(25, 32, 600), rowHelp: type(19, 27, 500), intro: type(23, 33, 500),
     // Round 8 (R2): the TV player and audio roles at the mock-ups' sizes (tv-player 1: times 24/700, "S1 E2" 24/600 with
     // the name 24/700; tv 7: the song 96/800, the artist 34/700, the album 24/400).
@@ -305,7 +308,7 @@ const tabletType: Readonly<Record<TypeRole, TypeStyle>> = {...handheldType,
   cardTitle: type(14, 'normal', 600), cardSubtitle: type(13, 'normal', 400), wideTitle: type(15, 'normal', 700),
   button: type(16, 'normal', 700), compactButton: type(15, 'normal', 700), tab: type(16, 'normal', 700), chip: type(14.5, 'normal', 700),
   meta: type(14, 'normal', 400), eyebrow: type(14, 'normal', 600), synopsis: type(15, 22.5, 400), tag: type(13, 'normal', 600),
-  groupLabel: type(19, 'normal', 700, -.015), listLabel: type(14, 'normal', 700), rowLabel: type(15.5, 20, 600), rowHelp: type(13.5, 19.5, 400), intro: type(15, 23, 400),
+  groupLabel: type(19, 'normal', 700, -.015), sectionLabel: type(19, 'normal', 700, -.015), listLabel: type(14, 'normal', 700), rowLabel: type(15.5, 20, 600), rowHelp: type(13.5, 19.5, 400), intro: type(15, 23, 400),
   episodeTitle: type(16.5, 'normal', 700, -.01), episodeBody: type(14, 21, 400),
   playerTitle: typeScale.desktop.playerTitle, playerSubtitle: typeScale.desktop.playerSubtitle, playerSubtitleStrong: typeScale.desktop.playerSubtitleStrong,
   playerTime: typeScale.desktop.playerTime, playerPreviewTime: typeScale.desktop.playerPreviewTime, playerPrompt: typeScale.desktop.playerPrompt,
@@ -317,14 +320,14 @@ export const formType: ByForm<Readonly<Record<TypeRole, TypeStyle>>> = byForm(ha
 /** R3: the level of emphasis each text role is drawn at (rule 6's Colour column and the mock-ups). A role not named is
  * `primary`. A tab, a value and a control's glyph change level with their state: `emphasis` says how. */
 const baseEmphasis: Partial<Record<TypeRole, EmphasisLevel>> = {
-  groupLabel: 'secondary', listLabel: 'secondary', intro: 'secondary', synopsis: 'secondary', meta: 'secondary', episodeBody: 'secondary', bannerBody: 'secondary',
+  groupLabel: 'secondary', sectionLabel: 'tertiary', listLabel: 'secondary', intro: 'secondary', synopsis: 'secondary', meta: 'secondary', episodeBody: 'secondary', bannerBody: 'secondary',
   playerSubtitle: 'secondary', audioByline: 'secondary', accountLede: 'secondary',
   rowHelp: 'tertiary', cardSubtitle: 'tertiary', rowSubtitle: 'tertiary', seeAll: 'tertiary', tab: 'tertiary', audioDetail: 'tertiary',
   eyebrow: 'accent',
 };
 /** From tablet width a settings page's section heading is a heading (primary), not a phone's small group label; on TV it is the quiet one. */
-export const roleEmphasis: ByForm<Partial<Record<TypeRole, EmphasisLevel>>> = byForm(baseEmphasis, {...baseEmphasis, groupLabel: 'primary'}, {...baseEmphasis, groupLabel: 'primary'},
-  {...baseEmphasis, groupLabel: 'primary'}, {...baseEmphasis, groupLabel: 'tertiary', intro: 'tertiary'});
+export const roleEmphasis: ByForm<Partial<Record<TypeRole, EmphasisLevel>>> = byForm(baseEmphasis, {...baseEmphasis, groupLabel: 'primary', sectionLabel: 'secondary'}, {...baseEmphasis, groupLabel: 'primary', sectionLabel: 'secondary'},
+  {...baseEmphasis, groupLabel: 'primary', sectionLabel: 'secondary'}, {...baseEmphasis, groupLabel: 'tertiary', sectionLabel: 'secondary', intro: 'tertiary'});
 /** The whole form scale (R2 to R4): `formScale.type.tv.rowLabel`, `formScale.card.poster.expanded`, `formScale.icon.secondary.size.phone`. */
 export const formScale = {type: formType, emphasis: roleEmphasis, ...formSizes, icon: iconClass} as const;
 export type FormScale = typeof formScale;
