@@ -55,7 +55,8 @@ export function SectionCard({label, help, stale, plain = false, children}: {labe
   plain?: boolean; children: ReactNode}) {
   const theme = useTheme(), frame = useFrameMetrics();
   return <View>
-    {label !== undefined && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, marginHorizontal: frame.gutter, marginBottom: frame.headingGap, minHeight: stale ? theme.targets.pointer : undefined}}>
+    {/* TV (tv-more 21-29 `.s-page h3`): the label sits 24 in from the card's edge. */}
+    {label !== undefined && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, marginHorizontal: frame.gutter, paddingLeft: theme.isTV ? frameSpec.settings.tvLabelInset : 0, marginBottom: frame.headingGap, minHeight: stale ? theme.targets.pointer : undefined}}>
       <Text accessibilityRole="header" style={[theme.type.sectionLabel, {flexShrink: 1}]}>{label}</Text>
       {stale && <><Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.amber}]}>{stale.label}</Text>
         <Button variant="glass" size="xs" onPress={stale.onRetry}>{stale.retryLabel}</Button></>}
