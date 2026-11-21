@@ -1,10 +1,9 @@
-import React, {useEffect, useMemo, useSyncExternalStore} from 'react';
-import {DetailService, type DetailApi, type DetailScope, type PersonalIntent} from '../../../../../packages/client-core/src/detail';
-import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {ArtworkSource} from '../../kit/artwork';
-import {PlayerEndCard} from '../../kit/player';
-import {viewerQueriesFor} from '../../shell/freshness';
+import {useEffect, useMemo, useSyncExternalStore} from 'react';
+import {DetailService, type DetailApi, type DetailScope, type PersonalIntent} from '../../../../../../packages/client-core/src/detail';
+import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
+import type {ArtworkSource} from '../../../kit/artwork';
+import {viewerQueriesFor} from '../../../shell/freshness';
 
 /** tv-player 7: a film with nothing queued ends on its own backdrop, with Replay
  * focused, a rating and the server's related titles. The episode cards stay as
@@ -25,7 +24,7 @@ export type NativeWatchPostPlayProps = Readonly<{
   compact?: boolean;
 }>;
 
-export function NativeWatchPostPlay({entry, api, scope, requestId, current, artwork, onReplay, onClose, onOpen, reportError, compact = false}: NativeWatchPostPlayProps) {
+export function usePostPlay({entry, api, scope, requestId, current, artwork, onReplay, onClose, onOpen, reportError, compact = false}: NativeWatchPostPlayProps) {
   const t = defaultI18n.t;
   const service = useMemo(() => new DetailService({queries: viewerQueriesFor(api, scope), api, scope, requestId}), [api, scope, requestId]);
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot);
@@ -45,7 +44,7 @@ export function NativeWatchPostPlay({entry, api, scope, requestId, current, artw
   const hours = entry.duration && entry.duration >= 3600 ? Math.floor(entry.duration / 3600) : undefined;
   const minutes = entry.duration ? Math.round(entry.duration % 3600 / 60) : undefined;
   const runtime = entry.duration ? hours ? t('next.kit.duration.hoursMinutes', {hours, minutes}) : t('next.kit.duration.minutes', {minutes: Math.round(entry.duration / 60)}) : undefined;
-  return <PlayerEndCard title={entry.displayTitle ?? entry.title} year={entry.year} runtime={runtime} backdrop={artwork(entry.backdropUrl)} compact={compact} onReplay={onReplay} onClose={onClose}
-    rating={detail ? {stars, onRate: star => rate(star === stars ? null : star * 2)} : undefined}
-    related={related.map(row => ({id: row.id, title: row.title, year: row.year, poster: artwork(row.posterUrl), onPress: () => {if (current()) onOpen(row);}}))}/>;
+  return {title: entry.displayTitle ?? entry.title, year: entry.year, runtime, backdrop: artwork(entry.backdropUrl), compact, onReplay, onClose,
+    rating: detail ? {stars, onRate: (star: number) => rate(star === stars ? null : star * 2)} : undefined,
+    related: related.map(row => ({id: row.id, title: row.title, year: row.year, poster: artwork(row.posterUrl), onPress: () => {if (current()) onOpen(row);}}))};
 }

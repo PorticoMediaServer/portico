@@ -87,7 +87,7 @@ async function fixture() {
     './live-guide': {NativeTVLiveGuide: class {constructor(...args: any[]) {liveGuideArguments.push(args); guides.push(this);} guideAction() {return () => {guideCalls++;};} close() {return false;} dispose() {}}},
     './live-actions': {NativeTVLiveActions: class {constructor(...args: any[]) {actions.push(args);} close() {return false;} dispose() {}}},
     './LiveActionPanels': {NativeLiveActionPanels: 'LiveActions'}, './PlaybackFailed': {NativePlaybackFailed: 'TVFailure'},
-    './HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, './PostPlayScreen': {}, './panel-names': {},
+    './HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, '../../kit/player/WatchPostPlay': {}, './panel-names': {},
   });
   const bindings: any = {title: {reportError: assert.fail, renderError: assert.fail, navigate() {}}, names: {}, requestId: async () => 'request',
     openMenu: (_capture: any, menu: any) => {menus.push(menu);},

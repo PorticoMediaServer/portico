@@ -16,7 +16,7 @@ const {createNativeWatchModule} = await screenModule(new URL('../src-next/screen
   '../../../../../packages/client-core/src/playback-v1/quality': {}, './factory': {createNativeWatchScreens: (ports: any) => {captured = ports; return {watch: {}, dispose() {}};}},
   './PlaybackInfoPanel': {}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
   './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {}, './ChannelRoute': {}, './live-guide': {NativeTVLiveGuide: class {guideAction() {return () => {};} close() {return false;} dispose() {}}}, './live-actions': {NativeTVLiveActions: class {close() {return false;} dispose() {}}}, './LiveActionPanels': {}, './PlaybackFailed': {NativePlaybackFailed: 'TVFailure'},
-  './HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, './PostPlayScreen': {}, '../../platform/device-platform': {}, './panel-names': {},
+  './HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {},
   './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},
   '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => ''},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String}, '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'},

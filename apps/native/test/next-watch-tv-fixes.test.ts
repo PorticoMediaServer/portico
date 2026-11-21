@@ -209,10 +209,13 @@ test('post-play rows stay horizontal, preserve card widths, connect both directi
       react: h.react, 'react-native': nativeAtoms, 'react-native-svg': svg, '../../../../../packages/i18n/src': i18n,
       '../artwork': {Artwork: 'Artwork'}, '../controls': controlsAtoms, '../focus': {FocusRegion: 'FocusRegion'}, '../Icon': {Icon: 'Icon'}, '../theme': themed,
     });
-    const {NativeWatchPostPlay} = await screenModule(new URL('../src-next/screens/watch/PostPlayScreen.tsx', import.meta.url), {
-      react: h.react, '../../../../../packages/i18n/src': i18n,
-      '../../../../../packages/client-core/src/detail': {DetailService: class {getSnapshot = () => ({data}); subscribe = () => () => {}; dispose() {}}},
-      '../../shell/freshness': {viewerQueriesFor: () => ({})}, '../../kit/player': {PlayerEndCard},
+    const {usePostPlay} = await screenModule(new URL('../src-next/pages/shared/player/usePostPlay.ts', import.meta.url), {
+      react: h.react, '../../../../../../packages/i18n/src': i18n,
+      '../../../../../../packages/client-core/src/detail': {DetailService: class {getSnapshot = () => ({data}); subscribe = () => () => {}; dispose() {}}},
+      '../../../shell/freshness': {viewerQueriesFor: () => ({})},
+    });
+    const {NativeWatchPostPlay} = await screenModule(new URL('../src-next/kit/player/WatchPostPlay.tsx', import.meta.url), {
+      react: h.react, './PlayerEndCard': {PlayerEndCard}, '../../pages/shared/player/usePostPlay': {usePostPlay},
     });
     try {
       const card = h.render(() => NativeWatchPostPlay({entry, compact, current: () => true, artwork() {}, onReplay() {}, onClose() {}, onOpen() {}, reportError: assert.fail}));
@@ -380,7 +383,7 @@ async function failureModuleFixture(owner = true) {
     './factory': {createNativeWatchScreens: (ports: any) => {player = ports.player; return {watch: {}, dispose() {}, capture: (entry: any, current: () => boolean) => {const value = {entry, current}; captures.push(value); return value;}, versions: async (...args: unknown[]) => {versions.push(args);}};}},
     './PlaybackInfoPanel': {playbackInfoWords: () => ({network: (value: string) => value})}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
     './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {}, './ChannelRoute': {}, './live-guide': {NativeTVLiveGuide: class {dispose() {}}}, './live-actions': {NativeTVLiveActions: class {dispose() {}}}, './LiveActionPanels': {},
-    './PlaybackFailed': {NativePlaybackFailed: 'Failure'}, './HandheldPlaybackFailed': {}, './PostPlayScreen': {}, '../../platform/device-platform': {}, './panel-names': {}, '../../platform/server-preferences': {},
+    './PlaybackFailed': {NativePlaybackFailed: 'Failure'}, './HandheldPlaybackFailed': {}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {}, '../../platform/server-preferences': {},
     '../../../../../packages/client-core/src/presentation/browse-toolbar': {}, './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},
     '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => 'Public playback message'}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`},
     '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'}, '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue},
