@@ -78,7 +78,7 @@ test('equalizers have separate held roots, explicit entry and gated release-only
       react: {...host.react, useId: () => instance}, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', Platform: {OS: 'android'}},
       'react-native-gesture-handler': {}, 'react-native-svg': {}, 'react-native-reanimated': {},
       '../controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'},
-      '../focus': {FocusProvider: 'FocusProvider', FocusRegion: 'FocusRegion'}, '../Icon': {},
+      '../focus': {FocusProvider: 'FocusProvider', FocusRegion: 'FocusRegion'}, '../Icon': {}, '../layout/TopBar': {TopBar: 'TopBar'},
       '../theme': {useTheme: () => equalizerTheme, nativeType: type}, '../useMotion': {},
       '../focus/useDestinationEntryFocus': {useDestinationEntryFocus: (...args: unknown[]) => entries.push(args)},
       '../../screens/watch/equalizer-controls': equalizerControls, '../../screens/watch/equalizer-gesture-paint': {},

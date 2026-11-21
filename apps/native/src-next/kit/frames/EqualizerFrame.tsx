@@ -7,6 +7,7 @@ import type {DeviceEqualizer, DeviceEqualizerStore} from '../../platform/playbac
 import {Button, Focusable, Switch} from '../controls';
 import {FocusProvider, FocusRegion} from '../focus';
 import {Icon} from '../Icon';
+import {TopBar} from '../layout/TopBar';
 import {nativeType, useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 import {useDestinationEntryFocus} from '../focus/useDestinationEntryFocus';
@@ -93,8 +94,7 @@ export function EqualizerFrame({onBack, copy, snapshot, response, focusScope, ac
     </FocusRegion>
   </FocusRegion></FocusProvider>;
   return <View testID="watch-equalizer" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <View style={{height: 50, justifyContent: 'center', alignItems: 'center'}}><Button focusId="equalizer-back" variant="text" icon="i-left" onPress={onBack} style={{position: 'absolute', left: 6}}>{copy.back}</Button>
-      <Text accessibilityRole="header" style={[theme.type.playerTitle, {color: theme.colors.text}]}>{copy.title}</Text></View>
+    <TopBar title={copy.title} back={{label: copy.back, onPress: onBack, testID: 'equalizer-back'}}/>
     <ScrollView contentContainerStyle={{paddingTop: 6, paddingBottom: 32}}>
       <View style={{marginHorizontal: 16}}>{toggle}</View>
       <Text style={[nativeType({size: 13, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary, marginTop: 18, marginBottom: 8, marginHorizontal: 20}]}>{copy.bands}</Text>
