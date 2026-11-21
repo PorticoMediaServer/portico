@@ -40,7 +40,7 @@ export async function liveGuideModule(previous, shallow = false) {
     ...kit, '../shell/visual': bindings['../../../kit/shell/visual'],
     '../../../../../packages/client-core/src/presentation/kit-model': previous['../../../../../packages/client-core/src/presentation/kit-model'],
   });
-  const controls = await load('kit/live/GuideControls.tsx', kit);
+  const controls = await load('kit/live/GuideControls.tsx', {...kit, '../browse/Toolbar': {ChipRail: ({children}) => children}});
   const grid = await load('kit/live/NativeGuideGrid.tsx', kit);
   const programme = await load('kit/live/ProgrammePanel.tsx', kit);
   bindings['../../../../../../packages/client-core/src/timer'] = await import('../../../../packages/client-core/src/timer.ts');

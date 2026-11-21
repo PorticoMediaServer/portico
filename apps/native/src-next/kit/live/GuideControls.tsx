@@ -1,5 +1,6 @@
 import React, {type ReactNode, type Ref, type ComponentProps} from 'react';
-import {FlatList, ScrollView, Text, View} from 'react-native';
+import {ScrollView, Text, View} from 'react-native';
+import {ChipRail} from '../browse/Toolbar';
 import {Button, Chip, Segmented, Select} from '../controls';
 import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
@@ -35,12 +36,11 @@ export function GuideFilterStrip({choices, leading, region}: {
     {choices.map(item => <View key={item.id} {...whole.item(item.id)}><Chip focusId={item.id} testID={item.testID} count={item.count} selected={item.selected}
       onPress={item.onPress} onFocus={() => whole.focus(item.id)}>{item.label}</Chip></View>)}
   </ScrollView></TVRow></FocusRegion>;
-  return <FocusRegion {...region}><TVRow><FlatList horizontal data={choices} keyExtractor={choice => choice.id} showsHorizontalScrollIndicator={false}
-    initialNumToRender={10} maxToRenderPerBatch={10} windowSize={3}
-    contentContainerStyle={{gap: theme.space.xs, paddingHorizontal: theme.gutter, paddingVertical: focusRoom}}
-    ListHeaderComponent={leading ? <View>{leading}</View> : undefined}
-    renderItem={({item}) => <Chip focusId={item.id} testID={item.testID} count={item.count} selected={item.selected} onPress={item.onPress}>{item.label}</Chip>}/>
-  </TVRow></FocusRegion>;
+  // Touch: the browse toolbar's chip rail, so the owner's rules hold here too (20 Nov): on a phone the next chip shows partly
+  // under a fade at the row's end; on a tablet the row stops on whole chips. A plain list cut a chip at the screen edge.
+  return <FocusRegion {...region}><View style={{flexDirection: 'row', paddingHorizontal: theme.gutter}}><ChipRail>
+    {leading}{choices.map(item => <Chip key={item.id} focusId={item.id} testID={item.testID} count={item.count} selected={item.selected} onPress={item.onPress}>{item.label}</Chip>)}
+  </ChipRail></View></FocusRegion>;
 }
 
 export function GuideActionRow({children, region, testID}: {children: ReactNode; region?: FocusRegionProps; testID?: string}) {
