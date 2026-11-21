@@ -92,7 +92,7 @@ export async function savedResourceFixture(bindings) {
     ...Object.fromEntries(Object.entries(bindings).filter(([key]) => key.startsWith('../../kit/')).map(([key, value]) => [`../${key}`, value])),
   });
   return {SavedResourcePage: props => {
-    const frame = page.SavedResourcePage(props).props;
-    return [frame.barAction, frame.children, frame.footer, frame.sheets];
+    const frame = page.SavedResourcePage(props);
+    return [frame, frame.props.footer, frame.props.sheets];
   }};
 }

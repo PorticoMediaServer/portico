@@ -143,8 +143,8 @@ test('Saved resource menus keep membership commands beside canonical selection, 
   assert.equal(orderChip.props.sort, 'position'); assert.deepEqual(orderChip.props.sorts, sorts);
   assert.ok(orderChip.props.label(sorts[0]).includes('Playlist order'));
   find(tree, 'saved-reorder').props.onPress(); tree = f.host.render(() => SavedResourcePage(props));
-  const reorderBar = nodes(tree).find(node => node.type === 'TopBar');
-  assert.ok(String(reorderBar.props.title).includes('Reordering')); assert.equal(reorderBar.props.trailing.props.testID, 'saved-reorder-done'); assert.equal(find(tree, 'saved-play'), undefined);
+  const reorderFrame = nodes(tree).find(node => node.type === 'SavedResourceFrame');
+  assert.ok(String(reorderFrame.props.barTitle).includes('Reordering')); assert.equal(reorderFrame.props.barAction.props.testID, 'saved-reorder-done'); assert.equal(find(tree, 'saved-play'), undefined);
   const list = nodes(tree).find(node => node.type === 'SavedReorderList');
   list.props.onPlace(list.props.rows[0], 'occ-b', ['occ-a', 'occ-b']); await Promise.resolve(); await Promise.resolve();
   assert.deepEqual(calls[1], ['command', {action: 'reorder', entryIds: ['occ-a'], afterEntryId: 'occ-b'}]);
