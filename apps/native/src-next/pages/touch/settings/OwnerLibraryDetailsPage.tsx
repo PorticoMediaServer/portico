@@ -11,7 +11,7 @@ import {StateView} from '../../../kit/states';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {LibraryTrashGroup} from '../../../kit/settings/libraries/LibraryTrashGroup';
 import {ownerLibraryCounts, ownerLibraryScan, ownerLibraryState} from '../../../screens/settings-live/owner-libraries/presentation';
-import type {useOwnerLibraries} from './useOwnerLibraries';
+import type {useOwnerLibraries} from '../../shared/settings/useOwnerLibraries';
 
 type Model = ReturnType<typeof useOwnerLibraries>;
 type Props = {

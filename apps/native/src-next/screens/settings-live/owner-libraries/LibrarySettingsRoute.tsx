@@ -5,7 +5,7 @@ import {NativeScreenLifetime} from '../lifetime';
 import {createNativeSettingsPorts} from '../settings-ports';
 import {createNativeSettingsRenderer} from '../SettingsRoute';
 import {Screen} from '../Screen';
-import {OwnerLibrariesPage} from '../../../pages/shared/settings/OwnerLibrariesPage';
+import {OwnerLibrariesPage} from '../../../pages/touch/settings/OwnerLibrariesPage';
 
 /** Reuse the actual owner library editor; no alternate page or administration API. */
 export function createNativeLibrarySettingsRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {

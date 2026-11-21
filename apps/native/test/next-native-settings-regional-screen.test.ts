@@ -82,7 +82,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     'react-native-qrcode-svg': {default: 'QRCode'},
     '../../shell/chrome': {setNativeScreenChromeHidden: () => {}},
     '../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
-    './OwnerLibrariesPage': {OwnerLibrariesPage: 'NativeOwnerLibrariesPanel'},
+    '../../touch/settings/OwnerLibrariesPage': {OwnerLibrariesPage: 'NativeOwnerLibrariesPanel'},
     './LiveOwnerScreen': {NativeLiveOwnerScreen: 'NativeLiveOwnerScreen'},
     './live-owner-controller': {NativeLiveOwnerController: function NativeLiveOwnerController() {}},
     './recordings-controller': {createNativeRecordingsController: () => ({dispose: () => {}})},

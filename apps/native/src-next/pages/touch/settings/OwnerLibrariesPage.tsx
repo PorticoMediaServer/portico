@@ -12,7 +12,7 @@ import {AddLibraryPage} from '../../../screens/settings-live/owner-libraries/Add
 import {libraryListState} from '../../../screens/settings-live/owner-libraries/library-settings-model';
 import {ownerLibraryState} from '../../../screens/settings-live/owner-libraries/presentation';
 import {OwnerLibraryDetailsPage} from './OwnerLibraryDetailsPage';
-import {useOwnerLibraries} from './useOwnerLibraries';
+import {useOwnerLibraries} from '../../shared/settings/useOwnerLibraries';
 
 type Props = Parameters<typeof useOwnerLibraries>[0]
   & Pick<React.ComponentProps<typeof SettingsPageFrame>, 'server' | 'back'> & {retry?: React.ReactNode};

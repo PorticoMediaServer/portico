@@ -12,7 +12,7 @@ import {StateView} from '../../../kit/states';
 import {PhoneDashboardCard, SettingsHelp, SettingsKeyHints, SettingsNavigationGroup, SettingsNotificationCount, SettingsPageLink, SettingsSearchGroup} from '../../../kit/settings/SettingsParts';
 import {NativeTVKeyboard} from '../../../screens/destinations';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
-import {OwnerLibrariesPage} from './OwnerLibrariesPage';
+import {OwnerLibrariesPage} from '../../touch/settings/OwnerLibrariesPage';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
 import {NativeServerTroubleshooting} from '../../../screens/settings-live/server/TroubleshootingPage';
 import {NativeServerStorage} from '../../../screens/settings-live/server/StoragePage';
