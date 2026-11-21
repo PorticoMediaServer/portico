@@ -7,7 +7,8 @@
 .tiles[data-variant='health'] .heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .tiles[data-variant='health'] dt { color: var(--color-text-secondary); }
 .tiles[data-variant='health'] dd { font-size: 20px; letter-spacing: -.01em; margin: 0; }
-.tiles[data-variant='segments'] { grid-template-columns: repeat(3, 1fr) 1.3fr; border-radius: 14px; }
+/* Four across where each has 150 (the status a little wider), else two by two (a phone, or a tablet's page beside the list). */
+.tiles[data-variant='segments'] { grid-template-columns: repeat(auto-fit, minmax(max(150px, calc((100% - 6px) / 4.3)), 1fr)); border-radius: 14px; }
 .tiles[data-variant='segments'] > div { padding: 16px 20px; }
 .tiles[data-variant='segments'] dt { font-size: 13px; }
 .tiles[data-variant='segments'] dd { font-size: 26px; letter-spacing: -.02em; margin-top: 3px; }

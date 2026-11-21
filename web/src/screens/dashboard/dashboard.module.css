@@ -25,7 +25,8 @@
 .dashboard progress::-webkit-progress-bar { background: var(--color-track-rest); }
 .dashboard progress::-webkit-progress-value { background: var(--color-accent-strong); }
 .avatar { width: 28px; height: 28px; border-radius: var(--radius-pill); flex: none; display: grid; place-items: center; color: var(--color-white); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-white) 12%, transparent); font-size: var(--type-caption-size); font-weight: var(--type-caption-strong-weight); }
-.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+/* Four across where they fit (owner-dashboard 10); two by two beside the Settings list on a tablet. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(160px, calc((100% - 36px) / 4)), 1fr)); gap: 12px; margin-bottom: 12px; }
 .tile { display: flex; flex-direction: column; min-width: 0; text-align: left; padding: 14px 16px 12px; border: 0; border-radius: var(--radius-overlay); background: var(--color-raised); color: var(--color-text); font: inherit; cursor: pointer; }
 .tile[aria-selected='true'] { background: var(--color-raised-high); box-shadow: inset 0 0 0 2px var(--color-accent); }
 .tile > span { font-size: var(--type-person-title-size); font-weight: var(--type-person-title-weight); color: var(--color-text-secondary); }
