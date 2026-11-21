@@ -1,7 +1,7 @@
 import React, {useRef, useState, type ReactNode} from 'react';
 import {FlatList, View} from 'react-native';
-import {SkeletonBlock} from '../../kit/states';
-import {TVRow} from '../../kit/layout/TVRow';
+import {SkeletonBlock} from '../states';
+import {TVRow} from '../layout/TVRow';
 
 /** Fixed-pitch, touch-only Reading shelf. Only visible covers and a small
  * overscan are mounted; the source retains its signed cursor and own lifetime. */
