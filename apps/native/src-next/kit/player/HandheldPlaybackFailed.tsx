@@ -2,11 +2,10 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import {clockText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button} from '../../kit/controls';
-import {useTheme} from '../../kit/theme';
-import {shellType} from '../../kit/shell/visual';
-import type {NativePlaybackFailure} from './PlaybackFailed';
-import {failureBody, failureTitle} from './failure-words';
+import {Button} from '../controls';
+import {useTheme} from '../theme';
+import type {NativePlaybackFailure} from '../../screens/watch/PlaybackFailed';
+import {failureBody, failureTitle} from '../../screens/watch/failure-words';
 
 /** A compact state inside the picture, leaving the player's own exit controls usable. */
 export function NativeHandheldPlaybackFailed({failure, retry, differentVersion}: {failure: NativePlaybackFailure; retry?: () => void; differentVersion?: () => void}) {
@@ -14,8 +13,8 @@ export function NativeHandheldPlaybackFailed({failure, retry, differentVersion}:
   return <View testID="watch-handheld-failed" pointerEvents="box-none" style={{position: 'absolute', inset: 0, justifyContent: 'center', alignItems: 'center'}}>
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, backgroundColor: '#03080c8c'}}/>
     <View testID="watch-handheld-failure" style={{maxWidth: '80%', alignItems: 'center', gap: 4}}>
-      <Text accessibilityRole="header" numberOfLines={1} style={[shellType(16, 700), {color: theme.colors.text, textAlign: 'center'}]}>{failureTitle(failure.ended)}</Text>
-      <Text numberOfLines={2} style={[shellType(13, 400), {color: theme.colors.textSecondary, textAlign: 'center'}]}>{failureBody(failure.reason, clockText(failure.positionSeconds) ?? '', failure.ended)}</Text>
+      <Text accessibilityRole="header" style={[theme.type.wideTitle, {color: theme.colors.text, textAlign: 'center'}]}>{failureTitle(failure.ended)}</Text>
+      <Text style={[theme.type.meta, {color: theme.colors.textSecondary, textAlign: 'center'}]}>{failureBody(failure.reason, clockText(failure.positionSeconds) ?? '', failure.ended)}</Text>
       {retry && <Button testID="watch-handheld-retry" size="compact" onPress={retry}>{t('next.states.tryAgain')}</Button>}
       {differentVersion && <Button testID="watch-handheld-version" size="compact" variant="glass" onPress={differentVersion}>{t('next.overlays.differentVersion')}</Button>}
     </View>

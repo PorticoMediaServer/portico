@@ -35,9 +35,10 @@ test('a channel a recording took reads as Live TV\'s handover on native, in the 
 test('the TV and handheld failed states and their capture carry the server\'s end', async () => {
   const {readFileSync} = await import('node:fs');
   const read = (name: string) => readFileSync(new URL(`../src-next/screens/watch/${name}`, import.meta.url), 'utf8');
-  for (const name of ['PlaybackFailed.tsx', 'HandheldPlaybackFailed.tsx']) {
-    assert.match(read(name), /failureTitle\(failure\.ended\)/, name);
-    assert.match(read(name), /failureBody\(failure\.reason, .*, failure\.ended\)/, name);
+  const kit = readFileSync(new URL('../src-next/kit/player/HandheldPlaybackFailed.tsx', import.meta.url), 'utf8');
+  for (const [name, text] of [['PlaybackFailed.tsx', read('PlaybackFailed.tsx')], ['kit HandheldPlaybackFailed.tsx', kit]] as const) {
+    assert.match(text, /failureTitle\(failure\.ended\)/, name);
+    assert.match(text, /failureBody\(failure\.reason, .*, failure\.ended\)/, name);
   }
   assert.match(read('WatchHost.tsx'), /\.\.\.\(source\.playback\.ended \? \{ended: source\.playback\.ended\} : \{\}\)/);
 });
