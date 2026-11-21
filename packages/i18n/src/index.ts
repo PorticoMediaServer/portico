@@ -265,7 +265,7 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
   // The locale words the unit ("GB", "Go") where the runtime knows byte units; an engine that
   // does not keeps the English abbreviations.
   const byteUnits = [['byte', 'B'], ['kilobyte', 'KB'], ['megabyte', 'MB'], ['gigabyte', 'GB'], ['terabyte', 'TB']] as const;
-  let localizedUnits: boolean | undefined, roundsUnits: boolean | undefined;
+  let localizedUnits: boolean | undefined, roundsUnits: boolean | undefined, pluralUnits: boolean | undefined;
   const bytes = (value: number | undefined) => {
     if (value == null || !Number.isFinite(value) || value < 0) return '—';
     let v = value, i = 0;
@@ -283,7 +283,17 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
         roundsUnits = false;
       }
     }
-    if (localizedUnits !== false && (roundsUnits || i === 0)) {
+    if (i === 0 && pluralUnits === undefined) {
+      // Hermes on tvOS spells whole bytes but never makes the word plural ("0 byte"). Where one and two bytes take the
+      // same word, the abbreviation is used instead ("0 B"), which needs no plural.
+      try {
+        const long = (count: number) => new Intl.NumberFormat(region.formatLocale, {style: 'unit', unit: 'byte', unitDisplay: 'long'}).format(count);
+        pluralUnits = long(2) !== long(1).replace(number(1), number(2));
+      } catch {
+        pluralUnits = false;
+      }
+    }
+    if (localizedUnits !== false && (i === 0 ? pluralUnits : roundsUnits)) {
       try {
         // Whole bytes are spelled out ("512 bytes"): the short form in English is the bare word "byte".
         const text = new Intl.NumberFormat(region.formatLocale, {style: 'unit', unit, unitDisplay: i === 0 ? 'long' : 'short', maximumFractionDigits}).format(v);
