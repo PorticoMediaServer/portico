@@ -721,4 +721,5 @@ export function SettingsEntry() {
   </>;
 }
 
-export default defineWebScreen({id: 'settings', component: SettingsEntry, validateSearch: raw => settingsRoute(raw, () => true)});
+export default defineWebScreen({id: 'settings', component: SettingsEntry, // The bare /settings stays bare: at phone width it is the list, and only a link that names a page opens one.
+  validateSearch: raw => raw.scope === undefined && raw.section === undefined && raw.row === undefined ? {} : settingsRoute(raw, () => true)});
