@@ -8,6 +8,8 @@ import {mountQuietInput, type QuietInput} from './quiet-refresh';
 import {Fragment, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {Button} from '../../kit/controls';
+import {Icon} from '../../kit/Icon';
+import serverStyles from './server/server.module.css';
 import {useRouterState} from '@tanstack/react-router';
 import {peopleStreamLimits, settingsBinding} from '@core/presentation/settings-bindings.ts';
 import {settingsRowIndex, settingsSpec} from '@core/presentation/settings-spec.ts';
@@ -492,8 +494,10 @@ export function SettingsEntry() {
         if (row.id === 'profile.picture' && profiles) return <ProfilePicture source={profiles} isCurrent={current} onFailure={reportError} />;
         if (row.id === 'profile.delete' && profiles) return <ProfileDelete source={profiles} isCurrent={current} onFailure={reportError} />;
         if (row.id === 'quality.awayLimitChange') return <Button size="small" variant="glass" disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'streaming', row: 'streaming.awayQuality'});}}>{defaultI18n.t(row.control.label ?? row.label)}</Button>;
-        if (row.id === 'signin.people') return <Button size="small" variant="glass" disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'people'});}}>{defaultI18n.t(row.control.label ?? row.label)}</Button>;
-        if (row.id === 'signin.outside') return <Button size="small" variant="glass" disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'remote'});}}>{defaultI18n.t(row.control.label ?? row.label)}</Button>;
+        // settings-signin: a link to another page is the accent text with its chevron, as every section link draws.
+        if (row.id === 'signin.people') return <button type="button" className={serverStyles.sectionLink} disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'people'});}}>{defaultI18n.t(row.control.label ?? row.label)}<Icon name="i-right" size={16} /></button>;
+        // settings-signin: a link to another page is the accent text with its chevron, as every section link draws.
+        if (row.id === 'signin.outside') return <button type="button" className={serverStyles.sectionLink} disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'remote'});}}>{defaultI18n.t(row.control.label ?? row.label)}<Icon name="i-right" size={16} /></button>;
         if (row.id === 'signin.dataFolder' && signinStorage) return <StorageDataFolder source={signinStorage} label={defaultI18n.t(row.label)} />;
         if (row.id === 'general.version' && updates) return <UpdatesCurrent source={updates} />;
         if (row.id === 'general.checkNow' && updates) return <UpdatesCheckNow source={updates} label={defaultI18n.t(row.control.label ?? row.label)} disabled={state.disabled === true} />;

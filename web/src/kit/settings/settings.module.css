@@ -58,9 +58,12 @@
 .tabbedPanel :global([role='tabpanel']) { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .panelTabBody { padding: 0 32px 36px; }
 .panelTabBody > .group { margin-top: 32px; }
-.panelTabBody > .group:first-child { margin-top: 26px; }
-.panelTabs { padding: 0 32px; }
-.panelTabs button { padding-inline: 9px; margin-inline: -9px; }
+.panelTabBody > .group:first-child, .panelTabBody > .groups:first-child { margin-top: 26px; }
+/* Rows straight under a page's tabs (a library's General, Folders…) start a section's gap below the tab line. */
+:global([role='tabpanel']) > .groups:first-child { margin-top: var(--frame-section-gap); }
+/* A panel's tabs are the smaller list label, as settings-people-panel draws them (Account, Access, Profiles…). */
+.panelTabs { padding: 0 32px; gap: 30px; }
+.panelTabs button { padding-inline: 9px; margin-inline: -9px; padding-block: 12px 11px; font-size: var(--type-list-label-size); }
 .panel .groupRows, .panel .advancedToggle { background: color-mix(in srgb, var(--color-ink) 46%, transparent); }
 .panel .advancedToggle:hover { background: color-mix(in srgb, var(--color-ink) 62%, transparent); }
 .panelFooter { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 32px 24px; border-top: 1px solid var(--color-line); background: var(--color-raised); }
