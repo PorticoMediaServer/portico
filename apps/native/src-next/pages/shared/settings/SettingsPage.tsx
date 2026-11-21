@@ -33,7 +33,7 @@ import {SettingsPreferences} from './SettingsPreferences';
 export function NativeSettingsPage(props: SettingsProps) {
   const {ports, controller, runtime, devicePreferences, dashboard, initialChannelId} = props;
   const {theme, t, shell, state, ids, page, compact, pushed, query, setQuery, searchRevision, searching, searchField, keyboard, rows, column,
-    selectPage, choose, focusSearch, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
+    selectPage, choose, focusSearch, tvMoreLinks, openTVLink, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
     matches, matchingPages, matchRegions, matchEdges, voiceSearch, sheetChanged, closing, closeSettings, finishClose, phoneBack, signedIn,
     serverPage, viewerRole, dashboardCard, dashboardDenied, openDashboard, openServerPage, updatePending, leaveServerPage, setRemoteBack, setSegmentBack,
     librariesPage, livePage, troubleshootingPage, storagePage, integrationsPage, generalPage, streamingPage, segmentsPage, peoplePage,
@@ -58,10 +58,18 @@ export function NativeSettingsPage(props: SettingsProps) {
       onVoice={voiceSearch.start} voiceBusy={voiceSearch.busy}/>
     {voiceSearch.field}
   </> : searchingQuery ? <SettingsSearchResults matches={matches} query={query} onNavigate={openMatch}/> : <>
-    <FocusRegion id={column} entry={orderedPages[0]?.id} order={orderedPages.map(value => value.id)} orientation="vertical"
+    <FocusRegion id={column} entry={orderedPages[0]?.id} order={[...orderedPages.map(value => value.id), ...tvMoreLinks.map(link => link.id)]} orientation="vertical"
       edges={{left: ids.rail, right: rows, up: searchField}} onLayout={enter}>
       <SettingsSectionLabel label={t('settings.heading.account')} first={!compact}/>
-      {accountGroups.map(group => <SettingsNavigationGroup key={group[0]?.id}>{group.map(value => row(value))}</SettingsNavigationGroup>)}
+      {accountGroups.map(group => <React.Fragment key={group[0]?.id}>
+        {/* connect-24: a TV's Switch server sits under More. */}
+        {tv && group[0]?.id === 'servers' && <SettingsSectionLabel label={t('settings.more')}/>}
+        <SettingsNavigationGroup>
+          {group.map(value => row(value))}
+          {tv && group[0]?.id === 'servers' && tvMoreLinks.map(link => <SettingsPageLink key={link.id} id={link.id} title={t(link.title)} icon={link.icon}
+            selected={false} onPress={() => openTVLink(link.route)}/>)}
+        </SettingsNavigationGroup>
+      </React.Fragment>)}
     </FocusRegion>
     {!tv && serverGroups.length > 0 && <SettingsNavigationGroup server>
       {serverHeader}
@@ -82,6 +90,9 @@ export function NativeSettingsPage(props: SettingsProps) {
     : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
     : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/>
     : undefined;
+  // connect-24: a TV's Switch server page has its own line under the title.
+  const switchServerLede = tv && page.id === 'servers' && !tvSearch ? t('settings.switchServerLede') : undefined;
+  const intro = page.id === 'playback' ? t('settings.playback.deviceIntro') : switchServerLede;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
   const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
@@ -104,7 +115,7 @@ export function NativeSettingsPage(props: SettingsProps) {
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
-    intro={page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
+    intro={intro}
     scrollRef={pageScroll} onScrollLayout={pageScrollLayout}
     panel={custom ? <>{retry}{custom}</> : undefined}>
     {!custom && retry}

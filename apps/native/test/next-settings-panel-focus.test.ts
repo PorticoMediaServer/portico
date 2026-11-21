@@ -8,7 +8,7 @@ const {react} = hooks();
 let television = true;
 const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/screens/settings-live/settings-panels.tsx', import.meta.url), {
   react, 'react-native': {},
-  '../accounts/AccountRoutes': {ProfileRoute: 'ProfileRoute'},
+  '../accounts/AccountRoutes': {ProfileRoute: 'ProfileRoute', ServersRoute: 'ServersRoute'},
   '../../pages/shared/settings/AccountSecurityPanel': {AccountSecurityPanel: 'AccountSecurityPanel'},
   '../../pages/touch/settings/AccessTokensPanel': {AccessTokensPanel: 'AccessTokensPanel'},
   '../../pages/touch/settings/DeviceAboutRows': {DeviceAboutRows: 'DeviceAboutRows'},
@@ -34,7 +34,7 @@ test('custom Settings navigation rows provide stable distinct focus identities b
   const opened: unknown[] = [];
   const deps = {context: {serverName: 'Actual server'}, t: (id: string) => id, openRoute: (route: unknown) => opened.push(route)};
   const ids = new Set<string>();
-  for (const id of ['profiles', 'servers', 'equalizer']) {
+  for (const id of ['profiles', 'equalizer']) {
     const element = renderNativeSettingsPanel(id, deps, {});
     const row = typeof element.type === 'function' ? element.type(element.props) : element;
     assert.equal(row.type, 'SettingsRow');
@@ -43,7 +43,29 @@ test('custom Settings navigation rows provide stable distinct focus identities b
     ids.add(row.props.testID);
     row.props.onPress();
   }
-  assert.deepEqual(opened, [{kind: 'profiles'}, {kind: 'servers'}, {kind: 'settings-equalizer'}]);
+  assert.deepEqual(opened, [{kind: 'profiles'}, {kind: 'settings-equalizer'}]);
+});
+
+/** connect-24: a TV's Switch server page is the chooser drawn in Settings; the panels that fill the screen open the route on that panel. */
+test('a TV\'s Switch server page draws the chooser in Settings; its full-screen panels open the servers route on that panel', () => {
+  const opened: unknown[] = [];
+  const context = {serverName: 'Actual server'};
+  const element = renderNativeSettingsPanel('servers', {context, t: (id: string) => id, openRoute: (route: unknown) => opened.push(route)}, {});
+  const route = element.type(element.props);
+  assert.equal(route.type, 'ServersRoute');
+  assert.equal(route.props.context, context);
+  assert.equal(route.props.embedded, true);
+  route.props.openPanel('add');
+  route.props.openPanel('sign-out-account');
+  assert.deepEqual(opened, [{kind: 'servers', initialPanel: 'add'}, {kind: 'servers', initialPanel: 'sign-out-account'}]);
+  television = false;
+  try {
+    const row = element.type(element.props);
+    assert.equal(row.type, 'SettingsRow');
+    assert.equal(row.props.testID, 'settings-panel-servers');
+    row.props.onPress();
+    assert.deepEqual(opened.at(-1), {kind: 'servers'}, 'phones and tablets keep their Servers row');
+  } finally {television = true;}
 });
 
 test('the profile panel embeds management in the exact Settings route without navigating to the picker', () => {
