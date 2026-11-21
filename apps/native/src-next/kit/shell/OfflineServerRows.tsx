@@ -4,6 +4,7 @@ import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {DirectoryRow} from '../../screens/accounts/directory-chooser';
 import {Button} from '../controls';
+import {FocusRegion} from '../focus';
 import {Icon} from '../Icon';
 import {CountdownRing} from '../states';
 import {useTheme} from '../theme';
@@ -20,13 +21,12 @@ function lastSeen(row: DirectoryRow, tv: boolean, now: number) {
   return t(row.subtitle.key, row.subtitle.values);
 }
 
-export function OfflineServerRows({rows, busy, activeId, retry, retryIn, retryProgress}: {
+export function OfflineServerRows({rows, busy, activeId, retry, retryIn, retryProgress, focus}: {
   rows: readonly DirectoryRow[]; busy: boolean; activeId?: string; retry: (id: string) => void;
-  retryIn?: number; retryProgress?: number;
+  retryIn?: number; retryProgress?: number; focus?: {id: string; entry?: string};
 }) {
   const theme = useTheme(), tv = theme.isTV, now = serverNow();
-  return <>
-    {rows.map((row, index) => {
+  const cards = rows.map((row, index) => {
       const seen = lastSeen(row, tv, now);
       return <View key={row.id} style={{flexDirection: tv ? 'row' : 'column', alignItems: tv ? 'center' : undefined,
         gap: tv ? theme.space.md : theme.space.sm, padding: theme.space.sm, borderRadius: tv ? 22 : 14,
@@ -45,7 +45,9 @@ export function OfflineServerRows({rows, busy, activeId, retry, retryIn, retryPr
           preferredFocus={tv && index === 0} disabled={busy} loading={busy && activeId === row.id || undefined}
           onPress={() => retry(row.id)}>{t('web.chooser.tryAgain')}</Button>
       </View>;
-    })}
+    });
+  return <>
+    {focus ? <FocusRegion {...focus} enabled={!busy} style={{gap: theme.space.sm}}>{cards}</FocusRegion> : cards}
     {retryIn !== undefined && !busy && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.sm}}>
       {tv && <CountdownRing progress={retryProgress}/>}
       <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('web.chooser.checkingAgain', {seconds: retryIn})}</Text>
