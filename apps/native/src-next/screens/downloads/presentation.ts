@@ -12,6 +12,14 @@ export type NativeDownloadsCopy = Readonly<{
   needsCheckIn: MessageId; goneFromServer: MessageId; otherProfiles: MessageId; stoppedAt: MessageId; stoppedHelp: MessageId;
 }>;
 
+/** A phone's words for Downloads; a tablet swaps a few (kit `useDownloadsLayout`). */
+export const nativeDownloadsCopy = Object.freeze({
+  emptyBody: 'next.saved.phone.emptyBody', storageLimitHelp: 'next.saved.phone.storageLimitHelp', freeOnPhone: 'next.saved.phone.free',
+  removeFromPhone: 'next.saved.phone.remove', stoppedBody: 'next.saved.stopped', downloading: 'next.saved.downloading',
+  needsCheckIn: 'next.saved.checkIn', goneFromServer: 'next.saved.phone.gone', otherProfiles: 'next.saved.phone.otherProfiles',
+  stoppedAt: 'server.plays.stoppedAt', stoppedHelp: 'next.saved.phone.stoppedHelp',
+} satisfies NativeDownloadsCopy);
+
 /** Receipt ownership is authoritative even before/without a legacy owner field. */
 export function downloadEntryIdentity(entry: OfflineEntry): string {
   const receipt = entry.receipt, viewer = receipt?.claims.viewer;

@@ -30,7 +30,7 @@ function modules(state: {
       return {current: () => !disposed && !signal?.aborted, dispose: () => {disposed = true;}};
     }},
     './remembered-downloads-opening': {createRememberedDownloadsOpening: async () => {state.onFallback?.(); return undefined;}},
-    '../screens/downloads/RememberedDownloadsScreen': {RememberedDownloadsScreen: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
+    '../pages/touch/downloads/RememberedDownloadsPage': {RememberedDownloadsPage: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
     '../screens/downloads/presentation': {downloadEntryIdentity},
     '../kit/states': {DownloadsStillPlay: 'DownloadsStillPlay', HomeSkeleton: 'HomeSkeleton', StateView: 'StateView', StateLayout: 'StateLayout'},
     '../kit/artwork': {StandardBackdrop: 'StandardBackdrop', CoverFan: 'CoverFan'},

@@ -48,7 +48,7 @@ test(`compact ${category} recovery admits only original usable downloads: ${cond
     '../platform/invitation-links': {nativeInvitationLinks: {subscribe: () => () => {}, getSnapshot: () => undefined, acquire: () => () => {}}},
     '../platform/installation': {beginNativeInstallation: () => ({current: () => live, dispose() {}})},
     './remembered-downloads-opening': {createRememberedDownloadsOpening: async (_installation: unknown, options: unknown) => {callback = options; expectedSource = source; return source;}},
-    '../screens/downloads/RememberedDownloadsScreen': {RememberedDownloadsScreen: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
+    '../pages/touch/downloads/RememberedDownloadsPage': {RememberedDownloadsPage: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
     '../screens/downloads/presentation': {downloadEntryIdentity}, '../screens/settings/NativeSettingsAppearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
     '../platform/home-action-diagnostics': {homeActionDiagnostics: {error() {}, lifetime() {}}},
     '../platform/secure-records': {acknowledgeSecureRecordsRecovered() {}, isSecureRecordsLost: () => false, secureRecordsRecoveredNotice: () => undefined},
