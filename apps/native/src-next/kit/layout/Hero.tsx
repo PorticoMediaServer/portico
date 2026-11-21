@@ -138,12 +138,15 @@ function HeroCopy<T extends HeroCandidate>({entry, fade, variant, renderActions,
   const side = !!copySide;
   // A long title in a short hero (two lines of 58 on the landscape tablet) lifted the words under the status bar. The words
   // never rise past the frame's line: while the block measures above it, the overview gives way a line at a time (3, 2, 1,
-  // none); the title, facts and actions keep their place. Each title starts again from its full overview.
-  const insets = useSafeAreaInsets(), frame = useFrameMetrics(), wordsTop = useContext(HeroWordsTop) ?? insets.top + frame.headerGap, [squeeze, setSqueeze] = useState<{id: string; lines: number}>();
-  const overviewLines = tv ? 2 : squeeze?.id === entry.id ? squeeze.lines : 3;
+  // none); the title, facts and actions keep their place. Each title starts again from its full overview. With no overview
+  // left to give, the title takes its long size, so a two-line title never runs off the top.
+  const insets = useSafeAreaInsets(), frame = useFrameMetrics(), wordsTop = useContext(HeroWordsTop) ?? insets.top + frame.headerGap, [squeeze, setSqueeze] = useState<{id: string; lines: number; long?: boolean}>();
+  const overviewLines = tv ? 2 : squeeze?.id === entry.id ? squeeze.lines : 3, shrunk = squeeze?.id === entry.id && !!squeeze.long;
+  const longTitle = !!entry.long || shrunk;
   const fit = copyTop !== undefined || tv ? undefined : (event: LayoutChangeEvent) => {
-    const lines = heroOverviewLines(event.nativeEvent.layout.y, wordsTop, overviewLines);
-    if (lines !== overviewLines) setSqueeze({id: entry.id, lines});
+    const top = event.nativeEvent.layout.y, lines = heroOverviewLines(top, wordsTop, overviewLines);
+    const shrink = !shrunk && lines === overviewLines && !(showOverview && !phone && !!entry.overview && overviewLines > 0) && top < wordsTop;
+    if (lines !== overviewLines || shrink) setSqueeze({id: entry.id, lines, long: shrunk || shrink});
   };
   const partProps = {still: wordsOnly, identity: entry.id, stagger: reduced || fade !== 'hero' ? 0 : heroSpec.rotation.copyStaggerMs, translate: reduced || tv || phone ? 0 : heroSpec.rotation.copyTranslate, timing};
   let step = 0;
@@ -152,7 +155,7 @@ function HeroCopy<T extends HeroCandidate>({entry, fade, variant, renderActions,
       right: phone ? theme.layout.gutter.phone : undefined, width: phone ? undefined : tv ? heroSpec.copy.width.tv : heroSpec.copy.width.web,
       top: copyTop ?? (tv ? 220 : undefined), bottom: copyTop !== undefined || tv ? undefined : phone ? heroSpec.copy.homeBottom.phone : heroSpec.copy.homeBottom.web}, copyStyle]}>
     {(renderReason || entry.reason) ? <CopyPart {...partProps} step={step++}>{renderReason ? renderReason(entry) : <Text style={[theme.type.eyebrow, {includeFontPadding: false, textAlign: side ? 'left' : phone ? 'center' : 'left', color: theme.colors.accentStrong, marginBottom: phone ? 8 : tv ? 16 : 14}, reasonTextStyle]}>{entry.reason}</Text>}</CopyPart> : null}
-    <CopyPart {...partProps} step={step++}><Lockup title={entry.title} long={entry.long} variant={variant} lines={tv ? 2 : undefined} style={[{textAlign: side ? 'left' : phone ? 'center' : 'left', marginBottom: phone ? 10 : tv ? 22 : 20}, lockupStyle, entry.long && longLockupStyle]} /></CopyPart>
+    <CopyPart {...partProps} step={step++}><Lockup title={entry.title} long={longTitle} variant={variant} lines={tv ? 2 : undefined} style={[{textAlign: side ? 'left' : phone ? 'center' : 'left', marginBottom: phone ? 10 : tv ? 22 : 20}, lockupStyle, longTitle && longLockupStyle]} /></CopyPart>
     {(renderMetadata || entry.facts?.length) ? <CopyPart {...partProps} step={step++}><View style={[{marginBottom: phone ? 18 : tv ? 18 : 16}, metadataStyle]}>{renderMetadata ? renderMetadata(entry) : <HeroMetadata runtimeChip facts={entry.facts ?? []} centered={side ? false : phone} />}</View></CopyPart> : null}
     {showOverview && !phone && entry.overview && overviewLines > 0 ? <CopyPart {...partProps} step={step++}><PreviewText lines={overviewLines} text={entry.overview} style={[theme.type.synopsis, {includeFontPadding: false, color: theme.colors.textSecondary, maxWidth: tv ? 800 : 540, marginBottom: tv ? 30 : 28}, overviewTextStyle]}/></CopyPart> : null}
     {/* tv-focus F-HOME-11: on TV the controls hold native focus through a rotation, so they
