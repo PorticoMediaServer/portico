@@ -45,3 +45,16 @@ test('failed and unavailable versions never open a Reading successor', async () 
     assert.equal(navigation.getSnapshot(), origin); navigation.dispose();
   }
 });
+
+test('a magazine or newspaper issue keeps its kind on the book page, so its series link opens the archive', async () => {
+  for (const publicationType of ['magazine', 'newspaper', undefined] as const) {
+    const navigation = new NativeShellNavigation(authority, () => authority), origin = navigation.getSnapshot();
+    const context: any = {current: () => true, session: () => ({sessionFamilyId: 'family', viewer: {}}), authority: () => authority, navigation,
+      api: {reading: () => ({versions: async () => ({chosenSourceId: 'source', versions: [{sourceId: 'source', format: 'pdf', inventoryAvailable: true}]}), dispose() {}})}};
+    const entry = {id: 'issue', libraryId: 'library', kind: 'ebook', title: 'Issue', ...(publicationType ? {publicationType} : {})};
+    assert.equal(await openNativeReadingBookEntry(context, {libraryId: 'library', entry, origin: {route: origin.route, revision: origin.revision}, resident: () => true}), true);
+    const route = navigation.getSnapshot().route;
+    assert.equal(route.kind === 'read-book' ? route.item.publicationType?.value : 'not a book', publicationType);
+    navigation.dispose();
+  }
+});
