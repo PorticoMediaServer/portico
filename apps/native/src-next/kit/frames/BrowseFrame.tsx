@@ -58,7 +58,7 @@ export type BrowseFrameProps = Readonly<{
   children?: ReactNode;
   /** In place of rows, the other flexible region: a grid or list that scrolls itself (kit `WindowedGrid`), given the room under the toolbar. */
   grid?: ReactNode;
-  /** The kit `AlphabetRail`, beside the grid in the right gutter. Phone, tablet. */
+  /** The kit `AlphabetRail`, beside the grid in the right gutter. Every form; on TV it takes the place of a Jump to sheet. */
   alphabet?: ReactNode;
   /** The kit `BrowseToolbar` (Filters, quick chips, count, sort, view, Save view, applied filters), fixed under the header. */
   toolbar?: ReactNode;
@@ -129,7 +129,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
     ? <View style={{flex: 1, marginTop: frameSpec.browse.gridGap[form]}}>
       {loading ? <>{loadingMessage}<GridSkeleton/></> : grid}
       {gridState && <View style={{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}}><PageStateFrame {...gridState}/></View>}
-      {alphabet && !loading && form !== 'tv' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
+      {alphabet && !loading && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, bottom: frame.bottomClear, right: 0, width: frame.rightGutter, alignItems: 'center', justifyContent: 'center'}}>{alphabet}</View>}
     </View>
     : scroll && !loading ? <Animated.ScrollView ref={scroll.ref} testID={scroll.testID ?? (testID ? `${testID}-scroll` : undefined)} style={scroll.style} scrollEventThrottle={16}
       onContentSizeChange={scroll.onContentHeight && ((_width, height) => scroll.onContentHeight?.(height))}

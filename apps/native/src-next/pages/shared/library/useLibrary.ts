@@ -11,7 +11,7 @@ import {serverTextLabel} from '../../../../../../packages/client-core/src/presen
 import {shareLinkActions} from '../../../screens/share/share-actions';
 import {nativeLibraryCanSave, nativeLibraryEntryKey, type NativeLibrarySnapshot} from '../../../screens/library/model';
 import {libraryAppliedFilters} from '../../../screens/library/applied-filters';
-import {libraryAlphabetRail, libraryJumpLetter, libraryJumpLetters} from '../../../screens/library/jump';
+import {libraryAlphabetRail} from '../../../screens/library/jump';
 import {createDestinationEntryFocus, nativeDestinationFocusIds} from '../../../screens/destinations/focus';
 import {useTVPageBack} from '../../../screens/destinations/useTVPageBack';
 import {useDestinationEntryFocus} from '../../../kit/focus/useDestinationEntryFocus';
@@ -192,8 +192,6 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
   const {state: source, active} = view, {runtime, activation} = props;
   const grid = useLibraryGrid(props, source, true);
   const registry = useFocusRegistry();
-  const [jumpOpen, setJumpOpen] = useState(false);
-  useEffect(() => {if (!active.visible) setJumpOpen(false);}, [active.visible]);
   const resource = source.tab.shows === 'genres' || source.tab.shows === 'playlists';
   const restore = useRef(resource && active.intent === 'restore' ? rememberedTVResource.get(runtime)?.get(regionId) : undefined).current;
   const startingIndex = restore?.index ?? 0;
@@ -213,15 +211,13 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
   useDestinationEntryFocus({...active, intent: resource && active.intent === 'restore' ? 'enter' : active.intent}, view.emptyState || view.tabChosen ? undefined : address || undefined, requested);
   useTVPageBack(runtime, {kind: 'library', libraryId: source.library.id}, true, {
     registerTop: true, scope: JSON.stringify([active.revision, source.queryRevision, source.tab.id]),
-    current: () => activation.getSnapshot().visible && !view.emptyState && !jumpOpen && !view.filters?.getSnapshot().open,
+    current: () => activation.getSnapshot().visible && !view.emptyState && !view.filters?.getSnapshot().open,
     start: () => {
       const first = grid.collection.itemAt(0);
       return first ? registry.entityAddress(regionId, nativeLibraryEntryKey(first)) ?? {regionId, childId: nativeLibraryEntryKey(first)} : undefined;
     },
     atTop: () => grid.offset.current <= 0, scrollTop: grid.top,
   });
-  const letters = libraryJumpLetters(grid.data.positionIndex);
-  const selectedLetter = libraryJumpLetter(letters, grid.range.first);
   const selected = grid.selected?.active;
   const ids = nativeDestinationFocusIds(runtime.getSnapshot().authority), tabs = ids.libraryTabs(source.library.id);
   const appliedId = `${toolbarId}.applied`;
@@ -233,13 +229,16 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
   const inView = !restore && grid.range.first > 0 ? grid.collection.itemAt(grid.range.first) : undefined;
   const inViewKey = inView && nativeLibraryEntryKey(inView);
   const regionEntry = inViewKey ? registry.entityAddress(regionId, inViewKey)?.childId ?? inViewKey : address ? address.childId : undefined;
+  const alphabetId = `${regionId}.alphabet`, alphabet = grid.hasAlphabet;
   return {...grid,
     count: count && unfiltered ? view.t('title.shownOfTotal', {shown: defaultI18n.number(grid.data.total!), total: view.t(unfiltered.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: unfiltered.total, pivot: source.tab.pivot ?? 'other'})}) : count,
     initialIndex: restore ? startingIndex : grid.initialIndex,
     toolbar: {id: toolbarId, enabled: active.visible && !selected, edges: {left: ids.rail, up: tabs, down: applied ? appliedId : regionId}},
     applied: {id: appliedId, enabled: active.visible, edges: {left: ids.rail, up: toolbarId, down: regionId}},
     region: {id: regionId, entry: regionEntry, enabled: active.visible,
-      edges: {left: ids.rail, up: applied ? appliedId : toolbarId}, screenStart: {regionId: toolbarId, childId: 'sort'}, count: grid.data.total},
+      edges: {left: ids.rail, up: applied ? appliedId : toolbarId, ...alphabet ? {right: alphabetId} : {}}, screenStart: {regionId: toolbarId, childId: 'sort'}, count: grid.data.total},
+    alphabet: alphabet ? {id: alphabetId, enabled: active.visible && !selected, edges: {left: regionId}} : undefined,
+    onJump: (index: number) => grid.grid.current?.scrollToIndex(index),
     onItemFocus: (item: ContentEntry, index: number) => {
       if (!resource || !activation.getSnapshot().visible) return;
       let memory = rememberedTVResource.get(runtime);
@@ -248,11 +247,6 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
       memory.set(regionId, {key: nativeLibraryEntryKey(item), index});
       if (memory.size > 64) memory.delete(memory.keys().next().value!);
     },
-    jump: {
-      open: jumpOpen, panelId: `${toolbarId}.jump`, letters, selected: selectedLetter, onClose: () => setJumpOpen(false),
-      onSelect: (letter: string) => {setJumpOpen(false); grid.grid.current?.scrollToLetter(letter);},
-    },
-    openJump: () => setJumpOpen(true),
   };
 }
 

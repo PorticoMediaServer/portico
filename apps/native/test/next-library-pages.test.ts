@@ -63,22 +63,26 @@ test('See all keeps Back and the group playback actions over the results', async
   assert.equal(frame.props.grid.props.shape, 'poster');
 });
 
-test('TV Library connects the filter and jump actions to its grid', async () => {
+test('TV Library connects Filters to its grid and jumps from the letter rail beside it, with no Jump to chip', async () => {
   const actions: string[] = [];
   const t = defaultI18n.t, state = {library: {id: 'films', name: 'Films'}, tab: {shows: 'grid'}, collection: {}};
   const view = {state, t, active: {visible: true}, openFilters: () => actions.push('filters'), gridId: 'grid', toolbarId: 'toolbar'};
-  const grid = {data: {status: 'ready'}, jump: {letters: [{key: 'A'}]}, region: {id: 'grid', edges: {up: 'toolbar'}}, openJump: () => actions.push('jump')};
+  const grid = {data: {status: 'ready', positionIndex: {A: 0, M: 40}, total: 80}, range: {first: 0, last: 20},
+    region: {id: 'grid', edges: {up: 'toolbar', right: 'grid.alphabet'}}, alphabet: {id: 'grid.alphabet', edges: {left: 'grid'}},
+    onJump: (index: number) => actions.push(`jump ${index}`)};
   const {LibraryPage} = await screenModule(new URL('../src-next/pages/tv/library/LibraryPage.tsx', import.meta.url), {
-    ...modules, '../../../kit/focus': {FocusItem: 'FocusItem'}, '../../../kit/browse/LibraryJumpSheet': {LibraryJumpSheet: 'Jump'},
+    ...modules, '../../../kit/focus': {FocusItem: 'FocusItem'},
     '../../shared/library/useLibrary': {useTVLibrary: () => view, useTVLibraryGrid: () => grid},
   });
   const page = LibraryPage({runtime: {}, destination: {}, actions: {}}) as Node;
   const frame = (page.type as (props: Node['props']) => Node)(page.props);
   const toolbar = frame.props.toolbar.props.children[1];
   toolbar.props.onFilters();
-  toolbar.props.onJump();
-  assert.deepEqual(actions, ['filters', 'jump']);
-  assert.equal(frame.props.grid.props.children[0].props.region.edges.up, 'toolbar');
+  assert.equal(toolbar.props.onJump, undefined);
+  assert.equal(frame.props.alphabet.props.focus.edges.left, 'grid');
+  frame.props.alphabet.props.onJump(40);
+  assert.deepEqual(actions, ['filters', 'jump 40']);
+  assert.equal(frame.props.grid.props.children[0].props.region.edges.right, 'grid.alphabet');
 });
 
 test('TV See all starts on Play and provides an on-screen Back action', async () => {
