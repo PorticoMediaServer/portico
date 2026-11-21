@@ -230,7 +230,7 @@ export function DownloadsEmpty({copy}: {copy: NativeDownloadsCopy}) {
   const theme = useTheme();
   return <View style={{paddingTop: 58, paddingHorizontal: 24, alignItems: 'center'}}>
           <View style={{width: 54, height: 54, borderRadius: 27, backgroundColor: alpha(theme.colors.text, .08), alignItems: 'center', justifyContent: 'center', marginBottom: 18}}><Icon name="i-dl" size={26} color={theme.colors.text}/></View>
-          <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, textAlign: 'center', marginBottom: 10}]}>{t(theme.form === 'medium' || theme.form === 'expanded' ? 'next.saved.tablet.empty' : 'next.states.native.noDownloads')}</Text>
+          <Text accessibilityRole="header" style={[theme.type.title, {color: theme.colors.text, textAlign: 'center', marginBottom: 10}]}>{t(theme.form === 'medium' || theme.form === 'expanded' ? 'next.saved.tablet.empty' : 'next.states.native.noDownloads')}</Text>
           <Text style={[theme.type.intro, {color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 16}]}>{t(copy.emptyBody)}</Text>
         </View>;
 }
