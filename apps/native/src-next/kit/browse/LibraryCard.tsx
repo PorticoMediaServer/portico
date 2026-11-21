@@ -54,7 +54,9 @@ export function LibraryCard({entry, family, width, wide = false, placeholderHeig
   if (wide) {const resume = homeCardText(entry, true, runtime.text);
     return renderCard(WideCard, {...props, captionBelow: true, caption: resume.caption, detail: resume.detail, artwork: runtime.artwork(entry.backdropUrl ?? entry.posterUrl), progress: resume.progress});}
   const artistCovers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
-  return entry.kind === 'artist' ? renderCard(CircleCard, {...props, art: {covers: artistCovers.length ? artistCovers : props.artwork ? [props.artwork] : [], alt: entry.title}})
-    // One shape rule for every client (client-core shapeFor): music and audiobooks square, an audiobook series too; reading series 2:3.
-    : shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined) === 'square' ? renderCard(SquareCard, props) : renderCard(PosterCard, props);
+  // One shape rule for every client (client-core shapeFor): music and audiobooks square, an audiobook series too; reading
+  // series 2:3; people (an audiobook's authors) circles, drawn as an artist is (collections 39, 44: initials over their covers).
+  const shape = shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined);
+  return entry.kind === 'artist' || shape === 'circle' ? renderCard(CircleCard, {...props, art: {covers: artistCovers.length ? artistCovers : props.artwork ? [props.artwork] : [], alt: entry.title}})
+    : shape === 'square' ? renderCard(SquareCard, props) : renderCard(PosterCard, props);
 }
