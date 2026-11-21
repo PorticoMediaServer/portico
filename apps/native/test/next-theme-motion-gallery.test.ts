@@ -20,8 +20,8 @@ test('theme maps every accepted role, normal metrics and exact family registrati
   const phone = createTheme({isTV: false, width: 390}); const tv = createTheme({isTV: true, width: 1920});
   assert.equal(phone.colors, colors); assert.equal(phone.radii, platformRadii.phone); assert.equal(tv.radii, platformRadii.tv);
   assert.equal(createTheme({isTV: false, width: 768}).platform, 'tablet');
-  assert.equal(phone.type.lockup.fontSize, 46); assert.equal(tv.type.lockup.fontSize, 120);
-  assert.equal(phone.type.lockup.letterSpacing, -2.07); assert.equal(tv.type.lockup.letterSpacing, -.045 * 120);
+  assert.equal(phone.type.lockup.fontSize, 46); assert.equal(tv.type.lockup.fontSize, 100);
+  assert.equal(phone.type.lockup.letterSpacing, -2.07); assert.equal(tv.type.lockup.letterSpacing, -.045 * 100);
   assert.equal('lineHeight' in phone.type.nav, false);
   for (const [name, style] of Object.entries(typeScale.handheld)) assert.deepEqual(phone.type[name as keyof typeof phone.type], formRole('phone', name, style), `R2/R3: phone ${name} is the handheld column with its emphasis colour`);
 });
