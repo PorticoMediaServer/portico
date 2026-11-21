@@ -27,6 +27,16 @@ export function homeFactStrong(theme: Theme): string {
   return (theme.layoutMode === 'phone' && theme.platform === 'phone' ? theme.type.rowHeading : theme.type.bodyStrong).fontFamily ?? '';
 }
 
+/** tv.html 1 `.why`: the hero's reason line ("S1 E1  When You're Lost in the Darkness") is the accent eyebrow over the title,
+ *  not a card caption; kit.css `.gap` between its parts (12, 16 on TV), 14 under it (16 on TV). It wraps in full. */
+export function HomeHeroReason({parts}: {parts: readonly FactPart[]}) {
+  const theme = useTheme();
+  if (!parts.length) return null;
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: theme.isTV ? 16 : 12, marginBottom: theme.isTV ? 16 : 14}}>
+    {parts.map(part => <Text key={part.id} style={[theme.type.eyebrow, {includeFontPadding: false, color: theme.colors.accentStrong}]}>{part.text}</Text>)}
+  </View>;
+}
+
 /** The display context stays canonical; continuation timing is a separate genuine projection. */
 /** The hero's facts at a size of its own (tablet.html 2, desktop: 14 or 15 over 1.4), from the form that draws it. */
 export type HomeHeroFactsSize = Readonly<{text: TextStyle; columnGap: number; rowGap: number}>;
