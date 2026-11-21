@@ -1,6 +1,8 @@
 /* The audio player's queue panel (desktop-listen "now"): measurements are --frame-audio-wide-* (packages/design frames.ts). */
 .panel { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; border-radius: var(--frame-audio-wide-panel-radius); overflow: hidden; color: var(--color-text);
   background: color-mix(in srgb, var(--color-ink) 44%, transparent); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); }
+/* AudioPanelSurface: the card's inset for content that brings its own tabs, list and foot. */
+.surface { padding: var(--space-sm); overflow-y: auto; }
 .tabs { margin: var(--space-sm) var(--space-sm) var(--space-xs); display: flex; }
 .tabs > * { flex: 1; }
 .list { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--space-sm); }

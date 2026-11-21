@@ -156,6 +156,8 @@ async function nowPlaying() {
     '@core/presentation/kit-model/index.ts': {playbackIdentity: () => ({title: 'Song', subtitle: [{text: 'Artist'}]})},
     '../../../kit/artwork': {AmbientArt: 'AmbientArt', Artwork: 'Artwork'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/controls': {Slider: 'Slider'},
     '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/media': media,
+    // The kit frame draws More; the stand-in hands it a button as the frame does, and draws the panel it is given.
+    '../../../kit/frames': {ArtPlaceholder: 'ArtPlaceholder', AudioPlayerFrame: ({panel, more}: any) => [{type: 'button', props: {'aria-label': more.label, disabled: more.disabled, onClick: () => more.onPress({})}}, panel]}, '../../../kit/player': {PlayerVolume: 'PlayerVolume', AudioPanelSurface: ({children}: any) => children},
     '../model': {dispatchWatch: async () => {}, watchClock: () => '0:00', watchSeek: () => null, watchSeekBounds: () => null},
     '../queue-neighbours': {watchQueueNeighbours: () => ({})}, './signal': {watchMusicSignal: () => undefined},
     './audio-facts': {readWatchMusicAudioFacts: () => ({})}, '../../../shell/playback-model': {fenceKey},

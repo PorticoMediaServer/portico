@@ -308,7 +308,7 @@ async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{r
   const hook=await componentModule(new URL('../src/screens/watch/listening/use-listening-owner.ts',import.meta.url),{react:h.react,'./listening-owner':{ListeningOwner},'../../../shell/playback-model':{fenceKey}});
   const expansion=await componentModule(new URL('../src/screens/watch/music/expansion-owner.tsx',import.meta.url),{react:h.react,'../../../shell/playback-model':{fenceKey}});
   const equalizer=await componentModule(new URL('../src/screens/watch/music/EqualizerPanel.tsx',import.meta.url),{...deps,'../../../../../packages/player-core/src/index.ts':{sameFence}});
-  const music=await componentModule(new URL('../src/screens/watch/music/NowPlaying.tsx',import.meta.url),{...deps,'./EqualizerPanel':equalizer,'../listening/ListeningPanels':panels,'../../../shell/playback-model':{fenceKey},'./signal':{watchMusicSignal:()=>undefined},'./audio-facts':{readWatchMusicAudioFacts:()=>({})},'../../../kit/media':{ListeningNotice:'ListeningNotice'},'../../../router':{router:{navigate:async()=>{}}},'./now-playing.module.css':css});
+  const music=await componentModule(new URL('../src/screens/watch/music/NowPlaying.tsx',import.meta.url),{...deps,'../../../kit/frames':{ArtPlaceholder:'ArtPlaceholder',AudioPlayerFrame:({panel,...props}:any)=>[{type:'AudioPlayerFrame',props},props.more&&{type:'Button',props:{'aria-label':props.more.label,onClick:props.more.onPress,disabled:props.more.disabled}},panel]},'../../../kit/player':{PlayerVolume:'PlayerVolume',AudioPanelSurface:({children}:any)=>children},'./EqualizerPanel':equalizer,'../listening/ListeningPanels':panels,'../../../shell/playback-model':{fenceKey},'./signal':{watchMusicSignal:()=>undefined},'./audio-facts':{readWatchMusicAudioFacts:()=>({})},'../../../kit/media':{ListeningNotice:'ListeningNotice'},'../../../router':{router:{navigate:async()=>{}}},'./now-playing.module.css':css});
   const remote={remote:undefined,airPlayAvailable:false,cast:{available:false}},cast={controller:{getSnapshot:()=>remote,subscribe:()=>()=>{}},dispose(){}};
   let navigationWait:ReturnType<typeof deferred<void>>|undefined;
   const route={state:{location:{href:'/',pathname:'/'}},subscribe:()=>()=>{},navigate:async(destination:unknown)=>{navigations.push(destination);if(navigationWait)await navigationWait.promise;}};
@@ -537,13 +537,13 @@ test('phone-app 14 at phone widths: Lyrics, Play on and Up next along the foot a
   for(const width of [390,1440]){
     const h=await mountedPlayback('music',{lyrics:'lrc',width});try{
       h.show();await tick();let ui=h.show();one(ui,'DockHost').props.binding.onAction({kind:'lyrics',fence:h.f.snapshot.fence});await tick();ui=h.show();await tick();ui=h.show();
-      const tools=all(ui,'button').filter((node:any)=>node.props.className==='tool');
-      if(width===1440){assert.equal(tools.length,0,'desktop: no foot row');continue;}
-      const text=(node:any):string=>Array.isArray(node)?node.map(text).join(''):node?.props?text(node.props.children):typeof node==='string'?node:'';
-      assert.deepEqual(tools.map(text),[defaultI18n.t('player.lyrics'),defaultI18n.t('next.music.upNext')],'Lyrics left, Up next right');
-      assert.deepEqual(tools.map((node:any)=>all(node.props.children,'Icon')[0]?.props.name),['i-lyrics','i-queue'],'each an icon over its label');
-      assert.equal(all(ui,'span').filter((node:any)=>node.props.className==='toolGap').length,1,'Play on keeps its middle place when it is not offered');
-      tools[1].props.onClick({currentTarget:undefined});await tick();assert.deepEqual(h.errors,[]);
+      // The kit AudioPlayerFrame draws the foot row from its `lyrics`, `device` and `queue` (frame 8, phone width only).
+      const frame=all(ui,'AudioPlayerFrame')[0].props;
+      if(width===1440){assert.equal(frame.lyrics,undefined,'desktop: no foot row');assert.equal(frame.queue,undefined);continue;}
+      assert.deepEqual([frame.lyrics.label,frame.queue.label],[defaultI18n.t('player.lyrics'),defaultI18n.t('next.music.upNext')],'Lyrics left, Up next right');
+      assert.deepEqual([frame.lyrics.icon,frame.queue.icon],['i-lyrics','i-queue'],'each an icon over its label');
+      assert.equal(frame.device,undefined,'Play on is not offered here');
+      frame.queue.onPress(undefined);await tick();assert.deepEqual(h.errors,[]);
     }finally{h.close();}
   }
 });

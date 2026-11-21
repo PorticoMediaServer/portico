@@ -99,7 +99,7 @@ export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, 
 }
 
 /** One control in a fixed place. A control the item doesn't support keeps its place with `disabled`, dimmed. */
-export type AudioControl = Readonly<{icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number}>;
+export type AudioControl = Readonly<{icon: IconName; label: string; /** Given the button pressed, for a menu or panel to stand on. */ onPress: (button: HTMLButtonElement) => void; disabled?: boolean; active?: boolean; /** Back or forward: the seconds it skips, drawn in the arrow. */ skip?: number}>;
 /** An audiobook's Speed, Sleep timer and Chapters: a tile at phone width (its `value` over its label), and from 600
  * Speed and Sleep timer as a row of their `choices` with `help`. */
 export type AudioOption = Omit<AudioControl, 'icon'> & Readonly<{icon?: IconName; value?: string; help?: string; choices?: readonly Readonly<{label: string; selected?: boolean; onPress: () => void}>[]}>;
@@ -144,17 +144,17 @@ export type AudioPlayerFrameProps = Readonly<{
  * context, the device and More; a column as wide as the cover with the title, the heart and More, the scrubber with its
  * times at its ends, a compact transport and the volume; and the raised queue panel beside it. Every region keeps its box. */
 export function AudioPlayerFrame({close, context, source, device, more, notice, artwork, cover, icon, title, badge, byline = [], favourite, titleMore, chapter, signal, scrubber, times, transport, volume, next, lyrics, queue, speed, sleep, chapters, panel, loading = false}: AudioPlayerFrameProps) {
-  const book = chapter !== undefined, glyph = (item: AudioControl, className?: string) => <Button key={item.label} variant="icon" size="small" icon={item.icon} className={className} aria-label={item.label} aria-pressed={item.active} disabled={item.disabled || loading} onClick={item.onPress} />;
-  const slot = (item: AudioControl | AudioOption, kind: 'slot' | 'device' | 'tile') => <Button key={item.label} variant="text" className={styles.audioSlot} data-kind={kind} aria-pressed={item.active} disabled={item.disabled || loading} onClick={item.onPress}>
+  const book = chapter !== undefined, glyph = (item: AudioControl, className?: string) => <Button key={item.label} variant="icon" size="small" icon={item.icon} className={className} aria-label={item.label} aria-pressed={item.active} disabled={item.disabled || loading} onClick={event => item.onPress(event.currentTarget)} />;
+  const slot = (item: AudioControl | AudioOption, kind: 'slot' | 'device' | 'tile') => <Button key={item.label} variant="text" className={styles.audioSlot} data-kind={kind} aria-pressed={item.active} disabled={item.disabled || loading} onClick={event => item.onPress(event.currentTarget)}>
     {'value' in item && item.value !== undefined ? <b>{item.icon && <Icon name={item.icon} />}{item.value}</b> : item.icon && <Icon name={item.icon} />}<small>{item.label}</small></Button>;
   const rows = [speed, sleep].filter((item): item is AudioOption => !!item?.choices);
   return <div className={styles.audio} data-book={book || undefined} data-panel={panel !== undefined || undefined}>
     <header className={styles.audioTop}>
-      <Button variant="glass" size="small" iconOnly icon={close.icon} className={styles.audioSquare} aria-label={close.label} onClick={close.onPress} />
+      <Button variant="glass" size="small" iconOnly icon={close.icon} className={styles.audioSquare} aria-label={close.label} onClick={event => close.onPress(event.currentTarget)} />
       <p className={styles.audioContext}><span>{loading ? '' : context}</span>{source !== undefined && !loading && <b>{source}</b>}</p>
       {notice !== undefined && !loading && <span className={styles.audioNotice} role="status"><Icon name="i-rew" />{notice}</span>}
-      {device && <Button variant="glass" size="small" icon={device.icon} className={styles.audioDevice} disabled={device.disabled || loading} onClick={device.onPress}>{device.label}</Button>}
-      <Button variant="glass" size="small" iconOnly icon={more.icon} className={styles.audioSquare} aria-label={more.label} disabled={more.disabled || loading} onClick={more.onPress} />
+      {device && <Button variant="glass" size="small" icon={device.icon} className={styles.audioDevice} disabled={device.disabled || loading} onClick={event => device.onPress(event.currentTarget)}>{device.label}</Button>}
+      <Button variant="glass" size="small" iconOnly icon={more.icon} className={styles.audioSquare} aria-label={more.label} disabled={more.disabled || loading} onClick={event => more.onPress(event.currentTarget)} />
     </header>
     <div className={styles.audioColumn}>
       <div className={styles.audioArt}>{loading ? <Skeleton width="100%" height="100%" sheen /> : cover ?? <ArtBox kind="square" source={artwork} icon={icon} alt={title} />}</div>
