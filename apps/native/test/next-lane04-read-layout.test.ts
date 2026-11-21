@@ -1,4 +1,4 @@
-import {createTheme} from '../src-next/kit/theme';
+import {createTheme, textLine} from '../src-next/kit/theme';
 import * as cardModel from '../src-next/kit/cards/model.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,8 +31,8 @@ const issue = (id: string, issueDate: string, read = false) => ({issueDate, item
   coverUrl: `${id}-cover`, readingMark: {itemId: id, read, revision: 2}}});
 
 test('reading shelf keeps a bounded native window, starts ten cards early and draws a pending tail', async () => {
-  const r = renderer(), {ReadingShelf} = await screenModule(new URL('../src-next/screens/read/ReadingShelf.tsx', import.meta.url), {
-    react: r.react, 'react-native': {FlatList: 'FlatList', View: 'View'}, '../../kit/states': {SkeletonBlock: 'SkeletonBlock'},
+  const r = renderer(), {ReadingShelf} = await screenModule(new URL('../src-next/kit/reading/ReadingShelf.tsx', import.meta.url), {
+    react: r.react, 'react-native': {FlatList: 'FlatList', View: 'View'}, '../states': {SkeletonBlock: 'SkeletonBlock'},
   });
   const data = Array.from({length: 500}, (_, id) => ({id: String(id)})); let more = 0;
   const memory = {offset: 3200}, props = {items: data, getKey: (item: any) => item.id, renderItem: () => null,
@@ -78,21 +78,40 @@ async function periodical(tablet: boolean, magazine: boolean, phase = 'ready') {
   const actions = {state: {selecting: false, selected: []}, actions: {show: (value: unknown) => menus.push(value), inspect: async () => undefined},
     selection: () => ({active: false, selected: false})};
   const runtime = {artwork: (uri?: string) => uri ? {uri, cacheKey: uri} : undefined, ambient: () => undefined, reportError: (error: unknown) => {throw error;}};
-  const {ReadPeriodicalScreen} = await screenModule(new URL('../src-next/screens/read/ReadPeriodicalScreen.tsx', import.meta.url), {
-    react: r.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: tablet ? 932 : 390, height: 844})},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 44, bottom: 0})}, '@portico/design': {generatedCoverTint: () => ({})},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, number: String}, calendarDate: (_i18n: unknown, value: string) => value,
-      calendarMonth: () => ({label: 'October 2026', offset: 4, weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], dates: Array.from({length: 31}, (_, index) => `2026-10-${String(index + 1).padStart(2, '0')}`)})},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', AmbientArt: 'AmbientArt', GeneratedCover: 'GeneratedCover'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/states': {SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/cards/primitives': {Scrim: 'Scrim'},
-    '../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../../kit/theme': {useTheme: () => theme(tablet)},
-    '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
-    '../../kit/reading/ReadingLoading': {ReadingLoading: 'ReadingLoading'}, './ReadingShelf': {ReadingShelf: 'ReadingShelf'},
-    '../../kit/reading/ReadingActions': {ReadingItemMenu: 'ReadingItemMenu', ReadingSelectionToolbar: 'ReadingSelectionToolbar'}, '../../pages/shared/read/useReadingActions': {useReadingActions: () => actions},
-    './periodical-presentation': presentation,
+  const width = tablet ? 932 : 390;
+  const i18n = {defaultI18n: {t: (key: string) => key, number: String}, calendarDate: (_i18n: unknown, value: string) => value,
+    calendarMonth: () => ({label: 'October 2026', offset: 4, weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], dates: Array.from({length: 31}, (_, index) => `2026-10-${String(index + 1).padStart(2, '0')}`)})};
+  const native = {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width, height: 844})};
+  const useTheme = () => ({...createTheme({isTV: false, width}), ...theme(tablet)});
+  const states = {SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'};
+  const art = {Artwork: 'Artwork', AmbientArt: 'AmbientArt', GeneratedCover: 'GeneratedCover'};
+  const parts = await screenModule(new URL('../src-next/kit/reading/PeriodicalParts.tsx', import.meta.url), {
+    react: r.react, 'react-native': native, '@portico/design': {generatedCoverTint: () => ({})}, '../../../../../packages/i18n/src': i18n,
+    '../artwork': art, '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'},
+    '../overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../states': states, '../selection': {SelectionCircle: 'SelectionCircle'},
+    '../cards/primitives': {Scrim: 'Scrim'}, '../browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`},
+    '../theme': {useTheme, textLine}, '../../screens/read/periodical-presentation': presentation,
+    '../../pages/shared/read/usePeriodicalActions': {usePeriodicalActions: () => ({})},
+    './ReadingShelf': {ReadingShelf: 'ReadingShelf'}, './ReadingActions': {ReadingSelectionToolbar: 'ReadingSelectionToolbar'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
   });
-  const tree = r.render(ReadPeriodicalScreen, {controller, route: {groupId: 'group', publicationType: state.publicationType}, context: {}, runtime, onBack() {}});
+  const frame = await screenModule(new URL('../src-next/kit/frames/ReadingPeriodicalFrame.tsx', import.meta.url), {
+    react: r.react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 44, bottom: 0})},
+    '../theme': {useTheme}, '../artwork': art, '../states': states, '../reading/ReadingLoading': {ReadingLoading: 'ReadingLoading'},
+    '../reading/PeriodicalParts': parts, '../layout/TopBar': {TopBar: 'TopBar'}, '../layout/page-inset': {usePageWidth: () => width},
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/read/useReadPeriodical.ts', import.meta.url), {
+    react: r.react, '../../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
+    '../../../screens/downloads/request': {askNativeDownload: () => {}}, '../../../screens/read/periodical-presentation': presentation,
+    './useReadingActions': {useReadingActions: () => actions},
+  });
+  const {ReadPeriodicalPage} = await screenModule(new URL('../src-next/pages/touch/read/ReadPeriodicalPage.tsx', import.meta.url), {
+    react: r.react, '../../../../../../packages/i18n/src': i18n, '../../../kit/frames/ReadingPeriodicalFrame': frame,
+    '../../../kit/reading/PeriodicalParts': parts, '../../../kit/reading/ReadingActions': {ReadingItemMenu: 'ReadingItemMenu'},
+    '../../../kit/states': states, '../../shared/read/useReadPeriodical': model,
+  });
+  const page = r.render(ReadPeriodicalPage, {controller, route: {groupId: 'group', publicationType: state.publicationType}, context: {}, runtime, onBack() {}});
+  const tree = r.render(page.type, page.props);
   return {r, tree, state, selected, latest, opens, menus};
 }
 
@@ -106,13 +125,15 @@ test('magazine uses virtual year rows, a 190pt tablet hero and 44pt year chips',
   const chip = chips.props.renderItem({item: f.state.years[0]}); assert.equal(chip.props.style.height, 44);
   assert.equal(chip.props.style.backgroundColor, '#409fd4/0.2');
   const shelf = list.props.renderItem({item: list.props.data[1]}); assert.equal(shelf.type, 'ReadingShelf');
-  assert.equal(shelf.props.width, 150); assert.equal(shelf.props.height, 266);
+  assert.equal(shelf.props.width, 150); assert.ok(shelf.props.height > shelf.props.artHeight);
 });
 
 test('newspaper phone renders real day choices and its 446pt front page opens the selected edition', async () => {
   const f = await periodical(false, false), bodyNode = named(f.tree, 'NewspaperEditions'), body = f.r.render(bodyNode.type, bodyNode.props);
   const strip = nodes(body).find(node => node.type === 'FlatList' && node.props.horizontal);
-  assert.equal(strip.props.data, f.state.days); assert.equal(strip.props.initialScrollIndex, 0);
+  // Every day is drawn: no initialScrollIndex (a strip shorter than the screen would never draw the days before it);
+  // the chosen day is brought into view by scrolling, which getItemLayout makes exact.
+  assert.equal(strip.props.data, f.state.days); assert.equal(strip.props.initialScrollIndex, undefined); assert.equal(typeof strip.props.getItemLayout, 'function');
   const front = nodes(body).find(node => node.type === 'Focusable' && node.props.accessibilityLabel === 'selected');
   assert.equal(front.props.style.height, 446); front.props.onPress(); assert.deepEqual(f.opens, [f.selected]);
   front.props.onLongPressAction(); assert.equal((f.menus[0] as any).item, f.selected.item);
