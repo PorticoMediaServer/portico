@@ -105,9 +105,10 @@ export type BrowseFrameProps = Readonly<{
  * `frameRegions.browse` and `.home` (packages/design). The frame owns the header, the safe area, the space between regions
  * and rows and the clearance at the bottom; the shell owns the tab bar, sidebar or rail, and the window owns the backdrop. */
 export function BrowseFrame({startFocus, focus, ...props}: BrowseFrameProps) {
-  // While the TV Filters sheet is open the page starts in it, on its primary (Show 6 movies), never on a card behind it.
+  // The TV Filters panel takes focus itself as it opens (its first field). The page's start is not moved into it: moved back
+  // as the panel closed, it took focus from the panel's return to Filters and Back opened the side menu instead.
   const page = <BrowsePage {...props}/>;
-  return <StartFocusScope id={props.filters?.open ? 'apply' : startFocus}>
+  return <StartFocusScope id={startFocus}>
     {focus ? <FocusRegion {...focus} style={{flex: 1}}>{page}</FocusRegion> : page}
   </StartFocusScope>;
 }
