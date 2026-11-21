@@ -71,16 +71,19 @@ export const frame = {
       tvShortHeight: 518,
       lockup: {...forms(40, 52, 52, 100), web: 72},
       // R5 interim (family C): TV's action row ends about 72 above the art box's edge, and its tabs start a double header gap under it (detail-tv-2).
-      copyBottom: {...forms(0, 36, 36, 72), web: 64},
-      tabsGap: forms(0, 0, 0, 56),
+      // TV (tv.html 3, current): the action row (and its ring) ends at 532 and the tab labels sit at 653 of the 1080 canvas.
+      copyBottom: {...forms(0, 36, 36, 106), web: 64},
+      tabsGap: forms(0, 0, 0, 16),
       synopsisLines: forms(2, 2, 2, 2),
       /** A tablet on its side: the tagline, synopsis and credits keep this width over the art (tablet.html f6 `.t-hero .blurb` 530); the
        * art fades into its own wash by alpha behind them, with no shade of ink (the AmbientArt mask). */
       copyWidth: 530,
       /** The tagline over the synopsis and the credits line under it are drawn inside the art box from tablet width. */
       creditsGap: 6,
+      /** TV: the synopsis, then the Starring line 20 under it (tv.html `.tv .blurb` margin 30, `.tv .starring` -10). */
+      tvCreditsGap: 20,
       /** The fixed action row: 18 under the art box on a phone, under the synopsis inside it elsewhere. Its height is the hero button's. */
-      actionGap: forms(18, 24, 24, 26),
+      actionGap: forms(18, 24, 24, 30),
       /** R5 interim (family C): a biography with Read more shows this many lines (desktop-detail f7, phone-detail d3). */
       /** A cover page's paragraph before Read more: two on a phone (phone-detail d3 frame 7), four from a tablet up. */
       readMoreLines: forms(2, 4, 4, 4),
