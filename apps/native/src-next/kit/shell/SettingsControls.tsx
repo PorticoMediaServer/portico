@@ -1,5 +1,5 @@
-import React, {useContext, useRef, useState, type ReactNode} from 'react';
-import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
+import React, {useContext, useEffect, useRef, useState, type ReactNode} from 'react';
+import {StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Focusable} from '../controls/Focusable';
 import {Select, type SelectOption} from '../controls/Select';
@@ -91,7 +91,10 @@ export function DefaultHint({value, onReset, changed, testID, inset}: {testID?: 
 }
 export type ChoiceMatrixRow = Readonly<{id: string; label: string; value: string; defaultHint?: ReactNode}>;
 export function ChoiceMatrix({rows, options, onChange, testID}: {testID?: string; rows: readonly ChoiceMatrixRow[]; options: readonly SelectOption[]; onChange: (id: string, value: string) => void}) {
-  const theme = useTheme(), [width, setWidth] = useState(0);
+  const theme = useTheme(), [width, setWidth] = useState(0), window = useWindowDimensions();
+  // A turned tablet: the width measured in the old shape no longer holds, so the matrix measures again (it drew the table at
+  // the sideways width in the upright pane and wrapped its row names a letter a line).
+  useEffect(() => {setWidth(0);}, [window.width, window.height]);
   // The radio table draws only where its label column keeps 200 points beside the 104-point option columns (an iPad mini's
   // Settings pane is too narrow for it); otherwise each row is a settings row with its choice as the value.
   const table = !theme.isTV && theme.platform !== 'phone' && width >= 200 + options.length * 104;
