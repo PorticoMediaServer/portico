@@ -120,7 +120,7 @@ export class ProfileSettingsSource {
       if (!this.current()) return;
       const refreshed = await this.read();
       const selectedId = refreshed.profiles.some(profile => profile.id === this.snapshot.selectedId) ? this.snapshot.selectedId : this.scope.profileId;
-      this.publish({loading: false, busy: false, inUseId: this.scope.profileId, document: refreshed, selectedId});
+      this.publish({loading: false, busy: false, inUseId: this.scope.profileId, document: refreshed, selectedId, avatars: this.snapshot.avatars});
     } catch (error) {
       // PR-1: refused before anything changed, so the list stays and the page doesn't fail; the shell asks for the PIN.
       if (managementPinRefused(error)) {if (this.current()) this.publish({...this.snapshot, busy: false, error: undefined}); throw error;}
@@ -131,14 +131,20 @@ export class ProfileSettingsSource {
   }
   rename = (name: string): Promise<void> => this.edit({name});
   color = (art: ProfileArt): Promise<void> => this.edit({art});
-  /** Profile pictures are not on the rebuilt server yet, so nothing is read and the picture row offers nothing. */
-  loadPictures = async (): Promise<void> => {};
+  /** Which profiles have a picture, from the profile list (`GET /v1/profiles`); read once, and again after a change.
+   * A failed read leaves the row usable (Choose a photo…) rather than failing the page. */
+  loadPictures = async (fresh = false): Promise<void> => {
+    if (!this.current() || !this.snapshot.document || this.snapshot.avatars && !fresh) return;
+    let avatars: readonly ProfileAvatar[] = [];
+    try {avatars = await this.identity.avatars(this.lifetime.signal);} catch {/* the row still offers a picture */}
+    if (this.current() && this.snapshot.document) this.publish({...this.snapshot, avatars});
+  };
   picture = (target: Pick<ManagedProfile, 'id'>, file?: File): Promise<void> => this.mutate(async document => {
     const profile = document.profiles.find(candidate => candidate.id === target.id);
     if (!profile) throw new CodedError('conflict', 'Refresh the profiles before trying again.');
     if (file) await this.identity.uploadAvatar(profile.id, file, file.type);
     else await this.identity.removeAvatar(profile.id);
-  }).then(() => this.loadPictures());
+  }).then(() => this.loadPictures(true));
   /** Bind a PIN dialog to the profile it actually opened for; the later save wins. */
   setPIN = (target: Pick<ManagedProfile, 'id'>, pin: string): Promise<void> => this.mutate(async document => {
     const profile = document.profiles.find(candidate => candidate.id === target.id);
