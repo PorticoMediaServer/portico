@@ -105,6 +105,7 @@
   .page > .pageServer { padding-top: var(--frame-title-top); }
   /* A pushed page beside the list keeps Back above its own header band. */
   .page[data-pushed] > .pageBack { display: block; padding: var(--frame-title-top) var(--g) 0; margin-bottom: calc(-1 * var(--frame-section-gap)); }
+  .page[data-pushed] > .pageBack ~ .pageServer { padding-top: var(--frame-header-gap); }
   .page:not(.settingsDetail .page) > .pageBack ~ .pageServer, .page:not(.settingsDetail .page) > .pageBack ~ .pageHead, .page > .pageServer + .pageHead { padding-top: 0; }
 }
 .signInForm { display: grid; gap: var(--space-px-12); }
