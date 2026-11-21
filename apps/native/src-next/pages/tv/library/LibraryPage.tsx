@@ -2,7 +2,7 @@ import React from 'react';
 import {BrowseFrame, type BrowseHeaderProps} from '../../../kit/frames';
 import {BrowseGrid} from '../../../kit/frames/BrowseGrid';
 import {BrowseToolbar, FilteredEmpty, LibrarySwitcher} from '../../../kit/browse';
-import {LibraryJumpSheet} from '../../../kit/browse/LibraryJumpSheet';
+import {AlphabetRail} from '../../../kit/layout';
 import {LibraryCard} from '../../../kit/browse/LibraryCard';
 import {LibraryShelf} from '../../../kit/browse/LibraryShelf';
 import {useLibraryFrameFilters} from '../../../kit/browse/LibraryFilterFields';
@@ -49,11 +49,14 @@ function TVCatalogue(props: LibraryProps & {
   const toolbar = <>{notice}<BrowseToolbar model={grid.model} labels={labels} onFilters={view.openFilters} filtersOpen={filters?.open}
     resultCount={grid.count} onQuickChange={destination.setQuick} onSortChange={grid.setSort} onReshuffle={grid.reshuffle}
     applied={grid.appliedChips} onRemoveFilter={grid.remove} onClearFilters={grid.clear}
-    onJump={grid.openJump} jumpEnabled={grid.jump.letters.length > 0} region={grid.toolbar} appliedRegion={grid.applied}
+    region={grid.toolbar} appliedRegion={grid.applied}
     save={{canSave: view.canSave, onSave: view.save}}
     selection={grid.selected?.active && grid.selection?.render(path => path && <Artwork source={runtime.artwork(path)}/>)}/>
     {grid.data.status === 'error' && <StateView {...runtime.error(grid.data.error, destination.retry, 'library')}/>}</>;
+  // Owner, 20 Nov: on TV Jump to is the letter rail at the right, as on phones, not a toolbar chip and sheet.
   return <BrowseFrame testID="library-frame" header={header} toolbar={view.emptyState ? undefined : toolbar} filters={filters}
+    alphabet={grid.alphabet && grid.data.positionIndex && grid.data.total !== undefined && <AlphabetRail positionIndex={grid.data.positionIndex}
+      total={grid.data.total} firstVisible={grid.range.first} lastVisible={grid.range.last} testID="library-alphabet" focus={grid.alphabet} onJump={grid.onJump}/>}
     gridState={view.emptyState && {...view.emptyState, focus: view.pageState}}
     grid={<>
       {grid.filteredEmpty ? <FilteredEmpty onClearFilters={grid.clear} focus={grid.region}/>
@@ -69,6 +72,5 @@ function TVCatalogue(props: LibraryProps & {
               focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={cell.selection}
               onSelect={cell.selection?.onEnter ?? grid.selection?.start} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>
           </FocusItem>}/>}
-      <LibraryJumpSheet {...grid.jump}/>
     </>}/>;
 }
