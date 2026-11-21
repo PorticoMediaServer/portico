@@ -10,7 +10,7 @@ import {useTheme} from '../../../kit/theme';
 import {BookPage} from '../../../pages/touch/book/BookPage';
 import {BookPage as TVBookPage} from '../../../pages/tv/book/BookPage';
 import type {BookPageProps} from '../../../pages/shared/book/useBook';
-import {AuthorSeriesScreen} from './AuthorSeriesScreen';
+import {AuthorSeriesPage as TVAuthorSeriesPage} from '../../../pages/tv/book/AuthorSeriesPage';
 import {AuthorSeriesPage} from '../../../pages/touch/book/AuthorSeriesPage';
 import type {AuthorSeriesPageProps} from '../../../pages/shared/book/useAuthorSeries';
 
@@ -28,10 +28,8 @@ function BookHost(props: BookPageProps) {
   return isTV ? <TVBookPage {...props}/> : platform === 'phone' ? <BookPage {...props}/> : <BookScreen {...props}/>;
 }
 
-/** A phone draws an author or a series on the rebuilt page (collections 41b, 41c); a tablet and TV keep the old screen
- * until their lanes rebuild it. */
 function AuthorSeriesHost(props: AuthorSeriesPageProps) {
-  return useTheme().platform === 'phone' ? <AuthorSeriesPage {...props}/> : <AuthorSeriesScreen {...props}/>;
+  return useTheme().isTV ? <TVAuthorSeriesPage {...props}/> : <AuthorSeriesPage {...props}/>;
 }
 
 /** Phone 41a and TV 43: the real book page. One route-owned controller per book. */

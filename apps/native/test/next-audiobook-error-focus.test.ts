@@ -7,7 +7,7 @@ import {registerHooks} from 'node:module';
 import React, {type ReactElement, type ReactNode} from 'react';
 import {transformSync} from 'rolldown/utils';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
-import {createTheme, fontFamilies, nativeType, titleLine} from '../src-next/kit/theme.ts';
+import {createTheme, fontFamilies, nativeType, titleLine, textLine} from '../src-next/kit/theme.ts';
 import type {DockOccupant} from '../src-next/kit/dock/types.ts';
 import type {QueuePlaybackFence, QueueScope} from '../../../packages/player-core/src/index.ts';
 import {playbackIdentity} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
@@ -23,7 +23,7 @@ const moduleURL = (source: string) => `data:text/javascript,${encodeURIComponent
 const nativeStub = new URL('./react-native-stub.mjs', import.meta.url).href;
 const native = moduleURL(`export * from ${JSON.stringify(nativeStub)};
   export const Platform={OS:'android',isTV:true};
-  export const View='View',Text='Text',TextInput='TextInput',Pressable='Pressable',Modal='Modal',ScrollView='ScrollView',FlatList='FlatList',TVFocusGuideView='TVFocusGuideView',ActivityIndicator='ActivityIndicator';
+  export const View='View',Text='Text',TextInput='TextInput',Pressable='Pressable',Modal='Modal',ScrollView='ScrollView',FlatList='FlatList',VirtualizedList='VirtualizedList',RefreshControl='RefreshControl',TVFocusGuideView='TVFocusGuideView',ActivityIndicator='ActivityIndicator';
   export const Image='Image',PixelRatio={get:()=>1},Animated={View:'AnimatedView'};
   export const Easing={bezier:()=>v=>v,linear:v=>v,out:v=>v,in:v=>v,inOut:v=>v};
   export const BackHandler={addEventListener:()=>({remove(){}})};
@@ -31,7 +31,7 @@ const native = moduleURL(`export * from ${JSON.stringify(nativeStub)};
   export const useWindowDimensions=()=>({width:1920,height:1080,scale:1,fontScale:1});
   const flatten=s=>Array.isArray(s)?Object.assign({},...s.map(flatten)):s??{};
   export const StyleSheet={create:s=>s,flatten,absoluteFill:{position:'absolute',inset:0}};`);
-const theme = moduleURL(`const s=globalThis.${stateKey}; export const activeTextScale=()=>s.theme.textScale; export const useTheme=()=>s.theme; export const fontFamilies=s.fontFamilies; export const nativeType=s.nativeType; export const titleLine=s.titleLine;`);
+const theme = moduleURL(`const s=globalThis.${stateKey}; export const activeTextScale=()=>s.theme.textScale; export const useTheme=()=>s.theme; export const fontFamilies=s.fontFamilies; export const nativeType=s.nativeType; export const titleLine=s.titleLine; export const textLine=s.textLine;`);
 const reanimated = moduleURL(`import {useRef} from ${JSON.stringify(import.meta.resolve('react'))};
   export const useSharedValue=value=>useRef({value}).current,useAnimatedStyle=fn=>fn(),cancelAnimation=()=>{},withTiming=value=>value,withSpring=value=>value,withDelay=(_,value)=>value,runOnJS=fn=>fn,runOnUI=fn=>fn,useAnimatedRef=()=>useRef(null),useAnimatedScrollHandler=()=>{},useAnimatedReaction=()=>{},scrollTo=()=>{};
   export const Easing={bezier:()=>v=>v,linear:v=>v},ReduceMotion={Never:'never'};
@@ -66,13 +66,11 @@ registerHooks({
 });
 
 const {focusTestID} = await import('../src-next/kit/focus/registry.ts');
-const {FocusRegion} = await import('../src-next/kit/focus/FocusRegion.tsx');
+const {StartFocusScope} = await import('../src-next/kit/focus/FocusRegion.tsx');
 const {Button} = await import('../src-next/kit/controls/Button.tsx');
 const {Focusable} = await import('../src-next/kit/controls/Focusable.tsx');
 const {Select} = await import('../src-next/kit/controls/Select.tsx');
 const {Menu} = await import('../src-next/kit/overlays/Menu.tsx');
-const {StateView} = await import('../src-next/kit/states/StateView.tsx');
-const {StateActionButton} = await import('../src-next/kit/states/StateActionButton.tsx');
 const {ProfilePicker} = await import('../src-next/kit/artwork/Profiles.tsx');
 const {SettingsRow, ChoiceMatrix, LanguageList} = await import('../src-next/kit/shell/SettingsControls.tsx');
 const {PersonRow, DeviceRow} = await import('../src-next/kit/shell/Diagnostics.tsx');
@@ -92,105 +90,32 @@ async function mount(component: any, props: any) {
   await host.mount();
   return {get tree() {return tree;}, async update(next: any) {props = next; await host.rerender();}, host};
 }
-async function nativeControlID(element: Element): Promise<string | undefined> {
-  const mounted: Awaited<ReturnType<typeof mount>>[] = [];
-  try {
-    let current = element;
-    while (typeof current.type !== 'string') {
-      const instance = await mount(current.type, current.props); mounted.push(instance);
-      current = instance.tree as Element;
-    }
-    assert.equal(current.type, 'Pressable');
-    return current.props.testID;
-  } finally {for (const instance of mounted.reverse()) await instance.host.unmount();}
-}
+const {AuthorSeriesPage} = await import('../src-next/pages/tv/book/AuthorSeriesPage.tsx');
+const {TitleFrame} = await import('../src-next/kit/frames/TitleFrame.tsx');
+const {StateRow} = await import('../src-next/kit/frames/parts.tsx');
 
-
-
-const {AuthorSeriesScreen} = await import('../src-next/screens/destinations/audiobooks/AuthorSeriesScreen.tsx');
-const {TopBar} = await import('../src-next/kit/layout/TopBar.tsx');
-const {AudiobookErrorState} = await import('../src-next/screens/destinations/audiobooks/BookScreen.tsx');
-
-test('author and series failures expose actual state retry and TV focus identity', async () => {
-  for (const kind of ['author', 'book_series']) for (const tv of [false, true]) {
-    state.theme = createTheme({isTV: tv, width: tv ? 1920 : 390});
-    let retries = 0, backs = 0;
-    const entry = {id: 'author-1', kind, libraryId: 'books', title: 'Author'};
-    const controller = {getSnapshot: (() => {const snapshot = {phase: 'error', error: {code: 'request_failed'}, sections: [], finished: false}; return () => snapshot;})(),
-      subscribe: () => () => {}, load: async () => {retries++;}};
-    const screen = await mount(AuthorSeriesScreen, {controller, entry, runtime: {artwork: () => undefined, ambient: () => undefined},
-      actions: {menu() {}}, openEntry() {}, onBack: () => {backs++;}});
-    try {
-      const errorElement = ofType(screen.tree, AudiobookErrorState)[0]!;
-      assert.ok(errorElement);
-      if (tv) assert.equal(ofType(screen.tree, FocusRegion)[0]!.props.entry, 'audiobook-author-1.retry');
-      else {
-        const bar = ofType(screen.tree, TopBar)[0]!;
-        assert.equal(bar.props.back.label, defaultI18n.t('action.back'));
-        bar.props.back.onPress(); assert.equal(backs, 1);
-      }
-      const error = await mount(AudiobookErrorState, errorElement.props);
-      try {
-        const stateView = await mount(StateView, (error.tree as Element).props);
-        try {
-          const action = await mount(StateActionButton, ofType(stateView.tree, StateActionButton)[0]!.props);
-          try {
-            assert.equal(await nativeControlID(action.tree as Element), 'audiobook-author-1.retry');
-            (action.tree as Element).props.onPress(); assert.equal(retries, 1);
-          } finally {await action.host.unmount();}
-        } finally {await stateView.host.unmount();}
-      } finally {await error.host.unmount();}
-    } finally {await screen.host.unmount();}
-  }
-});
-
-test('actual author and series retry controls attach inside their real region and recover', async () => {
-  const {FocusProvider} = await import('../src-next/kit/focus/FocusRegion.tsx');
-  async function mountWithContexts(component: any, props: any, contexts: [any, unknown][]) {
-    let tree: ReactNode;
-    const host = createFabricHookHost(() => {
-      const previous = contexts.map(([context, value]) => {const prior = context._currentValue2; context._currentValue2 = value; return [context, prior];});
-      try {tree = typeof component === 'function' ? component(props) : component.render(props, props.ref ?? null);}
-      finally {for (const [context, value] of previous) context._currentValue2 = value;}
-    });
-    await host.mount(); return {host, get tree() {return tree;}};
-  }
+test('TV author and series give focus to the real retry button and recover', async () => {
   for (const kind of ['author', 'book_series']) {
     state.theme = createTheme({isTV: true, width: 1920});
-    let phase = 'error', retries = 0;
-    let snapshot = {phase, error: {code: 'request_failed'}, sections: [], finished: false};
+    let retries = 0;
+    let snapshot = {phase: 'error', error: {code: 'request_failed'}, sections: [], finished: false};
     const entry = {id: 'author-1', kind, libraryId: 'books', title: 'Author'};
-    const controller = {getSnapshot: () => snapshot.phase === phase ? snapshot : (snapshot = {...snapshot, phase}),
-      subscribe: () => () => {}, load: async () => {retries++; phase = 'ready';}};
-    const props = {controller, entry, runtime: {artwork: () => undefined, ambient: () => undefined}, actions: {menu() {}}, openEntry() {}, onBack() {}};
-    const screen = await mount(AuthorSeriesScreen, props), regionElement = ofType(screen.tree, FocusRegion)[0]!;
-    const error = await mount(AudiobookErrorState, ofType(screen.tree, AudiobookErrorState)[0]!.props);
-    const view = await mount(StateView, (error.tree as Element).props), action = await mount(StateActionButton, ofType(view.tree, StateActionButton)[0]!.props);
-    const provider = await mount(FocusProvider, {children: null}), providerElement = provider.tree as Element;
-    const registryContext: [any, unknown] = [providerElement.type, providerElement.props.value];
-    const outer = await mountWithContexts(FocusRegion, regionElement.props, [registryContext]);
-    const region = await mountWithContexts((outer.tree as Element).type, (outer.tree as Element).props, [registryContext]);
-    const guide = region.tree as Element, regionContext: [any, unknown] = [(guide.props.children as Element).type, regionElement.props.id];
-    const contexts: [any, unknown][] = [registryContext, regionContext];
-    const mounted: Awaited<ReturnType<typeof mountWithContexts>>[] = [];
-    try {
-      const registry = providerElement.props.value;
-      guide.props.ref({nativeTag: 101, setDestinations() {}, requestTVFocus() {}});
-      let node = action.tree as Element;
-      while (typeof node.type !== 'string') {
-        const child = await mountWithContexts(node.type, node.props, contexts); mounted.push(child); node = child.tree as Element;
-      }
-      assert.equal(node.type, 'Pressable');
-      const retryHost = {nativeTag: 102, requestTVFocus() {}};
-      node.props.ref(retryHost);
-      assert.equal(registry.child({regionId: regionElement.props.id, childId: regionElement.props.entry}), retryHost);
-      assert.equal(registry.entryTarget(regionElement.props.id), retryHost);
-      node.props.onPress(); assert.equal(retries, 1);
-      await screen.update(props); assert.equal(ofType(screen.tree, AudiobookErrorState).length, 0);
-    } finally {
-      for (const child of mounted.reverse()) await child.host.unmount();
-      await region.host.unmount(); await outer.host.unmount(); await provider.host.unmount(); await action.host.unmount(); await view.host.unmount(); await error.host.unmount(); await screen.host.unmount();
-    }
+    const controller = {getSnapshot: () => snapshot, subscribe: () => () => {},
+      load: async () => {retries++; snapshot = {...snapshot, phase: 'ready'};}};
+    const props = {controller, entry, runtime: {artwork: () => undefined, ambient: () => undefined, reportError(error: unknown) {throw error;}},
+      actions: {menu() {}}, openEntry() {}, onBack() {}};
+    const page = await mount(AuthorSeriesPage, props);
+    const frame = await mount(TitleFrame, (page.tree as Element).props);
+    const row = await mount(StateRow, ofType((page.tree as Element).props.beside, StateRow)[0]!.props);
+    const button = ofType(row.tree, Button)[0]!;
+    const scope = ofType(frame.tree, StartFocusScope)[0]!;
+    assert.equal(scope.props.id, 'audiobook-collection-retry');
+    assert.equal(button.props.focusId, scope.props.id);
+    button.props.onPress();
+    assert.equal(retries, 1);
+    await page.update(props);
+    assert.equal(ofType((page.tree as Element).props.beside, StateRow).length, 0);
+    await row.host.unmount(); await frame.host.unmount(); await page.host.unmount();
   }
 });
 
@@ -228,18 +153,19 @@ test('actual Book and Author Resume buttons stay admitted during tail loading an
     const facade = {getSnapshot: value.getSnapshot, subscribe: value.subscribe, load: () => value.load(lease),
       resume: () => value.resume(lease), startOver: () => value.startOver(lease), resumeBook: (book: any) => value.resumeBook(lease, book),
       next: (section: string) => value.next(section, lease), recover: () => value.recover(lease)};
-    const screen = await mount(kind === 'book' ? BookScreen : AuthorSeriesScreen, {controller: facade, entry,
+    const screen = await mount(kind === 'book' ? BookScreen : AuthorSeriesPage, {controller: facade, entry,
       runtime: {artwork: () => undefined, ambient: () => undefined, reportError() {}}, actions: {menu() {}}, openEntry() {}, onBack() {}});
     try {
       const pending = value.next(sectionId, lease);
       await screen.update({controller: facade, entry, runtime: {artwork: () => undefined, ambient: () => undefined, reportError() {}}, actions: {menu() {}}, openEntry() {}, onBack() {}});
-      const button = ofType(screen.tree, Button).find(button => button.props.focusId === `${kind === 'book' ? 'book' : 'audiobook'}-${id}.resume`)!;
-      assert.ok(button); assert.notEqual(button.props.disabled, true); button.props.onPress();
+      const primary = kind === 'book' ? ofType(screen.tree, Button).find(button => button.props.focusId === `book-${id}.resume`)?.props
+        : (screen.tree as Element).props.primary;
+      assert.ok(primary); assert.notEqual(primary.disabled, true); primary.onPress();
       await Promise.resolve(); assert.equal(starts.length, 1);
       assert.deepEqual(starts[0].target, {itemId: 'file-41', startSeconds: 120});
       resolveTail(); await pending;
       assert.equal(starts[0].lifetime.isCurrent(), true, 'a resident accepted offer survives an unrelated tail result');
-      if (outcome === 'error') {button.props.onPress(); await Promise.resolve(); assert.equal(starts.length, 2);}
+      if (outcome === 'error') {primary.onPress(); await Promise.resolve(); assert.equal(starts.length, 2);}
       snapshot = {...snapshot, phase: 'ready', pagination: {cursor: null}, projection: {entity: {...entry}, listening: {...listening}, sections: [section]}, appended: [section]};
       await value.load(lease);
       assert.equal(starts[0].lifetime.isCurrent(), false, 'an explicit replacement retires the old offer');
