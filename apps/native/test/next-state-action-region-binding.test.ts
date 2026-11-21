@@ -71,7 +71,7 @@ const {StateActionButton} = await import('../src-next/kit/states/StateActionButt
 const {StateView} = await import('../src-next/kit/states/StateView.tsx');
 const {ThemeProvider} = await import('../src-next/kit/theme.ts');
 const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
-const {TVPeoplePanel} = await import('../src-next/screens/settings-live/server/TVPeoplePanel.tsx');
+const {ServerPeople} = await import('../src-next/pages/tv/settings/ServerPeople.tsx');
 const {routePath} = await import('../../../packages/contracts/src/routes.ts');
 const {defaultI18n} = await import('../../../packages/i18n/src/index.ts');
 
@@ -170,7 +170,7 @@ test('the error StateView composition inside a region registers its prefix-less 
  * accounts fail too). That reaches the screen's own error branch, so the runtime's
  * error presenter supplies the retry the shared StateActionButton draws inside the
  * real region. No module error state, admission stub or context export is involved. */
-test('the actual TVPeoplePanel failure retry registers in its region and re-reads on press', async () => {
+test('the actual ServerPeople failure retry registers in its region and re-reads on press', async () => {
   const host = await fabricHost(), registry = createFocusRegistry();
   const authority = {serverId: 'server', accountId: 'account', profileId: 'primary', epoch: 'one', viewerFence: 'fence'};
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
@@ -183,11 +183,11 @@ test('the actual TVPeoplePanel failure retry registers in its region and re-read
     throw Object.assign(new Error('unexpected_read'), {code: 'unexpected'});
   }};
   const ports = {context: {account: {canManage: true, account: {role: 'owner', primaryProfileId: 'primary', disabled: false}},
-    api: api as unknown as Parameters<typeof TVPeoplePanel>[0]['ports']['context']['api']}};
+    api: api as unknown as Parameters<typeof ServerPeople>[0]['ports']['context']['api']}};
   const runtime = {text: {t: defaultI18n.t, locale: 'en-US'},
     error: (_error: unknown, again: () => void) => ({title: 'Something went wrong', primaryAction: {id: 'retry', label: 'Try again', onPress: again}})};
   try {
-    await host.render(tree(registry, region('tv.server.people', React.createElement(TVPeoplePanel as any, {ports, runtime, lifetime}))));
+    await host.render(tree(registry, region('tv.server.people', React.createElement(ServerPeople as any, {ports, runtime, lifetime}))));
     for (let attempt = 0; attempt < 8 && reads < 2; attempt++) await host.settle();
     assert.equal(reads, 2, 'the panel issues exactly the two People reads');
     const retries = ['members', 'invitations'].map(section => focusTestID(`tv-people-${section}-error`, JSON.stringify(['action', 'retry'])));
