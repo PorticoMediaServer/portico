@@ -63,7 +63,6 @@ async function libraryScreen(width: number, isTV = false) {
     './applied-filters': {libraryAppliedFilters: () => []},
     './library-grid': {libraryTabletGridGeometry},
     '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'},
-    '../destinations/music/TVMusicDiscover': {TVMusicDiscover: 'TVMusicDiscover'},
     '../read/platform': {hiddenReadingLibraryOnTV, isReadingLibraryKind},
   };
   const jumpSheet = await screenModule(new URL('../src-next/kit/browse/LibraryJumpSheet.tsx', import.meta.url), {...modules,
