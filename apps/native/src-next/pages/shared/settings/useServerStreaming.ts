@@ -1,31 +1,22 @@
 import {OwnerStreamingSettings} from '../../../../../../packages/client-core/src/server-admin/streaming-settings';
 import {withRequestRaw} from '../../../../../../packages/client-core/src/home-selection/list-destinations';
-import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
 import {readOwnerStreamingHardware, runOwnerHardwareTest, type OwnerStreamingHardware} from '../../../../../../packages/client-core/src/server-admin/streaming-hardware';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {SettingsRow} from '../../../kit/shell';
 import {FormSet} from '../../../../../../packages/client-core/src/server-admin/draft-form';
 import {withFormValue} from '../../../../../../packages/client-core/src/server-admin/server-forms';
 import {readSettingsBinding, settingsBinding, settingsBindingPatch, type SettingsBindingSources} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
-import {Button} from '../../../kit/controls';
-import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
-import {NativeSettingControl} from '../../../kit/settings/SettingControl';
-import {NativeStreamingHardware} from './StreamingHardware';
-import {settingEnabled, settingsSummary} from './settings-values';
-import {ServerHeader} from '../../../kit/shell/ServerIdentity';
-import {StateView} from '../../../kit/states';
-import {useTheme} from '../../../kit/theme';
-import {NativeScreenLifetime} from '../lifetime';
-import type {NativeSettingsLivePorts} from '../ports';
+import {settingEnabled, settingsSummary} from '../../../screens/settings-live/server/settings-values';
+import {NativeScreenLifetime} from '../../../screens/settings-live/lifetime';
+import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {settingsPageHeading, settingsPageInset} from './page-layout';
 import {hardwareSelectionChoices} from '../../../../../../packages/client-core/src/presentation/hardware-selection';
-/** Phone Streaming uses the rebuilt documents through the shared row bindings and save path. */
-export function NativeServerStreaming({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
-  const theme = useTheme(), t = runtime.text.t, context = ports.context;
+
+const section = settingsSpec.find(value => value.scope === 'server' && value.id === 'streaming');
+
+export function useServerStreaming({ports, runtime}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime}) {
+  const {context} = ports, {t} = runtime.text;
   const owned = useMemo(() => {
     const lifetime = new NativeScreenLifetime(context);
     const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal)};
@@ -55,7 +46,12 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
   }, [owned]);
   useEffect(() => {hardwareAlive.current = true; loadHardware(); return () => {hardwareAlive.current = false;};}, [loadHardware]);
   const [configuration, setConfiguration] = useState<SettingsConfiguration>(), [configurationError, setConfigurationError] = useState<unknown>();
-  useEffect(() => {const read = new AbortController(); void owned.streaming.readConfiguration(read.signal).then(value => {if (!read.signal.aborted) setConfiguration(value);}, error => {if (!read.signal.aborted) setConfigurationError(error);}); return () => read.abort();}, [owned]);
+  const loadConfiguration = useCallback((signal?: AbortSignal) => {
+    void owned.streaming.readConfiguration(signal).then(value => {
+      if (!signal?.aborted && owned.lifetime.current()) {setConfiguration(value); setConfigurationError(undefined);}
+    }, error => {if (!signal?.aborted && owned.lifetime.current()) setConfigurationError(error);});
+  }, [owned]);
+  useEffect(() => {const read = new AbortController(); loadConfiguration(read.signal); return () => read.abort();}, [loadConfiguration]);
   useEffect(() => {for (const form of Object.values(owned.forms)) void form.load(); return () => {for (const form of Object.values(owned.forms)) form.dispose(); owned.set.discard(); owned.lifetime.dispose();};}, [owned]);
   const runtimeState = useSyncExternalStore(owned.forms.runtime.subscribe, owned.forms.runtime.getSnapshot);
   const connectivityState = useSyncExternalStore(owned.forms.connectivity.subscribe, owned.forms.connectivity.getSnapshot);
@@ -64,7 +60,6 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
   useEffect(() => setCustomAway(false), [connectivityState.saved]);
   const [invalid, setInvalid] = useState<ReadonlySet<string>>(new Set());
   const sources: SettingsBindingSources = {forms: {runtime: runtimeState.draft, connectivity: connectivityState.draft}};
-  const section = settingsSpec.find(value => value.scope === 'server' && value.id === 'streaming');
   const change = (row: SpecRow, value: unknown) => {
     if (!owned.lifetime.current() || owned.set.getSnapshot().saving) return; const binding = settingsBinding(row.id); if (!binding || !['runtime', 'connectivity'].includes(binding.form)) return;
     const patch = settingsBindingPatch(binding, value, sources), form = owned.forms[patch.form as keyof typeof owned.forms];
@@ -81,43 +76,35 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
     if (id === 'streaming.awayQuality' && customAway) return 'custom';
     const binding = settingsBinding(id); return binding ? readSettingsBinding(binding, sources, id)?.current : undefined;
   };
-  const renderRow = (row: SpecRow): React.ReactNode => {
+  const field = (row: SpecRow) => {
     const value = fact(row);
-    if (row.id === 'streaming.hardware' && value) {
-      // The adapters come from the hardware report, by their opaque ids; a saved adapter that
-      // is gone stays drawn as the current choice.
+    if (!value) return undefined;
+    const disabled = state.saving || !settingEnabled(row, read), key = `${row.id}:${discardRevision}`;
+    if (row.id === 'streaming.hardware') {
+      // A saved adapter that is no longer measured stays available as the current choice.
       const choices = hardwareSelectionChoices(hardware?.devices ?? [], value.current, t);
       const options = choices.map(choice => ({value: choice.value, label: choice.label as never, locked: choice.locked, ...(choice.hint ? {hint: choice.hint as never} : {})}));
-      // The choices are already in words (an adapter's name is the driver's own), so only the
-      // row's own copy goes through the catalogue.
       const words = new Set(choices.flatMap(choice => [choice.label, choice.hint ?? '']));
       const translate = ((id: string) => words.has(id) ? id : t(id as never)) as typeof t;
-      return <React.Fragment key={row.id}><NativeSettingControl key={`${row.id}:${discardRevision}`} row={{...row, control: {...row.control, options}}} value={value.current} t={translate}
-        disabled={state.saving || !settingEnabled(row, read)} onChange={next => change(row, next)}/>
-        {row.children?.map(renderRow)}</React.Fragment>;
+      return {key, control: {row: {...row, control: {...row.control, options}}, value: value.current, t: translate,
+        disabled, onChange: (next: unknown) => change(row, next)}};
     }
-    // A drawn parent the page cannot paint (it has no binding of its own) still carries
-    // dependent rows that do: paint those instead of hiding the whole branch.
-    if (!value) return row.children?.length ? <React.Fragment key={row.id}>{row.children.map(renderRow)}</React.Fragment> : null;
     const shown = row.id === 'streaming.awayQuality' && customAway ? 'custom' : row.id === 'streaming.maxHardwareConversions' && value.current === 'unlimited' ? 'auto' : value.current;
-    return <React.Fragment key={row.id}><NativeSettingControl key={`${row.id}:${discardRevision}`} row={row} value={shown} t={t} api={owned.api}
-      disabled={state.saving || !settingEnabled(row, read)} onChange={next => {change(row, next); if (row.id === 'streaming.awayQuality') setCustomAway(false);}}
-      onCustom={row.id === 'streaming.awayQuality' ? () => {setCustomAway(true); setAdvanced(true);} : undefined}
-      onValidity={valid => setInvalid(before => {const next = new Set(before); if (valid) next.delete(row.id); else next.add(row.id); return next;})}/>
-      {row.children?.map(renderRow)}</React.Fragment>;
+    return {key, control: {row, value: shown, t, api: owned.api, disabled,
+      onChange: (next: unknown) => {change(row, next); if (row.id === 'streaming.awayQuality') setCustomAway(false);},
+      onCustom: row.id === 'streaming.awayQuality' ? () => {setCustomAway(true); setAdvanced(true);} : undefined,
+      onValidity: (valid: boolean) => setInvalid(before => {const next = new Set(before); if (valid) next.delete(row.id); else next.add(row.id); return next;}),
+    }};
   };
-  const renderGroups = (groups: NonNullable<typeof section>['groups']) => groups?.map((group, index) => {const rows = group.rows.map(renderRow).filter(Boolean); return rows.length ? <View key={index} style={{gap: 10}}>{group.title && <Text style={[theme.type.rowHeading, {color: theme.colors.textSecondary}]}>{t(group.title)}</Text>}<View style={{backgroundColor: theme.colors.raised, borderRadius: 14, padding: 14, gap: 16}}>{rows}</View></View> : null;});
-  return <View style={{flex: 1}}><ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader), gap: 18}}>
-    <ServerHeader serverName={context.serverName} viewerRole="owner" audience="owner" variant="phone"/>
-    {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{section ? t(section.title) : t('settings.server.playback')}</Text>}
-    {configurationError !== undefined && <StateView variant="inline" {...runtime.error(configurationError, () => {void owned.streaming.readConfiguration().then(value => {setConfiguration(value); setConfigurationError(undefined);}, setConfigurationError);}, 'server-console')}/>}
-    {[runtimeState, connectivityState].map((form, index) => form.loadError !== undefined ? <StateView key={index} variant="inline" {...runtime.error(form.loadError, () => {void Object.values(owned.forms)[index]!.load();}, 'server-console')}/> : null)}
-    {state.saveError !== undefined && <StateView variant="inline" {...runtime.error(state.saveError, () => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}, 'server-console')}/>}
-    {state.problem && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.record}]}>{t(state.problem as Parameters<typeof t>[0])}</Text>}
-    {renderGroups(section?.groups)}
-    {hardwareError !== undefined && <StateView variant="inline" {...runtime.error(hardwareError, loadHardware, 'server-console')}/>}
-    {hardware && <NativeStreamingHardware hardware={hardware} testing={testing} tested={tested} disabled={testing || state.saving} onTest={() => {void runHardwareTest();}} t={t}/>}
-    <NativeAdvancedSection testID="server-streaming-advanced" open={advanced} onOpenChange={setAdvanced} summary={!configuration || runtimeState.loading || connectivityState.loading ? t('status.loading') : settingsSummary(section?.advanced?.groups?.flatMap(group => group.rows) ?? [], fact, t)}>{renderGroups(section?.advanced?.groups)}</NativeAdvancedSection>
-  </ScrollView><View style={{flexDirection: 'row', justifyContent: 'flex-end', padding: 16, gap: 12}}><Button variant="glass" disabled={(!state.dirty && invalid.size === 0) || state.saving} onPress={() => {owned.set.discard(); setInvalid(new Set()); setCustomAway(false); setDiscardRevision(value => value + 1);}}>{t('action.discard')}</Button><Button disabled={!state.dirty || state.saving || invalid.size > 0 || !!state.problem} loading={state.saving} onPress={() => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}}>{t('action.save')}</Button></View></View>;
+  const save = () => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();};
+  return {
+    t, section, field, configurationError, loadConfiguration, forms: Object.values(owned.forms),
+    formStates: [runtimeState, connectivityState], hardware, hardwareError, loadHardware, runHardwareTest, testing, tested,
+    state, advanced, setAdvanced, save,
+    advancedSummary: !configuration || runtimeState.loading || connectivityState.loading ? t('status.loading')
+      : settingsSummary(section?.advanced?.groups?.flatMap(group => group.rows) ?? [], fact, t),
+    canDiscard: (state.dirty || invalid.size > 0) && !state.saving,
+    canSave: state.dirty && !state.saving && invalid.size === 0 && !state.problem,
+    discard: () => {owned.set.discard(); setInvalid(new Set()); setCustomAway(false); setDiscardRevision(value => value + 1);},
+  };
 }
-
