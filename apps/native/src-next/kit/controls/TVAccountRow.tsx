@@ -6,7 +6,10 @@ import {Focusable, type FocusableProps} from './Focusable';
 import {Icon, type IconName} from '../Icon';
 import {useTheme} from '../theme';
 
-type TVAccountRowProps = Pick<FocusableProps, 'focusId' | 'preferredFocus' | 'disabled' | 'accessibilityLabel' | 'accessibilityState' | 'onPress'> & {
+type TVAccountRowProps = Pick<FocusableProps,
+  'focusId' | 'preferredFocus' | 'disabled' | 'accessibilityLabel' | 'accessibilityState' | 'onPress' | 'nextFocusDown'> & {
+  /** The row's own focus stop, for a control beside it that points Left back at it. */
+  rowRef?: React.Ref<View>;
   title: string; detail: string; icon: IconName; badge?: string; children?: React.ReactNode;
   /** The server this device is on: its tile takes the brand gradient, as connect24 draws it. */
   active?: boolean;
@@ -30,7 +33,7 @@ export function TVAccountRowColumn({children}: {children: React.ReactNode}) {
 }
 
 /** connect24's server/certificate row: the icon inset belongs to the row's own focus face. */
-export function TVAccountRow({title, detail, icon, badge, children, onPress, active = false, ...props}: TVAccountRowProps) {
+export function TVAccountRow({title, detail, icon, badge, children, onPress, active = false, rowRef, ...props}: TVAccountRowProps) {
   const theme = useTheme(), tile = tvAccountSpec.rowIcon, column = useContext(TrailingColumn), key = useId();
   const hasActions = React.Children.toArray(children).length > 0;
   const report = column?.report;
@@ -57,7 +60,8 @@ export function TVAccountRow({title, detail, icon, badge, children, onPress, act
   return <View style={{flexDirection: 'row', alignItems: 'center', gap: rowSpec.leadingGap.tv,
     backgroundColor: theme.colors.raised, borderRadius: rowSpec.group.radius.tv,
     borderBottomWidth: 1, borderBottomColor: theme.colors.lineSoft}}>
-    {onPress ? <Focusable {...props} accessibilityRole="button" onPress={onPress} focusKind="row" focusRadius={rowSpec.group.radius.tv} style={style}>{content}</Focusable>
+    {onPress ? <Focusable ref={rowRef} {...props} accessibilityRole="button" onPress={onPress} focusKind="row"
+      focusRadius={rowSpec.group.radius.tv} style={style}>{content}</Focusable>
       : <View style={style}>{content}</View>}
     {trailing && <View style={{minWidth: column?.width, flexDirection: 'row', justifyContent: 'flex-end'}}>
       {hasActions && <View onLayout={measure} style={{flexDirection: 'row', alignItems: 'center', gap: rowSpec.leadingGap.tv, paddingRight: rowSpec.paddingX.tv}}>{children}</View>}
