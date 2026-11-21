@@ -1,81 +1,39 @@
-.page { position:relative; isolation:isolate; min-height:100%; padding-bottom:110px; overflow-x:clip; color:var(--color-text); }
-.nav { position:absolute; top:0; left:0; right:0; height:58px; padding:10px 12px 0; display:flex; align-items:center; justify-content:space-between; z-index:var(--layer-content); }
-/* phone-app 13 (the phone album page): 20px between the square cover and the title. The gap lives
-   on the copy so a book with a series line and one without start at the same place under the cover. */
-/* Inside the hero, which already carries the 20px phone gutter. */
-.unplayable { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
-.primary { flex:1; }
-.round { border-radius:50%; }
-.progress { margin:14px 0 0; display:flex; align-items:center; gap:12px; font-size:var(--type-audiobook-detail-progress-size); font-weight:var(--type-audiobook-detail-progress-weight); color:var(--color-text-tertiary); }
-.progress > span { flex:1; height:4px; border-radius:4px; overflow:hidden; background:color-mix(in srgb,var(--color-text) 18%,transparent); }
-.progress i, .chapterProgress i { display:block; height:100%; background:var(--color-accent-strong); }
-.about { margin:16px 20px 0; font-size:var(--type-audiobook-detail-synopsis-size); line-height:var(--type-audiobook-detail-synopsis-line); color:var(--color-text-secondary); display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
-.about[data-expanded] { display:block; }
-.readMore { display:block; margin:4px 20px 0; padding:0; border:0; background:none; font:var(--type-audiobook-detail-read-more-weight) var(--type-audiobook-detail-read-more-size)/var(--type-audiobook-detail-read-more-line) var(--font); color:var(--color-text); }
-.sectionHead { display:flex; align-items:baseline; justify-content:space-between; margin:22px 20px 6px; }
+/* desktop-listen #book and phone-app 14: the book's own parts inside the title frame (its chapters or books). */
+.chapterProgress i { display:block; height:100%; background:var(--color-accent-strong); }
+.sectionHead { display:flex; align-items:baseline; justify-content:space-between; margin:0 0 6px; }
 .sectionHead h2 { margin:0; font-size:var(--type-audiobook-detail-section-size); font-weight:var(--type-audiobook-detail-section-weight); letter-spacing:var(--type-audiobook-detail-section-tracking); }
 .sectionHead > span { font-size:var(--type-audiobook-detail-meta-size); color:var(--color-text-tertiary); font-weight:var(--type-audiobook-detail-progress-weight); }
-.chapter { position:relative; display:flex; align-items:center; gap:12px; width:100%; height:50px; padding:0 16px 0 20px; border:0; color:inherit; background:transparent; font:var(--type-audiobook-chapter-weight) var(--type-audiobook-chapter-size)/var(--type-audiobook-chapter-line) var(--font); text-align:left; }
+.chapter { position:relative; display:flex; align-items:center; gap:12px; width:100%; height:50px; padding:0 8px; border:0; color:inherit; background:transparent; font:var(--type-audiobook-chapter-weight) var(--type-audiobook-chapter-size)/var(--type-audiobook-chapter-line) var(--font); text-align:left; }
 .chapterRow { display:flex; align-items:center; }
 .chapterRow > .chapter { flex:1; min-width:0; }
-.chapterRow + .chapterRow .chapter::before { content:''; position:absolute; top:0; left:56px; right:0; height:1px; background:color-mix(in srgb,var(--color-line-strong) 30%,transparent); }
+.chapterRow + .chapterRow .chapter::before { content:''; position:absolute; top:0; left:42px; right:0; height:1px; background:color-mix(in srgb,var(--color-line-strong) 30%,transparent); }
 .chapter[data-current] { color:var(--color-accent-strong); background:color-mix(in srgb,var(--color-text) 5%,transparent); height:58px; }
 .number { width:22px; text-align:center; color:var(--color-text-tertiary); font-size:var(--type-audiobook-chapter-number-size); font-variant-numeric:tabular-nums; flex:none; }
 .chapterTitle { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .duration { margin-left:auto; font-size:var(--type-audiobook-detail-meta-size); color:var(--color-text-tertiary); font-variant-numeric:tabular-nums; flex:none; }
 .chapterProgress { position:absolute; left:56px; right:70px; bottom:8px; height:3px; border-radius:3px; background:color-mix(in srgb,var(--color-text) 18%,transparent); overflow:hidden; }
-.bookRow { display:flex; align-items:center; gap:14px; padding:10px 14px 10px 20px; }
+.bookRow { display:flex; align-items:center; gap:14px; padding:10px 0; }
 .bookRow > button:first-child { display:flex; align-items:center; gap:14px; flex:1; min-width:0; padding:0; border:0; background:none; color:inherit; text-align:left; }
 .thumb { flex:none; width:66px; height:66px; border-radius:7px; overflow:hidden; }
 .thumb > * { width:100%; height:100%; }
 .bookRow b { display:block; font-size:var(--type-audiobook-related-title-size); font-weight:var(--type-audiobook-related-title-weight); letter-spacing:var(--type-audiobook-related-title-tracking); }
 .bookRow small { display:block; margin-top:3px; font-size:var(--type-audiobook-detail-progress-size); color:var(--color-text-tertiary); }
-.details { margin:2px 16px 0; padding:12px 14px; border-radius:12px; background:var(--color-raised); font-size:var(--type-audiobook-detail-fact-size); }
-.details dt { margin-top:8px; }
-.details dd { margin:4px 0 12px; color:var(--color-text-tertiary); font-size:var(--type-audiobook-detail-meta-size); }
 
-/* desktop-listen #book: the album hero (cover 340, the copy beside it, bottom-aligned), the
-   chapters beside About this book, then More audiobooks. Under the desktop top bar the hero
-   starts clear of the bar, as on the album page; the phone layout above is unchanged. */
-/* The kit CoverHero carries the page's top clearance and gutter; what follows it takes the gutter here. */
-.page[data-layout='desktop'] { padding: 0 0 90px; }
-:global([data-navigation='topbar']) .page[data-layout='desktop'] .nav { display: none; }
-.page[data-layout='desktop'] .nav { position: static; height: auto; padding: 24px var(--shell-gutter) 0; }
-.page[data-layout='desktop'] .primary { flex: none; }
-/* desktop-listen's round actions are glass squares with the button's own radius. */
-.page[data-layout='desktop'] .round { border-radius: var(--control-radius); }
-.page[data-layout='desktop'] .progress { width: 420px; margin: 18px 0 0; }
-.page[data-layout='desktop'] .split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding: 52px var(--shell-gutter) 0; align-items: start; }
-.page[data-layout='desktop'] .split > .rows { grid-column: 1; grid-row: 1; min-width: 0; }
-.page[data-layout='desktop'] .aside { grid-column: 2; grid-row: 1; min-width: 0; }
-/* The author page on desktop, as the music artist page (J-7, desktop-listen #artist): a 640px hero with the
-   author's circle large on the right and the name at the lower left, then the books beside Details. */
-.page[data-layout='desktop'][data-audiobook-view='author'] .split { padding-top: 24px; }
-.page[data-layout='desktop'][data-audiobook-view='book_series'] .split { grid-template-columns: minmax(0, 1fr); }
-.page[data-layout='desktop'] .sectionHead { margin: 0 0 12px; }
-.page[data-layout='desktop'] .sectionHead h2, .asideTitle { margin: 0 0 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
-.page[data-layout='desktop'] .about { margin: 0 0 26px; -webkit-line-clamp: unset; display: block; }
+[data-audiobook-panel][data-layout='desktop'] .sectionHead { margin: 0 0 12px; }
+[data-audiobook-panel][data-layout='desktop'] .sectionHead h2 { margin: 0 0 12px; font-size: var(--type-fixed-size-22px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
 /* desktop-listen #book chapters: a compact table (number, title, duration beside it, actions), 60px rows,
    the current chapter lit at 76px, finished ones dimmed with a check. */
-.page[data-layout='desktop'][data-audiobook-view='book'] .rows { max-width: 760px; }
-.page[data-layout='desktop'] .chapter { height: 60px; padding: 0 12px 0 8px; border-radius: 10px; display: grid; grid-template-columns: 44px minmax(0,1fr) 90px; column-gap: 16px; }
-.page[data-layout='desktop'] .chapter:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
-.page[data-layout='desktop'] .chapter .number { width: auto; display: grid; place-items: center; }
-.page[data-layout='desktop'] .chapter .duration { margin: 0; text-align: right; }
-.page[data-layout='desktop'] .chapter[data-current] { height: 76px; background: color-mix(in srgb, var(--color-text) 8%, transparent); }
-.page[data-layout='desktop'] .chapter[data-current] .number { color: var(--color-accent-strong); font-weight: var(--type-fixed-weight-800); }
-.page[data-layout='desktop'] .chapterRow + .chapterRow .chapter::before { display: none; }
-.page[data-layout='desktop'] .chapterProgress { left: 68px; right: 118px; bottom: 12px; }
+[data-audiobook-panel][data-layout='desktop'][data-audiobook-view='book'] .rows { max-width: 760px; }
+[data-audiobook-panel][data-layout='desktop'] .chapter { height: 60px; padding: 0 12px 0 8px; border-radius: 10px; display: grid; grid-template-columns: 44px minmax(0,1fr) 90px; column-gap: 16px; }
+[data-audiobook-panel][data-layout='desktop'] .chapter:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+[data-audiobook-panel][data-layout='desktop'] .chapter .number { width: auto; display: grid; place-items: center; }
+[data-audiobook-panel][data-layout='desktop'] .chapter .duration { margin: 0; text-align: right; }
+[data-audiobook-panel][data-layout='desktop'] .chapter[data-current] { height: 76px; background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+[data-audiobook-panel][data-layout='desktop'] .chapter[data-current] .number { color: var(--color-accent-strong); font-weight: var(--type-fixed-weight-800); }
+[data-audiobook-panel][data-layout='desktop'] .chapterRow + .chapterRow .chapter::before { display: none; }
+[data-audiobook-panel][data-layout='desktop'] .chapterProgress { left: 68px; right: 118px; bottom: 12px; }
 .chapter[data-done] .chapterTitle, .chapter[data-done] .number { color: var(--color-text-tertiary); }
-/* A row carries its own gutter; inside this padded page it bleeds back to the edge (as on the album page). */
-.page[data-layout='desktop'] > [data-layout-row] { margin: 56px 0 0; }
 /* desktop-listen's book page: the real total names the next chapters page. */
 .showAll { margin-top: 14px; }
 /* desktop-listen's book page: the narrator opens Books filtered by that narrator. */
 .narratorLink { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
-/* desktop-listen's About this book facts: the label beside its value, links bold and plain. */
-.bookFacts { display: grid; grid-template-columns: 104px 1fr; gap: 12px 16px; margin: 0; font-size: var(--type-fixed-size-15px); }
-.bookFacts dt { color: var(--color-text-tertiary); }
-.bookFacts dd { margin: 0; color: var(--color-text); }
-.bookFacts .link, .bookFacts .narratorLink { text-decoration: none; font-weight: var(--type-fixed-weight-600); color: var(--color-text); }
-.link { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
