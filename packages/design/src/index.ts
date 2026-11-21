@@ -233,6 +233,9 @@ const handheldType = {
   integrationKeyName: type(15.5, 'normal', 700, -.005), integrationKeyFacts: type(13.5, 19.575, 400),
   stopBody: type(15, 23.25, 500), stopField: type(16, 'normal', 600), stopHelp: type(13.5, 'normal', 400),
   fieldValue: type(15, 'normal', 400), fieldPlaceholder: type(15, 'normal', 400), fieldLabel: type(13, 18, 600),
+  /** The words typed in a search or find field (phone-app's search field, 15.5/500). `searchPageQuery` is the Search page's own
+   * field: the same on a phone, tablet.html `.sf .q` (26/700) on a tablet. */
+  searchQuery: type(15.5, 'normal', 500), searchPageQuery: type(15.5, 'normal', 500),
   accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700),
   // System rule 6 (design/ui-v1 system-rules.html): the roles a screen on a frame picks from. Row and section headings are `rowHeading`,
   // card text `cardTitle` and `cardSubtitle`, tabs `tab`; these are the roles the scale lacked.
@@ -316,6 +319,7 @@ const tabletType: Readonly<Record<TypeRole, TypeStyle>> = {...handheldType,
   playerTitle: typeScale.desktop.playerTitle, playerSubtitle: typeScale.desktop.playerSubtitle, playerSubtitleStrong: typeScale.desktop.playerSubtitleStrong,
   playerTime: typeScale.desktop.playerTime, playerPreviewTime: typeScale.desktop.playerPreviewTime, playerPrompt: typeScale.desktop.playerPrompt,
   audioTitle: type(32, 36, 800, -.03), audioByline: type(16, 'normal', 400), audioDetail: type(14, 'normal', 400),
+  searchPageQuery: type(26, 'normal', 700, -.02),
 };
 /** R2, the type half of the form scale: one column of every role per form. */
 export const formType: ByForm<Readonly<Record<TypeRole, TypeStyle>>> = byForm(handheldType, tabletType, tabletType, typeScale.desktop, typeScale.tenFoot);
