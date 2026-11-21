@@ -24,6 +24,7 @@ test('summary reads the server aggregates once, without scanning groups, recordi
   }};
   const summary = await new NextDVRClient(api).summary();
   assert.deepEqual([summary.rules, summary.upcoming, summary.groups, summary.recorded], [2345, 2, 3000, 9000]);
+  assert.equal(summary.canRecord, true);
   assert.deepEqual(paths, ['/v1/dvr']);
 });
 

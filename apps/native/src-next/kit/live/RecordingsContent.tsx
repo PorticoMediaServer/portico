@@ -13,7 +13,7 @@ import {NativeLiveTabs} from './LiveTabs';
 import {keepLabel, ruleFacts, ruleKeep, ruleNext, ruleScope} from '../../screens/settings-live/recording-rule-presentation';
 
 import {RecordingConfirm, RecordingDetails, RuleEditor} from './RecordingDialogs';
-import {keptOrWatched, reasonLabels, sortLabels, stateLabels, storageFacts, viewLabels, views, type useRecordings, type RecordingsProps} from '../../pages/shared/live/useRecordings';
+import {keptOrWatched, reasonLabels, sortLabels, stateLabels, storageFacts, viewLabels, type useRecordings, type RecordingsProps} from '../../pages/shared/live/useRecordings';
 
 export function recordingsFrame(props: RecordingsProps, model: ReturnType<typeof useRecordings>): LiveFrameProps {
   const {controller, ports, runtime, onGuide, owner} = props;
@@ -21,10 +21,10 @@ export function recordingsFrame(props: RecordingsProps, model: ReturnType<typeof
     newRule, setNewRule, sortOpen, setSortOpen, opener, cancel, list, alive, viewerOpening, overlay,
     drawnCurrent, closeConfirm, retire, groups, rules, first, emptyGuide, entryRegion, enter, select, sort,
     selectSort, leaveGuide, back, open, close, askReady, run, play, askDelete, rowData, restartViewer, isEmpty, emptyTitle,
-    emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent} = model;
+    emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent, availableViews} = model;
   // Local open-sheet/group state must not outlive an authoritative DVR access denial.
   const expandedTouch = theme.form === 'expanded';
-  if (state.accessDenied) return {title: t('recordings.title'), list: <StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')}/>};
+  if (state.accessDenied) return {title: t('recordings.title'), list: <StateView {...runtime.error(state.error ?? {status: 403}, onGuide, 'live')} title={t('recordings.title')}/>};
   const groupHeader = group && <RecordingFacts items={[group.recording.channel?.name,
     t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched})]}/>;
   const headerStorage = !group && state.storage && query.view !== 'storage' ? state.storage : undefined;
@@ -32,7 +32,7 @@ export function recordingsFrame(props: RecordingsProps, model: ReturnType<typeof
   const storageHeader = usage && theme.isTV ? <RecordingSpaceFacts used={usage.used} free={usage.free} fraction={usage.fraction}/> : undefined;
   const viewsHeader = groupHeader ?? <RecordingViewTabs
     region={{id: tabs, entry: query.view, orientation: 'horizontal', edges: {left: ids.rail, down: body}, onLayout: entryRegion === tabs ? enter : undefined}}
-    choices={views.map(view => ({value: view, label: t(viewLabels[view]),
+    choices={availableViews.map(view => ({value: view, label: t(viewLabels[view]),
       count: view === 'upcoming' || view === 'recorded' || view === 'rules' ? state.summary?.[view] : undefined}))}
     value={query.view} onChange={view => select(view as DVRView)}/>;
   const columns = recordingGridColumns(theme);

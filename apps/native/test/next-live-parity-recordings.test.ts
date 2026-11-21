@@ -251,3 +251,19 @@ test('an expanded tablet\'s Recordings page keeps Live TV\'s title with the Guid
   } finally {await phone.close();}
 });
 
+
+test('a member without recording permission can switch recordings tabs without requesting Series rules', async () => {
+  const f = await fixture({isTV: true, role: 'member', canManage: false});
+  try {
+    f.recordingState.summary = {...summary, canRecord: false};
+    await f.recordings();
+    assert.ok(f.find('recordings-view-upcoming'));
+    assert.ok(f.find('recordings-view-recorded'));
+    assert.equal(f.find('recordings-view-rules'), undefined);
+    f.find('recordings-view-recorded')!.props.onPress();
+    assert.deepEqual(f.viewerLoads.at(-1), {view: 'recorded'});
+    f.publishRecordingState({...f.recordingState, summary: {...summary, canRecord: true}});
+    f.notify(); await f.host.settle();
+    assert.ok(f.find('recordings-view-rules'));
+  } finally {await f.close();}
+});
