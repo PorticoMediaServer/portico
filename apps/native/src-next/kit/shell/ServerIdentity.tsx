@@ -151,6 +151,8 @@ export function ServerHeader({serverName, viewerRole, audience, facts = [], vari
   const visibility = serverVisibilityKey(viewerRole, audience);
   if (!visibility) return null;
   const text = (size: number, weight: 600 | 700 | 800 = 600, tracking = 0) => shellType(size, weight, 'normal', tracking, textScale);
+  // A server name wraps in full in every variant (no-cut rule); the badge names who the page is for, as ServerStateTag does,
+  // so an owner on a page shared with administrators reads Administrators.
   // owner-server.html `.msrv`: on phone the header is its own raised, rounded card with an inset
   // accent edge, its gradient clipped inside (unclipped it read as a stray lighter box, walk 1 Nov).
   if (variant !== 'page') return <View testID={testID} style={[styles.groupHeader, {gap: isTV ? 16 : 12, padding: variant === 'phone' ? 14 : 0},
@@ -159,9 +161,9 @@ export function ServerHeader({serverName, viewerRole, audience, facts = [], vari
     {variant === 'phone' && box && <Svg width={box.width} height={box.height} style={StyleSheet.absoluteFill} accessible={false} pointerEvents="none"><Defs><LinearGradient id="server-phone-header" x1="0%" y1="0%" x2="100%" y2="57.735%"><Stop offset="0" stopColor={colors.accent} stopOpacity=".3"/><Stop offset="0.7" stopColor={colors.accent} stopOpacity=".06"/></LinearGradient></Defs><Rect width={box.width} height={box.height} fill="url(#server-phone-header)"/></Svg>}
     <ServerMark variant={isTV ? 'tv' : variant === 'phone' ? 'phone' : 'settings'}/>
     <View style={{flex: 1, minWidth: 0}}>
-      {variant === 'phone' ? <><Text style={[text(12, 700), {color: colors.accentStrong}]}>{defaultI18n.t('next.shell.server')}</Text><Text numberOfLines={2} style={[text(16.5, 800, -.015), {color: colors.text}]}>{serverName}</Text></> : <><Text style={[text(isTV ? 24 : 15, 800), {color: colors.text}]}>{defaultI18n.t('next.shell.server')}</Text><Text numberOfLines={1} style={[text(isTV ? 18 : 13), {color: colors.textTertiary, marginTop: isTV ? 2 : 1}]}>{serverName}</Text></>}
+      {variant === 'phone' ? <><Text style={[text(12, 700), {color: colors.accentStrong}]}>{defaultI18n.t('next.shell.server')}</Text><Text style={[text(16.5, 800, -.015), {color: colors.text}]}>{serverName}</Text></> : <><Text style={[text(isTV ? 24 : 15, 800), {color: colors.text}]}>{defaultI18n.t('next.shell.server')}</Text><Text style={[text(isTV ? 18 : 13), {color: colors.textTertiary, marginTop: isTV ? 2 : 1}]}>{serverName}</Text></>}
     </View>
-    <View style={[styles.badge, {backgroundColor: alpha(colors.ink, variant === 'phone' ? .5 : .6), paddingVertical: isTV || variant === 'phone' ? 4 : 3, paddingHorizontal: isTV ? 12 : 8, borderRadius: isTV ? 8 : 6}]}><Text style={[text(isTV ? 18 : variant === 'phone' ? 11.5 : 12, 700), {color: colors.textSecondary}]}>{defaultI18n.t(viewerRole === 'administrator' ? 'next.shell.administrators' : 'next.shell.ownerOnly')}</Text></View>
+    <View style={[styles.badge, {backgroundColor: alpha(colors.ink, variant === 'phone' ? .5 : .6), paddingVertical: isTV || variant === 'phone' ? 4 : 3, paddingHorizontal: isTV ? 12 : 8, borderRadius: isTV ? 8 : 6}]}><Text style={[text(isTV ? 18 : variant === 'phone' ? 11.5 : 12, 700), {color: colors.textSecondary}]}>{defaultI18n.t(audience === 'owner' ? 'next.shell.ownerOnly' : 'next.shell.administrators')}</Text></View>
   </View>;
   return <View testID={testID} style={style}>
     <View style={[styles.pill, {height: isTV ? 46 : 30, borderRadius: isTV ? 12 : 8, paddingLeft: isTV ? 14 : 9, paddingRight: isTV ? 18 : 12, gap: isTV ? 12 : 8, backgroundColor: alpha(colors.ink, isTV ? .6 : .55)}]}>
@@ -170,7 +172,7 @@ export function ServerHeader({serverName, viewerRole, audience, facts = [], vari
       {isTV && viewOnly && <Text style={[text(20, 700), {color: colors.text, backgroundColor: alpha(colors.text, .14), paddingVertical: 2, paddingHorizontal: 10, borderRadius: 7}]}>{defaultI18n.t('next.shell.viewOnly')}</Text>}
     </View>
     <View style={[styles.facts, {marginTop: isTV ? 0 : 16, marginBottom: isTV ? 22 : 40, gap: isTV ? 26 : 22}]}>
-      {!isTV && <Text numberOfLines={1} style={[shellType(26, 800, 26, -.03, textScale), {color: colors.text, flexShrink: 1}]}>{serverName}</Text>}
+      {!isTV && <Text style={[shellType(26, 800, 26, -.03, textScale), {color: colors.text, flexShrink: 1}]}>{serverName}</Text>}
       {facts.map(fact => <View key={fact.id} style={{flexDirection: 'row', alignItems: 'center', gap: isTV ? 10 : 8}}>
         {fact.tone && fact.tone !== 'muted' && <View style={{width: isTV ? 12 : 9, height: isTV ? 12 : 9, borderRadius: 6, backgroundColor: fact.tone === 'warning' ? colors.amber : colors.healthy, boxShadow: `0 0 0 4px ${alpha(fact.tone === 'warning' ? colors.amber : colors.healthy, .16)}`}}/>}
         <Text style={[text(isTV ? 22 : 15, fact.tone && fact.tone !== 'muted' ? 700 : 600), {color: fact.tone === 'normal' ? colors.text : fact.tone === 'warning' ? colors.amber : colors.textSecondary}]}>{fact.text}</Text>
