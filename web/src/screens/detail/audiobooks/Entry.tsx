@@ -1,5 +1,5 @@
 import {audiobookChapterCount} from './chapter-count';
-import {Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {cloneElement, Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactElement} from 'react';
 import {serviceI18n} from '@core/presentation/service-text.ts';
 import {formatClock} from '@core/presentation/content.ts';
 import {ApiError} from '@core/index.ts';
@@ -7,9 +7,10 @@ import type {ContentEntry, ContentProjection} from '@core/library-content.ts';
 import type {RelationPage} from '@core/relation-rows.ts';
 import {Menu, MenuItem} from '../../../kit/overlays';
 import {OwnerMetadataGroup} from '../OwnerMetadataGroup';
-import {GeneratedCover, PersonCircle, WholeArtwork, nameInitials, type ArtworkSource} from '../../../kit/artwork';
+import {Artwork, GeneratedCover, PersonCircle, WholeArtwork, nameInitials, type ArtworkSource} from '../../../kit/artwork';
+import {AboutTable, PanelBlock, PanelHeading, TitleFrame, type AboutValue, type TitleAction, type TitlePrimary} from '../../../kit/frames';
 import {generatedCoverTint} from '@design';
-import {CoverHero, CoverHeroLink} from '../../../kit/title/CoverHero';
+import {CoverHeroLink} from '../../../kit/title/CoverHero';
 import {Button, Chip} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
 import {createAudiobookBindings, type AudiobookBindings, type AudiobookTarget} from './bindings';
@@ -20,7 +21,8 @@ import {t} from '../text';
 import styles from './audiobooks.module.css';
 import {AudiobookMore} from './More';
 import {TitleRow} from '../Detail';
-import {TitleProse} from '../../../kit/title/TitleParts';
+import {TitleFactsLine} from '../../../kit/title/TitleParts';
+import {durationText} from '@core/presentation/kit-model/text.ts';
 import {useRelationRow} from '../relation-row';
 import {useShellWidth} from '../../../shell/viewport';
 
@@ -65,7 +67,8 @@ function AudiobookBound({binding, onMore}: {binding: AudiobookBindings; onMore?:
 }
 
 const CHAPTER_PREVIEW = 11;
-const duration = (value: number | undefined) => value === undefined ? undefined : serviceI18n().duration(value);
+/** A length in the title page's words ("9 h 54 min", "1 min"), never the compact "1m". */
+const duration = (value: number | undefined) => value === undefined ? undefined : durationText(value, t);
 /** The book's own language code, named in the reader's language; an unknown code stays itself. */
 function languageName(code: string): string {
   try { return new Intl.DisplayNames(serviceI18n().locale, {type: 'language'}).of(code) ?? code; } catch { return code; }
@@ -184,65 +187,54 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
     return effect({libraryId: page.scope.libraryId, itemId: more.entry.id, kind: more.entry.kind, title: more.entry.title}, more.anchor);
   });
   const open = (entry: ContentEntry) => run(() => binding.open(page, entry));
-  return <article className={styles.page} data-audiobook-view={page.scope.view} data-layout={phone ? 'phone' : 'desktop'}>
-    <nav className={styles.nav}>
-      {binding.context.effects.back && <Button variant="ghost" icon="i-left" iconOnly aria-label={t('action.back')} onClick={() => run(() => {binding.current(page);binding.context.effects.back?.();})}/>}
-      {onMore && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entity.title})} onClick={event => run(() => {binding.current(page);onMore(entity, event.currentTarget);})}/>}
-      {/* Phones keep the drawn bar's More; the desktop page draws it in the action row. */}
-      {!onMore && phone && <AudiobookMore binding={binding} page={page} entry={entity}/>}
-    </nav>
-    <CoverHero title={entity.displayTitle ?? entity.title} titleStyle={(entity.displayTitle ?? entity.title).length > 24 ? 'long' : undefined}
-      shape={author ? 'artist' : 'square'} cover={author ? undefined : binding.context.artwork.foreground(cover, 464, 1)}
-      fallback={author ? <PersonCircle width="100%" height="100%" initialsSize={phone ? 44 : 80} alt={entity.title}
-        covers={cover ? [binding.context.artwork.foreground(cover, 464, 1)].filter(source => !!source) as ArtworkSource[] : []}
-        initials={nameInitials(entity.title)}/>
-        : <GeneratedCover title={entity.title} author={entity.author} glyph={Array.from(entity.title.trim())[0] ?? ''} tint={generatedCoverTint(entity.title)}/>}
-      ambient={binding.context.artwork.ambient(cover)} palette={generatedCoverTint(entity.title)}
-      eyebrow={book && series ? <><button type="button" onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button>{seriesTarget?.position && t('title.bookInSeries', {number: seriesTarget.position})}</>
-        : !book ? t(author ? 'filter.field.author' : 'library.tab.series') : undefined}
-      byline={<>{entity.author && <CoverHeroLink onOpen={authorEntry ? () => open(authorEntry) : undefined}>{entity.author}</CoverHeroLink>}
-        {book && !!entity.narrators?.length && <span><Narrators names={entity.narrators} linked={filters.narrator} locale={serviceI18n().locale}
-          onOpen={name => run(() => binding.openNarrator(page, name))}/></span>}</>}
-      facts={heroFacts(!book ? entity.count : undefined, duration(entity.duration), book ? chapterCount : undefined)}
-      actions={<>
-      {canPlay && <Button className={styles.primary} variant="primary" icon="i-play" onClick={() => run(() => binding.primary(page))}>{label}</Button>}
-      {unplayable && <Button className={styles.primary} variant="primary" icon="i-play" disabled aria-describedby={`${entity.id}-unplayable`}>{t('entry.play')}</Button>}
-      {book && page.listening?.actions.includes('play') && <Button variant="glass" disabled={unplayable} onClick={() => run(() => binding.primary(page, true))}>{t('action.startOver')}</Button>}
-      {book && finished !== undefined && <Button className={styles.round} icon="i-check" iconOnly disabled={busy !== undefined} aria-pressed={finished} aria-label={t(finished ? 'title.markNotFinished' : 'title.markFinished')} onClick={() => {
-        const op = claim(page, 'finished'); if (!op) return;
-        void binding.markFinished(page).then(value => {if (owns(op)) setFinished(value.watched);}, refuse(op)).finally(() => settle(op));
-      }}/>}
-      {book && !phone && watchlisted !== undefined && <Button className={styles.round} icon={watchlisted ? 'i-check' : 'i-plus'} iconOnly aria-pressed={watchlisted} disabled={busy !== undefined}
-        aria-label={t('next.controls.myList')} onClick={() => {
-          const op = claim(page, 'watchlist'); if (!op) return;
-          void binding.setWatchlisted(page, !watchlisted).then(value => {if (owns(op)) setWatchlisted(value);}, refuse(op)).finally(() => settle(op));
-        }}/>}
-      {!book && !author && primaryBook && <Button className={styles.round} icon="i-retry" iconOnly aria-label={t('action.startOver')} onClick={() => open(primaryBook)}/>}
-      {!onMore && !phone && <AudiobookMore binding={binding} page={page} entry={entity} variant="glass"/>}
-      </>}
-      under={(unplayable || book && remaining) ? <>
-    {unplayable && <p id={`${entity.id}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p>}
-    {book && remaining && <div className={styles.progress}>{ratio !== undefined && <span><i style={{width: `${Math.min(1, Math.max(0, ratio)) * 100}%`}}/></span>}{t('title.resumeRemaining', {remaining})}</div>}
-      </> : undefined}/>
-    <div className={styles.split}>
-    {book && <aside className={styles.aside}>
-      {!phone && <h2 className={styles.asideTitle}>{t('title.aboutThisBook')}</h2>}
-      {/* Book descriptions often carry the source's HTML (bold, italics, line breaks); TitleProse draws those and nothing else. */}
-      {entity.overview && <><TitleProse className={styles.about} data-expanded={expanded || phone === false || undefined} markup={entity.overview}/>{phone && !expanded && <button className={styles.readMore} onClick={() => setExpanded(true)}>{t('web.person.readMore')}</button>}</>}
-      {/* desktop-listen's About this book: only the facts this book publishes, and only at desktop. */}
-      {!phone && <dl className={styles.bookFacts}>
-        {entity.author && <><dt>{t('filter.field.author')}</dt><dd>{authorEntry ? <button type="button" className={styles.link} onClick={() => open(authorEntry)}>{entity.author}</button> : entity.author}</dd></>}
-        {!!entity.narrators?.length && <><dt>{t('filter.field.narrator')}</dt><dd><Narrators names={entity.narrators} linked={filters.narrator} locale={serviceI18n().locale} bare
-          onOpen={name => run(() => binding.openNarrator(page, name))}/></dd></>}
-        {series && <><dt>{t('library.tab.series')}</dt><dd><button type="button" className={styles.link}
-          onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button>{seriesTarget?.position && t('title.bookInSeries', {number: seriesTarget.position})}</dd></>}
-        {entity.publishedYear !== undefined && <><dt>{t('title.published')}</dt><dd>{serviceI18n().number(entity.publishedYear, {useGrouping: false})}</dd></>}
-        {entity.publisher && <><dt>{t('title.publisher')}</dt><dd>{entity.publisher}</dd></>}
-        {entity.language && <><dt>{t('next.selection.language')}</dt><dd>{languageName(entity.language)}</dd></>}
-        {entity.addedAt && <><dt>{t('title.added')}</dt><dd>{serviceI18n().date(entity.addedAt, 'medium')}</dd></>}
-      </dl>}
-    </aside>}
+  // The book, author or series on the title frame (desktop-listen book; phone-app 14): the cover (a circle for an author), the
+  // series as the kicker, the author and narrators leading the facts, Resume chapter with the played line and Start over,
+  // Finished, My List and More; the chapters or books are the panel, About this book the side.
+  const title = entity.displayTitle ?? entity.title;
+  const coverNode = author ? <PersonCircle width="100%" height="100%" initialsSize={phone ? 44 : 80} alt={entity.title}
+      covers={cover ? [binding.context.artwork.foreground(cover, 464, 1)].filter(source => !!source) as ArtworkSource[] : []} initials={nameInitials(entity.title)}/>
+    : cover ? <Artwork source={binding.context.artwork.foreground(cover, 464, 1)} alt="" />
+    : <GeneratedCover title={entity.title} author={entity.author} glyph={Array.from(entity.title.trim())[0] ?? ''} tint={generatedCoverTint(entity.title)}/>;
+  const openSeries = () => run(() => series && (filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series)));
+  const kicker = book ? series ? {label: series.title, ...(seriesTarget?.position ? {detail: t('title.bookInSeries', {number: seriesTarget.position})} : {}), onPress: openSeries} : undefined
+    : {label: t(author ? 'filter.field.author' : 'library.tab.series')};
+  const byline = entity.author || book && entity.narrators?.length ? <>{entity.author && <CoverHeroLink onOpen={authorEntry ? () => open(authorEntry) : undefined}>{entity.author}</CoverHeroLink>}
+    {book && !!entity.narrators?.length && <span><Narrators names={entity.narrators} linked={filters.narrator} locale={serviceI18n().locale}
+      onOpen={name => run(() => binding.openNarrator(page, name))}/></span>}</> : undefined;
+  const primary: TitlePrimary | undefined = canPlay ? {icon: 'i-play', label, onPress: () => run(() => binding.primary(page)),
+      ...(book && ratio !== undefined ? {progress: Math.min(1, Math.max(0, ratio)), ...(remaining ? {remaining: t('title.resumeRemaining', {remaining})} : {})} : {}),
+      ...(book && page.listening?.actions.includes('play') ? {startOver: {label: t('action.startOver'), onPress: () => run(() => binding.primary(page, true))}} : {})}
+    : unplayable ? {icon: 'i-play', label: t('entry.play'), disabled: true, onPress: () => {}, note: t('title.fileUnavailable')} : undefined;
+  const actions: TitleAction[] = [
+    ...(book && watchlisted !== undefined ? [{icon: watchlisted ? 'i-check' as const : 'i-plus' as const, label: t('next.controls.myList'), labelled: true, pinned: true, active: watchlisted, disabled: busy !== undefined,
+      onPress: () => { const op = claim(page, 'watchlist'); if (!op) return; void binding.setWatchlisted(page, !watchlisted).then(value => {if (owns(op)) setWatchlisted(value);}, refuse(op)).finally(() => settle(op)); }}] : []),
+    ...(book && finished !== undefined ? [{icon: 'i-check' as const, label: t(finished ? 'title.markNotFinished' : 'title.markFinished'), active: finished, disabled: busy !== undefined,
+      onPress: () => { const op = claim(page, 'finished'); if (!op) return; void binding.markFinished(page).then(value => {if (owns(op)) setFinished(value.watched);}, refuse(op)).finally(() => settle(op)); }}] : []),
+    ...(!book && !author && primaryBook ? [{icon: 'i-retry' as const, label: t('action.startOver'), onPress: () => open(primaryBook)}] : []),
+    onMore ? {icon: 'i-more', label: t('card.more', {title: entity.title}), onPress: () => {}, wrap: (button: ReactElement) => cloneElement(button as ReactElement<{onClick?: (event: MouseEvent<HTMLButtonElement>) => void}>, {onClick: (event: MouseEvent<HTMLButtonElement>) => { const anchor = event.currentTarget; run(() => {binding.current(page); onMore(entity, anchor);}); }})}
+      : {icon: 'i-more', label: t('card.more', {title: entity.title}), onPress: () => {}, wrap: (button: ReactElement) => <AudiobookMore binding={binding} page={page} entry={entity} trigger={button}/>},
+  ];
+  const about: Readonly<{label: string; values: readonly AboutValue[]}>[] = book ? [
+    ...(entity.author ? [{label: t('filter.field.author'), values: [{text: entity.author, ...(authorEntry ? {onPress: () => open(authorEntry)} : {})}]}] : []),
+    ...(entity.narrators?.length ? [{label: t('filter.field.narrator'), values: entity.narrators.map(name => ({text: name, ...(filters.narrator ? {onPress: () => run(() => binding.openNarrator(page, name))} : {})}))}] : []),
+    ...(series ? [{label: t('library.tab.series'), values: [{text: seriesTarget?.position ? `${series.title} ${t('title.bookInSeries', {number: seriesTarget.position})}` : series.title, onPress: openSeries}]}] : []),
+    ...(entity.publishedYear !== undefined ? [{label: t('title.published'), values: [{text: serviceI18n().number(entity.publishedYear, {useGrouping: false})}]}] : []),
+    ...(entity.publisher ? [{label: t('title.publisher'), values: [{text: entity.publisher}]}] : []),
+    ...(entity.language ? [{label: t('next.selection.language'), values: [{text: languageName(entity.language)}]}] : []),
+    ...(entity.addedAt ? [{label: t('title.added'), values: [{text: serviceI18n().date(entity.addedAt, 'medium')}]}] : []),
+  ] : [
+    ...(entity.narrators?.length ? [{label: t('filter.field.narrator'), values: [{text: serviceI18n().list(entity.narrators)}]}] : []),
+    ...(entity.duration !== undefined ? [{label: t('next.kit.length'), values: [{text: duration(entity.duration) ?? ''}]}] : []),
+  ];
+  return <><TitleFrame back={binding.context.effects.back ? {label: t('action.back'), onPress: () => run(() => {binding.current(page);binding.context.effects.back?.();})} : undefined}
+    cover={{shape: author ? 'circle' : 'square', node: coverNode}} kicker={kicker} title={title}
+    metadata={<TitleFactsLine lead={byline} parts={heroFacts(!book ? entity.count : undefined, duration(entity.duration), book ? chapterCount : undefined)} />}
+    primary={primary} actions={actions}
+    synopsis={book ? entity.overview : undefined}
+    readMore={book && entity.overview ? {label: t(expanded ? 'web.person.showLess' : 'web.person.readMore'), expanded, onPress: () => setExpanded(value => !value)} : undefined}
+    aside={about.length ? <div><PanelHeading title={t(book ? 'title.aboutThisBook' : 'next.controls.details')} /><AboutTable rows={about} /></div> : undefined}>
     {state.error && <ScreenProblem context={binding.context} error={state.error} retry={() => {void binding.load().catch(binding.context.effects.reportError);}}/>}
+    <PanelBlock label={t(book ? 'next.browse.chapters' : 'library.tab.books')}><div data-audiobook-panel data-audiobook-view={page.scope.view} data-layout={phone ? 'phone' : 'desktop'}>
     {rows && <section className={styles.rows}><div className={styles.sectionHead}><h2>{t(book ? 'next.browse.chapters' : 'library.tab.books')}</h2>{(phone || !book) && <span>{rows.totalCount}</span>}</div>
       {(book && !chaptersExpanded ? rows.entries.slice(0, CHAPTER_PREVIEW) : rows.entries).map((entry, index) => book ? <div key={entry.id}><Chapter entry={entry} index={index} page={page} binding={binding}/>{entry.kind === 'audiobook_file' && hasLeafActions && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})} onClick={event => run(() => leafMore(entry, event.currentTarget))}/>}</div>
         : <div className={styles.bookRow} key={entry.id}><button onClick={() => open(entry)}><span className={styles.thumb}><WholeArtwork source={binding.context.artwork.foreground(entry.posterUrl, 132, 1)} alt=""
@@ -257,12 +249,8 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
         })}>{rows.entries.length > CHAPTER_PREVIEW && rows.entries.length >= rows.totalCount ? t('title.showAllChapters', {count: rows.totalCount}) : t('title.showMoreChapters')}</Chip>}
       {rows.nextCursor && (book ? chaptersExpanded : true) && <Button size="small" onClick={() => run(() => {binding.current(page);return binding.service.next(rows.id);})}>{t('title.nextPage')}</Button>}
     </section>}
-    {/* The author and series pages on desktop follow the artist page (J-7): the list, then Details in the aside. */}
-    {!book && !phone && (!!entity.narrators?.length || entity.duration !== undefined) && <aside className={styles.aside}>
-      <h2 className={styles.asideTitle}>{t('next.controls.details')}</h2>
-      <dl className={styles.bookFacts}>{entity.narrators?.length ? <><dt>{t('filter.field.narrator')}</dt><dd>{serviceI18n().list(entity.narrators)}</dd></> : null}{entity.duration !== undefined && <><dt>{t('next.kit.length')}</dt><dd>{duration(entity.duration)}</dd></>}</dl>
-    </aside>}
-    </div>
+    </div></PanelBlock>
+  </TitleFrame>
     {book && moreBooks && moreBooks.page === page && moreBooks.token === reads.current?.token && <MoreAudiobooksRow binding={binding} page={page} first={moreBooks.value} guard={() => {
       // A retained card belongs to this exact page and read receipt; it may not open after either was replaced.
       if (reads.current?.token !== moreBooks.token) throw new DOMException('Book page changed', 'AbortError');
@@ -278,8 +266,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
         {effects.deleteTitle && <MenuItem icon="i-trash" destructive onSelect={() => invoke(effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}
       </OwnerMetadataGroup>}
     </Menu>}
-    {!book && phone && <section><div className={styles.sectionHead}><h2>{t('next.controls.details')}</h2></div><dl className={styles.details}>{entity.narrators?.length ? <><dt>{t('filter.field.narrator')}</dt><dd>{serviceI18n().list(entity.narrators)}</dd></> : null}{entity.duration !== undefined && <><dt>{t('next.kit.length')}</dt><dd>{duration(entity.duration)}</dd></>}</dl></section>}
-  </article>;
+  </>;
 }
 /** The ordinary TitleRow pager supplies visibility demand and the existing square-card shelf.
  * An empty filtered page still mounts its pending slot, so visible demand can reach later books. */
