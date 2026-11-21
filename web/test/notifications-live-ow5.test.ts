@@ -16,7 +16,7 @@ test('the web feed rereads its view on a change hint or a resync while its openi
 });
 
 test('native follows the same hint without cancelling a write that is still out', () => {
-  const source = read('../../apps/native/src-next/screens/notifications/NotificationsScreen.tsx');
+  const source = read('../../apps/native/src-next/pages/shared/notifications/useNotifications.ts');
   assert.match(source, /lease\.profile\.refresh\(event\.revision\);/);
   assert.doesNotMatch(source, /context\.events\.on\('notification\.changed', \(\) =>/);
 });

@@ -28,7 +28,7 @@ test('the native inbox reads plain profile pages and empty write answers, and re
     '../../platform/event-resync': eventState, '../../shell/freshness': freshness,
     '../../platform/server-connections': {nativeRouteCrypto: {random: (size: number) => new Uint8Array(size).fill(1)}},
     '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
-    '../settings-live/lifetime': {NativeScreenLifetime}, './NotificationsScreen': {NativeNotificationsScreen: 'Inbox'},
+    '../settings-live/lifetime': {NativeScreenLifetime}, '../../pages/touch/notifications/NotificationsPage': {NotificationsPage: 'Inbox'},
   });
   const listeners = new Set<() => void>();
   let authority = {serverId: 'server', accountId: 'account', profileId: 'profile', authority: 'local', epoch: 'epoch', viewerFence: 'fence'};
