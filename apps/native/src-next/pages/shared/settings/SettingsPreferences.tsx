@@ -112,7 +112,7 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
           return <SettingsRow key={id} testID={id} {...copy} readable={blocked} toggle={{checked: on, visual: <Switch checked={on} focusable={false} accessibilityLabel={t(row.label)} disabled={blocked}/>}}
             onPress={blocked ? undefined : () => change(row, !on)}/>;
         }
-        return <SettingsRow key={id} testID={id} {...copy}
+        return <SettingsRow key={id} testID={id} {...copy} stack={control.type === 'languages'}
           control={control.type === 'switch' ? <Switch testID={id} checked={value === true} accessibilityLabel={t(row.label)} disabled={state.busy || !enabled(row)} onCheckedChange={next => change(row, next)}/>
             : choiceList ? (() => {const options = choiceList.map(choice => ({value: String(choice.value), label: t(choice.label, choice.labelValues)})); const selected = options.some(option => option.value === String(value)) ? String(value) : undefined; return <Select testID={id} accessibilityLabel={t(row.label)} value={selected} options={options} onValueChange={next => {const choice = choiceList.find(choice => String(choice.value) === next); if (choice) change(row, choice.value);}} disabled={state.busy}/>;})()
               : control.type === 'languages' ? <LanguageList testID={id} label={t(row.label)} value={(Array.isArray(value) ? value : []).map(id => ({id, label: languageName(id, key => defaultI18n.has(key) ? t(key as Parameters<typeof t>[0]) : undefined)}))} available={COMMON_LANGUAGES.map(id => ({id, label: languageName(id, key => defaultI18n.has(key) ? t(key as Parameters<typeof t>[0]) : undefined)}))} limit={MAX_LANGUAGES} onChange={next => change(row, next.map(value => value.id))}/>
