@@ -83,18 +83,17 @@ export function useServerHistory({ports, runtime}: {ports: NativeSettingsLivePor
   const row = (entry: PlayHistoryEntry) => {
     const place = historyLocation(entry.location), platform = playHistoryPlatform(entry, {t});
     const watched = entry.watchedMs === undefined ? undefined : duration(entry.watchedMs / 1000);
-    return {
-      title: playHistoryTitle(entry, {t}),
-      description: [
-        entry.user, entry.profile !== entry.user ? entry.profile : undefined, [entry.device, platform].filter(Boolean).join(' · '),
-        date.format(new Date(entry.startedAt)),
-        entry.completed ? [t('server.jobState.succeeded'), watched].filter(Boolean).join(' · ') : watched,
-        place ? t(place === 'home' ? 'next.kit.session.local' : 'next.kit.session.remote') : undefined,
-      ].filter((part): part is string => !!part),
-    };
+    const title = playHistoryTitle(entry, {t}), profile = entry.profile !== entry.user ? entry.profile : undefined;
+    const player = [entry.device, platform].filter(Boolean).join(' · '), played = date.format(new Date(entry.startedAt));
+    const time = entry.completed ? [t('server.jobState.succeeded'), watched].filter(Boolean).join(' · ') : watched;
+    const where = place ? t(place === 'home' ? 'next.kit.session.local' : 'next.kit.session.remote') : undefined;
+    return {title, description: [entry.user, profile, player, played, time, where].filter((part): part is string => !!part),
+      columns: {title, person: [entry.user, profile].filter(Boolean).join('\n'), player, played, for: time, where}};
   };
   return {
     state, source, search, setSearch, searchLabel, submitSearch, change, row,
+    columns: (table.control.columns ?? []).flatMap(column => column.id
+      ? [{id: column.id, label: t(column.label), weight: Number.parseFloat(column.width ?? '1')}] : []),
     media: options('media'), people, period: options('range'),
     sort: (table.control.columns ?? []).filter(column => column.sort && column.id).map(column => ({value: column.id!, label: t(column.label)})),
     direction: (['desc', 'asc'] as const).map(dir => ({value: dir, label: t('web.filters.direction', {kind: 'other', dir})})),

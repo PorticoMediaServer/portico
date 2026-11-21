@@ -236,9 +236,12 @@ test('History draws rebuilt play history and loads more with the server cursor',
     '../../../screens/settings-live/server/history-source': history,
     '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: (context: any) => context.current()},
   });
+  let form: 'phone' | 'expanded' = 'phone';
   const list = await screenModule(new URL('../src-next/kit/settings/SettingsHistoryList.tsx', import.meta.url), {
-    react: host.react, 'react-native': {FlatList: 'FlatList', View: 'View'}, '../frames/metrics': {useFrameMetrics: () => ({bottomClear: 0})},
+    react: host.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
+    '../frames/metrics': {useFrameMetrics: () => ({form, bottomClear: 0})},
     '../shell': {SettingsRow: 'SettingsRow'},
+    '../theme': {useTheme: () => ({colors: {}, type: {}, space: {xs: 4, sm: 8, hairline: 1}})},
   });
   const {ServerHistoryPage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerHistoryPage.tsx', import.meta.url), {
     ...chrome, react: host.react, '../../shared/settings/useServerHistory': model, '../../../kit/settings/SettingsHistoryList': list,
@@ -284,8 +287,8 @@ test('History draws rebuilt play history and loads more with the server cursor',
   assert.deepEqual(historyReads.map(url => url.search), ['', '?cursor=42']);
   assert.equal(nodes(next.props.ListFooterComponent).some((node: any) => node.type === 'Button'), false);
   assert.deepEqual(peopleReads, [membersPath, `${membersPath}?cursor=next`]);
-  const filter = (tree: any, id: string) => nodes(tree.props.ListHeaderComponent)
-    .map((node: any) => node.props.control).find((control: any) => control?.props.testID === id);
+  const filter = (tree: any, id: string) => nodes(tree.props.ListHeaderComponent).find((node: any) => node.props.testID === id);
+  assert.ok(filter(tree, 'server-history-media').props.rowLabel, 'the filter label belongs to the picker trigger');
   const person = filter(tree, 'server-history-person');
   assert.deepEqual(person.props.options.slice(1), [{value: 'a1', label: 'sam_k'}, {value: 'a2', label: 'alex'}]);
   person.props.onValueChange('a2');await settle();assert.equal(historyReads.at(-1)?.searchParams.get('person'), 'a2');
@@ -293,6 +296,16 @@ test('History draws rebuilt play history and loads more with the server cursor',
   assert.match(historyReads.at(-1)?.searchParams.get('from') ?? '', /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   // Play history is kept indefinitely (owner, 16 Nov): the page offers no keep choice.
   assert.equal(nodes(render()).some((node: any) => node.props.testID === 'history.keepHistory'), false);
+
+  form = 'expanded';
+  const tablet = render(), tabletNodes = nodes(tablet);
+  const columnHeader = tabletNodes.find((node: any) => node.props.testID === 'server-history-column-header');
+  const table = tabletNodes.find((node: any) => node.props.testID === 'server-history-list');
+  assert.equal(table.props.ListHeaderComponent, undefined, 'search and column headings stay outside the results scroller');
+  assert.ok(tabletNodes.some((node: any) => node.props.testID === 'server-history-search'));
+  assert.equal(nodes(columnHeader).filter((node: any) => node.props.accessibilityRole === 'header').length, 6);
+  assert.match(content(table.props.renderItem({item: table.props.data[0], index: 0})), /Film.*sam_k[\s\S]*Kids.*Living room.*42s/);
+  form = 'phone';
 
   const {readTVServerPage} = await import('../src-next/screens/settings-live/server/tv-server-page-data.ts');
   const report = reports.captureReportContext('UTC'), signal = new AbortController().signal;
