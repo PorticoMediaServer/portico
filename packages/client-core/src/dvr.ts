@@ -197,7 +197,7 @@ export class DVRModel {
 
 export type RecordingOverlap={id:string;title:string;start:string;end:string;priority:number;state:string;channel?:RecordingChannel;ruleId?:string;episode?:GuideProgramme['episode']};
 export type RuleSummary={upcoming:number;recorded:number;conflicts:number;matchingTonight:number;next?:GuideProgramme;channel:RecordingChannel};
-export type DVRSummary={upcoming:number;recorded:number;rules:number;conflicts:number;groups:number;unwatched:number;
+export type DVRSummary={upcoming:number;recorded:number;rules:number;conflicts:number;groups:number;unwatched:number;canRecord?:boolean;
  /** Whether this profile may see everyone's recordings (the Recorded TV library); absent when the server does not say. */
  everyonesRecordings?:boolean};
 export type RecordingGroups={groups:{key:string;title:string;recordings:number;unwatched:number;kept:number;exceptions:number;latest:string;recording:Recording}[];nextCursor:string;revision:number};
