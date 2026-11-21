@@ -132,7 +132,7 @@ async function setup() {
     './selection': {createNativeSearchSelection},
     './controller': {createNativeSearchController}, './actions': {createNativeSearchActions: () => ({dispose() {}})},
     './navigation': navigationPorts, './explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
-    './SearchScreen': {SearchScreen: 'SearchScreen'}, './GenreBrowseScreen': {GenreBrowseScreen: 'GenreBrowseScreen'},
+    './search-page': {SearchPageFor: 'SearchPageFor'}, './GenreBrowseScreen': {GenreBrowseScreen: 'GenreBrowseScreen'},
     './AllGenresScreen': {AllGenresScreen: 'AllGenresScreen'},
     './reading-register': readingRegister,
   });
@@ -153,7 +153,7 @@ test('the TV entry registers the real Search module against the TV surface, with
     bound = registryPort.nativeShellRoutes.bind(s.context);
     assert.equal(bound.render(root, runtime), null);
     const tree = states.render(() => expand(bound!.renderRetained(runtime)));
-    const screen = find(tree, 'SearchScreen') as Element | undefined;
+    const screen = find(tree, 'SearchPageFor') as Element | undefined;
     assert.ok(screen, 'the bound registry renders the real Search host');
     assert.equal(screen.props.explore.surface, 'tv', 'genre prefixes follow the TV surface');
     assert.deepEqual(screen.props.tvCopy, {preferToTalk: 'next.search.preferToTalk', voiceHint: 'next.search.remoteMicrophoneHelp'});

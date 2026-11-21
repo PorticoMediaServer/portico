@@ -49,56 +49,6 @@ function factsModule(theme: typeof phoneTheme) {
   });
 }
 
-test('phone Home rows take the drawn 28 px rhythm while the hero keeps its own height', async () => {
-  const home = await homeModule(phoneTheme, []);
-  assert.deepEqual(home.homeRowSpacing(phoneTheme), {marginTop: 28});
-  assert.equal(home.homeHeroBlock(phoneTheme, 560, false), 560);
-  assert.equal(home.homeTopWithoutHero('phone', 59), 109, 'with no spotlight the rows start under the 50 pt phone header, not under an empty 560 pt hero');
-  assert.equal(home.homeTopWithoutHero('tablet', 24), 24, 'a tablet has no phone header: rows start under the safe area');
-  // Android walk, 12 Nov: a sideways phone keeps the shell's phone header (shellLayout), so its rows start under it too.
-  assert.equal(home.homeTopWithoutHero(shellLayout(874, 402, false).kind, 0), 104, 'sideways, the rows still start under the phone header');
-  assert.equal(rowSubtitleRole(phoneTheme).fontSize, 13, 'phone-app.html .phone .row-head .sub is 13 px');
-  assert.equal(home.homeContentBottom(phoneTheme, 84), 96, 'kit.css .ph-scroll ends 96 px over the 84 px bar');
-  // Other platforms keep their shipped values.
-  assert.deepEqual(home.homeRowSpacing(tvTheme), {marginBottom: 30});
-  assert.deepEqual(home.homeRowSpacing(desktopTheme), {marginBottom: 18});
-  assert.equal(home.homeHeroBlock(tvTheme, 1080, false), 820);
-  assert.equal(home.homeHeroBlock(tvTheme, 1080, true), 588);
-  assert.equal(home.homeHeroBlock(desktopTheme, 560, false), 560);
-  assert.equal(rowSubtitleRole(tvTheme).fontSize, tvTheme.type.rowSubtitle.fontSize);
-  assert.equal(rowSubtitleRole(desktopTheme).fontSize, desktopTheme.type.rowSubtitle.fontSize);
-  assert.equal(home.homeContentBottom(tvTheme, 0), 96);
-  assert.equal(home.homeContentBottom(desktopTheme, 0), 24);
-  assert.equal(tabletTheme.platform, 'tablet');
-  assert.equal(tabletTheme.layoutMode, 'phone', 'tablet shares the shell mode, so mode alone cannot admit phone-only changes');
-  assert.deepEqual(home.homeRowSpacing(tabletTheme), {marginTop: 26}, 'foldable.html .phone.md .row is 26 px above');
-  assert.equal(home.homeHeroBlock(tabletTheme, 560, false), 560, 'the medium hero keeps the height its composition supplies');
-  assert.equal(rowSubtitleRole(tabletTheme), tabletTheme.type.caption, 'foldable.html keeps the drawn 13 px sub-line');
-  assert.equal(home.homeContentBottom(tabletTheme, 92), 132, 'foldable.html .md .ph-scroll keeps 40 px under the last row');
-});
-
-test('the medium window draws the two foldable hero compositions at their authored sizes', async () => {
-  const home = await homeModule(phoneTheme, []);
-  assert.equal(home.mediumHeroHeight(840, 880), 440, 'foldable.html frame 7: portrait hero is half the 880 window');
-  assert.equal(home.mediumHeroHeight(880, 840), home.MEDIUM_SIDEWAYS_HERO, 'frame 3f authors 392 sideways');
-  assert.equal(home.MEDIUM_SIDEWAYS_HERO, 392);
-  assert.deepEqual(home.mediumCopySide(840, 880), {inset: 28, width: 300, bottom: 30});
-  assert.deepEqual(home.mediumCopySide(880, 840), {inset: 28, width: 320, bottom: 30});
-  assert.equal(home.mediumBackdropFraction(840, 880), 0.6);
-  assert.equal(home.mediumBackdropFraction(880, 840), 0.66);
-  const sideways = home.mediumLockupStyle(tabletTheme, 880, 840), upright = home.mediumLockupStyle(tabletTheme, 840, 880);
-  assert.equal(sideways.fontSize, 50, 'frame 3f draws the sideways lockup at 50');
-  // G2: a set line box is never tighter than the measured floor (1.36), so the lockup's ink is not cut on either system.
-  assert.ok(sideways.lineHeight >= 50 * 1.36, 'the line box is never under the measured floor');
-  assert.ok(Math.abs(sideways.letterSpacing - -0.045 * 50) < 1e-9, 'the tracking keeps the handheld lockup ratio');
-  assert.equal(upright.fontSize, 42, 'frame 7 draws the upright lockup at 42');
-  assert.equal(home.mediumCardWidth(false), 140);
-  assert.equal(home.mediumCardWidth(true), 292);
-  assert.deepEqual({...home.mediumCardType.title}, {fontSize: 14});
-  assert.deepEqual({...home.mediumCardType.caption}, {fontSize: 12.5});
-  assert.deepEqual({...home.mediumHeadingStyle}, {fontSize: 21});
-});
-
 test('the confirmed Appearance card size and backdrop switch reach the drawn Home', async () => {
   const h = hooks(), authority = {serverId: 'actual', viewerFence: 'viewer'};
   const entry = {id: 'appearance-movie', libraryId: 'movies', kind: 'movie', title: 'Spirited Away', backdropUrl: '/backdrop.jpg', posterUrl: '/poster.jpg', playback: {itemId: 'appearance-movie'}};

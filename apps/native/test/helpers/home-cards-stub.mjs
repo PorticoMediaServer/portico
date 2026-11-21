@@ -50,7 +50,7 @@ export async function withHomeCards(stubs, actualSpotlight = false) {
   return {...stubs, '../../kit/home': home, '../../pages/touch/home/HomePage': homePage, '../../pages/tv/home/HomePage': tvHomePage};
 }
 
-/** HomeScreen is a switch (an upright phone draws HomePage, other forms HomeScreenForms); tests that call it as a
+/** HomeScreen is a switch (touch draws HomePage, TV its own HomePage); tests that call it as a
  * function in a hook host expand that one element, so they read the drawn tree. */
 export function expandHome(module) {
   return {...module, HomeScreen: props => {const element = module.HomeScreen(props); return element && typeof element.type === 'function' ? element.type(element.props) : element;}};

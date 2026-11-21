@@ -50,9 +50,6 @@ test('native breakpoint and safe area geometry retains the drawn bar and scales 
   assert.equal(phoneBarHeight(0), 84);
   assert.equal(phoneBarHeight(34), 84);
   assert.equal(phoneBarHeight(48), 98);
-  assert.equal(phoneBarHeight(0, true), 52);
-  assert.equal(phoneBarHeight(21, true), 59);
-  assert.equal(phoneBarHeight(14, true), 52);
   assert.deepEqual(phoneHeaderGeometry(24, false), {top: 54, height: 104});
   assert.deepEqual(phoneHeaderGeometry(24, true), {top: 46, height: 96});
   assert.deepEqual(phoneHeaderGeometry(60, false), {top: 60, height: 110});

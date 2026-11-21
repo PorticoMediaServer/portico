@@ -57,8 +57,6 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const theme = useTheme(), motion = useMotion(), dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
   const chromeHidden = useSyncExternalStore(subscribeNativeScreenChrome, nativeScreenChromeHidden);
   const layout = shellLayout(dimensions.width, dimensions.height, theme.isTV);
-  /** phone-guide 2 draws the compact row bar on a landscape phone. */
-  const landscapePhone = layout.kind === 'phone' && dimensions.width > dimensions.height;
   /** The sidebar's own breakpoint, captured so the hook reads a plain value. */
   const wideSidebar = dimensions.width >= 1024;
   // Touch hosts each tab's pages in a native stack (motion.html 2.9-2.11); television keeps its own layer.
@@ -346,7 +344,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const openScrim = useAnimatedStyle(() => ({opacity: opened.value}));
   const closedScrim = useAnimatedStyle(() => ({opacity: 1 - opened.value}));
   const initialTitleStyle = useAnimatedStyle(() => ({opacity: initialTitle?.value ?? 1}));
-  const barHeight = layout.tabs && !chromeHidden ? phoneBarHeight(insets.bottom, landscapePhone) : 0;
+  const barHeight = layout.tabs && !chromeHidden ? phoneBarHeight(insets.bottom) : 0;
   // foldable3e/3f: the phone bar leaves only on medium; the dock floats at the foot.
   const sideNavigation = layout.rail || layout.kind === 'desktop';
   const sidebarOpen = sidebarExpanded && !railHeld;
@@ -433,7 +431,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
         {layout.tabs && <Animated.View pointerEvents={snapshot.mediaExpanded ? 'none' : 'box-none'} accessibilityElementsHidden={snapshot.mediaExpanded}
           importantForAccessibility={snapshot.mediaExpanded ? 'no-hide-descendants' : 'auto'} onLayout={event => listeningTabBar.measure(event.nativeEvent.layout.height)}
           style={[{position: 'absolute', left: 0, right: 0, bottom: 0, height: barHeight, zIndex: theme.layers.sticky}, listeningTabBar.style]}>
-          <PhoneTabBar landscape={landscapePhone} destination={destination} hasLiveTV={snapshot.hasLiveTV} onSelect={tab => {void selectTab(tab).catch(runtime.reportError);}}/>
+          <PhoneTabBar destination={destination} hasLiveTV={snapshot.hasLiveTV} onSelect={tab => {void selectTab(tab).catch(runtime.reportError);}}/>
         </Animated.View>}
       </>)}
     {theme.isTV ? <TVProfileMenu snapshot={snapshot} open={accountOpen} onOpenChange={setAccountOpen} returnFocusRef={avatarRef}/>

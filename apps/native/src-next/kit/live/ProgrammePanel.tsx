@@ -18,17 +18,17 @@ type Action = Readonly<{
 
 export type LaterProgramme = Readonly<{id: string; clock?: string; episode?: string; title: string; range?: string; actions: readonly Action[]}>;
 
-export function ProgrammePanel({channel, programme, now, runtime, favorite, busy, paneLeft, landscape, region, groups,
+export function ProgrammePanel({channel, programme, now, runtime, favorite, busy, paneLeft, region, groups,
   later, reason, actions, recordError, preferenceError, onClose, opener, returnFocus}: {
   channel: GuideChannelRow; programme?: GuideProgram; now: number; runtime: NativeShellRuntime;
-  favorite: () => void; busy: boolean; paneLeft?: number; landscape?: boolean;
+  favorite: () => void; busy: boolean; paneLeft?: number;
   region: string; groups: readonly string[]; later: readonly LaterProgramme[]; reason?: string;
   actions: readonly Readonly<{id: string; buttons: readonly Action[]}>[]; recordError?: ReactNode; preferenceError?: ReactNode;
   onClose: () => void; opener?: RefObject<View | null>; returnFocus: RefObject<View | null>;
 }) {
   const theme = useTheme(), t = runtime.text.t, logo = runtime.artwork(channel.logoUrl);
   const panel = frameSpec.live.programmePanel;
-  const width = theme.isTV ? panel.tv : landscape ? panel.landscape : theme.width >= panel.tabletMin ? panel.tablet : undefined;
+  const width = theme.isTV ? panel.tv : theme.width >= panel.tabletMin ? panel.tablet : undefined;
   const placement = width === undefined ? undefined : 'side';
   const title = programme?.title ?? channel.name, onNow = programme && programme.start <= now && programme.end > now;
   const largeLogo = theme.isTV ? theme.targets.touch : theme.space.xl;

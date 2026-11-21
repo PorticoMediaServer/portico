@@ -2,7 +2,6 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalSt
 import type { View,VirtualizedList } from 'react-native';
 import {Platform, useWindowDimensions} from 'react-native';
 import {useAnimatedStyle, useDerivedValue} from 'react-native-reanimated';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {dayPrimeTime} from '../../../../../../packages/client-core/src/channel-guide';
 import type { RecordingDraft } from '../../../../../../packages/client-core/src/dvr';
 import {defaultRecordingOptions} from '../../../../../../packages/client-core/src/dvr';
@@ -45,29 +44,27 @@ import {tvGuideFocusStart} from '../../../tv/layout/guide-focus';
 export type GuidePageProps = {controller: NativeLiveController; recordings: NativeRecordingsController; owner: NativeLiveOwnerController; ports: Pick<NativeSettingsLivePorts, 'context' | 'dvrRequestId' | 'requestId'>; runtime: NativeShellRuntime};
 
 export function useLiveGuide({controller, recordings, owner, ports, runtime}: GuidePageProps) {
-  const theme = useTheme(), t = runtime.text.t, dimensions = useWindowDimensions(), insets = useSafeAreaInsets();
+  const theme = useTheme(), t = runtime.text.t, dimensions = useWindowDimensions();
   const dockTop = useDockClearance();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), guide = controller.guide;
   const data = useSyncExternalStore(guide.subscribe, guide.getSnapshot);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
   const compact = !theme.isTV && theme.width < 600, screenReader = useScreenReader();
-  const landscape = !theme.isTV && theme.width >= 600 && dimensions.height < 600, phone = compact || landscape;
+  const phone = compact;
   const tabletMedium = !theme.isTV && theme.platform === 'tablet', phoneChrome = phone || tabletMedium;
-  // The authored phone header stack covers the medium tablet too; landscape keeps its own
-  // single-row header and wide layouts keep the desktop controls row.
+  // The authored phone header stack covers the medium tablet too; wide layouts keep the desktop controls row.
   const expandedTouch = !theme.isTV && !phoneChrome;
   // foldable7: only a reported vertical crease for this exact window may split the page;
   // an absent posture report keeps the single-page guide and its panel.
   const posture = usePlatformPosture();
   const crease = posture.status === 'available' && posture.window?.width === dimensions.width && posture.window.height === dimensions.height
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.left < value.bounds.right && value.bounds.right <= dimensions.width) : undefined;
-  const insetLeft = landscape ? Math.max(12, insets.left + 8) : compact ? 0 : theme.isTV ? 0 : 20;
-  const insetRight = landscape ? Math.max(12, insets.right + 8) : compact || theme.isTV ? 0 : 20;
+  const insetLeft = compact || theme.isTV ? 0 : 20;
+  const insetRight = compact || theme.isTV ? 0 : 20;
   const [now, setNow] = useState(serverNow), [start, setStart] = useState(() => floorTo(serverNow(), SLOT_MS) - (theme.isTV || phoneChrome ? SLOT_MS : 0)), [measuredWidth, setMeasuredWidth] = useState(theme.isTV ? 1660 : theme.width - 40);
-  // phone-guide 2: until the user chooses, a phone held upright opens on the list and a phone held
-  // sideways on the guide; the shell's own layout classifier decides which windows are phones
-  // (a short landscape window is one), and a remembered view always wins.
-  const view = state.view ?? (!landscape && shellLayout(theme.width, dimensions.height, theme.isTV).kind === 'phone' ? 'list' : 'guide');
+  // phone-guide 2: until the user chooses, a phone opens on the list (phones are upright only), and a remembered
+  // view always wins.
+  const view = state.view ?? (shellLayout(theme.width, dimensions.height, theme.isTV).kind === 'phone' ? 'list' : 'guide');
   const setView = (value: 'guide' | 'list') => {if (value === 'list') goNow(); controller.chooseView(value);};
   const [selected, setSelected] = useState<Readonly<{channel: GuideChannelRow; program?: GuideProgram}>>();
   const selectedRef = useRef(selected); selectedRef.current = selected;
@@ -163,7 +160,7 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
   // motion.html 2.13: the guide refetches in place (old programmes stay) while the sources re-read.
   const pull = usePullRefresh(() => {guide.invalidate(); return controller.loadSources();}, runtime.reportError);
   const halfHour = theme.isTV ? 240 : phoneChrome ? 90 : theme.width < 1024 ? 90 : 120;
-  const channelWidth = theme.isTV ? 320 : tabletMedium ? 60 : compact ? 60 : landscape ? 180 : 192;
+  const channelWidth = theme.isTV ? 320 : tabletMedium ? 60 : compact ? 60 : 192;
   // tablet-play6/7: 400 pt beside the expanded guide, 340 pt at medium width, and only when
   // the room left over still gives the guide a usable lane. A reported hinge band belongs
   // to neither side: the guide ends at its left edge and the pane starts after its right.
@@ -177,7 +174,7 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
   const liveOnTop = route.route?.kind === 'shell' && route.route.destination.kind === 'live' && shell.contentVisible !== false && !shell.mediaExpanded;
   useRailHold(!theme.isTV && twoPane && onLive && liveOnTop && !ownerOpen && !recordingsOpen && !management);
   const width = Math.max(0, measuredWidth - insetLeft - (twoPane ? Math.max(0, contentWidth - guideEnd) : insetRight));
-  const rowHeight = theme.isTV ? 92 : view === 'list' ? 100 : landscape ? 62 : 72, rowGap = theme.isTV ? 8 : phoneChrome ? 0 : 6, px = pxPerMsFor(halfHour), end = start + Math.max(halfHour, width - channelWidth) / px;
+  const rowHeight = theme.isTV ? 92 : view === 'list' ? 100 : 72, rowGap = theme.isTV ? 8 : phoneChrome ? 0 : 6, px = pxPerMsFor(halfHour), end = start + Math.max(halfHour, width - channelWidth) / px;
   useEffect(() => {
     void controller.loadSources();
     const clock = repeat(async () => {setNow(serverNow());}, {everyMs: 30_000, backoff: {baseMs: 30_000, maxMs: 30_000, jitter: 'none'}, immediate: false});
@@ -431,7 +428,7 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
   // Spec §10 and states 2 (Banner): a stale guide and a server-wide reason are each said once, from the
   // server's own source summaries, as on web (LT-3, LT-4 native half, W2-A10). A quiet line; no focus on TV.
   const serverWide = liveServerWideNotice(selectedSources, managesServer), stale = liveGuideStale(selectedSources);
-  return {theme, t, dockTop, serverName: shell.serverName, state, guide, data, ids, compact, screenReader, landscape, phone, phoneChrome, expandedTouch,
+  return {theme, t, dockTop, serverName: shell.serverName, state, guide, data, ids, compact, screenReader, phone, phoneChrome, expandedTouch,
     insetLeft, insetRight, now, start, view, setView, selected, setSelected, channelMenu, setChannelMenu, channelMenuBusy,
     channelMenuError, setChannelMenuError, channelMenuAnchor, content, setMeasuredWidth, measureContent, contentWidth,
     recording, setRecording, recordError, setRecordError, series, setSeries, toast, setToast, reminders, later,

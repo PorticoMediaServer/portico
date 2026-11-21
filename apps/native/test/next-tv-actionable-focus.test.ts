@@ -690,7 +690,7 @@ test('actual Search registration keeps equal-value retained genre R1/R2 sort roo
     './on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, react: b.react, 'react-native': b.native,
     '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}, registerDestination() {}}}, '../destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true})},
     '../destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}, menuState: {subscribe: () => () => {}, getSnapshot: () => 0}})},
-    './controller': {}, './actions': {}, './explore': {}, './selection': {}, './SearchScreen': {}, './AllGenresScreen': {}, './reading-register': {},
+    './controller': {}, './actions': {}, './explore': {}, './selection': {}, './search-page': {SearchPageFor: 'SearchPageFor'}, './AllGenresScreen': {}, './reading-register': {},
     './navigation': {createNativeSearchGenreController: (_: any, route: any) => {
       const snapshot = {phase: 'ready', capabilities: {library: {kind: 'movie'}, sorts}, sort, predicates: [], collection, queryRevision: 0};
       return {source: {subscribe: () => () => {}, getSnapshot: () => snapshot, getMemory: () => ({firstVisibleIndex: 0, offset: 0}), contains: () => false,

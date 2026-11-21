@@ -91,29 +91,14 @@ export function shellLayout(width: number, height: number, isTV: boolean): Shell
     return {kind: 'tv', panel: 'side', tabs: false, rail: false, ...tvCanvasFrame(width, height)};
   }
   // foldable1/tablet: 600-1023 uses the 84 pt rail, never the phone tab bar.
-  // A phone in landscape is wider than 600 but short: phone-guide 2 draws the
-  // phone chrome (tab bar, no rail) there, so a short window keeps the phone shell.
+  // Phones are upright only; the video player alone turns one sideways. A short window that is wider than 600
+  // is that phone under its player, so it keeps the phone shell.
   const kind: ShellLayout['kind'] = width < 600 || width < 1024 && height < 600 ? 'phone' : width < 1024 ? 'tablet' : 'desktop';
   return {kind, panel: kind === 'phone' ? 'bottom' : 'side', tabs: kind === 'phone', rail: kind === 'tablet', scale: 1, left: 0, top: 0, width, height};
 }
 
-/** phone-guide 2 and phone-player 1 draw a landscape phone's `.tabbar.cmp`: 52 pt tall,
- * 6 pt above and 14 pt below, 120 pt at the sides, 20 pt icons and 12 pt labels in a row 7 pt apart. */
-export const landscapePhoneBarMetrics = Object.freeze({height: 52, content: 38, paddingX: 120, paddingTop: 6, iconSize: 20, gap: 7, labelSize: 12, labelLineHeight: 16, drawnWidth: 844});
-/** phone-guide 2's 120 pt side inset holds at the drawn 844 pt width, where the five tabs
- * keep their 120.8 pt columns. A narrower window gives up the inset before the tab columns,
- * and a real side inset always wins. */
-export function landscapePhoneBarInset(width: number, tabCount: number, leftInset = 0, rightInset = 0): number {
-  const drawnTab = (landscapePhoneBarMetrics.drawnWidth - 2 * landscapePhoneBarMetrics.paddingX) / 5;
-  const available = Math.max(0, width - Math.max(0, leftInset) - Math.max(0, rightInset));
-  return Math.max(Math.max(0, leftInset), Math.max(0, rightInset), Math.min(landscapePhoneBarMetrics.paddingX, (available - tabCount * drawnTab) / 2));
-}
-/** The 84-point drawn bar includes the ordinary bottom safe area. Larger insets extend it.
- * The drawn 52-point landscape bar already holds 14 pt below its row; a larger inset extends it,
- * so the home indicator never covers a tab. */
-export const phoneBarHeight = (bottomInset: number, landscape = false): number => landscape
-  ? Math.max(landscapePhoneBarMetrics.height, landscapePhoneBarMetrics.content + Math.max(0, bottomInset))
-  : Math.max(84, 50 + Math.max(0, bottomInset));
+/** The 84-point drawn bar includes the ordinary bottom safe area. Larger insets extend it. */
+export const phoneBarHeight = (bottomInset: number): number => Math.max(84, 50 + Math.max(0, bottomInset));
 
 /** phone-app.html draws54 points over the opening hero and46 after scrolling. */
 export function phoneHeaderGeometry(topInset: number, scrolled: boolean): Readonly<{top: number; height: number}> {

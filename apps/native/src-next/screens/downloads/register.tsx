@@ -8,11 +8,10 @@ import {createNativeDownloadsView} from './view';
 function DownloadsRoute({children}: {children: React.ReactNode}) {
   const insets = useSafeAreaInsets(), dimensions = useWindowDimensions();
   const layout = shellLayout(dimensions.width, dimensions.height, false);
-  const landscapePhone = layout.kind === 'phone' && dimensions.width > dimensions.height;
   // This route covers the Saved page while its genuine bottom navigation remains mounted.
   // Its stack page draws the standard backdrop (TouchStacks), so the previous route never shows through.
   return <View style={{position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-    paddingBottom: layout.tabs ? phoneBarHeight(insets.bottom, landscapePhone) : 0}}>{children}</View>;
+    paddingBottom: layout.tabs ? phoneBarHeight(insets.bottom) : 0}}>{children}</View>;
 }
 
 export const createNativeDownloadsModule: NativeRouteFactory = context => {

@@ -41,7 +41,7 @@ test('time left is measured on the server clock, and clients spread out with jit
 });
 
 test('Home keeps one timer per live expiry, only for live rows in view, so neither hydration nor a stale off-screen row drives re-reads', () => {
-  const home = readFileSync(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), 'utf8');
+  const home = readFileSync(new URL('../src-next/pages/shared/home/useHome.ts', import.meta.url), 'utf8');
   assert.match(home, /const plan = liveRereadPlan\(document\.rows\.filter\(row => demanded\.has\(row\.id\)\), liveMemory\.current\);/);
   assert.match(home, /if \(liveTimer\.current\?\.expiry === plan\.expiry\) return;/);
   assert.doesNotMatch(home, /Math\.max\(0, expiry - Date\.now\(\)\)/);
