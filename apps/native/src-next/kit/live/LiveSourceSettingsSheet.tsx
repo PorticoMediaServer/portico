@@ -1,76 +1,30 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React from 'react';
 import {Text, View} from 'react-native';
-import type {LiveSourceConfig, LiveLogoResult} from '../../../../../packages/contracts/src/next/api';
-import type {SourceSettingsDocument} from '../../../../../packages/client-core/src/server-admin/live-source-settings';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import type {MessageId} from '../../../../../packages/i18n/src';
-import {Button, Select, Switch, TextField} from '../../kit/controls';
-import {BottomSheet} from '../../kit/overlays';
-import {SettingsRow} from '../../kit/shell';
-import {shellType} from '../../kit/shell/visual';
-import {useTheme} from '../../kit/theme';
+import {Button, Select, Switch, TextField} from '../controls';
+import {BottomSheet} from '../overlays';
+import {SettingsRow} from '../shell';
+import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativeLiveOwnerController} from './live-owner-controller';
-import {liveDocumentPicker} from './live-document-picker';
-import {sourceSettingsDraft as draftOf, sourceSettingsChange, type LiveSource, type SourceSettingsDraft as Draft} from './live-owner-model';
+import type {NativeLiveOwnerController} from '../../screens/settings-live/live-owner-controller';
+import {liveDocumentPicker} from '../../screens/settings-live/live-document-picker';
+import type {LiveSource} from '../../screens/settings-live/live-owner-model';
+import {useLiveSourceSettings} from '../../pages/shared/settings/useLiveSourceSettings';
+import {PanelBlock} from '../frames';
 
 const K = 'next.settingsSpec.server.live.groups.2.rows', N = 'next.settingsSpec.server.live.groups.3.rows.0';
 
-/** A Live TV source's own settings on the rebuilt server (GET/PATCH /v1/admin/live/sources/{id} with its revision), the
- * same rows web's source dialog draws: name, on/off, who may watch, where it comes from, tuners, guide, how often it is
- * read again, which channels, numbering, and channel logos. Only what changed is sent. */
 export function SourceSettingsSheet({controller, runtime, source, sources, open, onOpenChange, onSaved}: {controller: NativeLiveOwnerController; runtime: NativeShellRuntime; source?: LiveSource; sources: readonly LiveSource[]; open: boolean; onOpenChange: (open: boolean) => void; onSaved: () => void}) {
-  const theme = useTheme(), t = runtime.text.t;
-  const [document, setDocument] = useState<SourceSettingsDocument>(), [draft, setDraft] = useState<Draft>(), [error, setError] = useState<unknown>(), [busy, setBusy] = useState(false);
-  const [included, setIncluded] = useState<string>(), [choices, setChoices] = useState<readonly {id: string; name: string}[]>([]), [replace, setReplace] = useState(false), [logos, setLogos] = useState<LiveLogoResult>(), [saved, setSaved] = useState(false);
-  const opening = useRef<object | undefined>(undefined);
-  const id = source?.id;
-  useEffect(() => {
-    if (!open || !id) return;
-    const ticket = {}; opening.current = ticket;
-    setDocument(undefined); setDraft(undefined); setError(undefined); setIncluded(undefined); setChoices([]); setLogos(undefined); setSaved(false); setReplace(false);
-    void controller.sourceSettings(id).then(value => {if (opening.current === ticket) {setDocument(value); setDraft(draftOf(value));}}, failure => {if (opening.current === ticket) setError(failure);});
-    return () => {opening.current = undefined;};
-  }, [open, id, controller]);
-  const cfg = draft?.config, guideOnly = document?.source.kind === 'guide';
-  const mode = included ?? (cfg?.channels?.length ? 'picked' : cfg?.groups?.length ? 'groups' : 'all');
-  useEffect(() => {
-    if (!id || !open || mode === 'all') {setChoices([]); return;}
-    let live = true;
-    void controller.sourceChoices(id, mode === 'groups' ? 'groups' : 'channels', '').then(page => {if (live) setChoices(page.items);}, () => {if (live) setChoices([]);});
-    return () => {live = false;};
-  }, [id, open, mode, controller]);
-  const edit = (patch: Partial<Draft>) => {setSaved(false); setDraft(current => current && {...current, ...patch});};
-  const config = (patch: Partial<LiveSourceConfig>) => {if (cfg) edit({config: {...cfg, ...patch}});};
-  const changed = !!draft && !!document && (JSON.stringify([draft.name, draft.audience, draft.paused, draft.tunerCount, draft.config]) !== JSON.stringify([document.source.name, document.source.audience, document.source.paused, document.source.tunerCount, document.source.config]) || !!draft.username || !!draft.password || !!draft.playlist || !!draft.guide);
-  const pair = !(draft?.username || draft?.password) || !!draft?.username && !!draft?.password;
-  const save = async () => {
-    if (!id || !draft || !document || busy) return;
-    const body = sourceSettingsChange(document, draft);
-    setBusy(true); setError(undefined);
-    try {const next = await controller.saveSourceSettings(id, body, document.etag); const value = {...next, imagesEnabled: document.imagesEnabled}; setDocument(value); setDraft(draftOf(value)); setSaved(true); onSaved();}
-    catch (failure) {setError(failure);}
-    finally {setBusy(false);}
-  };
-  const pick = async (field: 'playlist' | 'guide') => {
-    if (!liveDocumentPicker || busy) return;
-    const picked = await liveDocumentPicker.pick(field, new AbortController().signal).catch(failure => {setError(failure); return undefined;});
-    if (picked) edit(field === 'playlist' ? {playlist: picked.data, config: {...cfg!, uploaded: true, playlistUrl: ''}} : {guide: picked.data, config: {...cfg!, guideUploaded: true, guideUrl: ''}});
-  };
-  const importLogos = async () => {
-    if (!id || busy) return;
-    setBusy(true); setError(undefined);
-    try {setLogos(await controller.importSourceLogos(id, replace));} catch (failure) {setError(failure);} finally {setBusy(false);}
-  };
-  const guides = sources.filter(value => value.id !== id);
-  const toggle = (list: readonly string[] | undefined, value: string) => list?.includes(value) ? list.filter(item => item !== value) : [...(list ?? []), value];
+  const theme = useTheme();
+  const {t, document, error, saved, busy, changed, pair, draft, cfg, guideOnly, guides, mode, choices, logos, replace, setReplace, setIncluded, edit, config, pick, importLogos, save, toggle} = useLiveSourceSettings({controller, runtime, source, sources, open, onOpenChange, onSaved});
   return <BottomSheet open={open && !!source} onOpenChange={next => {if (!next && !busy) onOpenChange(false);}} title={source?.name} scrollable keyboardAvoiding testID="live-source-settings"
     footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={busy} onPress={() => onOpenChange(false)}>{t('action.close')}</Button>
       <Button testID="live-source-settings-save" loading={busy} disabled={!changed || busy || !pair || !draft?.name.trim()} onPress={() => {void save();}}>{t('action.save')}</Button></View>}>
-    <View style={{gap: 12, paddingBottom: 8}}>
-      {!document && !error && <Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{t('web.librarySettings.loading')}</Text>}
-      {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600), {color: theme.colors.record}]}>{presentError(error, 'server-console', {operation: 'action'}).body}</Text>}
-      {saved && <Text accessibilityRole="text" style={[shellType(13), {color: theme.colors.healthy}]}>{t('server.live.settingsSaved')}</Text>}
+    <PanelBlock inset={false}>
+      {!document && !error && <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('web.librarySettings.loading')}</Text>}
+      {error !== undefined && <Text accessibilityRole="alert" style={[theme.type.rowHelp, {color: theme.colors.record}]}>{presentError(error, 'server-console', {operation: 'action'}).body}</Text>}
+      {saved && <Text accessibilityRole="text" style={[theme.type.rowHelp, {color: theme.colors.healthy}]}>{t('server.live.settingsSaved')}</Text>}
       {draft && document && cfg && <>
         <TextField testID="live-source-name" label={t('profile.name')} value={draft.name} maxLength={120} editable={!busy} onChangeText={name => edit({name})}/>
         <SettingsRow first label={t(`${K}.0.label` as MessageId)} control={<Switch accessibilityLabel={t(`${K}.0.label` as MessageId)} checked={!draft.paused} disabled={busy} onCheckedChange={enabled => edit({paused: !enabled})}/>}/>
@@ -85,7 +39,7 @@ export function SourceSettingsSheet({controller, runtime, source, sources, open,
           <TextField label={t('web.liveSource.replacePassword')} value={draft.password} editable={!busy} autoCapitalize="none" autoCorrect={false} secureTextEntry onChangeText={password => edit({password})}/>
         </>}
         {document.source.kind === 'hdhomerun' && <TextField label={t('web.liveTv.tunerAddress')} value={cfg.tunerUrl ?? ''} editable={!busy} autoCapitalize="none" autoCorrect={false} onChangeText={tunerUrl => config({tunerUrl})}/>}
-        {!guideOnly && (document.source.kind === 'hdhomerun' ? <Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{t('server.live.tunerCount', {count: draft.tunerCount})}</Text>
+        {!guideOnly && (document.source.kind === 'hdhomerun' ? <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('server.live.tunerCount', {count: draft.tunerCount})}</Text>
           : <TextField label={t('web.dvrSettings.tuners')} keyboardType="number-pad" value={String(draft.tunerCount)} editable={!busy} onChangeText={value => {const n = Number(value); if (Number.isInteger(n) && n >= 1 && n <= 256) edit({tunerCount: n});}}/>)}
         {!guideOnly && <Select label={t(`${K}.2.label` as MessageId)} value={cfg.guideSource || (cfg.guideUrl || cfg.guideUploaded ? 'url' : 'own')} disabled={busy}
           options={[{value: 'own', label: t('player.quality.automatic')}, ...guides.map(value => ({value: value.id, label: value.name})), {value: 'url', label: t(`${K}.2.control.options.2.label` as MessageId)}]}
@@ -106,10 +60,10 @@ export function SourceSettingsSheet({controller, runtime, source, sources, open,
           {cfg.numbering === 'sequential' && <TextField label={t('web.liveSource.startAt')} keyboardType="number-pad" value={String(cfg.firstNumber || 1)} editable={!busy} onChangeText={value => {const n = Number(value); if (Number.isInteger(n) && n >= 1 && n <= 99999) config({firstNumber: n});}}/>}
           <SettingsRow first label={t('web.liveSource.replaceLogos')} control={<Switch accessibilityLabel={t('web.liveSource.replaceLogos')} checked={replace} disabled={busy || !document.imagesEnabled} onCheckedChange={setReplace}/>}/>
           <Button size="compact" variant="glass" disabled={busy || changed || !document.imagesEnabled} onPress={() => {void importLogos();}}>{t('web.liveSource.importLogos')}</Button>
-          {!document.imagesEnabled && <Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{t('web.liveSource.imagesDisabled')}</Text>}
-          {logos && <Text accessibilityRole="text" style={[shellType(13), {color: theme.colors.textSecondary}]}>{t('web.liveSource.logoResult', {imported: logos.imported, skipped: logos.skipped, requested: logos.requested})}</Text>}
+          {!document.imagesEnabled && <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('web.liveSource.imagesDisabled')}</Text>}
+          {logos && <Text accessibilityRole="text" style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t('web.liveSource.logoResult', {imported: logos.imported, skipped: logos.skipped, requested: logos.requested})}</Text>}
         </>}
       </>}
-    </View>
+    </PanelBlock>
   </BottomSheet>;
 }
