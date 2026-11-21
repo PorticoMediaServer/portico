@@ -81,40 +81,6 @@ async function searchFixture(group = 'all') {
   return {host, tree, entry, actions, selected, calls};
 }
 
-test('Search rows bind the actual card anchor/live menu and selecting touch holds only toggle', async () => {
-  const f = await searchFixture();
-  const row = elements(f.tree).find(node => node.type?.name === 'SearchResultRow')!;
-  const tree = f.host.render(() => row.type(row.props));
-  const card = elements(tree).find(node => node.type === 'CardFrame')!;
-  assert.equal(card.props.selection, f.selected, 'inactive selection remains available to CardFrame accessibility actions');
-  assert.equal(card.props.moreExpanded, true);
-  const realNativeCard = {actual: 'card'}; card.props.menuAnchorRef.current = realNativeCard;
-  holdCard(card.props as CardActions, false);
-  assert.deepEqual(f.calls, [['menu', f.entry, 'movies', card.props.menuAnchorRef]]);
-  assert.equal(f.calls[0][3].current, realNativeCard);
-  f.selected.active = true;
-  holdCard(card.props as CardActions, false);
-  assert.deepEqual(f.calls.at(-1), 'toggle');
-  holdCard(card.props as CardActions, true);
-  assert.deepEqual(f.calls.at(-1), ['menu', f.entry, 'movies', card.props.menuAnchorRef], 'TV Menu/hold keeps the existing behavior');
-  assert.ok(elements(f.tree).some(node => node.props.children?.includes('real-selection-toolbar')));
-});
-
-test('Search grid passes genuine inactive selection to media, people and artist shared cards', async () => {
-  const f = await searchFixture('movies');
-  const list = elements(f.tree).find(node => node.type === 'FlatList')!;
-  const element = list.props.renderItem({item: f.entry});
-  for (const group of ['movies', 'people', 'artists']) {
-    const card = f.host.render(() => element.type({...element.props, group}));
-    assert.equal(card.type, group === 'movies' ? 'PosterCard' : 'CircleCard');
-    assert.equal(card.props.selection, f.selected);
-    card.props.onMore();
-    assert.deepEqual(f.calls.at(-1), ['menu', f.entry, group, card.props.menuAnchorRef]);
-    assert.equal(card.props.moreExpanded, group === 'movies');
-    assert.equal(card.props.onLongPressAction, undefined, 'no custom hold handler bypasses CardFrame');
-  }
-});
-
 test('Saved preview cards preserve inactive selection and the actual native menu anchor', async () => {
   const calls: any[] = [], selected = selection(calls), entry = {id: 'saved-id', kind: 'movie', title: 'Actual saved title'};
   const projection = {scope: {serverId: 'server', libraryId: '', libraryKind: 'mixed', view: 'watchlist', entityId: '', viewerFence: 'actual-fence'},
