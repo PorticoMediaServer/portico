@@ -110,8 +110,13 @@ export function TVCodeErrorLine({error}: {error?: React.ReactNode}) {
   return <Animated.View accessibilityRole={shown ? 'alert' : undefined} style={[{minHeight: 34, marginTop: 16, alignItems: 'center'}, style]}>{error}</Animated.View>;
 }
 
+const actionRow = () => ({flexDirection: 'row', flexWrap: 'wrap', gap: tvAccountSpec.actionGap} as const);
 export function TVAccountActions(props: Omit<ComponentProps<typeof FocusRegion>, 'style'>) {
-  return <FocusRegion {...props} style={{flexDirection: 'row', flexWrap: 'wrap', gap: tvAccountSpec.actionGap}}/>;
+  return <FocusRegion {...props} style={actionRow()}/>;
+}
+/** The same row of actions, drawn inside a region the caller owns. */
+export function TVAccountActionRow({children}: {children: React.ReactNode}) {
+  return <View style={actionRow()}>{children}</View>;
 }
 
 /** Auth17's two static remote hints; account callers supply no layout or copy. */
