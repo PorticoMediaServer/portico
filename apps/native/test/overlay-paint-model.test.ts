@@ -92,6 +92,15 @@ test('a direct omitted child leaves no child, while sibling children survive', (
   assert.equal(kids(siblings.props.children)[0]!.type, Allowed);
 });
 
+test('rebuilt children keep the checked mark JSX gave them in place, and no key is invented', () => {
+  const placed = (type: unknown, props: Record<string, unknown>) => {const node = child(type, props) as unknown as {_store?: {validated: number}}; if (node._store) node._store.validated = 1; return node as unknown as OverlayPaintNode;};
+  const frozen = freezeOverlayPaint(child(View, {children: [placed(Allowed, {title: 'a'}), placed(Allowed, {title: 'b'})]}), [View, Allowed], []);
+  assert.ok(frozen);
+  const rebuilt = frozen.props.children as unknown as Array<{key: unknown; _store?: {validated: number}}>;
+  assert.deepEqual(rebuilt.map(node => node.key), [null, null]);
+  if (rebuilt[0]!._store) assert.deepEqual(rebuilt.map(node => node._store!.validated), [1, 1]);
+});
+
 test('descendant anchor and return refs are dropped even as plain ref objects', () => {
   const anchorRef = {current: null}, returnFocusRef = {current: null};
   const nested = child(Allowed, {anchorRef, returnFocusRef});
