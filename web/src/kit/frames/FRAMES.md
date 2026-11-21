@@ -288,8 +288,9 @@ Gallery: `dev/families/frames-title.tsx` (family `frames-title`): the same cases
 (the kit's `FileInfoBody` on the `details` form) and episode-display. The frames family's old
 `title`, `title-missing` and `title-loading` cases are these now.
 
-For Stage 2: the person and collection screens and the album, artist and book pages still draw `CoverHero` and their
-own panels; the show page's Details (`ShowDetails`, `ShowPeople`) and the episode opened in place
+The person, collection, album, artist, audiobook, book and series pages are on the title frame (a series' volumes are
+the `stack` cover, the kit's `CoverStack`; a book's first lines are `opening`); `CoverHero` is gone and only its name link,
+`CoverHeroLink`, is left. Still for Stage 2: the show page's Details (`ShowDetails`, `ShowPeople`) and the episode opened in place
 (`EpisodeDetailsLayout`, `EpisodeBody`) still draw their own tables and people; `AboutTable`, `CastRow` and
 `EpisodeNeighbour` are their kit forms (`EpisodeNeighbour` is already the show page's).
 

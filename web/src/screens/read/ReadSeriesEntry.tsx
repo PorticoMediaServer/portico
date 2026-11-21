@@ -11,8 +11,11 @@ import {router} from '../../router';
 import {CoverCard} from '../../kit/cards';
 import {Button} from '../../kit/controls';
 import {Row, WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
-import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
-import {GeneratedCover} from '../../kit/artwork';
+import {CoverHeroLink} from '../../kit/title/CoverHero';
+import {CoverStack} from '../../kit/title/CoverStack';
+import {TitleFactsLine} from '../../kit/title/TitleParts';
+import {TitleFrame} from '../../kit/frames';
+import {GeneratedCover, WholeArtwork} from '../../kit/artwork';
 import type {ArtworkSource} from '../../kit/artwork';
 import {Skeleton, StateView} from '../../kit/states';
 import {ReadSelectionBar} from './ReadSelectionBar';
@@ -137,15 +140,7 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
   const total = overview?.total ?? (state.total !== undefined && !state.totalIsLowerBound ? state.total : undefined);
   const tint = generatedCoverTint(title ?? '');
   const coverItem = target ?? resident[0];
-  return <section className={styles.library}>
-    {title ? <><CoverHero title={title} byline={author ? <CoverHeroLink>{author}</CoverHeroLink> : undefined}
-      fallback={<GeneratedCover title={title} author={author} glyph={Array.from(title.trim())[0] ?? ''} tint={tint}/>}
-      facts={[...(total === undefined ? [] : [{id: 'count', text: t(resources.comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total}), role: 'value' as const}]), ...(overview ? [{id: 'read', text: t('next.reader.seriesReadCount', {read: defaultI18n.number(overview.completed), count: defaultI18n.number(overview.total)}), role: 'value' as const}] : [])]}
-      cover={resources.artwork.foreground(coverItem?.coverUrl, 784, 2 / 3)}
-      stack={seriesCovers}
-      ambient={resources.artwork.ambient(coverItem?.coverUrl)} palette={tint}
-      actions={<><Button variant="primary" icon="i-book" onClick={start} disabled={!target}>{actionLabel}</Button></>}/>
-</> : null}
+  const volumes = <>
     {/* desktop-read 4, phone-read 4: the volumes' heading is the kit row's, as every row's is. */}
     <Row heading={title ? t(resources.comic ? 'next.reader.volumes' : 'next.kit.booksInSeries') : t('library.tab.series')} platform={width < 600 ? 'phone-web' : 'desktop'}
       subtitle={title && total !== undefined ? t(resources.comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total}) : undefined}
@@ -155,7 +150,7 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
       current={item => resources.bindings.authority.isCurrent() && resources.rows.collection.residentItems().includes(item)}
       onExit={() => setSelection(undefined)} onEdit={anchor => {bulkAnchor.current = anchor; setBulk(Object.freeze([...selection.values()]));}}/>}
     <div ref={grid} className={styles.books}><WindowedGrid collection={resources.rows.collection} label={title ?? t('library.tab.series')}
-      height={height} cardWidth={cardWidth} rowHeight={cardWidth * 1.5 + 58} gap={20} rowGap={30}
+      height={height} cardWidth={cardWidth} rowHeight={cardWidth * 1.5 + 58} gap={width < 600 ? 12 : 20} rowGap={30}
       renderPlaceholder={() => <Skeleton width={cardWidth} height={cardWidth * 1.5}/>}
       renderItem={item => <CoverCard artwork={resources.artwork.foreground(item.coverUrl, cardWidth * 2, 2 / 3)} kind={resources.comic ? 'comic' : 'book'} context="grid" density="grid" visible
         model={{title: item.title, progress: continued?.item.id === item.id ? continued.progression : undefined,
@@ -166,6 +161,20 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
         playLabel={t('next.reader.read')}
         selection={canSelect ? {active: selection !== undefined, checked: selection?.has(item.id) ?? false, onToggle: () => toggle(item), onExit: () => setSelection(undefined)} : undefined}/>} /></div>
     </Row>
+  </>;
+  // desktop-read 4 and phone-read 4: the series on the title frame, its volumes fanned at the right (or its one cover at the
+  // left), the author leading the count, Read next; the volumes are the panel.
+  return <section className={styles.library}>
+    {title ? <TitleFrame title={title}
+      cover={seriesCovers?.length ? {shape: 'stack', node: <CoverStack covers={seriesCovers}/>}
+        : {shape: 'poster', node: <WholeArtwork source={resources.artwork.foreground(coverItem?.coverUrl, 784, 2 / 3)} alt={title} fit="cover" slot={2 / 3}
+          fallback={<GeneratedCover title={title} author={author} glyph={Array.from(title.trim())[0] ?? ''} tint={tint}/>}/>}}
+      metadata={<TitleFactsLine lead={author ? <CoverHeroLink>{author}</CoverHeroLink> : undefined} parts={[
+        ...(total === undefined ? [] : [{id: 'count', text: t(resources.comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total}), role: 'value' as const}]),
+        ...(overview ? [{id: 'read', text: t('next.reader.seriesReadCount', {read: defaultI18n.number(overview.completed), count: defaultI18n.number(overview.total)}), role: 'value' as const}] : [])]}/>}
+      primary={{icon: 'i-book', label: actionLabel, onPress: start, disabled: !target}}>
+      {volumes}
+    </TitleFrame> : volumes}
     {bulk && canEdit && <ReadBulkMetadata context={forwardIdentity(context, {isCurrent: () => context.isCurrent() && !!bulk && resources.bindings.authority.isCurrent() && bulk.every(item => resources.rows.collection.residentItems().includes(item))})}
       items={bulk} kind={resources.comic ? 'comic' : 'ebook'} anchor={bulkAnchor} onClose={() => {setBulk(undefined); setSelection(undefined);}}/>}
   </section>;
