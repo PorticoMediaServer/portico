@@ -24,7 +24,7 @@ import {HomeSelectionOverlays} from './HomeSelectionOverlays';
 import {nativeAccountMenu, nativeAccountOpenTransition, nativeMenuRouteAvailable} from './account';
 import {createNativeOwnerActivity} from './owner-activity';
 import {libraryScanReadiness} from './library-scan';
-import {NativeDownloadSheet} from '../screens/downloads/DownloadSheet';
+import {NativeDownloadSheet} from '../pages/touch/downloads/DownloadSheet';
 import {askNativeSelectionDownload} from '../screens/downloads/request';
 import {offlineDownloads} from '../platform/offline-downloads';
 import {selectedItemsLabel} from './selection-display';

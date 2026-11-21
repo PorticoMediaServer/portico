@@ -1717,7 +1717,10 @@ export const enUS = {
   'downloads.policyAll': 'All episodes',
   'downloads.policyUnwatched': 'Unplayed only',
   'downloads.policyNext': 'Next unplayed',
+  'downloads.whichEpisodes': 'Which episodes',
+  'downloads.keepTheNext': 'Keep the next',
   'downloads.keepNext': 'Keep the next {count, plural, one {# episode} other {# episodes}}',
+  'downloads.qualityHeading': 'Quality',
   'downloads.noDevice': 'This session can’t start whole-show downloads. Download titles one at a time instead.',
 
   // ── Quick Connect, invitations, recordings (F-apple) ────────────
