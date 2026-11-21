@@ -3,7 +3,9 @@ import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {serverRowDetail, type ServerRow} from '../../pages/shared/accounts/useServerChooser';
+import {tvAccountSpec} from '@portico/design';
 import {Button, Focusable} from '../controls';
+import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
 import {useTheme} from '../theme';
 
@@ -37,4 +39,11 @@ export function ServerChooserRow({server, selected = false, busy, onSelect, onMe
     <Button testID={`phone-server-menu-${server.id}`} variant="icon" iconOnly size="compact" icon="i-more" disabled={busy}
       accessibilityLabel={t('next.browse.native.moreFor', {title: server.name})} onPress={onMenu} style={{minWidth: 42, paddingHorizontal: 8}}/>
   </View>;
+}
+
+/** A TV's Switch server Settings page (connect-24): the chooser is one focus region whose box reaches down the page, so
+ * Right from any row of Settings' list finds it. tvOS moves by position: a short page left nothing beside the list's
+ * lower rows (Switch server sits under More), and Right went nowhere. */
+export function TVSettingsChooserRegion({children, ...props}: Omit<FocusRegionProps, 'style'>) {
+  return <FocusRegion {...props} style={{minHeight: tvAccountSpec.settingsPanelMinHeight}}>{children}</FocusRegion>;
 }

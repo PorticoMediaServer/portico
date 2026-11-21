@@ -142,7 +142,9 @@ export const tvAccount = {column: 900, fieldsWidth: 860, titleGap: 22, ledeGap: 
    * Under a notice (connect 38) the doors are 400 high with a 180 code, so the links stay inside the safe area. */
   wide: {left: 200, top: 96, right: 96, ledeMax: 1000, titleGap: 6, noticeGap: 30, sectionGap: 32, linkGap: 96,
     door: {height: 440, padding: 48, radius: 28, chip: 76, glyph: 34, code: 220, codePad: 16, codeRise: 40, gap: 40, short: {height: 400, code: 180}},
-    form: {width: 860, helpGap: 100, keyColumns: 9}, list: {width: 1300, gap: 16}}} as const;
+    form: {width: 860, helpGap: 100, keyColumns: 9}, list: {width: 1300, gap: 16}},
+  /** connect-24 on TV: the Switch server Settings page's chooser reaches this far down the page, beside every row of the list. */
+  settingsPanelMinHeight: 720} as const;
 
 /** R11, TV key hints (tv.html, tv-detail, tv-player, tv-more `.key-cap` and `.hint`): a key cap 36 high with its key in
  * the badge role, then what the key does in the caption role, quieter than the cap. */
