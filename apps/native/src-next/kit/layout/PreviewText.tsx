@@ -33,7 +33,9 @@ export function PreviewText({text, lines, style}: {text: string; lines: number; 
             words.push(word);
           }
           // The native line breaker finds boundaries in scripts that don't use spaces.
-          next = words.join(' ') || visible.slice(0, lines).map(line => line.text ?? '').join('').trim();
+          // A cut paragraph ends in "…" after a whole word (the frames' line-clamp), one word sooner so the mark fits its last line.
+          if (words.length > 1) words.pop();
+          next = words.length ? words.join(' ').replace(/[\s,;:–—-]+$/u, '') + '…' : visible.slice(0, lines).map(line => line.text ?? '').join('').trim();
         }
         if (next !== value) setPreview({text, lines, value: next});
       }}>{text}</Text>
