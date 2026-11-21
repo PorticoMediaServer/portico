@@ -20,7 +20,7 @@ import {ServerIntegrationsPage} from '../../touch/settings/ServerIntegrationsPag
 import {ServerGeneralPage} from './ServerGeneralPage';
 import {ServerRemoteAccessPage} from './ServerRemoteAccessPage';
 import {ServerStreamingPage} from '../../touch/settings/ServerStreamingPage';
-import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
+import {ServerSegmentsPage} from '../../touch/settings/ServerSegmentsPage';
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
@@ -78,7 +78,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : metadataPage ? <NativeServerMetadata ports={ports} runtime={runtime} compactHeader={compact} onLibraries={() => choose('libraries')}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
-    : segmentsPage ? <NativeServerSegments ports={ports} runtime={runtime}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
       onClose={leaveServerPage} initialChannelId={initialChannelId}/>
@@ -96,7 +95,9 @@ export function NativeSettingsPage(props: SettingsProps) {
     : historyPage ? <ServerHistoryPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : integrationsPage ? <ServerIntegrationsPage ports={ports} runtime={runtime} compact={compact} server={serverHeader} retry={retry}
-    back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : segmentsPage ? <ServerSegmentsPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+      back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
     intro={!tv && page.id === 'playback' ? t('settings.playback.deviceIntro') : undefined}
