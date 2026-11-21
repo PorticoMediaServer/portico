@@ -633,6 +633,9 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   // bar with the way out, the title and the tools, and a bottom bar with the seek,
   // the times and one row holding the pills either side of a centred transport.
   if (bar) return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted} importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{width, height}, chromeMorphStyle]}>
+    {/* finisher 21 Nov 14:30: a tap on the picture brings the hidden controls back (and hides them), as on every other form. */}
+    <FocusRegion id="watch-surface" entry="watch-picture" style={{position: 'absolute', inset: 0}}><Focusable ref={picture} focusId="watch-picture" testID="watch-picture" focusTreatment="none" accessibilityRole="button" accessibilityLabel={identity?.title ?? t('player.opt.menu')}
+      focusable={false} onPress={() => {if (controlsCurrent()) controls.toggleVisibility(fence);}} style={{position: 'absolute', inset: 0}}/></FocusRegion>
     <Animated.View pointerEvents={visible ? 'box-none' : 'none'} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={[{position: 'absolute', inset: 0}, fade]}>
       <FocusRegion id="watch-controls" orientation="horizontal" entry="watch-toggle" style={{position: 'absolute', inset: 0}}>
         <View style={{flex: 1}}>
