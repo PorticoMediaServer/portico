@@ -13,7 +13,8 @@ import * as ownerLibraryRequests from '../../../../packages/client-core/src/owne
 import * as settingsDocument from '../../../../packages/client-core/src/settings-document.ts';
 import * as ownerUploadRequests from '../../../../packages/client-core/src/owner-upload-requests.ts';
 import * as ownerAccountClients from '../../../../packages/client-core/src/owner-account-clients.ts';
-import {readFile} from 'node:fs/promises';
+import {access, readFile} from 'node:fs/promises';
+import {dirname, relative} from 'node:path';
 import {compileFunction} from 'node:vm';
 import {parseSync, transformSync} from 'rolldown/utils';
 import * as receiverQueries from '../../../../packages/client-core/src/query/receiver.ts';
@@ -179,6 +180,14 @@ const withModules = (base, additions) => new Proxy(base, {
 // Exercises a screen's exported pure helpers without a renderer or a server,
 // mirroring portico-server/web/test/helpers/component-harness.mjs. Only pure
 // exports are called; React and native modules are stubbed, never executed.
+async function sharedHookFile(url) {
+  for (const suffix of ['', '.ts', '.tsx']) {
+    const candidate = new URL(url.href + suffix);
+    try {await access(candidate); if (suffix || /\.tsx?$/.test(url.pathname)) return candidate;} catch {}
+  }
+  return undefined;
+}
+
 export async function screenModule(file, modules) {
   const transformed = transformSync(file.pathname, await readFile(file, 'utf8'), {tsconfig: false, jsx: {runtime: 'classic'}});
   if (transformed.errors.length) throw new Error(JSON.stringify(transformed.errors));
@@ -221,6 +230,19 @@ export async function screenModule(file, modules) {
         return value(owner, ...args);
       } : value]));
     modules = withModules(modules, Object.fromEntries(hostedImports.map(d => [d.source.value, factories])));
+  }
+  // A screen's logic that moved into a `pages/shared` hook keeps running for real: when a fixture names no
+  // namespace for it, the hook is loaded with the fixture's own namespaces, each re-pointed from the hook's folder.
+  for (const declaration of parsed.program.body.filter(d => d.type === 'ImportDeclaration' && /\/pages\/shared\//.test(d.source.value)
+    && !Object.hasOwn(modules, d.source.value))) {
+    const target = await sharedHookFile(new URL(declaration.source.value, file));
+    if (!target) continue;
+    const rebased = Object.fromEntries(Object.entries(modules).map(([key, value]) => {
+      if (!key.startsWith('.')) return [key, value];
+      const path = relative(dirname(target.pathname), new URL(key, file).pathname);
+      return [path.startsWith('.') ? path : `./${path}`, value];
+    }));
+    modules = withModules(modules, {[declaration.source.value]: await screenModule(target, rebased)});
   }
   let linked = transformed.code;
   for (const declaration of parsed.program.body.filter(node => node.type === 'ImportDeclaration').reverse()) {
