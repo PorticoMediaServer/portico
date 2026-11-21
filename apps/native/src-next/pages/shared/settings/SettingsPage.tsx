@@ -19,7 +19,7 @@ import {NativeServerStorage} from '../../../screens/settings-live/server/Storage
 import {NativeServerIntegrations} from '../../../screens/settings-live/server/IntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';
 import {ServerRemoteAccessPage} from './ServerRemoteAccessPage';
-import {ServerStreamingPage} from './ServerStreamingPage';
+import {ServerStreamingPage} from '../../touch/settings/ServerStreamingPage';
 import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';

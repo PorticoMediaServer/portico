@@ -61,10 +61,13 @@ function SettingFolder({row, value, disabled, first, t, api, onChange}: Props) {
 }
 
 function SettingNumber({row, value, disabled, t, onChange, onValidity}: Props) {
+  const theme = useTheme(), label = t(row.label), unit = row.control.unit ? t(row.control.unit) : undefined;
   const [text, setText] = useState(value === null ? '' : String(value)), [invalid, setInvalid] = useState(false);
   const validity = useRef(onValidity); validity.current = onValidity;
   useEffect(() => {setText(value === null ? '' : String(value)); setInvalid(false); validity.current?.(true);}, [value, disabled]);
-  return <TextField testID={row.id} label={t(row.label)} description={row.help ? t(row.help) : undefined} value={text} editable={!disabled} keyboardType="numeric"
+  return <TextField testID={row.id} label={label} description={row.help ? t(row.help) : undefined} value={text} editable={!disabled} keyboardType="numeric"
+    accessibilityLabel={unit ? `${label}, ${unit}` : label}
+    trailing={unit && <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{unit}</Text>}
     placeholder={row.control.placeholder ? t(row.control.placeholder) : undefined} error={invalid ? t('error.invalidInput') : undefined}
     onChangeText={typed => {
       setText(typed); const result = settingNumber(typed, row.control); setInvalid(!result.valid); onValidity?.(result.valid);
