@@ -1,5 +1,5 @@
 import {
-  SearchService, clearSearchHistory, recordSearch, searchDependencies, searchFirstPages, searchHistoryQuery, searchQueryProblem,
+  SearchService, clearSearchHistory, deleteSearchHistoryEntry, recordSearch, searchDependencies, searchFirstPages, searchHistoryQuery, searchQueryProblem,
   type SearchEntry, type SearchGroup, type SearchGroupResult, type SearchHistoryEntry, type SearchHistoryPage, type SearchSnapshot,
 } from '../../../../../packages/client-core/src/search';
 import {queryKeys} from '../../../../../packages/client-core/src/query/keys';
@@ -60,6 +60,7 @@ export class NativeSearchDestination {
   private timer?: ReturnType<typeof setTimeout>;
   private history?: AbortController;
   private historyRevision = 0;
+  private historyInterrupted = false;
   private readonly unsubscribe: () => void;
   private disposed = false;
   private paused = false;
@@ -267,7 +268,10 @@ export class NativeSearchDestination {
     for (const [group, read] of this.groupReads) {read.service.pause();
       if (read.service.getSnapshot().phase === 'idle') {read.unsubscribe(); read.service.dispose(); this.groupReads.delete(group);}}
     this.publish({paging: Object.fromEntries([...this.groupReads].map(([group, read]) => [group, {...this.state.paging?.[group], loading: false, error: pageIssue(read.service.getSnapshot(), group) ?? this.state.paging?.[group]?.error ?? null}]))});
-    if (this.state.clearing) this.publish({recent: [], clearing: false});
+    if (this.state.clearing) {
+      this.historyInterrupted = true;
+      this.publish({recent: [], clearing: false});
+    }
   };
   /** A paused arrived page needs no synthetic reread. An interrupted draft
    * resumes only as a normal non-recording search after actual activation. */
@@ -277,6 +281,10 @@ export class NativeSearchDestination {
     for (const read of this.groupReads.values()) read.revision = this.selectionRevision;
     // Shown again: what moved while hidden is read now.
     this.freshness.setOpen(true);
+    if (this.historyInterrupted) {
+      this.historyInterrupted = false;
+      void this.queries.client.invalidateQueries({queryKey: queryKeys.searchHistory()}).then(this.refreshHistory);
+    }
     if (this.state.search.phase === 'idle') void this.select(false);
   };
   refreshHistory = async (): Promise<void> => {
@@ -297,18 +305,25 @@ export class NativeSearchDestination {
     } catch (error) {if (!controller.signal.aborted && this.current() && revision === this.historyRevision) this.options.reportError(error);}
     finally {if (this.history === controller) this.history = undefined;}
   };
-  clearHistory = async (): Promise<void> => {
+  clearHistory = (): Promise<void> => this.changeHistory();
+  removeRecent = (entry: SearchHistoryEntry): Promise<void> =>
+    this.options.rememberHistory() && this.state.recent.includes(entry) ? this.changeHistory(entry) : Promise.resolve();
+
+  private async changeHistory(entry?: SearchHistoryEntry): Promise<void> {
     if (!this.current() || this.paused || this.state.clearing) return;
     this.history?.abort(); const revision = ++this.historyRevision;
     const controller = new AbortController(); this.history = controller;
     this.publish({clearing: true});
     try {
-      await clearSearchHistory(this.options.api, controller.signal);
-      this.queries.client.setQueryData<SearchHistoryPage>(queryKeys.searchHistory(), held => held && {...held, entries: []});
-      if (!controller.signal.aborted && this.current() && revision === this.historyRevision) this.publish({recent: []});
+      const page = entry ? await deleteSearchHistoryEntry(this.options.api, this.options.scope, entry.q, controller.signal)
+        : await clearSearchHistory(this.options.api, controller.signal);
+      if (controller.signal.aborted || !this.current() || revision !== this.historyRevision) return;
+      if (page) this.queries.client.setQueryData(queryKeys.searchHistory(), page);
+      else this.queries.client.setQueryData<SearchHistoryPage>(queryKeys.searchHistory(), held => held && {...held, entries: []});
+      this.publish({recent: this.options.rememberHistory() ? page?.entries ?? [] : []});
     } catch (error) {if (!controller.signal.aborted && this.current()) this.options.reportError(error);}
     finally {if (this.history === controller) this.history = undefined; if (revision === this.historyRevision) this.publish({clearing: false});}
-  };
+  }
   dispose = (): void => {
     if (this.disposed) return;
     this.disposed = true; this.selectionRevision++; this.stopTimer(); this.history?.abort(); this.historyRevision++;

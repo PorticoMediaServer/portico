@@ -304,3 +304,28 @@ test('results paged past their first page are held as they are; the next search 
     assert.equal(paged.reads.length, after, 'the new search\'s own read answered the move: no second read');
   } finally {paged.destination.dispose();}
 });
+
+test('removing a recent search forgets only the selected entry and rejects a retired press', async () => {
+  const deleted: string[] = [];
+  const next = deferred<void>();
+  const recents = [history.entries[0], {...history.entries[0], q: 'station eleven'}];
+  const f = setup(async <T>(path: string, method?: string) => {
+    if (method === 'DELETE') {
+      deleted.push(new URL(path, 'https://test.invalid').searchParams.get('query') ?? '');
+      await next.promise;
+    }
+    return {...history, entries: deleted.length ? recents.slice(1) : recents} as T;
+  });
+  try {
+    await f.destination.refreshHistory();
+    const removed = f.destination.getSnapshot().recent[0];
+    const pending = f.destination.removeRecent(removed);
+    assert.equal(f.destination.getSnapshot().clearing, true);
+    await f.destination.clearHistory();
+    next.resolve(undefined);
+    await pending;
+    assert.deepEqual(f.destination.getSnapshot().recent.map(item => item.q), ['station eleven']);
+    await f.destination.removeRecent(removed);
+    assert.deepEqual(deleted, ['severance']);
+  } finally {f.retire();}
+});

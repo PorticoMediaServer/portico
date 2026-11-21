@@ -65,7 +65,8 @@ export function SearchPage(props: NativeSearchScreenProps) {
   }) : undefined;
   const recent = <SearchHistory title={t('web.search.recent')}
     clear={{label: t('web.search.clearRecent'), disabled: state.clearing, onPress: () => run(destination.clearHistory())}}
-    items={state.recent.map(item => ({query: item.q, onPress: () => destination.useRecent(item.q)}))}/>;
+    items={state.recent.map(item => ({query: item.q, onPress: () => destination.useRecent(item.q),
+      remove: {label: t('web.search.removeRecent', {query: item.q}), onPress: () => run(destination.removeRecent(item))}}))}/>;
   const genreTiles = landing.phase === 'ready' ? nativeSearchGenreTiles(emptyAll ? landing.backdropGenres ?? [] : landing.genres, emptyAll ? 'phone-empty' : 'phone') : [];
   const genres = genreTiles.length > 0 || landing.phase === 'error' ? <SearchSection title={t(emptyAll ? landing.emptyHeading : landing.initialHeading)}>
     {landing.phase === 'error'
