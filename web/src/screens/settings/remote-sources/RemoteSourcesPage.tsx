@@ -14,6 +14,7 @@ import {SettingsGroup} from '../../../kit/settings';
 import {SettingsRow} from '../../../kit/shell/SettingsSurfaces';
 import {Icon} from '../../../kit/Icon';
 import {MetadataFacts} from '../../../kit/MetadataFacts';
+import {StateRow} from '../../../kit/frames';
 import styles from './remote-sources.module.css';
 import {SourceWizard} from './SourceWizard';
 import {SourceDone} from './SourceDone';
@@ -76,7 +77,7 @@ export function RemoteSourcesPage({api, isCurrent, reportError}: RemoteSourcesPa
         actions={<Button ref={addButton} size="compact" variant="primary" icon="i-plus" onClick={() => setAdding(true)}>{t('next.settingsSpec.server.remote-sources.groups.0.rows.0.control.addLabel')}</Button>}>
         {error && <p className={styles.error} role="alert">{error}</p>}
         {sources === undefined && !error && <p className={styles.muted} role="status">{t('next.remoteSources.loading')}</p>}
-        {sources?.length === 0 && <div className={styles.empty}><b>{t('next.remoteSources.empty')}</b><p>{t('next.remoteSources.emptyHelp')}</p></div>}
+        {sources?.length === 0 && <StateRow kind="empty" icon="i-server" title={t('next.remoteSources.empty')} reason={t('next.remoteSources.emptyHelp')} />}
         {!!sources?.length && <p className={styles.sectionLabel}>{t('next.settingsSpec.server.remote-sources.groups.0.rows.0.label')}</p>}
         {sources?.map(source => <SettingsRow key={source.id} label={<><Icon name="i-globe" size={18}/> {source.name}</>}
           help={<MetadataFacts parts={[t(kindLabel(source)), source.webdav?.address ?? source.rclone?.type, source.problem]}/>}>

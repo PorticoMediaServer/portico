@@ -1,9 +1,6 @@
 .page { display: grid; gap: 18px; }
 .sourceList:not([hidden]) { display: grid; gap: 18px; }
 .muted { margin: 0; color: var(--color-text-tertiary); font-size: var(--type-row-subtitle-size); }
-.empty { padding: 22px 18px; border-radius: 12px; background: var(--color-raised); }
-.empty b { display: block; font-size: var(--type-body-size); }
-.empty p { margin: 6px 0 0; color: var(--color-text-tertiary); font-size: var(--type-row-subtitle-size); line-height: var(--type-troubleshooting-messages-lede-line); }
 .rowActions { display: inline-flex; align-items: center; gap: 10px; }
 .badge { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--type-label-size); font-weight: var(--type-button-weight); white-space: nowrap; color: var(--color-text-secondary); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
 .badge[data-tone="healthy"] { color: var(--color-healthy); background: color-mix(in srgb, var(--color-healthy) 12%, transparent); }
