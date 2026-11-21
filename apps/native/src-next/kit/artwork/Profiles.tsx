@@ -77,6 +77,8 @@ export type ProfileOption = Readonly<{
   primary?: boolean;
   unavailableReason?: 'restricted' | 'not-shared' | 'access-removed';
   disabled?: boolean;
+  /** A small outlined tag under the name in place of the quiet line (phone-app 20: "Current"). */
+  tag?: string;
 }>;
 export type ProfilePickerProps = Readonly<{
   testID?: string;
@@ -121,7 +123,10 @@ function ProfileTileContents({profile, focused, selected, layout, retainDisabled
     <ProfileFace initial={profile.initial} color={profile.color} tint={profile.tint} source={profile.source} size={size} locked={profile.pinRequired} focused={focused && (!disabled || retainDisabledFocus)} selected={selected && !disabled} scaleOnFocus={layout !== 'tv'}/>
     {/* A phone name wraps to a second line before it is cut; the tile grows with it and with the text size. */}
     <Text numberOfLines={layout === 'phone' ? 2 : 1} style={{fontFamily: fontFamilies[700], fontSize: (layout === 'tv' ? 30 : layout === 'row' ? 21 : 15) * theme.textScale, textAlign: 'center', letterSpacing: (layout === 'row' ? -0.21 : 0) * theme.textScale, color: layout !== 'tv' || focused ? theme.colors.text : theme.colors.textSecondary, marginTop: layout === 'tv' ? 26 : layout === 'row' ? 18 : 10, maxWidth: '100%'}}>{profile.name}</Text>
-    <Text numberOfLines={layout === 'phone' ? 2 : 1} style={{fontFamily: fontFamilies[layout === 'phone' ? 600 : 400], textAlign: 'center', fontSize: (layout === 'tv' ? 22 : layout === 'row' ? 14 : 12) * theme.textScale, color: theme.colors.textTertiary, marginTop: layout === 'phone' ? 3 : 6, minHeight: layout === 'tv' ? 28 : layout === 'row' ? 20 : 16, maxWidth: '100%'}}>{label}</Text>
+    {profile.tag !== undefined ? <View style={{marginTop: layout === 'phone' ? 6 : 10, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: colorAlpha(theme.colors.text, .28)}}>
+      <Text style={[theme.type.captionStrong, {color: theme.colors.text}]}>{profile.tag}</Text>
+    </View>
+    : <Text numberOfLines={layout === 'phone' ? 2 : 1} style={{fontFamily: fontFamilies[layout === 'phone' ? 600 : 400], textAlign: 'center', fontSize: (layout === 'tv' ? 22 : layout === 'row' ? 14 : 12) * theme.textScale, color: theme.colors.textTertiary, marginTop: layout === 'phone' ? 3 : 6, minHeight: layout === 'tv' ? 28 : layout === 'row' ? 20 : 16, maxWidth: '100%'}}>{label}</Text>}
   </Animated.View>;
 }
 

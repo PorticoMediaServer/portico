@@ -26,8 +26,7 @@ export function ProfileSwitchPage({view, status}: {view: ReturnType<typeof usePr
         onSelect={view.select} {...(canAdd ? {onAdd: view.openAddition, addNote: t('profile.addLimit', {count: profileLimit})} : {})}/>
       {status}
     </SectionCard>
-    {manage && view.lease && active && <SectionCard
-      label={[active.name, active.primary ? t('profile.main') : active.id === current?.viewer.profileId ? t('profile.current') : ''].filter(Boolean).join(' · ')}
+    {manage && view.lease && active && <SectionCard label={active.name} detail={active.primary ? t('profile.main') : undefined}
       help={view.localPictures ? undefined : t('profile.pictureInPorticoAccount')}>
       <SettingsRow first navigates testID="profile-rename" label={t('profile.rename')} onPress={() => view.openEditor('rename')}/>
       {view.picturePicker && <SettingsRow navigates testID="profile-picture" onPress={() => view.pickPicture(active)}

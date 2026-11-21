@@ -32,7 +32,8 @@ test('Profiles is phone-app 20: Settings back in a sheet, the intro, Add with it
   assert.equal(frame.props.back.label, 'next.shell.settings'); assert.equal(frame.props.intro, 'profiles.intro');
   assert.equal(nodes(tree).find(node => node.type === 'ProfilePicker').props.addNote, 'profile.addLimit:{"count":8}');
   const card = nodes(tree).find(node => node.type === 'SectionCard' && node.props.label);
-  assert.equal(card.props.label, 'Demo · profile.main');
+  // The card reads "Demo  Main profile": the name, then the role quieter (phone-app 20).
+  assert.deepEqual([card.props.label, card.props.detail], ['Demo', 'profile.main']);
   const rows = nodes(card).filter(node => node.type === 'SettingsRow');
   assert.deepEqual(rows.map(row => row.props.testID), ['profile-rename', 'profile-picture', 'profile-pin', 'profile-limits', 'profile-forget-devices']);
   assert.equal(rows[2].props.description, 'profile.setPinHelp:{"name":"Demo"}');
