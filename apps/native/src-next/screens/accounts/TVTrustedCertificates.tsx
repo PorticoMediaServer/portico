@@ -54,12 +54,14 @@ export function TVTrustedCertificates({context}: {context?: NativeShellBootstrap
     <Text accessibilityRole="header" style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t('connection.certificates.title')}</Text>
     {error != null && <FormError placement="inline">{presentError(error, 'account').body}</FormError>}
     {rows.map(value => <TVAccountRow key={value.address} title={value.address} detail={value.fingerprint} icon="i-lock">
-      <Button variant="glass" size="small" disabled={busy} onPress={() => {
+      <Button focusId={`certificate:${value.address}`} variant="glass" size="small" disabled={busy} onPress={() => {
         if (!current() || ticket.flight) return;
         const next = {ticket, certificate: Object.freeze({...value})}; opening.current = next; setShown(next);
       }}>{t('connection.certificates.forget')}</Button>
     </TVAccountRow>)}
-    <Button variant="link" disabled={busy} onPress={() => {void refresh();}}>{t('accounts.servers.refresh')}</Button>
+    <Button focusId="certificates-refresh" variant="link" disabled={busy} onPress={() => {void refresh();}}>
+      {t('accounts.servers.refresh')}
+    </Button>
     <Dialog testID="tv-trusted-certificate-forget" open={!!captured} onOpenChange={open => {if (!open) close();}} title={t('connection.certificates.confirm')}
       initialFocusRef={cancelFocus} dismissOnOutsidePress={!busy} dismissOnBack={!busy} showClose={!busy}
       footer={<View style={{gap: 12}}>

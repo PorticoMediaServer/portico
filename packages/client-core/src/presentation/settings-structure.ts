@@ -535,7 +535,9 @@ const accountPages: readonly AuthoredPage[] = [
       ]},
       // What this profile is playing on its other devices, to pause, resume or stop from here.
       {id: 'remote', rows: [custom('remoteControls', 'remote.title')]},
-      {id: 'servers', title: 'settings.section.servers', rows: [custom('servers', 'settings.section.servers')]},
+      // A TV switches servers on its own Switch server page (below).
+      {id: 'servers', title: 'settings.section.servers', platforms: ['web', 'phone'],
+        rows: [custom('servers', 'settings.section.servers')]},
       // account-device.json: About Portico is the last group of This device, not a page of its own.
       // Frames 11 and 12's advanced Connection group. Status is the route in use: secure from its
       // scheme, at home from the server's own answer (`ConnectionDocument.remote`, P2-69). It sits
@@ -550,6 +552,10 @@ const accountPages: readonly AuthoredPage[] = [
       {id: 'about', title: 'settings.about', rows: [custom('about', 'settings.about')]},
     ],
   },
+  // connect-24: on a TV, Switch server is a Settings page (under More): the servers this device knows, by group, with
+  // Refresh and Use a local server.
+  {id: 'servers', title: 'settings.switchServer', icon: 'server', platforms: ['tv'],
+    sections: [{id: 'servers', rows: [custom('servers', 'settings.switchServer')]}]},
 ];
 
 // ── Server (owners) ─────────────────────────────────────────────────────────
