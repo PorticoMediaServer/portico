@@ -82,17 +82,20 @@
 .profileCard small { display: block; font-size: 13px; color: var(--color-text-tertiary); margin-top: 2px; }
 .profileCard > svg { margin-left: auto; color: var(--color-line-strong); }
 /* A row's label is never squeezed to a word a line: it keeps at least 40% (up to 220px) and a wide control gives way. */
-.row { display: grid; grid-template-columns: minmax(min(40%, 220px), 1fr) minmax(0, max-content); align-items: center; gap: 28px; padding: 18px 22px; border-top: 1px solid var(--color-line-soft); position: relative; line-height: normal; }
+/* Rule 7: the list row's height, padding and type come from the form's tokens (76 high at 1440, 48 on a phone). */
+.row { display: grid; grid-template-columns: minmax(min(40%, 220px), 1fr) minmax(0, max-content); align-items: center; gap: var(--space-control-gap) 28px; min-height: var(--list-row-one-line); box-sizing: border-box; padding: var(--list-row-padding-y) var(--list-row-padding-x); border-top: 1px solid var(--color-line-soft); position: relative; line-height: normal; }
 .row:first-child { border-top: 0; }
 .row[data-stacked] { grid-template-columns: 1fr; gap: 14px; }
-.rowLabel > b { display: block; font-size: 16px; font-weight: 600; }
-.rowLabel > p { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--color-text-tertiary); max-width: 600px; }
+.rowLabel > b { display: block; font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
+.rowLabel > p { margin: 2px 0 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-help-weight); color: var(--color-text-tertiary); max-width: 600px; }
 .rowControl { display: flex; align-items: center; gap: 12px; justify-content: flex-end; min-width: 0; }
 .rowControl > * { min-width: 0; max-width: 100%; }
+/* A row's button keeps its words on one line; the label wraps instead. */
+.rowControl button:not([role]), .rowControl button:not([role]) > * { white-space: nowrap; }
 .row[data-stacked] .rowControl { justify-content: flex-start; }
-.row[data-dependent] { padding-left: 58px; }
-.row[data-dependent]::before { content: ''; position: absolute; left: 31px; top: -1px; height: calc(50% + 1px); width: 14px; border-left: 2px solid var(--color-line); border-bottom: 2px solid var(--color-line); border-bottom-left-radius: 9px; }
-.row[data-dependent]:has(+ .row[data-dependent]) { background-image: linear-gradient(var(--color-line), var(--color-line)); background-size: 2px 100%; background-position: 31px 0; background-repeat: no-repeat; }
+.row[data-dependent] { padding-left: calc(var(--list-row-padding-x) + 36px); }
+.row[data-dependent]::before { content: ''; position: absolute; left: calc(var(--list-row-padding-x) + 9px); top: -1px; height: calc(50% + 1px); width: 14px; border-left: 2px solid var(--color-line); border-bottom: 2px solid var(--color-line); border-bottom-left-radius: 9px; }
+.row[data-dependent]:has(+ .row[data-dependent]) { background-image: linear-gradient(var(--color-line), var(--color-line)); background-size: 2px 100%; background-position: calc(var(--list-row-padding-x) + 9px) 0; background-repeat: no-repeat; }
 .row[data-found] { background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%); }
 .row[data-found]::after { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 3px; background: var(--color-accent); }
 .defaultHint[data-variant='changed'] { display: inline-flex; align-items: center; gap: 12px; }
@@ -105,7 +108,7 @@
 .matrixHead small { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--color-text-tertiary); }
 .matrixRow, .choiceCards { margin: 0; padding: 0; border: 0; min-width: 0; }
 .matrixRow legend, .choiceCards legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.matrixLabel { padding: 16px 22px; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--color-line-soft); font-size: 16px; font-weight: 600; }
+.matrixLabel { min-height: var(--list-row-one-line); box-sizing: border-box; padding: var(--list-row-padding-y) var(--list-row-padding-x); display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--color-line-soft); font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
 .matrixChoice { border-top: 1px solid var(--color-line-soft); display: grid; place-items: center; position: relative; cursor: pointer; }
 .matrixChoice:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
 .radio { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--color-line-strong); flex: none; }
@@ -140,7 +143,8 @@ input:focus-visible + .radio { outline: 3px solid var(--color-focus); outline-of
 .subtitlePreview[data-size='extra-large'] .cue { font-size: 40px; }
 .subtitlePreview[data-background='none'] .cue { background: transparent; }
 .subtitlePreview[data-background='opaque'] .cue { background: var(--color-shadow); text-shadow: none; }
-@media (max-width: 599px) { .matrixHead { display: none; } .matrixRow { grid-template-columns: 1fr; } .matrixChoice { display: none; } .matrixRow { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } .matrixLabel { font-size: 14px; padding: 14px; } .phoneChoice { display: block; padding: 8px 14px; border-top: 1px solid var(--color-line-soft); } .row { padding: 14px; gap: 12px; } .rowLabel > b { font-size: 14px; } .rowLabel > p { font-size: 12.5px; } .row[data-dependent] { padding-left: 46px; } .row[data-dependent]::before { left: 23px; } .row[data-dependent]:has(+ .row[data-dependent]) { background-position-x: 23px; } }
+@media (max-width: 599px) { .matrixHead { display: none; } .matrixRow { grid-template-columns: 1fr; } .matrixChoice { display: none; } .matrixRow { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } /* A phone's skipping row is one row: the label, then its choice at the end, under one rule (phone-app 18). */
+  .matrixRow { border-top: 1px solid var(--color-line-soft); } .matrixLabel { border-top: 0; } .phoneChoice { display: block; padding-right: var(--list-row-padding-x); } .row { gap: 12px; } }
 
 .settingsNav[data-layout='phone'] .serverNavHeader small { font-size: 12px; font-weight: 700; color: var(--color-accent-strong); margin-top: 0; }
 .settingsNav[data-layout='phone'] .serverNavHeader b { font-size: 16.5px; letter-spacing: -.015em; }
@@ -150,14 +154,21 @@ input:focus-visible + .radio { outline: 3px solid var(--color-focus); outline-of
 @media (max-width: 599px) {
   .matrixLabel { min-width: 0; flex-wrap: wrap; gap: 6px; }
   .matrixLabel .defaultHint { flex-basis: 100%; }
-  /* E-web-20: a typed field takes the row's width under its label, as the phone forms draw it. */
-  .row:has(> .rowControl :is(input[type='text'], input[type='email'], input[type='url'], input[type='password'])) { grid-template-columns: minmax(0, 1fr); }
-  .row:has(> .rowControl :is(input[type='text'], input[type='email'], input[type='url'], input[type='password'])) > .rowControl { justify-content: stretch; }
-  /* At phone width a row whose control is a select, or whose value is a path, puts its control on its own line under the
-     label (owner-server 43c; desk B on #3317: one rule, help line or not), so a select never crushes the label and keeps
-     its whole value. Other short controls (switches, buttons) stay beside the label. */
-  .rowControl { min-width: 0; }
-  .row:has(> .rowControl [role='combobox']), .row[data-path], .row:has(> .rowControl :is(code, pre)) { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .row:has(> .rowControl [role='combobox']) > .rowControl, .row:has(> .rowControl [role='combobox']) > .rowControl > *,
-  .row[data-path] > .rowControl, .row[data-path] > .rowControl > *, .row:has(> .rowControl :is(code, pre)) > .rowControl, .row:has(> .rowControl :is(code, pre)) > .rowControl > * { justify-content: flex-start; }
+  /* On a phone a row wraps: the label keeps at least 10em beside a short control (a switch, a button, a select's value),
+     and a control that would crowd it moves under it at its own width (desk B on #3317: a label is never crushed). */
+  .row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 10px; }
+  .rowLabel { flex: 1 1 10em; min-width: 0; }
+  .rowControl { flex: 0 1 auto; min-width: 0; max-width: 100%; margin-left: auto; }
+  /* These take the row's whole width under the label (E-web-20, owner-server 43c): a typed field, a path or code, a
+     segmented choice (its choices share the width, so none is cut) and a stacked control. */
+  .row:is([data-stacked], [data-path], :has(> .rowControl :is(code, pre, [role='radiogroup'], input[type='text'], input[type='email'], input[type='url'], input[type='password'], input:not([type])))) > * { flex-basis: 100%; margin-left: 0; }
+  .row:is([data-path], :has(> .rowControl :is(code, pre))) > .rowControl, .row:is([data-path], :has(> .rowControl :is(code, pre))) > .rowControl > * { justify-content: flex-start; }
+  .row:has(> .rowControl :is(input[type='text'], input[type='email'], input[type='url'], input[type='password'], input:not([type]))) > .rowControl { justify-content: stretch; }
+  .row:has(> .rowControl :is(input[type='text'], input[type='email'], input[type='url'], input[type='password'], input:not([type]))) > .rowControl :is(input) { width: 100%; }
+  .row > .rowControl:has([role='radiogroup']), .row > .rowControl:has([role='radiogroup']) > * { justify-content: stretch; width: 100%; }
+  .row > .rowControl [role='radiogroup'] { display: flex; width: 100%; box-sizing: border-box; }
+  .row > .rowControl [role='radiogroup'] > [role='radio'] { flex: 1 1 auto; min-width: 0; white-space: normal; }
+  /* A select stays at the row's end as its value in the accent with a chevron, no box (phone-app 18, phone-web 9). */
+  .row > .rowControl [role='combobox'][aria-haspopup], .matrixRow .phoneChoice [role='combobox'][aria-haspopup] { min-width: 0; width: auto; height: auto; min-height: 32px; padding: 0; gap: 4px; background: none; color: var(--color-accent-strong); font-size: var(--type-row-label-size); font-weight: 600; }
+  .row > .rowControl [role='combobox'][aria-haspopup] > span:last-child, .matrixRow .phoneChoice [role='combobox'][aria-haspopup] > span:last-child { color: var(--color-accent-strong); }
 }
