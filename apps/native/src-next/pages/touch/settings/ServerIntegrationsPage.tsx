@@ -4,7 +4,7 @@ import {PanelBlock, SectionCard, SettingsPageFrame, StateRow} from '../../../kit
 import {OverlayFootRow} from '../../../kit/overlays/surface';
 import {IntegrationNotice, IntegrationValue} from '../../../kit/settings/IntegrationParts';
 import {SettingsHelp} from '../../../kit/settings/SettingsParts';
-import {SettingsRow} from '../../../kit/shell';
+import {SettingsRow, SettingsSectionLabel} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -15,19 +15,26 @@ import {useAssistantAddress, useIntegrationCompatibility, useServerIntegrations}
 type Ports = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime};
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;
 
-export function ServerIntegrationsPage({ports, runtime, retry, ...frame}: Frame & Ports & {retry?: React.ReactNode}) {
+export function ServerIntegrationsPage({ports, runtime, compact, retry, ...frame}: Frame & Ports & {compact: boolean; retry?: React.ReactNode}) {
   const integrations = useServerIntegrations({ports, runtime}), {t} = runtime.text;
   const title = t('settings.server.integrations');
   return <SettingsPageFrame {...frame} title={title}>
     {retry}
-    <Tabs testID="server-integrations-tabs" value={integrations.tab} onValueChange={integrations.setTab} accessibilityLabel={title}
-      items={[{value: 'keys', label: t('web.access.apiKeys')}, {value: 'webhooks', label: t('api.webhooks.title')}, {value: 'assistants', label: t('api.mcp.title')}]}/>
-    {integrations.tab === 'keys' && (integrations.keys
-      ? <ServerApiKeys group={integrations.keys} runtime={runtime} createRequest={integrations.keyCreateRequest} consumeCreateRequest={integrations.consumeKeyCreate}/>
-      : <SectionCard><StateRow kind="loading"/></SectionCard>)}
-    {integrations.tab === 'webhooks' && <ServerWebhooks ports={ports} runtime={runtime}/>}
-    {integrations.tab === 'assistants' && <AssistantsPanel ports={ports} runtime={runtime}
+    {compact && <Tabs testID="server-integrations-tabs" value={integrations.tab} onValueChange={integrations.setTab} accessibilityLabel={title}
+      items={[{value: 'keys', label: t('web.access.apiKeys')}, {value: 'webhooks', label: t('api.webhooks.title')}, {value: 'assistants', label: t('api.mcp.title')}]}/>}
+    {(!compact || integrations.tab === 'keys') && <>
+      {!compact && <SettingsSectionLabel first label={t('web.access.apiKeys')}/>}
+      {integrations.keys
+        ? <ServerApiKeys group={integrations.keys} runtime={runtime} createRequest={integrations.keyCreateRequest} consumeCreateRequest={integrations.consumeKeyCreate}/>
+        : <SectionCard><StateRow kind="loading"/></SectionCard>}
+    </>}
+    {(!compact || integrations.tab === 'webhooks') && <>
+      {!compact && <SettingsSectionLabel label={t('api.webhooks.title')}/>}
+      <ServerWebhooks ports={ports} runtime={runtime}/>
+    </>}
+    {(!compact || integrations.tab === 'assistants') && <AssistantsPanel ports={ports} runtime={runtime}
       openCreateKey={integrations.openCreateKey} isCurrent={integrations.current}/>}
+    {!compact && <SettingsSectionLabel label={t('next.settings.advanced')}/>}
     <IntegrationCompatibility ports={ports} runtime={runtime}/>
   </SettingsPageFrame>;
 }

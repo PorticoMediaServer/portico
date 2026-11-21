@@ -61,3 +61,24 @@ test('a refused read draws no switch and offers Try again', async () => {
     assert.ok(nodes(f.tree()).some(node => node.type === 'StateView'));
   } finally {await f.host.unmount();}
 });
+
+test('tablet Integrations keeps the three sections and compatibility in the same Settings page', async () => {
+  const {ServerIntegrationsPage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerIntegrationsPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/controls': {Tabs: 'Tabs'},
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'}, '../../../kit/states': {},
+    '../../../kit/shell': {SettingsSectionLabel: 'SettingsSectionLabel'}, '../../../kit/overlays/surface': {},
+    '../../../kit/settings/SettingsParts': {}, '../../../kit/settings/IntegrationParts': {},
+    '../../shared/settings/ServerApiKeys': {ServerApiKeys: 'ServerApiKeys'}, '../../shared/settings/ServerWebhooks': {ServerWebhooks: 'ServerWebhooks'},
+    '../../shared/settings/useServerIntegrations': {useServerIntegrations: () => ({tab: 'keys', keys: {}})},
+  });
+  const props = {ports: {}, runtime: {text: {t: (key: string) => key}}};
+  const tablet = nodes(ServerIntegrationsPage({...props, compact: false}));
+  assert.ok(tablet.some(node => node.type === 'ServerApiKeys'));
+  assert.ok(tablet.some(node => node.type === 'ServerWebhooks'));
+  assert.ok(tablet.some(node => node.type?.name === 'AssistantsPanel'));
+  assert.ok(tablet.some(node => node.type?.name === 'IntegrationCompatibility'));
+  assert.equal(tablet.some(node => node.type === 'Tabs'), false);
+  const phone = nodes(ServerIntegrationsPage({...props, compact: true}));
+  assert.ok(phone.some(node => node.type === 'Tabs'));
+  assert.equal(phone.some(node => node.type === 'ServerWebhooks'), false);
+});

@@ -1,5 +1,6 @@
 import React from 'react';
 import {Text, View} from 'react-native';
+import type {WordTone} from '../../../../../packages/client-core/src/server-admin/api-words';
 import {Icon} from '../Icon';
 import {Focusable} from '../controls';
 import {useFrameMetrics} from '../frames/metrics';
@@ -36,4 +37,14 @@ export function IntegrationNotice({text, error = false}: {text: string; error?: 
   const theme = useTheme(), frame = useFrameMetrics();
   return <Text accessibilityRole={error ? 'alert' : undefined} accessibilityLiveRegion={error ? 'assertive' : 'polite'}
     style={[theme.type.rowHelp, {color: error ? theme.colors.record : theme.colors.accentStrong, marginHorizontal: frame.cardInset}]}>{text}</Text>;
+}
+
+export function WebhookDeliveryStatus({tone, label}: {tone: WordTone; label: string}) {
+  const theme = useTheme();
+  const color = tone === 'healthy' ? theme.colors.healthy : tone === 'warning' ? theme.colors.amber : tone === 'danger' ? theme.colors.danger : theme.colors.textSecondary;
+  const icon = tone === 'healthy' ? 'i-check' : tone === 'warning' ? 'i-clock' : 'i-alert';
+  return <View style={{flexDirection: 'row', alignItems: 'center', flexShrink: 1, gap: theme.space.xs}}>
+    <Icon name={icon} color={color} size={theme.space.sm}/>
+    <Text style={[theme.type.rowHelp, {color, flexShrink: 1}]}>{label}</Text>
+  </View>;
 }

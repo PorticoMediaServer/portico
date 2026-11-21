@@ -27,9 +27,26 @@ async function fixture(kind: 'key' | 'webhook') {
   const hook = {id: 'hook-fixture', revision: 3, name: 'Receiver', url: 'https://receiver.invalid/events', events: ['playback.started'], enabled: true};
   const calls: unknown[] = [];
   let alive = true, sequence = 0;
+  let write: {accepted: Promise<void>; refreshed: Promise<void>} | undefined;
   const state: any = {phase: 'ready', busy: false, options: {scopes: ['read']}, page: {items: [], nextCursor: ''}, list: {items: kind === 'webhook' ? [hook] : [], events: ['playback.started', 'playback.stopped', 'library.scanned'], maximum: 20}};
   const issued = () => kind === 'key' ? {key: {id: 'key', name: 'Fixture key'}, secret: `test-only-key-${++sequence}`} : {webhook: hook, secret: `test-only-webhook-${++sequence}`};
-  const source: any = {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, create: async (value: unknown) => {calls.push(value); return issued();}, update: async (_: unknown, value: unknown) => {calls.push(value); return issued();}, test: async (target: unknown) => {calls.push({test: target});}, rotate: async () => {calls.push({rotate: hook.id}); return issued();}, close() {}, select: async () => {calls.push({select: hook}); state.selected = hook; state.deliveries = {items: [], nextCursor: ''};}};
+  const issue = async () => {
+    const request = write;
+    if (!request) return issued();
+    state.busy = true;
+    await request.accepted;
+    state.busy = false;
+    state.phase = 'loading';
+    await request.refreshed;
+    state.phase = 'ready';
+    return issued();
+  };
+  const source: any = {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {},
+    create: async (value: unknown) => {calls.push(value); return issue();},
+    update: async (_: unknown, value: unknown) => {calls.push(value); return issued();},
+    test: async (target: unknown) => {calls.push({test: target});},
+    rotate: async () => {calls.push({rotate: hook.id}); return issue();}, close() {},
+    select: async () => {calls.push({select: hook}); state.selected = hook; state.deliveries = {items: [], nextCursor: ''};}};
   const modules = {
     react: host.react,
     'react-native': {Platform: {OS: 'ios', isTV: false}, Text: 'Text', View: 'View', Share: {share: async () => {}}},
@@ -39,7 +56,7 @@ async function fixture(kind: 'key' | 'webhook') {
     '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
     '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
     '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
-    '../../../kit/settings/IntegrationParts': {IntegrationNotice: 'IntegrationNotice', IntegrationValue: 'IntegrationValue', SettingsCheckRow: 'SettingsCheckRow'},
+    '../../../kit/settings/IntegrationParts': {IntegrationNotice: 'IntegrationNotice', IntegrationValue: 'IntegrationValue', SettingsCheckRow: 'SettingsCheckRow', WebhookDeliveryStatus: 'WebhookDeliveryStatus'},
     '../../../kit/settings/SettingsParts': {SettingsHelp: 'SettingsHelp'},
     '../../../kit/shell': {SettingsRow: 'SettingsRow'},
     '../../../screens/settings-live/lifetime': {NativeScreenLifetime: class {}, screenScopeEnded: () => new Error('ended')},
@@ -68,7 +85,7 @@ async function fixture(kind: 'key' | 'webhook') {
     const page = pages[name]({group, runtime: {text: {t}}, createRequest: 0, consumeCreateRequest: () => false});
     return kind === 'webhook' ? page.type(page.props) : page;
   });
-  return {render, calls, source, state, retire: () => {alive = false;}};
+  return {render, calls, source, state, deferWrite: (request: typeof write) => {write = request;}, retire: () => {alive = false;}};
 }
 
 test('API key receipt blocks every incidental dismissal and stale Done handler cannot close a later receipt', async () => {
@@ -174,8 +191,51 @@ test('delivery log refresh/retry/Done retain the exact opening and render empty,
   f.state.error = undefined;
   f.state.deliveries = {items: [{event: 'test', state: 'gave_up', createdAt: '2026-10-01T00:00:00Z', tries: 1}], nextCursor: ''};
   const delivered = find(f.render(), 'BottomSheet', 'api.webhooks.log');
-  assert.ok(find(delivered, 'SettingsRow', 'api.webhooks.testEvent').props.description.includes('api.webhooks.delivery.failed'));
+  const status = find(delivered, 'SettingsRow', 'api.webhooks.testEvent').props.control;
+  assert.equal(status.type, 'WebhookDeliveryStatus');
+  assert.equal(status.props.label, 'api.webhooks.delivery.failed');
+  assert.equal(status.props.tone, 'danger');
   find(delivered.props.footer, 'Button', 'action.done').props.onPress();
   open(); refresh(); first.props.onOpenChange(false);
   assert.equal(f.calls.length, 4); assert.equal(find(f.render(), 'BottomSheet', 'api.webhooks.log').props.open, true);
+});
+
+test('webhook create and rotation keep their opening through commit and readback', async () => {
+  for (const rotate of [false, true]) {
+    const f = await fixture('webhook');
+    let accept!: () => void, refresh!: () => void;
+    f.deferWrite({accepted: new Promise(resolve => {accept = resolve;}), refreshed: new Promise(resolve => {refresh = resolve;})});
+    const title = rotate ? 'api.webhooks.rotateTitle' : 'api.webhooks.add';
+    if (rotate) {
+      find(f.render(), 'SettingsRow', 'Receiver').props.onPress();
+      nodes(f.render()).find(node => node.type === 'Menu')!.props.items.find((item: any) => item.id === 'rotate').onSelect();
+    } else {
+      find(f.render(), 'Button', title).props.onPress();
+      find(find(f.render(), 'BottomSheet', title), 'TextField', 'builder.name').props.onChangeText('Receiver');
+      find(find(f.render(), 'BottomSheet', title), 'TextField', 'api.webhooks.url').props.onChangeText('https://receiver.invalid/events');
+      find(find(f.render(), 'BottomSheet', title), 'SettingsCheckRow', 'playback.started').props.onPress();
+    }
+    const sheet = () => find(f.render(), 'BottomSheet', title);
+    const first = sheet();
+    const cancel = find(first.props.footer, 'Button', 'action.cancel').props.onPress;
+    const run = find(first.props.footer, 'Button', rotate ? 'api.webhooks.rotate' : 'action.save').props.onPress;
+    run();
+    run();
+    cancel();
+    first.props.onOpenChange(false);
+    const held = sheet();
+    assert.equal(held.props.open, true);
+    for (const prop of ['dismissOnBack', 'dismissOnGesture', 'dismissOnOutsidePress', 'showClose']) assert.equal(held.props[prop], false);
+    assert.equal(find(held.props.footer, 'Button', 'action.cancel').props.disabled, true);
+    accept();
+    await settle();
+    assert.equal(f.state.busy, false, 'the source clears busy before the refreshed list returns');
+    f.state.list = {...f.state.list, items: f.state.list.items.map((hook: any) => ({...hook, revision: hook.revision + 1}))};
+    assert.equal(sheet().props.open, true);
+    first.props.onOpenChange(false);
+    refresh();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.calls.length, 1);
+    assert.equal(find(f.render(), 'BottomSheet', 'api.webhooks.secretTitle').props.open, true);
+  }
 });

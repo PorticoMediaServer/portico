@@ -1,12 +1,12 @@
 import React from 'react';
 import {webhookEvents, webhookMaximum} from '../../../../../../packages/client-core/src/api-access';
-import {deliveryProgress, deliveryProblem, webhookEventGroups, webhookEventLabel, webhookTrouble} from '../../../../../../packages/client-core/src/server-admin/api-words';
+import {deliveryProgress, deliveryProblem, deliveryTone, webhookEventGroups, webhookEventLabel, webhookTrouble} from '../../../../../../packages/client-core/src/server-admin/api-words';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button, Switch, TextField} from '../../../kit/controls';
 import {PanelBlock, SectionCard, StateRow} from '../../../kit/frames';
 import {BottomSheet, Menu} from '../../../kit/overlays';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
-import {IntegrationNotice, IntegrationValue, SettingsCheckRow} from '../../../kit/settings/IntegrationParts';
+import {IntegrationNotice, IntegrationValue, SettingsCheckRow, WebhookDeliveryStatus} from '../../../kit/settings/IntegrationParts';
 import {SettingsHelp} from '../../../kit/settings/SettingsParts';
 import {SettingsRow} from '../../../kit/shell';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
@@ -20,7 +20,7 @@ export function ServerWebhooks({ports, runtime}: {ports: NativeSettingsLivePorts
 
 function WebhooksPanel({group, runtime}: {group: WebhookGroup; runtime: NativeShellRuntime}) {
   const hooks = useServerWebhooks({group, runtime}), {t} = runtime.text;
-  const {state, writable, heldMenu, heldEditor, heldConfirmation, heldCard, log} = hooks;
+  const {state, writable, heldMenu, heldEditor, heldConfirmation, heldCard, log, pending} = hooks;
   const deliverySelected = !!log && state.selected === log.hook;
   const deliveryError = state.error === 'deliveries';
   const status = hooks.testResult && (hooks.testResult.delivered ? t('api.webhooks.delivery.delivered')
@@ -30,7 +30,7 @@ function WebhooksPanel({group, runtime}: {group: WebhookGroup; runtime: NativeSh
     <PanelBlock><OverlayFootRow layout="halves">
       <Button size="compact" disabled={!writable || (state.list?.items.length ?? 0) >= webhookMaximum}
         onPress={() => hooks.openEditor()}>{t('api.webhooks.add')}</Button>
-      <Button size="compact" variant="glass" disabled={state.busy} onPress={hooks.refresh}>{t('web.selection.refresh')}</Button>
+      <Button size="compact" variant="glass" disabled={state.busy || pending} onPress={hooks.refresh}>{t('web.selection.refresh')}</Button>
     </OverlayFootRow></PanelBlock>
     {status && <IntegrationNotice text={status} error={!hooks.testResult?.delivered}/>}
     {(state.error || state.uncertain) && <IntegrationNotice error text={t(state.uncertain ? 'error.unconfirmedChange' : 'error.unavailable')}/>}
@@ -50,12 +50,13 @@ function WebhooksPanel({group, runtime}: {group: WebhookGroup; runtime: NativeSh
       title={heldMenu?.hook.name} items={hooks.menuItems}/>
     <BottomSheet open={!!heldEditor} onOpenChange={open => {if (!open) hooks.closeEditor();}}
       title={t(heldEditor?.hook ? 'web.selection.edit' : 'api.webhooks.add')} keyboardAvoiding defaultDetent={1}
+      dismissOnBack={!pending} dismissOnGesture={!pending} dismissOnOutsidePress={!pending} showClose={!pending}
       footer={<OverlayFootRow layout="halves">
-        <Button variant="glass" onPress={hooks.closeEditor}>{t('action.cancel')}</Button>
-        <Button disabled={!hooks.canSave} loading={state.busy} onPress={() => {void hooks.save();}}>{t('action.save')}</Button>
+        <Button variant="glass" disabled={pending} onPress={hooks.closeEditor}>{t('action.cancel')}</Button>
+        <Button disabled={!hooks.canSave} loading={pending} onPress={() => {void hooks.save();}}>{t('action.save')}</Button>
       </OverlayFootRow>}>
-      <PanelBlock><TextField label={t('builder.name')} value={hooks.name} maxLength={120} editable={!state.busy && !state.uncertain} onChangeText={hooks.changeName}/></PanelBlock>
-      <PanelBlock><TextField label={t('api.webhooks.url')} value={hooks.url} maxLength={2048} editable={!state.busy && !state.uncertain}
+      <PanelBlock><TextField label={t('builder.name')} value={hooks.name} maxLength={120} editable={writable} onChangeText={hooks.changeName}/></PanelBlock>
+      <PanelBlock><TextField label={t('api.webhooks.url')} value={hooks.url} maxLength={2048} editable={writable}
         autoCapitalize="none" autoCorrect={false} onChangeText={hooks.changeUrl}/></PanelBlock>
       {webhookEventGroups(webhookEvents).map(group => <SectionCard key={group.id} label={t(group.label)}>
         <OverlayFootRow layout="halves">
@@ -69,9 +70,10 @@ function WebhooksPanel({group, runtime}: {group: WebhookGroup; runtime: NativeSh
     <BottomSheet open={!!heldConfirmation} onOpenChange={open => {if (!open) hooks.closeConfirmation();}}
       title={t(heldConfirmation?.kind === 'rotate' ? 'api.webhooks.rotateTitle' : 'api.webhooks.removeTitle', {name: heldConfirmation?.hook.name ?? ''})}
       description={t(heldConfirmation?.kind === 'rotate' ? 'api.webhooks.rotateBody' : 'api.webhooks.removeBody')}
+      dismissOnBack={!pending} dismissOnGesture={!pending} dismissOnOutsidePress={!pending} showClose={!pending}
       footer={<OverlayFootRow layout="halves">
-        <Button variant="glass" onPress={hooks.closeConfirmation}>{t('action.cancel')}</Button>
-        <Button variant={heldConfirmation?.kind === 'remove' ? 'danger' : 'primary'} disabled={!writable} loading={state.busy}
+        <Button variant="glass" disabled={pending} onPress={hooks.closeConfirmation}>{t('action.cancel')}</Button>
+        <Button variant={heldConfirmation?.kind === 'remove' ? 'danger' : 'primary'} disabled={!writable} loading={pending}
           onPress={() => {void hooks.confirm();}}>{t(heldConfirmation?.kind === 'rotate' ? 'api.webhooks.rotate' : 'web.missingTitles.removeConfirm')}</Button>
       </OverlayFootRow>}>{null}</BottomSheet>
     <BottomSheet open={!!heldCard} dismissOnBack={false} dismissOnGesture={false} dismissOnOutsidePress={false} showClose={false}
@@ -99,8 +101,9 @@ function WebhooksPanel({group, runtime}: {group: WebhookGroup; runtime: NativeSh
         {state.deliveries?.items.length === 0 && !deliveryError && <StateRow kind="empty" icon="i-logs" title={t('api.webhooks.logEmpty')}/>}
         {state.deliveries?.items.map((delivery, index) => <SettingsRow key={index} first={index === 0 && !deliveryError}
           label={delivery.event === 'test' ? t('api.webhooks.testEvent') : webhookEventLabel(t, defaultI18n.has, delivery.event)}
+          control={<WebhookDeliveryStatus tone={deliveryTone(delivery)}
+            label={t(delivery.state === 'waiting' ? 'api.webhooks.delivery.pending' : delivery.state === 'gave_up' ? 'api.webhooks.delivery.failed' : 'api.webhooks.delivery.delivered')}/>}
           description={[
-            t(delivery.state === 'waiting' ? 'api.webhooks.delivery.pending' : delivery.state === 'gave_up' ? 'api.webhooks.delivery.failed' : 'api.webhooks.delivery.delivered'),
             defaultI18n.dateTime(delivery.createdAt), deliveryProgress(t, delivery, iso => defaultI18n.time(Date.parse(iso))),
             deliveryProblem(t, defaultI18n.has, delivery),
           ].filter((part): part is string => !!part)}/>)}
