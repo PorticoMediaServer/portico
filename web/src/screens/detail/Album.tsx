@@ -34,7 +34,9 @@ import styles from './album.module.css';
 export type AlbumActions = (entry: ContentEntry) => Readonly<{onOpen: () => void; onPlay?: () => void}>;
 export type AlbumScreenProps = Readonly<{context: ScreenContext; libraryId: string; albumId: string; actions: AlbumActions; onBack?: () => void;
   /** Opens the album artist's page (the hero's artist name is a link, desktop-listen#album). */
-  onArtist?: (artistId: string) => void}>;
+  onArtist?: (artistId: string) => void;
+  /** The song playing now (its item), when it is one of this page's: its row is marked (listen-2). */
+  playingItemId?: string}>;
 type Page = Readonly<{context: ScreenContext; libraryId: string; albumId: string; life: ReturnType<typeof screenLifetime>; service: LibraryContentService; snapshot: LibraryContentSnapshot}>;
 type Similar = Readonly<{life: Page['life']; projection: ContentProjection; value: ListeningSimilarRead; scope: ListeningViewerScope}>;
 type OpenMenu = Readonly<{page: Page; projection: ContentProjection; seed: ContentEntry; anchor: HTMLButtonElement}>;
@@ -42,7 +44,7 @@ type OpenMenu = Readonly<{page: Page; projection: ContentProjection; seed: Conte
 /** The canonical album route owns a fresh service/lease on each effect setup,
  * including Strict Mode replay. The server's entity supplies complete header
  * facts; track pages are read only when the person asks for the next page. */
-export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: AlbumScreenProps) {
+export function AlbumScreen({context, libraryId, albumId, onBack, onArtist, playingItemId}: AlbumScreenProps) {
   const width = useShellWidth(), phone = width < 1024, more = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState<Page>(), [retry, setRetry] = useState(0);
   const [similar, setSimilar] = useState<Similar>(), [menu, setMenu] = useState<OpenMenu>(), [fileInfo, setFileInfo] = useState(false);
@@ -188,7 +190,7 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
           return <div className={styles.trackGroup} key={group.key}>
             {heading && <h3 className={styles.discHeading}>{heading}</h3>}
             <TrackTable variant="album" platform={phone ? 'phone' : 'desktop'} label={discNumber === undefined ? heading ?? t('music.allSongs') : t('next.browse.disc', {number: discNumber})} discNumber={discNumber}
-              rows={group.entries.map((song, index) => ({id: song.id, number: song.trackNumber ?? index + 1, plays: song.plays, playable: current() && !!song.playback && song.available !== false && !song.missing && song.libraryId === libraryId, text: cardText(entrySubject(song), 'song-row', env)}))}
+              rows={group.entries.map((song, index) => ({id: song.id, playing: !!playingItemId && song.playback?.itemId === playingItemId, number: song.trackNumber ?? index + 1, plays: song.plays, playable: current() && !!song.playback && song.available !== false && !song.missing && song.libraryId === libraryId, text: cardText(entrySubject(song), 'song-row', env)}))}
               onPlay={id => {const song = group.entries.find(song => song.id === id); if (song) play(song);}}
               onMore={(id, anchor) => {const song = group.entries.find(song => song.id === id); if (song && anchor) open(song, anchor);}} />
           </div>;
