@@ -1,13 +1,13 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {playbackIdentity} from '@core/presentation/kit-model/index.ts';
-import {ArtworkGlow, Artwork} from '../../../kit/artwork';
-import {Icon} from '../../../kit/Icon';
-import {Slider} from '../../../kit/controls';
+import {ArtworkGlow} from '../../../kit/artwork';
+import {ArtPlaceholder, AudioPlayerFrame} from '../../../kit/frames';
+import {AudioPanelSurface, PlayerVolume} from '../../../kit/player';
 import {Menu, Dialog, Banner} from '../../../kit/overlays';
 import {router} from '../../../router';
-import {ListeningNotice, SignalLine, SignalPath} from '../../../kit/media';
-import {dispatchWatch, watchSeek, watchSeekBounds, type WatchIntent} from '../model';
+import {ListeningNotice, SeekLine, SignalLine, SignalPath} from '../../../kit/media';
+import {dispatchWatch, watchClock, watchSeek, watchSeekBounds, type WatchIntent} from '../model';
 import {ListeningPanels,ListeningTabs} from '../listening/ListeningPanels';
 import type {ListeningHost} from '../listening/use-listening-owner';
 import {Button} from '../../../kit/controls';
@@ -19,7 +19,6 @@ import {WatchEqualizerPanel, hostAdmit, surfaceAdmit, type WatchHostFacts, type 
 import type {WatchScreenProps} from '../types';
 import type {WatchPlaybackContext} from '../play-on-binding';
 import type {V1QueuePolicyIntent} from '@core/playback-v1/v1-queue-player.ts';
-import {ListeningSeek} from '../listening/ListeningSeek';
 import {musicQueueNext, musicQueueOrigin} from './queue-facts';
 import {useMusicFavorite} from './use-music-favorite';
 import styles from './now-playing.module.css';
@@ -134,79 +133,69 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
     close={()=>closeEq(eqReceipt)} openSettings={()=>{if(!open)return;void router.navigate({to:'/settings',search:()=>({scope:'account' as const,section:'music'})});}}/>:null;
   const panel=eqOpen?eqPanel:listening?<><ListeningTabs host={listening}/><ListeningPanels host={listening} snapshot={snapshot} reportError={binding.reportError} artwork={binding.artwork} policyInTransport/></>:<StateView title={t('player.queueUnavailable')}/>;
   const glowSource = binding.artwork.ambient(presentation.posterUrl ?? presentation.backdropUrl);
+  const openMore = (button: HTMLButtonElement) => {
+    moreAnchor.current = button;
+    if (moreOpen) {
+      if (!surfaceAdmit(moreReceipt, publishedMore, publishedHost, hostReceipt, facts) || !retireMore(moreReceipt)) return;
+      setMoreOpen(false); return;
+    }
+    if (hostAdmit(hostReceipt, publishedHost, facts)) setMoreOpen(true);
+  };
+  const playOnHere = playOn && listenOwner && listenState ? (button: HTMLButtonElement) => {if (open) listenOwner.external(listenState, snapshot, () => playOn(button));} : undefined;
+  const repeat = queue?.repeat ?? 'off';
+  const scrub = bounds ? Math.min(bounds.end, Math.max(bounds.start, at)) : at;
+  // frame 8 (desktop-listen "now", phone-app 14): the kit's AudioPlayerFrame places every region. The screen keeps its own
+  // cover view (the box the dock's artwork morphs into), the More menu and the equaliser, the signal path, and the phone's sheet.
   return <section ref={motion?.scope ? motion.frame : undefined} className={`portico-cover ${styles.frame}`} data-cover={glowSource ? 'audio' : undefined} data-music-motion-owned={!!motion?.scope || undefined} inert={!open || undefined} aria-hidden={!open || undefined} aria-label={t('next.music.nowPlaying')} tabIndex={-1} data-watch-music data-phone={phone || undefined}>
     <ArtworkGlow source={glowSource} phone={phone}/>
-    <header className={styles.top}>
-      <button type="button" className={styles.round} aria-label={t('player.minimize')} onClick={onCollapse}><Icon name="i-down" size={22} /></button>
-      {/* phone-app 14: on a phone "Playing from" sits centred over its source, on two lines. */}
-      {from && (phone ? <span className={styles.from}><small>{t('web.player.playingFromLabel')}</small><b>{from}</b></span>
-        : <span className={styles.from}>{t('next.music.playingFrom', {source: from})}</span>)}
-      {!phone && listeningNotice}
-      <span className={styles.spacer} />
-      {!phone && playOn && listenOwner && listenState && <button type="button" className={styles.glass} aria-label={t('next.dock.playOn')}
-        onClick={event => {if (open) listenOwner.external(listenState, snapshot, () => playOn(event.currentTarget));}}><Icon name="i-cast" size={20}/></button>}
-      {equalizer ? <button ref={moreAnchor} type="button" className={styles.glass} aria-label={t('player.more')} aria-haspopup="menu" aria-expanded={moreOpen}
-        onClick={() => {
-        if (moreOpen) {
-          if (!surfaceAdmit(moreReceipt, publishedMore, publishedHost, hostReceipt, facts) || !retireMore(moreReceipt)) return;
-          setMoreOpen(false); return;
-        }
-        if (hostAdmit(hostReceipt, publishedHost, facts)) setMoreOpen(true);
-      }}><Icon name="i-more" size={18} /></button> : null}
-      {equalizer ? <Menu open={moreOpen && open} onOpenChange={value => {
-        if (!surfaceAdmit(moreReceipt, publishedMore, publishedHost, hostReceipt, facts)) return;
-        if (!value) retireMore(moreReceipt);
-        setMoreOpen(value);
-      }} title={t('player.more')} anchorRef={moreAnchor} returnFocusRef={moreAnchor} presentation="anchored" width={280}
-        items={[{id: 'equalizer', label: t('next.media.eq.title'), description: t(settings?.enabled === true ? 'next.settings.on' : 'next.settings.off'),
-          onSelect: () => {if (!surfaceAdmit(moreReceipt, publishedMore, publishedHost, hostReceipt, facts) || !retireMore(moreReceipt)) return; setMoreOpen(false);if(listenOwner&&listenState)listenOwner.cover(listenState);if(!hostAdmit(hostReceipt,publishedHost,facts))return;setEqOpen(true);}}]} /> : null}
-    </header>
-    <div className={styles.main}>
-      <div ref={motion?.scope ? motion.cover : undefined} className={styles.cover}>{!motion?.scope && <Artwork source={artworkSource} alt={identity.title} />}</div>
-      <div className={styles.info}>
-        <div className={`${styles.identity} ${styles.fade1}`} data-music-content-group="0">
-          <div><h1>{identity.title}</h1>{!!identity.subtitle.length && <p>{identity.subtitle.map(part => <span key={part.id}>{part.text}</span>)}</p>}</div>
-          {favorite?.offered && <button type="button" className={styles.ctl} aria-label={t(favorite.selected ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}
-            aria-pressed={favorite.selected} disabled={favorite.busy || favorite.failed} onClick={() => favoriteAction()}><Icon name="i-heart" size={22}/></button>}
-        </div>
+    <AudioPlayerFrame
+      close={{icon: 'i-down', label: t('player.minimize'), onPress: () => onCollapse()}}
+      context={from ? t('web.player.playingFromLabel') : undefined} source={from}
+      device={playOnHere ? {icon: 'i-cast', label: t('device.thisDevice'), onPress: playOnHere} : undefined}
+      more={{icon: 'i-more', label: t('player.more'), disabled: !equalizer, active: moreOpen, onPress: openMore}}
+      // More holds the equaliser only; where this browser has none, the frame keeps More's place, disabled (frame 8's fixed region).
+      artwork={motion?.scope ? undefined : artworkSource} icon="i-music"
+      // The morph paints the dock's artwork into this box; a song with no picture keeps the placeholder in it (rule 12).
+      cover={motion?.scope ? <div ref={motion.cover} className={styles.cover}>{!artworkSource && <ArtPlaceholder icon="i-music" />}</div> : undefined}
+      title={identity.title} byline={identity.subtitle.map(part => part.text)}
+      favourite={favorite?.offered ? {icon: favorite.selected ? 'i-heart-f' : 'i-heart', label: t(favorite.selected ? 'entry.removeFromFavorites' : 'entry.addToFavorites'), active: favorite.selected,
+        disabled: favorite.busy || favorite.failed, onPress: () => favoriteAction()} : undefined}
+      signal={favorite?.failed || signal ? <>
         {favorite?.failed && <Banner action={{label: t('next.states.tryAgain'), onAction: () => favoriteAction(true)}}>{t('next.states.pageFailedBody')}</Banner>}
-        {signal && <div className={styles.signal}><SignalLine model={signal} translate={t} layout={phone ? 'phone' : 'desktop'}
-          ref={signalAnchor} aria-haspopup="dialog" aria-expanded={signalOpen} onClick={() => setSignalOpen(true)} />
-          <SignalPath model={signal} translate={t} locale={environment.locale} layout={phone ? 'phone' : 'desktop'}
-            open={open && signalOpen} onOpenChange={setSignalOpen} anchorRef={signalAnchor} /></div>}
-        <div className={styles.fade2} data-music-content-group="1">
-          <ListeningSeek className={styles.scrub} position={at} duration={duration} bounds={bounds} disabled={!canSeek} phone={phone} onSeek={seek}/>
-        </div>
-        <div className={`${styles.controls} ${styles.fade2}`} data-music-content-group="1">
-          {!queue?.radio && <button type="button" className={styles.ctl} aria-label={t(queue?.shuffled ? 'player.opt.shuffleOn' : 'player.opt.shuffleOff')}
-            aria-pressed={queue?.shuffled === true} disabled={policyBusy} onClick={() => policy({action: 'shuffle', shuffled: !queue?.shuffled})}><Icon name="i-shuffle" size={22}/></button>}
-          <button type="button" className={styles.ctl} aria-label={t('next.dock.previous')} disabled={!can('previous')} onClick={() => send({kind: 'previous'})}><Icon name="i-prev" size={24} /></button>
-          <button type="button" className={styles.big} data-playback-primary aria-label={presentation.playing ? t('next.dock.pause') : t('next.dock.play')} disabled={!can(presentation.playing ? 'pause' : 'play')}
-            onClick={() => send({kind: presentation.playing ? 'pause' : 'play'})}><Icon name={presentation.playing ? 'i-pause' : 'i-play'} size={28} /></button>
-          <button type="button" className={styles.ctl} aria-label={t('next.dock.next')} disabled={!can('next')} onClick={() => send({kind: 'next'})}><Icon name="i-next" size={24} /></button>
-          <button type="button" className={styles.ctl} aria-label={t(queue?.repeat === 'one' ? 'player.opt.repeatOne' : queue?.repeat === 'all' ? 'player.opt.repeatAll' : 'player.opt.repeatOff')}
-            aria-pressed={!!queue && queue.repeat !== 'off'} disabled={policyBusy} onClick={() => policy({action: 'repeat', repeat: queue?.repeat === 'off' ? 'all' : queue?.repeat === 'all' ? 'one' : 'off'})}>
-            <Icon name="i-repeat" size={22}/>{queue?.repeat === 'one' && <span className={styles.repeatOne} aria-hidden="true">1</span>}</button>
-        </div>
-        {/* phone-app 14: what plays next, under the transport. */}
-        {phone && nextTitle && <p className={styles.nextLine}><span>{t('player.next')}</span><b>{nextTitle}</b></p>}
-        {phone && <div className={styles.notice}>{listeningNotice}</div>}
-        {!phone && can('volume') && <div className={`${styles.volume} ${styles.fade2}`} data-music-content-group="1"><button type="button" className={styles.ctl} aria-label={t(presentation.muted ? 'player.unmute' : 'player.mute')} onClick={() => send({kind: 'mute'})}><Icon name="i-vol" size={20} /></button>
-          <Slider min={0} max={1} step={.01} value={presentation.muted ? 0 : presentation.volume} aria-label={t('player.volume')} onValueChange={volume => send({kind: 'volume', volume})} /></div>}
-      </div>
-    </div>
-    {!phone&&<aside className={styles.side} aria-label={eqOpen?t('next.media.eq.title'):t('next.music.upNext')}>
-      <div className={styles.fade3} data-music-content-group="2">{panel}</div>
-      {!eqOpen&&listenOwner&&listenState?.panel==='lyrics'&&<Button size="small" onClick={()=>listenOwner.closePanel(listenState)}>{t('action.close')}</Button>}
-    </aside>}
-    {/* phone-app 14: Lyrics, Play on and Up next along the foot, each an icon over its label. */}
-    {phone&&listening&&<div className={styles.phoneTools}>
-      {listenOwner?.lyricsOffered()?<button type="button" className={styles.tool} onClick={event=>listenOwner.show(listenState!,'lyrics',event.currentTarget)}><Icon name="i-lyrics" size={20}/><span>{t('player.lyrics')}</span></button>:<span className={styles.toolGap}/>}
-      {playOn&&listenOwner&&listenState?<button type="button" className={`${styles.tool} ${styles.playOnTool}`} aria-label={t('next.dock.playOn')} onClick={event=>{if(open)listenOwner.external(listenState,snapshot,()=>playOn(event.currentTarget));}}><Icon name="i-cast" size={18}/><span>{t('device.thisDevice')}</span></button>:<span className={styles.toolGap}/>}
-      {listenOwner?.queueOffered()?<button type="button" className={styles.tool} onClick={event=>listenOwner.show(listenState!,'queue',event.currentTarget)}><Icon name="i-queue" size={20}/><span>{t('next.music.upNext')}</span></button>:<span className={styles.toolGap}/>}
-    </div>}
+        {signal && <><SignalLine model={signal} translate={t} layout={phone ? 'phone' : 'desktop'} ref={signalAnchor} aria-haspopup="dialog" aria-expanded={signalOpen} onClick={() => setSignalOpen(true)} />
+          <SignalPath model={signal} translate={t} locale={environment.locale} layout={phone ? 'phone' : 'desktop'} open={open && signalOpen} onOpenChange={setSignalOpen} anchorRef={signalAnchor} /></>}
+      </> : undefined}
+      scrubber={<SeekLine variant="player" value={duration > 0 ? scrub / duration : 0}
+        input={{min: bounds?.start ?? 0, max: bounds?.end ?? Math.max(duration, 1), step: .1, value: scrub, disabled: !canSeek, 'aria-label': t('player.position'),
+          'aria-valuetext': t('player.clockOf', {position: watchClock(scrub), duration: watchClock(duration)}),
+          onChange: event => {const value = event.currentTarget.valueAsNumber; if (canSeek && Number.isFinite(value)) seek(value);}}} />}
+      times={{position: watchClock(scrub), end: phone ? `−${watchClock(Math.max(0, duration - scrub))}` : watchClock(duration)}}
+      transport={[
+        {icon: 'i-shuffle', label: t(queue?.shuffled ? 'player.opt.shuffleOn' : 'player.opt.shuffleOff'), active: queue?.shuffled === true, disabled: policyBusy || !!queue?.radio, onPress: () => policy({action: 'shuffle', shuffled: !queue?.shuffled})},
+        {icon: 'i-prev', label: t('next.dock.previous'), disabled: !can('previous'), onPress: () => send({kind: 'previous'})},
+        {icon: presentation.playing ? 'i-pause' : 'i-play', label: presentation.playing ? t('next.dock.pause') : t('next.dock.play'), disabled: !can(presentation.playing ? 'pause' : 'play'), onPress: () => send({kind: presentation.playing ? 'pause' : 'play'})},
+        {icon: 'i-next', label: t('next.dock.next'), disabled: !can('next'), onPress: () => send({kind: 'next'})},
+        // Repeat one is the repeat arrow with a 1 inside it, as a skip arrow carries its seconds.
+        {icon: 'i-repeat', label: t(repeat === 'one' ? 'player.opt.repeatOne' : repeat === 'all' ? 'player.opt.repeatAll' : 'player.opt.repeatOff'), active: repeat !== 'off', ...(repeat === 'one' ? {skip: 1} : {}), disabled: policyBusy,
+          onPress: () => policy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})},
+      ]}
+      volume={!phone && can('volume') ? <PlayerVolume value={presentation.volume} muted={presentation.muted} label={t('player.volume')} muteLabel={t(presentation.muted ? 'player.unmute' : 'player.mute')}
+        onChange={volume => send({kind: 'volume', volume})} onMute={() => send({kind: 'mute'})} /> : undefined}
+      next={phone && nextTitle ? {label: t('player.next'), title: nextTitle} : undefined}
+      lyrics={phone && listenOwner?.lyricsOffered() ? {icon: 'i-lyrics', label: t('player.lyrics'), onPress: button => listenOwner.show(listenState!, 'lyrics', button)} : undefined}
+      queue={phone && listenOwner?.queueOffered() ? {icon: 'i-queue', label: t('next.music.upNext'), onPress: button => listenOwner.show(listenState!, 'queue', button)} : undefined}
+      panel={phone ? undefined : <AudioPanelSurface label={eqOpen ? t('next.media.eq.title') : t('next.music.upNext')}><div className={styles.side}>{panel}
+        {!eqOpen && listenOwner && listenState?.panel === 'lyrics' && <Button size="small" onClick={() => listenOwner.closePanel(listenState)}>{t('action.close')}</Button>}</div></AudioPanelSurface>} />
+    {/* The notice of what the player did (listening-notices frames 2 and 3): over the top bar from 600, under the player on a phone. */}
+    <div className={phone ? styles.notice : styles.topNotice}>{listeningNotice}</div>
+    {equalizer ? <Menu open={moreOpen && open} onOpenChange={value => {
+      if (!surfaceAdmit(moreReceipt, publishedMore, publishedHost, hostReceipt, facts)) return;
+      if (!value) retireMore(moreReceipt);
+      setMoreOpen(value);
+    }} title={t('player.more')} anchorRef={moreAnchor} returnFocusRef={moreAnchor} presentation="anchored" width={280}
+      items={[{id: 'equalizer', label: t('next.media.eq.title'), description: t(settings?.enabled === true ? 'next.settings.on' : 'next.settings.off'),
+        onSelect: () => {if (!surfaceAdmit(moreReceipt, publishedMore, publishedHost, hostReceipt, facts) || !retireMore(moreReceipt)) return; setMoreOpen(false);if(listenOwner&&listenState)listenOwner.cover(listenState);if(!hostAdmit(hostReceipt,publishedHost,facts))return;setEqOpen(true);}}]} /> : null}
     {phone&&<Dialog open={open&&(eqOpen||listenState?.panelVisible===true)} onOpenChange={value=>{if(value)return;if(eqOpen)closeEq(eqReceipt);else if(listenOwner&&listenState)listenOwner.closePanel(listenState);}}
       title={eqOpen?t('next.media.eq.title'):listenState?.panel==='lyrics'?t('player.lyrics'):t('next.music.upNext')} returnFocusRef={eqOpen?moreAnchor:listenState?.focus??undefined}>{panel}</Dialog>}
-
   </section>;
 }

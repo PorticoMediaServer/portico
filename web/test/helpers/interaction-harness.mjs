@@ -125,6 +125,7 @@ export function tree(node, out = []) {
     if (node.props.control) tree(node.props.control, out);
     if (node.props.secondary) tree(node.props.secondary, out);
     if (node.props.aside) tree(node.props.aside, out);
+    if (node.props.panel) tree(node.props.panel, out);
   }
   return out;
 }
