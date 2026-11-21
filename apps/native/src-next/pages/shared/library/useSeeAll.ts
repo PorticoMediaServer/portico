@@ -29,7 +29,7 @@ export function useSeeAll({controller, runtime, active}: SeeAllProps) {
     const timer = setTimeout(() => setSlow(true), 8000);
     return () => clearTimeout(timer);
   }, [ready, active, state.phase]);
-  const title = row ? serverTextLabel(catalog, row.titleText, row.title) : t('next.home.seeAll');
+  const title = row ? serverTextLabel(catalog, row.titleText ?? {key: `library.landing.${row.id}`, fallback: row.title}, row.title) : t('next.home.seeAll');
   const reason = row?.reason?.text ?? row?.why ?? row?.subtitleText;
   const intro = reason ? serverTextLabel(catalog, reason) : undefined;
   const artwork = row?.entries.find(entry => entry.backdropUrl || entry.posterUrl);
