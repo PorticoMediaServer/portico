@@ -596,6 +596,13 @@
   --spec-field-search-gap-tv: 16px;
   --spec-field-search-focus-ring: 4px;
   --spec-field-search-focus-alpha: 0.16;
+  --spec-field-find-t-v-height: 64px;
+  --spec-field-find-t-v-radius: 14px;
+  --spec-field-find-t-v-padding-x: 20px;
+  --spec-field-find-t-v-gap: 16px;
+  --spec-field-find-t-v-icon: 26px;
+  --spec-field-find-t-v-fill-alpha: 0.06;
+  --spec-field-find-t-v-type: meta;
   --spec-tv-account-column: 900px;
   --spec-tv-account-fields-width: 860px;
   --spec-tv-account-title-gap: 22px;

@@ -20,7 +20,8 @@ export type TextFieldProps = TextInputProps & {
   leadingIcon?: IconName;
   iconSize?: number;
   trailing?: React.ReactNode;
-  variant?: 'field' | 'search';
+  /** `find`: a TV list's small find field (Settings); elsewhere the same as `search`. */
+  variant?: 'field' | 'search' | 'find';
   containerStyle?: StyleProp<ViewStyle>;
   fieldStyle?: StyleProp<ViewStyle>;
   /** Authored selection/auth fields. Default and TV controls retain their recipe. */
@@ -44,7 +45,7 @@ const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTex
   const {waiting, ...binding} = useFocusTarget<TextInput>({focusId, testID, disabled: !eligible, ref});
   const [focused, setFocused] = useState(false);
   const id = useId();
-  const search = variant === 'search';
+  const search = variant === 'search' || variant === 'find';
   const selection = appearance === 'selection' && !theme.isTV && !search;
   const auth = appearance === 'auth' && !theme.isTV && !search, glass = glassRecipe();
   const height = auth ? 48 : search ? fieldSpec.search.height[theme.column] : fieldSpec.height[theme.column];

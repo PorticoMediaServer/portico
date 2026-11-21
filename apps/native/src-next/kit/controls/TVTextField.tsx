@@ -30,9 +30,10 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
     const id = setTimeout(() => input.current?.focus(), 200);
     return () => clearTimeout(id);
   }, [appleTV, editing, eligible]);
-  const search = variant === 'search', height = search ? fieldSpec.search.height.tv : fieldSpec.height.tv;
+  const find = variant === 'find', search = variant === 'search', findSpec = fieldSpec.findTV;
+  const height = find ? findSpec.height : search ? fieldSpec.search.height.tv : fieldSpec.height.tv;
   const suppliedRadius = StyleSheet.flatten(fieldStyle)?.borderRadius;
-  const radius = typeof suppliedRadius === 'number' ? suppliedRadius : search ? fieldSpec.search.radius.tv : fieldSpec.radius.tv;
+  const radius = typeof suppliedRadius === 'number' ? suppliedRadius : find ? findSpec.radius : search ? fieldSpec.search.radius.tv : fieldSpec.radius.tv;
   const open = useCallback(() => {if (eligible && !editing) {submitted.current = false; setEditing(true);}}, [editing, eligible]);
   // tvOS can report Select from an enclosing view rather than the focused field (the sign-in page's "Server address": the
   // event's tag was not the field's, so its press never fired and no keyboard opened). While the drawn field holds focus, a
@@ -55,7 +56,7 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
   }, [close, editing, eligible]);
   const value = props.value ?? props.defaultValue ?? '';
   const displayed = props.secureTextEntry ? '•'.repeat(value.length) : value;
-  const textStyle = [style, theme.type[value ? fieldSpec.tv.value : fieldSpec.tv.placeholder],
+  const textStyle = [style, theme.type[find ? fieldSpec.findTV.type : value ? fieldSpec.tv.value : fieldSpec.tv.placeholder],
     {color: value ? theme.colors.text : placeholderTextColor ?? theme.colors[fieldSpec.tv.muted]}];
   return <View style={[{gap: fieldSpec.tv.labelGap, alignSelf: 'stretch'}, containerStyle]}>
     {label !== undefined && <Text style={[theme.type[fieldSpec.tv.label], {color: theme.colors[fieldSpec.tv.muted]}]}>{label}</Text>}
@@ -63,11 +64,12 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
       accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessibilityValue={{text: displayed || props.placeholder || ''}} accessibilityState={{...accessibilityState, disabled: !editable}}
       focusKind="field" focusRadius={radius} onPress={open} onAccessibilityTap={open} onFocus={event => {held.current = true; onFocus?.(event);}} onBlur={event => {held.current = false; onBlur?.(event);}}
-      style={({focused}) => [{minHeight: height, borderRadius: radius, paddingHorizontal: search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
-        flexDirection: 'row', alignItems: 'center', gap: 10, opacity: editable ? 1 : .45}, fieldStyle,
-        {backgroundColor: focused ? theme.colors[fieldSpec.fill.focus] : colorAlpha(theme.colors[fieldSpec.tv.rest.background], fieldSpec.tv.rest.backgroundAlpha ?? 1),
-          borderWidth: fieldSpec.borderWidth.tv, borderColor: theme.colors[error ? fieldSpec.border.invalid : focused ? fieldSpec.border.focus : fieldSpec.border.rest]}]}>
-      {leadingIcon && <Icon name={leadingIcon} size={iconSize ?? 30} color={theme.colors.textTertiary}/>}
+      style={({focused}) => [{minHeight: height, borderRadius: radius, paddingHorizontal: find ? findSpec.paddingX : search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
+        flexDirection: 'row', alignItems: 'center', gap: find ? findSpec.gap : 10, opacity: editable ? 1 : .45}, fieldStyle,
+        find && !focused && !error ? {backgroundColor: colorAlpha(theme.colors.text, findSpec.fillAlpha), borderWidth: 0}
+          : {backgroundColor: focused ? theme.colors[fieldSpec.fill.focus] : colorAlpha(theme.colors[fieldSpec.tv.rest.background], fieldSpec.tv.rest.backgroundAlpha ?? 1),
+            borderWidth: fieldSpec.borderWidth.tv, borderColor: theme.colors[error ? fieldSpec.border.invalid : focused ? fieldSpec.border.focus : fieldSpec.border.rest]}]}>
+      {leadingIcon && <Icon name={leadingIcon} size={iconSize ?? (find ? findSpec.icon : 30)} color={theme.colors.textTertiary}/>}
       {/* A typed value keeps its end in view (an address's last part, as typing it); the placeholder starts at its first
           word and takes a second line rather than being cut (tv-more, final3-tv-09). */}
       {displayed ? <Text numberOfLines={1} ellipsizeMode="head" style={[textStyle, {flex: 1, minWidth: 0}]}>{displayed}</Text>

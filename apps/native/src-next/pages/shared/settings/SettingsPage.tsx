@@ -49,7 +49,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     icon={nativeSettingsIcon(value.icon)} selected={value.id === page.id} server={server}
     onFocus={tv ? () => selectPage(value.id) : undefined} onPress={() => server ? openServerPage(value.id) : choose(value.id)}/>;
   const search = <FocusRegion id={searchField} entry="input" edges={{left: ids.rail, down: tvSearch ? `${keyboard}.row.0` : column}}>
-    <TextField focusId="input" testID="settings-search" variant="search" leadingIcon="i-search" accessibilityLabel={t('next.shell.searchSettings')}
+    <TextField focusId="input" testID="settings-search" variant="find" leadingIcon="i-search" accessibilityLabel={t('next.shell.searchSettings')}
       placeholder={t('next.shell.searchSettings')} value={query} onChangeText={setQuery} showSoftInputOnFocus={!tv} onFocus={focusSearch}/>
   </FocusRegion>;
   const list = tvSearch ? <>
