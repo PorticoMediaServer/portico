@@ -4,12 +4,16 @@ import Animated, {cancelAnimation, useAnimatedStyle, useSharedValue, withTiming,
 import {Button} from '../controls';
 import {FocusRegion, type FocusRegionProps} from '../focus';
 import {useFrameMetrics} from '../frames/metrics';
+import {frameSpec} from '@portico/design';
 import {useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 
 export function TVHomeSpotlight({hero, preview}: {hero: ReactNode; preview?: ReactNode}) {
   const {spec} = useTheme();
-  return <View style={{height: preview ? spec.hero.tvHome.preview : spec.hero.tvHome.spotlight}}>
+  // tv.html 1: the rows start at the preview line (520) with the page unscrolled. The frame puts its rows a row offset under
+  // the hero, so the hero block ends that much higher; otherwise Home scrolled by the offset to anchor the row, lifting the
+  // hero's words off their line too.
+  return <View style={{height: preview ? spec.hero.tvHome.preview - frameSpec.hero.home.rowOffset.tv : spec.hero.tvHome.spotlight}}>
     {/* With a focused card the hero is that card's (owner, 18 Nov); the spotlight is drawn only when Home has no card. */}
     {!preview && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>{hero}</View>}
     {preview && <View pointerEvents="none" style={{position: 'absolute', inset: 0, height: spec.hero.tvHome.artwork}}>{preview}</View>}

@@ -92,7 +92,7 @@ export function useTVHome({runtime, authority, active = true, heroObscured = fal
   const scrolled = useRef(false);
   const initialEntry = useMemo(() => createInitialRegionEntry(registry, ids.spotlight), [registry, ids.spotlight]);
   const rowPositions = useRef(new Map<string, {y: number; height: number}>());
-  // TV: a focused row's top sits under the 588 preview hero, whichever way focus came. A row (492) never fits between that
+  // TV: a focused row's top sits under the 520 preview hero, whichever way focus came. A row (492) never fits between that
   // and a bottom margin, so keeping it merely visible put it 96 px higher when focus arrived from below, as at the first landing.
   const vertical = useFocusAnchor(false, active, 'start');
   const moveToTop = vertical.move;
