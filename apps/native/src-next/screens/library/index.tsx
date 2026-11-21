@@ -1,6 +1,5 @@
 import React from 'react';
-import {Platform, useWindowDimensions} from 'react-native';
-import {usePlatformPosture} from '../../platform/platformPosture';
+import {Platform} from 'react-native';
 import type {BrowseLabels} from '../../kit/browse';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {sameAuthority} from '../../shell/model';
@@ -9,13 +8,12 @@ import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import type {NativeSelection} from '../selection/native-selection';
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
-import {frameForm} from '@portico/design';
 import {CoveredLayer} from '../../kit/focus';
 import {homeSeeAllRoute} from '../../shell/routes';
 import {LibraryPage} from '../../pages/touch/library/LibraryPage';
 import {LibraryPage as TVLibraryPage} from '../../pages/tv/library/LibraryPage';
 import type {LibraryProps} from '../../pages/shared/library/useLibrary';
-import {LibraryScreen, type NativeLibraryActions, type NativeLibrarySelectionPort} from './LibraryScreen';
+import type {NativeLibraryActions, NativeLibrarySelectionPort} from './types';
 import {NativeLibraryDestination} from './model';
 import {NativeLibraryDirectory} from './directory';
 import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../read/platform';
@@ -143,17 +141,14 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
   };
 }
 
-export type {NativeLibraryActions, NativeLibrarySelectionPort} from './LibraryScreen';
+export type {NativeLibraryActions, NativeLibrarySelectionPort} from './types';
 export type {NativeLibraryViewDraft} from './model';
 export {createNativeLibraryPlaySelection};
 
 function LibrarySurface(props: LibraryProps) {
-  const {width, height} = useWindowDimensions(), posture = usePlatformPosture();
   const active = React.useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot);
   const state = React.useSyncExternalStore(props.destination.subscribe, props.destination.getSnapshot);
   if (Platform.isTV) return <TVLibraryPage {...props}/>;
-  const folded = posture.status === 'available' && posture.folds.some(fold => fold.orientation === 'vertical');
-  if (folded || (width >= height && frameForm(width, false, height) === 'phone')) return <LibraryScreen {...props}/>;
   return <CoveredLayer covered={!active.visible} testID={`native-library-${encodeURIComponent(state.library.id)}`} style={{flex: 1}}><LibraryPage {...props} mixes={state.library.kind === 'music' && props.runtime.mixes ? events =>
     <MusicMixesRow {...events} port={props.runtime.mixes!} artwork={props.runtime.artwork} reportError={props.runtime.reportError}
       active={active.visible} focusScope={`library:${state.library.id}.mixes`}/> : undefined}/></CoveredLayer>;

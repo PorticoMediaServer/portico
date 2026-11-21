@@ -29,7 +29,7 @@ import {NativeDestinationPicker} from '../destinations/DestinationPicker';
 import {NativeLoadedDestinations} from '../search/loaded-destinations';
 import {NativeBulkMedia} from '../destinations/bulk-media';
 import {nativeLibraryEntryKey, type NativeLibraryDestination} from './model';
-import type {NativeLibrarySelectionPort} from './LibraryScreen';
+import type {NativeLibrarySelectionPort} from './types';
 import {createNativeLibraryPlaySelection} from './play-selection';
 import {viewerQueriesFor} from '../../shell/freshness';
 

@@ -4,7 +4,7 @@ import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import {authorityKey} from '../../../shell/model';
 import type {ShellAuthority} from '../../../shell/model';
 import {createNativeTVLibraryNaming} from '../../../tv/library/save-view';
-import type {NativeLibraryActions} from '../LibraryScreen';
+import type {NativeLibraryActions} from '../types';
 import type {NativeLibraryDestination, NativeLibraryViewDraft} from '../model';
 import type {NativeSaveViewSnapshot} from '../save-view';
 

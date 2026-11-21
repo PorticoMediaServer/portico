@@ -10,7 +10,7 @@ import {frameSpec} from '@portico/design';
 import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {homeCardText} from '../../screens/home/model';
-import type {NativeLibraryActions} from '../../screens/library/LibraryScreen';
+import type {NativeLibraryActions} from '../../screens/library/types';
 
 /** The catalogue row: genuine title/art/facts and the same card
  * activation, selection and menu handling as the poster presentation. */

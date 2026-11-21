@@ -76,7 +76,7 @@ async function namingModule() {
     '../../../shell/bootstrap': {},
     '../../../shell/model': {authorityKey},
     '../../../tv/library/save-view': {createNativeTVLibraryNaming: (...args: any[]) => {const fixture = namingFixture(args); created.push(fixture); return fixture.naming;}},
-    '../LibraryScreen': {},
+    '../types': {},
     '../model': {},
     '../save-view': {},
   });
