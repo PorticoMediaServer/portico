@@ -27,15 +27,16 @@ export function TVSavedHistoryRow({entry, updatedAt, positionSeconds, completed,
   const remaining = entry.duration && positionSeconds !== undefined ? durationText(Math.max(0, entry.duration - positionSeconds), runtime.text.t) : undefined;
   const video = ['movie', 'episode', 'show', 'season', 'extra'].includes(entry.kind), art = runtime.artwork(video ? entry.backdropUrl ?? entry.stillUrl : entry.posterUrl);
   return <Focusable disabled={disabled} onFocus={onFocus} testID={`saved-history-${encodeURIComponent(entry.id)}`} accessibilityRole="button" accessibilityLabel={entry.show?.name ?? entry.displayTitle ?? entry.title}
-    onPress={() => entry.playback ? actions.play(entry) : openEntry(entry)} onLongPressAction={() => actions.menu(entry)} focusKind="row" focusRadius={16} style={{minHeight: 104}}>
-    {({focused}) => <View style={{minHeight: 104, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 26, paddingLeft: 14, paddingRight: 28, borderRadius: 16, backgroundColor: focused ? theme.colors.raisedHigh : undefined}}>
+    onPress={() => entry.playback ? actions.play(entry) : openEntry(entry)} onLongPressAction={() => actions.menu(entry)} focusKind="row" focusRadius={16} style={{minHeight: 104, marginBottom: 8}}>
+    {/* A TV row's focus fill and ring are Focusable's own, drawn under the row (tv-more 4); a fill here would hide the ring. */}
+    <View style={{minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: 26, paddingLeft: 14, paddingRight: 28}}>
       <View style={{width: 156, height: 88, borderRadius: 10, overflow: 'hidden', backgroundColor: theme.colors.raised, flexShrink: 0}}>
         {art ? <Artwork source={art} width={156} height={88}/> : null}
         {!video && art ? <View style={{position: 'absolute', left: 42, top: 8, width: 72, height: 72, borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.line}}><Artwork source={art} width={72} height={72}/></View> : null}
       </View>
       <View style={{flex: 1, minWidth: 0}}>
         <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{entry.show?.name ?? entry.displayTitle ?? entry.title}</Text>
-        <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginTop: 3}]}>{historyLine(entry)}</Text>
+        {!!historyLine(entry) && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginTop: 3}]}>{historyLine(entry)}</Text>}
       </View>
       <View style={{width: 280, flexShrink: 0}}>
         {completed ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{t('saved.watched')}</Text> : <>
@@ -44,7 +45,7 @@ export function TVSavedHistoryRow({entry, updatedAt, positionSeconds, completed,
         </>}
       </View>
       <Text style={[theme.type.rowHelp, {width: 140, textAlign: 'right', color: theme.colors.textSecondary, fontVariant: ['tabular-nums'], flexShrink: 0}]}>{clock(updatedAt, runtime.text.locale) ?? ''}</Text>
-    </View>}
+    </View>
   </Focusable>;
 }
 
@@ -66,17 +67,17 @@ export function TVSavedSection({onTop, children}: {onTop?: (top: number) => void
 }
 
 export function TVSavedDirectoryPane({children}: {children: ReactNode}) {
-  const theme = useTheme();
-  return <View style={{height: 860, paddingTop: theme.space.controlGap}}>{children}</View>;
+  return <View style={{height: 860}}>{children}</View>;
 }
 
 export function TVSavedToolbar({region, children, action, count}: {region: Omit<ComponentProps<typeof FocusRegion>, 'style'>; children: ReactNode; action?: ReactNode; count: string}) {
   const theme = useTheme();
   return <FocusRegion {...region} style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap,
-    paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight, paddingTop: theme.space.md}}>
+    paddingLeft: theme.gutter, paddingRight: theme.layout.gutter.tvRight}}>
     {children}
     {action && <View style={{marginLeft: 'auto'}}>{action}</View>}
-    <Text style={[theme.type.rowHelp, {marginLeft: action ? 0 : 'auto', color: theme.colors.textTertiary}]}>{count}</Text>
+    {/* After an action button the count keeps clear of that button's focus ring and glow. */}
+    <Text style={[theme.type.rowHelp, {marginLeft: action ? theme.space.sm : 'auto', color: theme.colors.textTertiary}]}>{count}</Text>
   </FocusRegion>;
 }
 
@@ -101,7 +102,8 @@ export function TVSavedHeading({title, count}: {title: string; count: number}) {
 
 export function TVSavedHistoryDay({day, first}: {day: string; first: boolean}) {
   const theme = useTheme();
-  return <View style={{marginTop: first ? theme.space.tight : theme.space.lg, marginBottom: theme.space.controlGap}}>
+  // tv-more 4: the first day's name sits 58 under the toolbar (the results' own 32 and this), later ones a section below the last row.
+  return <View style={{marginTop: first ? theme.space.md : theme.space.lg, marginBottom: theme.space.controlGap}}>
     <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{day}</Text>
   </View>;
 }
