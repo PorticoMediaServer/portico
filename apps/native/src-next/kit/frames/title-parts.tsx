@@ -69,10 +69,11 @@ export type AboutValue = Readonly<{text: string; onPress?: () => void}>;
 /** The About facts (desktop-detail f3, f8; phone-detail d1 frame 2; detail-tv-4; desktop-listen): a label and a value per
  * row. On a phone the table sits on a raised card with hairlines, as drawn. */
 export function AboutTable({rows}: Readonly<{rows: readonly Readonly<{label: string; values: readonly AboutValue[]}>[]}>) {
-  const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone', text = phone ? theme.type.about : theme.type.rowHelp;
+  // detail-tv 4 `.about dl`: 22/1.3 (the TV `about` role), the label column 170 and 24 from the value, rows 12 apart.
+  const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone', text = phone || theme.isTV ? theme.type.about : theme.type.rowHelp;
   // A phone's card sits at the card inset (16), not the page gutter its block starts at, with its text at the card's padding.
   return <View style={phone ? {borderRadius: frame.cardRadius, backgroundColor: theme.colors.raised, marginHorizontal: frame.cardInset - frame.gutter, paddingHorizontal: frame.cardPadding} : {gap: rowPad}}>
-    {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', gap: phone ? sizes.aboutPhone.gap : theme.space.sm, paddingVertical: phone ? sizes.aboutPhone.pad : 0, borderTopWidth: phone && index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>
+    {rows.map((row, index) => <View key={row.label} style={{flexDirection: 'row', gap: phone ? sizes.aboutPhone.gap : theme.isTV ? theme.space.md : theme.space.sm, paddingVertical: phone ? sizes.aboutPhone.pad : 0, borderTopWidth: phone && index > 0 ? 1 : 0, borderTopColor: theme.colors.line}}>
       <Text style={[text, {color: theme.colors.textTertiary, width: phone ? sizes.aboutPhone.label : sizes.aboutLabel[frame.form]}]}>{row.label}</Text>
       <Text style={[text, {flex: 1, color: theme.colors.text}]}>{row.values.map((value, position) => <Text key={position}>{position > 0 ? ', ' : ''}
         {/* TV: plain words, as detail-tv-4 draws them; a link inside a line of text cannot take the remote's focus. */}
@@ -367,7 +368,8 @@ function TVTitleDetails({about, people, collection}: TitleDetailsProps) {
     {about && (words || rows.length > 0) ? <PanelBlock><View style={{flexDirection: 'row', alignItems: 'flex-start', gap: sizes.tvAboutGap}}>
       <View style={{width: sizes.tvAboutWidth}}><PanelHeading title={about.title}/>
         {about.body !== undefined && <Text style={[theme.type.synopsis, {color: theme.colors.textSecondary}]}>{about.body}</Text>}
-        {about.note !== undefined && <Text style={[theme.type.intro, {marginTop: theme.space.sm}]}>{about.note}</Text>}</View>
+        {/* detail-tv 4 `.about p.tagline`: 22, the quiet colour, 16 under. */}
+        {about.note !== undefined && <Text style={[theme.type.about, {color: theme.colors.textTertiary, marginTop: theme.space.sm}]}>{about.note}</Text>}</View>
       {rows.length > 0 && <View style={{flex: 1, minWidth: 0}}><AboutTable rows={rows}/></View>}
     </View></PanelBlock> : null}
     {people && people.groups.some(group => group.length > 0) ? <View><PanelBlock><PanelHeading title={people.title} note={people.note}
