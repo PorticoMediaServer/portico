@@ -319,6 +319,8 @@ const tabletType: Readonly<Record<TypeRole, TypeStyle>> = {...handheldType,
   playerTitle: typeScale.desktop.playerTitle, playerSubtitle: typeScale.desktop.playerSubtitle, playerSubtitleStrong: typeScale.desktop.playerSubtitleStrong,
   playerTime: typeScale.desktop.playerTime, playerPreviewTime: typeScale.desktop.playerPreviewTime, playerPrompt: typeScale.desktop.playerPrompt,
   audioTitle: type(32, 36, 800, -.03), audioByline: type(16, 'normal', 400), audioDetail: type(14, 'normal', 400),
+  /** The opened episode's name beside its still (tablet.html f7 `.epd h3`, 34/800). */
+  episodePlateTitle: type(34, 34, 800, -.04),
   searchPageQuery: type(26, 'normal', 700, -.02),
 };
 /** R2, the type half of the form scale: one column of every role per form. */
