@@ -313,7 +313,9 @@ export function useProfiles({context, route, onBack, embedded = false}: Profiles
   const hasPicture = (id: string) => avatars.some(value => value.profileId === id);
   // The faces the kit picker draws, each with its colour and picture.
   const pickerProfiles = profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art,
-    primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id)}));
+    primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id),
+    // phone-app 20: the face being used says so with a Current tag.
+    ...(value.id === current?.viewer.profileId ? {tag: t('profile.current')} : {})}));
   const select = (id: string) => {
     const value = profiles.find(item => item.id === id);
     if (!value) return;
