@@ -116,7 +116,7 @@ export function AudioPlayerPage(props: NowPlayingScreenProps) {
         : {icon: 'i-repeat', label: t(repeat === 'off' ? 'next.dock.repeatOff' : repeat === 'all' ? 'next.dock.repeatAll' : 'next.dock.repeatOne'), testID: `${testID}-repeat`, disabled: !policyReady, active: repeat !== 'off', repeatOne: repeat === 'one',
           onPress: () => changePolicy({action: 'repeat', repeat: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'})},
     ]}
-    next={upcoming ? {label: t('next.music.upNext'), title: upcoming} : undefined}
+    next={upcoming ? {label: t('player.next'), title: upcoming} : undefined}
     lyrics={lyrics && (!side || !tabs || sheet === 'lyrics') ? {icon: 'i-cc', label: t('player.lyrics'), testID: `${testID}-lyrics-toggle`, active: sheet === 'lyrics', onPress: () => setSheet(open => open === 'lyrics' ? null : 'lyrics')} : undefined}
     queue={queue && (!side || !tabs || sheet === 'queue') ? {icon: 'i-queue', label: t('player.queue'), testID: `${testID}-queue-toggle`, active: sheet === 'queue', onPress: () => setSheet(open => open === 'queue' ? null : 'queue')} : undefined}
     speed={book ? {label: t('player.opt.speed'), value: `${bookFacts?.rate.effective ?? bookFacts?.rate.selected ?? 1}×`, testID: `${testID}-speed`, disabled: !bookFacts?.rate.supported?.length, onPress: () => setPanel('speed'),

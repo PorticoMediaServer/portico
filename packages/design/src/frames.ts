@@ -195,6 +195,8 @@ export const frame = {
     scrubber: forms(48, 48, 48, 72),
     transport: forms(80, 80, 80, 120),
     nextLine: forms(22, 22, 22, 32),
+    /** A phone's next song under the transport (phone-app 16 `.peek`): a dim pill, the label quiet and the title a step brighter. */
+    nextPill: {paddingX: 14, paddingY: 8, radius: 18, ink: .35, gap: 8},
     bottomRow: forms(64, 64, 64, 90),
     /** TV: the title and controls column beside the artwork (final3-tv-12: 540, the scrubber and transport 500). */
     controlsWidth: {...forms(0, 0, 0, 540), web: 0},

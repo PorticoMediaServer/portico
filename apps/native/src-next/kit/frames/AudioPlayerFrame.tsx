@@ -184,8 +184,11 @@ function PhoneAudio({close, more, context, source, device, artwork, cover, icon,
     {/* The heart's place is held while it loads, so the title doesn't rewrap and move everything under it when the heart arrives. */}
     {favourite && !loading ? <Glyph item={favourite} loading={loading} size={icons.inlineIcon[form]}/> : <View style={{width: theme.spec.button.height.sm[theme.column]}}/>}
   </View>;
-  const nextLine = <View style={{minHeight: spec.nextLine[form], justifyContent: 'center'}}>{upcoming && !loading && <Text style={[theme.type.rowHelp, {textAlign: 'center', color: theme.colors.textTertiary}]}>
-    {upcoming.label}  <Text style={{color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}}>{upcoming.title}</Text></Text>}</View>;
+  const pill = spec.nextPill;
+  const nextLine = <View style={{minHeight: spec.nextLine[form], justifyContent: 'center', alignItems: 'center'}}>{upcoming && !loading && <View style={{flexDirection: 'row', alignItems: 'center', gap: pill.gap, maxWidth: '100%',
+    paddingHorizontal: pill.paddingX, paddingVertical: pill.paddingY, borderRadius: pill.radius, backgroundColor: alpha(theme.colors.ink, pill.ink)}}>
+    <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, fontFamily: theme.type.rowLabel.fontFamily}]}>{upcoming.label}</Text>
+    <Text style={[theme.type.rowHelp, {flexShrink: 1, color: theme.colors.textSecondary, fontFamily: theme.type.groupLabel.fontFamily}]}>{upcoming.title}</Text></View>}</View>;
   const bottom = <View style={{height: spec.bottomRow[form], flexDirection: 'row', alignItems: 'center', gap: book ? theme.space.xs : 0}}>
     {book ? tiles.map(item => <Slot key={item.label} item={item} loading={loading} tile/>)
       // phone-app 16 `.npb`: Lyrics and Up next are 64 wide at the row's ends, the output centred between them (an absent end keeps its room).
