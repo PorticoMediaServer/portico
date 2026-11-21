@@ -51,12 +51,12 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false
     return {tree: undefined, fields: undefined, filters, calls, state, source};
   }
   // The fields are their own component (the frame's Filters draws the same ones): render them in the same pass.
-  const {tree, fields} = host.render(() => {
+  const render = () => host.render(() => {
     const tree = LibraryFilters({draft, source, runtime, labels: {field: () => 'Genre'}, owner: true, onClose: () => calls.push('close'), onExited, onSave: (value: unknown) => calls.push(['save', value])});
     const element = nodes(tree).find(node => typeof node.type === 'function' && node.props.panelId);
     return {tree, fields: element && element.type(element.props)};
   });
-  return {tree, fields, calls, state, source};
+  return {...render(), render, calls, state, source};
 }
 
 test('phone filter-sheet detents preserve the existing tablet defaults and TV panel', async () => {
@@ -164,4 +164,22 @@ test('a one-value filter (a collection) keeps only the latest pick', () => {
   };
   const result = libraryFilterChange(capabilities, field, [], {kind: 'values', included: ['itm_marvel', 'itm_pixar'], excluded: [], mode: 'any'} as never, [], new Date('2026-11-18T12:00:00Z'));
   assert.deepEqual(result.map(node => [(node as {field: string}).field, (node as {operator: string}).operator, (node as {value: unknown}).value]), [['collection', 'equals', 'itm_pixar']]);
+});
+
+test('phone Genres show eight choices plus any current filter, with the full list one press away', async () => {
+  const f = await fixture(false, 390);
+  const values = Array.from({length: 12}, (_, index) => ({
+    value: `Genre ${String(index + 1).padStart(2, '0')}`, label: `Genre ${index + 1}`, count: 20 - index,
+  }));
+  f.state.facets = {genre: {phase: 'ready', value: {values, total: values.length}}};
+  const last = values.at(-1)!.value;
+  f.state.predicates[0].value = [last];
+  const field = () => nodes(f.render!().fields).find(node => node.type === 'FilterBuilder').props;
+  const first = field();
+  assert.equal(first.fields.genre.values.length, 9);
+  assert.ok(first.fields.genre.values.some((value: {value: string}) => value.value === last));
+  assert.equal(first.fields.genre.showAllLabel, defaultI18n.t('next.browse.native.allGenres', {count: values.length}));
+  first.onShowAll('genre');
+  assert.equal(field().fields.genre.values.length, values.length);
+  assert.equal(field().fields.genre.showAllLabel, undefined);
 });

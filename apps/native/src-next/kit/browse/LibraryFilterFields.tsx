@@ -19,13 +19,22 @@ export function LibraryFilterFields({draft, source, runtime, labels, owner, live
   // The phone sheet draws its fields inline and starts with Genre open; a tablet pane draws a field's choices in a popover,
   // which opens only when its field is chosen (never over the other fields on opening); TV starts closed.
   const [openFields, setOpenFields] = useState<readonly string[]>(() => browsePlatform(theme) === 'phone' && source.capabilities?.fields.some(field => field.id === 'genre') ? ['genre'] : []), [failure, setFailure] = useState<unknown>();
-  const [now] = useState(() => new Date());
+  const [now] = useState(() => new Date()), [showGenres, setShowGenres] = useState(false);
   useEffect(() => {draft.setOpenFields(openFields);}, [draft, openFields]);
   const model = useMemo(() => source.capabilities && source.sort ? browseToolbarModel(source.capabilities, source.library.kind, state.predicates, source.sort, {...runtime.text, owner, textEntry: !theme.isTV}) : undefined,
     [source.capabilities, source.library.kind, source.sort, state.predicates, runtime.text, owner, theme.isTV]);
   if (!model || !source.capabilities) return null;
   const capabilities = source.capabilities;
-  const fields = Object.fromEntries(model.groups.flatMap(group => group.fields.map(field => [field.id, libraryFilterField(field, state.predicates, state.facets[field.id], now)]))) as Readonly<Record<string, FilterFieldState>>;
+  const fields: Record<string, FilterFieldState> = Object.fromEntries(model.groups.flatMap(group => group.fields.map(field =>
+    [field.id, libraryFilterField(field, state.predicates, state.facets[field.id], now)])));
+  const genre = fields.genre;
+  if (browsePlatform(theme) === 'phone' && !showGenres && genre?.kind === 'values' && !genre.search && genre.values.length > 8) {
+    const selected = new Set([...genre.included, ...genre.excluded]);
+    const values = genre.values.filter((value, index) => index < 8 || selected.has(value.value));
+    if (values.length < genre.values.length) fields.genre = {...genre, values,
+      showAllLabel: genre.total !== undefined && genre.total > genre.values.length ? defaultI18n.t('action.showMore')
+        : defaultI18n.t('next.browse.native.allGenres', {count: genre.values.length})};
+  }
   const retry = () => {setFailure(undefined); draft.refresh();};
   const error = failure || state.count.phase === 'error' ? runtime.error(failure ?? state.count.error, retry) : undefined;
   return <>
@@ -39,7 +48,7 @@ export function LibraryFilterFields({draft, source, runtime, labels, owner, live
         if (!field) return;
         try {draft.setPredicates(libraryFilterChange(capabilities, field, state.predicates, value, (source.tab.fixedFilter ?? []) as readonly BrowseNode[], now)); if (live) draft.applyLive(); setFailure(undefined);}
         catch (error) {setFailure(error); runtime.reportError(error);}
-      }} onSearchChange={draft.search} onRetry={draft.retryFacet}/>
+      }} onSearchChange={draft.search} onShowAll={id => {if (id === 'genre') setShowGenres(true);}} onRetry={draft.retryFacet}/>
   </>;
 }
 
