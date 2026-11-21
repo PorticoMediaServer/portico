@@ -69,7 +69,8 @@ export function SettingsRow({label, highlightQuery, description, scope, icon, na
     <View style={stack ? {alignSelf: 'stretch'} : {flex: 1, minWidth: 0}}><HighlightedText text={label} query={highlightQuery} style={[shellType(tv ? 24 : 15.5), {color: destructive ? theme.colors.record : theme.colors.text}]}/>
       {typeof description === 'string' && <Text style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{description}</Text>}
       {Array.isArray(description) && description.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3, marginTop: 3}}>{description.map((part, index) => <Text key={index} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part}</Text>)}</View>}
-      {scope && <Text style={[shellType(tv ? 18 : 12, 600), {color: theme.colors.textTertiary, marginTop: 3}]}>{scope}</Text>}
+      {/* TV (tv-more 21-29 `small.scope`): 20 regular, as the row's help line. */}
+      {scope && <Text style={[tv ? shellType(20, 400) : shellType(12, 600), {color: theme.colors.textTertiary, marginTop: 3}]}>{scope}</Text>}
     </View>
     {/* On a touch screen a select in the row draws as its value and takes at most half the row, so the label keeps its
         room; any other control keeps its own width (RowControlContext). */}
