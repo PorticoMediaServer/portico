@@ -125,7 +125,7 @@ test('an extra Settings shortcut keeps its full label and action', () => {
   const tree = ShortcutTiles({actions: labels.map((label, index) => ({id: String(index), label, icon: 'i-close',
     onPress: () => {pressed = label;}}))});
   const rows = tree.props.children as ReturnType<typeof nodes>;
-  assert.deepEqual(rows.map(row => (row.props.children as unknown[]).length), [4, 1]);
+  assert.deepEqual(rows.map(row => nodes(row).filter(node => node.type === Focusable).length), [4, 1]);
   const action = nodes(tree).find(node => node.type === Focusable && node.props.accessibilityLabel === labels[4])!;
   const caption = nodes(action).find(node => node.props.children === labels[4])!;
   assert.equal(caption.props.numberOfLines, undefined);
