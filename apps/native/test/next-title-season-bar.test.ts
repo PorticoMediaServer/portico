@@ -9,8 +9,8 @@ async function bar(platform: 'phone' | 'tablet' | 'tv') {
   const h = hooks();
   const {SeasonBar: TitleSeasonBar} = await screenModule(new URL('../src-next/kit/layout/SeasonBar.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../controls': {Button: 'Button', Switch: 'Switch'}, '../overlays': {Menu: 'Menu'},
-    '../theme': {useTheme: () => ({isTV: platform === 'tv', platform, type: {caption: {}, bodyStrong: {}}, colors: {textTertiary: '#888', textSecondary: '#aaa'}})}});
+    '../controls': {Button: 'Button', Chip: 'Chip', Switch: 'Switch'}, '../overlays': {Menu: 'Menu'},
+    '../theme': {fontFamilies: {600: 'Manrope-SemiBold'}, useTheme: () => ({isTV: platform === 'tv', platform, type: {caption: {}, bodyStrong: {}, rowSubtitle: {}}, colors: {textTertiary: '#888', textSecondary: '#aaa'}})}});
   const changes: boolean[] = [], opened: string[] = [];
   const render = (owner: boolean, settingsAction = true) => nodes(h.render(() => TitleSeasonBar({label: 'Unassigned absolute episodes', count: '3 episodes', onSeasons() {}, hideWatched: false, onHideWatched: (value: boolean) => changes.push(value),
     settings: owner ? {label: 'More', ...(settingsAction ? {onPress: () => opened.push('settings')} : {})} : undefined})));
@@ -46,7 +46,7 @@ for (const platform of ['phone', 'tablet'] as const) test(`${platform}: the bar 
 for (const owner of [false, true]) test(`${owner ? 'owner' : 'viewer'}: when the row is short the count drops first, still measured and folded into the chip's spoken name`, async () => {
   const render = await bar('phone');
   let tree = render(owner);
-  const gap = 8, measured = (row: number) => {
+  const gap = 12, measured = (row: number) => {
     layout(byID(tree, 'watch-season-bar'), row); layout(byID(tree, 'watch-seasons-open'), 200);
     layout(byID(tree, 'watch-season-count'), 70); layout(byID(tree, 'watch-season-end'), 90);
     tree = render(owner);
