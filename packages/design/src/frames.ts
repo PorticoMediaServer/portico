@@ -226,7 +226,8 @@ export const frame = {
       inlineIcon: forms(24, 22, 22, 28),
     },
     /** TV (final3-tv-12): the title is a display line, the queue rows are 88 with 72 artwork. */
-    tv: {fromTop: 124, artTop: 230, titleTop: 50, scrubberTop: 360, transportTop: 442, moreTop: 576, scrubberWidth: 500, row: 88, rowArt: 72, rowArtRadius: 10, moreHeight: 64},
+    // titleLine: tv.html 7 `.np-info h1` line-height .98 (the title sits on that line; the native line floor draws a taller box).
+    tv: {fromTop: 124, artTop: 230, titleTop: 50, titleLine: .98, scrubberTop: 360, transportTop: 442, moreTop: 576, scrubberWidth: 500, row: 88, rowArt: 72, rowArtRadius: 10, moreHeight: 64},
   },
   /** Frame 7, the video player's chrome (desktop-player, tablet-play, phone-player and tv-player mock-ups; R6: the web's
    * values are its mock-ups', desktop-player 1 and 7). Scrims are stops of the dim colour: alpha, then how far from the edge. */
