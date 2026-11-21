@@ -37,6 +37,7 @@ test('the actual TV Search caller binds genuine query, navigation activation and
     react: resultHost.react, 'react-native': {ScrollView: 'ScrollView', View: 'View', Text: 'Text'}, 'react-native-svg': {default: 'Svg'},
     '../../../../../packages/client-core/src/presentation/kit-model': {}, '../../../../../packages/client-core/src/presentation/search-model': {},
     '../../../../../packages/i18n/src': {defaultI18n}, '../frames/metrics': {useFrameMetrics: () => ({width: 1140, rightGutter: 96})},
+    '../layout/ListEdgeFade': {useWholeItems: () => ({scroll: {}, container: {}, focus() {}, cut: () => false, item: () => ({})})},
     './Search': {TopResult: 'TopResult'}, '../artwork': {}, '../controls': {}, '../cards/primitives': {}, '../focus': {FocusRegion: 'FocusRegion'}, '../Icon': {}, '../states': {},
     '../browse/presentation': {}, '../theme': {useTheme: () => theme}, '../../screens/home/model': {}, '../../screens/search/model': {nativeSearchEntryKey},
     './TVSearchSection': {TVSearchSection: 'TVSearchSection'}, '../../screens/search/genre-tiles': {nativeSearchGenreTiles},

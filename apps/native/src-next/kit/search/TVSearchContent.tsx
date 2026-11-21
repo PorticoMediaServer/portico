@@ -23,6 +23,7 @@ import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
 import {TopResult} from './Search';
 import {TVRow} from '../layout/TVRow';
+import {useWholeItems} from '../layout/ListEdgeFade';
 import {StateView} from '../states';
 import {alpha} from '../browse/presentation';
 import {useTheme} from '../theme';
@@ -78,6 +79,8 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
 }) {
   const theme = useTheme(), frame = useFrameMetrics(), focusRoom = frameSpec.search.tvFocusRoom;
   const {t, state, landing, active, typed, empty, emptyAll, emptyIn, top, groups, problem, chips, chipsDrawn} = view;
+  // The chip row shows whole chips only, never one cut at its ends (owner, 20 Nov 20:30).
+  const wholeChips = useWholeItems('x', 'fit', chips.map(chip => chip.id), focusRoom, focusRoom);
   const genreTiles = nativeSearchGenreTiles(landing.genres, 'tv');
   const sections = typed && !empty && !problem ? groups.filter(group =>
     (state.group === 'all' || state.group === group.id) && (group.items.length > 0 || group.status === 'error')) : [];
@@ -95,13 +98,13 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
       }}><View ref={contentRoot} collapsable={false}>
         {/* The chips' own ring room sits inside the column's: pulled back by it on the left and the top, so the chips start on the field's line (tv.html#f5). */}
         {chipsDrawn && <FocusRegion id={ids.searchChips} enabled={active.visible} orientation="horizontal" entry={`chip:${state.group}`} stops={{up: true}}
-          edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} style={{maxWidth: resultsWidth, marginLeft: -focusRoom, marginTop: -focusRoom}}>
-          <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
+          edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} {...wholeChips.container} style={{maxWidth: resultsWidth, marginLeft: -focusRoom, marginTop: -focusRoom}}>
+          <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} {...wholeChips.scroll}
             contentContainerStyle={[tvSearchR46.chips, {padding: focusRoom}]}>{chips.map(chip => {
           const group = groups.find(value => value.id === chip.id);
           const count = chip.id === 'all' ? groups.every(value => value.totalCountExact) ? groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
-          return <Chip key={chip.id} focusId={`chip:${chip.id}`} testID={`tv-search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'}
-            disabled={!active.visible} style={tvSearchR46.chip} textStyle={tvSearchR46.chipLabel} onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
+          return <View key={chip.id} {...wholeChips.item(chip.id)}><Chip focusId={`chip:${chip.id}`} onFocus={() => wholeChips.focus(chip.id)} testID={`tv-search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'}
+            disabled={!active.visible} style={tvSearchR46.chip} textStyle={tvSearchR46.chipLabel} onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip></View>;
         })}</ScrollView></TVRow></FocusRegion>}
         {state.search.error && <StateView testID="tv-search-read-error" {...runtime.error(state.search.error, () => run(destination.retry()))}/>}
         {problem && <StateView variant="search" title={problem}/>}
