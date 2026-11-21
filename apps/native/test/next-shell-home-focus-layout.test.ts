@@ -66,51 +66,25 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     let tree = render();
     const hero = descendants(tree).find(node => node.type === 'Hero');
     const candidate = {entry, target: {...entry, playback: {itemId: entry.id}}};
-    const wrapper = hero.props.renderActions(candidate);
-    const nativeRegion = wrapper.type(wrapper.props);
-    const spotlightActions = (tree: any) => {
-      const actions = descendants(tree).find(node => node.type === 'Hero').props.renderActions(candidate);
-      return descendants(actions.type(actions.props)).filter(node => node.type === 'Button');
-    };
-    let actions = spotlightActions(tree);
-    assert.equal(nativeRegion.props.style?.flexDirection, 'row', 'real native guide lays out the actual controls horizontally');
-    assert.equal(nativeRegion.props.style.gap, createTheme({isTV: true, width: 1920}).spec.hero.actions.gap.tv);
-    assert.equal(nativeRegion.props.orientation, 'horizontal');
-    assert.deepEqual(nativeRegion.props.order, ['play', 'my-list', 'details']);
-    assert.equal(actions[0].props.preferredFocus, undefined, 'entry is requested once after guide and target attach');
+    // Owner, 18 Nov: TV Home opens on the first Continue Watching card; the spotlight has no buttons, and the first row
+    // stops Up.
+    assert.equal(hero.props.renderActions(candidate), null, 'the TV spotlight has no buttons');
     const renderedRow = descendants(tree).find(node => node.type === 'Row');
-    assert.equal(descendants(renderedRow.props.renderItem({entry}, {index: 0})).find(node => node.props.preferred !== undefined).props.preferred, false);
-    actions[0].props.onFocus();
-    tree = render();
-    actions = spotlightActions(tree);
-    assert.equal(actions[0].props.preferredFocus, undefined, 'late content cannot reissue preferred focus after entry');
+    assert.equal(renderedRow.props.focus.stops?.up, true, 'Up from the first row stays in it');
+    assert.equal(descendants(renderedRow.props.renderItem({entry}, {index: 0})).find(node => node.props.preferred !== undefined).props.preferred, false,
+      'the start is the registry\'s one entry request, not a card asking for itself');
     rowsBox(tree).props.onLayout(layout(820));
     rowBox(tree).props.onLayout(layout(0));
     descendants(tree).find(node => node.type === 'Row').props.onItemFocus({entry});
     frames.shift()!(0); // Focus may see the old, expanded hero box.
     assert.equal(anchors.at(-1)?.[0], 820);
     tree = render();
-    assert.ok(descendants(tree).some(node => node.type === 'Hero'), 'spotlight controls stay mounted as the native Up destination');
-    assert.ok(descendants(tree).some(node => node.type === 'FocusPreviewHero'));
+    assert.ok(descendants(tree).some(node => node.type === 'FocusPreviewHero'), 'the hero follows the focused card');
     rowsBox(tree).props.onLayout(layout(588));
     assert.deepEqual(anchors.at(-1), [588, 300, 1080, 1080, 588, 96]);
     // A TV row (492) never fits between the 588 preview hero and a 96 bottom margin; kept merely visible, focus arriving
     // from below (the first landing) left Home 96 px higher than focus arriving from above.
     assert.equal(anchorOptions[2], 'start', 'the focused row\'s top sits under the preview hero whichever way focus came');
-    // A real Up can arrive before the previous row's layout/RAF work.
-    actions[0].props.onFocus();
-    tree = render();
-    descendants(tree).find(node => node.type === 'Row').props.onItemFocus({entry});
-    const pendingRowTree = render();
-    spotlightActions(pendingRowTree)[0].props.onFocus();
-    const beforeUpSettled = anchors.length;
-    rowsBox(pendingRowTree).props.onLayout(layout(820));
-    frames.shift()!(0);
-    assert.equal(anchors.length, beforeUpSettled, 'obsolete row layout and delayed row scroll cannot undo newer Spotlight focus');
-    tree = render();
-    descendants(tree).find(node => node.type === 'Row').props.onItemFocus({entry});
-    frames.shift()!(0);
-    tree = render();
     const count = anchors.length;
     for (const props of [{railExpanded: true}, {active: false}]) rowsBox(render(props)).props.onLayout(layout(820));
     currentAuthority = {...authority, serverId: 'foreign'};
