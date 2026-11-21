@@ -15,6 +15,9 @@ import {NativeHomeCustomizeController, type NativeHomeResetOpening} from './cust
 import {createTVKeyAdapter} from '../../platform/tv-key-adapter';
 import {tvKeySource} from '../../platform/tv-key-source';
 import {createHomeRowDrag, type HomeDragRow} from './customize-drag';
+import {useHomeCustomize} from '../../pages/shared/home/useHomeCustomize';
+import {HomeDragHandle, HomeSavedViewChoices} from '../../kit/home/HomeLayout';
+export {HomeDragHandle, HomeSavedViewChoices};
 
 /** Exact catalogue values supplied by the canonical copy owner. No screen copy
  * or server row label is manufactured by this presentation. */
@@ -24,43 +27,6 @@ export type NativeHomeCustomizeCopy = Readonly<{
   move: string; drop: string; putBack: string;
 }>;
 
-/** A pick-up lands on the row itself: the D-pad listener moves only a lifted row that holds
- * focus, so a pick started from the row's own handle must not leave focus on the handle. A
- * later Back, reset, removal, close or unmount leaves the frame with nothing to do. */
-function focusWhenPicked(
-  controller: NativeHomeCustomizeController,
-  frame: {current: Readonly<{controller: NativeHomeCustomizeController; id: number}> | undefined},
-  picked: {current: View | null},
-  pickedId: string,
-  also?: () => void,
-) {
-  if (frame.current) cancelAnimationFrame(frame.current.id);
-  const id = requestAnimationFrame(() => {
-    const held = frame.current;
-    frame.current = undefined;
-    if (!held || held.controller !== controller || !controller.isCurrent() || controller.getSnapshot().pickedId !== pickedId) return;
-    also?.();
-    focusTarget(picked.current);
-  });
-  frame.current = {controller, id};
-}
-
-export function HomeDragHandle({controller, id, disabled, geometry, scrollGesture, testID}: {
-  controller: NativeHomeCustomizeController; id: string; disabled: boolean;
-  geometry: () => readonly HomeDragRow[]; scrollGesture: ReturnType<typeof Gesture.Native>; testID: string;
-}) {
-  const theme = useTheme(), latest = useRef(geometry);
-  latest.current = geometry;
-  const drag = useMemo(() => createHomeRowDrag(controller, id, () => latest.current()), [controller, id]);
-  useEffect(() => () => drag.finish(false), [drag]);
-  const pan = useMemo(() => Gesture.Pan().enabled(!disabled).activateAfterLongPress(200).blocksExternalGesture(scrollGesture).activeOffsetY([-2, 2]).runOnJS(true)
-    .onStart(() => {drag.begin();}).onUpdate(event => {drag.update(event.translationY);})
-    .onFinalize((_event, success) => {drag.finish(success);}), [disabled, drag, scrollGesture]);
-  return <GestureDetector gesture={pan}><View testID={testID} accessible={false} collapsable={false}
-    style={{width: 44, minHeight: 50, alignItems: 'center', justifyContent: 'center'}}>
-    <Icon name="i-grip" size={20} color={theme.colors.textTertiary}/>
-  </View></GestureDetector>;
-}
 
 export function HomeCustomize({controller, copy, i18n, onClose, onAddView, views, summary, notice, noticeAction, renderError, testID}: {
   controller: NativeHomeCustomizeController; copy: NativeHomeCustomizeCopy; i18n: Pick<I18n, 't' | 'has'>;
@@ -68,124 +34,8 @@ export function HomeCustomize({controller, copy, i18n, onClose, onAddView, views
   renderError?: (error: unknown, retry: () => void) => React.ReactNode;
   views?: Readonly<{items: readonly PersonalResource[]; loading: boolean; error?: unknown; hasMore: boolean; loadMore: () => void; renderError: (error: unknown, retry: () => void) => React.ReactNode; retry: () => void}>;
 }) {
-  const theme = useTheme(), registry = useFocusRegistry();
-  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const addView = useRef<View>(null), resetButton = useRef<View>(null);
-  const rowRefs = useRef(new Map<string, View>());
-  const first = useRef<View>(null), reload = useRef<View>(null), cancelReset = useRef<View>(null);
-  const picked = useRef<View>(null), scroller = useRef<ScrollView>(null), returning = useRef(false);
-  const [reset, setReset] = useState<NativeHomeResetOpening>(), [choosing, setChoosing] = useState(false);
-  const resetOwner = useRef<NativeHomeResetOpening | undefined>(undefined);
-  if (resetOwner.current && (resetOwner.current.controller !== controller || resetOwner.current.layout !== state.layout || state.phase !== 'ready' || state.pending || state.retry || state.pickedId || state.conflict)) resetOwner.current = undefined;
-  const resetOpening = reset && resetOwner.current === reset && reset.controller === controller ? reset : undefined;
-  const closeReset = (opening: NativeHomeResetOpening | undefined) => {
-    if (!opening || resetOwner.current !== opening) return;
-    resetOwner.current = undefined;setReset(value => value === opening ? undefined : value);
-  };
-  const confirmReset = (opening: NativeHomeResetOpening | undefined) => {
-    if (!opening || resetOwner.current !== opening || opening.controller !== controller || !controller.isCurrent()) return;
-    closeReset(opening);void opening.controller.resetConfirmed(opening);
-  };
-  useLayoutEffect(() => () => {if (resetOwner.current?.controller === controller) resetOwner.current = undefined;}, [controller]);
-  const firstView = useRef<View>(null), viewEntryFocused = useRef(false);
-  const [heights, setHeights] = useState<ReadonlyMap<string, number>>(new Map());
-  const [positions, setPositions] = useState<ReadonlyMap<string, number>>(new Map());
-  useEffect(() => {
-    const ids = new Set(state.rows.map(row => row.id));
-    const prune = (before: ReadonlyMap<string, number>) => {if ([...before.keys()].every(id => ids.has(id))) return before;return new Map([...before].filter(([id]) => ids.has(id)));};
-    setPositions(prune);setHeights(prune);
-  }, [state.rows]);
-  const regionId = testID;
-  const blocked = state.phase !== 'ready' || state.pending || !!state.retry;
-  const returnToAdd = () => {setChoosing(false);requestAnimationFrame(() => {if (controller.isCurrent()) focusTarget(addView.current);});};
-  const back = () => {if (choosing) {returnToAdd();return;} if (!controller.cancelPickup()) onClose();};
-  useEffect(() => {
-    if (!choosing) {viewEntryFocused.current = false; return;}
-    if (!theme.isTV || views?.loading || viewEntryFocused.current) return;
-    const frame = requestAnimationFrame(() => {if (firstView.current) {focusTarget(firstView.current); viewEntryFocused.current = true;}});
-    return () => cancelAnimationFrame(frame);
-  }, [choosing, theme.isTV, views?.items, views?.loading]);
-  useEffect(() => {
-    if (!controller.isCurrent() || !theme.isTV || state.phase !== 'ready') return;
-    const frame = requestAnimationFrame(() => controller.isCurrent() && focusTarget(state.showConflict ? reload.current : first.current ?? addView.current));
-    return () => cancelAnimationFrame(frame);
-  }, [controller, state.phase, state.showConflict, theme.isTV]);
-  /** collections.html 29: the list comes back with the new row held, focused and in view, so Up
-   * and Down move it at once. The pick-up listener only moves a row that holds focus, so a held
-   * row no one can reach would be a dead end. */
-  useEffect(() => {
-    if (!returning.current || choosing || !theme.isTV) return;
-    returning.current = false;
-    if (!state.pickedId) return;
-    focusWhenPicked(controller, focusFrame, picked, state.pickedId, () => {scroller.current?.scrollToEnd({animated: true});});
-  }, [choosing, controller, state.pickedId, theme.isTV]);
-  useEffect(() => {
-    if (!theme.isTV || !state.pickedId || state.pending) return;
-    const keys = createTVKeyAdapter({source: tvKeySource});
-    const listener = TVEventHandler.addListener(raw => {
-      const event = keys.read(raw);
-      if (!event || event.phase !== 'press' || !['up', 'down'].includes(event.key)) return;
-      const active = registry.capture();
-      if (active?.regionId !== regionId || active.childId !== state.pickedId || !picked.current) return;
-      if (event.tag !== undefined && event.tag !== findNodeHandle(picked.current)) return;
-      controller.move(event.key === 'up' ? -1 : 1);
-    });
-    return () => listener?.remove();
-  }, [controller, regionId, registry, state.pending, state.pickedId, theme.isTV]);
-  /** Ruling C (step 7 item 4): a saved view that drops after an access change unmounts its row. On TV, focus that was
-   * on it goes to the row now in its place, the row above, or Add view, so it stays in the panel. As the shared
-   * replacement-refocus hook does: where focus was is read on the render that brings the change, while the old rows are
-   * still attached, and only a capture in this panel on a dropped row counts; nothing moves while the panel is covered,
-   * then or when the frame runs; and the frame moves nothing if focus has meanwhile attached somewhere else. */
-  const covered = useCovered(), coveredNow = useRef(covered);
-  coveredNow.current = covered;
-  const shownRows = useRef(state.rows), focusBefore = useRef<ReturnType<typeof registry.capture>>(undefined);
-  if (shownRows.current !== state.rows) focusBefore.current = theme.isTV ? registry.capture?.() : undefined;
-  useEffect(() => {
-    const before = shownRows.current, active = focusBefore.current;
-    shownRows.current = state.rows;focusBefore.current = undefined;
-    if (!theme.isTV || coveredNow.current || !controller.isCurrent() || !active || active.regionId !== regionId) return;
-    const kept = (row: {id: string}) => state.rows.some(value => value.id === row.id);
-    const on = (childId: string | undefined, row: {id: string}) => childId === row.id || !!childId?.startsWith(row.id + ':');
-    const lost = before.findIndex(row => !kept(row) && on(active.childId, row));
-    if (lost < 0) return;
-    const neighbor = before.slice(lost + 1).find(kept) ?? before.slice(0, lost).reverse().find(kept);
-    const elsewhere = () => {const now = registry.attachedFocus?.();return !!now && (now.regionId !== regionId || !before.some(row => !kept(row) && on(now.childId, row)));};
-    if (elsewhere()) return;
-    const frame = requestAnimationFrame(() => {
-      if (!controller.isCurrent() || coveredNow.current || elsewhere()) return;
-      focusTarget((neighbor && rowRefs.current.get(neighbor.id)) ?? addView.current);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [controller, regionId, registry, state.rows, theme.isTV]);
-  const rowHeight = theme.isTV ? 70 : 58;
-  /** One focus frame at a time, leased to the controller that asked for it. The lease is
-   * cancelled synchronously when this screen is torn down or handed a different controller, so a
-   * retained component can never run an old callback against its own `picked` ref, and the frame
-   * still re-checks that the same controller reports that exact row as picked. */
-  const focusFrame = useRef<Readonly<{controller: NativeHomeCustomizeController; id: number}> | undefined>(undefined);
-  useLayoutEffect(() => () => {
-    if (focusFrame.current) cancelAnimationFrame(focusFrame.current.id);
-    focusFrame.current = undefined;
-  }, [controller]);
-  const pickRow = (id: string) => {
-    if (!controller.pick(id)) return;
-    focusWhenPicked(controller, focusFrame, picked, id);
-  };
-  const rowsById = new Map(state.rows.map(row => [row.id, row]));
-  const displayed = state.pickupOrder ? state.pickupOrder.map(id => rowsById.get(id)!).filter(Boolean) : state.rows;
-  const targetIndex = state.rows.findIndex(row => row.id === state.pickedId), targetId = state.pickupOrder?.[targetIndex];
-  const targetY = targetId ? positions.get(targetId) : undefined;
-  const dragGeometry = (): readonly HomeDragRow[] => {
-    let top = theme.isTV ? 16 : 8;
-    return displayed.map(row => {
-      const height = heights.get(row.id) ?? rowHeight;
-      const slot = {id: row.id, top: positions.get(row.id) ?? top, height};
-      top = slot.top + height;
-      return slot;
-    });
-  };
-  const scrollGesture = useMemo(() => Gesture.Native(), []);
+  const theme = useTheme(), view = useHomeCustomize({controller, copy, i18n, onClose, onAddView, views, summary, notice, noticeAction, renderError, testID});
+  const {state, addView, resetButton, rowRefs, first, reload, cancelReset, picked, scroller, returning, reset, setReset, choosing, setChoosing, resetOwner, resetOpening, closeReset, confirmReset, firstView, heights, setHeights, positions, setPositions, blocked, returnToAdd, back, rowHeight, pickRow, displayed, targetY, dragGeometry, scrollGesture} = view;
   const rowList = <ScrollView ref={scroller} removeClippedSubviews={false} scrollEnabled={theme.isTV || !state.pickedId} contentContainerStyle={{paddingTop: theme.isTV ? 16 : 8, paddingBottom: 20}}>
     {displayed.map((row, index) => {
       const lifted = row.id === state.pickedId;
@@ -272,16 +122,3 @@ export function HomeCustomize({controller, copy, i18n, onClose, onAddView, views
   </>;
 }
 
-export function HomeSavedViewChoices({views, hasMore, i18n, onChoose, firstRef, summary, disabled}: {disabled?: boolean; views: readonly PersonalResource[]; hasMore?: boolean; summary: (view: PersonalResource) => string | undefined; firstRef?: React.RefObject<View | null>; i18n: Pick<I18n, 't'>; onChoose: (view: PersonalResource) => void}) {
-  const theme = useTheme();
-  const eligible = views.filter(view => view.kind === 'view' && view.status === 'ready' && !view.onHome && view.actions.includes('pin'));
-  return <ScrollView>{eligible.map((view, index) => {const detail = summary(view); return <Focusable ref={index === 0 ? firstRef : undefined} key={view.id} focusId={view.id} focusKind="row" disabled={disabled} onPress={() => onChoose(view)} style={{minHeight: theme.isTV ? 92 : undefined, paddingVertical: theme.isTV ? 12 : 20, paddingHorizontal: theme.isTV ? 20 : 0, flexDirection: 'row', alignItems: 'center', gap: 18}}>
-      <View style={{width: theme.isTV ? 52 : 36, height: theme.isTV ? 52 : 36, borderRadius: theme.isTV ? 13 : 9, alignItems: 'center', justifyContent: 'center', backgroundColor: `${theme.colors.text}1A`}}><Icon name="i-filter" size={theme.isTV ? 28 : 20} color={theme.colors.textSecondary}/></View><View style={{flex: 1}}>
-      <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{view.name}</Text>
-      {!!detail && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{detail}</Text>}</View>
-    </Focusable>;})}{!eligible.length && !hasMore && <View style={{paddingVertical: 30, alignItems: 'center', gap: 8}}>
-      <View style={{width: theme.isTV ? 52 : 44, height: theme.isTV ? 52 : 44, borderRadius: theme.isTV ? 14 : 11, alignItems: 'center', justifyContent: 'center', backgroundColor: `${theme.colors.text}1A`}}><Icon name="i-filter" size={theme.isTV ? 26 : 20} color={theme.colors.textSecondary}/></View>
-      <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{i18n.t('next.home.noViewsTitle')}</Text>
-      <Text style={[theme.type.caption, {color: theme.colors.textSecondary, textAlign: 'center'}]}>{i18n.t('next.home.noViewsBody')}</Text>
-    </View>}</ScrollView>;
-}
