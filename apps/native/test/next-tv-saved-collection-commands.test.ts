@@ -12,7 +12,7 @@ async function fixture() {
   const h = hooks(), react = {...h.react, useId: () => 'resource-instance', useLayoutEffect() {}}; react.default = react;
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
   const theme = {isTV: true, gutter: 96, textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#222', line: '#333'}, type: {body: {}, caption: {}}};
-  const {SavedResourceScreen} = await screenModule(new URL('../src-next/screens/saved/SavedResourceScreen.tsx', import.meta.url), {'./paging': pagingModule, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, '../../../../../packages/client-core/src/saved': savedCore, './SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'}, './SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, 
+  const {SavedResourceScreen} = await screenModule(new URL('../src-next/screens/saved/SavedResourceScreen.tsx', import.meta.url), {'./paging': pagingModule, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, '../../../../../packages/client-core/src/saved': savedCore, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'}, '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 1920, height: 1080})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, has: () => true}},
@@ -24,7 +24,7 @@ async function fixture() {
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: () => '', browseType: () => ({})},
     '../../kit/theme': {useTheme: () => theme}, '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)},
     '../destinations/focus': {nativeDestinationFocusIds: () => ({rail: 'rail'})}, '../home/model': {homeCardText: () => ({})},
-    './SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../read/platform': {isReadingLibraryKind: () => false},
+    '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../read/platform': {isReadingLibraryKind: () => false},
     './presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [], savedDuration: String,
       savedItemCount: String, savedLibraryName: () => 'Movies', savedPlaylistEyebrow: 'Playlist', savedResourceEyebrow: () => 'Collection',
       savedTitleCount: String, savedViewConditionCount: () => 0, savedVisibility: () => ({text: 'Private'}), savedVisibilityHelp: () => ''},

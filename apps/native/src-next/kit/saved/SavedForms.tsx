@@ -1,12 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button, Focusable, Switch, TextField} from '../../kit/controls';
-import {FocusRegion, useFocusRegistry} from '../../kit/focus';
-import {browseType} from '../../kit/browse/presentation';
-import {NativeTVKeyboard} from '../search/TVKeyboard';
-import {Banner, BottomSheet, Dialog, SidePanel, type FocusRef} from '../../kit/overlays';
-import {useTheme} from '../../kit/theme';
+import {Button, Focusable, Switch, TextField} from '../controls';
+import {FocusRegion, useFocusRegistry} from '../focus';
+import {browseType} from '../browse/presentation';
+import {NativeTVKeyboard} from '../../screens/search/TVKeyboard';
+import {Banner, BottomSheet, Dialog, SidePanel, type FocusRef} from '../overlays';
+import {useTheme} from '../theme';
 import type {PersonalVisibility} from '../../../../../packages/client-core/src/personal-saved';
 
 const t = defaultI18n.t;
@@ -47,7 +47,7 @@ function SavedPhoneNameSheet(props: SavedNameSheetProps) {
   }, [props.open, props.initialName, props.initialSummary, props.initialVisibility]);
   const save = () => {if (!props.busy && name.trim()) props.onSave({name: name.trim(), summary: summary.trim(), visibility});};
   return <BottomSheet open={props.open} onOpenChange={open => {if (!open && !props.busy) props.onClose();}} testID={props.testID}
-    title={props.title} initialFocusRef={input} returnFocusRef={props.returnFocusRef} showClose={false} fitContent keyboardAvoiding
+    title={props.title} initialFocusRef={input} returnFocusRef={props.returnFocusRef} showClose={false} fitContent keyboardAvoiding contentStyle={{paddingHorizontal: theme.gutter}}
     dismissOnBack={!props.busy} dismissOnOutsidePress={!props.busy} dismissOnGesture={!props.busy}
     footer={<View style={{flexDirection: 'row', gap: 12}}>
       <Button testID={`${props.testID}-cancel`} focusId={`${props.testID}-cancel`} variant="glass" disabled={props.busy} onPress={props.onClose} style={{flex: 1}}>{t('action.cancel')}</Button>
@@ -61,7 +61,7 @@ function SavedPhoneNameSheet(props: SavedNameSheetProps) {
       {props.withSummary && <TextField testID={`${props.testID}-summary`} focusId={`${props.testID}-summary`} label={t('web.saved.summary')} value={summary}
         onChangeText={setSummary} editable={!props.busy && !props.locked} maxLength={4000} multiline/>}
       {props.withVisibility && <View style={{gap: 6}}>
-        <Switch checked={visibility === 'server'} onCheckedChange={next => setVisibility(next ? 'server' : 'private')} disabled={props.busy || props.locked}>{t('web.saved.visibleToAll')}</Switch>
+        <Switch testID={`${props.testID}-visibility`} checked={visibility === 'server'} onCheckedChange={next => setVisibility(next ? 'server' : 'private')} disabled={props.busy || props.locked}>{t('web.saved.visibleToAll')}</Switch>
         <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t(visibility === 'server' ? 'web.saved.sharedHelp' : 'web.saved.privateHelp')}</Text>
       </View>}
     </View>

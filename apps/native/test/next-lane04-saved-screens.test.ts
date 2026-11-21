@@ -11,6 +11,7 @@ const i18n = {t: (key: string, values?: any) => ['web.group.ownOrder', 'next.sav
   number: String, bytes: String, list: (items: string[]) => items.join(', '), date: String};
 const palette = {ink: '#000000', text: '#ffffff', textSecondary: '#cccccc', textTertiary: '#999999', raised: '#111111', raisedBright: '#222222', line: '#333333', lineStrong: '#444444', accent: '#0088cc', accentStrong: '#0099dd'};
 const theme = (phone = true) => ({isTV: false, platform: phone ? 'phone' : 'tablet', gutter: 20, colors: palette, type: {}, reduceMotion: true,
+  space: {xs: 4, sm: 10, lg: 28},
   spec: {shelf: {phonePaddingTop: 6, phonePaddingBottom: 8, gap: {phone: 12, tablet: 12}, marginTop: {phone: 28, tablet: 28}}}});
 function fixture(phone = true) {
   const host = hooks(), react: any = {...host.react, useLayoutEffect() {}, useId: () => 'saved-resource'}; react.default = react;
@@ -26,9 +27,9 @@ function fixture(phone = true) {
     '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Menu: 'Menu', ToastHost: 'ToastHost'},
     '../../shell/model': {sameAuthority: (a: any, b: any) => a === b}, '../destinations/focus': {nativeDestinationFocusIds: () => ({rail: 'rail'})},
     '../home/model': {homeCardText: () => ({caption: []})}, '../read/platform': {isReadingLibraryKind: () => false},
-    './SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, './SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'},
+    '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'},
     '../../../../../packages/client-core/src/saved': savedCore, 
-    './SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, './paging': {savedNearEnd},
+    '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, './paging': {savedNearEnd},
     './presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [], savedDuration: String,
       savedItemCount: String, savedLibraryName: () => undefined, savedPlaylistEyebrow: 'playlist', savedResourceEyebrow: () => 'collection',
       savedTitleCount: String, savedViewCount: String, savedViewConditionCount: () => 1, savedVisibility: () => undefined, savedVisibilityHelp: () => ''},
@@ -54,7 +55,10 @@ const authority = {}, runtime = {reportError: (error: unknown) => {throw error;}
 // These tests invoke rendered controls and inspect their actual callback arguments,
 // rather than searching implementation text for the expected strings.
 test('Saved SortMenu offers all fields and only dispatches their explicit offered directions', async () => {
-  const f = fixture(), {SavedSortMenu} = await f.load('saved/SavedSortMenu'), changes: unknown[] = [];
+  const f = fixture(), changes: unknown[] = [];
+  const {SavedSortMenu} = await screenModule(new URL('../src-next/kit/saved/SavedSortMenu.tsx', import.meta.url), {
+    react: f.modules.react, '../browse': f.modules['../../kit/browse'], '../../screens/home/browse-label': f.modules['../home/browse-label'],
+  });
   const menu = f.host.render(() => SavedSortMenu({sorts: projection.sorts, sort: 'title', direction: 'desc', scope: 'saved', onChange: (...args: unknown[]) => changes.push(args)}));
   assert.equal(menu.type, 'SortMenu'); assert.deepEqual(menu.props.sorts.map((value: any) => value.id), ['title', 'added']);
   assert.deepEqual(menu.props.value, {field: 'title', direction: 'desc', flippable: true, reshufflable: false});
@@ -81,18 +85,56 @@ test('Tablet Saved changes all seven tabs locally and retains its own chrome', a
 });
 
 test('Saved list carries selection to cards and prefetches before its loaded end', async () => {
-  const f = fixture(false), {SavedListScreen} = await f.load('saved/SavedListScreen'), calls: unknown[] = [], picked = {active: false, selected: false, onEnter() {}, onToggle() {}};
+  const f = fixture(false), calls: unknown[] = [], picked = {active: false, selected: false, onEnter() {}, onToggle() {}};
+  const bodyHost = hooks();
+  const kit = await screenModule(new URL('../src-next/kit/saved/SavedListParts.tsx', import.meta.url), {
+    react: bodyHost.react, 'react-native': f.modules['react-native'], 'react-native-safe-area-context': f.modules['react-native-safe-area-context'],
+    '../../screens/home/model': {savedCardText: () => ({caption: []})}, '../../screens/saved/paging': {savedNearEnd},
+    '../../../../../packages/client-core/src/presentation/card-shape': await import('../../../packages/client-core/src/presentation/card-shape.ts'),
+    '../../pages/shared/saved/useTVSavedPage': {dayLabel: () => 'Today', clock: () => undefined, historyLine: () => ''},
+    '../artwork': {MediaArt: 'MediaArt'}, '../cards/primitives': {CardAction: 'CardAction', CardFrame: 'CardFrame'}, '../selection': {SelectionCircle: 'SelectionCircle'},
+    '../browse': {ChipRail: 'ChipRail'}, '../cards': f.modules['../../kit/cards'], '../cards/caption-metrics': {cardCaptionHeight: () => 60},
+    '../theme': {useTheme: () => ({...f.modules['../../kit/theme'].useTheme(), targets: {touch: 44}})}, './SavedLoading': f.modules['../../kit/saved/SavedLoading'],
+    '@portico/design': {frameSpec: {browse: {grid: {columnGap: {phone: 12}, rowGap: {phone: 20}}}}},
+    '../frames/BrowseFrame': {browseGridCard: () => ({width: 110, columns: 3})},
+    '../frames/metrics': {useFrameMetrics: () => ({form: 'phone', width: 390, gutter: 20, rightGutter: 20})},
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/saved/useSavedList.ts', import.meta.url), {
+    react: f.modules.react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../screens/saved/presentation': f.modules['./presentation'],
+  });
+  const {SavedListPage} = await screenModule(new URL('../src-next/pages/touch/saved/SavedListPage.tsx', import.meta.url), {
+    react: f.modules.react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../kit/controls': f.modules['../../kit/controls'], '../../../kit/frames': {BrowseFrame: 'BrowseFrame'},
+    '../../../kit/saved/SavedListParts': kit, '../../../kit/saved/SavedSortMenu': f.modules['../../kit/saved/SavedSortMenu'],
+    '../../../kit/states': f.modules['../../kit/states'], '../../../kit/theme': f.modules['../../kit/theme'], '../../shared/saved/useSavedList': model,
+  });
   const snapshot = {phase: 'ready', saved: {projection}}, destination = {subscribe: () => () => {}, getSnapshot: () => snapshot,
     select: async (route: unknown) => {calls.push(route);}, next: async (section: string) => {calls.push(section);}};
   const props = {route: {view: 'favorites', shape: 'squares'}, destination, activation, runtime, actions: {}, back() {}, inline: true,
     selection: {item: () => picked, start() {}, render: () => 'selection'}};
-  const tree = f.host.render(() => SavedListScreen(props)), card = nodes(tree).find(node => node.type?.name === 'SavedListCard');
+  const page = f.host.render(() => SavedListPage(props));
+  assert.equal(page.type, kit.SavedListBody, 'inline Favorites does not draw a second header');
+  const tree = bodyHost.render(() => kit.SavedListBody(page.props));
+  const card = nodes(tree).find(node => node.type?.name === 'SavedListCard');
   assert.equal(card.props.selection, picked); assert.equal(find(tree, 'saved-list-back'), undefined);
-  nodes(tree).find(node => node.type === 'SavedSortMenu').props.onChange('added', 'desc');
+  const toolbar = nodes(tree).find(node => node.type === kit.SavedListTools);
+  const rail = nodes(kit.SavedListTools(toolbar.props)).find(node => node.type === 'ChipRail');
+  assert.ok(rail, 'Saved tabs use the shared fading chip rail');
+  nodes(rail).find(node => node.type === 'SavedSortMenu').props.onChange('added', 'desc');
   assert.deepEqual(calls[0], {view: 'favorites', shape: 'squares', sort: 'added', direction: 'desc', filter: 'all'});
   const scroll = nodes(tree).find(node => node.type === 'ScrollView' && !node.props.horizontal);
   scroll.props.onLayout({nativeEvent: {layout: {height: 600}}}); scroll.props.onContentSizeChange(900, 2600);
   assert.equal(calls.length, 1); scroll.props.onScroll({nativeEvent: {contentOffset: {y: 1600}}}); assert.equal(calls[1], 'items');
+  const song = {id: 'song-a', kind: 'song', title: 'A long song title that must wrap in the list'};
+  const history = [{id: 'play-1', media: song, updatedAt: '2026-11-21T08:00Z'}, {id: 'play-2', media: entry, updatedAt: '2026-11-21T07:00Z'}];
+  const historySnapshot = {phase: 'ready', personal: {entries: history, nextCursor: ''}};
+  const historyPage = f.host.render(() => SavedListPage({...props, route: {view: 'history'}, destination: {...destination, getSnapshot: () => historySnapshot}}));
+  const historyTree = bodyHost.render(() => kit.SavedListBody(historyPage.props));
+  const rows = nodes(historyTree).filter(node => node.type?.name === 'SavedHistoryRow');
+  assert.deepEqual(rows.map(node => node.props.item.media), [song, entry]);
+  assert.equal(nodes(historyTree).filter(node => node.props.accessibilityRole === 'header').length, 1);
+  assert.equal(nodes(historyTree).some(node => node.type?.name === 'SavedListCard'), false);
 });
 
 test('Saved resource menus keep membership commands beside canonical selection, and manual reorder commits guarded occurrence IDs', async () => {
@@ -130,7 +172,10 @@ test('Saved delayed initial skeleton retains its shape and adds the quiet line a
   const f = fixture(), cleanups: Array<() => void> = []; let effect = false;
   f.modules.react.useEffect = (run: () => () => void) => {if (!effect) {effect = true; cleanups.push(run());}};
   context.mock.timers.enable({apis: ['setTimeout']});
-  const {SavedLoading} = await f.load('saved/SavedLoading');
+  const {SavedLoading} = await screenModule(new URL('../src-next/kit/saved/SavedLoading.tsx', import.meta.url), {
+    react: f.modules.react, 'react-native': f.modules['react-native'], '../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../states': f.modules['../../kit/states'], '../theme': f.modules['../../kit/theme'], '../layout/page-inset': {usePageWidth: () => 390},
+  });
   let tree = f.host.render(() => SavedLoading({kind: 'resource'}));
   const boundary = nodes(tree).find(node => node.type === 'LoadingBoundary'); assert.equal(boundary.props.ready, false);
   assert.ok(nodes(boundary.props.skeleton).some(node => node.type === 'SkeletonBlock' && node.props.width === 152 && node.props.height === 152));
@@ -140,11 +185,34 @@ test('Saved delayed initial skeleton retains its shape and adds the quiet line a
 });
 
 test('Phone playlist directory exposes the producer pin and the shared field/direction picker', async () => {
-  const f = fixture(), {SavedDirectoryScreen} = await f.load('saved/SavedDirectoryScreen'), calls: unknown[] = [];
+  const f = fixture(), calls: unknown[] = [];
+  const kit = await screenModule(new URL('../src-next/kit/saved/SavedDirectoryParts.tsx', import.meta.url), {
+    react: f.modules.react, 'react-native': f.modules['react-native'], 'react-native-safe-area-context': f.modules['react-native-safe-area-context'],
+    '../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../screens/saved/paging': {savedNearEnd},
+    '../artwork': f.modules['../../kit/artwork'], '../controls': f.modules['../../kit/controls'], '../Icon': f.modules['../../kit/Icon'],
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../theme': f.modules['../../kit/theme'], '../browse/presentation': f.modules['../../kit/browse/presentation'],
+    './SavedLoading': f.modules['../../kit/saved/SavedLoading'],
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/saved/useSavedDirectory.ts', import.meta.url), {
+    react: f.modules.react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../../../../packages/client-core/src/presentation/errors': f.modules['../../../../../packages/client-core/src/presentation/errors'],
+    '../../../screens/saved/presentation': f.modules['./presentation'],
+  });
+  const {SavedDirectoryPage} = await screenModule(new URL('../src-next/pages/touch/saved/SavedDirectoryPage.tsx', import.meta.url), {
+    react: f.modules.react, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../kit/controls': f.modules['../../kit/controls'], '../../../kit/frames': {BrowseFrame: 'BrowseFrame'},
+    '../../../kit/layout/TopBar': {TopBar: 'TopBar'}, '../../../kit/overlays': f.modules['../../kit/overlays'],
+    '../../../kit/saved/SavedDirectoryParts': kit, '../../../kit/saved/SavedForms': f.modules['../../kit/saved/SavedForms'],
+    '../../../kit/saved/SavedListParts': {SavedListTools: 'SavedListTools'}, '../../../kit/saved/SavedSortMenu': f.modules['../../kit/saved/SavedSortMenu'],
+    '../../../kit/states': f.modules['../../kit/states'], '../../shared/saved/useSavedDirectory': model,
+  });
   const playlist = {kind: 'playlist', id: 'p', title: 'Pinned playlist', count: 2, pinned: true, artworkPaths: []};
   const snapshot = {phase: 'ready', saved: {projection: {...projection, sections: [{id: 'playlists', entries: [playlist], nextCursor: '', totalCount: 1}]}, pagination: {next: []}}};
-  const tree = f.host.render(() => SavedDirectoryScreen({route: {view: 'playlists'}, activation, runtime, libraries: [], actions: {}, back() {}, open() {},
+  const page = f.host.render(() => SavedDirectoryPage({route: {view: 'playlists'}, activation, runtime, libraries: [], back() {}, open() {},
     destination: {subscribe: () => () => {}, getSnapshot: () => snapshot, select: async (route: unknown) => {calls.push(route);}}}));
+  assert.equal(page.type, 'BrowseFrame'); assert.equal(page.props.header.back.testID, 'saved-directory-back');
+  const tree = f.host.render(() => kit.SavedDirectoryBody(page.props.grid.props));
   const row = nodes(tree).find(node => node.type?.name === 'SavedDirectoryRow'); assert.equal(row.props.pinned, true);
   nodes(tree).find(node => node.type === 'SavedSortMenu').props.onChange('added', 'desc');
   assert.deepEqual(calls, [{view: 'playlists', sort: 'added', direction: 'desc', filter: 'all'}]);
