@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {lifecycleHooks} from './helpers/owner-server-settings.mjs';
 import {nativeServerHost} from '../src-next/shell/model';
 
 const {react} = hooks();
@@ -9,8 +10,8 @@ const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/scre
   react, 'react-native': {},
   '../accounts/AccountRoutes': {ProfileRoute: 'ProfileRoute'},
   './NativeAccountSecurityPanels': {NativeAccountSecurityPanel: 'NativeAccountSecurityPanel'},
-  './DeviceAboutPanel': {DeviceAboutPanel: 'DeviceAboutPanel'},
-  './AllowedDevicesPanel': {AllowedDevicesPanel: 'AllowedDevicesPanel'},
+  '../../pages/shared/settings/DeviceAboutRows': {DeviceAboutRows: 'DeviceAboutRows'},
+  '../../pages/tv/settings/AllowedDevicesRows': {AllowedDevicesRows: 'AllowedDevicesRows'},
   './NativeConnectionRows': {NativeConnectionStatusRow: 'NativeConnectionStatusRow', NativeConnectionAddressRow: 'NativeConnectionAddressRow', NativeTestConnectionRow: 'NativeTestConnectionRow', NativeInsecureConnectionsRow: 'NativeInsecureConnectionsRow'},
   './owner-libraries/IntroCreditsReview': {IntroCreditsReview: 'IntroCreditsReview'},
   '../../../../../packages/client-core/src/installation': {installationIdentity: () => undefined},
@@ -74,4 +75,37 @@ test('the enabled security panels receive their exact kind and Settings dependen
     assert.equal(element.props.lifetime, deps.lifetime);
     assert.equal(element.props.runtime, runtime);
   }
+});
+
+test('a retained TV device row cannot forget a device from a previous sign-in', async t => {
+  const host = lifecycleHooks(), forgotten: string[] = [];
+  t.after(() => host.dispose());
+  let sessionFamilyId = 'first';
+  const context = {session: () => ({viewer: {serverId: 'server', accountId: 'account'}, sessionFamilyId})};
+  const lifetime = {current: () => true};
+  const module = await screenModule(new URL('../src-next/pages/shared/settings/useAllowedDevices.ts', import.meta.url), {
+    react: host.react, '../../../platform/play-on/receiver-allowed-storage': {
+      receiverAllowedDevices: async (scope: string) => ({
+        list: () => [{signInId: scope, name: scope}],
+        subscribe: () => () => undefined,
+        forget: (id: string) => forgotten.push(id),
+      }),
+    },
+  });
+  const render = () => host.render(() => module.useAllowedDevices({context, lifetime}));
+  render();
+  host.flush();
+  await Promise.resolve();
+  const first = render();
+  assert.equal(first.devices[0].signInId, 'server:account:first');
+  sessionFamilyId = 'second';
+  first.forget('server:account:first');
+  assert.deepEqual(forgotten, []);
+  assert.deepEqual(render().devices, []);
+  host.flush();
+  await Promise.resolve();
+  const second = render();
+  assert.equal(second.devices[0].signInId, 'server:account:second');
+  second.forget(second.devices[0].signInId);
+  assert.deepEqual(forgotten, ['server:account:second']);
 });

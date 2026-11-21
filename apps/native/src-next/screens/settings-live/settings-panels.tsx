@@ -1,7 +1,7 @@
 import {ProfileRoute} from '../accounts/AccountRoutes';
 import {NativeAccessTokensPanel, NativeAccountSecurityPanel} from './NativeAccountSecurityPanels';
-import {DeviceAboutPanel} from './DeviceAboutPanel';
-import {AllowedDevicesPanel} from './AllowedDevicesPanel';
+import {DeviceAboutRows} from '../../pages/shared/settings/DeviceAboutRows';
+import {AllowedDevicesRows} from '../../pages/tv/settings/AllowedDevicesRows';
 import {NativeConnectionAddressRow, NativeConnectionStatusRow, NativeInsecureConnectionsRow, NativeTestConnectionRow} from './NativeConnectionRows';
 import {IntroCreditsReview} from './owner-libraries/IntroCreditsReview';
 import React, {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
@@ -199,10 +199,10 @@ export function renderNativeSettingsPanel(id: SettingsCustomId, deps: NativeSett
     case 'accessTokens': return <NativeAccessTokensPanel {...deps} runtime={_runtime}/>;
     case 'servers': return <ServersPanel {...deps}/>;
     case 'porticoAccount': return <PorticoAccountPanel {...deps}/>;
-    case 'about': return <DeviceAboutPanel {...deps} runtime={_runtime}/>;
+    case 'about': return <DeviceAboutRows {...deps} runtime={_runtime}/>;
     case 'privacyNote': return <PrivacyNotePanel {...deps}/>;
     case 'remoteControls': return <RemoteControlsPanel {...deps}/>;
-    case 'allowedDevices': return <AllowedDevicesPanel {...deps}/>;
+    case 'allowedDevices': return <AllowedDevicesRows {...deps}/>;
     case 'equalizer': return <SettingsRow first testID="settings-panel-equalizer" label={deps.t('next.settingsSpec.account.music.groups.0.rows.3.label')} onPress={() => deps.openRoute({kind: 'settings-equalizer'})}/>;
     default: return undefined;
   }
