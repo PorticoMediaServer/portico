@@ -69,29 +69,26 @@ test('an unavailable Room occurrence keeps its unavailable queue-sheet title and
   const group = roomFixture({queue: [{entryId: 'redacted', available: false}]}), state = {phase: 'live', group};
   const controller = {serverNow: () => Date.now(), getSnapshot: () => state, currentGroup: () => group,
     lifetime: {authority: {}, current: () => true}};
-  const {NativeTogetherTVRoom} = await screenModule(new URL('../src-next/screens/settings-live/TogetherTVRoom.tsx', import.meta.url), {
-    react, 'react-native': {FlatList: 'FlatList', Text: 'Text', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t, clock: String, time: String}},
-    '../../../../../packages/client-core/src/room-protocol': protocol,
-    '../../../../../packages/client-core/src/presentation/kit-model': {},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useOptionalFocusRegistry: () => undefined},
-    '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/artwork': {Artwork: 'Artwork', ProfileFace: 'ProfileFace'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/shell/visual': {alpha: () => '', shellType: () => ({})}, '../../kit/theme': {useTheme: () => ({colors: {}})},
-    '../../shell/model': {sameAuthority: () => false}, '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})},
-    './group-port': {groupPort: () => undefined}, './Screen': {Screen: 'Screen', useScreenEntry: () => undefined}, './together-presentation': {memberNames},
+  // The TV room's logic (pages/shared/together/useTogetherTVRoom): the page passes the row and the menu as they are given.
+  const {useTogetherTVRoom} = await screenModule(new URL('../src-next/pages/shared/together/useTogetherTVRoom.ts', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n: {t, clock: String, time: String}},
+    '../../../../../../packages/client-core/src/room-protocol': protocol,
+    '../../../../../../packages/client-core/src/presentation/kit-model': {}, '../../../../../../packages/client-core/src/timer': {repeat: () => ({stop() {}})},
+    '../../../kit/focus': {useOptionalFocusRegistry: () => undefined},
+    '../../../shell/model': {sameAuthority: () => false}, '../../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})},
+    '../../../screens/settings-live/group-port': {groupPort: () => undefined}, '../../../screens/settings-live/Screen': {useScreenEntry: () => undefined},
+    '../../../screens/settings-live/together-presentation': {memberNames},
   });
   const playback = {subscribe: () => () => {}, getSnapshot: () => ({playback: {}})};
-  const media = {subscribe: () => () => {}, getSnapshot: () => ({items: {}})};
+  const media = {subscribe: () => () => {}, getSnapshot: () => ({items: {}}), select: () => {}};
   const runtime = {text: {t}, artwork: () => undefined, getSnapshot: () => ({profile: {}})};
-  const render = () => h.render(() => NativeTogetherTVRoom({state, group, controller, media, runtime,
-    ports: {context: {playback, navigation: {getSnapshot: () => ({route: {kind: 'together'}})}}}}));
-  const queue = nodes(render()).find(node => node.type === 'FlatList' && node.props.data === group.queue);
-  assert(queue);
-  const row = queue.props.renderItem({item: group.queue[0], index: 0});
-  assert.equal(row.props.accessibilityLabel, 'web.together.notAvailable');
-  row.props.onPress();
-  const menu = nodes(render()).find(node => node.props?.testID === 'together-queue-menu');
-  assert.equal(menu.props.open, true);
-  assert.equal(menu.props.title, 'web.together.notAvailable');
-  assert.deepEqual(menu.props.items.map((item: any) => item.id), ['remove']);
+  const ports = {context: {playback, navigation: {getSnapshot: () => ({route: {kind: 'together'}})}}};
+  const render = () => h.render(() => useTogetherTVRoom({state, group, controller, media, runtime, ports}));
+  const row = render().queueRow(group.queue[0], 0);
+  assert.equal(row.title, 'web.together.notAvailable');
+  row.onPress();
+  const room = render();
+  assert.equal(room.queueMenu, 'redacted');
+  assert.equal(room.queueMenuTitle, 'web.together.notAvailable');
+  assert.deepEqual(room.queueMenuItems.map((item: any) => item.id), ['remove']);
 });
