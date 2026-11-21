@@ -14,6 +14,8 @@ import {TVRow} from '../layout/TVRow';
 import {SelectionCircle} from '../selection';
 import {alpha} from '../browse/presentation';
 import {useTheme} from '../theme';
+import {FiltersButton, SortButton, ViewToggle} from '../browse/Toolbar';
+import {sortDirectionKind} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
 
 const t = defaultI18n.t;
 export const savedShelfWidth = {poster: 118, square: 132};
@@ -132,20 +134,24 @@ export function SavedGrid({columns, onWidth, children}: {columns: number; onWidt
 }
 
 export function SavedGridControls({filter, sort, select, list, onList, count}: {
-  filter?: Readonly<{anchor: RefObject<View | null>; open: () => void}>;
-  sort?: Readonly<{anchor: RefObject<View | null>; open: () => void}>;
+  filter?: Readonly<{anchor: RefObject<View | null>; open: () => void; isOpen: boolean}>;
+  sort?: Readonly<{anchor: RefObject<View | null>; open: () => void; isOpen: boolean; label?: string;
+    /** The order's field and direction, said as the library says it ('Newest first'). */ detail?: Readonly<{field: string; direction: 'asc' | 'desc'}>}>;
   select?: () => void; list: boolean; onList: (value: boolean) => void; count?: string;
 }) {
+  // tablet 11: the library toolbar's own parts. Filters and Sort (reading the current order) at the start; the count, grid or
+  // list, and Select last (owner, 18 Nov) at the end.
   const theme = useTheme();
   return <View style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.space.xs,
     marginHorizontal: theme.gutter, marginTop: theme.space.sm}}>
-    {filter && <Chip ref={filter.anchor} testID="saved-my-list-filters" icon="i-filter" onPress={filter.open}>{t('next.browse.native.filters')}</Chip>}
-    {sort && <Chip ref={sort.anchor} testID="saved-my-list-sort" icon="i-sort" trailingIcon="i-down" onPress={sort.open}>{t('next.browse.native.sort')}</Chip>}
-    {select && <Chip testID="saved-my-list-select" icon="i-check" onPress={select}>{t('next.selection.select')}</Chip>}
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight, marginLeft: 'auto'}}>
-      <Chip testID="saved-my-list-grid" accessibilityLabel={t('next.browse.native.grid')} icon="i-grid" selected={!list} onPress={() => onList(false)}/>
-      <Chip testID="saved-my-list-list" accessibilityLabel={t('next.browse.native.list')} icon="i-list" selected={list} onPress={() => onList(true)}/>
+    {filter && <FiltersButton anchorRef={filter.anchor} testID="saved-my-list-filters" open={filter.isOpen} onPress={filter.open}/>}
+    {sort && <SortButton anchorRef={sort.anchor} testID="saved-my-list-sort" open={sort.isOpen} onPress={sort.open} label={sort.label}
+      detail={sort.detail && t('web.filters.direction', {kind: sortDirectionKind(sort.detail.field), dir: sort.detail.direction})}/>}
+    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, marginLeft: 'auto'}}>
       {count && <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{count}</Text>}
+      <ViewToggle value={list ? 'list' : 'grid'} onValueChange={value => onList(value === 'list')}
+        itemProps={value => ({testID: value === 'list' ? 'saved-my-list-list' : 'saved-my-list-grid'})}/>
+      {select && <Chip testID="saved-my-list-select" icon="i-check" onPress={select}>{t('next.selection.select')}</Chip>}
     </View>
   </View>;
 }

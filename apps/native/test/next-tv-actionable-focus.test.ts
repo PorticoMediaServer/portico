@@ -247,9 +247,11 @@ for (const kind of ['library', 'home'] as const) test(`${kind} actual sort overl
     sorts: [{id: 'title', directions: ['asc', 'desc'], defaultDirection: 'asc'}, {id: 'added', directions: ['desc'], defaultDirection: 'desc'}],
     value: {field: 'title', direction: 'asc', flippable: true}, label: (value: any) => value.id, onValueChange: () => {changes++;}, onReshuffle() {}};
   const source = createFabricHookHost(() => {tree = component(props);}); await source.mount();
-  const anchor = nodes(tree).find(node => node.type === b.Focusable).props.ref;
+  // The library's sort draws its own trigger; the kit's Sort menu draws the kit SortButton (its ref is the opener).
+  const trigger = () => nodes(tree).find(node => node.type === b.Focusable || node.type?.name === 'SortButton');
+  const anchor = trigger().props.ref ?? trigger().props.anchorRef;
   let restored = 0; anchor.current = {nativeTag: 800, requestTVFocus() {restored++;}, measureInWindow: (fn: any) => fn(0, 0, 40, 40)};
-  nodes(tree).find(node => node.type === b.Focusable).props.onPress(); await source.rerender();
+  trigger().props.onPress(); await source.rerender();
   let popover = nodes(tree).find(node => node.type === o.menu.Popover);
   const renderer = createFabricHookHost(() => {overlay = tvPopover(o, popover.props);}); await renderer.mount(); await renderer.flush();
   const boundary = nodes(overlay).find(node => node.type === o.surface.FocusBoundary), actual = boundary.type(boundary.props);

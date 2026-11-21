@@ -32,10 +32,13 @@ export async function savedFixture(kind, old) {
       }
     }
   }
-  const hook = await load(`pages/shared/saved/${hookName}.ts`, hookBindings);
+  const hook = await load(`pages/shared/saved/${hookName}.ts`, {...hookBindings,
+    '../../../../../../packages/client-core/src/presentation/browse-toolbar': await import('../../../../packages/client-core/src/presentation/browse-toolbar.ts')});
   const parts = downloads ? 'DownloadInventory' : tv ? 'TVSavedParts' : 'SavedParts';
   kitBindings[`../../pages/shared/saved/${hookName}`] = hook;
-  const kit = await load(`kit/saved/${parts}.tsx`, kitBindings);
+  // The touch My List toolbar is the library toolbar's own parts (kit/browse/Toolbar).
+  const kit = await load(`kit/saved/${parts}.tsx`, {...kitBindings, '../browse/Toolbar': {FiltersButton: 'FiltersButton', SortButton: 'SortButton', ViewToggle: 'ViewToggle'},
+    '../../../../../packages/client-core/src/presentation/browse-toolbar': {sortDirectionKind: () => 'date'}});
   const page = await load(`pages/${tv ? 'tv' : 'touch'}/saved/${downloads ? 'Downloads' : 'Saved'}Page.tsx`, {
     ...pageBindings, '../../../kit/frames': {BrowseFrame: pageName},
     ...(tv ? {'./SavedDirectoryPage': old['./SavedDirectoryPage']} : {}),

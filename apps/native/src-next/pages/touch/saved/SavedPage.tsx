@@ -18,7 +18,7 @@ export function SavedPage(props: SavedPageProps) {
   const page = useSavedPage(props);
   const {active, tablet, snapshot, deviceState, admitted, documentFacts, transportFailure, retainedDocument, report,
     savedTab, chooseTab, tabItems, downloadsOpen, otherTab, scroll, pull, viewport, nextPosters, nextShelf,
-    myListColumns, gridWidth, setGridWidth, listMode, setListMode, filterRef, sortRef, filterOpen, setFilterOpen, sortOpen, setSortOpen,
+    myListColumns, gridWidth, setGridWidth, listMode, setListMode, filterRef, sortRef, filterOpen, setFilterOpen, sortOpen, setSortOpen, sortLabel, sortDetail,
     posterProjection, posterEntries, squareEntries, summary, myListCount, filterOptions, sortItems, filterItems, applyMyList, localGroups, rows, showDownloads} = page;
   const loading = snapshot.phase === 'idle' || snapshot.phase === 'loading';
   const itemSelection = admitted ? selection?.item : undefined;
@@ -26,11 +26,15 @@ export function SavedPage(props: SavedPageProps) {
 
   const myList = tablet ? <>
     <SavedGridControls list={listMode} onList={setListMode} count={myListCount === undefined ? undefined : t('count.titles', {count: myListCount})}
-      filter={admitted ? {anchor: filterRef, open: () => setFilterOpen(true)} : undefined}
-      sort={admitted ? {anchor: sortRef, open: () => setSortOpen(true)} : undefined}
+      filter={admitted ? {anchor: filterRef, open: () => setFilterOpen(true), isOpen: filterOpen} : undefined}
+      sort={admitted ? {anchor: sortRef, open: () => setSortOpen(true), isOpen: sortOpen, label: sortLabel, detail: sortDetail} : undefined}
       select={admitted && selection?.start ? () => selection.start?.(snapshot.myList) : undefined}/>
-    {!!filterOptions.length && <SavedShelf>{filterOptions.map(option => <Chip key={`${option.field}:${option.id}`} variant="quick"
-      selected={posterProjection?.query.category === option.id} count={option.count} onPress={() => applyMyList({filter: option.id as SavedListFilter})}>{option.label}</Chip>)}</SavedShelf>}
+    {/* tablet 11: the quick chips are the choices themselves (no All, no counts); the chosen one, tapped again, shows everything. */}
+    {!!filterOptions.length && <SavedShelf>{filterOptions.filter(option => option.id !== 'all').map(option => {
+      const chosen = posterProjection?.query.category === option.id;
+      return <Chip key={`${option.field}:${option.id}`} variant="quick" selected={chosen}
+        onPress={() => applyMyList({filter: (chosen ? 'all' : option.id) as SavedListFilter})}>{option.label}</Chip>;
+    })}</SavedShelf>}
     {!posterProjection || (snapshot.phase !== 'ready' && snapshot.phase !== 'loading') ? (loading && <SavedLoading columns={myListColumns}/>)
       : !posterEntries.length && !squareEntries.length ? <StateView variant="inline" title={t('web.saved.empty.watchlist')} body={t('web.saved.empty.watchlistBody')}/>
       : listMode ? posterEntries.map(entry => <SavedMyListRow key={entry.id} entry={entry} runtime={runtime} actions={actions} selection={itemSelection?.(entry)}/>)
