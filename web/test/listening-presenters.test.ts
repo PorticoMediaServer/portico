@@ -12,7 +12,7 @@ const loader = registerHooks({load(url, context, next) {
   if (url.endsWith('/kit/controls/index.ts')) return module("export const Button='button',Segmented='segmented',Slider='slider',TextField='input';");
   if (url.endsWith('/kit/overlays/index.ts')) return module("export const Banner='banner',Dialog='dialog',Menu='menu';");
   // The kit audio frame and player parts: the frame is a stand-in element whose props the tests read, with its panel drawn.
-  if (url.endsWith('/kit/frames/index.ts')) return module("export const AudioPlayerFrame='audio-frame',ArtPlaceholder='art-placeholder';");
+  if (url.endsWith('/kit/frames/index.ts')) return module("export const AudioPlayerFrame='audio-frame',ArtPlaceholder='art-placeholder',StateRow='state-row';");
   if (url.endsWith('/kit/player/index.ts')) return module("export const PlayerVolume='player-volume',AudioPanelSurface='panel-surface';");
   if (url.endsWith('/kit/media/index.ts')) return module("export const SeekLine='seek-line';");
   if (url.endsWith('/kit/artwork/index.ts')) return module("export const Artwork='artwork',AmbientArt='ambient',ArtworkGlow='artwork-glow',WholeArtwork='whole-artwork',GeneratedCover='generated-cover',useCoverAspect=()=>({aspect:undefined,onReady:()=>{}}),wholeCoverBox=()=>undefined;");
@@ -61,7 +61,7 @@ test('desktop-listen, audiobook player: Playing from, then Play on and More at t
 test('chapter unavailable/none/error remain distinct, and paging never invents totals or requests', () => {
   for (const status of ['none', 'unavailable']) {
     const tree = elements(AudiobookListening(book({chapters: {...chapters, data: {...chapters.data, status, totalCount: 0, nextCursor: '', chapters: []}}})));
-    assert.equal(tree.filter(e => e.type === 'state').length, 1);assert.equal(tree.some(e => e.props.children === 'Show more'), false);
+    assert.equal(tree.filter(e => e.type === 'state-row').length, 1);assert.equal(tree.some(e => e.props.children === 'Show more'), false);
   }
   let retried: unknown;
   const failed: any = {...chapters, phase: 'error', data: null};

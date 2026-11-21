@@ -6,11 +6,10 @@ import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import {generatedCoverTint} from '@design';
 import {ArtworkGlow, GeneratedCover, WholeArtwork} from '../../../kit/artwork';
 import {Button} from '../../../kit/controls';
-import {AudioPlayerFrame} from '../../../kit/frames';
+import {AudioPlayerFrame, StateRow} from '../../../kit/frames';
 import {AudioPanelSurface, PlayerVolume} from '../../../kit/player';
 import {SeekLine} from '../../../kit/media';
 import {Banner} from '../../../kit/overlays';
-import {StateView} from '../../../kit/states';
 import {Icon} from '../../../kit/Icon';
 import type {WatchBindings} from '../types';
 import {watchClock, watchSeek, watchSeekBounds, type WatchIntent} from '../model';
@@ -104,8 +103,8 @@ export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [
         {book ? <BookChapterList book={book} playing={p.playing} positionSeconds={p.positionSeconds} disabled={!can('seek')} onPick={chapter => onIntent(snapshot, {kind: 'book-chapter', chapterId: chapter.id})}/> : <>
         {chapters?.phase === 'loading' || chapters?.phase === 'idle' ? <p role="status">{t('player.opt.loadingChapters')}</p>
           : chapters?.phase === 'error' || chapters?.phase === 'refresh-required' ? <Banner action={{label: t('next.states.tryAgain'), onAction: () => onChapterRetry(chapters)}}>{t('player.opt.chaptersUnavailable')}</Banner>
-            : !chapters || chapters.data?.status === 'unavailable' ? <StateView title={t('player.opt.chaptersUnavailable')}/>
-              : chapters.data?.status === 'none' ? <StateView title={t('player.opt.noChapters')}/> : null}
+            : !chapters || chapters.data?.status === 'unavailable' ? <StateRow kind="empty" icon="i-chapters" title={t('player.opt.chaptersUnavailable')}/>
+              : chapters.data?.status === 'none' ? <StateRow kind="empty" icon="i-chapters" title={t('player.opt.noChapters')}/> : null}
         <div role="list">{rows.map(chapter => <div role="listitem" key={chapter.id} className={styles.chapterRow} data-current={chapter === active || undefined}>
           <button type="button" disabled={!can('seek') || chapters?.phase !== 'ready'} onClick={() => {if (chapters) onChapter(chapters, chapter);}} aria-current={chapter === active ? 'true' : undefined}>
             <span>{chapter === active ? <Icon name={p.playing ? 'i-play' : 'i-pause'} size={16}/> : chapter.index}</span><b>{chapter.title}</b><small>{watchClock(chapter.endSeconds - chapter.startSeconds)}</small>

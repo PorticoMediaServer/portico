@@ -2,7 +2,7 @@ import {defaultI18n} from '@i18n';
 import type {WebPlaybackRuntimeSnapshot} from '../../../platform/playback';
 import {Button} from '../../../kit/controls';
 import {Banner} from '../../../kit/overlays';
-import {StateView} from '../../../kit/states';
+import {StateRow} from '../../../kit/frames';
 import {watchClock} from '../model';
 import type {ListeningHost} from './use-listening-owner';
 import styles from './audiobook-listening.module.css';
@@ -17,10 +17,11 @@ export function ListeningChapters({host, snapshot, reportError}: {host: Listenin
     <BookChapterList book={book} playing={!!snapshot.presentation?.playing} positionSeconds={snapshot.presentation?.positionSeconds} disabled={!snapshot.presentation?.controls.includes('seek')}
       onPick={chapter => run(() => owner.dispatch(state, snapshot, {kind: 'book-chapter', chapterId: chapter.id}))}/>
   </section>;
-  if (!chapters || chapters.data?.status === 'unavailable') return <StateView title={t('player.opt.chaptersUnavailable')}/>;
+  if (!chapters || chapters.data?.status === 'unavailable') return <StateRow kind="empty" icon="i-chapters" title={t('player.opt.chaptersUnavailable')}/>;
   if (chapters.phase === 'idle' || chapters.phase === 'loading') return <p role="status">{t('player.opt.loadingChapters')}</p>;
   if (chapters.phase === 'error' || chapters.phase === 'refresh-required') return <Banner action={{label: t('next.states.tryAgain'), onAction: () => run(() => owner.chapterPage(state, chapters, 'retry',true))}}>{t('player.opt.chaptersUnavailable')}</Banner>;
-  if (!chapters.data?.chapters.length) return <StateView title={t('player.opt.noChapters')}/>;
+  // A panel's nothing-here is the kit's in-section row (rule 9), never a page-size title.
+  if (!chapters.data?.chapters.length) return <StateRow kind="empty" icon="i-chapters" title={t('player.opt.noChapters')}/>;
   const position = snapshot.presentation?.positionSeconds ?? 0;
   return <section aria-label={t('player.opt.chapters')}>
     {chapters.data.chapters.map(chapter => <div key={chapter.id} className={styles.chapterRow} data-current={position >= chapter.startSeconds && position < chapter.endSeconds || undefined}>
