@@ -22,7 +22,7 @@ import {pickProfilePicture, profileAvatarUpload, profilePicturePickerAvailable, 
 import type {ProfileAvatar} from '../../../../../packages/client-core/src/identity-restrictions';
 import {nativeNetworkFetch} from '../../platform/server-connections';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRoute} from '../../shell/routes';
+import type {NativeServersPanel, NativeShellRoute} from '../../shell/routes';
 import {NativeScreenLifetime} from '../settings-live/lifetime';
 import {ProfileColorPicker, ProfileRestrictionsFields} from '../../kit/settings/ProfileEditorFields';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
@@ -44,7 +44,7 @@ import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {ServerChooserPage} from '../../pages/touch/accounts/ServerChooserPage';
 import {TVTrustedCertificates} from './TVTrustedCertificates';
-import {TVServerChooserPage} from '../../pages/tv/accounts/ServerChooserPage';
+import {TVServerChooserPage, TVServerSettingsPanel} from '../../pages/tv/accounts/ServerChooserPage';
 import {removeCapturedServerDownloads} from './sign-out-downloads';
 import {ProfilesPage as TVProfilesPage} from '../../pages/tv/accounts/ProfilesPage';
 import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage} from '../../tv/auth';
@@ -289,9 +289,22 @@ function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, 
 }
 
 /** Also usable when no selected server can restore: retained servers remain reachable. */
-export function ServersRoute({context, fallbackDownloads, initialPanel = 'servers', onBack, onComplete, onSetupComplete}: {context?: NativeShellBootstrapContext; fallbackDownloads?: AccountDownloadsEntry; initialPanel?: 'servers' | 'consent-kind'; onBack?: () => void; onComplete?: () => void; onSetupComplete?: (serverId: string) => void}) {
+/** `embedded`: a TV's Switch server Settings page (connect-24) draws the chooser inside Settings, which owns Back; Use a local
+ * server and Sign out of Portico Account open this route on their own panel (`openPanel`), and leaving that panel leaves the route. */
+export function ServersRoute(props: {
+  context?: NativeShellBootstrapContext; fallbackDownloads?: AccountDownloadsEntry; initialPanel?: 'servers' | NativeServersPanel;
+  embedded?: boolean; openPanel?: (panel: NativeServersPanel) => void; onBack?: () => void; onComplete?: () => void;
+  onSetupComplete?: (serverId: string) => void;
+}) {
+  const {context, fallbackDownloads, initialPanel = 'servers', embedded = false, openPanel, onBack, onComplete, onSetupComplete} = props;
   const theme = useTheme(), [panel, setPanel] = useState<Panel>(initialPanel), [servers, setServers] = useState<Awaited<ReturnType<typeof nativeAccounts.snapshot>>>(), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
-  const [captured, setCaptured] = useState<{session: AppServerSession; name: string}>(), [accountScope, setAccountScope] = useState<{accountId: string; familyId: string}>(), [code, setCode] = useState('');
+  const [captured, setCaptured] = useState<{session: AppServerSession; name: string}>(), [code, setCode] = useState('');
+  // Opened straight on Sign out of Portico Account (from a TV's Settings page): the account signed in now is the one asked about.
+  const [accountScope, setAccountScope] = useState<{accountId: string; familyId: string} | undefined>(() => {
+    if (initialPanel !== 'sign-out-account') return undefined;
+    const session = nativeAccounts.accountCredentials().getSnapshot().session;
+    return session ? {accountId: session.account.id, familyId: session.familyId} : undefined;
+  });
   const [preview, setPreview] = useState<Readonly<SetupPreview>>(), [consentKind, setConsentKind] = useState<'local' | 'portico'>(), [done, setDone] = useState('');
   const [removeDownloads, setRemoveDownloads] = useState(false);
   const [addGeneration, setAddGeneration] = useState(0);
@@ -325,9 +338,15 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   const run = async (work: () => Promise<void>) => {if (busy || context && !context.current()) return; setBusy(true); setError(undefined);
     try {await work();} catch (failure) {if (alive.current) setError(failure);} finally {if (alive.current) setBusy(false);}
   };
-  const close = () => {retireAdd(); approver.current?.dispose(); approver.current = undefined; setPreview(undefined); setCode(''); setError(undefined); setPanel('servers');};
+  // A route opened on Use a local server or Sign out of Portico Account from Settings goes back there, not to a second chooser.
+  const leaveOnClose = initialPanel === 'add' || initialPanel === 'sign-out-account'
+    || Platform.isTV && initialPanel === 'consent-kind';
+  const close = () => {
+    retireAdd(); approver.current?.dispose(); approver.current = undefined;
+    setPreview(undefined); setCode(''); setError(undefined);
+    if (leaveOnClose) onBack?.(); else setPanel('servers');};
   const cancel = () => {if (panel === 'servers') onBack?.(); else close();};
-  useEffect(() => {if (panel === 'add') return; const subscription = registerBack(() => {
+  useEffect(() => {if (panel === 'add' || embedded && panel === 'servers') return; const subscription = registerBack(() => {
     if (busy) return true;
     if (panel === 'servers' && !onBack) return false;
     cancel(); return true;
@@ -343,7 +362,10 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
     close(); onComplete?.();
   }}/>;
   if (panel === 'sign-out-account') return layout(t('accounts.signOut.portico'), undefined, undefined,
-    action('sign-out-account', t('action.signOut'), async () => {await nativeAccounts.signOutPorticoAccount(accountScope!); close(); onComplete?.();}));
+    action('sign-out-account', t('action.signOut'), async () => {
+      if (!accountScope) throw Object.assign(new Error('native_account_signed_out'), {code: 'account_changed'});
+      await nativeAccounts.signOutPorticoAccount(accountScope); close(); onComplete?.();
+    }));
   if (panel === 'consent-kind') return layout(t('settings.linkTV'), t('linkTV.enterCode'), <View style={{gap: 12, alignSelf: 'stretch', marginBottom: 20}}>
     {context && servers?.servers.find(value => value.id === servers.selectedServerId)?.signIn === 'local' && <Button variant="glass" disabled={busy} onPress={() => {void run(async () => {
       approver.current = await nativeAccounts.localTVConsent(context.api, context.session); setConsentKind('local'); setPanel('consent-code');
@@ -428,32 +450,59 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
         setAccountScope({accountId: session.account.id, familyId: session.familyId}); setPanel('sign-out-account');
       });}}>{t('accounts.signOut.portico')}</Button>}
     </View>}/>{signOutSheet}</>;
-  return <><TVServerChooserPage snapshot={servers} busy={busy} error={errorView} onBack={onBack ? cancel : undefined}
-    owner={!!context && context.current() && context.account.serverId === servers?.selectedServerId && context.account.account.role === 'owner'}
-    onSelect={value => {void run(async () => {await nativeAccounts.switchServer(value.id); onComplete?.();});}}
-    onSignOut={value => {void run(async () => {
+  // On a TV's Switch server Settings page (embedded), the panels that fill the screen open this route on their own panel.
+  // They open outside run(): a busy turn ending would ask for the chooser's start while the opened route is on top.
+  const opens = embedded ? openPanel : undefined;
+  const signOutAccount = async (open: (session: {accountId: string; familyId: string}) => void) => {
+    const credentials = nativeAccounts.accountCredentials();
+    await credentials.synchronize();
+    const session = credentials.getSnapshot().session;
+    if (!session) throw Object.assign(new Error('native_account_signed_out'), {code: 'account_changed'});
+    open({accountId: session.account.id, familyId: session.familyId});
+  };
+  const openSignOutAccount = (scope: {accountId: string; familyId: string}) => {setAccountScope(scope); setPanel('sign-out-account');};
+  // Embedded: the route opened on Sign out of Portico Account reads the scope itself once this has synchronized.
+  // A second press while the account is being checked opens nothing more.
+  const openingSignOut = useRef(false);
+  const signOutFromSettings = (open: (panel: NativeServersPanel) => void) => {
+    if (openingSignOut.current) return;
+    openingSignOut.current = true;
+    setError(undefined);
+    signOutAccount(() => {if (alive.current && (!context || context.current())) open('sign-out-account');})
+      .catch(failure => {if (alive.current) setError(failure);})
+      .finally(() => {openingSignOut.current = false;});
+  };
+  const owner = !!context && context.current() && context.account.serverId === servers?.selectedServerId
+    && context.account.account.role === 'owner';
+  const tvProps: React.ComponentProps<typeof TVServerChooserPage> = {snapshot: servers, busy, error: errorView,
+    onBack: onBack ? cancel : undefined, owner,
+    onSelect: value => {void run(async () => {await nativeAccounts.switchServer(value.id); onComplete?.();});},
+    onSignOut: value => {void run(async () => {
       const state = await nativeAppSessions.read(), found = state.servers.find(item => item.connection.pin.serverId === value.id);
       if (!found || found.connection.session.sessionFamilyId !== value.familyId || found.connection.pin.fingerprint !== value.fingerprint)
         throw Object.assign(new Error('native_server_changed'), {code: 'cancelled'});
       setCaptured({session: found, name: value.name}); setPanel('sign-out-server');
-    });}}
-    onForget={value => {void run(async () => {
+    });},
+    onForget: value => {void run(async () => {
       const state = await nativeAppSessions.read(), found = state.servers.find(item => item.connection.pin.serverId === value.id);
       if (!found || found.connection.session.sessionFamilyId !== value.familyId || found.connection.pin.fingerprint !== value.fingerprint)
         throw Object.assign(new Error('native_server_changed'), {code: 'cancelled'});
       setCaptured({session: found, name: value.name}); setPanel('forget-server');
-    });}}
-    onRefresh={() => {void run(async () => {const value = await nativeAccounts.snapshot(); if (alive.current) setServers(value);});}}
-    onAdd={() => {void run(async () => {openAdd();});}}
-    certificates={<TVTrustedCertificates context={context}/>}
-    footer={<View style={{alignSelf: 'stretch', gap: 8, marginTop: 10}}>
-    <Button variant="link" disabled={busy} onPress={() => setPanel('consent-kind')}>{t('settings.linkTV')}</Button>
-    {accountHeld && <Button variant="link" disabled={busy} onPress={() => {void run(async () => {
-      const credentials = nativeAccounts.accountCredentials(); await credentials.synchronize(); const session = credentials.getSnapshot().session;
-      if (!session) throw Object.assign(new Error('native_account_signed_out'), {code: 'account_changed'});
-      setAccountScope({accountId: session.account.id, familyId: session.familyId}); setPanel('sign-out-account');
-    });}}>{t('accounts.signOut.portico')}</Button>}
-  </View>}/>{signOutSheet}</>;
+    });},
+    onRefresh: () => {void run(async () => {const value = await nativeAccounts.snapshot(); if (alive.current) setServers(value);});},
+    onAdd: opens ? () => opens('add') : () => {void run(async () => {openAdd();});},
+    certificates: <TVTrustedCertificates context={context}/>,
+    footer: <View style={{alignSelf: 'stretch', gap: 8, marginTop: 10}}>
+      <Button focusId="link-tv" variant="link" disabled={busy}
+        onPress={opens ? () => opens('consent-kind') : () => setPanel('consent-kind')}>
+        {t('settings.linkTV')}
+      </Button>
+      {accountHeld && <Button focusId="sign-out-portico" variant="link" disabled={busy}
+        onPress={opens ? () => signOutFromSettings(opens) : () => {void run(() => signOutAccount(openSignOutAccount));}}>
+        {t('accounts.signOut.portico')}
+      </Button>}
+    </View>};
+  return <>{embedded ? <TVServerSettingsPanel {...tvProps}/> : <TVServerChooserPage {...tvProps}/>}{signOutSheet}</>;
 }
 
 const createAccountRoute: NativeRouteFactory = context => ({render: route => {
