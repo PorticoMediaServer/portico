@@ -35,7 +35,7 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
   return <><SettingsControlRows id={region} entry={hostedRows ? rowIds[0] : undefined} entryPolicy="entry" order={hostedRows ? rowIds : undefined} orientation="vertical" edges={{left: column, ...verticalEdges}}>
     {actionError !== undefined && <StateView {...runtime.error(actionError, () => setActionError(undefined), 'settings')}/>}
     {showSafeMode && <NativeSafeModeRow source={devicePreferences} runtime={runtime} current={controller.lifetime.current}/>}
-    {sections.map(section => <React.Fragment key={section.id}><SectionCard label={section.title && t(section.title)} help={section.description && t(section.description)}>
+    {sections.map(section => <React.Fragment key={section.id}><SectionCard label={section.title && t(section.title)} help={section.description && t(section.description)} plain={isTV && section.id === 'note'}>
       {section.rows.filter(visible).map((row, index) => {
         const id = settingsRowId(row);
         // Frame 12's Apple passthrough is the rows.7 capability line, not the rows.6

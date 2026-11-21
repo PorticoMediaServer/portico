@@ -50,7 +50,9 @@ export type SectionStale = Readonly<{label: string; retryLabel: string; onRetry:
 
 /** Rule 7: one group of a settings or owner page. Its label, then one raised card of rows. In-section loading,
  * empty and error are a `StateRow` as the card's only child. */
-export function SectionCard({label, help, stale, children}: {label?: string; /** The section's help paragraph under its label (desktop-settings f1). */ help?: string; stale?: SectionStale; children: ReactNode}) {
+export function SectionCard({label, help, stale, plain = false, children}: {label?: string; /** The section's help paragraph under its label (desktop-settings f1). */ help?: string; stale?: SectionStale;
+  /** A section that is only a note, drawn as text on the page with no card (tv-more 30: Privacy's first line). */
+  plain?: boolean; children: ReactNode}) {
   const theme = useTheme(), frame = useFrameMetrics();
   return <View>
     {label !== undefined && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, marginHorizontal: frame.gutter, marginBottom: frame.headingGap, minHeight: stale ? theme.targets.pointer : undefined}}>
@@ -59,7 +61,8 @@ export function SectionCard({label, help, stale, children}: {label?: string; /**
         <Button variant="glass" size="xs" onPress={stale.onRetry}>{stale.retryLabel}</Button></>}
     </View>}
     {help !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginHorizontal: frame.gutter, marginBottom: frame.headingGap, maxWidth: frameSpec.settings.paragraphMax}]}>{help}</Text>}
-    <SettingsGroup style={{marginHorizontal: frame.cardInset, borderRadius: frame.cardRadius}}>{children}</SettingsGroup>
+    {plain ? <View style={{marginHorizontal: frame.cardInset}}>{children}</View>
+      : <SettingsGroup style={{marginHorizontal: frame.cardInset, borderRadius: frame.cardRadius}}>{children}</SettingsGroup>}
   </View>;
 }
 

@@ -68,7 +68,7 @@ function ServersPanel({context, t, openRoute}: NativeSettingsPanelDeps) {
 
 function PrivacyNotePanel({t}: NativeSettingsPanelDeps) {
   const theme = useTheme();
-  return <View style={theme.isTV ? {paddingLeft: 24, marginBottom: 26} : {paddingHorizontal: 14, paddingVertical: 12}}>
+  return <View style={theme.isTV ? {paddingLeft: 24} : {paddingHorizontal: 14, paddingVertical: 12}}>
     <Text testID="settings-panel-privacy-note" style={[shellType(theme.isTV ? 22 : 13, 400, theme.isTV ? 31.9 : 'normal'), {color: theme.colors.textTertiary}]}>{t('pref.note.privacy.ownerSeesPlays')}</Text>
   </View>;
 }
