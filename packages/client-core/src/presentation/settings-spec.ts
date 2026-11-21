@@ -25,7 +25,12 @@ export type SettingsRow = Readonly<{id: string; label: MessageId; help?: Message
 export type SettingsGroup = Readonly<{title?: MessageId; description?: MessageId; platforms?: readonly SettingsPlatform[]; rows: readonly SettingsRow[]}>;
 export type SettingsHolder = Readonly<{groups?: readonly SettingsGroup[]; advanced?: Readonly<{groups?: readonly SettingsGroup[]}>}>;
 export type SettingsPanel = SettingsHolder & Readonly<{title?: MessageId; newTitle?: MessageId; searchName?: MessageId; tabs?: readonly (SettingsHolder & Readonly<{id: string; title: MessageId}>)[]; footer?: Readonly<{primary: MessageId; secondary?: MessageId}>}>;
-export type SettingsSection = SettingsHolder & Readonly<{scope: 'account' | 'server'; id: string; title: MessageId; navGroup: string; icon: string; kind: string; platforms?: readonly SettingsPlatform[]; panels?: Readonly<Record<string, SettingsPanel>>; configOnly: readonly Readonly<{key: string; label: MessageId}>[]}>;
+/** A page's own tab (owner-server 8, live-owner 1): which of the section's groups and Advanced groups it holds, by index.
+ * Every group is in exactly one tab. A client that does not draw tabs reads `groups` as before and loses nothing. */
+export type SettingsSectionTab = Readonly<{id: string; title: MessageId; groups: readonly number[]; advanced?: readonly number[]}>;
+export type SettingsSection = SettingsHolder & Readonly<{scope: 'account' | 'server'; id: string; title: MessageId; navGroup: string; icon: string; kind: string; platforms?: readonly SettingsPlatform[]; panels?: Readonly<Record<string, SettingsPanel>>; configOnly: readonly Readonly<{key: string; label: MessageId}>[];
+ /** The page's tabs, when it has them. */
+ tabs?: readonly SettingsSectionTab[]}>;
 
 export const settingsSpec: readonly SettingsSection[] = [
   {
@@ -8805,6 +8810,7 @@ export const settingsSpec: readonly SettingsSection[] = [
     "icon": "tv",
     "kind": "settings",
     "title": "next.settingsSpec.server.live.title",
+    "tabs": [{"id": "sources", "title": "next.settingsSpec.server.live.groups.0.title", "groups": [0, 1, 2, 3, 4], "advanced": [0, 1, 2]}, {"id": "recording", "title": "next.settingsSpec.server.live.groups.5.title", "groups": [5, 6, 7], "advanced": [3, 4]}, {"id": "library", "title": "next.settingsSpec.server.live.groups.8.title", "groups": [8]}],
     "groups": [
       {
         "title": "next.settingsSpec.server.live.groups.0.title",
@@ -14475,6 +14481,7 @@ export const settingsSpec: readonly SettingsSection[] = [
     "icon": "storage",
     "kind": "settings",
     "title": "next.settingsSpec.server.storage.title",
+    "tabs": [{"id": "space", "title": "next.settingsSpec.server.storage.tabs.space", "groups": [0], "advanced": [3]}, {"id": "limits", "title": "next.settingsSpec.server.storage.tabs.limits", "groups": [], "advanced": [0, 1]}, {"id": "backups", "title": "next.settingsSpec.server.storage.groups.1.title", "groups": [1], "advanced": [2]}],
     "groups": [
       {
         "title": "next.settingsSpec.server.storage.groups.0.title",
@@ -15437,3 +15444,12 @@ export function indexSettingsSpec(sections: readonly SettingsSection[] = setting
  return result;
 }
 export const settingsRowIndex = indexSettingsSpec();
+
+/** The tab of a section that holds a row (a search hit, a link to a row), or undefined when the page has no tabs. */
+export function settingsSectionTab(section: SettingsSection, rowId: string): SettingsSectionTab | undefined {
+  const has = (groups: readonly SettingsGroup[] | undefined, index: number) => {
+    const rows = (all: readonly SettingsRow[]): boolean => all.some(row => row.id === rowId || rows(row.children ?? []));
+    return rows(groups?.[index]?.rows ?? []);
+  };
+  return section.tabs?.find(tab => tab.groups.some(index => has(section.groups, index)) || (tab.advanced ?? []).some(index => has(section.advanced?.groups, index)));
+}

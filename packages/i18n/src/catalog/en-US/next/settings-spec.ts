@@ -3009,6 +3009,8 @@ export const settingsSpecMessages = {
   "next.settingsSpec.server.streaming.advanced.groups.6.rows.0.help": "Checked on every start. Applies after a restart.",
   "next.settingsSpec.server.streaming.advanced.groups.6.rows.0.control.placeholder": "The one that comes with Portico",
   "next.settingsSpec.server.storage.title": "Storage & backups",
+  "next.settingsSpec.server.storage.tabs.space": "Space",
+  "next.settingsSpec.server.storage.tabs.limits": "Limits and retention",
   "next.settingsSpec.server.storage.groups.0.title": "Data",
   "next.settingsSpec.server.storage.groups.0.rows.0.label": "Data folder",
   "next.settingsSpec.server.storage.groups.0.rows.0.help": "Set with PORTICO_DATA_DIR or the /config mapping.",
