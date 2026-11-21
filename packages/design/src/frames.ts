@@ -103,6 +103,8 @@ export const frame = {
       coverGlow: 560,
       /** The side column beside the panel (desktop-listen 360). R5 interim. */
       side: 360,
+      /** The same column on a tablet on its side (tablet-play 11's Details, about 260), so the songs keep the room their titles need. */
+      tabletSide: 260,
       /** The panel's parts (kit `title-parts`), R5 interim: About's label column (desktop-detail f3 140,
        * phone 104 on the web); the native phone's About card (phone-detail d1 `.kv`: label 92, gap 12, row padding 8); cast circles (phone-detail 64, tablet and web 96, TV 150); Films in order's number column and still
        * (desktop-detail f8 56 / 106, phone 56, TV 140); Previous / Next's still (desktop-detail f5, 112 wide, 16:9); a
