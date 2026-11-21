@@ -1,16 +1,21 @@
-/* phone-read 14: the first-time tap zones sit over the page but under nothing
-   else; the page itself stays visible behind the scrim. */
-.hint { position: absolute; inset: 0; z-index: var(--layer-menu); display: flex; flex-direction: column;
-  justify-content: space-between; background: color-mix(in srgb, var(--color-dim) 55%, transparent); color: var(--color-text); }
+/* phone-read 14: the first-time tap zones over the page. The side thirds are shaded and the middle is left lighter, each
+   zone's glyph sits in a disc over its name and place; the tips are raised pills above a full-width Got it. */
+.hint { position: absolute; inset: 0; z-index: var(--layer-menu); display: flex; flex-direction: column; justify-content: space-between; color: var(--color-text); }
 .zones { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: stretch; }
-.zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  padding: 20px; text-align: center; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); }
-.zone + .zone { border-inline-start: 1px dashed color-mix(in srgb, var(--color-text) 25%, transparent); }
+.zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-tight);
+  padding: var(--space-md); text-align: center; background: color-mix(in srgb, var(--color-dim) 72%, transparent);
+  font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); }
+.zone > svg { box-sizing: content-box; padding: var(--space-px-12); margin-bottom: var(--space-tight); border-radius: 50%; background: color-mix(in srgb, var(--color-text) 14%, transparent); }
 .zone small { font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
-.center { color: var(--color-text-secondary); }
-.foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px calc(18px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--color-ink) 94%, transparent); border-top: 1px solid var(--color-line); }
-.instruction { display: flex; align-items: center; gap: 10px; font-size: var(--type-fixed-size-13px); line-height: var(--type-fixed-line-1point-4); color: var(--color-text-secondary); }
-@media (max-width: 599px) { .zone { font-size: var(--type-fixed-size-14px); gap: 8px; padding: 14px 10px; } .foot { padding-inline: 16px; } }
-
-.instructions { display: flex; flex-direction: column; gap: 10px; }
+.center { background: color-mix(in srgb, var(--color-accent) 10%, color-mix(in srgb, var(--color-dim) 40%, transparent));
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-accent-strong) 30%, transparent), inset -1px 0 0 color-mix(in srgb, var(--color-accent-strong) 30%, transparent); }
+.foot { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-xs); padding: var(--space-md) var(--space-md) calc(var(--space-md) + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--color-dim) 72%, transparent); }
+.instructions { display: flex; flex-direction: column; gap: var(--space-xs); }
+.instruction { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-card, 12px);
+  background: var(--color-raised-high); font-size: var(--type-fixed-size-13px); line-height: var(--type-fixed-line-1point-4); color: var(--color-text); }
+.instruction > svg { flex: none; color: var(--color-accent-strong); }
+.foot > button { width: 100%; }
+/* From tablet width the tips and Got it keep to a readable column in the middle. */
+@media (min-width: 600px) { .foot { align-items: center; } .instructions, .foot > button { width: min(100%, 420px); } }
+@media (max-width: 599px) { .zone { font-size: var(--type-fixed-size-14px); padding: var(--space-sm) var(--space-tight); } }
