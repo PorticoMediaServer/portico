@@ -100,7 +100,7 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
         {chipsDrawn && <FocusRegion id={ids.searchChips} enabled={active.visible} orientation="horizontal" entry={`chip:${state.group}`} stops={{up: true}}
           edges={{left: keyboard, ...(top ? {down: ids.searchTop} : sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}} {...wholeChips.container} style={{maxWidth: resultsWidth, marginLeft: -focusRoom, marginTop: -focusRoom}}>
           <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} {...wholeChips.scroll}
-            contentContainerStyle={[tvSearchR46.chips, {padding: focusRoom}]}>{chips.map(chip => {
+            contentContainerStyle={[tvSearchR46.chips, {padding: focusRoom, paddingRight: focusRoom + wholeChips.pad}]}>{chips.map(chip => {
           const group = groups.find(value => value.id === chip.id);
           const count = chip.id === 'all' ? groups.every(value => value.totalCountExact) ? groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
           return <View key={chip.id} {...wholeChips.item(chip.id)}><Chip focusId={`chip:${chip.id}`} onFocus={() => wholeChips.focus(chip.id)} testID={`tv-search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'}

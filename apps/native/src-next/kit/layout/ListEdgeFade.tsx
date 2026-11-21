@@ -51,7 +51,9 @@ export function useListEdges(): {edges: ListEdges; scroll: EdgeScrollProps} {
 type ItemBox = Readonly<{start: number; length: number}>;
 export function useWholeItems(axis: 'x' | 'y', mode: 'fit' | 'blank', keys: readonly string[], lead: number, trail: number) {
   const ref = useRef<ScrollView>(null), boxes = useRef(new Map<string, ItemBox>()), focused = useRef<string | undefined>(undefined);
-  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), at = useRef(0);
+  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), at = useRef(0), content = useRef(0);
+  // Room added after the last item when a stop lies past the list's end (at its end the first item would stay cut).
+  const [pad, setPad] = useState(0);
   const [room, setRoom] = useState(0), [offset, setOffset] = useState(0), [, measured] = useState(0);
   useEffect(() => () => clearTimeout(settle.current), []);
   const pick = (event: LayoutChangeEvent) => axis === 'x' ? event.nativeEvent.layout.width : event.nativeEvent.layout.height;
@@ -71,7 +73,9 @@ export function useWholeItems(axis: 'x' | 'y', mode: 'fit' | 'blank', keys: read
     const ahead = stops.filter(stop => stop >= at.current - 1);
     const best = (ahead.length ? ahead : stops).reduce((a, b) => Math.abs(b - at.current) < Math.abs(a - at.current) ? b : a);
     if (Math.abs(best - at.current) < 1) return;
-    ref.current?.scrollTo(axis === 'x' ? {x: best, animated: true} : {y: best, animated: true});
+    const over = best - (content.current - pad - room);
+    if (over > 0) setPad(Math.ceil(over));
+    setTimeout(() => ref.current?.scrollTo(axis === 'x' ? {x: best, animated: true} : {y: best, animated: true}), over > 0 ? 50 : 0);
   };
   const later = () => {clearTimeout(settle.current); settle.current = setTimeout(snap, 150);};
   // fit: the window ends after the last whole item's ring room, or where the next (cut) item starts, if that is sooner.
@@ -87,8 +91,11 @@ export function useWholeItems(axis: 'x' | 'y', mode: 'fit' | 'blank', keys: read
         later();
       },
       onLayout: mode === 'blank' ? (event: LayoutChangeEvent) => setRoom(pick(event)) : undefined,
+      onContentSizeChange: (width: number, height: number) => {content.current = axis === 'x' ? width : height;},
       style: length === undefined ? undefined : axis === 'x' ? {width: length, flexGrow: 0} : {height: length, flexGrow: 0},
     },
+    /** Room to add after the content's own end padding. */
+    pad,
     container: {onLayout: (event: LayoutChangeEvent) => setRoom(pick(event))},
     focus: (key: string) => {focused.current = key; later();},
     cut: (key: string) => {const box = boxes.current.get(key); return mode === 'blank' && !!box && room > 0 && !whole(box, offset);},

@@ -27,6 +27,7 @@ export async function liveGuideModule(previous, shallow = false) {
     '../controls': bindings['../../../kit/controls'], '../focus': bindings['../../../kit/focus'],
     '../Icon': bindings['../../../kit/Icon'], '../overlays': bindings['../../../kit/overlays'], '../theme': bindings['../../../kit/theme'],
     '../layout/TVRow': {TVRow: ({children}) => children},
+    '../layout/ListEdgeFade': {useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})},
     './LivePhonePicker': previous['./LivePhonePicker'],
     './Guide': bindings['../../../kit/live/Guide'],
     './GuideRuler': bindings['../../../kit/live/GuideRuler'],
