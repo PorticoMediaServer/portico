@@ -8,10 +8,9 @@
 .legend [data-kind='waiting']::before { opacity: .6; outline: 1.5px dashed var(--color-white); outline-offset: 1px; }
 .columns { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 0; margin-top: 12px; background: var(--color-raised); border-radius: 14px; overflow: hidden; }
 .shows { background: color-mix(in srgb, var(--color-ink) 35%, transparent); padding: 14px 10px; border-right: 1px solid var(--color-line-soft); min-width: 0; }
-.libraryTabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 4px 8px; }
-.libraryTab { border: 0; border-radius: 8px; background: transparent; padding: 7px; color: var(--color-text-secondary); text-align: left; cursor: pointer; }
-.libraryTab[aria-pressed='true'] { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
-.libraryTab small { display: block; margin-top: 2px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.libraryPick { display: grid; gap: 6px; margin: 0 4px 10px; }
+.libraryPick [role='combobox'] { width: 100%; min-width: 0; }
+.libraryPick small { font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 .show { display: block; padding: 8px; border: 0; border-radius: 10px; background: transparent; color: var(--color-text); width: 100%; text-align: left; cursor: pointer; }
 .show b { display: block; font-size: var(--type-synopsis-size); font-weight: var(--type-row-heading-weight); overflow-wrap: anywhere; }
 .show small { display: block; font-size: var(--type-caption-size); color: var(--color-text-tertiary); margin-top: 2px; }
@@ -48,7 +47,7 @@
   .legend { margin-left: 0; gap: 10px; }
   .columns { margin-top: 8px; }
   .shows { padding: 10px 8px; }
-  .libraryTabs { margin: 0 2px 6px; }
+  .libraryPick { margin: 0 2px 6px; }
   .show { padding: 10px; border-radius: 12px; }
   .pane { padding: 12px 10px 4px; }
   .reviewTitle { gap: 10px; padding-bottom: 12px; }

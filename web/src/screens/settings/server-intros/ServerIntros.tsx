@@ -2,7 +2,7 @@ import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type
 import {defaultI18n} from '@i18n';
 import type {FactPart} from '@core/presentation/kit-model';
 import type {SegmentKind, SegmentReviewEntry, SegmentReviewMarker, SegmentTitleReview, SegmentTitleSummary} from '@core/segment-review.ts';
-import {Button} from '../../../kit/controls';
+import {Button, Select} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
 import {CreateMarkerSheet, SegmentWindows, StatTiles, type SegmentEdit, type SegmentMark} from '../../../kit/shell';
 import {Dialog} from '../../../kit/overlays/Dialog';
@@ -131,13 +131,13 @@ export function ServerIntros({source, modeRows, advancedRows, onPreview}: {sourc
       </header>
       {!status?.libraries.length ? <p className={styles.empty}>{t('web.segments.noLibraries')}</p> : <div className={styles.columns}>
         <div className={styles.shows} id="segments.libraries">
-          <div className={styles.libraryTabs} role="group" aria-label={t('web.segments.libraries')}>
-            {status.libraries.map(library => <button key={library.libraryId} type="button" aria-pressed={snapshot.libraryId === library.libraryId}
-              className={styles.libraryTab} onClick={() => {void source.openLibrary(library.libraryId);}}>
-              <b>{library.name}</b>
-              <small>{t(library.itemKind === 'movie' ? 'web.segments.libraryModeFilms' : 'web.segments.libraryMode', {mode: library.mode})}{library.choice === 'server' ? ` · ${t('web.segments.followsServer')}` : ''}</small>
-            </button>)}
-          </div>
+          {/* final-desktop-11: the library is one choice over its titles, with how it finds them on one line under it. */}
+          {(() => {const library = status.libraries.find(value => value.libraryId === snapshot.libraryId);
+            return <div className={styles.libraryPick}>
+              <Select aria-label={t('web.segments.libraries')} value={snapshot.libraryId ?? ''} placeholder={t('web.segments.libraries')}
+                options={status.libraries.map(value => ({value: value.libraryId, label: value.name}))} onValueChange={value => {void source.openLibrary(value);}} />
+              {library && <small>{t(library.itemKind === 'movie' ? 'web.segments.libraryModeFilms' : 'web.segments.libraryMode', {mode: library.mode})}{library.choice === 'server' ? ` · ${t('web.segments.followsServer')}` : ''}</small>}
+            </div>;})()}
           {snapshot.titlesLoading && !snapshot.titles.length ? <p className={styles.loading} role="status">{t('web.segments.loading')}</p> : null}
           {snapshot.titlesError ? <ReviewNotice tone="bad">{t('web.segments.error')}</ReviewNotice> : null}
           {!snapshot.titlesLoading && status && snapshot.libraryId && !snapshot.titles.length ? <p className={styles.empty}>{t('web.segments.noTitles')}</p> : null}
