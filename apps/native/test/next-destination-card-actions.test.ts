@@ -126,7 +126,7 @@ test('Saved preview cards preserve inactive selection and the actual native menu
   let registered = 0, retired = 0;
   const {SavedScreen} = await savedFixture('Saved', {
     '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, './SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'},
+    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'},
     './paging': {savedNearEnd: () => false},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard'},

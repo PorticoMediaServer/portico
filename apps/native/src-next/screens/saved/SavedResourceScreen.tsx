@@ -26,10 +26,10 @@ import {nativeDestinationFocusIds, type NativeDestinationActivationPort} from '.
 import type {NativeSavedViewDestination} from './view-model';
 import type {NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
 import type {NativeWatchMenuExtra} from '../watch/factory';
-import {SavedLoading, SavedTail} from './SavedLoading';
+import {SavedLoading, SavedTail} from '../../kit/saved/SavedLoading';
 import {savedNearEnd} from './paging';
 import {SavedReorderList} from './SavedReorderList';
-import {SavedSortMenu} from './SavedSortMenu';
+import {SavedSortMenu} from '../../kit/saved/SavedSortMenu';
 import {homeCardText} from '../home/model';
 import {SavedConfirmSheet, SavedNameSheet} from './SavedForms';
 import {isReadingLibraryKind} from '../read/platform';
