@@ -7,7 +7,7 @@ import {SettingsCacheSource} from '../../../../../../packages/client-core/src/se
 import {readNoticesKeep, saveNoticesKeep, storageLineWords, type NoticesKeep} from '../../../../../../packages/client-core/src/server-admin/server-storage';
 import {withGuardedRaw} from '../../../../../../packages/client-core/src/home-selection/list-destinations';
 import {settingsBinding, readSettingsBinding, settingsBindingPatch} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
-import {settingsRowIndex} from '../../../../../../packages/client-core/src/presentation/settings-spec';
+import {settingsRowIndex, settingsSpec} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -259,4 +259,11 @@ export function useStorageKeep(context: NativeShellBootstrapContext, t: Translat
     options: (notification.control.options ?? []).map(option => ({value: String(option.value), label: t(option.label)}))},
     logsLabel: t(keepRow('storage.keepLogsLink').label),
     setDays: (value: string) => {if (notices) void run(() => saveNoticesKeep(documents, notices, Number(value)));}};
+}
+
+/** The page's tabs as the shared settings list draws them (owner-server 8): Space, Limits and retention, Backups. */
+export function useStorageTabs(t: Translate) {
+  const tabs = settingsSpec.find(section => section.scope === 'server' && section.id === 'storage')?.tabs ?? [];
+  const [tab, setTab] = useState<string>(tabs[0]?.id ?? 'space');
+  return {tab, choose: setTab, items: tabs.map(value => ({value: value.id, label: t(value.title)}))};
 }

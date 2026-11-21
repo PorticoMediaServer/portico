@@ -1,7 +1,7 @@
 import React, {type ReactNode} from 'react';
 import type {MessageId} from '../../../../../../packages/i18n/src';
 import type {BackupSettings, RestoreTarget} from '../../../../../../packages/client-core/src/server-admin/server-backups';
-import {Button, Select, Switch, TextField} from '../../../kit/controls';
+import {Button, Select, Switch, Tabs, TextField} from '../../../kit/controls';
 import {SectionCard, SettingsPageFrame} from '../../../kit/frames';
 import {BottomSheet, Menu} from '../../../kit/overlays';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
@@ -14,21 +14,23 @@ import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {useBackups, useBackupSchedule, useBackupsGroup, useEmptyCache, useEmptyCacheGroup, usePassphrase, usePendingRestore, useRestore, useStorageKeep,
-  useStorageSpace, type BackupsGroup, type Translate} from '../../shared/settings/useServerStorage';
+  useStorageSpace, useStorageTabs, type BackupsGroup, type Translate} from '../../shared/settings/useServerStorage';
 
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;
 
-/** Storage & backups (owner-server 8 and 12, in the settings kit): where the server keeps its own files and what uses space,
- * Empty cache, then Backups (folder, schedule, Back up now, the list, Restore from file) and, under Advanced, how long
- * notifications are kept, the log settings, artwork in backups and the passphrase. Missing titles belongs to Libraries. */
+/** Storage & backups (owner-server 8, 9 and 12, in the settings kit), in the shared list's three tabs: Space (where the
+ * server keeps its own files, what uses space, Empty cache), Limits and retention (how long notifications are kept, the
+ * log settings), and Backups (folder, schedule, Back up now, the list, Restore from file; artwork and the passphrase
+ * under Advanced). Missing titles belongs to Libraries. */
 export function ServerStoragePage({ports, runtime, retry, onOpenPage, ...frame}: Frame & {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime;
   retry?: ReactNode; onOpenPage: (page: 'history' | 'troubleshooting') => void}) {
-  const t = runtime.text.t as Translate, context = ports.context;
-  return <SettingsPageFrame {...frame} title={t('settings.server.storage')}>
+  const t = runtime.text.t as Translate, context = ports.context, tabs = useStorageTabs(t);
+  return <SettingsPageFrame {...frame} title={t('settings.server.storage')} testID="server-storage"
+    tabs={<Tabs testID="server-storage-tabs" value={tabs.tab} onValueChange={tabs.choose} accessibilityLabel={t('settings.server.storage')} items={tabs.items}/>}>
     {retry}
-    <StorageSpace context={context} runtime={runtime}/>
-    <EmptyCache context={context} runtime={runtime}/>
-    <ServerBackups ports={ports} runtime={runtime} t={t} advancedContent={<KeepRows context={context} t={t} onOpenPage={onOpenPage}/>}/>
+    {tabs.tab === 'space' && <><StorageSpace context={context} runtime={runtime}/><EmptyCache context={context} runtime={runtime}/></>}
+    {tabs.tab === 'limits' && <SectionCard><KeepRows context={context} t={t} onOpenPage={onOpenPage}/></SectionCard>}
+    {tabs.tab === 'backups' && <ServerBackups ports={ports} runtime={runtime} t={t}/>}
   </SettingsPageFrame>;
 }
 
@@ -71,12 +73,12 @@ function EmptyCacheButton({group, t}: {group: NonNullable<ReturnType<typeof useE
 }
 
 /** Backups: the folder, the schedule, Back up now, a restore waiting for a restart, the list, Restore from file, and Advanced. */
-export function ServerBackups({ports, runtime, t, advancedContent}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; t: Translate; advancedContent?: ReactNode}) {
+export function ServerBackups({ports, runtime, t}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; t: Translate}) {
   const group = useBackupsGroup(ports, runtime);
-  return group ? <Backups group={group} t={t} advancedContent={advancedContent}/> : null;
+  return group ? <Backups group={group} t={t}/> : null;
 }
 
-function Backups({group, t, advancedContent}: {group: BackupsGroup; t: Translate; advancedContent?: ReactNode}) {
+function Backups({group, t}: {group: BackupsGroup; t: Translate}) {
   const view = useBackups(group, t), {state, backups, busy, running, menu, deleting} = view;
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const folderLabel = t('next.settingsSpec.server.storage.groups.1.rows.0.label');
@@ -107,7 +109,6 @@ function Backups({group, t, advancedContent}: {group: BackupsGroup; t: Translate
     </SectionCard>
     <NativeAdvancedSection testID="server-storage-advanced" open={advancedOpen} onOpenChange={setAdvancedOpen}
       summary={[state.settings?.includeArtwork ? artwork : '', backups?.protected ? protectedLabel : ''].filter(Boolean).join(' · ') || t('next.settings.allDefaults')}>
-      {advancedContent && <SectionCard>{advancedContent}</SectionCard>}
       {(state.settings || backups) && <SectionCard>
         {state.settings && <SettingsRow first label={artwork} description={t('next.settingsSpec.server.storage.advanced.groups.3.rows.1.help')}
           control={<Switch checked={state.settings.includeArtwork} disabled={state.busy} accessibilityLabel={artwork}
