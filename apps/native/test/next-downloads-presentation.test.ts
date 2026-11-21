@@ -230,3 +230,30 @@ test('a whole-container request reports capturing, ready-of-total and failed mem
   assert.equal(defaultI18n.t('downloads.requestProgress', {ready: 3, total: 9}), '3 of 9 ready');
   assert.equal(defaultI18n.t('downloads.requestPreparing'), 'Finding everything to download…');
 });
+
+test('Download choices keep Keep the next scoped to episodes and refuse unavailable qualities', async () => {
+  const host = hooks();
+  const {DownloadChoiceSheet} = await screenModule(new URL('../src-next/kit/saved/DownloadChoiceSheet.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
+    '../../../../../packages/i18n/src': {defaultI18n}, '../theme': {useTheme: () => createTheme({width: 390, isTV: false})},
+    '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../overlays': {BottomSheet: 'BottomSheet'},
+    '../overlays/SurfacePaintHost': {RetainedOverlay: 'RetainedOverlay'}, '../states': {StateView: 'StateView'},
+  });
+  const chosen: unknown[] = [];
+  const model = {editable: true, episodic: true, policy: 'next', keepNext: 3, options: [
+    {quality: 'original', label: 'Original', available: true}, {quality: 'limited', label: 'Limited', available: false},
+  ], changePolicy: (value: string) => chosen.push(value), changeKeepNext: (value: number) => chosen.push(value),
+  choose: (value: string) => chosen.push(value), close: () => chosen.push('close')};
+  const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
+  const render = () => nodes(DownloadChoiceSheet({title: 'Fixture programme', model}));
+  const byId = (id: string) => render().find(node => node.props.testID === id);
+  assert.equal(byId('download-policy-next').props.accessibilityState.selected, true);
+  assert.equal(byId('download-quality-limited').props.disabled, true);
+  byId('download-quality-original').props.onPress();
+  const count = render().find(node => node.type === 'Focusable' && node.props.accessibilityState?.selected && !node.props.testID);
+  count.props.onPress();
+  byId('native-download-sheet').props.onOpenChange(false);
+  assert.deepEqual(chosen, ['original', 3, 'close']);
+  model.episodic = false;
+  assert.equal(byId('download-policy-next'), undefined);
+});
