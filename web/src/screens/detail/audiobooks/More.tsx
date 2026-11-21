@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState, cloneElement, type ReactElement, type RefObject} from 'react';
 import type {ContentEntry, ContentProjection} from '@core/library-content.ts';
 import type {DownloadOptionsView} from '@core/downloads.ts';
 import {Button} from '../../../kit/controls';
@@ -11,7 +11,8 @@ import type {AudiobookBindings} from './bindings';
 
 /** Container ids never masquerade as a picker/download leaf. */
 /** `variant`: the desktop action row draws More as a glass button beside the others; rows keep ghost. */
-export function AudiobookMore({binding, page, entry, variant = 'ghost'}: {binding: AudiobookBindings; page: ContentProjection; entry: ContentEntry; variant?: 'ghost' | 'glass'}) {
+export function AudiobookMore({binding, page, entry, variant = 'ghost', trigger: drawn}: {binding: AudiobookBindings; page: ContentProjection; entry: ContentEntry; variant?: 'ghost' | 'glass';
+  /** The title frame's own More button. */ trigger?: ReactElement}) {
   const [open, setOpen] = useState(false), [download, setDownload] = useState<Readonly<{options: DownloadOptionsView; request: AbortController; busy: boolean}>>();
   const anchor = useRef<HTMLButtonElement>(null), active = useRef<AbortController | undefined>(undefined);
   const effects = binding.context.effects;
@@ -35,7 +36,7 @@ export function AudiobookMore({binding, page, entry, variant = 'ghost'}: {bindin
     ? {entityKind: 'book', entityId: entry.id, libraryId: page.scope.libraryId, title: entry.title} : leaf ? target as MetadataTarget : undefined;
   const editable = !!(metadata && effects.editMetadata);
   if (!restart && !editable && !(leaf && (effects.addToPlaylist || effects.addToCollection || effects.deleteTitle || effects.download))) return null;
-  return <><Menu open={open} onOpenChange={setOpen} title={entry.title} trigger={<Button ref={anchor} variant={variant} icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})}/>}>
+  return <><Menu open={open} onOpenChange={setOpen} title={entry.title} trigger={drawn ? cloneElement(drawn as ReactElement<{ref?: RefObject<HTMLButtonElement | null>}>, {ref: anchor}) : <Button ref={anchor} variant={variant} icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})}/>}>
     {restart && <MenuItem icon="i-retry" onSelect={() => run(() => binding.primary(page, true))}>{t('action.startOver')}</MenuItem>}
     {leaf && effects.download && <MenuItem icon="i-download" onSelect={loadDownload}>{t('next.detail.downloadAction')}</MenuItem>}
     {leaf && effects.addToPlaylist && <MenuItem icon="i-listadd" onSelect={() => destination(effects.addToPlaylist)}>{t('next.selection.addToPlaylist')}</MenuItem>}
