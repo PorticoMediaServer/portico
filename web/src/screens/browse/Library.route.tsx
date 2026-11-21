@@ -32,6 +32,7 @@ import {ShowBody} from '../detail/Show';
 import {DetailLoading} from '../detail/Loading';
 import {useShowRoute} from '../detail/use-show-route';
 import {AlbumScreen} from '../detail/Album';
+import {CollectionScreen} from '../detail/Collection';
 import {ArtistScreen} from '../detail/Artist';
 import {AudiobookEntry} from '../detail/audiobooks/Entry';
 import type {ScreenContext} from '../detail/context';
@@ -571,6 +572,8 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     : view === 'show' || view === 'season' ? <LibraryShow captured={captured} libraryId={library.id} search={search}/>
     : view === 'artist' && search.entityId ? <ArtistScreen context={context} libraryId={library.id} artistId={search.entityId}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
+    : view === 'collection' && search.entityId ? <CollectionScreen context={context} libraryId={library.id} collectionId={search.entityId} onOpen={entry => actions(entry).onOpen()}
+      onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {pivot: 'collections'}}).catch(context.effects.reportError);}} />
     : view === 'album' && search.entityId ? <AlbumScreen context={context} libraryId={library.id} albumId={search.entityId} actions={actions}
       onArtist={artistId => navigate({view: 'artist', entityId: artistId})}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />

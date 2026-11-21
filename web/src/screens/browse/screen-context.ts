@@ -11,7 +11,7 @@ import type {ShellBindings} from '../../shell/bindings';
 import type {ScreenContext} from '../detail/context';
 import {screenEntryDestination} from './navigation';
 import {openWatchVersionChooser} from '../watch/version-presentation';
-import {createScreenPlayEffect, createScreenSeasonPlayEffect, createScreenArtistPlayEffect, createScreenAlbumPlayEffect, createScreenRadioPlayEffect} from './playback-effect';
+import {createScreenPlayEffect, createScreenSeasonPlayEffect, createScreenArtistPlayEffect, createScreenAlbumPlayEffect, createScreenCollectionPlayEffect, createScreenRadioPlayEffect} from './playback-effect';
 import {addToDestinationEffect, deleteTitleEffect, entryActions} from '../../shell/entry-actions';
 
 export type ProtectedLibraryScreen = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
@@ -69,6 +69,7 @@ function libraryScreenOwner(context: ProtectedLibraryScreen['context'], scopeKey
       playSeason: createScreenSeasonPlayEffect({isCurrent: current, runtime: () => getBinding().playback?.runtime}),
       playArtist: createScreenArtistPlayEffect({isCurrent: current, runtime: () => getBinding().playback?.runtime}),
       playAlbum: createScreenAlbumPlayEffect({isCurrent: current, runtime: () => getBinding().playback?.runtime}),
+      playCollection: createScreenCollectionPlayEffect({isCurrent: current, runtime: () => getBinding().playback?.runtime}),
       playRadio: createScreenRadioPlayEffect({isCurrent: current, runtime: () => getBinding().playback?.runtime}),
       play: createScreenPlayEffect({isCurrent: current, runtime: () => getBinding().playback?.runtime}),
       ...entryEffects,

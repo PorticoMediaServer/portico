@@ -157,8 +157,10 @@ export function TrackPicker({audio, subtitles, label, onPress}: Readonly<{audio:
 
 /** One numbered row of a list in order (desktop-detail f8 "Films in order", phone-detail d3 frame 8): the number, the
  * poster, the title with its facts and synopsis, and the row's state and action at the end. */
-export function NumberedRow({number, artwork, title, facts, synopsis, status, action, progress}: Readonly<{
+export function NumberedRow({number, artwork, title, facts, synopsis, status, action, progress, onPress}: Readonly<{
   number: number; artwork?: ArtworkSource; title: string; facts?: ReactNode; synopsis?: string;
+  /** Opens the row's title (a collection's film). The title is the button; the poster opens it too. */
+  onPress?: () => void;
   /** "Watched", "Up next", "Not started", with its icon. */
   status?: Readonly<{label: string; icon?: IconName; accent?: boolean}>;
   action?: ReactNode;
@@ -166,8 +168,8 @@ export function NumberedRow({number, artwork, title, facts, synopsis, status, ac
 }>) {
   return <div className={styles.numbered}>
     <span className={styles.number} aria-hidden="true">{number}</span>
-    <span className={styles.numberedArt}><Artwork source={artwork} alt="" />{progress !== undefined && <i style={{width: `${progress * 100}%`}} />}</span>
-    <div className={styles.numberedCopy}><b>{title}</b>{facts}{synopsis !== undefined && <p>{synopsis}</p>}</div>
+    <span className={styles.numberedArt} data-pressable={onPress ? '' : undefined} onClick={onPress}><Artwork source={artwork} alt="" />{progress !== undefined && <i style={{width: `${progress * 100}%`}} />}</span>
+    <div className={styles.numberedCopy}>{onPress ? <button type="button" className={styles.numberedOpen} onClick={onPress}><b>{title}</b></button> : <b>{title}</b>}{facts}{synopsis !== undefined && <p>{synopsis}</p>}</div>
     {(status || action) && <div className={styles.numberedEnd}>{status && <span data-accent={status.accent || undefined}>{status.icon && <Icon name={status.icon} size={14} />}{status.label}</span>}{action}</div>}
   </div>;
 }

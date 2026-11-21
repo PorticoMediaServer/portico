@@ -81,6 +81,23 @@ export function createScreenAlbumPlayEffect(input: Readonly<{isCurrent: () => bo
   };
 }
 
+/** Whole collection in the server's order (or its own shuffle), not the loaded page of films. */
+export function createScreenCollectionPlayEffect(input: Readonly<{isCurrent: () => boolean; runtime: () => Pick<NonNullable<ShellBindings['playback']>['runtime'], 'playFromQueue'> | undefined}>): NonNullable<ScreenContext['effects']['playCollection']> {
+  const authorityCurrent = input.isCurrent.bind(input), getRuntime = input.runtime.bind(input);
+  return async (collectionId, shuffle, signal, callerCurrent) => {
+    const capturedCollectionId = collectionId, capturedShuffle = shuffle;
+    signal.throwIfAborted();
+    if (!authorityCurrent() || !callerCurrent()) throw new DOMException('Collection playback changed', 'AbortError');
+    const runtime = getRuntime();
+    if (!runtime) throw playbackNotReady();
+    const current = () => !signal.aborted && authorityCurrent() && callerCurrent() && getRuntime() === runtime;
+    if (!current()) throw new DOMException('Collection playback changed', 'AbortError');
+    await runtime.playFromQueue({container: {kind: 'collection', id: capturedCollectionId}}, {signal, isCurrent: current}, {shuffle: capturedShuffle});
+    signal.throwIfAborted();
+    if (!current()) throw new DOMException('Collection playback changed', 'AbortError');
+  };
+}
+
 /** Radio membership and refill are the server's seeded selector. A screen never
  * ranks songs or constructs an endlessly growing item list in the browser. */
 export function createScreenRadioPlayEffect(input: Readonly<{isCurrent: () => boolean; runtime: () => Pick<NonNullable<ShellBindings['playback']>['runtime'], 'playFromQueue'> | undefined}>): NonNullable<ScreenContext['effects']['playRadio']> {
