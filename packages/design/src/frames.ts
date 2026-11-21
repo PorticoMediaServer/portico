@@ -150,7 +150,9 @@ export const frame = {
    * takes the room the round buttons leave; elsewhere it is as wide as its label. An action that is on has an accent edge at `activeEdge`. */
   actionRow: {gap: forms(10, 10, 10, 18), primaryWidth: forms<number | undefined>(undefined, 300, undefined, undefined), activeEdge: .55},
   /** Settings list and page (frames 3 and 4). */
-  settings: {listWidth: forms(0, 280, 280, 480), webListWidth: 296, gap: forms(0, 28, 32, 80), webGap: 64, pageMax: 952, paragraphMax: 720, tvSearchWidth: 500, languageWidth: 640, managementQR: 200, navigationRow: forms(44, 48, 48, 56)},
+  /** tvTop: TV Settings starts its list and its page at 56 (tv-more 21-29 `.s-col`, `.s-page` top), 22 under each title
+   * (`.s-col h1`, `.tv .s-page h2`), 18 under the search field (`.s-find`). */
+  settings: {tvTop: 56, tvTitleGap: 22, tvFindGap: 18, listWidth: forms(0, 280, 280, 480), webListWidth: 296, gap: forms(0, 28, 32, 80), webGap: 64, pageMax: 952, paragraphMax: 720, tvSearchWidth: 500, languageWidth: 640, managementQR: 200, navigationRow: forms(44, 48, 48, 56)},
   /** Rule 2: a full-height sheet starts 62 from the top with corners of 16; a sheet's last row clears the home indicator by 34.
    * The bottom sheet's own surface, grab and scrim are the kit sheet's. */
   sheet: {fullTop: 62, fullRadius: 16, footerClear: 34},
