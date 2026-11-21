@@ -29,3 +29,20 @@
 .phoneTopCopy > b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 3px 0 4px; font-size: var(--type-fixed-size-25px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-035em); line-height: var(--type-fixed-line-1point-05); }
 .phoneTopCopy > :last-child { font-size: var(--type-fixed-size-13px); color: var(--color-text-secondary); }
 .phoneTopPlay { position: relative; z-index: var(--layer-content); flex: none; width: 46px; height: 46px; border-radius: 50%; }
+
+/* One result as a row (final3-mobileweb-02, phone-app 8): picture, title and facts, ⋯. */
+.resultRow { display: flex; align-items: center; gap: var(--space-xs); }
+.resultOpen { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-md); padding: var(--space-tight) 0; border: 0; background: transparent; color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
+.resultOpen:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: var(--radius-artwork); }
+.resultArt { flex: none; width: var(--space-px-56); aspect-ratio: 2 / 3; border-radius: var(--radius-artwork); overflow: hidden; background: var(--color-raised); }
+.resultArt[data-shape='square'] { aspect-ratio: 1; }
+.resultArt[data-shape='portrait'] { aspect-ratio: 3 / 4; }
+.resultArt[data-shape='wide'] { width: calc(var(--space-px-56) * 2); aspect-ratio: 16 / 9; }
+.resultArt > * { width: 100%; height: 100%; }
+.resultWords { flex: 1; min-width: 0; display: grid; gap: var(--space-px-2); }
+.resultWords b, .resultWords small { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.resultWords b { font-size: var(--type-row-label-size); font-weight: var(--type-row-label-weight); }
+.resultWords small { display: flex; gap: var(--space-px-12); font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
+.resultEnd { flex: none; font-size: var(--type-row-help-size); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.resultRow[data-selected] .resultWords b { color: var(--color-accent-strong); }
+.resultRow[data-preview] .resultOpen { background: color-mix(in srgb, var(--color-accent-strong) 12%, transparent); }
