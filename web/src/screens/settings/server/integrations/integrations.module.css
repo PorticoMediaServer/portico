@@ -1,9 +1,16 @@
 .page { display: flex; flex-direction: column; gap: 44px; }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+/* A tab's first heading sits as far under the tabs as the Assistants tab's does (owner-server 16). */
+section > .heading:first-child { margin-top: 28px; }
 .heading h3 { margin: 0; font-size: var(--type-report-section-size); font-weight: var(--type-report-section-weight); letter-spacing: var(--type-report-section-tracking); }
 .lede { margin: 0 0 14px; max-width: 660px; font-size: var(--type-troubleshooting-messages-lede-size); line-height: var(--type-troubleshooting-messages-lede-line); color: var(--color-text-tertiary); }
-.keys { list-style: none; padding: 0; margin: 0 0 12px; border-radius: 14px; background: var(--color-raised); overflow: hidden; }
-.keyRow { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; gap: 16px; align-items: center; padding: 15px 20px; border-top: 1px solid var(--color-line-soft); }
+.card { border-radius: 14px; background: var(--color-raised); overflow: hidden; }
+.keys { list-style: none; padding: 0; margin: 0; }
+.keys:empty { display: none; }
+.cardRow { padding: 8px calc(var(--list-row-padding-x) - 10px); border-top: 1px solid var(--color-line-soft); }
+.card > .footnote { margin: 0; padding: 14px var(--list-row-padding-x) 16px; border-top: 1px solid var(--color-line-soft); }
+.card > .pager { margin: 0; padding: 12px var(--list-row-padding-x); border-top: 1px solid var(--color-line-soft); }
+.keyRow { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; gap: 16px; align-items: center; min-height: var(--list-row-two-line); box-sizing: border-box; padding: var(--list-row-padding-y) var(--list-row-padding-x); border-top: 1px solid var(--color-line-soft); }
 .keyRow:first-child { border-top: 0; }
 .keyIcon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: var(--color-text-secondary); background: var(--color-raised-high); }
 .keyText { min-width: 0; }
