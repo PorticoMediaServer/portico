@@ -28,7 +28,7 @@ async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'col
     playback: {intent: 'playing', positionSeconds: 30, duration: 60,
       ...(!input.queue ? {linear: {name: row.name, media: {liveEdgeUs: '60000000'}, programme: {title: 'Cycling: Mountain Stage', startMs: 0, endMs: 3600000}}} : {})}};
   const controls = {subscribe: noopSubscription, getSnapshot: () => controlState, reveal: () => {}, canFullWindow: () => false, hide: () => {controlState.visible = false;},
-    open: (panel: string) => {calls.push(['panel', panel]);return true;}, toggleVisibility: () => {}, holdOverlay: () => {}};
+    open: (panel: string) => {calls.push(['panel', panel]);return true;}, toggleVisibility: () => {calls.push(['toggle']);}, holdOverlay: () => {}};
   const playback = {getSnapshot: () => source, toggle: async (f: unknown) => {calls.push(['toggle', f]);}, seek: async (f: unknown, at: number) => {calls.push(['seek', f, at]);},
     skip: async (f: unknown, delta: number) => {calls.push(['skip', f, delta]);}, previous: async () => {calls.push(['previous']);}, next: async () => {calls.push(['next']);},
     replay: async (f: unknown) => {calls.push(['replay', f]);}, stop: async (f: unknown) => {calls.push(['stop', f]);},
@@ -72,6 +72,12 @@ for (const input of [{name: 'compact phone', compact: true}, {name: 'landscape p
     const down = all.find(node => node.props.testID === 'watch-channel-down'), up = all.find(node => node.props.testID === 'watch-channel-up');
     assert.ok(down);assert.ok(up);assert.equal(down.props.style.width, input.bar ? 48 : 46);assert.equal(up.props.style.width, input.bar ? 48 : 46);
     const guide = all.find(node => node.props.testID === 'watch-chip-episodes');assert.ok(guide);
+    // Every form has the picture under its controls: a tap brings hidden controls back (the tablet's bar form had none, 21 Nov).
+    // (Tabletop draws its controls below the fold, apart from the picture, so it is left as it is.)
+    if (!input.tabletop) {
+      const picture = all.find(node => node.props.testID === 'watch-picture');assert.ok(picture, 'a picture to tap');
+      picture.props.onPress();assert.deepEqual(f.calls.pop(), ['toggle']);
+    }
     if (input.compact) {
       const pills = all.find(node => node.props.testID === 'watch-live-pills');assert.ok(pills);
       assert.ok(nodes(pills).includes(guide));assert.ok(nodes(pills).some(node => node.props.testID === 'watch-option-quality'));
