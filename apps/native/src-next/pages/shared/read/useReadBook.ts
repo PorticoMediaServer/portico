@@ -16,7 +16,7 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
 import type {NativeReadBook, NativeReadOwnerEditLease} from '../../../screens/read/read-book-model';
-import type {ReadingActionsPort} from '../../../screens/read/ReadingActions';
+import type {ReadingActionsPort} from './useReadingActions';
 import type {NativeReadingCollectionKind} from '../../../screens/read/read-collection-capability';
 import {useReadingCollectionKind} from '../../../screens/read/use-reading-collection-kind';
 import {askNativeDownload} from '../../../screens/downloads/request';

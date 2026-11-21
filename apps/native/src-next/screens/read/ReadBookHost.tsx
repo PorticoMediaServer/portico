@@ -4,7 +4,8 @@ import {ReadBookPage} from '../../pages/touch/read/ReadBookPage';
 import type {ReadBookPageProps, ReadBookSheet} from '../../pages/shared/read/useReadBook';
 import {ReadBookScreen} from './ReadBookScreen';
 import {ReadCollectionSheet} from './ReadCollectionSheet';
-import {ReadingItemMenu, ReadingSelectionToolbar, useReadingActions} from './ReadingActions';
+import {ReadingItemMenu, ReadingSelectionToolbar} from '../../kit/reading/ReadingActions';
+import {useReadingActions} from '../../pages/shared/read/useReadingActions';
 import {ReadOwnerEditSheet} from './ReadOwnerEditSheet';
 
 type HostProps = Omit<ReadBookPageProps, 'readingActions' | 'onSheet'>;

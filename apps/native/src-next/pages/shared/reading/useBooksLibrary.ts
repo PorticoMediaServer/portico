@@ -8,7 +8,7 @@ import type {BrowseLabels} from '../../../kit/browse';
 import {useTheme} from '../../../kit/theme';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useReadingActions} from '../../../screens/read/ReadingActions';
+import {useReadingActions} from '../read/useReadingActions';
 import type {NativeReadingActionOffer} from '../../../screens/read/reading-actions';
 import {NativeReadingWindow} from '../../../screens/read/reading-window';
 import {isReadingLibraryKind} from '../../../screens/read/platform';

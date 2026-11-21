@@ -7,7 +7,7 @@ import {Button} from '../../../kit/controls';
 import {Menu} from '../../../kit/overlays';
 import {ReadingLibraryBody, ReadingLibraryLoading, ReadingDiscovery, ReadingFallbackGrid, useReadingLibraryLayout} from '../../../kit/reading/ReadingLibraryParts';
 import {NativeReadingBooks} from '../../../screens/read/ReadingBooks';
-import {ReadingItemMenu, ReadingSelectionToolbar} from '../../../screens/read/ReadingActions';
+import {ReadingItemMenu, ReadingSelectionToolbar} from '../../../kit/reading/ReadingActions';
 import {useBooksLibrary, type BooksPageProps} from '../../shared/reading/useBooksLibrary';
 
 const t = defaultI18n.t;

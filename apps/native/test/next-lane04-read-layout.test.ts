@@ -89,7 +89,7 @@ async function periodical(tablet: boolean, magazine: boolean, phase = 'ready') {
     '../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../../kit/theme': {useTheme: () => theme(tablet)},
     '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
     '../../kit/reading/ReadingLoading': {ReadingLoading: 'ReadingLoading'}, './ReadingShelf': {ReadingShelf: 'ReadingShelf'},
-    './ReadingActions': {ReadingItemMenu: 'ReadingItemMenu', ReadingSelectionToolbar: 'ReadingSelectionToolbar', useReadingActions: () => actions},
+    '../../kit/reading/ReadingActions': {ReadingItemMenu: 'ReadingItemMenu', ReadingSelectionToolbar: 'ReadingSelectionToolbar'}, '../../pages/shared/read/useReadingActions': {useReadingActions: () => actions},
     './periodical-presentation': presentation,
   });
   const tree = r.render(ReadPeriodicalScreen, {controller, route: {groupId: 'group', publicationType: state.publicationType}, context: {}, runtime, onBack() {}});
@@ -189,20 +189,21 @@ test('N5-4: a newspaper front page the server can\'t serve takes no press', asyn
 
 test('N5-4: a series volume the server can\'t serve takes no open, menu or selection', async () => {
   const r = renderer();
-  const {VolumeCard} = await screenModule(new URL('../src-next/screens/read/ReadSeriesScreen.tsx', import.meta.url), {
+  const {VolumeCard} = await screenModule(new URL('../src-next/kit/reading/VolumeCard.tsx', import.meta.url), {
     react: r.react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '@portico/design': {generatedCoverTint: () => ({})}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, number: String}},
-    '../../kit/artwork': {Artwork: 'Artwork', AmbientArt: 'AmbientArt', GeneratedCover: 'GeneratedCover', StandardBackdrop: 'StandardBackdrop'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/layout': {WindowedGrid: 'WindowedGrid'},
+    '../artwork': {Artwork: 'Artwork', AmbientArt: 'AmbientArt', GeneratedCover: 'GeneratedCover', StandardBackdrop: 'StandardBackdrop'},
+    '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../layout': {WindowedGrid: 'WindowedGrid'},
     './reading-window': {NativeReadingWindow: class {}}, './ReadingActions': {ReadingItemMenu: 'ReadingItemMenu', ReadingSelectionToolbar: 'ReadingSelectionToolbar', useReadingActions: () => ({})},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
-    '../../kit/states': {StateView: 'StateView', SkeletonBlock: 'SkeletonBlock', LoadingPaint: 'LoadingPaint'},
-    '../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../../kit/theme': {useTheme: () => theme(false)},
-    '../../kit/layout/page-inset': {usePageWidth: () => 390},
+    '../selection': {SelectionCircle: 'SelectionCircle'}, '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
+    '../states': {StateView: 'StateView', SkeletonBlock: 'SkeletonBlock', LoadingPaint: 'LoadingPaint'},
+    '../browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../theme': {textLine: () => 20, useTheme: () => theme(false)},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../layout/page-inset': {usePageWidth: () => 390},
   });
   const opens: string[] = [], menus: string[] = [], toggles: string[] = [];
   const card = (inventoryAvailable: boolean) => r.render(VolumeCard, {item: {id: 'volume', libraryId: 'books', title: 'Volume', inventoryAvailable}, width: 100, height: 150, comic: false,
-    theme: theme(false), runtime: {artwork: () => undefined}, onOpen: () => opens.push('open'), onMenu: () => menus.push('menu'),
+    theme: {...theme(false), type: {}, space: {xs: 8}}, runtime: {artwork: () => undefined}, onOpen: () => opens.push('open'), onMenu: () => menus.push('menu'),
     selection: {active: true, selected: false, onToggle: () => toggles.push('toggle')}});
   const here = card(true), missing = card(false);
   here.props.onPress(); assert.deepEqual(toggles, ['toggle'], 'an available volume toggles in a selection');
