@@ -24,7 +24,8 @@ export function ServerGroup({title, children}: {title: string; children: ReactNo
 
 export function ServerChooserRow({server, selected = false, busy, onSelect, onMenu}: {server: ServerRow; selected?: boolean; busy: boolean; onSelect: () => void; onMenu: () => void}) {
   const theme = useTheme(), t = defaultI18n.t;
-  return <View style={{flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.lineSoft}}>
+  // The ⋯ button keeps a few points inside the card's edge; flush, its round surface ran into the card's border.
+  return <View style={{flexDirection: 'row', alignItems: 'center', paddingRight: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.lineSoft}}>
     <Focusable testID={`phone-server-${server.id}`} disabled={busy} accessibilityRole="button" accessibilityState={{selected}}
       accessibilityLabel={server.name} accessibilityHint={serverRowDetail(server)} onPress={onSelect}
       style={{flex: 1, minHeight: 60, paddingVertical: 12, paddingLeft: 14, flexDirection: 'row', alignItems: 'center', gap: 12}}>
