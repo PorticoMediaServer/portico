@@ -5,7 +5,6 @@ import {PanelBlock, SectionCard, SettingsPageFrame, StateRow} from '../../../kit
 import {BottomSheet} from '../../../kit/overlays';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
 import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
-import {SettingsHelp} from '../../../kit/settings/SettingsParts';
 import {SettingsRow} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
@@ -105,17 +104,22 @@ function MetadataSettingsBody({ports, runtime, onLibraries, controller, current}
       </SectionCard></>}
     </NativeAdvancedSection>;
   })()}
-    <BottomSheet open={!!editing} onOpenChange={open => {if (!open) metadata.closeCredential();}} title={editing ? t(editing.row.label) : ''}
-      keyboardAvoiding dismissOnBack={!state.busy} dismissOnGesture={!state.busy} dismissOnOutsidePress={!state.busy}
+    <BottomSheet open={!!editing} onOpenChange={open => {if (!open) metadata.closeCredential();}}
+      title={editing ? editing.removing ? t('action.remove', {label: t(editing.row.label)}) : t(editing.row.label) : ''}
+      description={editing?.removing ? t('server.metadata.removeSavedValue') : undefined}
+      keyboardAvoiding={!editing?.removing} fitContent={editing?.removing}
+      dismissOnBack={!state.busy} dismissOnGesture={!state.busy} dismissOnOutsidePress={!state.busy}
       footer={<OverlayFootRow layout="halves">
-        <Button variant="glass" disabled={state.busy} onPress={metadata.closeCredential}>{t('action.cancel')}</Button>
-        <Button disabled={disabled || !editing} loading={state.busy} onPress={() => {void metadata.saveCredential();}}>{t('action.save')}</Button>
+        <Button variant="glass" disabled={state.busy} onPress={metadata.closeCredential}>{t(editing?.removing ? 'server.metadata.keepSavedValue' : 'action.cancel')}</Button>
+        <Button testID="metadata-credential-commit" variant={editing?.removing ? 'danger' : 'primary'} disabled={disabled || !metadata.credentialReady}
+          loading={state.busy} onPress={() => {void metadata.saveCredential();}}>{t(editing?.removing ? 'action.removeShort' : 'action.save')}</Button>
       </OverlayFootRow>}>
-      <PanelBlock><TextField testID="metadata-credential-value" label={editing ? t(editing.row.label) : ''} value={text}
+      {!editing?.removing && <PanelBlock><TextField testID="metadata-credential-value" label={editing ? t(editing.row.label) : ''} value={text}
         onChangeText={metadata.setText} editable={!disabled} secureTextEntry={editing?.row.control.secret}
         autoCapitalize="none" autoCorrect={false} autoComplete="off" placeholder={editing?.row.control.placeholder ? t(editing.row.control.placeholder) : undefined}
-        description={editing?.row.help ? t(editing.row.help) : undefined}/></PanelBlock>
-      <SettingsHelp>{t('server.metadata.clearValueHelp')}</SettingsHelp>
+        description={editing?.row.help ? t(editing.row.help) : undefined}/>
+        {editing?.canRemove && <Button testID="metadata-credential-remove" variant="text" size="compact" disabled={disabled} onPress={metadata.openRemoval}>{t('action.removeShort')}</Button>}
+      </PanelBlock>}
       {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => {metadata.closeCredential(); metadata.reload();}, 'server-console')}/>}
     </BottomSheet>
     <BottomSheet open={!!metadata.confirmation} onOpenChange={open => {if (!open) metadata.closeRefresh();}}
@@ -143,7 +147,9 @@ function Dataset({group, runtime}: {group: StorageForms; runtime: NativeShellRun
   return <SectionCard label={title ? t(title) : undefined}>
     {state.draft ? <SettingsRow first label={label} description={row.help ? t(row.help) : undefined}
       control={<Switch testID={row.id} accessibilityLabel={label} checked={model.on} disabled={save.saving} onCheckedChange={model.change}/>}/>
-      : state.loadError === undefined && <StateRow kind="loading"/>}
+      : state.loading ? <StateRow kind="loading"/>
+      : state.unavailable && <StateRow kind="error" icon="i-warn" title={label} reason={t('error.unavailable')}
+        action={{label: t('action.tryAgain'), onPress: model.reload}}/>}
     {state.loadError !== undefined && <StateView variant="inline" {...runtime.error(state.loadError, model.reload, 'server-console')}/>}
     {state.saveError !== undefined && <StateView variant="inline" {...runtime.error(state.saveError, model.retry, 'server-console')}/>}
   </SectionCard>;
