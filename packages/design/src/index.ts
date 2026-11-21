@@ -288,6 +288,9 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     meta: type(24, 'normal', 400), eyebrow: type(24, 'normal', 600), synopsis: type(24, 34.8, 400), button: type(26, 'normal', 700), tab: type(26, 'normal', 700), chip: type(22, 'normal', 700),
     badge: type(18, 'normal', 800), tag: type(20, 'normal', 600), episodeTitle: type(24, 'normal', 700, -.01), episodeBody: type(22, 33, 400),
     liveTitle: type(26, 'normal', 700, -.01), liveChannel: type(22, 'normal', 600), liveLabel: type(20, 'normal', 700),
+    // detail-tv-5a, 5b: the band under a show's episode row (`.band h2`, `.band .syn`, `.bcred dl`, `.sov`): the episode's
+    // name, and the 22 the band's words, credits and season summary are set in.
+    episodePlateTitle: type(42, 45.36, 800, -.03), about: type(22, 28.6, 400),
     pageTitle: type(44, 50, 800, -.03), listTitle: type(62, 62, 800, -.04), groupLabel: type(20, 'normal', 700), listLabel: type(20, 'normal', 700),
     rowLabel: type(25, 32, 600), rowHelp: type(19, 27, 500), intro: type(23, 33, 500),
     // Round 8 (R2): the TV player and audio roles at the mock-ups' sizes (tv-player 1: times 24/700, "S1 E2" 24/600 with

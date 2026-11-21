@@ -245,6 +245,10 @@ const rowHeight = 84;
 /** `window`: rows shown before the list scrolls (six and half the seventh, detail-tv-5e); `fade`: its edge fades; `tile`: the
  * episode still's width (detail-tv-5a, 384); the band's words and credits share the row 640 : 516, its bar is 220. */
 export const seasonColumn = {width: 330, gap: 70, rowGap: 6, window: 6.5, fade: 70, fadeOpacity: .9, tile: 384, bandWords: 640, bandCredits: 516, bandBar: 220,
+  /** The credits' label column (detail-tv-5b `.bcred dl`, 128) and the season summary's gap between its facts (`.tv .meta`, 26). */
+  bandLabel: 128, bandFactGap: 26,
+  /** The Hold OK hint under the credits (`.bcred .hint`, 26 under the last). */
+  bandHint: 26,
   /** The episode tile the row has moved past: all but hidden, never to nothing (tvOS will not focus a transparent view). */
   passed: .03} as const;
 
@@ -421,7 +425,9 @@ export function TVEpisodeShelf({items, entry, band, empty, onEnd}: Readonly<{ite
   // own view (never flattened away when its opacity is 1): a tile re-parented as it took focus left tvOS unable to move
   // Left from it.
   const [at, setAt] = useState<string>(), before = items[items.findIndex(item => item.key === at) - 1]?.key;
-  return <View style={{gap: theme.space.lg}}>
+  // The band starts 130 under the stills (detail-tv-5a, 5b); the row keeps a second caption line so a long title wraps
+  // instead of being cut, so the gap after it is the smaller step and a wrapped title still clears the band.
+  return <View style={{gap: theme.space.sm}}>
     {items.length === 0 && empty !== undefined && <Text testID="tv-episodes-empty" accessibilityRole="header" style={[theme.type.groupLabel, {color: theme.colors.textSecondary}]}>{empty}</Text>}
     {items.length > 0 && <View style={{marginHorizontal: -room}}><Row showHeading={false} title="" items={items} getKey={item => item.key} itemWidth={width} itemHeight={width * 9 / 16 + caption} captionHeight={caption}
       gutter={room} rightGutter={room} selection={resting} focus={{id: region, entry}} onVisibleRange={onRange}
@@ -440,42 +446,46 @@ function EpisodeItem({item, width, ...focus}: Readonly<{item: TVEpisodeItem; wid
 /** The band under the episode row (detail-tv-5a: a season's facts over its overview; 5b: an episode's title, facts and
  * synopsis, its watch state, and beside them its guest stars and credits with the Hold OK hint). Every line wraps. */
 export function EpisodeBand({band}: Readonly<{band: EpisodeBandData}>) {
-  const theme = useTheme();
+  const theme = useTheme(), text = theme.type.about, strong = {fontFamily: fontFamilies[600]};
+  // detail-tv-5a `.sov`: the season, bold, then its year and count in the line's colour, 8 over the overview.
   if (band.kind === 'season') return <View testID="tv-episode-band" style={{gap: theme.space.xs}}>
-    <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: theme.space.md, rowGap: theme.space.xs}}>
-      <Text accessibilityRole="header" style={[theme.type.rowLabel, {color: theme.colors.text}]}>{band.title}</Text>
-      {band.facts.map(fact => <Text key={fact} style={[theme.type.meta, {color: theme.colors.textTertiary}]}>{fact}</Text>)}
+    <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: seasonColumn.bandFactGap, rowGap: theme.space.xs}}>
+      <Text accessibilityRole="header" style={[text, {fontFamily: fontFamilies[700], color: theme.colors.text}]}>{band.title}</Text>
+      {band.facts.map(fact => <Text key={fact} style={[text, {color: theme.colors.textSecondary}]}>{fact}</Text>)}
     </View>
-    {band.overview !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{band.overview}</Text>}
+    {band.overview !== undefined && <Text style={[theme.type.episodeBody, {color: theme.colors.textSecondary}]}>{band.overview}</Text>}
   </View>;
   const track = theme.spec.card.progress.height[theme.column];
+  // detail-tv-5b `.band`: the words 640 and the credits 516, 24 apart. The name (42, 10 over the facts), the facts (14 over
+  // the synopsis), the synopsis, then where it was left 18 under; beside them the credits, a 128 label column 16 from the
+  // names, 14 between credits, a guest's character 10 after the name, the hint 26 under.
   return <View testID="tv-episode-band" style={{flexDirection: 'row', gap: theme.space.md}}>
-    <View style={{flex: seasonColumn.bandWords, minWidth: 0, gap: theme.space.sm}}>
-      <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{band.title}</Text>
+    <View style={{flex: seasonColumn.bandWords, minWidth: 0}}>
+      <Text accessibilityRole="header" style={[theme.type.episodePlateTitle, {color: theme.colors.text, marginBottom: theme.space.controlGap}]}>{band.title}</Text>
       {/* The hero's facts line: the rating is its outlined chip (content-rating). */}
-      <HeroMetadata facts={band.facts}/>
-      {band.synopsis !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary}]}>{band.synopsis}</Text>}
-      {band.state && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm}}>
+      <View style={{marginBottom: theme.space.rowHeadingGap}}><HeroMetadata facts={band.facts}/></View>
+      {band.synopsis !== undefined && <Text style={[theme.type.episodeBody, {color: theme.colors.textSecondary}]}>{band.synopsis}</Text>}
+      {band.state && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, marginTop: theme.space.metaGap}}>
         {band.state.progress !== undefined && <View style={{width: seasonColumn.bandBar, height: track, borderRadius: track, backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
           <View style={{height: track, width: `${Math.min(1, band.state.progress) * 100}%`, borderRadius: track, backgroundColor: theme.colors.accentStrong}}/></View>}
-        <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{band.state.label}</Text>
+        <Text style={[text, {color: theme.colors.textSecondary}]}>{band.state.label}</Text>
       </View>}
       {band.error}
     </View>
-    <View style={{flex: seasonColumn.bandCredits, minWidth: 0, gap: theme.space.sm}}>
+    <View style={{flex: seasonColumn.bandCredits, minWidth: 0, paddingTop: theme.space.xs}}><View style={{gap: theme.space.rowHeadingGap}}>
       {/* Each credit is a label and its names in two columns (detail-tv-5b: Guest stars, Directed by, Written by). */}
       {band.guests && band.guests.people.length > 0 && <View style={{flexDirection: 'row', gap: theme.space.sm}}>
-        <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: sizes.aboutLabel[theme.form]}]}>{band.guests.label}</Text>
+        <Text style={[text, {color: theme.colors.textTertiary, width: seasonColumn.bandLabel}]}>{band.guests.label}</Text>
         <View style={{flex: 1, minWidth: 0, gap: theme.space.tight}}>
-          {band.guests.people.map(person => <Text key={person.name} style={[theme.type.rowLabel, {color: theme.colors.text}]}>{person.name}
-            {person.role !== undefined && <Text style={{color: theme.colors.textTertiary}}>{'  '}{person.role}</Text>}</Text>)}
-          {band.guests.more !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{band.guests.more}</Text>}
+          {band.guests.people.map(person => <Text key={person.name} style={[text, strong, {color: theme.colors.text}]}>{person.name}
+            {person.role !== undefined && <Text style={{fontFamily: fontFamilies[500], color: theme.colors.textTertiary}}>{'  '}{person.role}</Text>}</Text>)}
+          {band.guests.more !== undefined && <Text style={[text, {fontFamily: fontFamilies[500], color: theme.colors.textTertiary}]}>{band.guests.more}</Text>}
         </View>
       </View>}
       {band.lines?.map(line => <View key={line.label} style={{flexDirection: 'row', gap: theme.space.sm}}>
-        <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, width: sizes.aboutLabel[theme.form]}]}>{line.label}</Text>
-        <Text style={[theme.type.rowLabel, {flex: 1, minWidth: 0, color: theme.colors.text}]}>{line.names}</Text></View>)}
-      {band.hint && <View style={{marginTop: theme.space.sm}}><KeyHints hints={[band.hint]}/></View>}
+        <Text style={[text, {color: theme.colors.textTertiary, width: seasonColumn.bandLabel}]}>{line.label}</Text>
+        <Text style={[text, strong, {flex: 1, minWidth: 0, color: theme.colors.text}]}>{line.names}</Text></View>)}</View>
+      {band.hint && <View style={{marginTop: seasonColumn.bandHint}}><KeyHints hints={[band.hint]}/></View>}
     </View>
   </View>;
 }
