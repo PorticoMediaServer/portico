@@ -10,7 +10,8 @@ const t = (id: string) => id;
 
 async function fixture(legacy = false) {
   const outer = hooks(), inner = hooks(); let active = outer, setup: () => void = () => {};
-  const react = {...outer.react, useState: (...args: unknown[]) => active.react.useState(...args), useEffect: (fn: () => void) => {setup = fn;}, useCallback: (fn: unknown) => fn,
+  const react = {...outer.react, useState: (...args: unknown[]) => active.react.useState(...args), useRef: (...args: unknown[]) => active.react.useRef(...args),
+    useEffect: (fn: () => void) => {setup = fn;}, useCallback: (fn: unknown) => fn,
     useSyncExternalStore: (_subscribe: unknown, get: () => unknown) => get()};
   const data = {revision: 7, localArtworkLimitBytes: 2 ** 30, localArtworkUsedBytes: 0, includeAdult: true, artworkMaxEdge: 1920, tmdbCredentialConfigured: true,
     tvdbCredentialConfigured: false, openSubtitlesKeyConfigured: false, openSubtitlesPasswordConfigured: true, openSubtitlesUsername: 'viewer', openSubtitles: {},
@@ -23,39 +24,49 @@ async function fixture(legacy = false) {
     checkOpenSubtitles = async (original: unknown) => {assert.equal(original, data); calls.push('test');};
   }
   const scope = {api: {}, lifetime: {current: () => true}, authority: {profileId: 'owner'}};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/MetadataPage.tsx', import.meta.url), {
-    react, 'react-native': {Linking: {openURL: async () => {}}, Text: 'Text', View: 'View', ScrollView: 'ScrollView'},
-    '../../../../../../packages/client-core/src/metadata-settings': {artworkLimitText: (value: number) => String(value / 2 ** 30), openSubtitlesSummary: () => ({text: 'Saved status'})},
-    '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec, settingsRowIndex}, '../../../../../../packages/i18n/src': {defaultI18n: {t}},
-    '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Select': {Select: 'Select'}, '../../../kit/controls/Switch': {Switch: 'Switch'},
-    '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'},
-    '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, '../../../kit/states': {StateView: 'StateView'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})},
-    '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff', textSecondary: '#aaa'}, type: {caption: {}}})},
-    '../use-settings-request-scope': {useSettingsRequestScope: () => scope}, '../owner-libraries/controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
-    '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'NativeAdvancedSection'}, './metadata-controller': {NativeMetadataController: Controller},
-    './TitleDatasetGroup': {NativeTitleDatasetGroup: 'NativeTitleDatasetGroup'},
+  const words = {artworkLimitText: (value: number) => String(value / 2 ** 30), openSubtitlesSummary: () => ({text: 'Saved status'})};
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerMetadata.ts', import.meta.url), {
+    react, '../../../../../../packages/client-core/src/metadata-settings': words,
+    '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec, settingsRowIndex},
+    '../../../../../../packages/i18n/src': {defaultI18n: {t}},
+    '../../../screens/settings-live/use-settings-request-scope': {useSettingsRequestScope: () => scope},
+    '../../../screens/settings-live/server/metadata-controller': {NativeMetadataController: Controller},
+    '../../../screens/settings-live/server/storage/forms': {},
+  });
+  const module = await screenModule(new URL('../src-next/pages/touch/settings/ServerMetadataPage.tsx', import.meta.url), {
+    react, '../../../../../../packages/client-core/src/metadata-settings': words, '../../shared/settings/useServerMetadata': model,
+    '../../../kit/controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame', PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
+    '../../../kit/states': {StateView: 'StateView'}, '../../../kit/settings/SettingsParts': {SettingsHelp: 'Text'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'NativeAdvancedSection'},
   });
   const props = {ports: {context: {serverName: 'Server', account: {canManage: true, account: {role: 'owner', primaryProfileId: 'owner'}}}},
     runtime: {text: {t}, reportError() {}, error: () => ({title: 'Error'})}, onLibraries: () => calls.push('libraries')};
-  outer.render(() => module.NativeServerMetadata(props)); setup();
-  const page = outer.render(() => module.NativeServerMetadata(props)) as Node;
-  return {writes, calls, render: () => {active = inner; return inner.render(() => page.type(page.props));}};
+  outer.render(() => module.ServerMetadataPage(props)); setup();
+  const page = outer.render(() => module.ServerMetadataPage(props)) as Node;
+  return {writes, calls, render: () => {active = inner; return inner.render(() => {const content = page.props.children[1];return content.type(content.props);});}};
 }
 
 test('Metadata exposes only published settings and routes row edits through the mounted controller', async () => {
   const f = await fixture(), tree = f.render();
   for (const id of ['metadata.refreshAll', 'metadata.online', 'metadata.adult', 'metadata.language', 'metadata.region', 'metadata.artworkPrefer', 'metadata.artworkLanguage', 'metadata.artworkLimit', 'metadata.artworkSize']) assert.ok(byId(tree, id), id);
   for (const id of ['metadata.refresh', 'metadata.fallbackLanguage', 'metadata.animeTitles', 'metadata.castPhotos', 'metadata.acoustid']) assert.equal(byId(tree, id), undefined, id);
-  // A long row label still leaves the value its pill (the 176 minimum is Select's own, walk 1 Nov).
-  for (const id of ['metadata.language', 'metadata.region', 'metadata.artworkPrefer', 'metadata.artworkLanguage']) assert.equal(byId(tree, id)!.props.style?.maxWidth, 220, id);
+  // Values use the kit's inline row control, which leaves half the row for long labels.
+  for (const id of ['metadata.language', 'metadata.region', 'metadata.artworkPrefer', 'metadata.artworkLanguage']) {
+    const control = byId(tree, id)!;
+    assert.equal(nodes(tree).find(value => value.props.control === control)?.type, 'SettingsRow');
+    assert.equal(control.props.label, undefined);
+    assert.ok(control.props.accessibilityLabel);
+  }
   byId(tree, 'metadata.adult')!.props.onCheckedChange(false); byId(tree, 'metadata.language')!.props.onValueChange('fr');
   assert.deepEqual(f.writes, [{includeAdult: false}, {defaultLanguage: 'fr'}]);
   const libraryLink = nodes(tree).find(value => value.props.label === t(settingsRowIndex.get('metadata.perLibrary')!.row.label))!;
   libraryLink.props.onPress(); assert.deepEqual(f.calls, ['libraries']);
   // Recommendations (the title dataset switch) sits after Subtitle search, before Advanced.
-  const children = nodes(tree).map(value => value.type);
-  assert.ok(children.includes('NativeTitleDatasetGroup'));
-  assert.ok(children.indexOf('NativeTitleDatasetGroup') < children.indexOf('NativeAdvancedSection'));
+  const children = nodes(tree).map(value => value.type?.name ?? value.type);
+  assert.ok(children.includes('TitleDatasetGroup'));
+  assert.ok(children.indexOf('TitleDatasetGroup') < children.indexOf('NativeAdvancedSection'));
   const legacy = await fixture(true), older = legacy.render();
   assert.equal(byId(older, 'metadata.online'), undefined); assert.equal(byId(older, 'metadata.language'), undefined); assert.ok(byId(older, 'metadata.adult'));
 });
