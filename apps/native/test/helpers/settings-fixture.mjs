@@ -38,6 +38,7 @@ export async function settingsFixture(previous) {
     './ServerGeneralPage': previous['./ServerGeneralPage'] ?? {ServerGeneralPage: 'ServerGeneralPage'},
     './ServerRemoteAccessPage': previous['./ServerRemoteAccessPage'] ?? {ServerRemoteAccessPage: 'ServerRemoteAccessPage'},
     '../../touch/settings/ServerStreamingPage': previous['../../touch/settings/ServerStreamingPage'] ?? {ServerStreamingPage: 'ServerStreamingPage'},
+    '../../touch/settings/ServerIntegrationsPage': previous['../../touch/settings/ServerIntegrationsPage'] ?? {ServerIntegrationsPage: 'ServerIntegrationsPage'},
     '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: function HistoryPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'history', back}, e(History));}}});
   return {NativeSettingsScreen: page.NativeSettingsPage};
 }
