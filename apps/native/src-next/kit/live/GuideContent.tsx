@@ -127,7 +127,7 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
     {sourcePicker}
     {dayPicker}
     <Button testID="live-now" variant="glass" size="small" onPress={goNow}>{t('guide.now')}</Button>
-    {hasRecordings && <Button focusId="live-recordings" testID="live-recordings" variant="glass" size="small" icon="i-rec" onPress={() => setRecordingsOpen(true)}>{t('recordings.title')}</Button>}
+    {hasRecordings && <Button focusId="live-recordings" testID="live-recordings" variant="glass" size="small" icon="i-repeatrule" onPress={() => setRecordingsOpen(true)}>{t('recordings.title')}</Button>}
     {ownerButton}
   </GuideActionRow>;
   const timeRow = <GuideActionRow testID="live-time">
