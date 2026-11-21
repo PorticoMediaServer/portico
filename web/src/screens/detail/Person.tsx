@@ -2,11 +2,12 @@ import {t, locale} from './text';
 import {useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {personSectionLabel, type PersonPage, type PersonCredit} from '@core/people.ts';
 import type {ContentEntry} from '@core/library-content.ts';
-import {Chip, Button} from '../../kit/controls';
+import {Chip} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
-import {AmbientArt, PersonCircle, nameInitials} from '../../kit/artwork';
+import {PersonCircle, nameInitials} from '../../kit/artwork';
+import {TitleFrame} from '../../kit/frames';
 import {PosterCard, SquareCard} from '../../kit/cards';
-import {WindowedGrid, Lockup, Shelf} from '../../kit/layout';
+import {WindowedGrid, Shelf} from '../../kit/layout';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import type {CardTextPresentation} from '../../kit/cards/types';
@@ -14,7 +15,7 @@ import {DetailLoading, ScreenFailure, TitleRow} from './Detail';
 import {entryCard} from './model';
 import {creditRole, type PersonBindings} from './person-bindings';
 import styles from './person.module.css';
-import {TitleProse} from '../../kit/title/TitleParts';
+import {TitleFactsLine} from '../../kit/title/TitleParts';
 import {ScreenProblem} from './ScreenProblem';
 import {runScreenCommand} from './context';
 import {useTitleMenu} from '../../shell/title-menu';
@@ -37,33 +38,18 @@ export function PersonScreen({binding, personId}: PersonScreenProps) {
   const roles = person.roles.join(', ');
   const bornText = born ? (died ? t('web.person.lived', {born, died}) : t('web.person.born', {date: born})) : undefined;
   const roleChips = <div className={phone ? styles.phoneChips : styles.chips}>{(['all', 'cast', 'crew'] as const).map(role => <Chip key={role} variant={phone ? 'default' : 'quick'} selected={snapshot.role === role} onClick={() => runScreenCommand(binding.context, () => { binding.current(page); return binding.select(person.id, role); })}>{t(role === 'all' ? 'web.search.all' : role === 'cast' ? 'web.person.cast' : 'web.person.crew')}</Chip>)}</div>;
-  return <article className={styles.person} data-person-screen data-phone={phone || undefined}>
-    {phone && <div className={styles.phoneBar} data-person-phone-bar><Button variant="icon" icon="i-left" iconOnly aria-label={t('accounts.signIn.back')} onClick={() => runScreenCommand(binding.context, () => {binding.current(page);binding.context.effects.back?.();})} /></div>}
-    <header className={styles.hero} data-person-hero>
-      <AmbientArt className={styles.wash} treatment="artist" sources={person.knownFor.slice(0, 3).flatMap(entry => { const source = art.ambient(entry.backdropUrl ?? entry.posterUrl); return source ? [source] : []; })} />
-      <div className={styles.portrait} data-person-disc><PersonCircle covers={phone ? [] : covers} initials={initials} alt={person.name} initialsSize={phone ? 38 : 128} /></div>
-      <div className={styles.copy} data-person-copy>
-        {phone ? <>
-          <h1 className={styles.phoneName}>{person.name}</h1>
-          {(roles || bornText) && <p className={styles.phoneMeta} data-person-meta>{roles && <strong>{roles}</strong>}{bornText && <span>{bornText}</span>}</p>}
-          {hasBiography ? <TitleProse className={styles.phoneBio} data-person-bio data-full={full || undefined}>{person.biography}</TitleProse> : <TitleProse className={styles.phoneBio} data-person-bio>{t('web.person.noBio')}</TitleProse>}
-          {hasBiography && <Button variant="text" size="small" className={styles.phoneReadMore} onClick={() => runScreenCommand(binding.context, () => { binding.current(page); setFull(value => !value); })}>{t(full ? 'web.person.showLess' : 'web.person.readMore')}</Button>}
-        </> : <>
-          {person.roles.length > 0 && <p className={styles.roles} data-person-roles>{roles}</p>}
-          <Lockup title={person.name} platform="desktop" />
-          {hasMeta && <p className={styles.meta} data-person-meta>
-            {bornText && <strong>{bornText}</strong>}
-            {person.birthPlace && <span>{person.birthPlace}</span>}
-            {titles > 0 && <span>{t('web.person.titlesOnServer', {count: titles})}</span>}
-          </p>}
-          {hasBiography ? <TitleProse className={styles.biography} data-person-bio data-full={full || undefined}>{person.biography}</TitleProse> : <TitleProse className={styles.biography} data-person-bio>{t('web.person.noBio')}</TitleProse>}
-          {(hasBiography || biographySource) && <div className={styles.bioFoot} data-person-bio-foot>
-            {hasBiography && <Button variant="text" size="small" className={styles.readMore} onClick={() => runScreenCommand(binding.context, () => { binding.current(page); setFull(value => !value); })}>{t(full ? 'web.person.showLess' : 'web.person.readMore')}<Icon name={full ? 'i-up' : 'i-down'} size={16} /></Button>}
-            {biographySource && <small className={styles.source} data-person-source>{t('web.person.biographyFrom', {source: biographySource})}</small>}
-          </div>}
-        </>}
-      </div>
-    </header>
+  // The person on the title frame (desktop-detail f7; phone-detail d3): the circle of what they are known for, their roles as
+  // the kicker, the facts, the biography with Read more and where it is from; the frame places them on every form.
+  const facts = [...(bornText ? [{id: 'born', text: bornText, role: 'identity' as const}] : []), ...(person.birthPlace ? [{id: 'place', text: person.birthPlace, role: 'context' as const}] : []),
+    ...(titles > 0 ? [{id: 'titles', text: t('web.person.titlesOnServer', {count: titles}), role: 'context' as const}] : [])];
+  return <div data-person-screen data-phone={phone || undefined}><TitleFrame
+    back={binding.context.effects.back ? {label: t('next.states.back'), onPress: () => runScreenCommand(binding.context, () => { binding.current(page); binding.context.effects.back?.(); })} : undefined}
+    cover={{shape: 'circle', node: <PersonCircle covers={covers} initials={initials} alt={person.name} initialsSize={phone ? 38 : 128} />}}
+    kicker={roles ? {label: roles} : undefined} title={person.name} metadata={hasMeta ? <TitleFactsLine parts={facts} /> : undefined}
+    synopsis={hasBiography ? person.biography : t('web.person.noBio')}
+    readMore={hasBiography ? {label: t(full ? 'web.person.showLess' : 'web.person.readMore'), expanded: full, onPress: () => runScreenCommand(binding.context, () => { binding.current(page); setFull(value => !value); }),
+      ...(biographySource ? {note: t('web.person.biographyFrom', {source: biographySource})} : {})} : undefined}>
+    <div className={styles.person}>
     {phone
       ? snapshot.role === 'all' && person.knownFor.length > 0 && titles > person.knownFor.length && <PhoneKnownFor binding={binding} page={page} />
       : snapshot.role === 'all' && person.knownFor.length > 0 && titles > person.knownFor.length && <TitleRow binding={binding} heading={t('web.person.knownFor')} entries={person.knownFor} guard={() => binding.current(page)} />}
@@ -77,7 +63,8 @@ export function PersonScreen({binding, personId}: PersonScreenProps) {
         ? <div className={styles.groups} data-person-groups>{page.groups.filter(group => group.kind && group.total > 0).map(group => <PersonCredits key={group.id} binding={binding} page={page} kind={group.kind} total={group.total} heading={t(personSectionLabel(group.kind))} phone={false} />)}</div>
         : titles > 0 && <div className={styles.credits} data-person-credits><PersonCredits binding={binding} page={page} total={titles} heading={t('web.person.credits')} phone={false} /></div>}
     {!phone && titles > 0 && <p className={styles.note} data-person-note><Icon name="i-info" size={18} />{t('web.person.serverNote')}</p>}
-  </article>;
+    </div>
+  </TitleFrame></div>;
 }
 
 function PhoneKnownFor({binding, page}: {binding: PersonBindings; page: PersonPage}) {
