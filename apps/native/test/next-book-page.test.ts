@@ -1,8 +1,10 @@
-import {audiobookAuthorInitials} from '../src-next/screens/destinations/audiobooks/presentation.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
-import {expandWindows, musicWindowStub} from './helpers/music-window-stub.ts';
+import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
+import {presentError} from '../../../packages/client-core/src/presentation/errors.ts';
+import {defaultI18n} from '../../../packages/i18n/src/index.ts';
+import {audiobookAuthorInitials} from '../src-next/screens/destinations/audiobooks/presentation.ts';
 import {LibraryContentService} from '../../../packages/client-core/src/library-content';
 
 const entity = {id: 'book-1', libraryId: 'books', kind: 'book', title: 'The Martian', author: 'Andy Weir', narrators: ['R. C. Bray'],
@@ -133,9 +135,9 @@ test('renderer commands retain their original navigation occurrence across cache
     react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
     '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController},
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
-    './BookScreen': {BookScreen: 'book'}, './AuthorSeriesScreen': {AuthorSeriesScreen: 'author'},
+    './BookScreen': {BookScreen: 'book'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'},
+    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
   const context = {api: {}, authority: () => ({}), playback: {start: async (input: any) => {starts.push(input);}},
     subscribeAuthority: (fn: () => void) => {callbacks.add(fn); return () => callbacks.delete(fn);},
@@ -245,58 +247,55 @@ test('authority retirement keeps pending playback tied to the original viewer', 
 
 test('author and series show a retryable error and retain Back, while ready-empty is not an error', async () => {
   const ui = hooks();
-  const ErrorView = () => null;
-  let tv = false;
-  const theme = {colors: {ink: '#000', text: '#fff', textSecondary: '#aaa', textTertiary: '#aaa',
-    raised: '#111', line: '#222', accentStrong: '#fff'}, isTV: false};
-  const {AuthorSeriesScreen} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/AuthorSeriesScreen.tsx', import.meta.url), {
-    react: ui.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
-    '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, duration: String, list: (v: string[]) => v.join(', ')}},
-    '../../../kit/artwork': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork', PersonCircle: 'PersonCircle'},
-    '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../../kit/focus': {FocusRegion: 'FocusRegion'},
-    '../../../kit/browse/presentation': {alpha: (value: string) => value, browseType: () => ({})},
-    '../../../kit/theme': {useTheme: () => ({...theme, isTV: tv})}, './BookScreen': {AudiobookErrorState: ErrorView}, './presentation': {audiobookAuthorInitials},
-    '../music/MusicWindow': musicWindowStub,
+  const {useAuthorSeries} = await screenModule(new URL('../src-next/pages/shared/book/useAuthorSeries.ts', import.meta.url), {
+    react: ui.react, '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError},
+    '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../screens/destinations/audiobooks/presentation': {audiobookAuthorInitials},
   });
-  const find = (node: any, predicate: (value: any) => boolean): any => {
-    if (!node || typeof node !== 'object') return undefined;
-    if (predicate(node)) return node;
-    for (const child of [node.props?.children].flat(Infinity)) {const result = find(child, predicate); if (result) return result;}
-    return undefined;
-  };
-  for (const kind of ['author', 'book_series']) for (tv of [false, true]) {
-    const pageEntity = {id: 'person-1', libraryId: 'books', kind, title: 'Person'};
+  const frames = {TitleFrame: 'TitleFrame', StateRow: 'StateRow', TitleRowWindow: 'TitleRowWindow', musicScroller: (value: unknown) => value,
+    PanelBlock: 'PanelBlock', PanelHeading: 'PanelHeading', AboutTable: 'AboutTable'};
+  for (const kind of ['author', 'book_series']) for (const tv of [false, true]) {
+    const {AuthorSeriesPage} = await screenModule(new URL(`../src-next/pages/${tv ? 'tv' : 'touch'}/book/AuthorSeriesPage.tsx`, import.meta.url), {
+      react: ui.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/frames': frames, '../../../kit/layout': {HeroMetadata: 'HeroMetadata'},
+      '../../../kit/artwork': {Artwork: 'Artwork', AmbientArt: 'AmbientArt', PersonCircle: 'PersonCircle', missingArt: () => undefined},
+      '../../shared/book/useAuthorSeries': {useAuthorSeries},
+    });
+    const pageEntity = {id: 'person-1', libraryId: 'books', kind, title: 'Andy Weir'};
     const failed = {phase: 'error', error: {code: 'request_failed', retryable: true}, sections: [], projection: null};
     const {value} = await controller({kind, id: 'person-1', page: failed});
     await value.load(lease);
     let back = 0;
-    const render = () => expandWindows(ui.render(() => AuthorSeriesScreen({controller: {...value, getSnapshot: value.getSnapshot, subscribe: value.subscribe, load: () => value.load(lease), next: (id: string) => value.next(id, lease)}, entry: pageEntity,
-      runtime: {artwork: () => undefined, ambient: () => undefined}, actions: {menu() {}}, openEntry() {}, onBack: () => {back++;}})));
+    const render = () => ui.render(() => AuthorSeriesPage({
+      controller: {...value, getSnapshot: value.getSnapshot, subscribe: value.subscribe, load: () => value.load(lease), next: (id: string) => value.next(id, lease)},
+      entry: pageEntity, runtime: {artwork: () => undefined, ambient: () => undefined, reportError(error: unknown) {throw error;}},
+      actions: {menu() {}}, openEntry() {}, onBack: () => {back++;},
+    }));
+    const find = (page: any, type: string) => {
+      const body = tv ? page.props.beside.props.children : page.props.children;
+      return body.flatMap((child: any) => child?.type === 'PanelBlock' ? child.props.children : [child]).find((child: any) => child?.type === type);
+    };
     const errorTree = render();
-    const error = find(errorTree, node => node.type === ErrorView);
-    assert.ok(error);
-    if (!tv) {const bar = find(errorTree, node => node.type === 'TopBar'); assert.equal(bar?.props.back.label, 'action.back'); bar.props.back.onPress(); assert.equal(back, 1);}
+    const error = find(errorTree, 'StateRow');
+    assert.equal(error?.props.kind, 'error');
+    errorTree.props.back.onPress();
+    assert.equal(back, 1);
+    if (tv) assert.equal(errorTree.props.startFocus, error.props.action.focusId);
+    if (kind === 'author') assert.equal(errorTree.props.cover.node(100).props.initials, 'AW');
     FakeLibraryContentService.page = {phase: 'ready', error: null, sections: [{id: 'books', entries: []}],
       projection: {entity: pageEntity, sections: [{id: 'books', entries: []}]}};
-    error.props.retry();
+    error.props.action.onPress();
     await Promise.resolve(); await Promise.resolve();
     assert.equal(value.getSnapshot().phase, 'ready');
-    assert.equal(find(render(), node => node.type === ErrorView), undefined);
+    assert.equal(find(render(), 'StateRow'), undefined);
     const books = {id: 'books', entries: [entity], totalCount: 81, nextCursor: 'next'};
     FakeLibraryContentService.page = {phase: 'ready', error: null, sections: [books], projection: {entity: pageEntity, sections: [books]}};
     await value.load(lease); FakeLibraryContentService.nextCalls = [];
     const readyTree = render();
-    if (tv) {
-      const row = find(readyTree, node => typeof node.type === 'function' && node.props?.entry === entity);
-      assert.ok(row);
-      const focusable = find(row.type(row.props), node => node.type === 'Focusable');
-      focusable.props.onFocus();
-    } else {
-      // The viewport list's own near-end signal asks for the next page.
-      const scroll = find(readyTree, node => node.type === 'MusicScrollView');
-      scroll.props.onNearEnd();
-    }
+    const rowWindow = find(readyTree, 'TitleRowWindow');
+    assert.equal(rowWindow.props.rows[0].id, entity.id);
+    if (tv) rowWindow.props.onFocusRow(0);
+    else readyTree.props.scroller.onNearEnd();
     await Promise.resolve(); await Promise.resolve();
     assert.deepEqual(FakeLibraryContentService.nextCalls, ['books']);
     value.dispose();
@@ -544,9 +543,9 @@ test('a scoped loading publication restores the cached book when its opening is 
     react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
     '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController: ObservedController},
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
-    './BookScreen': {BookScreen: 'book'}, './AuthorSeriesScreen': {AuthorSeriesScreen: 'author'},
+    './BookScreen': {BookScreen: 'book'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'},
+    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
   const api = {request: async (path: string) => {
     const url = new URL(path, 'https://server.test');
@@ -724,9 +723,9 @@ test('renderer stops guarded navigation reads when a predicate disposes it but r
     react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
     '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController},
     '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
-    './BookScreen': {BookScreen: 'book'}, './AuthorSeriesScreen': {AuthorSeriesScreen: 'author'},
+    './BookScreen': {BookScreen: 'book'},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'},
+    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
   let disposed = false, renderer: any, starts = 0;
   const context = {api: {}, authority: () => ({}), playback: {start: async () => {starts++;}}, subscribeAuthority: () => () => {},

@@ -68,7 +68,7 @@ export function SectionCard({label, help, stale, plain = false, children}: {labe
 
 export type StateRowProps =
   | Readonly<{kind: 'loading'}>
-  | Readonly<{kind: 'empty' | 'error'; icon: IconName; title: string; reason?: string; action?: Readonly<{label: string; onPress: () => void}>}>;
+  | Readonly<{kind: 'empty' | 'error'; icon: IconName; title: string; reason?: string; action?: Readonly<{label: string; onPress: () => void; focusId?: string}>}>;
 
 /** Rule 9: loading, empty or error inside one section, as one row of the section's own card. It has a list row's
  * shape and height (tile, one bold line, one line of reason, one extra-small button), so nothing jumps when the rows
@@ -93,6 +93,6 @@ export function StateRow(props: StateRowProps) {
       <Text numberOfLines={2} style={[theme.type.rowLabel, {color: theme.colors.text, fontFamily: theme.type.groupLabel.fontFamily}]}>{props.title}</Text>
       {props.reason !== undefined && <Text numberOfLines={2} style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{props.reason}</Text>}
     </View>
-    {props.action && <Button variant="glass" size="xs" onPress={props.action.onPress}>{props.action.label}</Button>}
+    {props.action && <Button variant="glass" size="xs" focusId={props.action.focusId} onPress={props.action.onPress}>{props.action.label}</Button>}
   </View>;
 }

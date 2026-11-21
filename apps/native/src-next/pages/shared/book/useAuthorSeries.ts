@@ -25,7 +25,7 @@ export type AuthorSeriesPageProps = Readonly<{
 export type AuthorSeriesView = Readonly<{
   series: boolean; title: string; kicker: string;
   /** A series: its first book's cover (else its own). An author: the circle of their books' covers with their initials. */
-  cover?: ArtworkSource; covers: readonly ArtworkSource[]; initials: string; glow?: AmbientArtSource;
+  cover?: ArtworkSource; covers: readonly ArtworkSource[]; ambientCovers: readonly AmbientArtSource[]; initials: string; glow?: AmbientArtSource;
   /** A series' author, a link to their page when the projection names one. */
   byline?: Readonly<{text: string; onPress?: () => void}>;
   facts: readonly FactPart[];
@@ -41,7 +41,7 @@ export type AuthorSeriesView = Readonly<{
   onNearEnd: () => void;
 }>;
 
-export function useAuthorSeries({controller, entry, runtime, actions, openEntry}: AuthorSeriesPageProps): AuthorSeriesView {
+export function useAuthorSeries({controller, entry, runtime, actions, openEntry}: AuthorSeriesPageProps, tv = false): AuthorSeriesView {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const run = (work: Promise<unknown>) => {void work.catch(runtime.reportError);};
   const entity = snapshot.entity ?? entry, series = entry.kind === 'book_series', title = entity.displayTitle ?? entity.title;
@@ -59,39 +59,49 @@ export function useAuthorSeries({controller, entry, runtime, actions, openEntry}
   const facts: FactPart[] = [];
   if (entity.count !== undefined) facts.push({id: 'books', text: t('next.kit.books', {count: entity.count}), role: 'identity'});
   if (entity.duration !== undefined) facts.push({id: 'length', text: duration(entity.duration)!, role: 'context'});
-  const presented = (error: unknown, refresh?: boolean) => presentError(refresh ? {code: 'refresh_required'} : error, 'detail', {operation: 'load'});
-  const readFailed = failed ? presented(snapshot.error, snapshot.phase === 'refresh-required') : undefined;
-  const more = snapshot.continuation, moreFailed = more && more.phase !== 'loading' ? presented(more.error, more.phase === 'refresh-required') : undefined;
+  const failure = (error: unknown, refresh: boolean, retry: () => Promise<unknown>, actionId: string): StateRowProps => {
+    const presented = presentError(refresh ? {code: 'refresh_required'} : error, 'detail', {operation: 'load'});
+    const canRetry = presented.action === 'try-again' || presented.action === 'refresh';
+    return {kind: 'error', icon: 'i-warn', title: presented.title, reason: presented.body,
+      action: canRetry ? {label: presented.actionLabel ?? t('action.tryAgain'), onPress: () => run(retry()), focusId: actionId} : undefined};
+  };
+  const more = snapshot.continuation;
   return {
     // 41b "Author", 41c "Series" over the name.
     series, title, kicker: series ? t('next.kit.seriesKind') : t('title.kind', {kind: entry.kind}),
     cover: series ? runtime.artwork(coverPath) : undefined,
     covers: series ? [] : books.flatMap(book => {const art = runtime.artwork(book.posterUrl); return art ? [art] : [];}),
+    ambientCovers: tv && !series ? books.slice(0, 4).flatMap(book => {const art = runtime.ambient(book.posterUrl); return art ? [art] : [];}) : [],
     initials: audiobookAuthorInitials(title), glow: runtime.ambient(coverPath ?? books[0]?.posterUrl),
     byline: author || authorEntry ? {text: author ?? authorEntry!.title, onPress: authorEntry ? () => openEntry(authorEntry) : undefined} : undefined,
     facts,
     // A series resumes "chapter N" of the book you are in when its progress names the chapter (41c), as that book's own page
     // does; an author names the book (41b "Resume The Martian").
-    primary: {label: !resume ? t('entry.play') : series && resume.bookProgress?.chapter?.number ? t('title.resumeChapterNumber', {number: resume.bookProgress.chapter.number})
+    primary: {label: !resume ? t('entry.play') : !tv && series && resume.bookProgress?.chapter?.number ? t('title.resumeChapterNumber', {number: resume.bookProgress.chapter.number})
       : t('next.browse.resume', {title: resume.title}), disabled: failed || !books.length,
       onPress: () => {if (resume) run(controller.resumeBook(resume)); else if (books[0]) openEntry(books[0]);}},
     startOver: series && books[0] ? () => openEntry(books[0]!) : undefined,
     more: () => actions.menu(entity),
-    state: readFailed ? {kind: 'error', icon: 'i-warn', title: readFailed.title, action: {label: readFailed.actionLabel ?? t('action.tryAgain'), onPress: () => run(controller.load())}} : undefined,
+    state: failed ? failure(snapshot.error, snapshot.phase === 'refresh-required', () => controller.load(), 'audiobook-collection-retry') : undefined,
     continuation: more?.phase === 'loading' ? {kind: 'loading'}
-      : moreFailed ? {kind: 'error', icon: 'i-warn', title: moreFailed.title, action: {label: moreFailed.actionLabel ?? t('action.tryAgain'), onPress: () => run(controller.recover())}} : undefined,
+      : more ? failure(more.error, more.phase === 'refresh-required', () => controller.recover(), 'audiobook-collection-continuation') : undefined,
     // The rows keep the server's order; only a server-sent series position is labelled, nothing is numbered by index.
     books: {title: t(series ? 'next.kit.booksInSeries' : 'next.kit.booksHeading'), count: defaultI18n.number(entity.count ?? books.length),
       rows: books.map(book => {
         const left = book.bookProgress?.remainingMs === undefined ? undefined : duration(book.bookProgress.remainingMs / 1000);
         const position = series ? book.series?.[0]?.position : undefined;
+        const progress = book.bookProgress;
+        const chapter = tv ? progress?.chapter?.title : undefined;
+        const remaining = left ? t('next.kit.remaining', {time: left}) : undefined;
+        const length = tv ? duration(book.duration) : undefined;
+        const fraction = tv && progress?.positionMs !== undefined && progress.durationMs ? progress.positionMs / progress.durationMs : undefined;
         // A finished book reads "Finished" (books, as elsewhere), not a film's "Watched".
-        return {id: book.id, square: true, title: book.displayTitle ?? book.title, artwork: runtime.artwork(book.posterUrl), watched: book.watched === true, doneLabel: t('title.finished'),
+        return {id: book.id, square: true, trailing: length, progress: fraction, title: book.displayTitle ?? book.title, artwork: runtime.artwork(book.posterUrl), watched: book.watched === true, doneLabel: t('title.finished'),
           kicker: position ? t('next.reader.bookNumber', {number: position}) : undefined,
           facts: book.narrators?.length ? [t('next.kit.readBy', {name: defaultI18n.list(book.narrators)})] : [],
-          note: left ? t('next.kit.remaining', {time: left}) : undefined,
+          note: [chapter, remaining].filter(Boolean).join(', ') || undefined,
           // A phone's row opens the book page; its ⋯ opens the book's menu.
-          onNavigate: () => openEntry(book), onMore: anchor => actions.menu(book, anchor), testID: `audiobook-book-${book.id}`};
+          onNavigate: () => {if (tv && progress?.itemId) run(controller.resumeBook(book)); else openEntry(book);}, onMore: anchor => actions.menu(book, anchor), testID: `audiobook-book-${book.id}`};
       })},
     details: !series && (narrators.length || entity.duration !== undefined) ? [
       ...(narrators.length ? [{label: t('next.kit.narrators'), values: [{text: defaultI18n.list(narrators)}]}] : []),
