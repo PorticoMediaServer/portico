@@ -130,7 +130,12 @@ export function useTVHome({runtime, authority, active = true, heroObscured = fal
     const metrics = homeRowMetrics(theme, row, {ranked: presentation.cards.some(card => card.rank !== undefined), cardScale});
     return {row, presentation, ...metrics, slotHeight: measuredRows.layout === rowLayoutKey ? measuredRows.boxes.get(row.id)?.height ?? metrics.estimate : metrics.estimate};
   });
-  const heroBlock = rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)) ? spec.preview : spec.spotlight;
+  // Owner, 18 Nov: no rotating spotlight. Until a card reports focus (at launch, and on coming back to Home) the hero shows
+  // the start card, the first card of the first row of titles, so the spotlight never flashes up before the focused card.
+  const focusShown = focus && rows.some(row => row.id === focus.rowId && row.entries.some(entry => entry.id === focus.entryId)) ? focus : undefined;
+  const startRow = rows.find(row => !row.live && !row.collection && row.entries.length > 0);
+  const heroFocus = focusShown ?? (startRow && {rowId: startRow.id, entryId: startRow.entries[0]!.id});
+  const heroBlock = heroFocus ? spec.preview : spec.spotlight;
   let rowY = rowsTop ?? heroBlock;
   const rowBoxes: readonly HomeRowBox[] = rowModels.map(({row, slotHeight}) => {
     const measured = measuredRows.layout === rowLayoutKey ? measuredRows.boxes.get(row.id) : undefined;
@@ -234,7 +239,7 @@ export function useTVHome({runtime, authority, active = true, heroObscured = fal
     const next = `${range[0]}:${range[1]}:${y < heroHeight}:${y > 0}`;
     if (reportedRange.value !== next) {reportedRange.value = next; runOnJS(updateViewport)(y);}
   });
-  const focusedRow = rows.find(row => row.id === focus?.rowId), focusedEntry = focusedRow?.entries.find(entry => entry.id === focus?.entryId);
+  const focusedRow = rows.find(row => row.id === heroFocus?.rowId), focusedEntry = focusedRow?.entries.find(entry => entry.id === heroFocus?.entryId);
   const preview = focusedEntry ? {
     id: focusedEntry.id, title: homeCardText(focusedEntry, true, runtime.text).title, entry: focusedEntry,
     facts: homeTitleFactParts(focusedEntry, runtime.text), overview: focusedEntry.overview,
