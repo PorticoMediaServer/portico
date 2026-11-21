@@ -19,7 +19,7 @@ import {NativeServerStorage} from '../../../screens/settings-live/server/Storage
 import {NativeServerIntegrations} from '../../../screens/settings-live/server/IntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';
 import {ServerRemoteAccessPage} from './ServerRemoteAccessPage';
-import {NativeServerStreaming} from '../../../screens/settings-live/server/StreamingPage';
+import {ServerStreamingPage} from './ServerStreamingPage';
 import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
@@ -86,13 +86,14 @@ export function NativeSettingsPage(props: SettingsProps) {
     : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
     : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/>
     : storagePage ? <NativeServerStorage ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
-    : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/>
-    : streamingPage ? <NativeServerStreaming ports={ports} runtime={runtime} compactHeader={compact}/> : undefined;
+    : integrationsPage ? <NativeServerIntegrations ports={ports} runtime={runtime} compactHeader={compact}/> : undefined;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
   const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : remoteAccessPage ? <ServerRemoteAccessPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : streamingPage ? <ServerStreamingPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}

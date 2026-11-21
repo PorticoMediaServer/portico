@@ -62,16 +62,17 @@ test('backup chosen days, whole hour and keep count form one draft for the rebui
 });
 
 test('the hardware group draws the rebuilt report in shared words and runs its test on demand', async () => {
-  let tests = 0;const host = hooks(), module = await screenModule(new URL('../src-next/screens/settings-live/server/StreamingHardware.tsx', import.meta.url), {
+  let tests = 0;const host = hooks(), module = await screenModule(new URL('../src-next/kit/settings/StreamingHardware.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../packages/client-core/src/server-admin/streaming-hardware': await import('../../../packages/client-core/src/server-admin/streaming-hardware.ts'),
-    '../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../kit/controls': {Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../../../packages/client-core/src/server-admin/streaming-hardware': await import('../../../packages/client-core/src/server-admin/streaming-hardware.ts'),
+    '../../../../../packages/i18n/src': {defaultI18n: i18n},
+    '../../../../../packages/client-core/src/presentation/settings-spec': specification, '../controls': {Button: 'Button'}, '../shell': {SettingsRow: 'SettingsRow'}, '../frames': {SectionCard: 'SectionCard'}, '../overlays': {Banner: 'Banner'}, '../states': {DetailsPanel: 'DetailsPanel'},
   });
   const hardware = {checking: false, devices: [{id: 'opaque1', name: 'Measured GPU', method: 'vaapi', inUse: true, toneMappingWithMasteringData: true, toneMappingWithoutMasteringData: true, formats: []}],
     formats: [{format: 'h264', decode: true, encode: false}], toneMappingWithMasteringData: true, toneMappingWithoutMasteringData: false, lastError: {reason: 'opaque_failure'}};
-  const tree = host.render(() => module.NativeStreamingHardware({hardware, disabled: false, testing: false, onTest: () => {tests++;}, t}));
-  assert.match(content(nodes(tree)), /Measured GPU/);assert.doesNotMatch(content(nodes(tree)), /opaque_failure/);
+  const tree = host.render(() => module.StreamingHardware({hardware, disabled: false, testing: false, onTest: () => {tests++;}, t}));
+  assert.ok(nodes(tree).some(node => node.props.label === 'Measured GPU'));
+  assert.doesNotMatch(JSON.stringify(nodes(tree)), /opaque_failure/);
   assert.equal(nodes(tree).filter((node: any) => node.props.testID === 'server-streaming-formats').length, 1);
   assert.equal(tests, 0);nodes(tree).find((node: any) => node.props.testID === 'server-streaming-test-hardware').props.onPress();assert.equal(tests, 1);
 });
