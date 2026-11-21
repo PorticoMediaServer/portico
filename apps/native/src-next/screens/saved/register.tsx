@@ -11,8 +11,10 @@ import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-reg
 import {useTheme} from '../../kit/theme';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {SavedPage} from '../../pages/touch/saved/SavedPage';
-import {SavedDirectoryScreen, type NativeSavedDirectoryRoute} from './SavedDirectoryScreen';
-import {SavedListScreen, type NativeSavedListRoute} from './SavedListScreen';
+import {SavedDirectoryPage} from '../../pages/touch/saved/SavedDirectoryPage';
+import type {NativeSavedDirectoryRoute} from '../../pages/shared/saved/useSavedDirectory';
+import {SavedListPage} from '../../pages/touch/saved/SavedListPage';
+import type {NativeSavedListRoute} from '../../pages/shared/saved/useSavedList';
 import {SavedResourceScreen} from './SavedResourceScreen';
 import {createNativeSavedState} from './state';
 import {nativeSavedRouteTarget, openNativeSavedView, type NativeSavedRouteTarget} from './navigation';
@@ -118,8 +120,8 @@ function SavedInlineHost({tab, context, runtime, activation, open, changed}: {
   const route = useMemo(() => ({view: tab}), [tab]);
   const common = {destination: owner.source, activation, runtime, actions: owner.actions, inline: true, back: () => {}};
   return tab === 'favorites' || tab === 'history'
-    ? <SavedListScreen {...common} route={route as NativeSavedListRoute} selection={owner.selection}/>
-    : <SavedDirectoryScreen {...common} route={route as NativeSavedDirectoryRoute} libraries={context.libraries()} open={open} changed={changed}
+    ? <SavedListPage {...common} route={route as NativeSavedListRoute} selection={owner.selection}/>
+    : <SavedDirectoryPage {...common} route={route as NativeSavedDirectoryRoute} libraries={context.libraries()} open={open} changed={changed}
         commands={owner.commands} summaries={owner.summaries} routeCurrent={owner.current}/>;
 }
 
@@ -172,11 +174,11 @@ function SavedRouteHost({entry, runtime, libraries, open, back, changed, showOnH
   useLayoutEffect(() => () => commands.dispose(), [commands]);
   const common = {destination: entry.view.source, activation: entry.view.activation, runtime};
   const body = route.view === 'playlists' || route.view === 'collections' || route.view === 'views'
-    ? <SavedDirectoryScreen {...common} route={route as NativeSavedDirectoryRoute} actions={entry.view.actions} libraries={libraries} back={back} open={open} changed={changed}
+    ? <SavedDirectoryPage {...common} route={route as NativeSavedDirectoryRoute} libraries={libraries} back={back} open={open} changed={changed}
         summaries={'summaries' in entry.view ? entry.view.summaries : undefined} commands={commands}
         routeCurrent={() => context.current() && context.navigation.getSnapshot().route === entry.route}/>
     : route.view === 'watchlist' || route.view === 'favorites' || route.view === 'history'
-      ? <SavedListScreen {...common} route={route as NativeSavedListRoute} actions={entry.view.actions} back={back} changed={changed} selection={entry.view.selection}/>
+      ? <SavedListPage {...common} route={route as NativeSavedListRoute} actions={entry.view.actions} back={back} selection={entry.view.selection}/>
       : <SavedResourceHost context={context} entry={entry} route={route} runtime={runtime} libraries={libraries} back={back} changed={changed} showOnHome={showOnHome} openInLibrary={openInLibrary}/>;
   return place(<View pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible} importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', inset: 0, backgroundColor: 'transparent'}}>{body}</View>);

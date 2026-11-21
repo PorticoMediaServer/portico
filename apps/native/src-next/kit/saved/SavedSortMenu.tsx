@@ -1,6 +1,6 @@
 import React, {useMemo} from 'react';
-import {homeBrowseLabel} from '../home/browse-label';
-import {SortMenu} from '../../kit/browse';
+import {homeBrowseLabel} from '../../screens/home/browse-label';
+import {SortMenu} from '../browse';
 
 type Sort = Readonly<{id: string; labelKey: string; directions: readonly ('asc' | 'desc')[]}>;
 

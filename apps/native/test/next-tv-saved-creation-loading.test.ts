@@ -1,10 +1,11 @@
+import {tvSavedDirectoryFixture} from './helpers/saved-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {isSlowLoading, showSkeleton, skeletonTiming} from '../src-next/kit/states/model.ts';
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
-const theme = {isTV: true, gutter: 200, layout: {gutter: {tvRight: 96}}, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', line: '#333', raised: '#222'}};
+const theme = {isTV: true, gutter: 200, space: {lg: 24}, type: {rowHelp: {}, rowLabel: {}}, layout: {gutter: {tvRight: 96}}, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', line: '#333', raised: '#222'}};
 async function directory(view = 'collections') {
   const h = hooks(), react: any = {...h.react, useLayoutEffect() {}, useImperativeHandle() {}}; react.default = react;
   const focused: any[] = [], mutations: any[] = []; let retries = 0, fail = false, held: Promise<void> | undefined, arrived = true;
@@ -19,13 +20,13 @@ async function directory(view = 'collections') {
       if (fail) {state = {...state, personal: {...state.personal, retryPending: true, mutationError: {code: 'transport'}}}; return false;} created(); return true;},
     retryPersonalMutation: async () => {retries++; created(); return true;},
     mutateSaved: async (input: any) => {mutations.push(input); original = input; await held; created();}};
-  const {SavedTVDirectory} = await screenModule(new URL('../src-next/screens/saved/SavedTVDirectory.tsx', import.meta.url), {
+  const {SavedTVDirectory} = await tvSavedDirectoryFixture({
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Save failed'})}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CoverMosaic: 'CoverMosaic', MediaArt: 'MediaArt'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({focus: (address: any) => focused.push(address)})},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/browse/presentation': {alpha: () => '', browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
-    './SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, './PlaylistToolbar': {PlaylistToolbar: 'PlaylistToolbar'},
+    '../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, './PlaylistToolbar': {PlaylistToolbar: 'PlaylistToolbar'},
     './presentation': Object.fromEntries(['savedCollectionCount', 'savedItemCount', 'savedLibraryName', 'savedTitleCount', 'savedViewCount', 'savedVisibility'].map(key => [key, String])),
   });
   const props: any = {view, destination, runtime: {}, libraries: [], enabled: true, activation: {getSnapshot: () => active, subscribe: () => () => {}}, regionId: 'directory', select() {}, openPlaylist() {}, openResource() {}};
@@ -72,10 +73,10 @@ test('Saved loading uses 300ms geometry and an 8s polite status, with cleanup an
   t.mock.timers.enable({apis: ['setTimeout', 'Date']});
   const h = hooks(), effects: (() => (() => void))[] = [], cleanups: (() => void)[] = [], react: any = {...h.react}; react.default = react;
   react.useEffect = (effect: () => (() => void), deps: any[]) => {const before = h.react.useRef(undefined); if (!before.current) {before.current = deps; effects.push(effect);}};
-  const {SavedTVLoading} = await screenModule(new URL('../src-next/screens/saved/SavedTVLoading.tsx', import.meta.url), {
+  const {SavedTVLoading} = await screenModule(new URL('../src-next/kit/saved/SavedTVLoading.tsx', import.meta.url), {
     react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../kit/states': {GridSkeleton: 'GridSkeleton', SkeletonBlock: 'SkeletonBlock', isSlowLoading, showSkeleton, skeletonTiming},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
+    '../states': {GridSkeleton: 'GridSkeleton', SkeletonBlock: 'SkeletonBlock', isSlowLoading, showSkeleton, skeletonTiming},
+    '../browse/presentation': {browseType: () => ({})}, '../theme': {useTheme: () => theme},
   });
   let shape = 'views'; const render = () => {const tree = nodes(h.render(() => SavedTVLoading({shape}))); effects.splice(0).forEach(effect => cleanups.push(effect())); return tree;};
   assert.equal(render().some(node => node.type === 'SkeletonBlock'), false);

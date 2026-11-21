@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {LoadingBoundary, SkeletonBlock} from '../../kit/states';
-import {useTheme} from '../../kit/theme';
-import {usePageWidth} from '../../kit/layout/page-inset';
+import {LoadingBoundary, SkeletonBlock} from '../states';
+import {useTheme} from '../theme';
+import {usePageWidth} from '../layout/page-inset';
 
 /** One static page outline, with the same delayed paint as the rest of the app. */
 export function SavedLoading({kind = 'grid', columns = 3}: {kind?: 'grid' | 'directory' | 'resource' | 'shelf'; columns?: number}) {

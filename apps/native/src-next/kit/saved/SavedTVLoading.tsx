@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {GridSkeleton, SkeletonBlock, isSlowLoading, showSkeleton, skeletonTiming} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {GridSkeleton, SkeletonBlock, isSlowLoading, showSkeleton, skeletonTiming} from '../states';
+import {browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
 
 /** Keeps the actual header in place; only the arriving Saved body has placeholder geometry. */
 export function SavedTVLoading({shape = 'posters', inset = false}: {shape?: 'posters' | 'squares' | 'history' | 'views'; inset?: boolean}) {

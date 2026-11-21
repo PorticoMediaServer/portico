@@ -1,5 +1,5 @@
 // @fabric-react
-import {savedFixture} from './helpers/saved-fixture.mjs';
+import {savedFixture, tvSavedDirectoryFixture} from './helpers/saved-fixture.mjs';
 import * as layoutModel from '../src-next/kit/layout/model.ts';
 import {createTVKeyAdapter} from '../src-next/platform/tv-key-adapter.ts';
 import assert from 'node:assert/strict';
@@ -323,14 +323,14 @@ test('TV Saved caller passes original grid sort/filter roots through actual Menu
   const saved = await import('../../../packages/client-core/src/saved');
   const {TVSavedScreen} = await savedFixture('TVSaved', {
     react: b.react, 'react-native': b.native, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/browse-buckets': buckets,
-    '../../../../../../packages/client-core/src/saved': saved, '../../../tv/layout/TVFocusGrid': {TVFocusGrid: 'Grid'}, '../../saved/SavedForms': {SavedConfirmSheet: 'Confirm'},
+    '../../../../../../packages/client-core/src/saved': saved, '../../../tv/layout/TVFocusGrid': {TVFocusGrid: 'Grid'}, '../../kit/saved/SavedForms': {SavedConfirmSheet: 'Confirm'},
     '../../../kit/layout': {AlphabetRail: 'Alphabet'}, '../useTVPageBack': {useTVPageBack() {}}, '../useEntryFocus': {useDestinationEntryFocus() {}},
     '../../../shell/model': {sameAuthority: () => true}, '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText: String},
     '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../../kit/controls': {Button: o.Button, Chip: 'Chip', Focusable: b.Focusable},
     '../../../kit/cards': {PosterCard: 'Poster', SquareCard: 'Square'}, '../../../kit/overlays': {...o.menu, Dialog: 'Dialog'}, '../../../kit/states': {StateView: 'State'},
     '../../../kit/focus': b.focus, '../../../kit/browse/presentation': {browseType: () => ({})}, '../../../kit/theme': {useTheme: () => b.theme},
     '../focus': {useCovered: () => false, nativeDestinationFocusIds: (authority: any) => ({savedTabs: 'tabs', savedGrid: authority.grid, savedToolbar: 'toolbar', rail: 'rail'})},
-    '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, '../../saved/useSavedTVTabs': {useSavedTVTabs: () => undefined}, '../../../pages/tv/saved/SavedPage': {TVSavedPage: 'TVSavedPage'}, '../../saved/SavedTVDirectory': {SavedTVDirectory: 'Directory'}});
+    '../../kit/saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'}, '../../saved/useSavedTVTabs': {useSavedTVTabs: () => undefined}, '../../../pages/tv/saved/SavedPage': {TVSavedPage: 'TVSavedPage'}, './SavedDirectoryPage': {SavedTVDirectory: 'Directory'}});
   let tree: any, scope = 'original.saved'; const selected: any[] = [];
   const snapshot = {phase: 'ready', entries: [], resources: [], posters: {sections: []}, squares: {sections: []}};
   const props: any = {controller: {subscribe: () => () => {}, getSnapshot: () => snapshot, source: () => ({}), summary: async () => {}, select: async (...value: any[]) => {selected.push(value);}},
@@ -863,13 +863,13 @@ for (const kind of ['sort', 'filter'] as const) test(`actual Saved directory sup
   const b = await bindings(), o = await overlayBindings(b), direction = await import('../../../packages/client-core/src/presentation/browse-toolbar');
   const presentation = await import('../src-next/kit/browse/presentation'), savedText = await import('../src-next/screens/saved/presentation');
   const react: any = {...b.react, useImperativeHandle() {}}; react.default = react; // Scroll-page handle is outside this caller-ID vector.
-  const toolbar = await screenModule(new URL('../src-next/screens/saved/PlaylistToolbar.tsx', import.meta.url), {
+  const toolbar = await screenModule(new URL('../src-next/kit/saved/PlaylistToolbar.tsx', import.meta.url), {
     react, 'react-native': b.native, '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': direction,
-    '../../kit/controls': {Focusable: b.Focusable, Segmented: 'Segmented'}, '../../kit/overlays': o.menu, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme}});
-  const {SavedTVDirectory} = await screenModule(new URL('../src-next/screens/saved/SavedTVDirectory.tsx', import.meta.url), {
+    '../controls': {Focusable: b.Focusable, Segmented: 'Segmented'}, '../overlays': o.menu, '../Icon': {Icon: 'Icon'},
+    '../browse/presentation': presentation, '../theme': {useTheme: () => b.theme}});
+  const {SavedTVDirectory} = await tvSavedDirectoryFixture({
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Saved failed'})},
-    './SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
+    '../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'}, './SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
     react, 'react-native': b.native, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/controls': {Focusable: b.Focusable},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/cards/primitives': {}, '../../kit/focus': b.focus, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {StateView: 'State'},
     '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme}, './PlaylistToolbar': toolbar, './presentation': savedText});
