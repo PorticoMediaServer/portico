@@ -12,7 +12,7 @@ const nativeGenre = (genre: SearchGenre): NativeSearchGenre => Object.freeze({id
  * ordinary directory, and the two phone prefixes never rerank each other. */
 export class NativeSearchExplore implements NativeSearchExplorePort {
   private readonly options: Readonly<{api: LibraryContentApi; current: () => boolean;
-    surface: 'phone' | 'tv'; openGenre: (genre: NativeSearchGenre) => void}>;
+    surface: 'phone' | 'tv'; openGenre: (genre: NativeSearchGenre) => void; openAll: () => void}>;
   private state: NativeSearchGenresSnapshot = initial;
   private readonly listeners = new Set<() => void>();
   private controller?: AbortController;
@@ -59,6 +59,7 @@ export class NativeSearchExplore implements NativeSearchExplorePort {
       .finally(() => {if (this.pending === task) this.pending = undefined;});
     this.pending = task; return task;
   };
+  openAll = (): void => {if (this.current() && this.active) this.options.openAll();};
   openGenre = (genre: NativeSearchGenre): void => {
     if (this.current() && this.active && (this.state.genres.includes(genre) || this.state.backdropGenres?.includes(genre))) this.options.openGenre(genre);
   };

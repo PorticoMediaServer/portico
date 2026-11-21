@@ -9,7 +9,7 @@ import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {createNativeEntryActions} from '../destinations/entry-actions';
 import {createNativeSearchController} from './controller';
 import {createNativeSearchActions} from './actions';
-import {createNativeSearchGenreController, openNativeSearchGenre} from './navigation';
+import {createNativeSearchGenreController, openNativeSearchGenre, openNativeSearchGenres} from './navigation';
 import {NativeSearchExplore, NativeSearchGenreList} from './explore';
 import {NativeSearchOnNow} from './on-now';
 import {SearchPageFor} from './search-page';
@@ -17,7 +17,8 @@ import {GenreBrowsePage} from '../../pages/touch/search/GenreBrowsePage';
 import {GenreBrowsePage as TVGenreBrowsePage} from '../../pages/tv/search/GenreBrowsePage';
 import type {GenreBrowseProps} from '../../pages/shared/search/useGenreBrowse';
 import {CoveredLayer} from '../../kit/focus';
-import {AllGenresScreen} from './AllGenresScreen';
+import {AllGenresPage} from '../../pages/touch/search/AllGenresPage';
+import {AllGenresPage as TVAllGenresPage} from '../../pages/tv/search/AllGenresPage';
 import {createNativeSearchSelection} from './selection';
 import {createNativeReadingSearchModule} from './reading-register';
 import {authorityKey} from '../../shell/model';
@@ -53,7 +54,7 @@ export function createNativeSearchModule(context: NativeShellBootstrapContext): 
       const search = createNativeSearchController(context, route);
       const explore = new NativeSearchExplore({api: context.api, surface, current: () => retained(route), openGenre: genre => {
         if (visible(route)) openNativeSearchGenre(context, genre);
-      }});
+      }, openAll: () => {if (visible(route)) openNativeSearchGenres(context);}});
       const selection = createNativeSearchSelection(context, search.source, search.activation);
       const key = ++sequence;
       // The server has Live TV (the shell's own availability fact): the On now row reads a bounded guide page.
@@ -134,9 +135,12 @@ function AllHost({entry, runtime, navigation, back}: {entry: All; runtime: Nativ
   const live = entry.current(), placeAll = useNativeStackPlacement(entry.route), stackedAll = useNativeStackHosted();
   return placeAll(<View pointerEvents={live ? 'auto' : 'none'} accessibilityElementsHidden={!live} importantForAccessibility={live ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', inset: 0, display: live || stackedAll ? 'flex' : 'none'}}>
-    <AllGenresScreen focusScope={entry.focusScope} explore={entry.explore} runtime={runtime} visible={live} current={entry.current} onBack={back}/>
+    <AllPage focusScope={entry.focusScope} explore={entry.explore} runtime={runtime} visible={live} current={entry.current} onBack={back}/>
   </View>);
 }
+
+/** All genres: the kit page for this form (desktop-search's "All genres ›"). */
+const AllPage = Platform.isTV ? TVAllGenresPage : AllGenresPage;
 
 nativeShellRoutes.registerDestination('search', createNativeSearchModule);
 nativeShellRoutes.registerRoute('search-genre', createNativeSearchModule);

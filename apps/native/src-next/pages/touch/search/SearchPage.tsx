@@ -68,7 +68,9 @@ export function SearchPage(props: NativeSearchScreenProps) {
     items={state.recent.map(item => ({query: item.q, onPress: () => destination.useRecent(item.q),
       remove: {label: t('web.search.removeRecent', {query: item.q}), onPress: () => run(destination.removeRecent(item))}}))}/>;
   const genreTiles = landing.phase === 'ready' ? nativeSearchGenreTiles(emptyAll ? landing.backdropGenres ?? [] : landing.genres, emptyAll ? 'phone-empty' : 'phone') : [];
-  const genres = genreTiles.length > 0 || landing.phase === 'error' ? <SearchSection title={t(emptyAll ? landing.emptyHeading : landing.initialHeading)}>
+  // desktop-search: "All genres ›" at the end of Browse by genre opens every genre.
+  const genres = genreTiles.length > 0 || landing.phase === 'error' ? <SearchSection title={t(emptyAll ? landing.emptyHeading : landing.initialHeading)}
+    action={genreTiles.length > 0 ? {label: t('next.search.allGenres'), onPress: explore.openAll} : undefined}>
     {landing.phase === 'error'
       ? <Banner placement="inline" variant="notice" tone="warning" icon="i-alert" message={t('next.search.genresUnavailable')}
         action={{label: t('next.states.tryAgain'), onPress: () => run(explore.load())}}/>
