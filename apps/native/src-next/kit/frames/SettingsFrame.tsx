@@ -126,7 +126,7 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     : beside ? <>
       {back && <Button icon="i-left" variant="link" size="compact" iconColor={theme.colors.textSecondary}
         textStyle={{color: theme.colors.textSecondary}} disabled={back.disabled} testID={back.testID} onPress={back.onPress}>{back.label}</Button>}
-      <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : theme.isTV ? frameSpec.settings.tvTop : frame.titleTop || frame.headerGap, marginBottom: theme.isTV ? frameSpec.settings.tvTitleGap : frame.headerGap}}>
+      <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : theme.isTV ? frameSpec.settings.tvTop : frame.titleTop || frame.headerGap, marginBottom: theme.isTV ? intro !== undefined ? frameSpec.settings.tvLead.top : frameSpec.settings.tvTitleGap : frame.headerGap}}>
         {/* "✓ Saved" follows the title, the page's own buttons keep the far end (desktop-settings f1, final3-tv-15). */}
         <Text accessibilityRole="header" style={[theme.type.pageTitle, {flexShrink: 1, color: theme.colors.text}]}>{title}</Text>
         {saved && <View style={{marginBottom: theme.space.xs}}>{saved}</View>}<View style={{flex: 1}}/>
@@ -135,7 +135,9 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     </> : <PageHeader title={title} back={back} trailing={trailing}/>;
   const strip = server && <View style={{marginHorizontal: beside ? 0 : frame.cardInset, marginTop: beside ? frame.titleTop || frame.headerGap : 0}}>{server}</View>;
   const body = <>
-    {intro !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: beside ? 0 : frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}
+    {intro !== undefined && <Text style={[theme.isTV ? theme.type.episodeBody : theme.type.intro, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary, marginHorizontal: beside ? 0 : frame.gutter, maxWidth: frameSpec.settings.paragraphMax},
+      // TV (tv-more 22 `.lead`): 22 in the quiet colour, 8 under the title (the title's gap) and 26 over the first section.
+      theme.isTV ? {marginBottom: frameSpec.settings.tvLead.bottom - frame.sectionGap} : null]}>{intro}</Text>}
     {tabs}
     {children}
   </>;
