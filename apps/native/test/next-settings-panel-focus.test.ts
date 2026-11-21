@@ -8,7 +8,8 @@ let television = true;
 const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/screens/settings-live/settings-panels.tsx', import.meta.url), {
   react, 'react-native': {},
   '../accounts/AccountRoutes': {ProfileRoute: 'ProfileRoute'},
-  './NativeAccountSecurityPanels': {NativeAccountSecurityPanel: 'NativeAccountSecurityPanel'},
+  '../../pages/shared/settings/AccountSecurityPanel': {AccountSecurityPanel: 'AccountSecurityPanel'},
+  '../../pages/touch/settings/AccessTokensPanel': {AccessTokensPanel: 'AccessTokensPanel'},
   './DeviceAboutPanel': {DeviceAboutPanel: 'DeviceAboutPanel'},
   './AllowedDevicesPanel': {AllowedDevicesPanel: 'AllowedDevicesPanel'},
   './NativeConnectionRows': {NativeConnectionStatusRow: 'NativeConnectionStatusRow', NativeConnectionAddressRow: 'NativeConnectionAddressRow', NativeTestConnectionRow: 'NativeTestConnectionRow', NativeInsecureConnectionsRow: 'NativeInsecureConnectionsRow'},
@@ -67,7 +68,7 @@ test('the enabled security panels receive their exact kind and Settings dependen
   const runtime = {};
   for (const kind of ['password', 'twoStep', 'devices']) {
     const element = renderNativeSettingsPanel(kind, deps, runtime);
-    assert.equal(element.type, 'NativeAccountSecurityPanel');
+    assert.equal(element.type, 'AccountSecurityPanel');
     assert.equal(element.props.kind, kind);
     assert.equal(element.props.context, deps.context);
     assert.equal(element.props.lifetime, deps.lifetime);

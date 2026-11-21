@@ -5,7 +5,13 @@ import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime.t
 import * as security from '../src-next/screens/settings-live/native-account-security.ts';
 import {passwordStrength} from '../../../packages/client-core/src/password-strength.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.footer)] : [];
+const securityParts = new Set(['SecuritySheet', 'SecurityText', 'PasswordMeter', 'EnrolmentCode']);
+const nodes = (tree: any): any[] => {
+  if (Array.isArray(tree)) return tree.flatMap(nodes);
+  if (!tree || typeof tree !== 'object') return [];
+  if (securityParts.has(tree.type?.name)) return nodes(tree.type(tree.props));
+  return [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.footer)];
+};
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 
 async function fixture(kind: security.NativeAccountSecurityKind, enabled = false) {
@@ -41,20 +47,29 @@ async function fixture(kind: security.NativeAccountSecurityKind, enabled = false
     async removeDevice(...args: any[]) {assert.equal(this.scope.current(), true); calls.push(['removeDevice', ...args]);}
     async signOutEverywhere() {assert.equal(this.scope.current(), true); calls.push(['signOutEverywhere']);}
   }
-  const theme = {isTV: false, platform: 'phone', width: 390, colors: new Proxy({}, {get: (_t, key) => String(key)})};
-  const {NativeAccountSecurityPanel} = await screenModule(new URL('../src-next/screens/settings-live/NativeAccountSecurityPanels.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 390, height: 844})}, 'react-native-qrcode-svg': {default: 'QRCode'},
-    '../../../../../packages/client-core/src/identity-client': {IdentityClient}, '../../../../../packages/client-core/src/password-strength': {passwordStrength},
-    '../../../../../packages/client-core/src/api-access': {apiScopes: ['read', 'playback', 'library', 'admin'], createAccessToken: async () => undefined, getApiAccessOptions: async () => undefined, listAccessTokens: async () => undefined, revokeAccessToken: async () => undefined},
-    '../../../../../packages/client-core/src/playback-v1/http': {idempotencyKey: () => 'fixture-operation'},
-    '../../../../../packages/client-core/src/server-admin/api-words': {EXPIRY_DAYS: [0], chosenScopes: () => [], credentialWorks: () => false, expiryInstant: () => undefined, expiryLabel: () => ''},
-    '../../../../../packages/client-core/src/server-admin/server-forms': {createOperationIds: () => ({forPayload: () => 'fixture-operation', release: () => {}})},
-    '../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => value}}, '../../platform/accounts': {nativeAccounts: {signOutServer: async (...values: string[]) => {signedOut.push(values);}}}, '../../platform/clipboard': {copyText: async (value: string) => {copied.push(value);}},
-    '../../kit/controls': {Button: 'Button', TextField: 'TextField', Select: 'Select', Switch: 'Switch'}, '../../kit/overlays': {Dialog: 'Dialog', BottomSheet: 'BottomSheet'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme}, './native-account-security': security, './NativeHostedSignInPanel': {NativeHostedSignInPanel: 'NativeHostedSignInPanel'},
+  const theme = {isTV: false, platform: 'phone', width: 390, type: {rowLabel: {}, rowHelp: {}}, space: {sm: 12, xs: 4, hairline: 1}, baseRadii: {control: 12}, colors: new Proxy({}, {get: (_t, key) => String(key)})};
+  const kit = await screenModule(new URL('../src-next/kit/settings/SecurityParts.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-qrcode-svg': {default: 'QRCode'},
+    '../overlays': {Dialog: 'Dialog', BottomSheet: 'BottomSheet'}, '../overlays/surface': {dialogSheetGutter: 20}, '../theme': {useTheme: () => theme},
+  });
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useLocalAccountSecurity.ts', import.meta.url), {
+    react: host.react,
+    '../../../../../../packages/client-core/src/identity-client': {IdentityClient},
+    '../../../../../../packages/client-core/src/password-strength': {passwordStrength},
+    '../../../platform/accounts': {nativeAccounts: {signOutServer: async (...values: string[]) => {signedOut.push(values);}}},
+    '../../../platform/clipboard': {copyText: async (value: string) => {copied.push(value);}},
+    '../../../screens/settings-live/native-account-security': security,
+  });
+  const {AccountSecurityPanel} = await screenModule(new URL('../src-next/pages/shared/settings/AccountSecurityPanel.tsx', import.meta.url), {
+    react: host.react, '../../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => value}},
+    '../../../kit/controls': {Button: 'Button', TextField: 'TextField'},
+    '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
+    '../../../kit/settings/SecurityParts': kit, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../screens/settings-live/NativeHostedSignInPanel': {NativeHostedSignInPanel: 'NativeHostedSignInPanel'},
+    './useLocalAccountSecurity': model,
   });
   let tree: any;
-  const render = () => {tree = host.render(() => NativeAccountSecurityPanel({kind, context, lifetime, t: (id: string) => id, runtime: {error: () => ({title: 'Failure'})}})); for (const effect of pendingEffects.splice(0)) effect(); return tree;};
+  const render = () => {tree = host.render(() => AccountSecurityPanel({kind, context, lifetime, t: (id: string) => id, runtime: {error: () => ({title: 'Failure'})}})); for (const effect of pendingEffects.splice(0)) effect(); return tree;};
   const settle = async () => {await new Promise(resolve => setImmediate(resolve)); render();};
   render(); render();
   return {calls, copied, signedOut, render, find: (id: string) => find(tree, id), tree: () => tree,
@@ -69,6 +84,9 @@ async function fixture(kind: security.NativeAccountSecurityKind, enabled = false
 test('Password sends current password and required factor once; a weak-but-valid password remains allowed', async () => {
   const f = await fixture('password', true);
   try {
+    await f.open();
+    await f.press('account-security-cancel');
+    assert.equal(f.find('account-security-password').props.open, false);
     await f.open();
     f.edit('account-security-current-password', 'current-fixture'); f.edit('account-security-new-password', 'password'); f.edit('account-security-confirm-password', 'password');
     assert.equal(f.find('account-security-save-password').props.disabled, true);
@@ -142,7 +160,7 @@ test('Replacing recovery codes sends the current password and factor, then revea
     const submit = f.find('account-security-factor-submit').props.onPress; await f.press('account-security-factor-submit');
     assert.deepEqual(f.calls[0].slice(0, 3), ['replaceRecoveryCodes', 'current-fixture', 'factor-fixture']); assert.ok(f.calls[0][3] instanceof AbortSignal);
     submit(); await f.settle(); assert.equal(f.calls.length, 1);
-    assert.deepEqual(f.find('account-security-recovery-codes').props.children, ['replacement-one\nreplacement-two']);
+    assert.deepEqual(f.find('account-security-recovery-codes').props.children.flat(), ['replacement-one\nreplacement-two']);
     await f.press('account-security-codes-saved'); assert.equal(f.find('account-security-recovery-codes'), undefined);
   } finally {f.dispose();}
 });
