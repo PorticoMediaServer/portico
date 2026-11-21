@@ -4,7 +4,6 @@ import {Button, FormError} from '../../../kit/controls';
 import {PanelBlock, SectionCard, SettingsPageFrame, StateRow} from '../../../kit/frames';
 import {BottomSheet} from '../../../kit/overlays/BottomSheet';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
-import {SettingsHelp} from '../../../kit/settings/SettingsParts';
 import {SettingsRow} from '../../../kit/shell';
 import {DetailsPanel, StateView} from '../../../kit/states';
 import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
@@ -28,19 +27,19 @@ export function ServerGeneralPage({ports, runtime, retry, ...frame}: Frame & {
         {general.updates && <SettingsRow first={first} label={t(row.label)} value={general.updates.version} description={general.versionFacts}/>}
         {general.updateError !== undefined && <StateView variant="inline" {...runtime.error(general.updateError.cause, () => general.loadUpdates(general.updateError?.check), 'server-console')}/>}
       </React.Fragment> : null;
-      case 'general.checkNow': return <Button key={row.id} testID="server-general-check" size="compact" align="stretch"
-        variant="glass" icon="i-refresh" loading={general.checking} disabled={!general.enabled(row)}
-        onPress={() => general.loadUpdates(true)}>{t('server.updates.check')}</Button>;
-      case 'general.pauseBackground': return <Button key={row.id} testID="server-general-pause" size="compact" align="stretch"
-        variant="glass" loading={general.busy} onPress={general.pause}>
-        {t(general.paused ? 'settings.server.resumeBackground' : 'settings.server.pauseBackground')}</Button>;
+      // Actions are rows: the spec's label (and help) with its button at the end (settings spec `action`), not bare
+      // full-width buttons inside the card.
+      case 'general.checkNow': return <SettingsRow key={row.id} first={first} label={t(row.label)} control={<Button testID="server-general-check"
+        size="small" variant="glass" loading={general.checking} disabled={!general.enabled(row)}
+        onPress={() => general.loadUpdates(true)}>{row.control.label ? t(row.control.label) : t('server.updates.check')}</Button>}/>;
+      case 'general.pauseBackground': return <SettingsRow key={row.id} first={first} label={t(row.label)} description={row.help ? t(row.help) : undefined}
+        control={<Button testID="server-general-pause" size="small" variant="glass" loading={general.busy} onPress={general.pause}>
+          {t(general.paused ? 'server.background.resume' : row.control.label ?? 'settings.server.pauseBackground')}</Button>}/>;
       case 'general.message': return <SettingsRow key={row.id} first={first} testID="server-general-message" label={t('server.messageEveryone')}
         icon="i-mail" navigates onPress={() => general.setMessageOpen(true)}/>;
-      case 'general.restart': return <React.Fragment key={row.id}>
-        <SettingsHelp>{t('server.restart.body')}</SettingsHelp>
-        <Button testID="server-general-restart-open" size="compact" align="stretch" variant="danger" disabled={general.busy}
-          onPress={general.openRestart}>{t('web.maintenance.serverRestart')}</Button>
-      </React.Fragment>;
+      case 'general.restart': return <SettingsRow key={row.id} first={first} label={t(row.label)} description={t('server.restart.body')}
+        control={<Button testID="server-general-restart-open" size="small" variant="danger" disabled={general.busy}
+          onPress={general.openRestart}>{row.control.label ? t(row.control.label) : t('web.maintenance.serverRestart')}</Button>}/>;
       case 'general.configFile': return general.configuration?.path
         ? <DetailsPanel key={row.id} compact audience="owner" facts={[{id: row.id, label: t(row.label), value: general.configuration.path}]}/> : null;
       case 'general.serverId': return <DetailsPanel key={row.id} compact audience="owner" facts={[{id: row.id, label: t(row.label), value: general.serverId}]}/>;
