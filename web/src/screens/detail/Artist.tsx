@@ -1,5 +1,5 @@
 import {forwardIdentity} from '../detail/context';
-import {Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {cloneElement, Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactElement, type RefObject} from 'react';
 import {t} from './text';
 import {defaultI18n} from '@i18n';
 import {useLocation} from '@tanstack/react-router';
@@ -7,8 +7,9 @@ import {router} from '../../router';
 import type {FactPart} from '@core/presentation/kit-model';
 import {clockText} from '@core/presentation/kit-model/text.ts';
 import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection, type ContentSection, type LibraryContentApi} from '@core/library-content.ts';
-import {PersonCircle, nameInitials} from '../../kit/artwork';
-import {CoverHero} from '../../kit/title/CoverHero';
+import {Artwork, PersonCircle, nameInitials} from '../../kit/artwork';
+import {PanelBlock, TitleFrame, type TitleAction} from '../../kit/frames';
+import {setContainerFlag} from '@core/container-state.ts';
 import {Button, Chip} from '../../kit/controls';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
@@ -29,7 +30,6 @@ import {entrySubject} from './model';
 import {cardText} from '@core/presentation/kit-model';
 import {MusicEntryMenu} from './MusicEntryMenu';
 import {OwnerMetadataGroup} from './OwnerMetadataGroup';
-import {MusicDetailLoading} from './MusicLoading';
 import styles from './artist.module.css';
 
 export type ArtistScreenProps = Readonly<{context: ScreenContext; libraryId: string; artistId: string; onBack?: () => void}>;
@@ -69,9 +69,8 @@ export function ArtistScreen({context, libraryId, artistId, onBack}: ArtistScree
   const active = lease && lease.live && lease.context === context && lease.libraryId === libraryId && lease.artistId === artistId && lease.entry === entry && lease.retry === retry ? lease : undefined;
   const back = () => {if (active?.isCurrent()) active.onBack?.();};
   const retryOriginal = (failureCurrent: () => boolean) => {if (!active || active.claimed || !active.isCurrent() || !failureCurrent() || !active.isCurrent() || !failureCurrent()) return; active.claimed = true; active.live = false; setRetry(value => value === active.retry ? value + 1 : value);};
-  return <div className={styles.page}>
-    {active ? <ArtistBody context={context} libraryId={libraryId} artistId={artistId} lease={active} retry={retryOriginal} back={back} /> : <><div className={styles.bar}>{onBack && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} disabled onClick={back}/>}</div><MusicDetailLoading kind="artist" /></>}
-  </div>;
+  return active ? <ArtistBody context={context} libraryId={libraryId} artistId={artistId} lease={active} retry={retryOriginal} back={back} />
+    : <TitleFrame back={onBack ? {label: t('next.states.back'), onPress: back} : undefined} title="" cover={{shape: 'circle', node: null}} state={{kind: 'loading'}} />;
 }
 
 function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context: ScreenContext; libraryId: string; artistId: string; lease: Lease; retry: (failureCurrent: () => boolean) => void; back: () => void}) {
@@ -97,6 +96,8 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     && projection.scope.libraryId === libraryId && projection.scope.view === 'artist' && projection.scope.entityId === artistId
     ? projection : undefined;
   const [similar, setSimilar] = useState<Similar>();
+  /** The favourite as this page last set it, until the artist is read again. */
+  const [favourite, setFavourite] = useState<Readonly<{artist: string; value: boolean}>>();
   const similarRead = useRef<object | undefined>(undefined);
   useLayoutEffect(() => {
     const token = {};similarRead.current = token;
@@ -134,10 +135,11 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
   const failureCurrent = () => service.getSnapshot() === content && (readFailure
     ? content.phase === 'error' || content.phase === 'refresh-required'
     : !!localFailure && failureRef.current === localFailure && localFailure.lease === lease);
-  const bar = <div className={styles.bar}>{lease.onBack && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={back}/>} {admitted && artist && <span className={styles.barTitle}>{artist.title}</span>}</div>;
-  if (!projection || !artist || !admitted) return <>{bar}{localFailure || readFailure
-    ? <ScreenProblem context={recoveryContext} error={content.error ?? localFailure?.error} retry={() => retry(failureCurrent)} />
-    : <MusicDetailLoading kind="artist" />}</>;
+  // A failed page keeps its way back: the page state offers Try again (and Home), so Back stays in the bar over it.
+  if (!projection || !artist || !admitted) return localFailure || readFailure
+    ? <><div className={styles.bar}>{lease.onBack && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={back}/>}</div>
+      <ScreenProblem context={recoveryContext} error={content.error ?? localFailure?.error} retry={() => retry(failureCurrent)} /></>
+    : <TitleFrame back={lease.onBack ? {label: t('next.states.back'), onPress: back} : undefined} title="" cover={{shape: 'circle', node: null}} state={{kind: 'loading'}} />;
   // The music library's artist view (listening contract): 'popularTracks' (the five most played, when
   // anything has been), 'songs' (every song crediting the artist) and 'releases' (albums and appearances).
   const albumsSection = section('releases'), popular = section('popularTracks'), songs = section('songs');
@@ -159,44 +161,34 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     ...(artist.genres && artist.genres.length > 0 ? [{id: 'genres', role: 'context' as const, text: artist.genres.slice(0, 3).join(', ')}] : []),
     ...(total === undefined ? [] : [{id: 'albums', role: 'supplement' as const, text: t('lib.count', {count: total, pivot: 'albums'})}]),
   ];
-  // As on the album hero: past 16 characters the 104px line no longer fits (desktop-listen#artist).
-  const long = artist.title.length > 16, details: [string, string][] = [];
+  const details: [string, string][] = [];
   if (artist.artistType) details.push([t('title.albumType'), artist.artistType]);
   if (artist.genres?.length) details.push([t('title.genres'), artist.genres.filter(Boolean).join(', ')]);
   const hasDetails = !!artist.overview || details.length > 0;
-  return <div data-layout={phone ? 'phone' : 'desktop'}>
-    {bar}
-    {/* desktop-listen #artist, phone-app r5: the kit's cover hero, artist variant, as an audiobook author's page. */}
-    <div className={styles.heroBleed}><CoverHero title={artist.title} titleStyle={long ? 'long' : undefined} shape="artist" eyebrow={t('filter.field.artist')} facts={facts}
-      cover={discArt} fallback={<PersonCircle width="100%" height="100%" initialsSize={phone ? 44 : 80} initials={nameInitials(artist.title)} alt="" />} ambient={context.artwork.ambient(cover)}
-      actions={<>
-          {playArtist && <>
-            <Button variant="primary" icon="i-play" onClick={() => runScreenCommand(context, () => {
-              if (!witness()) throw new DOMException('Artist playback changed', 'AbortError');
-              return playArtist(artistId, lease.signal, witness);
-            })}>{t('next.controls.play')}</Button>
-            <Button variant="glass" icon="i-shuffle" onClick={() => runScreenCommand(context, () => {
-              if (!witness()) throw new DOMException('Artist playback changed', 'AbortError');
-              return playArtist(artistId, lease.signal, witness, true);
-            })}>{t('title.shuffle')}</Button>
-          </>}
-          {(context.effects.playRadio || context.effects.editMetadata) && <Button ref={more} variant="glass" icon="i-more" iconOnly aria-label={t('card.more', {title: artist.title})}
-            onClick={event => {if (witness()) setMenu({page: projection, anchor: event.currentTarget});}}/>}
-        </>}/></div>
-    {menu?.page === projection && <Menu open onOpenChange={open => {if (!open) setMenu(current => current === menu ? undefined : current);}} anchorRef={{current: menu.anchor}} returnFocusRef={{current: menu.anchor}} title={artist.title}>
-      <MusicEntryMenu context={context} seed={{id: artist.id, title: artist.title}} signal={lease.signal} current={witness}/>
-      <OwnerMetadataGroup separated={!!context.effects.playRadio} context={context} anchor={() => menu.anchor}
-        guard={() => {if (!witness()) throw new DOMException('Artist page changed', 'AbortError');}}
-        target={{entityKind: 'artist', entityId: artist.id, libraryId, title: artist.title}}/>
-    </Menu>}
-    {titleMenu.menu}
-    {/* desktop-listen #artist: Top songs on the left; Albums then Details in the 360px aside. */}
-    <section className={styles.split}>
-      <div className={styles.songs}>
-        {top && <ArtistTopSongs context={context} lease={lease} libraryId={libraryId} top={top} witness={witness} phone={phone} artistId={popular ? undefined : artistId}
-          heading={popular ? serverTextLabel(serviceI18n(), popular.heading) : t('music.topSongs')} preview={popular ? undefined : TOP_SONGS_PREVIEW} />}
-      </div>
-      {(albums.length > 0 || hasDetails) && <aside className={styles.aside}>
+  // The artist on the title frame (desktop-listen artist; phone-app r5): the round cover at the right, Artist, the facts,
+  // Play, Shuffle, the favourite and More; the top songs are the panel, Albums and Details the side.
+  const favorite = favourite?.artist === artist.id ? favourite.value : artist.favorite === true;
+  const setFavorite = () => runScreenCommand(context, async () => {
+    if (!witness()) throw new DOMException('Artist page changed', 'AbortError');
+    const next = !favorite; setFavourite({artist: artist.id, value: next});
+    try { await setContainerFlag(lease.api, 'artist', artist.id, 'favorite', next, lease.signal); }
+    catch (error) { if (lease.isCurrent()) setFavourite(undefined); throw error; }
+  });
+  const play = (shuffle: boolean) => runScreenCommand(context, () => {
+    if (!witness() || !playArtist) throw new DOMException('Artist playback changed', 'AbortError');
+    return shuffle ? playArtist(artistId, lease.signal, witness, true) : playArtist(artistId, lease.signal, witness);
+  });
+  const actions: TitleAction[] = [
+    ...(playArtist ? [{icon: 'i-shuffle' as const, label: t('title.shuffle'), labelled: true, onPress: () => play(true)}] : []),
+    {icon: 'i-heart', label: t(favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites'), active: favorite, onPress: setFavorite},
+    ...(context.effects.playRadio || context.effects.editMetadata ? [{icon: 'i-more' as const, label: t('card.more', {title: artist.title}), onPress: () => {},
+      wrap: (button: ReactElement) => cloneElement(button as ReactElement<{ref?: RefObject<HTMLButtonElement | null>; onClick?: (event: MouseEvent<HTMLButtonElement>) => void}>, {ref: more, onClick: (event: MouseEvent<HTMLButtonElement>) => {if (witness()) setMenu({page: projection, anchor: event.currentTarget});}})}] : []),
+  ];
+  return <><TitleFrame back={lease.onBack ? {label: t('next.states.back'), onPress: back} : undefined}
+    cover={{shape: 'circle', node: discArt ? <Artwork source={discArt} alt="" /> : <PersonCircle width="100%" height="100%" initialsSize={phone ? 44 : 80} initials={nameInitials(artist.title)} alt="" />}}
+    kicker={{label: t('filter.field.artist')}} title={artist.title} metadata={<TitleFactsLine parts={facts} />}
+    primary={playArtist ? {icon: 'i-play', label: t('next.controls.play'), onPress: () => play(false)} : undefined} actions={actions}
+    aside={albums.length > 0 || hasDetails ? <div className={styles.aside}>
         {albums.length > 0 && <section className={styles.albumsBlock} aria-label={t('music.albums')}>
           <h2 className={styles.detailsTitle}>{t('music.albums')}</h2>
           <div className={styles.albumGrid}>{albums.map(album => <SquareCard key={album.id} model={entryCard(album, env)} artwork={context.artwork.foreground(album.posterUrl, 400, 1)}
@@ -214,13 +206,24 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
           {artist.overview && <><TitleProse className={styles.overview} markup={artist.overview} />{artist.overviewSource && <small className={styles.source}>{t('web.person.biographyFrom', {source: artist.overviewSource})}</small>}</>}
           {details.length > 0 && <dl className={styles.facts}>{details.map(([label, value]) => <Fragment key={label}><dt>{label}</dt><dd>{value}</dd></Fragment>)}</dl>}
         </>}
-      </aside>}
-    </section>
+      </div> : undefined}>
+    <PanelBlock label={t('music.topSongs')}>
+        {top && <ArtistTopSongs context={context} lease={lease} libraryId={libraryId} top={top} witness={witness} phone={phone} artistId={popular ? undefined : artistId}
+          heading={popular ? serverTextLabel(serviceI18n(), popular.heading) : t('music.topSongs')} preview={popular ? undefined : TOP_SONGS_PREVIEW} />}
+    </PanelBlock>
     {similar?.page === projection && similarRead.current === similar.token && <SimilarTitleRow heading={t('music.similarArtists')} subtitle={t(similar.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')}
       first={similar.value} scope={similar.scope} binding={{context}} guard={() => {
         if (!witness() || similarRead.current !== similar.token) throw new DOMException('Artist related read changed', 'AbortError');
       }} />}
-  </div>;
+  </TitleFrame>
+    {menu?.page === projection && <Menu open onOpenChange={open => {if (!open) setMenu(current => current === menu ? undefined : current);}} anchorRef={{current: menu.anchor}} returnFocusRef={{current: menu.anchor}} title={artist.title}>
+      <MusicEntryMenu context={context} seed={{id: artist.id, title: artist.title}} signal={lease.signal} current={witness}/>
+      <OwnerMetadataGroup separated={!!context.effects.playRadio} context={context} anchor={() => menu.anchor}
+        guard={() => {if (!witness()) throw new DOMException('Artist page changed', 'AbortError');}}
+        target={{entityKind: 'artist', entityId: artist.id, libraryId, title: artist.title}}/>
+    </Menu>}
+    {titleMenu.menu}
+  </>;
 }
 
 /** The server-ranked table and its own row menu, owned by one exact opening: published in a

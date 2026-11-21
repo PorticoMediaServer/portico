@@ -66,7 +66,7 @@ test('Artist Back and retry keep their committed entry and never adopt successor
     '@i18n': {defaultI18n: {region: {formatLocale: 'en'}}}, './text': {t},
     '@core/library-content.ts': {LibraryContentService: Service, readListeningSimilar: () => Promise.resolve({entries: []})},
     '@core/freshness-hub.ts': {dependsOn: {libraries: 'libraries'}}, '../../platform/freshness': {useFreshDocument() {}, usePageMemory: () => pageMemory},
-    '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/cards': {SquareCard: 'SquareCard'}, '../../kit/artwork': {PersonCircle: 'PersonCircle', nameInitials: (name: string) => name.slice(0, 1)}, '../../kit/title/CoverHero': {CoverHero: 'CoverHero'},
+    '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/cards': {SquareCard: 'SquareCard'}, '../../kit/artwork': {PersonCircle: 'PersonCircle', nameInitials: (name: string) => name.slice(0, 1)}, '../../kit/frames': {TitleFrame: 'TitleFrame', PanelBlock: 'PanelBlock'}, '@core/container-state.ts': {setContainerFlag: () => Promise.resolve({})},
     '@core/presentation/server-text.ts': {serverTextLabel: (_i18n: unknown, heading: any) => heading?.fallback ?? ''}, '@core/presentation/service-text.ts': {serviceI18n: () => ({})},
     '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine', TitleProse: 'TitleProse'},
     '../../kit/browse': {TrackTable: 'TrackTable'}, '../../kit/overlays': {Menu: 'Menu'}, '../../kit/Icon': {Icon: 'Icon'},
@@ -79,9 +79,15 @@ test('Artist Back and retry keep their committed entry and never adopt successor
   let artistId = 'one', libraryId = 'lib';
   let routeBack = await actualRouteBack(context, router, libraryId);
   const render = () => tree(h.render(() => app.ArtistScreen({context, artistId, libraryId, onBack: routeBack})));
-  const back = (view: any[]) => all(view, 'Button').find((node: any) => node.props['aria-label'] === 'next.states.back');
+  // Back is the title frame's (loading and loaded) or the bar's over a failed page. Before the page's
+  // lease is live it is inert, as the old bar's disabled Back was.
+  const back = (view: any[]) => {
+    const frame = all(view, 'TitleFrame').find((node: any) => node.props.back);
+    if (frame) return {props: {onClick: frame.props.back.onPress, disabled: false}};
+    return all(view, 'Button').find((node: any) => node.props['aria-label'] === 'next.states.back');
+  };
   const settle = async () => {await Promise.resolve(); await Promise.resolve(); return render();};
-  let view = render(); assert.equal(back(view).props.disabled, true); view = render(); back(view).props.onClick(); assert.deepEqual(backs, ['one']);
+  let view = render(); back(view).props.onClick(); assert.deepEqual(backs, [], 'Back before the page is live does nothing'); view = render(); back(view).props.onClick(); assert.deepEqual(backs, ['one']);
   assert.equal(services[0].disposed, 1); const first = services[1]; assert.deepEqual(first.selections[0], {libraryId: 'lib', view: 'artist', entityId: 'one'});
   first.snapshot = {phase: 'error', projection: null, appended: [], error: {code: 'temporary'}}; first.reject(first.snapshot.error); view = await settle();
   const failure = all(view, 'StateLayout')[0]; assert.equal(failure.props.title, 'next.states.pageFailed');
@@ -121,10 +127,9 @@ test('Artist Back and retry keep their committed entry and never adopt successor
   const late = services.at(-1), reportCount = reports.length; location = {href: location.href}; router.state.location = location; view = render(); view = render();
   late.snapshot = {phase: 'ready', projection: {entity: {id: artistId, kind: 'artist'}, scope: {libraryId, view: 'artist', entityId: artistId}, revision: {catalog: 1, viewer: 1}}, appended: [], error: null}; late.resolve(); view = await settle();
   assert.equal(reports.length, reportCount, 'retired success cannot report or publish to successor');
-  assert.equal(all(view, 'CoverHero').length, 0, 'late original artist cannot render in successor');
+  assert.equal(all(view, 'TitleFrame').filter((node: any) => node.props.title).length, 0, 'late original artist cannot render in successor');
   const fresh = services.at(-1); fresh.snapshot = {phase: 'ready', projection: {entity: {id: artistId, kind: 'artist', title: 'Real artist'}, scope: {libraryId, view: 'artist', entityId: artistId}, revision: {catalog: 1, viewer: 1}, sections: []}, appended: [], error: null}; fresh.resolve(); view = await settle();
-  assert.equal(all(view, 'CoverHero')[0].props.title, 'Real artist'); assert.ok(back(view));
-  assert.ok(all(view, 'span').some((node: any) => node.props.children?.includes?.('Real artist')), 'bar shows the admitted artist title');
+  assert.equal(all(view, 'TitleFrame')[0].props.title, 'Real artist'); assert.ok(back(view), 'the frame carries Back for the admitted artist');
   // The music library's artist view publishes its albums as 'releases' (the listening contract).
   const album = {id: 'release', kind: 'album', libraryId, title: 'Release'}, albums = {id: 'releases', entries: [album], nextCursor: 'next-release', totalCount: 2};
   fresh.snapshot = {...fresh.snapshot, projection: {...fresh.snapshot.projection, entity: {...fresh.snapshot.projection.entity, overview: 'Stored biography', overviewSource: 'Provider'}, sections: [albums]}, appended: [albums]};
@@ -136,7 +141,7 @@ test('Artist Back and retry keep their committed entry and never adopt successor
   assert.equal(more.props.disabled, false);
   more.props.onClick(); view = render();
   assert.deepEqual(fresh.pages, ['releases']);
-  assert.equal(all(view, 'CoverHero')[0].props.title, 'Real artist', 'the page stays mounted while the serialized source fetches a shelf page');
+  assert.equal(all(view, 'TitleFrame')[0].props.title, 'Real artist', 'the page stays mounted while the serialized source fetches a shelf page');
   assert.equal(nextPage(view).props.disabled, true);
   const final = {...albums, entries: [...albums.entries, {...album, id: 'second-release'}], nextCursor: ''};
   fresh.snapshot = {...fresh.snapshot, phase: 'ready', projection: {...fresh.snapshot.projection, sections: [final]}, appended: [final]};
