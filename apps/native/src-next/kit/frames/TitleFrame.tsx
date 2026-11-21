@@ -374,7 +374,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       }}>
         <View style={{gap: frame.sectionGap}} onLayout={event => {ys.current.sections[index] = event.nativeEvent.layout.y; if (where === index) align();}}>{section.node}</View></FocusWithin>)
         : panel}</View>
-    {aside && !loading && <View style={{width: besideAside ? spec.side : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}
+    {aside && !loading && <View style={{width: besideAside ? form === 'expanded' ? spec.tabletSide : spec.side : undefined, alignSelf: besideAside ? undefined : 'stretch', marginRight: besideAside ? frame.rightGutter : 0, paddingHorizontal: besideAside ? 0 : frame.gutter, gap: frame.sectionGap}}>{aside}</View>}
   </View>;
   // On TV the strip marks the section that holds focus and takes no focus itself: Down from the buttons goes straight into
   // the first row and Up from it back to the buttons (detail-tv-3).
