@@ -232,6 +232,11 @@ test('a page kept current is held while its selection is open, and let go when i
     selection.clear(); assert.equal(releases, 1, 'Cancel lets the page be read again');
     selection.start!(); assert.equal(holds, 2);
     f.cover(); assert.equal(releases, 2, 'a covered page ends its selection and its hold');
-    selection.dispose(); assert.equal(releases, 2, 'released exactly once');
+    let publications = 0;
+    const unsubscribe = selection.subscribe(() => {publications++;});
+    selection.dispose();
+    unsubscribe();
+    assert.equal(publications, 0, 'retiring the page never updates its discarded selection bars');
+    assert.equal(releases, 2, 'released exactly once');
   } finally {selection.dispose(); f.close();}
 });

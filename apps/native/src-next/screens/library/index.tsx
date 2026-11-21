@@ -1,5 +1,5 @@
 import React from 'react';
-import {Platform, useWindowDimensions} from 'react-native';
+import {Platform} from 'react-native';
 import {usePlatformPosture} from '../../platform/platformPosture';
 import type {BrowseLabels} from '../../kit/browse';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -9,7 +9,6 @@ import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import type {NativeSelection} from '../selection/native-selection';
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
-import {frameForm} from '@portico/design';
 import {CoveredLayer} from '../../kit/focus';
 import {homeSeeAllRoute} from '../../shell/routes';
 import {LibraryPage} from '../../pages/touch/library/LibraryPage';
@@ -150,7 +149,7 @@ export type {NativeLibraryViewDraft} from './model';
 export {createNativeLibraryPlaySelection};
 
 function LibrarySurface(props: LibraryProps) {
-  const {width, height} = useWindowDimensions(), posture = usePlatformPosture();
+  const posture = usePlatformPosture();
   const active = React.useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot);
   const state = React.useSyncExternalStore(props.destination.subscribe, props.destination.getSnapshot);
   if (Platform.isTV) {
@@ -164,7 +163,7 @@ function LibrarySurface(props: LibraryProps) {
     return <TVLibraryPage {...props} tvMusicDiscover={tvMusicDiscover}/>;
   }
   const folded = posture.status === 'available' && posture.folds.some(fold => fold.orientation === 'vertical');
-  if (folded || (width >= height && frameForm(width, false, height) === 'phone')) return <LibraryScreen {...props}/>;
+  if (folded) return <LibraryScreen {...props}/>;
   return <CoveredLayer covered={!active.visible} testID={`native-library-${encodeURIComponent(state.library.id)}`} style={{flex: 1}}><LibraryPage {...props} mixes={state.library.kind === 'music' && props.runtime.mixes ? events =>
     <MusicMixesRow {...events} port={props.runtime.mixes!} artwork={props.runtime.artwork} reportError={props.runtime.reportError}
       active={active.visible} focusScope={`library:${state.library.id}.mixes`}/> : undefined}/></CoveredLayer>;
