@@ -2,6 +2,16 @@ import React, {useEffect, useRef, useState} from 'react';
 import {Text, View, type StyleProp, type TextStyle} from 'react-native';
 
 const ellipsis = '…';
+/** A title's fitted text, by its cell's width and limits: a cell drawn again (the guide under an opened programme sheet, a row
+ * scrolled back into view) starts from the fit it had. On tvOS a measuring text under an overlay may never report, and the
+ * cell fell back to "…" for as long as the sheet stayed open (Apple TV, 21 Nov). Bounded: the oldest fits go first. */
+type Fit = {text?: string; height?: number; width?: number};
+const fits = new Map<string, Fit>(), fitsKept = 2000;
+function remember(key: string, value: Fit) {
+  const next = {...fits.get(key), ...value};
+  fits.delete(key); fits.set(key, next);
+  if (fits.size > fitsKept) fits.delete(fits.keys().next().value!);
+}
 
 type GuideTextProps = {
   title: string;
@@ -15,31 +25,39 @@ type GuideTextProps = {
 /** Layout may split a word even with hyphenation turned off. Keep only whole words
  * and measure the shortened text with its ellipsis before showing it. */
 export function GuideProgrammeTitle(props: GuideTextProps) {
-  const [width, setWidth] = useState(0);
-  return <View style={{flex: 1, minWidth: 0}} onLayout={event => setWidth(Math.floor(event.nativeEvent.layout.width))}>
-    {width > 0 ? <FittedGuideText key={JSON.stringify([width, props.title, props.lines, props.maxHeight, props.whole])}
-      {...props} width={width}/> : !props.whole && <Text style={props.style}>{ellipsis}</Text>}
+  // The cell's last known width (a cell drawn again under an overlay may get no layout report).
+  const cell = JSON.stringify([props.title, props.lines, props.maxHeight, props.whole]);
+  const [width, setWidth] = useState(() => fits.get(cell)?.width ?? 0);
+  const memo = JSON.stringify([width, props.title, props.lines, props.maxHeight, props.whole]);
+  return <View style={{flex: 1, minWidth: 0}} onLayout={event => {const value = Math.floor(event.nativeEvent.layout.width); remember(cell, {width: value}); setWidth(value);}}>
+    {width > 0 ? <FittedGuideText key={memo} {...props} width={width} memo={memo}/> : !props.whole && <Text style={props.style}>{ellipsis}</Text>}
   </View>;
 }
 
-function FittedGuideText({title, lines, style, width, maxHeight, whole, onHeight}: GuideTextProps & {width: number}) {
-  const [trial, setTrial] = useState(title), [fit, setFit] = useState<string>();
+function FittedGuideText({title, lines, style, width, maxHeight, whole, onHeight, memo}: GuideTextProps & {width: number; memo: string}) {
+  const [trial, setTrial] = useState(title), [fit, setFitState] = useState<string | undefined>(() => fits.get(memo)?.text);
+  const setFit = (value: string) => {remember(memo, {text: value}); setFitState(value);};
+  // The fitted text's height, given again to a cell drawn again (its time line waits for it).
+  const known = fits.get(memo)?.height;
+  useEffect(() => {if (known !== undefined) onHeight?.(known);}, [known, onHeight]);
   // On tvOS a hidden measuring text mounted with a newly opened guide sometimes never reports its lines, and the cell
   // stayed "…" for good (every programme cell, Apple TV). If no report comes, the measuring text is drawn again.
-  // A narrow cell measures several times (each shorter text is measured again), so the three tries are per text.
+  // A narrow cell measures several times (each shorter text is measured again), so the tries are per text.
   const [attempt, setAttempt] = useState({trial: title, count: 0}), heard = useRef(false);
   const tries = attempt.trial === trial ? attempt.count : 0;
   useEffect(() => {
-    if (fit !== undefined || tries >= 3) return;
+    if (fit !== undefined) return;
     heard.current = false;
-    const timer = setTimeout(() => {if (!heard.current) setAttempt({trial, count: tries + 1});}, 400);
+    // Three quick tries, then a slow one for as long as the cell is drawn: under an open sheet a measure may never report
+    // until the sheet goes, and a cell that stopped asking stayed "…" after it closed.
+    const timer = setTimeout(() => {if (!heard.current) setAttempt({trial, count: tries + 1});}, tries < 3 ? 400 : 1500);
     return () => clearTimeout(timer);
   }, [fit, tries, trial]);
   const fallback = whole ? '' : ellipsis;
   const value = fit ?? fallback;
   return <>
     {value !== '' && <Text textBreakStrategy="simple" android_hyphenationFrequency="none" style={style}
-      onLayout={onHeight && (event => onHeight(event.nativeEvent.layout.height))}>{value}</Text>}
+      onLayout={onHeight && (event => {remember(memo, {height: event.nativeEvent.layout.height}); onHeight(event.nativeEvent.layout.height);})}>{value}</Text>}
     {fit === undefined && <Text key={`${tries}:${trial}`} accessible={false} importantForAccessibility="no"
       textBreakStrategy="simple" android_hyphenationFrequency="none"
       style={[style, {position: 'absolute', left: 0, right: 0, opacity: 0}]} onTextLayout={event => {
