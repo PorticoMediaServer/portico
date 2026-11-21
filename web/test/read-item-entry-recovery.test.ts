@@ -18,8 +18,12 @@ const pdf = {sourceId: 'pdf-source', format: 'pdf' as const, size: 1200, invento
 
 const Menu = (props: any) => props.open ? {type: 'Menu', props} : null;
 const MenuGroup = (props: any) => ({type: 'MenuGroup', props});
-const CoverHero = (props: any) => ({type: 'CoverHero',
-  props: {...props, children: [props.children, props.actions, props.under].filter(Boolean)}});
+// The title frame draws Back as a disc and each action as a button; a wrapped action (More) is handed its button.
+const frameButton = (label: string, onClick: () => void) => ({type: 'Button', props: {'aria-label': label, onClick}});
+const TitleFrame = (props: any) => ({type: 'TitleFrame', props: {...props, children: [
+  props.back && frameButton(props.back.label, props.back.onPress),
+  ...(props.actions ?? []).map((action: any) => action.wrap ? action.wrap(frameButton(action.label, action.onPress)) : frameButton(action.label, action.onPress)),
+  props.children, props.aside].filter(Boolean)}});
 const i18n = {t: (key: string) => key, bytes: (value: number) => `${value} B`, number: (value: number) => String(value),
   duration: (value: number) => `${value}s`, percent: (value: number) => `${value}%`};
 
@@ -60,7 +64,7 @@ async function mountRead(options: {canGoBack?: boolean; phone?: boolean; open?: 
     close: async () => {}, dispose: async () => {},
   });
   const app = await componentModule(new URL('../src/screens/read/ReadItemEntry.tsx', import.meta.url), {
-    react: h.react,
+    react: {...h.react, cloneElement: (element: any, props: any) => ({...element, props: {...element.props, ...props}})},
     '@tanstack/react-router': {useLocation: () => router.state.location},
     '@i18n': {defaultI18n: i18n},
     '@design': {generatedCoverTint: () => ({first: '#111', second: '#222'})},
@@ -73,14 +77,17 @@ async function mountRead(options: {canGoBack?: boolean; phone?: boolean; open?: 
     '../../route-registry-view': {useProtectedWebScreenContext: () => captured},
     '../../router': {router},
     '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/controls': {Button: 'Button', ResumeButton: 'ResumeButton'},
+    '../../kit/controls': {Button: 'Button'},
     '../../kit/overlays': {Menu, MenuGroup, MenuItem: 'MenuItem'},
     '../../kit/overlays/shared': {usePhone: () => phone},
     '../detail/context': {runScreenCommand: (_context: any, command: () => void) => command()},
     '../../kit/states': {Skeleton: 'Skeleton', StateView: 'StateView'},
-    '../../kit/reader/ReadBookHero': {ReadBookFacts: 'ReadBookFacts', ReadBookSections: 'ReadBookSections'},
-    '../../kit/title/CoverHero': {CoverHero, CoverHeroLink: 'CoverHeroLink'},
-    '../../kit/artwork': {GeneratedCover: 'GeneratedCover'},
+    '../../kit/reader/ReadBookHero': {ReadBookFacts: 'ReadBookFacts', ReadMarksStrip: 'ReadMarksStrip'},
+    '../../kit/title/CoverHero': {CoverHeroLink: 'CoverHeroLink'},
+    '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine'},
+    '../../kit/frames': {TitleFrame, AboutTable: 'AboutTable', PanelBlock: 'PanelBlock', PanelHeading: 'PanelHeading'},
+    '../../kit/artwork': {GeneratedCover: 'GeneratedCover', WholeArtwork: 'WholeArtwork'},
+    '../../kit/theme': {useWindowWidth: () => phone ? 390 : 1440},
     '../../kit/shell': {ServerMark: 'ServerMark'},
     '../browse/screen-context': {useLibraryScreenContext: () => screenContext},
     './ReadMetadata': {ReadMetadata: 'ReadMetadata'},
@@ -89,8 +96,8 @@ async function mountRead(options: {canGoBack?: boolean; phone?: boolean; open?: 
     './read-version-choice': versionChoice,
     './read-item.module.css': {default: {}},
     './useReadingFavorite': {useReadingFavorite: () => undefined},
-    './ReadSavedAction': {ReadSavedAction: 'ReadSavedAction'},
-    './ReadMarkAction': {ReadMarkAction: 'ReadMarkAction'},
+    './ReadSavedAction': {useReadSaved: () => null},
+    './ReadMarkAction': {useReadMark: () => null},
   });
   const flat = () => tree(h.render(() => app.ReadItemEntry({itemId: 'book', eligibility})));
   const settle = async (rounds = 12) => {for (let i = 0; i < rounds; i++) {await Promise.resolve(); flat();}};
@@ -151,7 +158,7 @@ test('actual ReadItemEntry failure chooser selects B and only B publishes', asyn
   versionButton(f).props.onClick(); f.flat();
   versionItem(f, 'PDF').props.onSelect(); f.flat(); await f.settle();
   assert.deepEqual(f.openCalls, [epub.sourceId, pdf.sourceId]);
-  const hero = one(f.flat(), 'CoverHero');
+  const hero = one(f.flat(), 'TitleFrame');
   assert.ok(String(hero.props.title).includes(pdf.sourceId), 'the ready hero is B');
   assert.equal(String(hero.props.title).includes(epub.sourceId), false, 'A never published');
 });
@@ -165,7 +172,7 @@ test('actual ReadItemEntry ignores a stale A response after B opens', async () =
   versionItem(f, 'PDF').props.onSelect(); f.flat(); await f.settle();
   assert.deepEqual(f.openCalls, [epub.sourceId, pdf.sourceId]);
   a.resolve(makeSession(epub.sourceId)); await f.settle();
-  const hero = one(f.flat(), 'CoverHero');
+  const hero = one(f.flat(), 'TitleFrame');
   assert.ok(String(hero.props.title).includes(pdf.sourceId), 'stale A publication cannot replace B');
 });
 

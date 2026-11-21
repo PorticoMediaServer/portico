@@ -9,7 +9,15 @@ const definite = new Set(['personal_state_conflict', 'personal_needs_resolution'
 
 /** Explicit profile My List membership. Saved location and publication progress stay with
  * the existing Reader, and uncertain writes keep their original body/op ID. */
-export function ReadSavedAction({client, itemId, isCurrent, reportError}: {client: ReadingClient; itemId: string; isCurrent: () => boolean; reportError: (error: unknown) => void}) {
+export function ReadSavedAction(props: ReadSavedInputs & Readonly<{client: ReadingClient}>) {
+  const saved = useReadSaved(props);
+  if (!saved) return null;
+  return <Button variant="glass" icon={saved.listed ? 'i-check' : 'i-plus'} iconOnly aria-label={saved.label} title={saved.label} aria-pressed={saved.listed} disabled={saved.busy} onClick={saved.press}/>;
+}
+
+type ReadSavedInputs = Readonly<{client: ReadingClient | undefined; itemId: string; isCurrent: () => boolean; reportError: (error: unknown) => void}>;
+/** My List for a book as its state and press, for a screen that draws the button itself (the title frame's actions). */
+export function useReadSaved({client, itemId, isCurrent, reportError}: ReadSavedInputs): Readonly<{label: string; listed: boolean; busy: boolean; press: () => void}> | null {
   const inputs = useRef({client, itemId, isCurrent, reportError}); inputs.current = {client, itemId, isCurrent, reportError};
   const opening = useRef<Opening | undefined>(undefined), [view, setView] = useState<View>({});
   // Publish synchronously as well as through React: an old event closure must
@@ -33,13 +41,14 @@ export function ReadSavedAction({client, itemId, isCurrent, reportError}: {clien
     finally {held.busy = false;}
   }, [current, publish]);
   useLayoutEffect(() => {
+    if (!client) {opening.current = undefined; publish({}); return;}
     const held: Opening = {client, itemId, controller: new AbortController(), live: true, busy: false, needsRead: true};
     opening.current = held; publish({opening: held});
     if (client.canUseMyList(itemId)) void load(held);
     return () => {held.live = false; held.controller.abort(); if (opening.current === held) opening.current = undefined;};
   }, [client, itemId, load, publish]);
   const held = view.opening, mark = view.mark;
-  if (!held || !current(held) || !client.canUseMyList(itemId) || view.unavailable || !mark && !view.failed) return null;
+  if (!client || !held || !current(held) || !client.canUseMyList(itemId) || view.unavailable || !mark && !view.failed) return null;
   const renderedView = view, renderedCommand = held.command, renderedNeedsRead = held.needsRead;
   const press = async () => {
     if (!current(held) || held.busy || currentView.current !== renderedView || renderedView.opening !== held || renderedView.mark !== mark
@@ -68,5 +77,5 @@ export function ReadSavedAction({client, itemId, isCurrent, reportError}: {clien
     } finally {held.busy = false;}
   };
   const label = defaultI18n.t(view.failed ? 'next.states.tryAgain' : mark?.listed ? 'next.home.removeMyList' : 'next.home.addMyList');
-  return <Button variant="glass" icon={mark?.listed ? 'i-check' : 'i-plus'} iconOnly aria-label={label} title={label} aria-pressed={mark?.listed} disabled={view.busy} onClick={() => {void press();}}/>;
+  return {label, listed: mark?.listed === true, busy: view.busy === true, press: () => {void press();}};
 }

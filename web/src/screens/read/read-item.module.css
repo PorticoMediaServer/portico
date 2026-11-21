@@ -1,7 +1,4 @@
 
-/* phone-read 3: .btn.play.wide.cbtn fills the phone's action row (.btn.wide { flex: 1 }); the page's
-   own primary Read/Resume button is that control. Phone only, so desktop and tablet are unchanged. */
-@media (max-width: 599px) { button.primary { flex: 1; min-width: 0; } }
 
 /* A version chooser that stays reachable while the original publication is still
    opening or has failed, beside the state's own action. */

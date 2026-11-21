@@ -1,7 +1,7 @@
 import {useReadingFavorite} from './useReadingFavorite';
-import {ReadSavedAction} from './ReadSavedAction';
-import {ReadMarkAction} from './ReadMarkAction';
-import {useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties} from 'react';
+import {useReadSaved} from './ReadSavedAction';
+import {useReadMark} from './ReadMarkAction';
+import {cloneElement, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement, type Ref} from 'react';
 import {useLocation} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
@@ -16,17 +16,19 @@ import {loadReadFonts} from './fonts';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
 import {Icon} from '../../kit/Icon';
-import {Button, ResumeButton} from '../../kit/controls';
+import {Button} from '../../kit/controls';
 import {Dialog, Menu, MenuGroup, MenuItem} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
 import {runScreenCommand} from '../detail/context';
 import {Skeleton} from '../../kit/states';
-import {ReadBookFacts, ReadBookSections, ReadMarksStrip} from '../../kit/reader/ReadBookHero';
+import {ReadBookFacts, ReadMarksStrip} from '../../kit/reader/ReadBookHero';
 import {Shelf} from '../../kit/layout';
 import {CoverCard} from '../../kit/cards';
-import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
-import {GeneratedCover} from '../../kit/artwork';
-import {readBookTitleStyle} from '../../kit/reader/book-title';
+import {CoverHeroLink} from '../../kit/title/CoverHero';
+import {TitleFactsLine} from '../../kit/title/TitleParts';
+import {AboutTable, PanelBlock, PanelHeading, TitleFrame, type AboutValue, type TitleAction} from '../../kit/frames';
+import {GeneratedCover, WholeArtwork} from '../../kit/artwork';
+import {useWindowWidth} from '../../kit/theme';
 import {ServerMark} from '../../kit/shell';
 import {useLibraryScreenContext} from '../browse/screen-context';
 import {ReadMetadata} from './ReadMetadata';
@@ -83,6 +85,11 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     isCurrent: () => current(detail.attempt) && detail.attempt.ready && detail.manifest?.sourceId === sourceId,
     reportError: error => errorSink.current(error),
   });
+  const actionsLive = () => current(detail.attempt) && detail.attempt === attemptRef.current && detail.attempt.ready && detail.manifest?.sourceId === sourceId;
+  const actionsClient = current(detail.attempt) && detail.attempt.ready && detail.manifest?.sourceId === sourceId ? detail.client : undefined;
+  const myList = useReadSaved({client: actionsClient, itemId: eligibility.itemId, isCurrent: actionsLive, reportError: error => errorSink.current(error)});
+  const readMark = useReadMark({client: actionsClient, itemId: eligibility.itemId, isCurrent: actionsLive, reportError: error => errorSink.current(error)});
+  const width = useWindowWidth(), [section, setSection] = useState('contents');
   useLayoutEffect(() => {
     const value: ReadAttempt = {context: captured.context, entry: routeLocation, sourceId, retry, fileLife: new AbortController(), live: true, ready: false};
     attemptRef.current = value; setAttempt(value); setSaving(false); setMore(false); setMenu(false); setFileInfo(false);
@@ -130,17 +137,18 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     void loadReadFonts({document, signal: life.signal}).catch(() => {});
     return () => life.abort();
   }, [showsOpening]);
+  const goBack = () => runScreenCommand(context, () => {
+    if (!context.isCurrent()) return;
+    // The callback's own entry must still be committed and live; then choose Back or Home.
+    const destination = readBackCommit(routeEntry, committedEntry.current, readRouteEntry(router.state.location), router.history.canGoBack());
+    if (destination === 'back') context.effects.back?.();
+    else if (destination === 'home') context.effects.openHome?.();
+  });
   // The reading branch owns no shell navigation on a phone, so the page keeps one
   // Back of its own before loading, failure and ready content alike.
   const phoneBack = phone && context.effects.back ? <div className={styles.phoneTopBar} data-read-phone-back>
     <Button className={styles.phoneBack} size="small" variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')}
-      onClick={() => runScreenCommand(context, () => {
-        if (!context.isCurrent()) return;
-        // The callback's own entry must still be committed and live; then choose Back or Home.
-        const destination = readBackCommit(routeEntry, committedEntry.current, readRouteEntry(router.state.location), router.history.canGoBack());
-        if (destination === 'back') context.effects.back?.();
-        else if (destination === 'home') context.effects.openHome?.();
-      })}/>
+      onClick={goBack}/>
   </div> : null;
   const version = eligibility.versions.find(candidate => candidate.sourceId === sourceId);
   /** An explicit version recovery is permitted while the original attempt is failed or not
@@ -241,32 +249,55 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   /** Manual selection is a recovery action, offered only from More or a failed read. */
   const chooseVersion = eligibility.versions.length > 1;
   const viewer = context.identity?.viewer, canEdit = viewer?.authority === 'local' && viewer.role === 'owner';
-  const details = <ReadBookFacts heading={t('next.reader.details')} facts={[
-    ...(author ? [{id: 'author', label: t('filter.field.author'), value: author}] : []),
-    ...(manifest.metadata.language ? [{id: 'language', label: t('next.selection.language'), value: manifest.metadata.language}] : []),
-    ...(metadata.wordCount !== undefined ? [{id: 'words', label: t('next.reader.wordsLabel'), value: defaultI18n.number(metadata.wordCount)}] : []),
-    ...(manifest.format === 'cbz' && manifest.pageNames?.length ? [{id: 'pages', label: t('next.reader.pagesStrip'), value: defaultI18n.number(manifest.pageNames.length)}] : []),
-  ]}/>;
-  return <>{phoneBack}<CoverHero cover={context.artwork.foreground(manifest.metadata.coverUrl, 784, 2 / 3)} title={title}
-    shape={metadata.publicationType?.value === 'magazine' || metadata.publicationType?.value === 'newspaper' ? 'periodical' : 'portrait'} titleStyle={readBookTitleStyle(title, !!metadata.openingLines)}
-    fallback={<GeneratedCover title={title} author={author} glyph={Array.from(title.trim())[0] ?? ''} tint={tint}/>}
-    byline={author ? <CoverHeroLink person={author} onOpen={openAuthor}>{author}</CoverHeroLink> : undefined}
-    eyebrow={seriesPresentation ? <button type="button" onClick={seriesPresentation.onOpen}>{seriesPresentation.label}</button> : undefined} facts={[
-      ...(metadata.wordCount !== undefined ? [{id: 'words', text: t('next.reader.wordCount', {count: metadata.wordCount}), role: 'context' as const}] : []),
-      ...(metadata.pageCount !== undefined ? [{id: 'pages', text: t('next.reader.pageCount', {count: metadata.pageCount}), role: 'context' as const}] : []),
-      ...(metadata.estimatedSeconds !== undefined && metadata.estimatedSeconds > 0 ? [{id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(metadata.estimatedSeconds))}), role: 'context' as const}] : []),
-    ]} description={metadata.description} opening={metadata.openingLines ? {label: t('next.reader.firstLines'), text: metadata.openingLines} : undefined}
-    ambient={context.artwork.ambient(manifest.metadata.coverUrl)} palette={tint}
-    actions={<>{progression !== undefined && progression > 0 ? <ResumeButton className={styles.primary} icon="i-book" progress={progression} remaining={defaultI18n.percent(progression)} onClick={() => open()}>{t('next.cards.read')}</ResumeButton>
-      : <Button className={styles.primary} variant="primary" icon="i-book" onClick={() => open()}>{t('next.reader.read')}</Button>}{detail.client && <ReadSavedAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}{detail.client && <ReadMarkAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}</>}
-    overflow={<><Button ref={editorAnchor} variant="glass" icon="i-more" iconOnly aria-label={t('next.controls.more')} onClick={() => {if (factsCurrent()) setMore(value => !value);}}/>
+  // The book on the title frame (desktop-read 3, phone-read 3): the cover, the series as the kicker, the author leading the facts,
+  // Read or Continue reading with its played part, My List, Mark as read and More; Contents is the panel and About this book the
+  // side. Below 1024 the two are tabs (phone-read 3 frames 8 and 9).
+  const about: Readonly<{label: string; values: readonly AboutValue[]}>[] = [
+    ...(author ? [{label: t('filter.field.author'), values: [{text: author, ...(openAuthor ? {onPress: openAuthor} : {})}]}] : []),
+    ...(manifest.metadata.language ? [{label: t('next.selection.language'), values: [{text: manifest.metadata.language}]}] : []),
+    ...(metadata.wordCount !== undefined ? [{label: t('next.reader.wordsLabel'), values: [{text: defaultI18n.number(metadata.wordCount)}]}] : []),
+    ...(manifest.format === 'cbz' && manifest.pageNames?.length ? [{label: t('next.reader.pagesStrip'), values: [{text: defaultI18n.number(manifest.pageNames.length)}]}] : []),
+  ];
+  const tabbed = width < 1024 && !!(detail.targets?.length || marksText) && about.length > 0;
+  const aboutBlock = about.length ? <div><PanelHeading title={t('title.aboutThisBook')}/><AboutTable rows={about}/></div> : undefined;
+  const contentsBlock = detail.targets?.length || marksText ? <PanelBlock label={t('next.reader.contents')}>
+    {detail.targets?.length ? <>{!tabbed && <PanelHeading title={t('next.reader.contents')}/>}<ReaderContents entries={detailContents(manifest.contents ?? [], index => open(index))}/></> : null}
+    {marksText && <ReadMarksStrip text={marksText} action={t('next.reader.openInReader')} onOpen={() => open()}/>}
+  </PanelBlock> : undefined;
+  const tab = section === 'details' ? 'details' : 'contents';
+  const periodical = metadata.publicationType?.value === 'magazine' || metadata.publicationType?.value === 'newspaper';
+  const actions: TitleAction[] = [
+    ...(myList ? [{icon: myList.listed ? 'i-check' as const : 'i-plus' as const, label: myList.label, active: myList.listed, disabled: myList.busy, pinned: true, onPress: myList.press}] : []),
+    ...(readMark ? [{icon: 'i-check' as const, label: readMark.label, active: readMark.read, disabled: readMark.busy, wide: true, onPress: readMark.press}] : []),
+    {icon: 'i-more', label: t('next.controls.more'), onPress: () => {}, wrap: (button: ReactElement) => <>
+      {cloneElement(button as ReactElement<{ref?: Ref<HTMLButtonElement>; onClick?: () => void}>, {ref: editorAnchor, onClick: () => {if (factsCurrent()) setMore(value => !value);}})}
       <Menu open={more} onOpenChange={setMore} title={title} anchorRef={editorAnchor}>
+        {/* Below 1024 Mark as read is here, so Read keeps its label's room (phone-read 3). */}
+        {readMark && width < 1024 && <MenuItem icon="i-check" selected={readMark.read} disabled={readMark.busy} onSelect={readMark.press}>{readMark.label}</MenuItem>}
         {favorite && <MenuItem icon="i-heart" selected={favorite.selected} disabled={favorite.busy} onSelect={favorite.onSelect}>{favorite.label}</MenuItem>}
         {canSaveFile && <MenuItem disabled={saving} onSelect={() => {void saveFile();}}>{t('next.reader.saveFile')}</MenuItem>}
         {chooseVersion && <MenuItem icon="i-book" onSelect={() => {if (factsCurrent()) {setMore(false); setMenu(true);}}}>{t('next.reader.readDifferentVersion')}</MenuItem>}
         <MenuItem icon="i-info" onSelect={() => {if (factsCurrent()) {setMore(false); setFileInfo(true);}}}>{t('next.overlays.fileInfo')}</MenuItem>
         {canEdit && <MenuGroup ownerOnly label={<span>{t('next.browse.server')}<ServerMark size={22}/></span>}><MenuItem onSelect={() => {if (context.isCurrent()) setEditing(true);}}>{t('entry.editMetadata')}</MenuItem></MenuGroup>}
-      </Menu></>}/>
+      </Menu></>},
+  ];
+  return <><TitleFrame back={phone && context.effects.back ? {label: t('next.states.back'), onPress: goBack} : undefined}
+    cover={{shape: 'poster', node: <WholeArtwork source={context.artwork.foreground(manifest.metadata.coverUrl, 784, 2 / 3)} alt={title} fit="cover" slot={periodical ? 3 / 4 : 2 / 3}
+      fallback={<GeneratedCover title={title} author={author} glyph={Array.from(title.trim())[0] ?? ''} tint={tint}/>}/>}}
+    kicker={seriesPresentation ? {label: seriesPresentation.label, onPress: seriesPresentation.onOpen} : undefined} title={title}
+    metadata={<TitleFactsLine lead={author ? <CoverHeroLink person={author} onOpen={openAuthor}>{author}</CoverHeroLink> : undefined} parts={[
+      ...(metadata.wordCount !== undefined ? [{id: 'words', text: t('next.reader.wordCount', {count: metadata.wordCount}), role: 'context' as const}] : []),
+      ...(metadata.pageCount !== undefined ? [{id: 'pages', text: t('next.reader.pageCount', {count: metadata.pageCount}), role: 'context' as const}] : []),
+      ...(metadata.estimatedSeconds !== undefined && metadata.estimatedSeconds > 0 ? [{id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(metadata.estimatedSeconds))}), role: 'context' as const}] : []),
+    ]}/>}
+    primary={progression !== undefined && progression > 0 ? {icon: 'i-book', label: t('next.cards.read'), progress: progression, remaining: defaultI18n.percent(progression), onPress: () => open()}
+      : {icon: 'i-book', label: t('next.reader.read'), onPress: () => open()}}
+    actions={actions}
+    synopsis={metadata.description} opening={!metadata.description && metadata.openingLines ? {label: t('next.reader.firstLines'), text: metadata.openingLines} : undefined}
+    tabs={tabbed ? {items: [{value: 'contents', label: t('next.reader.contents')}, {value: 'details', label: t('next.reader.details')}], value: tab, onValueChange: setSection} : undefined}
+    aside={tabbed ? undefined : aboutBlock}>
+    {tabbed && tab === 'details' ? <PanelBlock label={t('title.aboutThisBook')}>{aboutBlock}</PanelBlock> : contentsBlock}
+  </TitleFrame>
     <Dialog open={fileInfo} onOpenChange={setFileInfo} title={t('next.overlays.fileInfo')} returnFocusRef={editorAnchor}>
       {eligibility.versions.map(candidate => <ReadBookFacts key={candidate.sourceId} heading={candidate.format.toUpperCase()} facts={[
         {id: 'format', label: t('next.reader.format'), value: candidate.format.toUpperCase()},
@@ -277,9 +308,6 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
         onClick={() => {if (factsCurrent()) pickVersion(candidate, attempt, sourceId);}}>{candidate.format.toUpperCase()}<span>{defaultI18n.bytes(candidate.size)}</span></Button>)}
     </Dialog>
     {editing && canEdit && <ReadMetadata context={context} reading={captured.context} sourceId={manifest.sourceId} format={manifest.format} itemId={eligibility.itemId} anchor={editorAnchor} onClose={() => {if (!current(original)) return; setEditing(false); refresh(original);}}/>}
-    <ReadBookSections labels={{contents: t('next.reader.contents'), details: t('next.reader.details')}}
-      contents={detail.targets?.length ? <><h2>{t('next.reader.contents')}</h2><ReaderContents entries={detailContents(manifest.contents ?? [], index => open(index))}/></> : undefined}
-      marks={marksText ? <ReadMarksStrip text={marksText} action={t('next.reader.openInReader')} onOpen={() => open()}/> : undefined} details={details}/>
     {author && added.moreBy?.length ? <Shelf className={styles.moreBy} heading={t('home.row.moreByAuthor', {name: author})} platform={phone ? 'phone-web' : 'desktop'} itemWidth={cardWidth}
       items={added.moreBy} getKey={item => item.id} renderItem={item => <CoverCard artwork={context.artwork.foreground(item.coverUrl, cardWidth * 2, 2 / 3)} kind={manifest.format === 'cbz' ? 'comic' : 'book'}
         model={{title: item.title, caption: []}} context="shelf" density="shelf" visible generated={{title: item.title, glyph: Array.from(item.title)[0] ?? '', tint: generatedCoverTint(item.title)}}

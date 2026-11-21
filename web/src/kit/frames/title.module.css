@@ -52,6 +52,10 @@
 .synopsis { margin: 0; font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--color-text-secondary); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--frame-hero-title-synopsis-lines); overflow: hidden; max-width: var(--spec-hero-synopsis-max-width-web); }
 .synopsis[data-read-more] { -webkit-line-clamp: 4; }
 .synopsis[data-expanded] { display: block; overflow: visible; }
+/* A book's first lines (desktop-read 3, phone-read 3): the label, then the text in the reader's serif behind a rule, four lines at most. */
+.opening { margin: 0; max-width: var(--spec-hero-synopsis-max-width-web); text-align: left; }
+.opening figcaption { margin-bottom: var(--space-sm); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); font-weight: var(--type-row-label-weight); color: var(--color-text-tertiary); }
+.opening blockquote { margin: 0; padding-left: var(--space-md); border-left: 2px solid color-mix(in srgb, var(--color-text) 20%, transparent); font-family: Literata, Georgia, serif; font-size: var(--type-intro-size); line-height: var(--type-intro-line); color: var(--color-text-secondary); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
 .readMore { margin: 0; display: flex; align-items: center; gap: var(--space-md); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }
 .readMore button { display: inline-flex; align-items: center; gap: var(--space-tight); padding: 0; border: 0; background: none; color: var(--color-text); font: inherit; font-weight: var(--type-row-label-weight); cursor: pointer; }
 .credits { display: none; margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }
@@ -160,6 +164,9 @@
   .round[data-wide] { display: inline-flex; }
   .round[data-labelled], .primary[data-paired] { display: none; }
   .title:not([data-cover]) .progress { display: none; }
+  /* desktop-listen book (listen 8): a short played bar with the time left beside it. */
+  .title[data-cover] .progress { grid-template-columns: min(320px, 50%) auto; justify-content: start; column-gap: var(--space-md); }
+  .title[data-cover] .progress > span { grid-column: auto; }
   .progress > button { display: none; }
   .picker { display: none; }
   .tabs { margin-top: 0; }

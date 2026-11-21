@@ -57,6 +57,9 @@ export type TitleFrameProps = Readonly<{
   /** One bold line over the synopsis, from 1024. */
   tagline?: string;
   synopsis?: string;
+  /** A book's first lines, in the reader's serif under their label: over the buttons from 1024, under them below (desktop-read 3,
+   * phone-read 3). */
+  opening?: Readonly<{label: string; text: string}>;
   /** A biography's Read more and where it is from ("Biography from TMDB"). */
   readMore?: Readonly<{label: string; onPress: () => void; note?: string;
     /** The whole text is shown (Show less): the synopsis is not clamped and the chevron points up. */
@@ -97,7 +100,7 @@ const names = (value: TitleCredit['names']) => typeof value === 'string' ? value
  * on its bottom edge and grows upward), the metadata line, the action row, the tabs and the collapsed bar; flexible are
  * the words and the tab panel. Forms: a phone and a tablet upright are one centred column; from 600 on its side the
  * window is two pages (the title, and the tabs with their panel); from 1024 the words sit over the art at the left. */
-export function TitleFrame({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, readMore, credits, cast, tabs, children, aside, collapsed, state}: TitleFrameProps) {
+export function TitleFrame({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, opening, readMore, credits, cast, tabs, children, aside, collapsed, state}: TitleFrameProps) {
   const phone = usePhone(), failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   const tabsTop = useRef<HTMLDivElement>(null), slot = useRef<HTMLDivElement>(null), shown = useCollapsed(tabsTop, slot, collapsed);
   const disc = (action: TitleAction) => <Button variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} disabled={action.disabled} onClick={action.onPress} className={styles.disc} />;
@@ -125,10 +128,11 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
     {primary!.startOver && <Button variant="text" size="xs" icon="i-restart" onClick={primary!.startOver.onPress}>{primary!.startOver.label}</Button>}
   </div>;
   const words = loading ? <div className={styles.words} aria-hidden="true"><Skeleton line width="96%" /><Skeleton line width="70%" /></div>
-    : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <div className={styles.words}>
+    : (tagline !== undefined || synopsis !== undefined || opening || credits?.length) ? <div className={styles.words}>
       {tagline !== undefined && <p className={styles.tagline}>{tagline}</p>}
       {synopsis !== undefined && <p className={styles.synopsis} data-read-more={readMore ? true : undefined} data-expanded={readMore?.expanded || undefined}>{inlineMarkup(synopsis).map((run, index) => run.kind === 'break' ? <br key={index} />
         : run.strong && run.emphasis ? <strong key={index}><em>{run.text}</em></strong> : run.strong ? <strong key={index}>{run.text}</strong> : run.emphasis ? <em key={index}>{run.text}</em> : <Fragment key={index}>{run.text}</Fragment>)}</p>}
+      {opening && <figure className={styles.opening}><figcaption>{opening.label}</figcaption><blockquote>{opening.text}</blockquote></figure>}
       {readMore && <p className={styles.readMore}><button type="button" onClick={readMore.onPress}>{readMore.label}<Icon name={readMore.expanded ? 'i-up' : 'i-chdown'} size={16} /></button>{readMore.note !== undefined && <span>{readMore.note}</span>}</p>}
       {credits && credits.length > 0 && <p className={styles.credits}>{credits.map(credit => <span key={credit.label}>{credit.label} <b>{names(credit.names)}</b></span>)}</p>}
     </div> : null;
