@@ -67,8 +67,9 @@ export function EqualizerFrame({onBack, copy, snapshot, response, focusScope, ac
     onPress={() => onEnable(!enabled)} style={toggleStyle}>
     {toggleLabel}<View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Switch checked={enabled} focusable={false}/></View>
   </Focusable> : <View style={toggleStyle}>{toggleLabel}<Switch checked={enabled} accessibilityLabel={copy.title} disabled={snapshot.pending} onCheckedChange={onEnable}/></View>;
-  const reset = <Button focusId="equalizer-reset" variant="glass" disabled={!enabled || snapshot.pending || nativeEqualizerFlat(value)}
-    style={tv ? {alignSelf: 'flex-start', marginTop: 26, height: 64, paddingHorizontal: 30} : {marginHorizontal: 16, marginTop: 14, alignSelf: 'flex-start'}} onPress={onReset}>{copy.reset}</Button>;
+  const reset = <Button focusId="equalizer-reset" variant="glass" align={tv ? 'start' : 'stretch'}
+    disabled={!enabled || snapshot.pending || nativeEqualizerFlat(value)}
+    style={tv ? {marginTop: 26, height: 64, paddingHorizontal: 30} : {marginHorizontal: 16, marginTop: 14}} onPress={onReset}>{copy.reset}</Button>;
   const band = (target: NativeEqualizerTarget, gain: number, index?: number) => <EqualizerBand key={target} target={target} value={gain} height={height} disabled={!enabled}
     horizontal={!tv && target === 'preamp'} label={target === 'preamp' ? copy.preamp : copy.frequency(index!, false)}
     accessibilityLabel={target === 'preamp' ? copy.preamp : copy.frequency(index!, true)} copy={copy}
