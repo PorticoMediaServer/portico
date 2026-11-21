@@ -11,12 +11,12 @@ import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
 import {Artwork, GeneratedCover} from '../../kit/artwork';
 import {CoverHeroLink} from '../../kit/title/CoverHero';
-import {PanelBlock, TitleFrame, type TitleAction} from '../../kit/frames';
+import {PanelBlock, PanelHeading, TitleFrame, type TitleAction} from '../../kit/frames';
 import {TitleFactsLine} from '../../kit/title/TitleParts';
 import {setContainerFlag} from '@core/container-state.ts';
 import {Button} from '../../kit/controls';
 import {SortMenu, TrackTable} from '../../kit/browse';
-import {FileInfo, Menu, MenuItem} from '../../kit/overlays';
+import {Banner, FileInfo, Menu, MenuItem} from '../../kit/overlays';
 import {albumAudioRows} from '@core/presentation/kit-model/album-audio.ts';
 import {TitleProse} from '../../kit/title/TitleParts';
 import {useShellWidth} from '../../shell/viewport';
@@ -46,6 +46,8 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
   const width = useShellWidth(), phone = width < 1024, more = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState<Page>(), [retry, setRetry] = useState(0);
   const [similar, setSimilar] = useState<Similar>(), [menu, setMenu] = useState<OpenMenu>(), [fileInfo, setFileInfo] = useState(false);
+  /** listen-2: the album's artist's other albums, read once the album is (the artist page's own read). */
+  const [moreBy, setMoreBy] = useState<Readonly<{life: Page['life']; projection: ContentProjection; artistId: string; albums: readonly ContentEntry[]}>>();
   /** The favourite as this page last set it, until the album is read again. */
   const [favourite, setFavourite] = useState<Readonly<{album: string; value: boolean}>>();
   useEffect(() => {
@@ -78,12 +80,30 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
       }, error => {if (!request.signal.aborted && life.current()) context.effects.reportError(error);});
     return () => request.abort();
   }, [active?.life, active?.snapshot.phase, projection, context, libraryId, albumId]);
+  useEffect(() => {
+    const {active} = setupPorts.current;
+    setMoreBy(undefined);
+    const entity = projection?.entity, artistId = entity?.kind === 'album' ? entity.artist?.id : undefined;
+    if (!active || active.snapshot.phase !== 'ready' || !projection || !artistId) return;
+    const {life} = active, artists = new LibraryContentService({queries: context.queries, scope: context.scope});
+    let live = true;
+    const off = artists.subscribe(() => {
+      const read = artists.getSnapshot(), page = read.projection;
+      if (!live || !life.current() || read.phase !== 'ready' || !page || page.entity?.kind !== 'artist' || page.entity.id !== artistId) return;
+      const releases = read.appended.find(section => section.id === 'releases') ?? page.sections.find(section => section.id === 'releases');
+      setMoreBy({life, projection, artistId, albums: (releases?.entries ?? []).filter(entry => entry.kind === 'album' && entry.id !== albumId)});
+    });
+    // An extra: a failed read leaves the page without the row, and says nothing.
+    void artists.select({libraryId, view: 'artist', entityId: artistId}).catch(() => {});
+    return () => {live = false; off(); artists.dispose();};
+  }, [active?.life, active?.snapshot.phase, projection, context, libraryId, albumId]);
   const snapshot = active?.snapshot, album = projection?.entity;
   if (!active || !snapshot || !projection || !album || album.id !== albumId || album.kind !== 'album' || album.libraryId !== libraryId) {
     if (snapshot?.phase === 'error' || snapshot?.phase === 'refresh-required') return <ScreenProblem context={context} error={snapshot.error} retry={() => setRetry(value => value + 1)}/>;
     return <TitleFrame title="" cover={{shape: 'square', node: null}} state={{kind: 'loading'}} />;
   }
   const {life, service} = active;
+  const artistMore = moreBy && moreBy.life === life && moreBy.projection === projection ? moreBy : undefined;
   const current = () => life.current() && service.getSnapshot().phase === 'ready' && service.getSnapshot().projection === projection;
   const groups = albumTrackGroups(snapshot.appended), songs = groups.flatMap(group => group.entries);
   const discNumbers = new Set(groups.flatMap(group => group.discNumber === undefined ? [] : [group.discNumber]));
@@ -177,6 +197,14 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
         {snapshot.phase === 'loading' && <p role="status">{t('music.loading')}</p>}
         {(snapshot.phase === 'error' || snapshot.phase === 'refresh-required') && <ScreenProblem context={context} error={snapshot.error} retry={() => setRetry(value => value + 1)}/>}
       </div></PanelBlock>
+    {artistMore && album.artist?.name && (artistMore.albums.length
+      ? <TitleRow heading={t('music.moreBy', {name: album.artist.name})} entries={artistMore.albums} binding={{context}}
+        guard={() => {if (!current()) throw new DOMException('Album page changed', 'AbortError');}}/>
+      : <section className={styles.moreBy} aria-label={t('music.moreBy', {name: album.artist.name})}>
+        <PanelHeading title={t('music.moreBy', {name: album.artist.name})}/>
+        <Banner icon="i-note" action={onArtist ? {label: t('music.goToArtist', {name: album.artist.name}), onAction: () => {const artistId = artistMore.artistId; runScreenCommand(context, () => {if (life.current()) onArtist(artistId);});}} : undefined}>
+          {t('music.onlyAlbumBy', {title: album.displayTitle ?? album.title, name: album.artist.name})}</Banner>
+      </section>)}
     {recommendations && <SimilarTitleRow first={recommendations.value} scope={recommendations.scope} heading={t('music.moreLikeThis')}
       subtitle={t(recommendations.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={{context}}/>}
   </TitleFrame>
