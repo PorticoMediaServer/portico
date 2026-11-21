@@ -26,7 +26,6 @@
 .textAction:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text); }
 .textAction:focus-visible { outline: 2px solid var(--color-accent-strong); outline-offset: 2px; }
 .textAction:disabled { opacity: .5; cursor: default; }
-.listSummary { text-align: center; margin: 18px 0 0; font-size: calc(var(--type-body-size) * 14 / 15); color: var(--color-text-tertiary); }
 .pager { display: flex; gap: 8px; }
 .empty { padding: 24px 18px; border-radius: 14px; background: color-mix(in srgb, var(--color-ink) 50%, transparent); box-shadow: inset 0 0 0 1px var(--color-line); }
 .empty b { display: flex; align-items: center; gap: 8px; font-size: var(--type-body-size); } .empty b svg { color: var(--color-healthy); } .empty p { margin: 6px 0 0; font-size: var(--type-activity-detail-size); color: var(--color-text-tertiary); }
@@ -70,14 +69,12 @@
 
 .fieldError { color: var(--color-danger) !important; }
 
-.candidatesOnly { margin: 0; padding: 0 0 0 18px; font-size: calc(var(--type-body-size) * 13 / 15); color: var(--color-text-tertiary); }
 
 .matchSearch { display: flex; align-items: flex-end; gap: 10px; }
 .matchSearch > :first-child { flex: 1; }
 .keepMatch { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .matchOrder { display: grid; gap: 12px; }
 
-.creditNew { display: flex; flex-direction: column; gap: 8px; flex: 1; }
 
 .picker select { width: 100%; min-height: 42px; border: 1px solid var(--color-line-strong); border-radius: 10px; background: var(--color-raised-high); color: var(--color-text); padding: 8px 12px; font: inherit; }
 

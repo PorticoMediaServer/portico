@@ -29,7 +29,6 @@
 .footerTools button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .panel { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .panelCount { margin: 0; font-size: var(--type-fixed-size-13px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
-.panelGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; overflow-y: auto; min-height: 0; padding-bottom: 4px; }
 .page.large { width: auto; }
 @media (max-width: 599px) { .page.large { width: auto; } }
 @media (max-width: 599px) { .page { width: 46px; } }

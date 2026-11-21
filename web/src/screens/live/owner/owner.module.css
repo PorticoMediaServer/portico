@@ -42,7 +42,6 @@
 /* A source's name sits over its facts at every width (live-owner 1); the flex row above is for other fact lines. */
 .source > .facts { display:block; }
 
-.accountHeading { margin:0;padding:16px 22px;font-size:var(--type-body-size);font-weight:var(--type-button-weight);border-bottom:1px solid var(--color-line-soft); }
 
 
 .tunerSummary { padding:14px 18px;border-top:1px solid var(--color-line-soft); }

@@ -125,9 +125,7 @@
   .resourceEntryCard button[aria-haspopup='menu'] { opacity: 1; }
   .resourceEntryStatus { padding-right: 40px; }
 }
-.historyDay { position: relative; z-index: var(--layer-content); padding: 30px var(--shell-gutter) 0; }
 .periodChips { display: flex; align-items: center; gap: 8px; }
-.historyDay h2 { margin: 0 0 8px; font-size: var(--type-body-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
 .historyRow { display: grid; grid-template-columns: 160px minmax(0, 1fr) 240px 100px; gap: 24px; align-items: center; padding: 10px 12px; margin: 0 -12px; border-radius: 12px; }
 .historyRow:hover { background: var(--color-raised); }
 /* motion3.9: retained rows fade180 at once-admitted40ms offsets; the shared
@@ -273,7 +271,7 @@
   .resourceEntryCopy > span, .resourceEntryCompactStatus { font-size: var(--type-fixed-size-12point-5px); }
   .resourceEntryCompactStatus { display: block; color: var(--color-text-tertiary); }
   .resourceOrderHandle { left: -7px; }
-  .personalRows, .historyDay, .historyItem, .historyHeading { padding-right: 20px; padding-left: 20px; }
+  .personalRows, .historyItem, .historyHeading { padding-right: 20px; padding-left: 20px; }
   .historyRow { grid-template-columns: 90px minmax(0, 1fr); gap: 14px; }
   .historyArt { width: 90px; height: 54px; }
   .historyRow time { grid-column: 2; text-align: left; }
@@ -293,12 +291,6 @@
 }
 /* phone-web frame 6: Saved is a list of rows on a phone, each opening its own page. */
 .phoneDirectory { padding-bottom: 72px; }
-.phoneDirectoryRows { margin-top: 18px; }
-.phoneDirectoryRow.phoneDirectoryRow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 52px; padding: 0 20px; border-radius: 0; text-align: left; }
-.phoneDirectoryIcon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--color-raised); color: var(--color-text-secondary); flex: none; }
-.phoneDirectoryLabel { flex: 1; min-width: 0; font-size: var(--type-subheading-size); font-weight: var(--type-row-heading-weight); color: var(--color-text); }
-.phoneDirectoryCount { color: var(--color-text-tertiary); font-size: var(--type-caption-size); font-variant-numeric: tabular-nums; }
-.phoneDirectoryChevron { color: var(--color-line-strong); flex: none; }
 /* phone-web frame 6: a pushed Saved page's own bar, replacing the desktop heading and tabs. */
 /* phone-web frame 6 / kit.css .phone: the My List rail lifts the authored row-head
    and track values (118px cards, 12px gap, 8/20/10 track padding, 4px head margin). */
