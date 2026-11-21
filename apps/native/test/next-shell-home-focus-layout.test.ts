@@ -80,15 +80,15 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     assert.equal(anchors.at(-1)?.[0], 820);
     tree = render();
     assert.ok(descendants(tree).some(node => node.type === 'FocusPreviewHero'), 'the hero follows the focused card');
-    rowsBox(tree).props.onLayout(layout(588));
-    assert.deepEqual(anchors.at(-1), [588, 300, 1080, 1080, 588, 96]);
-    // A TV row (492) never fits between the 588 preview hero and a 96 bottom margin; kept merely visible, focus arriving
+    rowsBox(tree).props.onLayout(layout(520));
+    assert.deepEqual(anchors.at(-1), [520, 300, 1080, 1080, 520, 96]);
+    // A TV row (492) never fits between the 520 preview hero and a 96 bottom margin; kept merely visible, focus arriving
     // from below (the first landing) left Home 96 px higher than focus arriving from above.
     assert.equal(anchorOptions[2], 'start', 'the focused row\'s top sits under the preview hero whichever way focus came');
     const count = anchors.length;
     for (const props of [{railExpanded: true}, {active: false}]) rowsBox(render(props)).props.onLayout(layout(820));
     currentAuthority = {...authority, serverId: 'foreign'};
-    rowsBox(render()).props.onLayout(layout(588));
+    rowsBox(render()).props.onLayout(layout(520));
     assert.equal(anchors.length, count, 'rail, hidden Home and stale authorities cannot move the focused page');
   } finally {globalThis.requestAnimationFrame = previousFrame;}
 });
