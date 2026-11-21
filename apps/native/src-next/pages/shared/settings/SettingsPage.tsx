@@ -14,7 +14,7 @@ import {NativeTVKeyboard} from '../../../screens/destinations';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
 import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
-import {ServerTroubleshootingPage} from './ServerTroubleshootingPage';
+import {ServerTroubleshootingPage} from '../../touch/settings/ServerTroubleshootingPage';
 import {NativeServerStorage} from '../../../screens/settings-live/server/StoragePage';
 import {NativeServerIntegrations} from '../../../screens/settings-live/server/IntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';

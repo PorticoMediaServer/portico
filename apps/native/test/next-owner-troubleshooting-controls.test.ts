@@ -91,7 +91,7 @@ test('Feedback opens the shared Message everyone sheet with the same original po
 
 test('Troubleshooting uses the Settings frame and hides owner tabs from administrators', async () => {
   const host = hooks();
-  const {ServerTroubleshootingPage} = await screenModule(new URL('../src-next/pages/shared/settings/ServerTroubleshootingPage.tsx', import.meta.url), {
+  const {ServerTroubleshootingPage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerTroubleshootingPage.tsx', import.meta.url), {
     react: host.react,
     '../../../kit/controls/Tabs': {Tabs: 'Tabs'},
     '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame'},
@@ -101,10 +101,10 @@ test('Troubleshooting uses the Settings frame and hides owner tabs from administ
     '../../../kit/settings/troubleshooting/SkippedFiles': {NativeSkippedFiles: 'SkippedFiles'},
     '../../../kit/settings/troubleshooting/Support': {NativeSupport: 'Support'},
     '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
-    './useTroubleshootingMessages': {useMessages: () => undefined},
-    './useTroubleshootingFeedback': {useNativeFeedback: () => ({state: {reports: []}, group: {}})},
-    './useTroubleshootingReports': {useNativeReports: () => ({})},
-    './useTroubleshootingSupport': {useNativeSupport: () => ({})},
+    '../../shared/settings/useTroubleshootingMessages': {useMessages: () => undefined},
+    '../../shared/settings/useTroubleshootingFeedback': {useNativeFeedback: () => ({state: {reports: []}, group: {}})},
+    '../../shared/settings/useTroubleshootingReports': {useNativeReports: () => ({})},
+    '../../shared/settings/useTroubleshootingSupport': {useNativeSupport: () => ({})},
   });
   const runtime = {text: {t}};
   const back = {label: 'Settings', onPress: () => {}};

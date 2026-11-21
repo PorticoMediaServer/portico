@@ -10,10 +10,10 @@ import {NativeSupport} from '../../../kit/settings/troubleshooting/Support';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useMessages} from './useTroubleshootingMessages';
-import {useNativeFeedback} from './useTroubleshootingFeedback';
-import {useNativeReports} from './useTroubleshootingReports';
-import {useNativeSupport} from './useTroubleshootingSupport';
+import {useMessages} from '../../shared/settings/useTroubleshootingMessages';
+import {useNativeFeedback} from '../../shared/settings/useTroubleshootingFeedback';
+import {useNativeReports} from '../../shared/settings/useTroubleshootingReports';
+import {useNativeSupport} from '../../shared/settings/useTroubleshootingSupport';
 
 type Tab = 'messages' | 'skipped' | 'feedback' | 'reports' | 'support';
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;

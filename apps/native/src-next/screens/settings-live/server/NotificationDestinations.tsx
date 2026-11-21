@@ -5,7 +5,7 @@ import {createNativeSettingsPorts} from '../settings-ports';
 import {createNativeRecordingsController} from '../recordings-controller';
 import {RecordingsPage as TouchRecordingsPage} from '../../../pages/touch/live/RecordingsPage';
 import {RecordingsPage as TVRecordingsPage} from '../../../pages/tv/live/RecordingsPage';
-import {ServerTroubleshootingPage} from '../../../pages/shared/settings/ServerTroubleshootingPage';
+import {ServerTroubleshootingPage} from '../../../pages/touch/settings/ServerTroubleshootingPage';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
