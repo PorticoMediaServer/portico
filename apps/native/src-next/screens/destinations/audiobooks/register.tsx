@@ -5,7 +5,6 @@ import type {NativeShellRoute} from '../../../shell/routes';
 import {nativeDestinationLifetime} from '../lifetime';
 import {createNativeEntryActions} from '../entry-actions';
 import {NativeAudiobookController, type AudiobookLease, type AudiobookScreenController} from './model';
-import {BookScreen} from './BookScreen';
 import {useTheme} from '../../../kit/theme';
 import {BookPage} from '../../../pages/touch/book/BookPage';
 import {BookPage as TVBookPage} from '../../../pages/tv/book/BookPage';
@@ -24,8 +23,8 @@ type Page = Readonly<{key: string; entry: ContentEntry; controller: NativeAudiob
 /** A phone (collections 41a) and a TV (collections 43) draw an audiobook on the rebuilt pages; a tablet keeps the old book
  * screen until its lane rebuilds it. */
 function BookHost(props: BookPageProps) {
-  const {platform, isTV} = useTheme();
-  return isTV ? <TVBookPage {...props}/> : platform === 'phone' ? <BookPage {...props}/> : <BookScreen {...props}/>;
+  const {isTV} = useTheme();
+  return isTV ? <TVBookPage {...props}/> : <BookPage {...props}/>;
 }
 
 function AuthorSeriesHost(props: AuthorSeriesPageProps) {

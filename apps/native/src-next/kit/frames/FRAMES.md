@@ -183,7 +183,7 @@ Live screens whose look changes with this foundation (they are in the app today,
 - every native hero's metadata line: the rating, runtime and season count are outlined chips;
 - every native `Tabs`: the rule runs the page's full width;
 - every native labelled `Button`: a label that does not fit on one line wraps to a second, and the button grows; none shrinks or is cut;
-- the glass icon-only buttons on `BookScreen` and `AuthorSeriesScreen`: a rounded square, not a circle;
+- the glass icon-only buttons on `AuthorSeriesScreen`: a rounded square, not a circle;
 - TV scrubbing: the strip is the kit `PlayerFilmstrip` (no tile shadows; its times in the player's type roles);
 - native TV Live: Record's glyph is red;
 - an episode row that is playing has its title in the accent.

@@ -72,6 +72,8 @@ test('a book of parts marks the part the place falls in, its progress running to
   // A parts book names no chapter count, and its Resume names no chapter.
   assert.equal(view.facts.some((fact: any) => fact.id === 'chapters'), false);
   assert.equal(view.primary.label, t('entry.resume'));
+  // W3 F11: a book of parts heads its list "Chapters", never a bare count.
+  assert.equal(view.chapters.title, t('next.browse.chapters'));
 });
 
 test('Finished, Download, and Start over in the book\'s menu; no resume means Play, which starts over', async () => {
