@@ -57,11 +57,16 @@ export function Lockup({title, long = false, lines, size, lineRatio, tracking = 
   const current = fit?.key === key ? fit.size : start, next = smallerStep(current, column), share = current / start;
   const floor = typeScale[column].display.size;
   const scaled = share === 1 ? undefined : {fontSize: drawn.fontSize! * share, ...(typeof drawn.lineHeight === 'number' ? {lineHeight: drawn.lineHeight * share} : {}), ...(typeof drawn.letterSpacing === 'number' ? {letterSpacing: drawn.letterSpacing * share} : {})};
+  // TV: the measured line floor (G2) draws the line box taller than the frames' (.94 of the size, kit.css `.lockup`) so the
+  // extra bold's ink is never cut. The surplus is split above and below the words; the box gives it back on each side, so
+  // the title sits on the frame's line (tv.html 1: 21 px low at 100 without it) and the ink still has its room.
+  const box = typeof drawn.lineHeight === 'number' ? drawn.lineHeight * share : undefined, framed = (scaled?.fontSize ?? drawn.fontSize ?? 0) * .94;
+  const giveBack = column === 'tenFoot' && box !== undefined && box > framed ? -(box - framed) / 2 : 0;
   return <Text {...props} accessibilityRole="header" numberOfLines={lines} ellipsizeMode="tail"
     onTextLayout={page && next < current ? event => {
       const shown = event.nativeEvent.lines, split = shown.slice(0, -1).some(line => !/[\s\-\u00ad]$/.test(line.text));
       if (split || (shown.length > pageTitleLines && current > floor)) setFit({key, size: next});
     } : undefined}
     textBreakStrategy="balanced" android_hyphenationFrequency="none"
-    style={[nativeType(type, theme.textScale), {color: theme.colors.text, flexShrink: 1, includeFontPadding: false, textShadowColor: `${theme.colors.ink}80`, textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30}, style, scaled]}>{title}</Text>;
+    style={[nativeType(type, theme.textScale), {color: theme.colors.text, flexShrink: 1, includeFontPadding: false, textShadowColor: `${theme.colors.ink}80`, textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30}, style, scaled, giveBack ? {marginTop: giveBack, marginBottom: giveBack + (StyleSheet.flatten(style)?.marginBottom as number ?? 0)} : undefined]}>{title}</Text>;
 }
