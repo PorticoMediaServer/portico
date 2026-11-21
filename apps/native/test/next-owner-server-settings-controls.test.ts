@@ -94,8 +94,11 @@ test('Segments exposes every Advanced control the segments document has (the per
     '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: (context: any) => context.current()},
     '../../../screens/settings-live/server/storage/forms': fixture.hooks,
   });
+  const review: any = {state: {busy: false}, goBack: () => {review.state = {...review.state, titleId: undefined};}};
   const module = await screenModule(new URL('../src-next/pages/touch/settings/ServerSegmentsPage.tsx', import.meta.url), {
     react: host.react, '../../shared/settings/useServerSegments': model,
+    '../../shared/settings/useSegmentReview': {useSegmentReview: () => review},
+    '../../shared/settings/ServerSegmentReview': {ServerSegmentReview: 'Review'},
     '../../../kit/controls': {Button: 'Button'}, '../../../kit/states': {StateView: 'StateView'},
     '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame', PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
@@ -103,11 +106,10 @@ test('Segments exposes every Advanced control the segments document has (the per
     '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
     '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
   });
-  const ports = {context: fixture.group.context, renderSettingsPanel: () => ({type: 'Review', props: {}})}, runtime = {text: {t}, reportError: assert.fail};
+  const ports = {context: fixture.group.context}, runtime = {text: {t}, reportError: assert.fail};
   const render = () => host.render(() => {
-    const frame = module.ServerSegmentsPage({ports, runtime});
-    const body = frame.props.children.find((node: any) => typeof node?.type === 'function');
-    return body.type(body.props);
+    const page = module.ServerSegmentsPage({ports, runtime});
+    return page.type(page.props);
   });
   const tree = render(), controls = nodes(tree).filter((node: any) => node.type === 'Setting');
   assert.equal(controls.length, 9);assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);assert.equal(nodes(tree).filter((node: any) => node.type === 'Review').length, 1);
@@ -115,6 +117,16 @@ test('Segments exposes every Advanced control the segments document has (the per
   // The spec draws the two bulk actions on every platform: the phone has them for the owner (#3337).
   assert.deepEqual(nodes(tree).filter((node: any) => node.type?.name === 'SegmentsBulkAction' || node.props?.row?.id === 'segments.redetectAll' && node.type !== 'Setting').map((node: any) => node.props.row.id).filter((id: string, index: number, all: string[]) => all.indexOf(id) === index), ['segments.redetectAll', 'segments.retryFailed']);
   controls.find((node: any) => node.props.row.id === 'segments.chapters').props.onChange(false);assert.equal(fixture.group.forms.segments.getSnapshot().draft.useChapterNames, false);
+  review.state = {libraryId: 'films', titleId: 'film', busy: false, status: {libraries: [{libraryId: 'films', name: 'Films'}]}};
+  review.review = {title: '12 Angry Men'};
+  const marker = render();
+  assert.equal(marker.props.title, '12 Angry Men');
+  assert.equal(marker.props.back.label, 'Films');
+  marker.props.back.onPress();
+  const library = render();
+  assert.equal(library.props.title, 'Films');
+  assert.equal(library.props.back.label, t('next.settingsSpec.server.segments.title'));
+
 });
 
 test('a folder row names the bound directory and picks one through the shared explorer', async () => {

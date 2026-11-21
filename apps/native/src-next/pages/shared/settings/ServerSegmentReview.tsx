@@ -4,25 +4,22 @@ import {Button, Select, TextField} from '../../../kit/controls';
 import {PanelBlock, SectionCard, StateRow} from '../../../kit/frames';
 import {BottomSheet, Dialog} from '../../../kit/overlays';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
-import {SegmentReviewNotice, SegmentReviewTitle} from '../../../kit/settings/SegmentReviewParts';
+import {SegmentReviewInset, SegmentReviewNotice, SegmentReviewTitle} from '../../../kit/settings/SegmentReviewParts';
 import {SettingsHelp} from '../../../kit/settings/SettingsParts';
 import {SettingsRow} from '../../../kit/shell';
 import {SegmentWindows} from '../../../kit/shell/SegmentWindows';
 import {StateView} from '../../../kit/states';
 import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useSegmentPoster, useSegmentReview} from './useSegmentReview';
+import {useSegmentPoster, type useSegmentReview} from './useSegmentReview';
 
-type Props = NativeSettingsPanelDeps & {runtime: NativeShellRuntime; onBackHandlerChange?: (handler: (() => boolean) | undefined) => void};
+type Props = Pick<NativeSettingsPanelDeps, 'context' | 'lifetime' | 't'> & {runtime: NativeShellRuntime; model: ReturnType<typeof useSegmentReview>};
 
 /** The settings body for reviewing and editing the server's Intro and Credits markers. */
-export function ServerSegmentReview({context, lifetime, t, runtime, onBackHandlerChange, ...deps}: Props) {
-  const model = useSegmentReview({context, lifetime, t, runtime, ...deps}, onBackHandlerChange), {state, review, season} = model;
+export function ServerSegmentReview({context, lifetime, t, runtime, model}: Props) {
+  const {state, review, season} = model;
   const reviewLabel = t('web.segments.review');
   return <>
-    {(state.libraryId || state.titleId) && <PanelBlock>
-      <Button variant="text" disabled={state.busy} onPress={model.goBack}>{t('action.back')}</Button>
-    </PanelBlock>}
     {state.error ? <StateView variant="inline" {...runtime.error(state.error, model.reload)}/> : null}
     {state.loading && <SectionCard><StateRow kind="loading"/></SectionCard>}
     {state.notice && <SegmentReviewNotice text={t(state.notice.kind === 'approved' ? 'web.segments.approvedCount' : 'web.segments.detectAgainQueued', {count: state.notice.count})}/>}
@@ -34,6 +31,7 @@ export function ServerSegmentReview({context, lifetime, t, runtime, onBackHandle
         <SettingsRow label={t('web.segments.unreadable')} value={String(state.status.files.failed + state.status.files.unsupported)}/>
       </SectionCard>
       <SectionCard label={t('web.segments.libraries')}>
+        {!state.status.libraries.length && <StateRow kind="empty" icon="i-film" title={t('web.segments.noLibraries')}/>}
         {state.status.libraries.map((library, index) => <SettingsRow key={library.libraryId} first={index === 0} label={library.name}
           description={[t(library.itemKind === 'movie' ? 'web.segments.libraryModeFilms' : 'web.segments.libraryMode', {mode: library.mode}),
             ...(library.choice === 'server' ? [t('web.segments.followsServer')] : [])]}
@@ -41,22 +39,22 @@ export function ServerSegmentReview({context, lifetime, t, runtime, onBackHandle
       </SectionCard>
     </>}
     {state.page && <>
-      {!state.page.titles.length && <SectionCard><StateRow kind="empty" icon="i-film" title={t('web.segments.noTitles')}/></SectionCard>}
-      {state.page.titles.map(title => <SectionCard key={title.id}>
-        <ReviewTitle id={title.id} title={title.title} libraryId={state.page!.libraryId} context={context} lifetime={lifetime} runtime={runtime}/>
-        <SettingsRow label={t('web.segments.titleFiles', {measured: title.files.complete, total: title.files.complete + title.files.pending + title.files.failed + title.files.unsupported})}
-          description={[
+      <SectionCard>
+        {!state.page.titles.length && <StateRow kind="empty" icon="i-film" title={t('web.segments.noTitles')}/>}
+        {state.page.titles.map((title, index) => <ReviewTitle key={title.id} id={title.id} title={title.title} first={index === 0}
+          libraryId={state.page!.libraryId} context={context} lifetime={lifetime} runtime={runtime}
+          facts={[t('web.segments.titleFiles', {measured: title.files.complete, total: title.files.complete + title.files.pending + title.files.failed + title.files.unsupported}),
             ...(title.markers.suggested > 0 ? [t('web.segments.titleSuggested', {count: title.markers.suggested})] : []),
             ...(title.markers.approved > 0 ? [t('web.segments.titleApproved', {count: title.markers.approved})] : []),
-            ...(title.markers.automatic > 0 ? [t('web.segments.titleAutomatic', {count: title.markers.automatic})] : []),
-          ]} control={<Button variant="glass" size="compact" onPress={() => model.open(state.libraryId, title.id)}>{reviewLabel}</Button>}/>
-      </SectionCard>)}
+            ...(title.markers.automatic > 0 ? [t('web.segments.titleAutomatic', {count: title.markers.automatic})] : [])]}
+          onPress={() => model.open(state.libraryId, title.id)}/>)}
+      </SectionCard>
       {!!state.page.nextCursor && <PanelBlock>
         <Button variant="text" disabled={state.loading} onPress={model.more}>{t('web.segments.showMore')}</Button>
       </PanelBlock>}
     </>}
     {review && <>
-      <SectionCard label={review.title}>
+      <SectionCard>
         {review.seasons.length > 1 && <SettingsRow first label={t('web.segments.episodes')}
           control={<Select accessibilityLabel={t('web.segments.episodes')} value={String(season?.number)}
             options={review.seasons.map(value => ({value: String(value.number), label: value.title || t(value.number === 0 ? 'web.segments.specials' : 'web.segments.season', {number: value.number})}))}
@@ -70,10 +68,10 @@ export function ServerSegmentReview({context, lifetime, t, runtime, onBackHandle
         const remaining = entry.markers.filter(marker => !marker.approved && !marker.automaticSafe && marker.viewerVisible).length;
         return <SectionCard key={entry.itemId} label={segmentClock(entry.durationUS)}
           help={remaining ? t('web.segments.toReview', {count: remaining}) : undefined}>
-          <SegmentWindows entry={entry} windows={model.windows(entry)} saving={state.busy}
+          <SegmentReviewInset><SegmentWindows entry={entry} windows={model.windows(entry)} saving={state.busy}
             onKindChange={(marker, kind) => model.changeKind(entry, marker, kind)} onSave={(marker, bounds) => model.changeBounds(entry, marker, bounds)}
             onApprove={marker => model.approve(entry, marker)} onDismiss={marker => model.dismiss(entry, marker)}
-            onWatch={(marker, fromUS) => model.watch(entry, marker, fromUS)} onAdd={() => model.add(entry)}/>
+            onWatch={(marker, fromUS) => model.watch(entry, marker, fromUS)} onAdd={() => model.add(entry)}/></SegmentReviewInset>
           {!entry.markers.length && <SettingsHelp>{t('web.segments.entryState', {state: entry.state})}</SettingsHelp>}
         </SectionCard>;
       })}
@@ -95,6 +93,6 @@ export function ServerSegmentReview({context, lifetime, t, runtime, onBackHandle
   </>;
 }
 
-function ReviewTitle({title, ...props}: Parameters<typeof useSegmentPoster>[0] & {title: string}) {
-  return <SegmentReviewTitle title={title} artwork={useSegmentPoster(props)}/>;
+function ReviewTitle({title, first, facts, onPress, ...props}: Parameters<typeof useSegmentPoster>[0] & {title: string; first: boolean; facts: readonly string[]; onPress: () => void}) {
+  return <SegmentReviewTitle title={title} first={first} facts={facts} onPress={onPress} artwork={useSegmentPoster(props)}/>;
 }

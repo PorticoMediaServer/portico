@@ -22,7 +22,7 @@ export type NativeSettingsLivePorts = Readonly<{
   together: RoomSessionService;
   accountActions: Readonly<{signOut: () => Promise<void>; linkTV: () => void}>;
   /** Account/device custom surfaces remain with their semantic owners. Required, never a stub. */
-  renderSettingsPanel: (id: SettingsCustomId, runtime: NativeShellRuntime, onBackHandlerChange?: (handler: (() => boolean) | undefined) => void) => ReactNode;
+  renderSettingsPanel: (id: SettingsCustomId, runtime: NativeShellRuntime) => ReactNode;
   /** The existing viewer-scoped downloads device, read-only. Present only when the
    * Settings composition could borrow the genuine store for this authority. */
   downloads?: NativeSettingsDownloads;
