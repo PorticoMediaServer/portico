@@ -5,7 +5,7 @@
 .actions { display:flex;align-items:center;gap:10px; }
 .lede { margin:0 0 14px;max-width:660px;color:var(--color-text-tertiary);font-size:var(--type-row-subtitle-size);line-height:calc(var(--type-row-subtitle-size) * 1.5); }
 .sources { border-radius:14px;overflow:hidden;background:var(--color-raised); }
-.source { display:grid;grid-template-columns:44px minmax(0,1fr) auto auto auto;align-items:center;gap:16px;padding:16px 18px 16px 20px;border-top:1px solid var(--color-line-soft); }
+.source { display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;align-items:center;gap:16px;padding:16px 18px 16px 20px;border-top:1px solid var(--color-line-soft); }
 .source:first-child { border-top:0; }
 .source[data-paused] .facts b,.source[data-paused] .sourceIcon { opacity:.55; }
 .sourceIcon { display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--color-raised-high);color:var(--color-accent-strong); }
@@ -27,7 +27,7 @@
 .emptyIcon { display:grid;place-items:center;width:60px;height:60px;margin:0 auto 18px;border-radius:14px;background:color-mix(in srgb, var(--color-accent) 16%, transparent);color:var(--color-accent-strong); }
 .empty h4 { margin:0 0 8px;font-size:var(--type-subheading-size); }.empty p { color:var(--color-text-tertiary);font-size:var(--type-caption-size); }
 /* live-owner 12a: on a phone a source is its icon, its facts with the state under them, and ⋯; Source settings is in ⋯. */
-@media(max-width:700px) { .source { grid-template-columns:44px minmax(0,1fr) auto;gap:6px 12px;padding:14px;align-items:start; }.source .facts { grid-column:2;grid-row:1; }.badge { grid-column:2;grid-row:2;justify-self:start; }.source>button:not(:last-child) { display:none; }.source>:last-child { grid-column:3;grid-row:1; }.notice { margin-left:14px;margin-right:14px; }.heading { align-items:flex-start; } }
+@media(max-width:700px) { .source { grid-template-columns:44px minmax(0,1fr) auto;gap:6px 12px;padding:14px;align-items:start; }.source .facts { grid-column:2;grid-row:1; }.badge { grid-column:2;grid-row:2;justify-self:start; }.source>:last-child { grid-column:3;grid-row:1; }.notice { margin-left:14px;margin-right:14px; }.heading { align-items:flex-start; } }
 .unit { margin-left:10px;color:var(--color-text-tertiary);font-size:var(--type-label-size); }
 .save { position:sticky;bottom:16px;display:flex;justify-content:flex-end;gap:12px;margin-top:20px;padding:12px 16px;border:1px solid var(--color-line);border-radius:12px;background:var(--color-raised); }
 .fields { display:grid;gap:18px; }

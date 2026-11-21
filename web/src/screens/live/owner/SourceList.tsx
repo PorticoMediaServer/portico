@@ -51,7 +51,7 @@ export function SourceList({snapshot, refresh, add, configure, channels, act}: S
         <span className={styles.sourceIcon}><Icon name="i-tv" size={22}/></span>
         <div className={styles.facts}><b>{source.name}</b><p>{facts.map((fact, index) => <span key={index}>{fact}</span>)}</p></div>
         <span className={styles.badge} data-tone={state.tone} data-live={state.live || undefined} data-paused={source.paused || undefined} role={state.live ? 'status' : undefined}>{t(state.id)}</span>
-        <Button size="small" disabled={!!snapshot.busy} onClick={() => configure(source)}>{t('web.liveTv.sourceSettings')}</Button>
+        {/* live-owner 1 and 12a: Source settings is the first item of the source's ⋯ menu, not a button beside it. */}
         <Menu open={menu === source.id} onOpenChange={open => setMenu(open ? source.id : undefined)} title={source.name}
           trigger={<Button variant="icon" size="small" icon="i-more" iconOnly disabled={!!snapshot.busy} aria-label={t('server.row.actions', {name: source.name})}/>}
           items={[
