@@ -502,9 +502,6 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
   const presentation = await import('../src-next/kit/browse/presentation');
   const direction = await import('../../../packages/client-core/src/presentation/browse-toolbar');
   const value = await import('../src-next/kit/controls/useControlValue');
-  const model = await import('../src-next/screens/home/see-all-model');
-  const homeRowBrowse = await import('../../../packages/client-core/src/home-row-browse');
-  const {authorityKey} = await import('../src-next/shell/model');
   const {Chip} = await screenModule(new URL('../src-next/kit/controls/Chip.tsx', import.meta.url), {react: b.react, 'react-native': b.native, '@portico/design': design,
     '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme, fontFamilies}, './Focusable': {Focusable: b.Focusable}, './control-model': controlModel, './useControlValue': value});
   const browse = await screenModule(new URL('../src-next/kit/browse/Toolbar.tsx', import.meta.url), {react: b.react, 'react-native': b.native, '@react-native-masked-view/masked-view': {default: 'MaskedView'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, 
@@ -512,31 +509,24 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': direction,
     '../controls': {Button: o.Button, Chip, Focusable: b.Focusable, Segmented: 'Segmented'}, '../overlays': o.menu, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme}, './presentation': presentation});
   const sort = {field: 'title', direction: 'asc'}, quick = [{id: 'unwatched', active: false, query: {variant: 'predicate', field: 'watched', operator: 'equals', value: false}}];
-  const toolbar = {sorts: [{id: 'title', directions: ['asc', 'desc'], defaultDirection: 'asc'}], sort, quick, groups: [{id: 'activity', fields: [{id: 'playState'}]}]};
-  const {HomeSeeAll} = await screenModule(new URL('../src-next/screens/home/HomeSeeAll.tsx', import.meta.url), {
-    '../../kit/browse/HomeRowCard': {HomeRowCard: 'HomeRowCard'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
-    './generated-poster': {generatedPoster: () => null},
-    react: b.react, 'react-native': b.native, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},
-    '../../../../../packages/client-core/src/home-row-browse': homeRowBrowse,
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: () => ''}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined}, '../../../../../packages/client-core/src/home-selection': {},
-    '../../kit/controls': {Button: o.Button, Chip, Focusable: b.Focusable}, '../../kit/browse': browse, '../../kit/cards/primitives': {CardFrame: 'Card', Parts: 'Parts'},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', MediaArt: 'Art', AmbientArt: 'Ambient'}, '../../kit/browse/presentation': presentation, '../../kit/cards': {PosterCard: 'Poster'},
-    '../../kit/focus': b.focus, '../../kit/layout': {WindowedGrid: 'Grid'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
-    '../../kit/states': {LoadingBoundary: 'Boundary', LoadingPaint: 'Paint', SkeletonBlock: 'Skeleton', StateView: 'State'},
-    '../../kit/theme': {useTheme: () => b.theme, nativeType}, '../../shell/model': {authorityKey}, './browse-label': {homeBrowseLabel: (value: any) => value.id},
-    './see-all-model': model, './model': {}, './row-controller': {}});
-  const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
-  const state = {phase: 'ready', row: {id: 'original-row', title: 'Row', entries: []}, capabilities: {library: {kind: 'movie'}}, sort, filters: [], counts: [], selectedKind: undefined};
-  const calls: any[] = [], open = () => {}, playEntry = () => {};
-  const controller = {rowId: 'original-row', subscribe: () => () => {}, getSnapshot: () => state, collection: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {total: 0}; return () => snapshot;})()},
-    kinds: [{id: 'movies'}], load: async () => {}, selectKind: (id: string) => calls.push(id), setFilters: (filters: any) => calls.push(filters), setSort() {}};
-  const runtime = {getSnapshot: (() => {const snapshot = {authority, account: {viewerRole: 'member'}}; return () => snapshot;})(), text: {t: defaultI18n.t, locale: 'en-US'}};
-  let wrapper: any, tree: any; const props = {controller, runtime, active: true, onBack() {}, onPlay() {}, onOpen: open, onPlayEntry: playEntry, onFilters: () => calls.push('filters'), kindLabel: (id: string) => id, onReshuffle() {}};
-  const parent = createFabricHookHost(() => {wrapper = HomeSeeAll(props);}); await parent.mount();
-  const child = nodes(wrapper).find(node => node.type?.name === 'HomeSeeAllReady');
-  const source = createFabricHookHost(() => {tree = child.type(child.props);}); await source.mount();
+  const toolbar = {sorts: [{id: 'title', directions: ['asc', 'desc'], defaultDirection: 'asc'}], sort, quick, applied: [], groups: [{id: 'activity', fields: [{id: 'playState'}]}]};
+  const {SeeAllPage} = await screenModule(new URL('../src-next/pages/tv/library/SeeAllPage.tsx', import.meta.url), {
+    react: b.react, '../../../kit/frames': {BrowseFrame: 'BrowseFrame'}, '../../../kit/frames/BrowseGrid': {BrowseGrid: 'BrowseGrid'},
+    '../../../kit/browse': {...browse, FilteredEmpty: 'FilteredEmpty'}, '../../../kit/browse/HomeRowCard': {HomeRowCard: 'HomeRowCard'},
+    '../../../kit/controls': {Button: o.Button, Chip}, '../../../kit/focus': b.focus, '../../../kit/artwork': {AmbientArt: 'Ambient'},
+    '../../../kit/states': {StateView: 'StateView'},
+    '../../shared/library/useSeeAll': {useSeeAll: ({controller}: any) => ({
+      t: defaultI18n.t, ready: true, model: toolbar, labels: {sort: (value: any) => value.id, quick: (value: any) => value.id}, title: 'Row', applied: [],
+      kinds: [{id: 'all', onPress() {}}, {id: 'movies', onPress: () => controller.selectKind('movies')}],
+      focus: {header: {entry: 'back'}, toolbar: {id: 'home-see-all:original-row.toolbar'}, grid: {id: 'grid'}},
+      isCurrent: () => true, squareCard: () => false,
+    })},
+  });
+  const calls: any[] = [], open = (...args: unknown[]) => calls.push(args), playEntry = (...args: unknown[]) => calls.push(args);
+  const controller = {selectKind: (id: string) => calls.push(id), setSort() {}};
+  const page = SeeAllPage({controller, runtime: {}, active: true, onOpen: open, onPlayEntry: playEntry,
+    onFilters: () => calls.push('filters'), kindLabel: (id: string) => id});
+  const tree = page.props.toolbar.type(page.props.toolbar.props);
   const region = nodes(tree).find(node => node.type === b.focus.FocusRegion); await b.region(() => region.props);
   const slots = nodes(tree).filter(node => node.type === b.focus.FocusItem);
   const leaf = (element: any): any => {
@@ -548,12 +538,16 @@ test('Home See all actual toolbar binds sort/filter/kind/quick leaves without ch
   };
   const targets = await mountInOrder(slots, slot => b.target(region.props.id, () => leaf(slot.props.children), b.focus.FocusItem(slot.props).props.value));
   try {
-    assert.deepEqual(slots.map(slot => slot.props.focusId), ['sort', 'filters', 'kind:all', 'kind:movies', 'quick:unwatched']);
+    assert.deepEqual(slots.map(slot => slot.props.focusId), ['filters', 'quick:unwatched', 'kind:all', 'kind:movies']);
     assert.equal(new Set(targets.map(target => target.props.testID)).size, slots.length);
-    assert.equal(child.props.onOpen, open); assert.equal(child.props.onPlayEntry, playEntry);
-    const sortSlot = slots[0]!.props.children; assert.equal(sortSlot.props.scope, `home-see-all:${authorityKey(authority)}:original-row`);
-    targets[1]!.props.onPress({}); targets[3]!.props.onPress({defaultPrevented: false}); assert.deepEqual(calls, ['filters', 'movies']);
-  } finally {await source.unmount(); await parent.unmount(); await b.dispose();}
+    const sortMenu = nodes(tree).find(node => node.type === browse.SortMenu);
+    assert.equal(sortMenu.props.scope, region.props.id);
+    targets[0]!.props.onPress({}); targets[3]!.props.onPress({defaultPrevented: false}); assert.deepEqual(calls, ['filters', 'movies']);
+    const entry = {id: 'film', kind: 'movie', title: 'Film'};
+    const card = page.props.grid.props.renderItem({membershipId: 'entry', entry}, {index: 0}, 200).props.children;
+    card.props.onOpen(); card.props.onPlay();
+    assert.equal(calls[2][0], entry); assert.equal(calls[3][0], entry);
+  } finally {await b.dispose();}
 });
 
 test('retained Home recommendation menu delegates the original entry, anchor and authority to the shared owner', async () => {
@@ -570,7 +564,7 @@ test('retained Home recommendation menu delegates the original entry, anchor and
   const mod = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, react: b.react,
     'react-native': {...b.native, Platform: {isTV: true}, AccessibilityInfo: {isScreenReaderEnabled: async () => false, addEventListener: () => ({remove() {}})}}, '../../kit/focus': b.focus,
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true}, '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeSeeAll': {HomeSeeAll: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
+    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
     '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
     '../destinations/entry-actions': {createNativeEntryActions: (context: any, membership: any) => {
@@ -612,7 +606,7 @@ test('retained Home Undo uses the shared toast with the original entry command',
     'react-native': {...b.native, Platform: {isTV: true}}, '../../kit/focus': b.focus,
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: unknown) => entry, setNotInterested: async () => true},
     '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeSeeAll': {HomeSeeAll: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
+    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
     '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
     '../destinations/entry-actions': {createNativeEntryActions: () => ({menu: (_entry: unknown, _anchor: unknown, _select: unknown, extras: any[]) => {extra = extras?.[0];}, dispose() {}})},

@@ -60,52 +60,46 @@ test('expanded Search shelves keep every loaded result and prefetch ten cards be
   snapshot.paging.movies = {}; visible = false; shelf().props.onEndReached(); assert.equal(calls.length, 2);
 });
 
-test('phone See all draws on the library frame: its header regions, one toolbar row with the kinds in it, the three-column grid', async () => {
-  const h = host(), selected: unknown[] = [];
-  const row = {id: 'recommended', title: 'Recommended', reason: {text: 'Your actual recommendation reason'}, entries: []};
-  const state = {phase: 'ready', row, capabilities: {library: {kind: 'movie'}}, sort: {field: 'groupOrder'}, filters: [], counts: [{id: 'all', total: 72}]};
-  const controller = {subscribe: () => () => {}, getSnapshot: () => state, rowId: row.id, kinds: [{id: 'movies'}], setSort() {}, setFilters() {}, selectKind: (id: unknown) => selected.push(id), collection: {subscribe: () => () => {}, getSnapshot: () => ({})}};
-  const {HomeSeeAll} = await screenModule(new URL('../src-next/screens/home/HomeSeeAll.tsx', import.meta.url), {
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
-    react: h.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 390, height: 844})},
-    '../../../../../packages/i18n/src': {defaultI18n: {has: () => false}},
-    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({sorts: [], sort: {}, groups: [], quick: [{id: 'unwatched', active: false, query: {}, label: {text: 'Unwatched'}}]})},
-    '../../../../../packages/client-core/src/home-row-browse': await import('../../../packages/client-core/src/home-row-browse'),
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_labels: unknown, value: any, fallback: any) => value ?? fallback}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
-    '../../../../../packages/client-core/src/home-selection': {homeEntryCapabilities: () => ({})},
-    '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../kit/browse': {BrowseToolbar: 'BrowseToolbar', FiltersButton: 'FiltersButton', QuickToggle: 'QuickToggle', SortMenu: 'SortMenu', ViewToggle: 'ViewToggle'}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'},
-    '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/cards': {PosterCard: 'PosterCard'}, '../../kit/artwork': {generatedPoster: () => null, StandardBackdrop: 'StandardBackdrop', MediaArt: 'MediaArt', AmbientArt: 'AmbientArt'},
-    '../../kit/browse/HomeRowCard': {HomeRowCard: 'HomeRowCard'},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => ({subscribe: () => () => {}, getSnapshot: () => 0})},
-    '../../kit/layout': {WindowedGrid: 'WindowedGrid'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', LoadingBoundary: 'LoadingBoundary', LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../kit/theme': {nativeType: type, useTheme: () => theme}, '../../shell/model': {authorityKey: () => 'authority'}, './browse-label': {homeBrowseLabel: t}, './see-all-model': seeAllModel,
-    './model': {homeCardText: () => ({})}, './row-controller': {},
+test('touch See all keeps library Back, the app title and a square album grid', async () => {
+  const h = host();
+  const album = {kind: 'album', id: 'album-1', title: 'Album 1'};
+  const row = {id: 'recently_added', title: 'Recently Added', entries: [album]};
+  const state = {phase: 'ready', row, capabilities: {library: {kind: 'music'}}, sort: {field: 'groupOrder'}, filters: [], counts: [{id: 'all', total: 72}]};
+  const controller = {subscribe: () => () => {}, getSnapshot: () => state, rowId: row.id, kinds: [],
+    setSort() {}, setFilters() {}, isCurrentItem: () => true, collection: {subscribe: () => () => {}, getSnapshot: () => ({})}};
+  const i18n = await import('../../../packages/i18n/src/index.ts');
+  const {useSeeAll} = await screenModule(new URL('../src-next/pages/shared/library/useSeeAll.ts', import.meta.url), {
+    react: h.react, '../../../../../../packages/i18n/src': i18n,
+    '../../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({sorts: [], sort: {}, groups: [], applied: [], quick: [{id: 'unwatched', active: false, query: {}}]}), appliedFilterParts: () => []},
+    '../../../../../../packages/client-core/src/presentation/server-text': await import('../../../packages/client-core/src/presentation/server-text.ts'),
+    '../../../../../../packages/client-core/src/presentation/home-row-reason': await import('../../../packages/client-core/src/presentation/home-row-reason.ts'),
+    '../../../../../../packages/client-core/src/presentation/card-shape': await import('../../../packages/client-core/src/presentation/card-shape.ts'),
+    '../../../../../../packages/client-core/src/home-row-browse': await import('../../../packages/client-core/src/home-row-browse'),
+    '../../../screens/home/browse-label': {homeBrowseLabel: t},
+    '../../../screens/home/see-all-model': seeAllModel, '../../../shell/model': {authorityKey: () => 'authority'},
+    '../../../kit/theme': {useTheme: () => ({isTV: false})}, './useLibrary': {browseFailure: () => undefined},
   });
-  const runtime = {text: {t}, getSnapshot: () => ({authority: {}, account: {viewerRole: 'member'}})};
-  const root = h.render(() => HomeSeeAll({controller, runtime, active: true, kindLabel: t}));
-  const boundary = nodes(root).find(node => node.type === 'LoadingBoundary');
-  const ready = nodes(boundary).find(node => typeof node.type === 'function');
-  const tree = h.render(() => ready.type(ready.props)), frame = nodes(tree).find(node => node.type === 'BrowseFrame');
-  const grid = nodes(frame.props.grid).find(node => node.type === 'WindowedGrid');
-  // The kit toolbar's controls carry no focus ids: inside a focus region they would refuse to render (touch has none).
-  assert.equal(nodes(tree).some(node => node.type === 'FocusRegion'), false, 'the touch page has no focus region');
-  assert.equal(grid.props.itemWidth, 110); assert.equal(grid.props.gap, 10);
-  assert.equal(grid.props.header, undefined, 'the frame holds the header; the grid scrolls under it');
+  const {SeeAllPage} = await screenModule(new URL('../src-next/pages/touch/library/SeeAllPage.tsx', import.meta.url), {
+    react: h.react, '../../../kit/frames': {BrowseFrame: 'BrowseFrame'}, '../../../kit/frames/BrowseGrid': {BrowseGrid: 'BrowseGrid'},
+    '../../../kit/browse': {BrowseToolbar: 'BrowseToolbar', FilteredEmpty: 'FilteredEmpty'},
+    '../../../kit/browse/HomeRowCard': {HomeRowCard: 'HomeRowCard'}, '../../../kit/browse/LibraryListRow': {LibraryListRow: 'LibraryListRow'},
+    '../../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../../kit/artwork': {AmbientArt: 'AmbientArt'}, '../../../kit/states': {StateView: 'StateView'},
+    '../../shared/library/useSeeAll': {useSeeAll},
+  });
+  let backs = 0, opens = 0;
+  const runtime = {text: i18n.defaultI18n, getSnapshot: () => ({authority: {}, account: {viewerRole: 'member'},
+    libraries: [{id: 'music', kind: 'music', name: 'Music'}], destination: {kind: 'library', libraryId: 'music'}})};
+  const frame = h.render(() => SeeAllPage({controller, runtime, active: true, libraryId: 'music', kindLabel: t,
+    onBack: () => {backs++;}, onOpen: () => {opens++;}}));
   const header = frame.props.header;
-  assert.equal(header.title, 'Recommended'); assert.equal(header.back.testID, 'home-see-all-back');
-  assert.equal(header.intro, 'Your actual recommendation reason');
-  const buttons = nodes(header.actions).filter(node => node.type === 'Button'); assert.equal(buttons.length, 2);
-  // The frame halves a phone's action row; a button's own flex inside that half collapsed it under the toolbar (Pixel 6a).
-  assert.ok(buttons.every(node => node.props.style === undefined), 'the buttons carry no sizing of their own');
-  // One toolbar row (owner: Filters, then Sort, then the kinds and quick filters in a line that scrolls, never four wrapped rows).
-  const toolbar = frame.props.toolbar;
-  assert.equal(toolbar.type, 'BrowseToolbar'); assert.equal(toolbar.props.resultTotal, 72);
-  assert.deepEqual(toolbar.props.model.quick.map((quick: any) => quick.id), ['unwatched']);
-  nodes(toolbar.props.children).find(node => node.type === 'Chip' && node.props.selected === false).props.onPress(); assert.deepEqual(selected, ['movies']);
-  const skeleton = h.render(() => boundary.props.skeleton.type(boundary.props.skeleton.props));
-  const skeletonGrid = nodes(skeleton).find(node => node.type === 'GridSkeleton');
-  assert.equal(skeletonGrid.props.cardWidth, grid.props.itemWidth); assert.equal(skeletonGrid.props.columns, 3);
-  assert.equal(skeletonGrid.props.gap, grid.props.gap);
+  assert.equal(header.title, 'Recently added'); assert.equal(header.back.label, 'Music');
+  header.back.onPress(); assert.equal(backs, 1);
+  assert.equal(frame.props.grid.props.shape, 'square');
+  const card = frame.props.grid.props.renderItem({entry: album}, {index: 0}, 110);
+  assert.equal(card.props.square, true);
+  card.props.onOpen(); assert.equal(opens, 1);
+  assert.equal(frame.props.toolbar.props.resultTotal, 72);
+  assert.deepEqual(frame.props.toolbar.props.model.quick.map((quick: any) => quick.id), ['unwatched']);
 });
 
 test('Notifications is the Settings sheet on a phone and a plain page on its layer on a tablet (W4 F14)', async () => {
@@ -203,7 +197,7 @@ test('a superseded or dismissed See all Undo callback is revoked before the next
     '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: any) => entry.id,
       setNotInterested: (_api: unknown, input: any) => new Promise<void>(resolve => requests.push({entry: input.itemId, value: input.notInterested, resolve}))},
-    './HomeSeeAll': {HomeSeeAll: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'HomeRowFilters'}, './row-controller': {NativeHomeRowController: Controller},
+    './HomeRowFilters': {HomeRowFilters: 'HomeRowFilters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {nativeRouteCrypto: {random: (length: number) => new Uint8Array(length)}},
     '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {}, '../../kit/theme': {},
     '../read/platform': {}, '../read/reading-books-open': {}, './entry-lifetime': {},
