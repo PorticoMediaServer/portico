@@ -46,7 +46,7 @@ import {NativeSetup} from './NativeSetup';
 import {PhoneFindServer} from './PhoneFindServer';
 import {ServerSignInPage} from '../../pages/touch/accounts/ServerSignInPage';
 import {PhonePINEntry} from './PhonePINEntry';
-import {PhoneNoServers} from './PhoneNoServers';
+import {PhoneNoServers} from '../../pages/touch/accounts/NoServersPage';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 import type {AccountDownloadsEntry} from './downloads-entry-model';
 import type {NativeInvitationLink} from '../../platform/invitation-links';
