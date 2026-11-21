@@ -52,6 +52,9 @@ type ItemBox = Readonly<{start: number; length: number}>;
 export function useWholeItems(axis: 'x' | 'y', mode: 'fit' | 'blank', keys: readonly string[], lead: number, trail: number) {
   const ref = useRef<ScrollView>(null), boxes = useRef(new Map<string, ItemBox>()), focused = useRef<string | undefined>(undefined);
   const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), at = useRef(0), content = useRef(0);
+  // Focus is before the list (`rest`): the list stays at its start, even when a scroll tvOS began for an item focus only
+  // passed through ends after the reset was asked.
+  const resting = useRef(false);
   // Room added after the last item when a stop lies past the list's end (at its end the first item would stay cut).
   const [pad, setPad] = useState(0);
   const [room, setRoom] = useState(0), [offset, setOffset] = useState(0), [, measured] = useState(0);
@@ -64,6 +67,7 @@ export function useWholeItems(axis: 'x' | 'y', mode: 'fit' | 'blank', keys: read
   // tvOS scrolls a list on its own to keep focus clear of the edge; once that settles, move to the nearest offset where no
   // item is cut at the start and the focused item shows whole, with its ring room at the end.
   const snap = () => {
+    if (resting.current) {if (at.current > 1) ref.current?.scrollTo(axis === 'x' ? {x: 0, animated: false} : {y: 0, animated: false}); return;}
     const box = focused.current && boxes.current.get(focused.current);
     if (!box || room <= 0) return;
     // A stop is the very start, or just past an item's end (the item before is wholly out of view, never a sliver of it).
@@ -97,10 +101,10 @@ export function useWholeItems(axis: 'x' | 'y', mode: 'fit' | 'blank', keys: read
     /** Room to add after the content's own end padding. */
     pad,
     container: {onLayout: (event: LayoutChangeEvent) => setRoom(pick(event))},
-    focus: (key: string) => {focused.current = key; later();},
+    focus: (key: string) => {focused.current = key; resting.current = false; later();},
     /** Focus moved to something before the list: show it from its start. */
     rest: () => {
-      focused.current = undefined; clearTimeout(settle.current);
+      focused.current = undefined; resting.current = true; clearTimeout(settle.current);
       // As snap does: asked in the same turn as a focus move, tvOS keeps the list where it was.
       settle.current = setTimeout(() => ref.current?.scrollTo(axis === 'x' ? {x: 0, animated: false} : {y: 0, animated: false}), 50);
     },
