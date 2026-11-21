@@ -111,7 +111,8 @@ export function HomeCard({runtime, row, entry, rank, context, width, rowIndex, v
       progress: facts.progress, width, height: Math.round(booksCardSize(theme).height * (width / booksCardSize(theme).width)),
       visible, onFocus: context.onFocus, onBlur: context.onBlur, selection: context.selection, testID: context.testID, artwork: art,
       primaryAction: 'navigate' as const, onNavigate: !facts.reading && play ? play : navigate,
-      menuAnchorRef: anchor, moreExpanded: runtime.selection(row.id).isMenuOpen?.(entry.id), onMore: () => {if (current()) runtime.actions.more(entry, row.id, anchor);},
+      // A book, comic or magazine to read has no Home menu (client-core homeEntrySelection), so its card offers no ⋯ or hold.
+      menuAnchorRef: anchor, moreExpanded: runtime.selection(row.id).isMenuOpen?.(entry.id), onMore: facts.reading ? undefined : () => {if (current()) runtime.actions.more(entry, row.id, anchor);},
       artworkFallback: generatedPoster(entry.title, width)};
     return facts.reading ? <ReadResumeCard {...card} kind={facts.shape === 'magazine' ? 'periodical' : facts.shape === 'newspaper' ? 'newspaper' : 'book'}/> : <ResumeCard {...card}/>;
   }
