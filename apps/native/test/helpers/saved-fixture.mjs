@@ -86,8 +86,13 @@ export async function savedResourceFixture(bindings) {
   const page = await load('pages/shared/saved/SavedResourcePage.tsx', {
     ...common, './useSavedResource': model, '../../../screens/destinations/focus': bindings['../destinations/focus'],
     '../../../kit/frames/SavedResourceFrame': {SavedResourceFrame: 'SavedResourceFrame'},
-    '../../../kit/saved/SavedResourceParts': {SavedResourceBand: 'SavedResourceBand', SavedResourceHero: 'SavedResourceHero',
-      SavedResourceRow: function SavedResourceRow() {}, SavedResourceViewGrid: 'SavedResourceViewGrid', viewSortLabel: () => ''},
+    '../../../kit/saved/SavedResourceParts': {SavedResourceAction: 'SavedResourceAction', SavedResourceBand: 'SavedResourceBand',
+      SavedResourceCaption: 'SavedResourceCaption', SavedResourceHero: 'SavedResourceHero', SavedResourceHoldHint: 'SavedResourceHoldHint',
+      SavedResourceInventory: 'SavedResourceInventory', SavedResourceMenuFacts: 'SavedResourceMenuFacts',
+      SavedResourceRow: function SavedResourceRow() {}, SavedResourceUndo: 'SavedResourceUndo', SavedResourceViewGrid: 'SavedResourceViewGrid',
+      SavedResourceViewInfo: 'SavedResourceViewInfo', SavedResourceVisibility: 'SavedResourceVisibility',
+      useSavedResourceLayout: () => ({width: 350, columns: 1, rowStride: 80, windowWidth: 390, gutter: 20}), viewSortLabel: () => ''},
+    '../../../kit/frames': {PanelBlock: 'PanelBlock'},
     '../../../kit/saved/SavedReorderList': bindings['./SavedReorderList'],
     ...Object.fromEntries(Object.entries(bindings).filter(([key]) => key.startsWith('../../kit/')).map(([key, value]) => [`../${key}`, value])),
   });

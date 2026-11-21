@@ -13,16 +13,31 @@ import {CardFrame, Parts} from '../cards/primitives';
 import {PosterCard, SquareCard, type CardSelection} from '../cards';
 import {cardCaptionHeight} from '../cards/caption-metrics';
 import {SelectionCircle} from '../selection';
-import {Focusable} from '../controls';
+import {Button, Focusable, Switch} from '../controls';
+import {useDockClearance} from '../dock/DockClearance';
+import {usePageWidth} from '../layout/page-inset';
+import {Banner, ToastHost, type ToastMessage} from '../overlays';
+import {SavedTail} from './SavedLoading';
+import {savedVisibilityHelp, type SavedVisibilityLine} from '../../screens/saved/presentation';
 import {Icon} from '../Icon';
 import {alpha} from '../browse/presentation';
 import {useTheme} from '../theme';
 
 const t = defaultI18n.t;
 
-export function SavedResourceHero({artwork, name, eyebrow, summary, condition, visible, runtime, facts}: {
+function savedResourceColumns(tv: boolean, width: number) {return tv ? 7 : width >= 900 ? 5 : 3;}
+
+export function useSavedResourceLayout(grid: boolean) {
+  const theme = useTheme(), viewport = usePageWidth();
+  const windowWidth = theme.isTV ? 1920 : viewport;
+  const width = Math.max(1, windowWidth - theme.gutter * 2);
+  const columns = grid ? savedResourceColumns(theme.isTV, viewport) : 1;
+  return {width, columns, windowWidth, gutter: theme.gutter, rowStride: grid ? width / columns * 1.7 : theme.isTV ? 104 : 80};
+}
+
+export function SavedResourceHero({artwork, name, eyebrow, summary, condition, visible, runtime, count, duration, visibility}: {
   artwork: readonly string[]; name: string; eyebrow?: string; summary?: string; condition?: string;
-  visible: boolean; runtime: NativeShellRuntime; facts: ReactNode;
+  visible: boolean; runtime: NativeShellRuntime; count?: string; duration?: number; visibility?: SavedVisibilityLine;
 }) {
   const theme = useTheme(), size = theme.isTV ? 280 : 152;
   const covers = artwork.slice(0, 4).map(path => runtime.artwork(path)).filter((cover): cover is NonNullable<typeof cover> => !!cover);
@@ -36,7 +51,14 @@ export function SavedResourceHero({artwork, name, eyebrow, summary, condition, v
       {!!eyebrow && <Text style={[theme.type.caption, {color: theme.colors.accentStrong}]}>{eyebrow}</Text>}
       <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, textAlign: theme.isTV ? 'left' : 'center'}]}>{name}</Text>
       <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space.sm, marginTop: theme.space.xs,
-        justifyContent: theme.isTV ? 'flex-start' : 'center'}}>{facts}</View>
+        justifyContent: theme.isTV ? 'flex-start' : 'center'}}>
+        {!!count && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{count}</Text>}
+        {!!duration && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{savedDuration(duration)}</Text>}
+        {visibility && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>
+          <Icon name={visibility.icon} size={theme.isTV ? 22 : 13} color={visibility.strong ? theme.colors.accentStrong : theme.colors.textTertiary}/>
+          <Text style={[theme.type.caption, {color: visibility.strong ? theme.colors.accentStrong : theme.colors.textTertiary}]}>{visibility.text}</Text>
+        </View>}
+      </View>
       {!!summary && <Text style={[theme.type.body, {color: theme.colors.textSecondary, marginTop: theme.space.xs,
         textAlign: theme.isTV ? 'left' : 'center'}]}>{summary}</Text>}
       {!!condition && <Text style={[theme.type.caption, {color: theme.colors.textSecondary, borderRadius: 14,
@@ -130,4 +152,67 @@ export function SavedResourceRow({row, width, runtime, actions, selection, libra
       <View pointerEvents="none" style={{position: 'absolute', left: theme.isTV ? 20 : 20, right: theme.isTV ? 20 : 4, bottom: 0, height: 1, backgroundColor: alpha(theme.colors.line, theme.isTV ? .55 : .3)}}/>
     </View>}
   </CardFrame>;
+}
+
+export function SavedResourceVisibility({resource, disabled, onChange}: {resource: PersonalResource; disabled?: boolean; onChange: (visible: boolean) => void}) {
+  const theme = useTheme();
+  return <View style={{paddingHorizontal: theme.gutter, paddingTop: theme.space.sm, gap: theme.space.xs}}>
+    <Switch focusId="saved-visibility" checked={resource.visibility === 'server'} disabled={disabled} onCheckedChange={onChange}>{t('web.saved.visibleToAll')}</Switch>
+    <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{savedVisibilityHelp(resource)}</Text>
+  </View>;
+}
+
+export function SavedResourceAction({shape, ...props}: React.ComponentProps<typeof Button> & {shape: 'primary' | 'round' | 'more'}) {
+  const theme = useTheme();
+  const style = theme.isTV
+    ? shape === 'more' ? {width: 72, height: 72, borderRadius: 14} : undefined
+    : shape === 'primary' ? {height: 48, minWidth: 92, flex: 1} : {width: 48, height: 48, borderRadius: 24};
+  return <Button {...props} style={style}/>;
+}
+
+export function SavedResourceCaption({children, trailing = false}: {children: ReactNode; trailing?: boolean}) {
+  const theme = useTheme();
+  return <Text style={[trailing ? theme.type.caption : theme.type.rowLabel, {color: trailing ? theme.colors.textTertiary : theme.colors.text,
+    ...(trailing ? {marginLeft: 'auto'} : {})}]}>{children}</Text>;
+}
+
+export function SavedResourceMenuFacts({values}: {values: readonly (string | undefined)[]}) {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs}}>
+    {values.filter((part): part is string => !!part).map((part, index) =>
+      <Text key={index} style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{part}</Text>)}
+  </View>;
+}
+
+export function SavedResourceViewInfo({resource}: {resource?: PersonalResource | null}) {
+  const theme = useTheme();
+  return <View style={{gap: theme.space.sm}}>
+    {resource && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{viewSortLabel(resource)}</Text>}
+    {!!resource?.summary && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{resource.summary}</Text>}
+    <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('next.saved.viewsHelp')}</Text>
+  </View>;
+}
+
+export function SavedResourceInventory({children, tail}: {children: ReactNode; tail?: React.ComponentProps<typeof SavedTail>}) {
+  const theme = useTheme();
+  return <View style={{marginTop: theme.isTV ? theme.space.md : theme.space.xs}}>
+    {children}
+    {tail && <View style={{paddingHorizontal: theme.gutter, paddingVertical: theme.space.sm}}><SavedTail {...tail}/></View>}
+  </View>;
+}
+
+export function SavedResourceHoldHint() {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, paddingHorizontal: theme.gutter, paddingTop: theme.space.lg}}>
+    <Icon name="i-hold" size={22} color={theme.colors.textTertiary}/>
+    <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, flexShrink: 1}]}>{t('next.saved.native.holdRowActions')}</Text>
+  </View>;
+}
+
+export function SavedResourceUndo({toast, onDismiss}: {toast: ToastMessage | null; onDismiss: () => void}) {
+  const theme = useTheme(), dockTop = useDockClearance();
+  if (!theme.isTV) return <ToastHost toast={toast} onDismiss={onDismiss} bottomOffset={0} obstructionTop={dockTop}/>;
+  return toast?.action && <View style={{position: 'absolute', left: theme.gutter, right: theme.gutter, bottom: 80}} pointerEvents="box-none">
+    <Banner variant="notice" tone="info" placement="overlay" message={toast.message} action={{label: toast.action.label, onPress: toast.action.onPress}} visible/>
+  </View>;
 }
