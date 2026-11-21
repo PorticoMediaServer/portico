@@ -26,17 +26,19 @@ function Face({face, size, privateLabel}: {face: TogetherFace; size: number; pri
 export function TogetherTVInvitation({art, faces, privateLabel, title, body, children}: {art?: AmbientArtSource; faces: readonly TogetherFace[];
   privateLabel: string; title: string; body: string; children: ReactNode}) {
   const theme = useTheme(), frame = useFrameMetrics(), ring = theme.space.hairline * 3;
+  // tv-more 10 `.wt-card`: up to 1180 wide (the page's room), padded 48 / 56 / 52; 26 under the faces, 14 under the title and
+  // 38 under the words (`h2`, `p` margins); the words 26/1.5 to 820.
   return <View style={{maxWidth: spec.card, marginLeft: frame.cardInset, marginRight: frame.cardInset, borderRadius: frame.cardRadius + theme.space.xs, overflow: 'hidden', backgroundColor: theme.colors.raised,
-    padding: theme.space.xl, gap: theme.space.md}}>
+    paddingTop: spec.cardPad.top, paddingHorizontal: spec.cardPad.x, paddingBottom: spec.cardPad.bottom}}>
     {art && <AmbientArt testID="together-lobby-art" source={art} treatment="wash"/>}
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, borderRadius: frame.cardRadius + theme.space.xs, borderWidth: theme.space.hairline * 1.5, borderColor: alpha(theme.colors.text, .08)}}/>
     <View testID="together-lobby-faces" style={{flexDirection: 'row'}}>
       {faces.map((face, index) => <View key={face.id} style={{marginLeft: index ? -spec.faceOverlap : 0, borderRadius: spec.lobbyFace / 2 + ring,
         borderWidth: ring, borderColor: theme.colors.raised}}><Face face={face} size={spec.lobbyFace} privateLabel={privateLabel}/></View>)}
     </View>
-    <View style={{gap: theme.space.sm}}>
+    <View style={{marginTop: spec.cardGaps.faces, marginBottom: spec.cardGaps.body, gap: spec.cardGaps.title}}>
       <Text accessibilityRole="header" style={[theme.type.display, {color: theme.colors.text, maxWidth: spec.nowWidth + theme.space.xl * 2}]}>{title}</Text>
-      <Text style={[theme.type.synopsis, {color: theme.colors.textSecondary, maxWidth: spec.nowWidth}]}>{body}</Text>
+      <Text style={[theme.type.accountLede, {color: theme.colors.textSecondary, maxWidth: spec.bodyMax}]}>{body}</Text>
     </View>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.controlGap}}>{children}</View>
   </View>;
