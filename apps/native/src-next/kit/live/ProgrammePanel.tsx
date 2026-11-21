@@ -40,7 +40,11 @@ export function ProgrammePanel({channel, programme, now, runtime, favorite, busy
       <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{channel.number}</Text>
       {paneLeft !== undefined && !!channel.group && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{channel.group}</Text>}
     </View>
-    {(theme.isTV ? programme?.flags?.live : onNow) && <Text style={[theme.type.rowLabel, {color: theme.colors.record}]}>{t(theme.isTV ? 'guide.live' : 'guide.onNow')}</Text>}
+    {/* phone-guide 2 `.live-tag`: a 7 dot and the words in the record colour at the badge size; TV keeps its row label. */}
+    {theme.isTV ? programme?.flags?.live && <Text style={[theme.type.rowLabel, {color: theme.colors.record}]}>{t('guide.live')}</Text>
+      : onNow && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.tight}}>
+        <View style={{width: theme.space.tight + 1, height: theme.space.tight + 1, borderRadius: theme.space.tight, backgroundColor: theme.colors.record}}/>
+        <Text style={[theme.type.badge, {color: theme.colors.record}]}>{t('guide.onNow')}</Text></View>}
     {!theme.isTV && <ProgrammeButton compact action={{id: 'live-channel-favorite', label: t(channel.favorite ? 'channels.removeFavorite' : 'channels.addFavorite'),
       icon: channel.favorite ? 'i-star-f' : 'i-star', selected: channel.favorite, disabled: busy, onPress: favorite}}/>}
   </View>;
@@ -51,7 +55,8 @@ export function ProgrammePanel({channel, programme, now, runtime, favorite, busy
       : <View key={id} style={style}>{body}</View>;
   };
   const laterRows = later.length > 0 && <View style={{gap: theme.space.xs}} testID="live-later">
-    <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{t('guide.laterOn', {channel: channel.name})}</Text>
+    {/* phone-guide 2 `.nxl h5`: the small quiet label over the airings (TV keeps its row label). */}
+    <Text style={theme.isTV ? [theme.type.rowLabel, {color: theme.colors.text}] : theme.type.sectionLabel}>{t('guide.laterOn', {channel: channel.name})}</Text>
     {later.map(airing => group(`later:${airing.id}`, <>
       {/* The time column of a list of airings (frameSpec.guide.timeColumn), so every title lines up under the last. */}
       <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, width: frameSpec.guide.timeColumn[theme.form]}]}>{airing.clock}</Text>
@@ -91,8 +96,11 @@ export function ProgrammePanel({channel, programme, now, runtime, favorite, busy
 }
 
 function ProgrammeButton({action, compact, share}: {action: Action; compact?: boolean; share?: boolean}) {
+  const theme = useTheme();
   return <Button ref={action.opener} testID={action.id} icon={action.icon} size={compact ? 'small' : undefined} iconOnly={compact}
     variant={compact ? 'text' : action.primary ? 'primary' : 'glass'} align={compact ? undefined : 'stretch'} style={share ? {flex: 1} : undefined}
+    // phone-guide 2 `.mi`: a small glyph button is quiet until it is on (a reminder set), then the accent.
+    iconColor={compact && !theme.isTV ? action.selected ? theme.colors.accentStrong : theme.colors.textTertiary : undefined}
     accessibilityLabel={action.label} accessibilityState={{selected: action.selected}} disabled={action.disabled} loading={action.loading}
     focusableWhenDisabled={!compact} onPress={action.onPress}>{compact ? undefined : action.label}</Button>;
 }
