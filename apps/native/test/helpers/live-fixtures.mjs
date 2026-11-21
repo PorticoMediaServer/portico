@@ -53,6 +53,8 @@ export async function liveGuideModule(previous, shallow = false) {
   const inputs = {
     ...bindings, '../../shared/live/useLiveGuide': hook, '../../../kit/live/GuideContent': content,
     './RecordingsPage': {RecordingsPage: previous['./RecordingsScreen']?.NativeRecordingsScreen},
+    // The owner editor the tests stub as './LiveOwnerScreen' is the touch LiveOwnerPage now.
+    './LiveOwnerPage': {LiveOwnerPage: previous['./LiveOwnerScreen']?.NativeLiveOwnerScreen ?? 'LiveOwnerPage'},
     '../../../kit/frames': {LiveFrame: frame},
   };
   const [touch, tv] = await Promise.all(['touch', 'tv'].map(form => load(`pages/${form}/live/GuidePage.tsx`, inputs)));

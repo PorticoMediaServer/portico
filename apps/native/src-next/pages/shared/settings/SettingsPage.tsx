@@ -13,7 +13,7 @@ import {PhoneDashboardCard, SettingsHelp, SettingsKeyHints, SettingsNavigationGr
 import {NativeTVKeyboard} from '../../../screens/destinations';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
 import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
-import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
+import {LiveOwnerPage} from '../../touch/live/LiveOwnerPage';
 import {NativeServerTroubleshooting} from '../../../screens/settings-live/server/TroubleshootingPage';
 import {ServerStoragePage} from '../../touch/settings/ServerStoragePage';
 import {ServerIntegrationsPage} from '../../touch/settings/ServerIntegrationsPage';
@@ -77,8 +77,6 @@ export function NativeSettingsPage(props: SettingsProps) {
   const custom = signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
     : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
-    : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
-      onClose={leaveServerPage} initialChannelId={initialChannelId}/>
     : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
     : troubleshootingPage ? <NativeServerTroubleshooting ports={ports} runtime={runtime} compactHeader={compact}/>
     : undefined;
@@ -100,6 +98,8 @@ export function NativeSettingsPage(props: SettingsProps) {
       back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : storagePage ? <ServerStoragePage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onOpenPage={choose}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : livePage ? <LiveOwnerPage controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
+      onClose={leaveServerPage} initialChannelId={initialChannelId}/>
     : peoplePage ? <ServerPeoplePage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}

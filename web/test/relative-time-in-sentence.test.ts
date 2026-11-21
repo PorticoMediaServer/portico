@@ -19,7 +19,7 @@ const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'u
 test('the six call sites ask for the in-sentence form; standalone labels keep their capital', () => {
   assert.match(source('../src/screens/settings/server/integrations/ApiKeys.tsx'), /relativeTime\(key\.lastUsedAt, undefined, \{inSentence: true\}\)/);
   assert.match(source('../src/screens/settings/hardware/hardware-rows.ts'), /relativeTime\(at, serverNow\(\), \{inSentence: true\}\)/);
-  assert.match(source('../../apps/native/src-next/screens/settings-live/LiveOwnerScreen.tsx'), /relativeTime\(state\.checkedAt, undefined, \{inSentence: true\}\)/);
+  assert.match(source('../../apps/native/src-next/pages/shared/live/useLiveOwner.ts'), /relativeTime\(state\.checkedAt, undefined, \{inSentence: true\}\)/);
   assert.match(source('../../apps/native/src-next/screens/accounts/PhoneAccountWorkspace.tsx'), /relativeTime\(row\.lastUsedAt, undefined, \{inSentence: true\}\)/);
   // Notification times are standalone labels too.
   assert.match(source('../src/screens/account/Notifications.route.tsx'), /text: defaultI18n\.relativeTime\(note\.createdAt\)\}/);
