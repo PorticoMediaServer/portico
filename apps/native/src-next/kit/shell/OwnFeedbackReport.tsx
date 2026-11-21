@@ -3,9 +3,9 @@ import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {ownFeedbackReportView, readOwnFeedbackReport} from '../../../../../packages/client-core/src/notification-actions';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {BottomSheet} from '../../kit/overlays';
-import {useTheme} from '../../kit/theme';
-import {FormError} from '../../kit/controls';
+import {BottomSheet} from '../overlays';
+import {useTheme} from '../theme';
+import {FormError} from '../controls';
 
 type Api = Parameters<typeof readOwnFeedbackReport>[0];
 type Loaded = Readonly<{phase: 'loading'}> | Readonly<{phase: 'ready'; view: ReturnType<typeof ownFeedbackReportView>}> | Readonly<{phase: 'failed'; error: unknown}>;
