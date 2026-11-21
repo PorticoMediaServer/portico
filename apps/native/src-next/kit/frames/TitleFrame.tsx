@@ -91,7 +91,7 @@ export type TitleFrameProps = Readonly<{
   primary?: TitlePrimary;
   /** The buttons after it, in fixed slots. One that the title doesn't support stays in its slot with `disabled`. */
   actions?: readonly TitleAction[];
-  /** One bold line over the synopsis, on a tablet on its side and TV. */
+  /** One bold line over the synopsis, on a tablet on its side (TV: in About, rule 14). */
   tagline?: string;
   synopsis?: string;
   /** A quiet note under the buttons with ⓘ (phone-detail d3 frame 8: how Portico made an automatic collection). */
@@ -263,16 +263,19 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // held to rule 14's two lines (owner, 17 Nov). A page with no Read more of its own opens the rest by a press on the paragraph,
   // so nothing is lost and the page keeps the frame's two lines.
   const synopsisStyle = [theme.type.synopsis, {color: theme.colors.textSecondary, maxWidth: frameSpec.settings.paragraphMax}];
-  const words = loading ? <View style={{gap: spec.creditsGap}}>
+  const words = loading ? <View style={{gap: tv ? spec.tvCreditsGap : spec.creditsGap}}>
     {Array.from({length: spec.synopsisLines[form]}, (_, index) => <SkeletonBlock key={index} width={index === 0 ? '96%' : '70%'} height={theme.type.intro.lineHeight ?? theme.type.intro.fontSize}/>)}
-  </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || quote !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: spec.creditsGap, maxWidth: stacked ? undefined : tv ? theme.spec.hero.copy.titleWidth.tv : spec.copyWidth}}>
+  </View> : (note !== undefined || tagline !== undefined || synopsis !== undefined || quote !== undefined || credits?.length) ? <View style={{alignSelf: 'stretch', gap: tv ? spec.tvCreditsGap : spec.creditsGap, maxWidth: stacked ? undefined : tv ? theme.spec.hero.copy.titleWidth.tv : spec.copyWidth}}>
     {note !== undefined && <View style={{alignSelf: 'stretch', flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.controlGap}}>
       <Icon name="i-info" size={frameSpec.hero.title.parts.listRow.check} color={theme.colors.textTertiary}/>
       <Text style={[theme.type.rowHelp, {flex: 1, color: theme.colors.textTertiary}]}>{note}</Text></View>}
-    {!stacked && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
+    {/* TV (rule 14, tv.html 3): no tagline in the hero; About carries it with the whole synopsis. */}
+    {!stacked && !tv && tagline !== undefined && <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{tagline}</Text>}
     {synopsis !== undefined && (readMore && !readMore.expanded
       ? <PreviewText text={synopsis} lines={spec.readMoreLines[form]} style={synopsisStyle}/>
-      : readMore || synopsisOpen || tv ? <Text style={synopsisStyle}>{synopsis}</Text>
+      // TV (rule 14, Justin 17 Nov: "the synopsis keeps two lines"): two lines here, the whole synopsis in About.
+      : tv ? <PreviewText text={synopsis} lines={spec.synopsisLines.tv} style={synopsisStyle}/>
+      : readMore || synopsisOpen ? <Text style={synopsisStyle}>{synopsis}</Text>
       : <Focusable accessibilityRole="button" accessibilityLabel={synopsis} accessibilityHint={defaultI18n.t('web.person.readMore')} onPress={() => setSynopsisOpen(true)} testID="title-synopsis">
         <PreviewText text={synopsis} lines={spec.synopsisLines[form]} style={synopsisStyle}/></Focusable>)}
     {readMore && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.md}}>
