@@ -5,13 +5,15 @@ import {durationText} from '@core/presentation/kit-model/text.ts';
 import {defaultI18n} from '@i18n';
 import {AmbientArt} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
-import {TitleFrame, PanelBlock, PanelHeading, AboutTable, NumberedRow, type TitleAction} from '../../kit/frames';
+import {TitleFrame, PanelBlock, PanelHeading, AboutTable, NumberedRow, OwnerCard, type TitleAction} from '../../kit/frames';
+import {AddToCollection, RenameCollection, editCollection} from './CollectionOwner';
 import {TitleFactsLine} from '../../kit/title/TitleParts';
 import {useShellWidth} from '../../shell/viewport';
 import {t, environment as env} from './text';
 import {titlePageFacts} from './model';
 import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
 import {ScreenProblem} from './ScreenProblem';
+import styles from './collection-owner.module.css';
 
 export type CollectionScreenProps = Readonly<{context: ScreenContext; libraryId: string; collectionId: string;
   /** Opens one film's own page. */
@@ -26,6 +28,8 @@ const year = (value: number) => defaultI18n.number(value, {useGrouping: false});
 export function CollectionScreen({context, libraryId, collectionId, onOpen, onBack}: CollectionScreenProps) {
   const phone = useShellWidth() < 1024;
   const [page, setPage] = useState<Page>(), [retry, setRetry] = useState(0);
+  /** The owner's edits: which dialog is open, and the films' order while Change order is on (their ids). */
+  const [editing, setEditing] = useState<'rename' | 'add'>(), [ordering, setOrdering] = useState<readonly string[]>(), [saving, setSaving] = useState(false);
   useEffect(() => {
     const life = screenLifetime(context), service = new LibraryContentService({queries: context.queries, scope: context.scope});
     const publish = () => {const snapshot = service.getSnapshot(); if (life.current()) setPage({context, libraryId, collectionId, life, service, snapshot});};
@@ -44,6 +48,27 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
   const {life, service} = active;
   const current = () => life.current() && service.getSnapshot().phase === 'ready' && service.getSnapshot().projection === projection;
   const films = snapshot.appended.flatMap(section => section.entries).filter(entry => entry.kind === 'movie');
+  // desktop-detail f8: the owner's card, for the local owner who manages this server.
+  const viewer = context.identity?.viewer, owner = viewer?.role === 'owner' && viewer.authority === 'local' && context.identity?.capabilities?.manageServer === true;
+  // An edit lands, then the page reads the collection again in place (its name, its films, their order).
+  const edit = async (change: Parameters<typeof editCollection>[2]) => {
+    if (!current()) throw new DOMException('Collection page changed', 'AbortError');
+    await editCollection(life.api, collectionId, change, life.signal());
+    if (life.current()) await service.select({libraryId, view: 'collection', entityId: collectionId});
+  };
+  const report = (error: unknown) => {if (life.current()) context.effects.reportError(error);};
+  const orderIds = ordering?.filter(id => films.some(film => film.id === id));
+  const shown = orderIds ? orderIds.map(id => films.find(film => film.id === id)!) : films;
+  const move = (index: number, by: -1 | 1) => setOrdering(before => {
+    const ids = [...(before ?? films.map(film => film.id))], to = index + by;
+    if (to < 0 || to >= ids.length) return before;
+    [ids[index], ids[to]] = [ids[to]!, ids[index]!]; return ids;
+  });
+  const saveOrder = () => {
+    if (!orderIds || saving) return;
+    setSaving(true);
+    void edit({order: orderIds}).then(() => {if (life.current()) setOrdering(undefined);}, report).finally(() => setSaving(false));
+  };
   const playable = (film: ContentEntry) => !!film.playback && film.available !== false && !film.missing;
   const started = (film: ContentEntry) => !film.watched && (film.progressSeconds ?? 0) > 0;
   // Up next: the film in progress, or else the first one not yet watched once an earlier one has been (desktop-detail f8).
@@ -69,19 +94,27 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
   const actions: TitleAction[] = playAll ? [{icon: 'i-shuffle', label: t('title.shuffle'), labelled: true, disabled: !anyPlayable,
     onPress: () => runScreenCommand(context, () => playAll(collectionId, true, life.signal(), current))}] : [];
   const backdrop = collection.backdropUrl ?? films.find(film => film.backdropUrl)?.backdropUrl;
-  return <TitleFrame back={back}
+  return <><TitleFrame back={back}
     art={backdrop ? <AmbientArt treatment="title" source={context.artwork.ambient(backdrop)} foreground={context.artwork.foreground(backdrop, phone ? 800 : 1920, 16 / 9)} /> : undefined}
     kicker={{icon: 'i-layers', label: t('next.detail.collection')}} title={collection.title} metadata={<TitleFactsLine parts={facts} />}
     primary={playAll ? {icon: 'i-play', label: t('next.cards.playAll'), disabled: !anyPlayable, onPress: () => runScreenCommand(context, () => playAll(collectionId, false, life.signal(), current))} : undefined}
     actions={actions} synopsis={collection.overview}
-    aside={<div><PanelHeading title={t('next.show.about')} /><AboutTable rows={[
+    aside={<div className={styles.aside}><PanelHeading title={t('next.show.about')} /><AboutTable rows={[
       {label: t('next.detail.collectionFilms'), values: [{text: t('next.collection.filmsOnServer', {count})}]},
       ...(yearsText ? [{label: t('next.detail.collectionYears'), values: [{text: yearsText}]}] : []),
-    ]} /></div>}>
+    ]} />
+      {owner && <OwnerCard title={t('next.collection.ownerTitle')} mark={t('next.overlays.ownerOnly')} body={t('next.collection.ownerBody')} actions={[
+        {icon: 'i-edit', label: t('next.collection.rename'), onPress: () => {if (current()) setEditing('rename');}},
+        {icon: 'i-plus', label: t('next.collection.addFilm'), onPress: () => {if (current()) setEditing('add');}},
+        {icon: 'i-sort', label: t('next.collection.changeOrder'), onPress: () => {if (current() && films.length > 1) setOrdering(films.map(film => film.id));}},
+      ]} />}
+    </div>}>
     <PanelBlock label={t('next.detail.filmsInOrder')}>
-      <PanelHeading title={t('next.detail.filmsInOrder')} />
+      <PanelHeading title={t('next.detail.filmsInOrder')} trailing={orderIds && <>
+        <Button size="small" variant="ghost" disabled={saving} onClick={() => setOrdering(undefined)}>{t('action.cancel')}</Button>
+        <Button size="small" variant="primary" loading={saving} onClick={saveOrder}>{t('next.collection.saveOrder')}</Button></>} />
       {films.length === 0 && snapshot.phase === 'ready' && <p>{t('next.collection.empty')}</p>}
-      {films.map((film, index) => {
+      {shown.map((film, index) => {
         const progress = started(film) && film.duration ? Math.min(1, (film.progressSeconds ?? 0) / film.duration) : undefined;
         const status = film.watched ? {label: t('next.detail.watched'), icon: 'i-check' as const} : film === next ? {label: t('title.nextUp'), accent: true} : {label: t('title.notStarted')};
         const label = film.watched ? t('next.detail.playAgain') : started(film) ? t('next.controls.resume') : t('next.controls.play');
@@ -89,10 +122,18 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
           artwork={context.artwork.foreground(film.posterUrl, 200, 2 / 3)}
           facts={<TitleFactsLine parts={titlePageFacts({year: film.year, durationSeconds: film.duration, contentRating: film.contentRating}, env)} />}
           synopsis={film.overview} status={status} progress={progress}
-          action={<Button size="compact" icon="i-play" disabled={!playable(film)} onClick={() => play(film)}>{label}</Button>} />;
+          action={orderIds ? <span className={styles.order}>
+              <Button size="small" variant="glass" iconOnly icon="i-up" aria-label={t('next.collection.moveUp', {title: film.title})} disabled={index === 0 || saving} onClick={() => move(index, -1)}/>
+              <Button size="small" variant="glass" iconOnly icon="i-down" aria-label={t('next.collection.moveDown', {title: film.title})} disabled={index === shown.length - 1 || saving} onClick={() => move(index, 1)}/></span>
+            : <Button size="compact" icon="i-play" disabled={!playable(film)} onClick={() => play(film)}>{label}</Button>} />;
       })}
       {snapshot.appended.filter(section => section.nextCursor).map(section => <Button key={section.id} variant="glass" disabled={snapshot.phase !== 'ready'}
         onClick={() => runScreenCommand(context, () => {if (current()) return service.next(section.id);})}>{t('next.settings.loadMore')}</Button>)}
     </PanelBlock>
-  </TitleFrame>;
+  </TitleFrame>
+    {owner && <RenameCollection open={editing === 'rename'} name={collection.title} onOpenChange={open => setEditing(open ? 'rename' : undefined)}
+      onSave={name => edit({title: name}).then(() => {if (life.current()) setEditing(undefined);}, report)} />}
+    {owner && <AddToCollection open={editing === 'add'} api={life.api} libraryId={libraryId} held={new Set(films.map(film => film.id))} artwork={context.artwork}
+      onOpenChange={open => setEditing(open ? 'add' : undefined)} onAdd={id => edit({add: [id]}).catch(error => {report(error); throw error;})} />}
+  </>;
 }
