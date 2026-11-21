@@ -2,5 +2,6 @@
 .sectionHead { display: flex; align-items: baseline; justify-content: space-between; margin: 24px 20px 6px; }
 .sectionHead h2 { margin: 0; font-size: var(--type-fixed-size-19px); font-weight: var(--type-fixed-weight-700); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
 .edit { border: 0; padding: 0; background: none; font: inherit; font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); cursor: pointer; }
+.none { margin: 0 20px; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }
 .edit:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }
 .sectionHead + [role='list'] { margin-top: 0; }

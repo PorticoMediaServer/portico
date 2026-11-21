@@ -71,6 +71,8 @@ export function SavedPhoneDirectory({runtime, downloadsOffered, artwork, select,
     <DirectoryRows rows={rowsShown.map(row => ({id: row.id, label: row.label, icon: row.icon, count: row.count === undefined ? undefined : defaultI18n.number(row.count), onPress: () => select(row.route)}))} />
     {pins && <>
       <div className={directory.sectionHead}><h2>{t('pins.heading')}</h2><button type="button" className={directory.edit} onClick={pins.edit}>{t('pins.edit')}</button></div>
+      {/* Nothing pinned yet: say how to pin, rather than leave a heading over nothing. */}
+      {pins.list.length === 0 && <p className={directory.none}>{t('pins.noneSaved')}</p>}
       {pins.list.length > 0 && <DirectoryRows label={t('pins.heading')} rows={pins.list.map(pin => ({id: JSON.stringify([pin.kind, pin.id]), label: pin.name, icon: pin.kind === 'playlist' ? 'i-queue' : pin.kind === 'collection' ? 'i-stack' : 'i-filter',
         caption: pin.kind === 'view' ? t('title.savedView') : t('title.kind', {kind: pin.kind}), onPress: () => select(pin.kind === 'playlist' ? {view: 'playlist', playlistId: pin.id} : {view: 'resource', resourceId: pin.id})}))} />}
     </>}
