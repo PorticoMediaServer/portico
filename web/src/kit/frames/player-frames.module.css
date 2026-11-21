@@ -5,6 +5,9 @@
    draws no backdrop: the player's layer is black (R10). */
 .player { position: relative; height: 100%; min-height: 100dvh; display: flex; flex-direction: column; color: var(--color-text); font-family: var(--font); }
 .playerStage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+/* In a box the screen places (`fill`): no height of its own; the stage is the box in every form. */
+.player[data-fill] { min-height: 0; }
+.player[data-fill] .playerStage.playerStage { flex: 1; aspect-ratio: auto; }
 .playerPicture, .playerShade { position: absolute; inset: 0; }
 .playerPicture > * { width: 100%; height: 100%; }
 .playerShade { pointer-events: none; background: var(--frame-player-scrim); }
@@ -48,6 +51,8 @@
 .player[data-form='sideways'] .playerBar { grid-template-columns: auto auto 1fr auto; grid-template-areas: 'position seek seek remaining' 'leading leading trailing trailing'; }
 .player[data-form='sideways'] .playerSeek { margin: 0 var(--space-px-12); }
 .player[data-form='sideways'] .playerEnds { display: none; }
+/* phone-player 1, final3-fixes-03: on its side the title is the phone's (16.5 over 13), whatever the window's width column. */
+.player[data-form='sideways'] .playerTitle { --type-player-title-size: var(--type-episode-title-size); --type-player-title-line: normal; --type-player-subtitle-size: var(--type-caption-size); }
 .player[data-form='sideways'] .playerLeading, .player[data-form='sideways'] .playerTrailing { min-height: var(--frame-player-pill-height); }
 .player[data-form='sideways'] .playerCentre { position: absolute; inset: 0; justify-content: center; gap: var(--frame-player-transport-gap); pointer-events: none; }
 .player[data-form='sideways'] .playerCentre > * { pointer-events: auto; }

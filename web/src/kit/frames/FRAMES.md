@@ -124,9 +124,10 @@ screen fills the places as below; the frame does the arranging.
 `AudioPlayerFrame` draws its five transport slots with `PlayerControl` and takes the scrubber and read-outs as
 `scrubber`. Their sizes, scrims and type are `frameSpec.player`, `componentSpec.transport` and the `player*` type roles.
 
-The parts are lifted from the built web player (`screens/watch/WatchScreen.tsx`, `watch.module.css`), which still
-draws its own copies of the title, controls, read-outs, pills and prompts. Stage 2 moves that screen onto the frame and
-these parts and deletes its private drawing. Apply the same test to any other screen that needs more than stock
+The parts are lifted from the built web player (`screens/watch/WatchScreen.tsx`). Moved (21 Nov): the watch screen draws
+its chrome with `PlayerChromeFrame fill` (the frame fills the chrome's box over the retained video, whose geometry still
+places the picture and an upright phone's watch page) and these parts; its own title, controls, read-outs and pills are
+deleted. The prompts and notices keep their own layers (their focus ownership is the screen's). Apply the same test to any other screen that needs more than stock
 parts (the reader, the guide grid, the equaliser): name the parts, put them in the kit, draw them in the Kit page.
 
 The player's own panels and the Live TV chrome are kit parts too. They were drawn by the watch and live screens and

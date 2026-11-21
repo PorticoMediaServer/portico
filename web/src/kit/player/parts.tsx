@@ -13,7 +13,8 @@ export function PlayerTitle({title, lead, subtitle}: {title: string; /** The par
 }
 
 export type PlayerControlProps = Readonly<{
-  icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean;
+  /** Given the button pressed, for a panel or menu to stand on. */
+  icon: IconName; label: string; onPress: (button: HTMLButtonElement) => void; disabled?: boolean; active?: boolean;
   /** Play or Pause: the large white one. */
   primary?: boolean;
   /** A top-bar button over the picture: on a glass disc from tablet width (desktop-player), a plain white glyph on a
@@ -38,7 +39,7 @@ export type PlayerControlProps = Readonly<{
 export function PlayerControl({icon, label, onPress, disabled, active, primary = false, onPicture = false, tool = false, skip, busy = false, open = false, tone, audio = false, resume = false}: PlayerControlProps) {
   const kind = resume ? 'resume' : primary ? 'primary' : onPicture ? 'picture' : tool ? 'tool' : skip !== undefined ? 'skip' : 'step';
   const button = <Button size="transport" variant={primary ? 'primary' : onPicture || resume ? 'glass' : 'icon'} className={onPicture || resume ? `${styles.control} ${styles.onPicture}` : styles.control} data-kind={kind} data-tone={tone} data-audio={audio || undefined} data-open={open || undefined} 
-    iconOnly icon={icon} aria-label={label} title={label} aria-pressed={active} aria-expanded={open || undefined} disabled={disabled} loading={busy} onClick={onPress} />;
+    iconOnly icon={icon} aria-label={label} title={label} aria-pressed={active} aria-expanded={open || undefined} disabled={disabled} loading={busy} onClick={event => onPress(event.currentTarget)} />;
   return skip === undefined ? button : <span className={styles.skip}>{button}<small aria-hidden="true">{skip}</small></span>;
 }
 
@@ -56,8 +57,8 @@ export function PlayerVolume({value, muted, label, muteLabel, onChange, onMute}:
 /** An options entry point that says what it is and what it is set to: "Subtitles English", "Audio English", and
  * quality as "Auto 1080p". With `name` the name is the strong word and the value follows dimmer; without it the value
  * is the strong word and `qualifier` goes before it. One an item doesn't have keeps its place with `disabled`. */
-export function PlayerPill({name, value, qualifier, icon, label, onPress, disabled, open = false}: {name?: string; value?: string; /** Its panel is the one open: the raised fill. */ open?: boolean; /** Before the value, dimmer ("Auto"). */ qualifier?: string; icon?: IconName; /** For assistive technology and the tooltip. */ label: string; onPress: () => void; disabled?: boolean}) {
-  return <button type="button" className={styles.pill} data-open={open || undefined} aria-expanded={open || undefined} aria-label={label} title={label} disabled={disabled} onClick={onPress}>{icon && <Icon name={icon} />}
+export function PlayerPill({name, value, qualifier, icon, label, onPress, disabled, open = false}: {name?: string; value?: string; /** Its panel is the one open: the raised fill. */ open?: boolean; /** Before the value, dimmer ("Auto"). */ qualifier?: string; icon?: IconName; /** For assistive technology and the tooltip. */ label: string; onPress: (button: HTMLButtonElement) => void; disabled?: boolean}) {
+  return <button type="button" className={styles.pill} data-open={open || undefined} aria-expanded={open || undefined} aria-label={label} title={label} disabled={disabled} onClick={event => onPress(event.currentTarget)}>{icon && <Icon name={icon} />}
     {name !== undefined ? <>{name}{value !== undefined && <span>{value}</span>}</> : <>{qualifier && <span>{qualifier}</span>}{value}</>}</button>;
 }
 
