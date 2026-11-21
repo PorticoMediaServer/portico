@@ -11,7 +11,7 @@ import {NativeSegmentReviewController} from '../../../screens/settings-live/owne
 import {registerBack} from '../../../kit/navigation/back';
 
 /** The phone review borrows the selected owner's existing settings lifetime and API. */
-export function useSegmentReview({context, lifetime, t, runtime}: NativeSettingsPanelDeps & {runtime: NativeShellRuntime}, onBackHandlerChange?: (handler: (() => boolean) | undefined) => void) {
+export function useSegmentReview({context, lifetime, t, runtime}: Pick<NativeSettingsPanelDeps, 'context' | 'lifetime' | 't'> & {runtime: NativeShellRuntime}, onBackHandlerChange?: (handler: (() => boolean) | undefined) => void) {
   const alive = useRef(true);
   useEffect(() => {alive.current = true; return () => {alive.current = false;};}, []);
   const api = useMemo(() => ({request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal)}), [context, lifetime]);

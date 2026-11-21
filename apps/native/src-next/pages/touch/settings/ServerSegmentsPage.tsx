@@ -10,43 +10,55 @@ import {SettingsRow} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
 import {NativeSettingControl} from '../../../kit/settings/SettingControl';
+import type {NativeScreenLifetime} from '../../../screens/settings-live/lifetime';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {StorageForms} from '../../../screens/settings-live/server/storage/forms';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {useSegmentsBulkAction, useSegmentsForms, useServerSegments} from '../../shared/settings/useServerSegments';
 
-type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; onBackHandlerChange?: (handler: (() => boolean) | undefined) => void};
+import {ServerSegmentReview} from '../../shared/settings/ServerSegmentReview';
+import {useSegmentReview} from '../../shared/settings/useSegmentReview';
+
+type Props = {lifetime: NativeScreenLifetime; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; onBackHandlerChange?: (handler: (() => boolean) | undefined) => void};
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;
 
-export function ServerSegmentsPage({ports, runtime, retry, onBackHandlerChange, ...frame}: Frame & Props & {retry?: React.ReactNode}) {
+export function ServerSegmentsPage({ports, runtime, lifetime, retry, onBackHandlerChange, ...frame}: Frame & Props & {retry?: React.ReactNode}) {
   const group = useSegmentsForms(ports, runtime), {t} = runtime.text;
-  return <SettingsPageFrame {...frame} title={t('next.settingsSpec.server.segments.title')}>
-    {retry}
-    {group ? <SegmentsSettings key={group.mount} group={group} ports={ports} runtime={runtime} onBackHandlerChange={onBackHandlerChange}/>
-      : <SectionCard><StateRow kind="loading"/></SectionCard>}
-  </SettingsPageFrame>;
+  const title = t('next.settingsSpec.server.segments.title');
+  return group ? <SegmentsSettings key={group.mount} group={group} ports={ports} runtime={runtime} lifetime={lifetime}
+    retry={retry} onBackHandlerChange={onBackHandlerChange} {...frame}/>
+    : <SettingsPageFrame {...frame} title={title}>{retry}<SectionCard><StateRow kind="loading"/></SectionCard></SettingsPageFrame>;
 }
 
-function SegmentsSettings({group, ports, runtime, onBackHandlerChange}: Props & {group: StorageForms}) {
+function SegmentsSettings({group, ports, runtime, lifetime, onBackHandlerChange, back, server, retry}: Props & Frame & {group: StorageForms; retry?: React.ReactNode}) {
   const model = useServerSegments(group, runtime), {state, settings} = model, {t} = runtime.text;
-  if (settings.loadError !== undefined && !settings.draft) return <StateView {...runtime.error(settings.loadError, model.retry, 'server-console')}/>;
-  return <>
-    {model.mode ? <SectionCard><NativeSettingControl {...model.mode}/></SectionCard> : <SectionCard><StateRow kind="loading"/></SectionCard>}
-    {ports.renderSettingsPanel('server.segments', runtime, onBackHandlerChange)}
-    <NativeAdvancedSection testID="server-segments-advanced" summary={model.summary}>
-      {model.groups.map((groupRows, index) => <SectionCard key={index} label={groupRows.title ? t(groupRows.title) : undefined}>
-        {groupRows.controls.map(({row, value}) => value === undefined ? <SegmentsBulkAction key={row.id} row={row} context={group.context} runtime={runtime}/>
-          : <NativeSettingControl key={row.id + ':' + model.draftKey} {...model.rowProps(row, value)}/>)}
-      </SectionCard>)}
-    </NativeAdvancedSection>
-    {state.dirty && <PanelBlock><OverlayFootRow layout="halves">
-      <Button variant="glass" disabled={state.saving} onPress={model.discard}>{t('action.discard')}</Button>
-      <Button loading={state.saving} disabled={!model.canSave} onPress={model.save}>{t('action.save')}</Button>
-    </OverlayFootRow></PanelBlock>}
-    {state.problem && <StateView title={t(state.problem as MessageId)} tone="error"/>}
-    {settings.saveError !== undefined && <StateView {...runtime.error(settings.saveError, model.save, 'server-console')}/>}
-  </>;
+  const review = useSegmentReview({context: ports.context, lifetime, t, runtime}, onBackHandlerChange);
+  const current = review.state, overview = t('next.settingsSpec.server.segments.title');
+  const library = current.status?.libraries.find(item => item.libraryId === current.libraryId)?.name ?? t('web.segments.libraries');
+  const title = current.titleId ? review.review?.title ?? t('web.segments.review') : current.libraryId ? library : overview;
+  const reviewBody = <ServerSegmentReview model={review} context={ports.context} lifetime={lifetime} t={t} runtime={runtime}/>;
+  if (current.libraryId) return <SettingsPageFrame key={current.titleId ?? current.libraryId} title={title}
+    back={{label: current.titleId ? library : overview, onPress: review.goBack, disabled: current.busy}}>{reviewBody}</SettingsPageFrame>;
+  return <SettingsPageFrame title={title} back={back} server={server}>
+    {retry}
+    {settings.loadError !== undefined && !settings.draft ? <StateView {...runtime.error(settings.loadError, model.retry, 'server-console')}/> : <>
+      {model.mode ? <SectionCard><NativeSettingControl {...model.mode}/></SectionCard> : <SectionCard><StateRow kind="loading"/></SectionCard>}
+      {reviewBody}
+      <NativeAdvancedSection testID="server-segments-advanced" summary={model.summary}>
+        {model.groups.map((groupRows, index) => <SectionCard key={index} label={groupRows.title ? t(groupRows.title) : undefined}>
+          {groupRows.controls.map(({row, value}) => value === undefined ? <SegmentsBulkAction key={row.id} row={row} context={group.context} runtime={runtime}/>
+            : <NativeSettingControl key={row.id + ':' + model.draftKey} {...model.rowProps(row, value)}/>)}
+        </SectionCard>)}
+      </NativeAdvancedSection>
+      {state.dirty && <PanelBlock><OverlayFootRow layout="halves">
+        <Button variant="glass" disabled={state.saving} onPress={model.discard}>{t('action.discard')}</Button>
+        <Button loading={state.saving} disabled={!model.canSave} onPress={model.save}>{t('action.save')}</Button>
+      </OverlayFootRow></PanelBlock>}
+      {state.problem && <StateView title={t(state.problem as MessageId)} tone="error"/>}
+      {settings.saveError !== undefined && <StateView {...runtime.error(settings.saveError, model.save, 'server-console')}/>}
+    </>}
+  </SettingsPageFrame>;
 }
 
 function SegmentsBulkAction({context, row, runtime}: {context: NativeShellBootstrapContext; row: SpecRow; runtime: NativeShellRuntime}) {

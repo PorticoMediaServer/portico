@@ -96,7 +96,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : integrationsPage ? <ServerIntegrationsPage ports={ports} runtime={runtime} compact={compact} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
-    : segmentsPage ? <ServerSegmentsPage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onBackHandlerChange={setSegmentBack}
+    : segmentsPage ? <ServerSegmentsPage lifetime={controller.lifetime} ports={ports} runtime={runtime} server={serverHeader} retry={retry} onBackHandlerChange={setSegmentBack}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
     back={compact ? {label: title, onPress: phoneBack} : undefined}
     server={compact && serverPage ? serverHeader : undefined} hideHeader={tvSearch || customPage && !compact}
