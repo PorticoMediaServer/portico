@@ -1,5 +1,5 @@
 import {CatalogueSelectionEntry, useCatalogueSelectionActive} from '../browse/document-selection';
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, Fragment, type ReactNode, type RefObject} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, Fragment, type ReactElement, type ReactNode, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ContentEntry} from '@core/library-content.ts';
 import type {PersonalSavedIntent, PersonalResourceEntry} from '@core/personal-saved.ts';
@@ -31,12 +31,14 @@ import {commitPreparedResourceOrder, resourceOrderIds, resourceOrderMove, resour
 import {SavedDialog} from './SavedDialog';
 import {personalEntriesWindow} from './window.ts';
 import {useShellWidth} from '../../shell/viewport';
+import {TitleFrame} from '../../kit/frames';
+import {TitleFactsLine} from '../../kit/title/TitleParts';
 import styles from './saved.module.css';
 
 const t = defaultI18n.t;
 export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
   const {runtime, route, effects} = bindings;
-  const phone = useShellWidth() < 600;
+  const width = useShellWidth(), phone = width < 600, compact = width < 1024;
   const selecting = useCatalogueSelectionActive(bindings.catalogueSelection);
   const playlist = useSyncExternalStore(runtime.saved.subscribe, runtime.saved.getSnapshot, runtime.saved.getSnapshot), personal = useSyncExternalStore(runtime.personal.subscribe, runtime.personal.getSnapshot, runtime.personal.getSnapshot);
   const [menu, setMenu] = useState(false), [dialog, setDialog] = useState<'rename' | 'delete'>(), [name, setName] = useState(''), [summary, setSummary] = useState(''), [busy, setBusy] = useState(false);
@@ -109,27 +111,37 @@ export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
   const ambient = bindings.presentation.backdrops ? paths.flatMap(path => {const source = bindings.artwork.ambient(path); return source ? [source] : [];}) : [];
   const shownBindings = reordering ? {...bindings, presentation: {...bindings.presentation, view: 'list' as const}} : bindings;
   const renameTitle = t(kind === 'playlist' ? 'web.saved.renamePlaylist' : kind === 'view' ? 'web.saved.renameView' : 'web.saved.renameCollection');
-  const resourceMenu = <Menu open={menu} onOpenChange={setMenu} title={t('player.more')} width={260} trigger={<Button variant="icon" icon="i-more" iconOnly aria-label={t('player.more')} />}
+  // The resource's ⋯: the frame draws its button, this menu takes it as its trigger.
+  const moreTrigger = (button: ReactElement) => <Menu open={menu} onOpenChange={setMenu} title={t('player.more')} width={260} trigger={button}
           items={[
             ...(actions.includes('pin') ? [{id: 'pin', label: t(pinned ? 'pins.unpin' : 'pins.pin'), icon: 'i-bookmark' as const, disabled: busy, onSelect: () => perform({action: 'pin', pinned: !pinned}, {action: 'pin', pinned: !pinned})}] : []),
             ...(actions.includes('rename') || actions.includes('update') ? [{id: 'rename', label: t('web.saved.rename'), icon: 'i-edit' as const, disabled: busy, onSelect: () => { setName(nameShown ?? ''); setSummary(resource.summary); setDialog('rename'); }}] : []),
             ...(actions.includes('delete') ? [{id: 'delete-separator', separator: true} as const, {id: 'delete', label: t(kind === 'playlist' ? 'web.saved.deletePlaylist' : kind === 'view' ? 'web.saved.deleteView' : 'web.saved.deleteCollection'), icon: 'i-trash' as const, destructive: true, disabled: busy, onSelect: () => setDialog('delete')}] : []),
           ]} />;
+  const goSaved = () => effects.selectRoute({view: kind === 'playlist' ? 'playlists' : kind === 'view' ? 'views' : 'collections'});
   return <main className={styles.page} data-resource-order>
     <span className={styles.orderAnnouncement} aria-live="polite" aria-atomic="true"><span key={announcement.sequence}>{announcement.text}</span></span>
     {!!ambient.length && <AmbientArt sources={ambient} treatment={phone ? 'library-phone' : 'library'} className={phone ? undefined : styles.resourceAmbient}/>}
-    <div className={styles.resourceBack}><Button variant="text" icon="i-left" size="small" onClick={() => effects.selectRoute({view: kind === 'playlist' ? 'playlists' : kind === 'view' ? 'views' : 'collections'})}>{t('saved.title')}</Button>{phone && resourceMenu}</div>
-    <header className={styles.resourceHeader}><div className={styles.resourceCover}><CoverMosaic covers={covers} shape="square" alt="" /></div><div>
-      <span className={styles.resourceKind}>{t(kind === 'playlist' ? 'web.saved.playlist' : kind === 'view' ? 'web.saved.savedView' : resource.role === 'owner' ? 'web.saved.collection' : 'web.saved.sharedCollection')}</span>
-      <h1>{nameShown}</h1><p>{kind === 'playlist' ? t('web.saved.items', {count: resource.entryCount}) : t('lib.count', {count: resource.entryCount, pivot: 'other'})}</p>{resource.summary && <p>{resource.summary}</p>}
-      {!isPlaylist && personal.resource?.kind === 'collection' && personal.resource.actions.includes('update') && <label className={styles.resourceVisibility}><Switch checked={personal.resource.visibility === 'server'} disabled={busy} onCheckedChange={checked => perform({action: 'pin', pinned}, {action: 'update', visibility: checked ? 'server' : 'private'})} /><span><b>{t('web.saved.visibleToAll')}</b><small>{t('web.saved.sharedHelp')}</small></span></label>}
-      <div className={styles.resourceActions}>
-        {effects.playResource && <><Button className={styles.resourcePlay} variant="primary" icon="i-play" size="compact" onClick={() => { void bindings.operations.run(signal => effects.playResource!({kind, id: resource.id, shuffle: false}, signal)).catch(effects.reportError); }}>{t('action.play')}</Button>
-          <Button icon="i-shuffle" size="compact" iconOnly={phone} aria-label={t('title.shuffle')} onClick={() => { void bindings.operations.run(signal => effects.playResource!({kind, id: resource.id, shuffle: true}, signal)).catch(effects.reportError); }}>{phone ? undefined : t('title.shuffle')}</Button></>}
-        {actions.includes('pin') && <Button icon={pinned ? 'i-bookmark-f' : 'i-bookmark'} size="compact" iconOnly={phone} aria-label={t(pinned ? 'pins.unpin' : 'pins.pin')} aria-pressed={pinned} disabled={busy} onClick={() => perform({action: 'pin', pinned: !pinned}, {action: 'pin', pinned: !pinned})}>{phone ? undefined : t(pinned ? 'pins.unpin' : 'pins.pin')}</Button>}
-        {!phone && resourceMenu}
-      </div>
-    </div></header>
+    {/* collections-4 and collections-11: the list on the title frame. Its cover is the mosaic of what it holds; Saved is the
+        way back (a disc on a phone, a text link over the page from 1024); Play, Shuffle and Pin are its buttons, and ⋯ is
+        the last of them, or the disc opposite Back on a phone. */}
+    {!compact && <div className={styles.resourceBack}><Button variant="text" icon="i-left" size="small" onClick={goSaved}>{t('saved.title')}</Button></div>}
+    <div className={styles.resourceTitle}>
+    <TitleFrame title={nameShown ?? ''} back={compact ? {label: t('saved.title'), onPress: goSaved} : undefined}
+      topAction={phone ? {icon: 'i-more', label: t('player.more'), onPress: () => {}, wrap: moreTrigger} : undefined}
+      cover={{shape: 'square', node: <CoverMosaic covers={covers} shape="square" alt="" />}}
+      kicker={{label: t(kind === 'playlist' ? 'web.saved.playlist' : kind === 'view' ? 'web.saved.savedView' : resource.role === 'owner' ? 'web.saved.collection' : 'web.saved.sharedCollection')}}
+      metadata={<TitleFactsLine parts={[{id: 'count', role: 'identity', text: kind === 'playlist' ? t('web.saved.items', {count: resource.entryCount}) : t('lib.count', {count: resource.entryCount, pivot: 'other'})}]} />}
+      synopsis={resource.summary || undefined}
+      primary={effects.playResource ? {icon: 'i-play', label: t('next.controls.play'), onPress: () => { void bindings.operations.run(signal => effects.playResource!({kind, id: resource.id, shuffle: false}, signal)).catch(effects.reportError); }} : undefined}
+      actions={[
+        ...(effects.playResource ? [{icon: 'i-shuffle' as const, label: t('title.shuffle'), labelled: true, onPress: () => { void bindings.operations.run(signal => effects.playResource!({kind, id: resource.id, shuffle: true}, signal)).catch(effects.reportError); }}] : []),
+        ...(actions.includes('pin') ? [{icon: pinned ? 'i-bookmark-f' as const : 'i-bookmark' as const, label: t(pinned ? 'pins.unpin' : 'pins.pin'), labelled: true, active: pinned, disabled: busy, onPress: () => perform({action: 'pin', pinned: !pinned}, {action: 'pin', pinned: !pinned})}] : []),
+        ...(!phone ? [{icon: 'i-more' as const, label: t('player.more'), onPress: () => {}, wrap: moreTrigger}] : []),
+      ]}>
+    {!isPlaylist && personal.resource?.kind === 'collection' && personal.resource.actions.includes('update') && <label className={styles.resourceVisibility}><Switch checked={personal.resource.visibility === 'server'} disabled={busy} onCheckedChange={checked => perform({action: 'pin', pinned}, {action: 'update', visibility: checked ? 'server' : 'private'})} /><span><b>{t('web.saved.visibleToAll')}</b><small>{t('web.saved.sharedHelp')}</small></span></label>}
+    {/* The toolbar and the rows are one block of the frame's panel, so the panel's section gap is not set between them. */}
+    <div>
     <div className={styles.toolbar}>{bindings.catalogueSelection?.toolbar ?? bindings.selection?.toolbar}
       {kind !== 'view' && <ResourceQueryToolbar bindings={bindings} kind={kind} page={isPlaylist ? playlist.projection : personal.page} query={query} />}
       {resource.role === 'owner' && actions.includes('reorder') && <Button size="small" icon={reordering ? 'i-check' : 'i-grip'} aria-pressed={reordering} disabled={busy || selecting || !canReorder}
@@ -143,6 +155,8 @@ export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
         if (!entry.media || entry.hidden || !bindings.operations.current) return;
         rowAnchor.current = anchor; setRowMenu({entryId: entry.id, media: entry.media});
       }} />}
+    </div>
+    </TitleFrame></div>
     <Menu open={!!rowMenu && !!menuMedia} onOpenChange={open => { if (!open) setRowMenu(undefined); }} title={menuMedia?.displayTitle ?? menuMedia?.title ?? t('player.more')} anchorRef={rowAnchor} width={290}
       items={rowMenu && menuMedia ? [{id: 'go', label: t('web.saved.goToItem'), icon: 'i-info', onSelect: () => { if (bindings.operations.current) effects.openEntry(menuMedia); }},
         ...(canReorder ? [
