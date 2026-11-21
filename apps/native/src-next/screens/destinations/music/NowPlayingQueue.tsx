@@ -16,7 +16,7 @@ import {Menu, type MenuEntry} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
 import {browseType} from '../../../kit/browse/presentation';
 import {committedPaintScope, useCommittedPaintPublication} from '../../../kit/overlays/CommittedPaint';
-import {ListeningQueuePaint, type ListeningQueuePaintData, type ListeningQueuePaintRow} from './ListeningPanePaint';
+import {ListeningQueuePaint, type ListeningQueuePaintData, type ListeningQueuePaintRow} from '../../../kit/player/ListeningPanePaint';
 
 const t = defaultI18n.t, tvRowSpec = frameSpec.audio.tv;
 /** A queue run survives track fences but never another authority/run. */

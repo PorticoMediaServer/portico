@@ -26,7 +26,7 @@ import {ListeningPageBackground, ListeningPagePreview} from '../kit/player/Liste
 import {AudioPlayerPage} from '../pages/touch/player/AudioPlayerPage';
 import {TVListeningRoute} from '../pages/tv/player/ListeningRoute';
 import type {NowPlayingScreenProps} from '../pages/shared/player/audio-player';
-import {NowPlayingLyrics} from '../screens/destinations/music/NowPlayingLyrics';
+import {NowPlayingLyrics} from '../pages/shared/player/NowPlayingLyrics';
 import type {LyricsTarget} from '../../../../packages/client-core/src/lyrics';
 import {musicSignalView} from '../screens/destinations/music/MusicSignal';
 import {NativeListeningNotice} from '../screens/destinations/music/ListeningNotice';

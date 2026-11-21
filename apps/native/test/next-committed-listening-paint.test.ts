@@ -34,7 +34,13 @@ async function fixture() {
     '../../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
   };
-  const panes = await screenModule(new URL('../src-next/screens/destinations/music/ListeningPanePaint.tsx', import.meta.url), common);
+  const panes = await screenModule(new URL('../src-next/kit/player/ListeningPanePaint.tsx', import.meta.url), {
+    ...common, '../overlays/CommittedPaint': hooks, '../controls': common['../../../kit/controls'], '../artwork': common['../../../kit/artwork'],
+    '../theme': {useTheme: () => ({...common['../../../kit/theme'].useTheme(), gutter: 20, space: {xs: 8, sm: 16, md: 24, lg: 32},
+      type: {rowLabel: {}, rowHelp: {}, bodyStrong: {}, body: {}}, targets: {touch: 44}})},
+    '../browse/presentation': common['../../../kit/browse/presentation'], '../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
+  });
   return {hooks, panes, common, provider, publish: () => tree.props.value, store: () => tree.props.children.props.value,
     inert() {mode = {...mode, interactive: false};}, hidden() {mode = {...mode, visible: false, interactive: false};},
     async close() {await provider.unmount();}};
@@ -119,17 +125,17 @@ test('the real lyrics publisher disposes its original reader while committed dis
     candidates: [], warnings: [], preview: null, busy: false, error: '', generation: 1};
   const service = {subscribe: () => () => {}, getSnapshot: () => snapshot,
     async refresh() {refreshes++;}, async choose() {}, dispose() {disposals++;}};
-  const {NowPlayingLyrics} = await screenModule(new URL('../src-next/screens/destinations/music/NowPlayingLyrics.tsx', import.meta.url), {
+  const {useNowPlayingLyrics} = await screenModule(new URL('../src-next/pages/shared/player/useNowPlayingLyrics.ts', import.meta.url), {
     ...f.common, '../../../../../../packages/client-core/src/lyrics': {activeLyricLine, lyricSeekPosition},
   });
   const read = () => {reads++;return {enabled: true, service};};let result: any, tree: any;
-  const publisher = createFabricHookHost(() => {result = NowPlayingLyrics({read, target, positionSeconds: 1, playing: true,
+  const publisher = createFabricHookHost(() => {result = useNowPlayingLyrics({read, target, positionSeconds: 1, playing: true,
     onSeek: (at: number) => seeks.push(at), paintOwner: owner, paintScope: 'source'});});
   const leaf = createFabricHookHost(() => {tree = f.panes.ListeningLyricsPaint({owner, scope: 'source'});});
   try {
     await leaf.mount();assert.equal(tree, null);assert.equal(reads, 0, 'mounting the pure display leaf cannot start a reader');
     await act(() => publisher.mount());await leaf.rerender();
-    assert.equal(result, null, 'the publisher does not render a second native pane');
+    assert.equal(result, undefined, 'the publisher does not render a second native pane');
     assert.equal(reads, 1);assert.equal(refreshes, 1);assert.equal(disposals, 0);
     const originalSeek = nodes(tree).find(node => node.props.testID === 'now-playing-lyrics-line-1').props.onPress;
     const data = f.store().get(owner).get('listening-lyrics').data;

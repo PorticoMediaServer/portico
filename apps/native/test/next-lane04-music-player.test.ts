@@ -50,7 +50,7 @@ async function fixture(book = false, width = 390) {
     '../../../screens/destinations/music/use-audiobook-read': {useAudiobookRead: () => ({reader: book ? reader : undefined, snapshot: book ? snapshot : {phase: 'retired'}})},
     '../../../screens/destinations/music/audiobook-controls': chapters, '../../../kit/overlays/SurfacePaintHost': {RetainedOverlay: 'RetainedOverlay'},
     '../../../kit/dock/PlayerMorphBridge': {usePublishedPlayerMorph: () => undefined}, '../../../kit/overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({visible: true, interactive: true})},
-    '../../../screens/destinations/music/NowPlayingLyrics': {NowPlayingLyrics: 'LyricsPublisher'}, '../../../screens/destinations/music/ListeningPanePaint': {ListeningQueuePaint: 'QueuePaint', ListeningLyricsPaint: 'LyricsPaint'},
+    '../../shared/player/NowPlayingLyrics': {NowPlayingLyrics: 'LyricsPublisher'}, '../../../kit/player/ListeningPanePaint': {ListeningQueuePaint: 'QueuePaint', ListeningLyricsPaint: 'LyricsPaint'},
     '../../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})},
   };
   const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTouchAudioPlayer.ts', import.meta.url), playerBindings);

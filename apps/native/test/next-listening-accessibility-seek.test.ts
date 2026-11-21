@@ -65,7 +65,7 @@ async function fixture(hosted = true) {
     '../../../kit/overlays/SurfacePaintHost': {RetainedOverlay: 'RetainedOverlay'},
     '../../../kit/dock/PlayerMorphBridge': {usePublishedPlayerMorph: () => undefined},
     '../../../kit/overlays/OverlayPaintContext': liveOverlayPaint,
-    '../../../screens/destinations/music/NowPlayingLyrics': {NowPlayingLyrics: 'Lyrics'}, '../../../screens/destinations/music/ListeningPanePaint': {ListeningQueuePaint: 'QueuePaint', ListeningLyricsPaint: 'LyricsPaint'},
+    '../../shared/player/NowPlayingLyrics': {NowPlayingLyrics: 'Lyrics'}, '../../../kit/player/ListeningPanePaint': {ListeningQueuePaint: 'QueuePaint', ListeningLyricsPaint: 'LyricsPaint'},
     '../../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})},
   };
   const playerHook = await screenModule(new URL('../src-next/pages/shared/player/useTouchAudioPlayer.ts', import.meta.url), playerBindings);

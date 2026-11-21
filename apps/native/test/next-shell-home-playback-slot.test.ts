@@ -63,7 +63,7 @@ test('actual playback layer converts measured window slot to its own origin and 
     '../kit/dock': {DockHost: 'DockHost', PlayerMorph: 'PlayerMorph', bindNativeDock: () => () => {}, usePlayerMorph: () => morph},
     '../../../../packages/client-core/src/presentation/kit-model': {playbackIdentity: () => ({title: 'Fixture'})},
     '../kit/dock/model': dockModel, './model': {authorityKey, sameAuthority}, './playback': {nativeShellBackTransition},
-    '../screens/destinations/music/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
+    '../pages/shared/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
     '../screens/destinations/music/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
     '../screens/destinations/music/MusicSignal': musicSignal, '../screens/destinations/music/signal-facts': signalFacts,
     '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'},

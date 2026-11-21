@@ -14,8 +14,8 @@ import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/m
 import {NowPlayingQueue} from '../../../screens/destinations/music/NowPlayingQueue';
 import {TVMusicFocus} from '../../../screens/destinations/music/TVMusicFocus';
 import {listeningChapterSeek} from '../../../screens/destinations/music/audiobook-controls';
-import {NowPlayingLyrics, type NowPlayingLyricsProps} from '../../../screens/destinations/music/NowPlayingLyrics';
-import {ListeningQueuePaint, ListeningLyricsPaint} from '../../../screens/destinations/music/ListeningPanePaint';
+import {NowPlayingLyrics, type NowPlayingLyricsProps} from '../../shared/player/NowPlayingLyrics';
+import {ListeningQueuePaint, ListeningLyricsPaint} from '../../../kit/player/ListeningPanePaint';
 import {bookSleepChoices, sleepLabel, useTouchAudioPlayer} from '../../shared/player/useTouchAudioPlayer';
 import {equalizerCopy, retainedListeningParts, omittedListeningParts} from '../../../kit/player/listening-presentation';
 import type {NowPlayingScreenProps} from '../../shared/player/audio-player';
