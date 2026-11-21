@@ -1,12 +1,9 @@
-import React, {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {useEffect, useMemo, useRef, useSyncExternalStore} from 'react';
 import {activeLyricLine, lyricSeekPosition, type LyricsService, type LyricsSnapshot, type LyricsTarget} from '../../../../../../packages/client-core/src/lyrics';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {Button, Focusable} from '../../../kit/controls';
-import {useTheme} from '../../../kit/theme';
-import {browseType} from '../../../kit/browse/presentation';
+import {repeat} from '../../../../../../packages/client-core/src/timer';
 import {committedPaintScope, useCommittedPaintPublication} from '../../../kit/overlays/CommittedPaint';
-import type {ListeningLyricsPaintData} from './ListeningPanePaint';
+import type {ListeningLyricsPaintData} from '../../../kit/player/ListeningPanePaint';
 
 const t = defaultI18n.t;
 const emptySnapshot: LyricsSnapshot = Object.freeze({data: null, candidates: Object.freeze([]), warnings: Object.freeze([]), preview: null, busy: false, error: '', generation: 0});
@@ -30,9 +27,7 @@ export type NowPlayingLyricsProps = Readonly<{
   testID?: string;
 }>;
 
-export function NowPlayingLyrics({read, target, positionSeconds, playing, onSeek, paintOwner, paintScope = '', testID = 'now-playing-lyrics'}: NowPlayingLyricsProps) {
-  const theme = useTheme(), scroller = useRef<ScrollView>(null), offsets = useRef(new Map<number, number>());
-  const [viewport, setViewport] = useState(0);
+export function useNowPlayingLyrics({read, target, positionSeconds, playing, onSeek, paintOwner, paintScope = ''}: NowPlayingLyricsProps) {
   const owned = useMemo(() => {try {return read(target) ?? undefined;} catch {return undefined;}}, [read, target]);
   const service = owned?.service;
   const snapshot = useSyncExternalStore(service?.subscribe ?? noSubscription, service?.getSnapshot ?? noService);
@@ -43,8 +38,8 @@ export function NowPlayingLyrics({read, target, positionSeconds, playing, onSeek
     // a paused song keeps the lyrics it already has.
     const refresh = () => {if (live.current) void service.refresh();};
     void service.refresh();
-    const timer = setInterval(refresh, 30_000);
-    return () => {clearInterval(timer); service.dispose();};
+    const timer = repeat(async () => {refresh();}, {everyMs: 30_000, backoff: {baseMs: 30_000, maxMs: 30_000, jitter: 'none'}, immediate: false});
+    return () => {timer.stop(); service.dispose();};
   }, [service]);
   const selected = snapshot.data?.selection.resource, document = selected?.document, source = snapshot.data?.source;
   const current = document ? activeLyricLine(document, positionSeconds, selected?.offsetMs ?? 0, source?.startSeconds ?? 0) : -1;
@@ -63,7 +58,7 @@ export function NowPlayingLyrics({read, target, positionSeconds, playing, onSeek
     // The semantic token includes the original service, source and document.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [service, resources, seeks, paintSemantic]);
-  const display: ListeningLyricsPaintData | undefined = useMemo(() => paintOwner && owned?.enabled ? {
+  const display: ListeningLyricsPaintData | undefined = useMemo(() => owned?.enabled ? {
     error: snapshot.error || undefined,
     messageOnly: !service,
     message: !service ? t('player.noLyrics') : !document && !snapshot.busy && !snapshot.error
@@ -71,40 +66,8 @@ export function NowPlayingLyrics({read, target, positionSeconds, playing, onSeek
     resources: resourceLabels,
     lines,
     activeIndex: current,
-  } : undefined, [paintOwner, owned?.enabled, snapshot.error, snapshot.busy, snapshot.data?.resources.length, service, document, resourceLabels, lines, current]);
+  } : undefined, [owned?.enabled, snapshot.error, snapshot.busy, snapshot.data?.resources.length, service, document, resourceLabels, lines, current]);
   const publication = useMemo(() => display ? {data: display, actions} : undefined, [display, actions]);
   useCommittedPaintPublication(paintOwner, 'listening-lyrics', paintScope, paintSemantic, publication);
-  const renderedLines = useMemo(() => lines?.map(line => <Focusable key={line.index} focusKind="row" focusRadius={8} focusId={`${testID}-line-${line.index}`} testID={`${testID}-line-${line.index}`}
-    accessibilityRole="button" accessibilityState={{selected: line.active, disabled: !line.seekable}} disabled={!line.seekable}
-    onPress={() => actions.seek(line.index)}
-    onLayout={event => {offsets.current.set(line.index, event.nativeEvent.layout.y);}}
-    style={{paddingVertical: 4, paddingHorizontal: 6, borderRadius: 8}}>
-    <Text style={[browseType(theme, line.active ? 19 : 17, line.active ? 800 : 600, -0.01), {textAlign: 'center', color: line.active ? theme.colors.text : theme.colors.textTertiary}]}>{line.text || '♪'}</Text>
-  </Focusable>), [lines, actions, testID, theme]);
-  useEffect(() => {
-    if (paintOwner) return;
-    const y = offsets.current.get(current);
-    if (y !== undefined) scroller.current?.scrollTo({y: Math.max(0, y - viewport / 3), animated: true});
-  }, [current, viewport, paintOwner]);
-  if (paintOwner) return null;
-  if (!owned?.enabled) return null;
-  const message = (text: string) => <View style={{paddingHorizontal: 18, paddingVertical: 22}}><Text style={[browseType(theme, 14, 500), {textAlign: 'center', color: theme.colors.textSecondary}]}>{text}</Text></View>;
-  if (!service) return message(t('player.noLyrics'));
-  return <View testID={testID} style={{flex: 1, minHeight: 0}}>
-    {snapshot.error ? <View style={{alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 18}}>
-      <Text style={[browseType(theme, 13.5, 500), {textAlign: 'center', color: theme.colors.textSecondary}]}>{snapshot.error}</Text>
-      <Button align="center" focusId="retry" testID={`${testID}-retry`} variant="glass" size="small" icon="i-restart" onPress={() => {void service.refresh();}}>{t('action.tryAgain')}</Button>
-    </View> : null}
-    {!document && !snapshot.busy && !snapshot.error ? message(snapshot.data?.resources.length ? t('player.chooseLyrics') : t('player.noLyrics')) : null}
-    {resources.map(resource => <Focusable key={resource.id} focusKind="row" focusRadius={10}
-      focusId={`${testID}-resource-${resource.id}`} testID={`${testID}-resource-${resource.id}`} accessibilityRole="button"
-      onPress={() => {void service.choose(resource);}}
-      style={({focused}) => ({minHeight: 48, marginHorizontal: 10, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10, backgroundColor: focused ? 'rgba(237,245,250,.16)' : 'transparent'})}>
-      <Text numberOfLines={1} style={[browseType(theme, 14, 600), {color: theme.colors.text}]}>{resource.provenance.label || resource.language}</Text>
-    </Focusable>)}
-    {document ? <ScrollView ref={scroller} testID={`${testID}-lines`} onLayout={event => setViewport(event.nativeEvent.layout.height)} showsVerticalScrollIndicator={false}
-      contentContainerStyle={{paddingHorizontal: 16, paddingVertical: 24, gap: 6}}>
-      {renderedLines}
-    </ScrollView> : null}
-  </View>;
+  return paintOwner ? undefined : publication;
 }

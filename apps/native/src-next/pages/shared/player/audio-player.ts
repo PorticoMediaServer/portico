@@ -5,7 +5,7 @@ import type {V1QueueEditIntent} from '../../../../../../packages/client-core/src
 import type {PlaybackFence} from '../../../../../../packages/player-core/src';
 import type {MessageId} from '../../../../../../packages/i18n/src';
 import type {DockCommand, DockOccupant} from '../../../kit/dock/types';
-import type {NowPlayingQueue} from '../../../screens/destinations/music/NowPlayingQueue';
+import type {NowPlayingQueueProps} from './useNowPlayingQueue';
 import type {MusicSignalView} from '../../../screens/destinations/music/MusicSignal';
 import type {AudiobookRead} from '../../../screens/destinations/music/use-audiobook-read';
 import type {NativeListeningQueuePolicy} from '../../../shell/listening-queue-policy';
@@ -26,7 +26,7 @@ export type NowPlayingScreenProps = Readonly<{
   onTVExited?: () => void;
   occupant: DockOccupant;
   queue?: QueuePlaybackView;
-  artwork?: ComponentProps<typeof NowPlayingQueue>['artwork'];
+  artwork?: NowPlayingQueueProps['artwork'];
   /** The song's own synced lyrics body (the caller owns its reader); drawn as a
    * tab of the side panel, or a bottom sheet on a narrow window. */
   lyrics?: ReactNode;
