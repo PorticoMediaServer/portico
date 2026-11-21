@@ -6,7 +6,7 @@ import {commandAllowed, dockCommand, playbackPosition, seekBounds} from '../../.
 import {shellLayout} from '../../../shell/model';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
 import {registerOverlayKeys} from '../../../platform/overlay-keys';
-import type {NativeEqualizerCopy} from '../../../screens/watch/Equalizer';
+import type {NativeEqualizerCopy} from '../../../kit/frames/EqualizerFrame';
 import {listeningSongFavorite} from '../../../screens/destinations/music/ListeningSongActions';
 import {nowPlayingQueueRows, nowPlayingSource} from './useNowPlayingQueue';
 import type {NowPlayingScreenProps} from './audio-player';

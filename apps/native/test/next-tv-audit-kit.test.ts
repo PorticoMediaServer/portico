@@ -66,16 +66,25 @@ test('equalizers have separate held roots, explicit entry and gated release-only
   async function fixture(instance: string) {
     const host = hooks(), keys = createTVKeyAdapter(); let handler: (event: any) => void = () => {};
     const entries: unknown[] = [];
-    const {NativeWatchEqualizer} = await screenModule(new URL('../src-next/screens/watch/Equalizer.tsx', import.meta.url), {
+    const equalizerTheme = {...theme, type: {pageTitle: {}, playerTitle: {}}};
+    const {useEqualizer} = await screenModule(new URL('../src-next/pages/shared/player/useEqualizer.ts', import.meta.url), {
+      react: host.react, '../../../platform/playback/equalizer': {nativeEqualizer: store},
+      '../../../kit/theme': {useTheme: () => equalizerTheme}, '../../../screens/watch/equalizer-controls': equalizerControls,
+      '../../../platform/tv-keys': {useTVKeyEvent: (callback: (event: any) => void) => {
+        handler = raw => {const event = keys.read(raw); if (event) callback(event);};
+      }},
+    });
+    const {EqualizerFrame} = await screenModule(new URL('../src-next/kit/frames/EqualizerFrame.tsx', import.meta.url), {
       react: {...host.react, useId: () => instance}, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', Platform: {OS: 'android'}},
       'react-native-gesture-handler': {}, 'react-native-svg': {}, 'react-native-reanimated': {},
-      '../../platform/playback/equalizer': {nativeEqualizer: store}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'},
-      '../../kit/focus': {FocusProvider: 'FocusProvider', FocusRegion: 'FocusRegion'}, '../../kit/Icon': {}, '../../kit/theme': {useTheme: () => theme, nativeType: type}, '../../kit/useMotion': {},
-      '../../platform/tv-keys': {useTVKeyEvent: (callback: (event: any) => void) => {handler = raw => {const event = keys.read(raw); if (event) callback(event);};}},
-      '../../kit/focus/useDestinationEntryFocus': {useDestinationEntryFocus: (...args: unknown[]) => entries.push(args)}, './equalizer-controls': equalizerControls, './equalizer-gesture-paint': {},
+      '../controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'},
+      '../focus': {FocusProvider: 'FocusProvider', FocusRegion: 'FocusRegion'}, '../Icon': {}, '../layout/TopBar': {TopBar: 'TopBar'},
+      '../theme': {useTheme: () => equalizerTheme, nativeType: type}, '../browse/presentation': {browseType: (_theme: unknown, size: number, weight: number) => type({size, weight, tracking: 0, lineHeight: 'normal'})}, '../useMotion': {},
+      '../focus/useDestinationEntryFocus': {useDestinationEntryFocus: (...args: unknown[]) => entries.push(args)},
+      '../../screens/watch/equalizer-controls': equalizerControls, '../../screens/watch/equalizer-gesture-paint': {},
     });
     const copy = {title: 'Equalizer', bands: 'Bands', preamp: 'Preamp', reset: 'Reset', thisDevice: 'This device', musicAndAudiobooks: 'Music & audiobooks', frequency: String, gain: String};
-    return {render: (active = true) => host.render(() => NativeWatchEqualizer({store, copy, active, reportError(error: unknown) {throw error;}, onBack() {}})), key: (raw: unknown) => handler(raw), entries};
+    return {render: (active = true) => host.render(() => EqualizerFrame({...useEqualizer({store, active, reportError(error: unknown) {throw error;}}), copy, active, onBack() {}})), key: (raw: unknown) => handler(raw), entries};
   }
   const settings = await fixture('settings'), playing = await fixture('playing');
   const first = settings.render(), second = playing.render();

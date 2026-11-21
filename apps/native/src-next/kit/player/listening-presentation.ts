@@ -2,7 +2,7 @@ import React from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {GestureDetector} from 'react-native-gesture-handler';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {NativeWatchEqualizer, type NativeEqualizerCopy} from '../../screens/watch/Equalizer';
+import type {NativeEqualizerCopy} from '../frames/EqualizerFrame';
 import {MusicSignalLine, MusicSignalSheet} from '../../screens/destinations/music/MusicSignal';
 import {NowPlayingQueue} from './NowPlayingQueue';
 import {NowPlayingLyrics} from './NowPlayingLyrics';
@@ -28,4 +28,4 @@ export const equalizerCopy = (): NativeEqualizerCopy => ({title: t('next.media.e
 export const retainedListeningParts = [ListeningSurface, ListeningPanel, ListeningNoticeLine, ListeningPageBackground, ListeningGroup, ListeningSeekPaint,
   ListeningQueuePaint, ListeningLyricsPaint, MusicSignalLine, MusicSignalSheet, ListeningFavoritePaint, AudioPanel, ChapterList,
   ChapterTicks, AudioPlayerFrame, ListeningCover, View, Text, ScrollView, Artwork, AmbientArt, Button, Focusable, Icon, React.Fragment];
-export const omittedListeningParts = [GestureDetector, NowPlayingQueue, NowPlayingLyrics, ListeningSongActions, NativeWatchEqualizer];
+export const omittedListeningParts = [GestureDetector, NowPlayingQueue, NowPlayingLyrics, ListeningSongActions];
