@@ -61,7 +61,7 @@ async function librarySelection({supported = false, isTV = false} = {}) {
     '../../kit/theme': {useTheme: () => ({isTV, layers: {navigation: 1}, type: {}, colors: {}})}, '../../kit/overlays': {}, '../../kit/controls': {},
     '../destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true, scope: {serverId: 'server', viewerId: 'owner'}})},
     '../native-screen-services': {nativeScreenServices: () => ({reportError: (error: unknown) => {throw error;}})},
-    '../destinations/DestinationPicker': {}, '../search/loaded-destinations': {}, '../destinations/bulk-media': {NativeBulkMedia},
+    '../../kit/selection/LoadedDestinationPicker': {}, '../search/loaded-destinations': {}, '../destinations/bulk-media': {NativeBulkMedia},
     './model': {}, './play-selection': {createNativeLibraryPlaySelection: () => producer}, './selection-unavailable-actions': nativeUnavailable,
   });
   const port = createNativeLibrarySelection(context, source, activation);

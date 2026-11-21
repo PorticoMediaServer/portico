@@ -40,7 +40,7 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
     '../../kit/theme': {useTheme: () => theme}, '../../kit/overlays': {Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/controls': {Button: 'Button'},
     '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
-    '../destinations/DestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'}, '../search/loaded-destinations': {NativeLoadedDestinations: 'NativeLoadedDestinations'},
+    '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'}, '../search/loaded-destinations': {NativeLoadedDestinations: 'NativeLoadedDestinations'},
     '../destinations/bulk-media': {NativeBulkMedia: 'NativeBulkMedia'}, './model': {nativeLibraryEntryKey}, './play-selection': playSelection,
     './selection-unavailable-actions': selectionUnavailableActions,
   });

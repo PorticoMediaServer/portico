@@ -55,7 +55,7 @@ async function load(role: 'owner' | 'member') {
     '../../../../../packages/client-core/src/detail': {DetailService: FakeDetail}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../packages/client-core/src/presentation/entry-actions': {refreshMetadataPath}, '../../shell/selection-display': {selectedItemsLabel: () => '1 title'},
     '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', RatingDialog: 'RatingDialog'}, '../../kit/theme': {useTheme: () => ({type: {}, colors: {}})},
-    '../search/loaded-destinations': {NativeLoadedDestinations: FakeDestinations}, '../destinations/DestinationPicker': {NativeDestinationPicker: 'Picker'},
+    '../search/loaded-destinations': {NativeLoadedDestinations: FakeDestinations}, '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'Picker'},
     '../destinations/bulk-media': {NativeBulkMedia: FakeBulk}, '../destinations/lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => live})},
     '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request', reportError: (error: unknown) => {reported.push(error);}, notice: (message: string) => {notices.push(message);}})},
     '../downloads/request': {askNativeDownload: (request: unknown) => {downloads.push(request);}}, './download-request': {nativeDownloadRequest},
