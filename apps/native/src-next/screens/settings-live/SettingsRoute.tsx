@@ -12,10 +12,10 @@ import {nativeDevicePreferences} from './device-preference-consumer';
 import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from './dashboard-controller';
 import {nativeServerAdmission} from './server/tv-server-reader';
 import {ServerSettingsPage} from '../../pages/tv/settings/ServerSettingsPage';
-import {isTVServerPage} from './server/TVServerPageMenu';
+import {isTVServerPage} from './server/tv-server-pages';
 import {NativeEqualizerSettingsScreen} from './EqualizerSettingsScreen';
 import {NativeSettingsPage} from '../../pages/shared/settings/SettingsPage';
-import {NativeDashboardScreen} from './DashboardScreen';
+import {OwnerDashboardOpening} from '../../pages/touch/settings/OwnerDashboardPage';
 import {createNativeSettingsPorts, nativeSettingsRequestId} from './settings-ports';
 import {createNativeSettingsDownloads} from './downloads-summary';
 
@@ -66,7 +66,7 @@ function createComposition(context: NativeShellBootstrapContext) {
         // A named server page opens on that page of Settings, which shows it only to a viewer who may
         // see it (N5-3: Review devices opens People & devices, not the Dashboard). No page is the Dashboard.
         if (!Platform.isTV && route.page) return <NativeSettingsPage key={route.page === 'live' ? route.channelId ?? 'live' : route.page} ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.page} initialChannelId={route.page === 'live' ? route.channelId : undefined}/>;
-        if (!Platform.isTV) return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
+        if (!Platform.isTV) return <OwnerDashboardOpening ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
         const requested = isTVServerPage(route.page) ? route.page : undefined;
         const page = allowed === 'owner' ? requested ?? 'general' : requested === 'people' ? 'people' : 'dashboard';
         return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage={page}/>;
@@ -77,9 +77,9 @@ function createComposition(context: NativeShellBootstrapContext) {
       render: (route, runtime) => {
         lifetime.assert();
         if (route.kind !== 'server-dashboard') throw new Error('native_server_dashboard_route_mismatch');
+        const fallback = <NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>;
         if (Platform.isTV && admission() !== 'denied') return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/>;
-        return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime}
-          deniedFallback={<NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>}/>;
+        return <OwnerDashboardOpening ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,

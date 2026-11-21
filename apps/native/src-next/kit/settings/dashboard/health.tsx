@@ -1,15 +1,15 @@
 import React, {useState} from 'react';
 import {Text, View} from 'react-native';
-import {Segmented} from '../../../kit/controls';
-import {BottomSheet} from '../../../kit/overlays';
-import {Sparkline, StatTiles} from '../../../kit/shell';
-import {useTheme} from '../../../kit/theme';
-import {shellType} from '../../../kit/shell/visual';
+import {Segmented} from '../../controls';
+import {BottomSheet} from '../../overlays';
+import {Sparkline, StatTiles} from '../../shell';
+import {useTheme} from '../../theme';
+import {shellType} from '../../shell/visual';
 import {when} from '../../../../../../packages/client-core/src/server-admin/console-words';
 import type {LoadTile} from '../../../../../../packages/client-core/src/server-admin/dashboard';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import {OwnerCalm, OwnerSection} from './parts';
-import {OWNER_HEALTH_WINDOWS, ownerHealthDetail, ownerHealthTiles, ownerHealthWindowLabel, type OwnerHealthWindow, type Translate} from './model';
+import {OWNER_HEALTH_WINDOWS, ownerHealthDetail, ownerHealthTiles, ownerHealthWindowLabel, type OwnerHealthWindow, type Translate} from '../../../screens/settings-live/owner-dashboard/model';
 
 /** Health: the six real load tiles with their own recent history, and one tile opened on a true axis. */
 export function OwnerHealthSection({reading, error, window, onWindow, note, onRetry, t}: {reading?: TelemetryReading; error?: unknown; window: OwnerHealthWindow; onWindow: (window: OwnerHealthWindow) => void; note?: string; onRetry: () => void; t: Translate}) {
@@ -55,7 +55,7 @@ function HealthChart({detail, t}: {detail: NonNullable<ReturnType<typeof ownerHe
       {[{id: 'lowest', label: t('next.dashboard.lowest'), amount: detail.lowest}, {id: 'average', label: t('next.dashboard.averageValue'), amount: detail.average}, {id: 'highest', label: t('next.dashboard.highest'), amount: detail.highest}].map(cell => <View key={cell.id} style={{flex: 1, backgroundColor: theme.colors.raised, paddingHorizontal: 12, paddingVertical: 12}}>
         <Text style={[shellType(12.5, 600), {color: theme.colors.textTertiary}]}>{cell.label}</Text>
         <Text style={[shellType(20, 800, 'normal', -.02), {color: theme.colors.text, marginTop: 2}]}>{value(cell.amount)}</Text>
-        {cell.id === 'highest' ? <Text numberOfLines={1} style={[shellType(11.5, 600), {color: theme.colors.textTertiary, marginTop: 1}]}>{t('next.dashboard.highestAt', {time: detail.highestAt})}</Text> : null}
+        {cell.id === 'highest' ? <Text style={[shellType(11.5, 600), {color: theme.colors.textTertiary, marginTop: 1}]}>{t('next.dashboard.highestAt', {time: detail.highestAt})}</Text> : null}
       </View>)}
     </View>
   </>;

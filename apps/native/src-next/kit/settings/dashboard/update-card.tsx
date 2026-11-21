@@ -2,11 +2,11 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import type {UpdatesSnapshot} from '../../../../../../packages/client-core/src/server-admin/updates-source';
-import {Button} from '../../../kit/controls';
-import {Icon} from '../../../kit/Icon';
-import {useTheme} from '../../../kit/theme';
-import {alpha, shellType} from '../../../kit/shell/visual';
-import type {Translate} from './model';
+import {Button} from '../../controls';
+import {Icon} from '../../Icon';
+import {useTheme} from '../../theme';
+import {alpha, shellType} from '../../shell/visual';
+import type {Translate} from '../../../screens/settings-live/owner-dashboard/model';
 
 /** owner-dashboard 2b: what the update card says. Drawn only while the owner's cached release check reports a newer build.
  * `checkFailed`: the owner's pressed check didn't get an answer; the card keeps the last report and the page says so

@@ -1,11 +1,11 @@
 import React from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Circle} from 'react-native-svg';
-import {Button, Focusable} from '../../../kit/controls';
-import {Icon, type IconName} from '../../../kit/Icon';
-import {useTheme} from '../../../kit/theme';
-import {alpha, shellType} from '../../../kit/shell/visual';
-import type {OwnerAlertView, OwnerJobView, OwnerStatistic, Translate} from './model';
+import {Button, Focusable} from '../../controls';
+import {Icon, type IconName} from '../../Icon';
+import {useTheme} from '../../theme';
+import {alpha, shellType} from '../../shell/visual';
+import type {OwnerAlertView, OwnerJobView, OwnerStatistic, Translate} from '../../../screens/settings-live/owner-dashboard/model';
 
 /** One drawn section: title, optional count beside it, optional right control, then its body. */
 export function OwnerSection({title, sub, right, children, first = false}: {title: string; sub?: string; right?: React.ReactNode; children: React.ReactNode; first?: boolean}) {
@@ -13,7 +13,7 @@ export function OwnerSection({title, sub, right, children, first = false}: {titl
   return <View style={{marginTop: first ? 20 : 32, paddingHorizontal: 16}}>
     <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 10, paddingHorizontal: 4, marginBottom: 12}}>
       <Text accessibilityRole="header" style={[shellType(20, 700, 'normal', -.015), {color: theme.colors.text}]}>{title}</Text>
-      {sub ? <Text numberOfLines={1} style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{sub}</Text> : null}
+      {sub ? <Text style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{sub}</Text> : null}
       {right ? <View style={{marginLeft: 'auto'}}>{right}</View> : null}
     </View>
     {children}
@@ -72,8 +72,8 @@ export function OwnerJobRow({job, onMenu}: {job: OwnerJobView; onMenu?: () => vo
   const content = <>
     <OwnerRing progress={job.progress} icon={job.icon} tone={job.tone} waiting={job.progress === undefined && job.tone === 'neutral'}/>
     <View style={{flex: 1, minWidth: 0}}>
-      <Text numberOfLines={1} style={[shellType(15, 700), {color: theme.colors.text}]}>{job.title}</Text>
-      {job.subtitle ? <Text numberOfLines={1} style={[shellType(13, 400, 18.2), {color: theme.colors.textTertiary, marginTop: 2}]}>{job.subtitle}</Text> : null}
+      <Text style={[shellType(15, 700), {color: theme.colors.text}]}>{job.title}</Text>
+      {job.subtitle ? <Text style={[shellType(13, 400, 18.2), {color: theme.colors.textTertiary, marginTop: 2}]}>{job.subtitle}</Text> : null}
     </View>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
       <Text style={[shellType(job.progress === undefined ? 13 : 15, 700), {color: job.tone === 'danger' ? theme.colors.danger : job.progress === undefined ? theme.colors.textTertiary : theme.colors.textSecondary, fontVariant: ['tabular-nums']}]}>{job.status}</Text>

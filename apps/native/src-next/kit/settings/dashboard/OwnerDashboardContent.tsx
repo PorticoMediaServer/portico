@@ -1,19 +1,16 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, useWindowDimensions, View, type RefreshControlProps} from 'react-native';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
-import {Focusable} from '../../../kit/controls';
-import {Icon} from '../../../kit/Icon';
-import {ServerBand} from '../../../kit/shell';
-import {useTheme} from '../../../kit/theme';
-import {alpha, shellType} from '../../../kit/shell/visual';
-import type {OwnerAlertView, OwnerHealthWindow, OwnerJobView, OwnerSessionTotals, OwnerStreamView, OwnerViewing, OwnerViewingPeriod, Translate} from './model';
-import {ownerCompactWindow, ownerStreamTotals, ownerUsesCompactRows} from './model';
+import {ServerHeader} from '../../shell';
+import {useTheme} from '../../theme';
+import type {OwnerAlertView, OwnerHealthWindow, OwnerJobView, OwnerSessionTotals, OwnerStreamView, OwnerViewing, OwnerViewingPeriod, Translate} from '../../../screens/settings-live/owner-dashboard/model';
+import {ownerCompactWindow, ownerStreamTotals, ownerUsesCompactRows} from '../../../screens/settings-live/owner-dashboard/model';
 import {OwnerAlertCard, OwnerCalm, OwnerJobGroup, OwnerJobRow, OwnerSection, OwnerSubheading} from './parts';
 import {OwnerHealthSection} from './health';
 import {OwnerStatisticsSection} from './statistics';
 import {OwnerUpdateCard, type OwnerUpdateView} from './update-card';
 import {OwnerCompactRows, OwnerNowPlayingHeader, OwnerShowAll, OwnerStreamCards, OwnerStreamTotals, type OwnerStreamEntry} from './streams';
-import {BarSurface} from '../../../kit/layout/TopBar';
+import {BarSurface, TopBar} from '../../layout/TopBar';
 
 export type OwnerDashboardPageProps = Readonly<{
   t: Translate;
@@ -62,7 +59,7 @@ export type OwnerDashboardPageProps = Readonly<{
 }>;
 
 /** One page for every width of the owner Dashboard's phone layout (owner-dashboard.html frames 2–8). */
-export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
+export function OwnerDashboardContent(props: OwnerDashboardPageProps) {
   const {t, role} = props, theme = useTheme(), viewport = useWindowDimensions().height;
   const [scrolled, setScrolled] = useState(false), [stuck, setStuck] = useState(false);
   const [first, setWindow] = useState<{first: number; last: number}>({first: 0, last: 0});
@@ -93,9 +90,10 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
     setStuck(previous => previous === sticks ? previous : sticks);
   };
   return <View style={{flex: 1}}>
-    <ServerBand viewerRole={role} audience="administrators" height={400}/>
-    <ScrollView testID="owner-dashboard-scroll" refreshControl={props.refreshControl} scrollEventThrottle={16} onScroll={onScroll} contentContainerStyle={{paddingTop: bar + 8, paddingBottom: 80}}>
-      <OwnerHeader {...props}/>
+    <ScrollView testID="owner-dashboard-scroll" refreshControl={props.refreshControl} scrollEventThrottle={16} onScroll={onScroll} contentContainerStyle={{paddingTop: bar + theme.space.xs, paddingBottom: theme.space.pageBottom, rowGap: theme.space.xs}}>
+      <View style={{marginHorizontal: theme.space.sm}}><ServerHeader serverName={props.serverName} viewerRole={role} audience="administrators" variant="page"
+        facts={[...(props.health.status ? [{id: 'health', text: props.health.status, tone: props.health.degraded ? 'warning' as const : 'normal' as const}] : []),
+          ...[props.health.line, props.updated].filter((fact): fact is string => !!fact).map((text, index) => ({id: String(index), text}))]}/></View>
       {props.error !== undefined && props.streams.length ? <View style={{paddingHorizontal: 16}}><OwnerCalm icon="i-warn" tone="error" title={t('next.shell.activityError')} action={{label: t('next.shell.tryAgain'), onPress: props.onRetry}}/></View> : null}
       <OwnerNowPlayingHeader t={t} people={props.people} count={count} expanded={expanded} onShowFewer={props.onShowFewer} hidden={stuck}
         onLayout={event => {headerTop.current = event.nativeEvent.layout.y;}}/>
@@ -130,42 +128,11 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
       <BarSurface/>
       <OwnerNowPlayingHeader t={t} people={props.people} count={count} expanded onShowFewer={props.onShowFewer} sticky/>
     </View> : null}
-    {!props.inline && <View style={{position: 'absolute', top: 0, left: 0, right: 0, height: bar, paddingTop: props.topInset, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', zIndex: 20}}>
-      {scrolled ? <BarSurface/> : null}
-      <Focusable testID="owner-dashboard-back" accessibilityRole="button" accessibilityLabel={t('action.back')} onPress={props.onBack} focusRadius={20} style={{width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center'}}>
-        <Icon name="i-left" size={22} color={theme.colors.text}/>
-      </Focusable>
-      {scrolled ? <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: props.topInset, height: 48, alignItems: 'center', justifyContent: 'center'}}>
-        <Text numberOfLines={1} style={[shellType(16.5, 800, 'normal', -.015), {color: theme.colors.text}]}>{t('next.dashboard.title')}</Text>
-        <Text numberOfLines={1} style={[shellType(12, 600), {color: theme.colors.accentStrong}]}>{props.serverName}</Text>
-      </View> : null}
+    {!props.inline && <View style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20}}>
+      <TopBar
+        title={t('next.dashboard.title')}
+        back={{label: t('action.back'), onPress: props.onBack, testID: 'owner-dashboard-back'}}
+        surface={scrolled}/>
     </View>}
-  </View>;
-}
-
-function OwnerHeader({t, role, serverName, health, updated}: OwnerDashboardPageProps) {
-  const theme = useTheme();
-  const audience = role === 'owner' ? t('next.shell.serverVisibility.ownerShared') : t('next.shell.serverVisibility.administrator');
-  return <View style={{paddingHorizontal: 20}}>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-      <View style={{height: 28, flexDirection: 'row', alignItems: 'center', gap: 7, paddingLeft: 8, paddingRight: 11, borderRadius: 8, backgroundColor: alpha(theme.colors.ink, .55)}}>
-        <Icon name="i-server" size={15} color={theme.colors.text}/>
-        <Text style={[shellType(12.5, 700), {color: theme.colors.text}]}>{t('next.shell.server')}</Text>
-      </View>
-      <Text numberOfLines={1} style={[shellType(12.5, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{audience}</Text>
-    </View>
-    <Text accessibilityRole="header" style={[shellType(40, 800, 'normal', -.04), {color: theme.colors.text, marginTop: 14}]}>{t('next.dashboard.title')}</Text>
-    <View style={{flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 14, marginTop: 14}}>
-      <Text style={[shellType(19, 800, 'normal', -.02), {color: theme.colors.text}]}>{serverName}</Text>
-      {/* An administrator's header makes no health claim: it is given no status (console rule 4). */}
-      {health.status ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-        <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: health.degraded ? theme.colors.amber : theme.colors.healthy}}/>
-        <Text style={[shellType(14, 700), {color: theme.colors.text}]}>{health.status}</Text>
-      </View> : null}
-    </View>
-    {health.line ? <Text style={[shellType(13.5, 400), {color: theme.colors.textSecondary, marginTop: 6}]}>{health.line}</Text> : null}
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10}}>
-      {updated ? <Text numberOfLines={1} style={[shellType(12.5, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{updated}</Text> : null}
-    </View>
   </View>;
 }

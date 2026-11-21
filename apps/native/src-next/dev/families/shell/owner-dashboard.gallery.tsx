@@ -8,8 +8,8 @@ import type {DashboardAlert} from '../../../screens/settings-live/dashboard-cont
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {Gallery} from '../../gallery-registry';
 import {useTheme} from '../../../kit/theme';
-import {OwnerDashboardPage} from '../../../screens/settings-live/owner-dashboard/page';
-import {OwnerMoveSheet} from '../../../screens/settings-live/owner-dashboard/move-sheet';
+import {OwnerDashboardContent as OwnerDashboardPage} from '../../../kit/settings/dashboard/OwnerDashboardContent';
+import {OwnerMoveSheet} from '../../../kit/settings/dashboard/move-sheet';
 import {ownerAlertView, ownerHealthLine, ownerJobView, ownerStreamView, type OwnerSessionTotals, type OwnerViewing} from '../../../screens/settings-live/owner-dashboard/model';
 
 const t = defaultI18n.t;

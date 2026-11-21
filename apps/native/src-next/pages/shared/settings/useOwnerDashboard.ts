@@ -1,30 +1,26 @@
 import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
-import React, {useEffect, useMemo, useState} from 'react';
+import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {repeat} from '../../../../../../packages/client-core/src/timer';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
-import {sessionViewer, STOP_MESSAGE_MAX, stopMessage} from '../../../../../../packages/client-core/src/server-admin/now-playing';
-import {Linking, Text, View} from 'react-native';
-import {dataFolderConfirmText} from '../../../../../../packages/client-core/src/admin/data-folder';
+import {Linking} from 'react-native';
 import {ApiError} from '../../../../../../packages/client-core/src/http';
+import {stopMessage} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import {SettingsUpdatesSource, type UpdatesSnapshot} from '../../../../../../packages/client-core/src/server-admin/updates-source';
-import {Button, FormError, TextField} from '../../../kit/controls';
-import {BottomSheet, Menu, type MenuEntry} from '../../../kit/overlays';
-import {useTheme} from '../../../kit/theme';
+import type {MenuEntry} from '../../../kit/overlays';
 import {usePullRefresh} from '../../../kit/states/usePullRefresh';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import type {NativeDashboardController} from '../dashboard-controller';
-import type {NativeSettingsLivePorts} from '../ports';
-import {createNativeOwnerDashboardReader, type NativeOwnerDashboardReader} from './reader';
+import type {NativeDashboardController} from '../../../screens/settings-live/dashboard-controller';
+import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
+import {createNativeOwnerDashboardReader, type NativeOwnerDashboardReader} from '../../../screens/settings-live/owner-dashboard/reader';
 import {
   appendOwnerSessions, ownerAlertView, ownerDerivedTotals, ownerHealthLine, ownerIsNewServer, ownerJobView, ownerPeopleLine, ownerStreamView, ownerUpdatedLabel, ownerUsesCompactRows,
   type OwnerAlertView, type OwnerHealthWindow, type OwnerJobView, type OwnerStreamView, type OwnerViewing, type OwnerViewingPeriod,
-} from './model';
-import {OwnerDashboardPage} from './page';
-import {ownerUpdateView} from './update-card';
-import type {OwnerStreamEntry} from './streams';
+} from '../../../screens/settings-live/owner-dashboard/model';
+import {ownerUpdateView} from '../../../kit/settings/dashboard/update-card';
+import type {OwnerStreamEntry} from '../../../kit/settings/dashboard/streams';
 
 const noUpdates: UpdatesSnapshot = Object.freeze({phase: 'idle', busy: false}), noUpdatesSubscription = () => () => {};
 const noUpdatesSnapshot = () => noUpdates;
@@ -59,9 +55,9 @@ function useOwnerStatistics(reader: NativeOwnerDashboardReader, period: OwnerVie
 
 
 /** Binds the one authorized dashboard snapshot to the drawn phone page; it never chooses a role. */
-export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = false}: {controller: NativeDashboardController; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; inline?: boolean}) {
-  const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const theme = useTheme(), insets = useSafeAreaInsets(), t = runtime.text.t;
+export function useOwnerDashboard({controller, ports, runtime, inline = false}: {controller: NativeDashboardController; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; inline?: boolean}) {
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  const insets = useSafeAreaInsets(), t = runtime.text.t;
   const reader = useMemo(() => createNativeOwnerDashboardReader(controller.lifetime, ports), [controller, ports]);
   useEffect(() => () => reader.dispose(), [reader]);
   const [healthWindow, setHealthWindow] = useState<OwnerHealthWindow>('live'), [viewingPeriod, setViewingPeriod] = useState<OwnerViewingPeriod>('30d');
@@ -75,9 +71,9 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
     ? new SettingsUpdatesSource(reader.updates, () => controller.lifetime.current(), runtime.reportError)
     : undefined, [owner, reader, controller, runtime]);
   useEffect(() => {if (!updates) return; void updates.load(); return () => updates.dispose();}, [updates]);
-  const updateSnapshot = React.useSyncExternalStore(updates?.subscribe ?? noUpdatesSubscription, updates?.getSnapshot ?? noUpdatesSnapshot);
+  const updateSnapshot = useSyncExternalStore(updates?.subscribe ?? noUpdatesSubscription, updates?.getSnapshot ?? noUpdatesSnapshot);
   const update = owner ? ownerUpdateView(updateSnapshot) : undefined;
-  useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 30_000); return () => clearInterval(timer);}, []);
+  useEffect(() => repeat(async () => {setNow(serverNow());}, {everyMs: 30_000, immediate: false, backoff: {baseMs: 30_000, maxMs: 30_000}}).stop, []);
   const totals = state.totals ?? ownerDerivedTotals(state.sessions);
   const compact = ownerUsesCompactRows(totals);
   // Show all opens every stream in place. The first page is the controller's own read; the rest
@@ -100,10 +96,6 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   }, [expanded, compact, reader, state.sessions, state.nextCursor, allRevision]);
   const streamRows = expanded && all.items.length ? all.items : state.sessions;
   const raw = (id: string) => streamRows.find(session => session.id === id) ?? state.sessions.find(session => session.id === id);
-  const run = async (work: () => Promise<void>) => {
-    setBusy(true); setActionError(undefined);
-    try {await work(); await controller.refresh();} catch (error) {setActionError(error);} finally {setBusy(false);}
-  };
   const reload = () => {setActionError(undefined); setAllRevision(value => value + 1); telemetry.reload(); statistics.reload(); void updates?.load(); return controller.refresh();};
   const refresh = () => {void reload();};
   // owner-dashboard 2: pulling down refreshes the page; the ring stays until the Dashboard's own read settles, under the page's top bar.
@@ -125,43 +117,48 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   // The rebuilt server takes no job commands; the sheet only names the job and its state.
   const jobItems: readonly MenuEntry[] = [];
   const stopSession = stopView ? raw(stopView.id) : undefined;
-  return <>
-    <OwnerDashboardPage t={t} role={owner ? 'owner' : 'administrator'} serverName={ports.serverName()} topInset={inline ? 0 : insets.top} inline={inline}
-      health={{degraded: health.facts.degraded, status: owner ? health.status : '', line: health.line, ...(health.uptimeSeconds === undefined ? {} : {uptimeSeconds: health.uptimeSeconds})}}
-      updated={ownerUpdatedLabel(telemetry.reading?.observedAt ?? (state.observedAt ? Date.parse(state.observedAt) : undefined), now, t)} loading={state.loading || busy} error={actionError ?? state.error}
-      streams={entries} streamTotals={totals} expanded={expanded && compact} allStreams={allEntries} allError={all.error}
-      onShowAll={() => setExpanded(true)} onShowFewer={() => setExpanded(false)} onRetryAll={() => setAllRevision(value => value + 1)}
-      people={totals.streams ? ownerPeopleLine(totals, t) : t('next.shell.streams', {count: 0})} alerts={alerts} jobs={jobs}
-      update={update} onCheckUpdate={() => {void updates?.check();}}
-      onReleaseNotes={() => {const url = update?.notesURL; if (url && controller.lifetime.current()) void Linking.openURL(url).catch(error => {if (controller.lifetime.current()) runtime.reportError(error);});}}
-      telemetry={telemetry.reading} telemetryError={telemetry.error} healthWindow={healthWindow} healthNote={ownerIsNewServer(health.uptimeSeconds) ? t('next.dashboard.healthLater') : undefined}
-      summary={statistics.summary} statisticsError={statistics.error} viewingPeriod={viewingPeriod}
-      onBack={() => ports.context.navigation.back(controller.lifetime.authority)} refreshControl={pull} onRetry={refresh}
-      onHealthWindow={setHealthWindow} onViewingPeriod={setViewingPeriod}
-      onFixPermissions={view => {setRefusal(''); setFixView(view);}}
-      onJobMenu={view => {setJobMenu(view); setActionError(undefined);}}
-      onStop={view => {setMessage(''); setStopView(view);}} onStreamMenu={view => {setStreamMenu(view); setActionError(undefined);}}/>
-    <Menu open={Boolean(streamMenu)} onOpenChange={open => {if (!open) setStreamMenu(undefined);}} presentation="sheet" testID="owner-stream-menu"
-      title={streamMenu?.title} description={streamMenu ? `${streamMenu.viewer.username || streamMenu.viewer.name} · ${streamMenu.viewer.device}` : undefined} items={menuItems}/>
-    <Menu open={Boolean(jobMenu)} onOpenChange={open => {if (!open) setJobMenu(undefined);}} presentation="sheet" testID="owner-job-menu" title={jobMenu?.title} description={jobMenu?.subtitle ?? jobMenu?.status} items={jobItems}/>
-    <BottomSheet open={Boolean(stopView)} onOpenChange={open => {if (!open && !busy) setStopView(undefined);}} testID="owner-stop-sheet" keyboardAvoiding
-      title={stopSession ? t('web.nowPlaying.stopTitle', {title: stopSession.title || t('web.nowPlaying.untitled')}) : t('web.nowPlaying.stop')}
-      description={stopSession ? t('web.nowPlaying.stopBody', {viewer: sessionViewer(stopSession, t)}) : undefined}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={busy} onPress={() => setStopView(undefined)}>{t('action.cancel')}</Button><Button variant="glass" disabled={busy} loading={busy} textStyle={{color: theme.colors.record}} onPress={() => {const view = stopView; if (view) void run(async () => {await reader.stop(view.id, stopMessage(message)); setStopView(undefined);});}}>{t('web.nowPlaying.stopConfirm')}</Button></View>}>
-      <TextField testID="owner-stop-message" label={t('web.nowPlaying.messageLabel')} description={t('web.nowPlaying.messageHelp')} placeholder={t('web.nowPlaying.messagePlaceholder')} value={message} onChangeText={setMessage} maxLength={STOP_MESSAGE_MAX} multiline/>
-    </BottomSheet>
-    <BottomSheet open={Boolean(fixView)} onOpenChange={open => {if (!open && !busy) setFixView(undefined);}} testID="owner-fix-permissions-sheet"
-      title={t('next.dashboard.fixPermissions')} description={fixView?.owner && fixView.path ? dataFolderConfirmText(fixView.owner, fixView.path) : undefined}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={busy} onPress={() => setFixView(undefined)}>{t('action.cancel')}</Button><Button variant="primary" disabled={busy} loading={busy} onPress={() => {
-        void (async () => {
-          setBusy(true); setRefusal('');
-          // A refusal is shown in the server's own words, so the owner sees why nothing changed.
-          try {await reader.fixPermissions(); setFixView(undefined); await controller.refresh();}
-          catch (error) {if (error instanceof ApiError && error.message) setRefusal(error.message); else setActionError(error);}
-          finally {setBusy(false);}
-        })();
-      }}>{t('next.dashboard.fixPermissions')}</Button></View>}>
-      {refusal ? <FormError placement="inline">{refusal}</FormError> : null}
-    </BottomSheet>
-  </>;
+  const opened = useRef({stopView, fixView}), flight = useRef(false);
+  useLayoutEffect(() => {opened.current = {stopView, fixView};}, [stopView, fixView]);
+  const confirmStop = async () => {
+    if (!stopView || !stopSession || opened.current.stopView !== stopView || flight.current || !controller.lifetime.current()) return;
+    flight.current = true;
+    setBusy(true);
+    setActionError(undefined);
+    try {
+      await reader.stop(stopView.id, stopMessage(message));
+      if (controller.lifetime.current()) {setStopView(undefined); await controller.refresh();}
+    } catch (error) {
+      if (controller.lifetime.current()) setActionError(error);
+    } finally {
+      flight.current = false;
+      if (controller.lifetime.current()) setBusy(false);
+    }
+  };
+  const confirmPermissions = async () => {
+    if (!fixView || opened.current.fixView !== fixView || flight.current || !controller.lifetime.current()) return;
+    flight.current = true;
+    setBusy(true);
+    setRefusal('');
+    try {
+      await reader.fixPermissions();
+      if (controller.lifetime.current()) {setFixView(undefined); await controller.refresh();}
+    } catch (error) {
+      if (!controller.lifetime.current()) return;
+      if (error instanceof ApiError && error.message) setRefusal(error.message);
+      else setActionError(error);
+    } finally {
+      flight.current = false;
+      if (controller.lifetime.current()) setBusy(false);
+    }
+  };
+  const releaseNotes = () => {
+    const url = update?.notesURL;
+    if (url && controller.lifetime.current()) void Linking.openURL(url).catch(error => {
+      if (controller.lifetime.current()) runtime.reportError(error);
+    });
+  };
+  return {t, owner, state, insets, health, telemetry, statistics, healthWindow, setHealthWindow, viewingPeriod, setViewingPeriod, now,
+    expanded, setExpanded, compact, all, setAllRevision, entries, allEntries, totals, alerts, jobs, update, updates, busy, pull,
+    actionError, setActionError, refresh, releaseNotes, confirmStop, confirmPermissions, streamMenu, setStreamMenu, jobMenu, setJobMenu, stopView, setStopView,
+    message, setMessage, stopSession, fixView, setFixView, refusal, setRefusal, menuItems, jobItems};
 }

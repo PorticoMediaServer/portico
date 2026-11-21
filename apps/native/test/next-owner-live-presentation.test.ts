@@ -23,14 +23,14 @@ const native = {Text: 'Text', View: 'View', PanResponder: {create: () => ({panHa
 
 test('Health tiles follow their measured owner pane when the pane resizes', async () => {
   const host = fixture();
-  const {OwnerHealthSection} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/health.tsx', import.meta.url), {
+  const {OwnerHealthSection} = await screenModule(new URL('../src-next/kit/settings/dashboard/health.tsx', import.meta.url), {
     react: host.react, 'react-native': native, 'react-native-svg': {default: 'Svg', Path: 'Path'},
-    '../../../kit/controls': {Segmented: 'Segmented'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {StatTiles: 'StatTiles'},
-    '../../../kit/theme': {useTheme: () => theme}, '../../../kit/shell/visual': visual,
+    '../../controls': {Segmented: 'Segmented'}, '../../overlays': {BottomSheet: 'BottomSheet'}, '../../shell': {StatTiles: 'StatTiles'},
+    '../../theme': {useTheme: () => theme}, '../../shell/visual': visual,
     '../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
     '../../../../../../packages/client-core/src/presentation/content': {formatBytes: String},
     './parts': {OwnerCalm: 'OwnerCalm', OwnerSection: 'OwnerSection'},
-    './model': {OWNER_HEALTH_WINDOWS: ['hour'], ownerHealthTiles: () => [{id: 'cpu'}], ownerHealthWindowLabel: String, ownerHealthDetail: () => undefined},
+    '../../../screens/settings-live/owner-dashboard/model': {OWNER_HEALTH_WINDOWS: ['hour'], ownerHealthTiles: () => [{id: 'cpu'}], ownerHealthWindowLabel: String, ownerHealthDetail: () => undefined},
   });
   const render = () => host.render(() => OwnerHealthSection({reading: {}, window: 'hour', onWindow() {}, onRetry() {}, t}));
   let tree = render();
@@ -43,10 +43,10 @@ test('Health tiles follow their measured owner pane when the pane resizes', asyn
 
 test('Background job groups keep every row full width and indent only separators', async () => {
   const host = fixture();
-  const {OwnerJobGroup} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/parts.tsx', import.meta.url), {
+  const {OwnerJobGroup} = await screenModule(new URL('../src-next/kit/settings/dashboard/parts.tsx', import.meta.url), {
     react: host.react, 'react-native': native, 'react-native-svg': {default: 'Svg', Circle: 'Circle'},
-    '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../../kit/Icon': {Icon: 'Icon'},
-    '../../../kit/theme': {useTheme: () => theme}, '../../../kit/shell/visual': visual,
+    '../../controls': {Button: 'Button', Focusable: 'Focusable'}, '../../Icon': {Icon: 'Icon'},
+    '../../theme': {useTheme: () => theme}, '../../shell/visual': visual,
   });
   const children = ['first', 'second', 'third'];
   const tree = host.render(() => OwnerJobGroup({children}));
@@ -60,11 +60,11 @@ test('Background job groups keep every row full width and indent only separators
 
 test('Move playback announces the same readable position it submits and clamps adjustments', async () => {
   const host = fixture(); let sent: number | undefined;
-  const {OwnerMoveSheet} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/move-sheet.tsx', import.meta.url), {
+  const {OwnerMoveSheet} = await screenModule(new URL('../src-next/kit/settings/dashboard/move-sheet.tsx', import.meta.url), {
     react: host.react, 'react-native': native,
     '../../../../../../packages/client-core/src/server-admin/now-playing': {clampToLength: (value: number, length: number) => Math.max(0, Math.min(length, value)), positionClock: (value: number) => `${value / 1000}s`, sessionViewer: () => 'Viewer'},
-    '../../../kit/controls': {Button: 'Button'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'},
-    '../../../kit/theme': {useTheme: () => theme}, '../../../kit/shell/visual': visual,
+    '../../controls': {Button: 'Button'}, '../../overlays': {BottomSheet: 'BottomSheet'},
+    '../../theme': {useTheme: () => theme}, '../../shell/visual': visual,
   });
   const render = () => host.render(() => OwnerMoveSheet({session: {id: 'session', durationMs: 60_000, positionMs: 0}, t, busy: false, onCancel() {}, onMove: (position: number) => {sent = position;}}));
   let tree = render(), track = find(tree, 'owner-move-track');
