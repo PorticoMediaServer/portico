@@ -3666,10 +3666,10 @@
   --type-episode-code-tracking: 0em;
   --type-episode-code-transform: none;
   --type-episode-code-color: var(--emphasis-primary);
-  --type-episode-plate-title-size: 1.375rem;
-  --type-episode-plate-title-line: normal;
+  --type-episode-plate-title-size: 2.125rem;
+  --type-episode-plate-title-line: 2.125rem;
   --type-episode-plate-title-weight: 800;
-  --type-episode-plate-title-tracking: -0.025em;
+  --type-episode-plate-title-tracking: -0.04em;
   --type-episode-plate-title-transform: none;
   --type-episode-plate-title-color: var(--emphasis-primary);
   --type-player-title-size: 2.125rem;
