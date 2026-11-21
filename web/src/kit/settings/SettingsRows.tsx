@@ -67,6 +67,8 @@ function Row({row, flat, dependent = false, inheritedDisabled = false, ...props}
   // condition fails (Remote security only while Remote access is On).
   if (row.enableWhen?.hide && !conditionMet) return null;
   const disabled = inheritedDisabled || state.disabled || state.readOnly || state.saving || !conditionMet;
+  // A read-only fact (Device name, Username, Server version) reads at full strength; only a control that can't be used now is dimmed.
+  const dimmed = inheritedDisabled || state.disabled || state.saving || !conditionMet;
   // Keep the values in the accessibility tree. Custom controls still inherit
   // the row's interaction guard, including a disabled parent or an active save.
   const guard = (event: SyntheticEvent) => {if (disabled) {event.preventDefault(); event.stopPropagation();}};
@@ -98,7 +100,7 @@ function Row({row, flat, dependent = false, inheritedDisabled = false, ...props}
       rows={(c.items ?? []).map(item => ({id: item.id!, label: t(item.label), value: String(values[item.id!]), hint: defaults && values[item.id!] !== defaults[item.id!] ? <span className={styles.changed}>{t('next.shell.changed')}<button type="button" disabled={disabled} onClick={() => change({...values, [item.id!]: defaults[item.id!]})}>{t('next.shell.reset')}</button></span> : undefined}))} onChange={(id, value) => change({...values, [id]: value})} /></div>;
   } else control = props.renderSpecial(row, {...state, disabled});
   const body = state.bare ? <div id={row.id} data-found={props.foundRowId === row.id || undefined} {...controlState}>{control}</div> : flat || c.type === 'matrix' ? <div id={row.id} className={styles.specialRow} data-found={props.foundRowId === row.id || undefined} {...controlState}>{control}</div> : <SettingsRow id={row.id} dependent={dependent} found={props.foundRowId === row.id} stacked={['preview', 'list', 'table'].includes(c.type) || state.wide === true} path={settingsPathRow(row.id, c.type)}
-    label={<><MatchText text={label} query={props.query ?? ''} />{reset}</>} help={state.help ?? (row.help && <MatchText text={t(row.help)} query={props.query ?? ''} />)} className={disabled ? styles.disabled : undefined}>
+    label={<><MatchText text={label} query={props.query ?? ''} />{reset}</>} help={state.help ?? (row.help && <MatchText text={t(row.help)} query={props.query ?? ''} />)} className={dimmed ? styles.disabled : undefined}>
     <div className={styles.control} data-wide={state.wide || undefined} {...controlState}>{changed && defaultLabel !== undefined && ['toggle','select','segmented','number'].includes(c.type) && <span className={styles.defaultValue}>{t('next.settings.defaultValue', {value: defaultLabel})}</span>}{control}</div>
   </SettingsRow>;
   return <Fragment>{body}{state.error && <p className={styles.rowError} role="alert">{state.error}</p>}{row.children?.map(child => <Row key={child.id} row={child} {...props} dependent inheritedDisabled={disabled} />)}</Fragment>;
