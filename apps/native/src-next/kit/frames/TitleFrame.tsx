@@ -115,7 +115,7 @@ export type TitleFrameProps = Readonly<{
   children?: ReactNode;
   /** Beside the panel on a tablet on its side and TV (a collection's About, an album's Details); under it otherwise. */
   aside?: ReactNode;
-  /** On TV, beside a square cover: under its words and buttons (tv-more frame 6: an album's songs). Elsewhere it opens the
+  /** On TV, beside a cover at the left: under its words and buttons (tv-more frame 6: an album's songs). Elsewhere it opens the
    * panel. */
   beside?: ReactNode;
   /** The bar that replaces the hero (desktop-detail f3, phone-detail d1 frame 2, detail-tv-4). The frame sets it itself:
@@ -314,8 +314,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   const artistTV = tv && cover?.shape === 'circle' && !!cover.large, ring = spec.parts.artistCircleTV;
   // A square cover on TV (an album, tv-more frame 6) sits level with the words, its head starting where an artist's does,
   // and what the page sets `beside` it (the songs) runs under its words.
-  const squareTV = tv && cover?.shape === 'square';
-  const coverSize = artistTV ? ring.size : cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
+  const besideCoverTV = tv && (cover?.shape === 'square' || cover?.shape === 'circle' && !cover.large && !!beside);
+  const coverSize = artistTV || besideCoverTV && cover?.shape === 'circle' ? ring.size : cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
     : spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   // Its box holds the rings' room around the circle (a parent clips what is drawn outside it): the circle stays 280 from the
   // screen's edge and level with the words.
@@ -327,10 +327,10 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View>
       {/* A cover page with no buttons and no words (a person without a biography) ends at its name: no empty gap. */}
       {(primary || actions.length > 0 || words || picker) && <View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View>}</View>
-    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: artistTV || squareTV ? ring.top : tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && (!tv || artistTV) ? 'row-reverse' : 'row', alignItems: (cover.shape === 'circle' || squareTV) && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
+    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: artistTV || besideCoverTV ? ring.top : tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && (!tv || artistTV) ? 'row-reverse' : 'row', alignItems: (cover.shape === 'circle' || besideCoverTV) && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
       {/* Where the name starts (a page offset: the head is the page's first part): the bar takes over as it reaches the bar. */}
       {split && discs}{coverBox}<View onLayout={event => setWordsTop(event.nativeEvent.layout.y)} style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View>
-        {squareTV && beside && <View style={{marginTop: frame.sectionGap}}>{beside}</View>}</View></View>
+        {besideCoverTV && beside && <View style={{marginTop: frame.sectionGap}}>{beside}</View>}</View></View>
     // A tablet on its side and TV: the art box is at least its drawn height and grows with its words, so a long title or a
     // second line of buttons pushes the panel down rather than rising under Back (the words never overlap the discs).
     : <><View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={stacked ? {height} : {minHeight: height, justifyContent: 'flex-end', paddingTop: tv ? frame.titleTop : discRow, paddingBottom: spec.copyBottom[form]}}>
@@ -349,7 +349,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
 
   const posterWidth = theme.spec.card.width.poster[theme.column];
   const panel = loading ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{flexDirection: 'row', gap: theme.space.sm, paddingLeft: frame.gutter, overflow: 'hidden'}}>
-    {Array.from({length: 6}, (_, index) => <SkeletonBlock key={index} width={posterWidth} height={posterWidth * 1.5} shine={index === 0}/>)}</View> : !squareTV && beside ? <>{beside}{children}</> : children;
+    {Array.from({length: 6}, (_, index) => <SkeletonBlock key={index} width={posterWidth} height={posterWidth * 1.5} shine={index === 0}/>)}</View> : !besideCoverTV && beside ? <>{beside}{children}</> : children;
   const besideAside = !!aside && !stacked && !loading;
   // TV: the seasons and each of the panel's sections, in the order focus walks them.
   const sections = !tv ? [] : [...(seasons ? [{tab: seasons.tab, node: <View style={{flexDirection: 'row', gap: seasonColumn.gap, paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}>

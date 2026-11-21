@@ -51,9 +51,9 @@ export function sameDestination(a: ShellDestination, b: ShellDestination): boole
 
 /** tv-detail.html, collections.html 16-21 and 43: a page pushed over a rail page keeps the closed rail at its left
  * (focus map Choice 16), an audiobook's page (collections 43) too. Album and artist pages (drawn by music navigation,
- * outside the route layer) and the author, series and reading pages (old screens that name no start focus, so focus would
+ * outside the route layer) and the reading pages (old screens that name no start focus, so focus would
  * land in the rail) are not wired to it yet, though collections 44-45 and tv-more.html 6-8 draw it there too; full-screen
  * pages (the reader, players) keep the whole screen. */
 export const tvRouteKeepsRail = (route: Readonly<{kind: string}>): boolean => ['title', 'person', 'collection',
   'home-see-all', 'search-genre', 'search-genres', 'saved-view', 'saved-destination',
-  'book'].includes(route.kind);
+  'book', 'audiobook'].includes(route.kind);
