@@ -123,7 +123,7 @@ export const frame = {
       // bylineCircle: the small initials circle before a byline's name (phone-read 7's author, 28).
       // listRow: a title in a phone's list of titles (phone-detail d3 frame 8's films in a collection): poster 56 wide, the
       // watched bar 72, the ⋯ target 44; a book's square cover in such a list 66 (collections 41b/41c).
-      parts: {aboutLabel: forms(104, 140, 140, 170), /* TV: detail-tv 4 `.about dl` 170 */ aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, bylineCircle: 28, artistCircleTV: {size: 360, right: 280, ring: 80, top: 150, rings: [40, 80] as readonly number[]}, listRow: {poster: 56, square: 66, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
+      parts: {aboutLabel: forms(104, 140, 140, 140), aboutPhone: {label: 92, gap: 12, pad: 8}, coverCirclePhone: 96, coverCircleLargePhone: 164, bylineCircle: 28, artistCircleTV: {size: 360, right: 280, ring: 80, top: 150, rings: [40, 80] as readonly number[]}, listRow: {poster: 56, square: 66, gap: 14, bar: 72, more: 44, moreIcon: 20, check: 16},
         /** An episode row's still from a tablet up (tablet f7, 210) and the narrowest a Previous / Next card goes before the pair stacks (desktop-detail f5). */
         episodeArt: 210, neighbourMin: 220,
         /** A tablet on its side: the season's episodes are a sideways row of tiles this wide (tablet f7, three and a bit in view), and the
@@ -226,7 +226,8 @@ export const frame = {
       inlineIcon: forms(24, 22, 22, 28),
     },
     /** TV (final3-tv-12): the title is a display line, the queue rows are 88 with 72 artwork. */
-    tv: {fromTop: 124, artTop: 230, titleTop: 50, scrubberTop: 360, transportTop: 442, moreTop: 576, scrubberWidth: 500, row: 88, rowArt: 72, rowArtRadius: 10, moreHeight: 64},
+    // titleLine: tv.html 7 `.np-info h1` line-height .98 (the title sits on that line; the native line floor draws a taller box).
+    tv: {fromTop: 124, artTop: 230, titleTop: 50, titleLine: .98, scrubberTop: 360, transportTop: 442, moreTop: 576, scrubberWidth: 500, row: 88, rowArt: 72, rowArtRadius: 10, moreHeight: 64},
   },
   /** Frame 7, the video player's chrome (desktop-player, tablet-play, phone-player and tv-player mock-ups; R6: the web's
    * values are its mock-ups', desktop-player 1 and 7). Scrims are stops of the dim colour: alpha, then how far from the edge. */
@@ -293,9 +294,7 @@ export const frame = {
   pane: {width: {...forms(0, 380, 420, 640), web: 600}},
   /** TV Search: the keyboard column beside the results (final3-tv-09: 416 of 1600) and the Top result's 16:9 picture (400 of 1600). */
   live: {programmePanel: {tabletMin: 700, tablet: 400, landscape: 376, tv: 640}, recordedGrid: {wideMin: 700, phone: 2, tablet: 3, tv: 4}},
-  /** TV (tv.html 5 `.sfield`, `.kb`, `.voice`): the keyboard 32 under the field; the voice hint 52 under the keyboard, its mic
-   * a 56 circle with a 28 glyph. */
-  search: {tvKeyboardGap: 32, tvVoice: {gap: 52, mic: 56, glyph: 28}, keyboardWidth: 500, topResultArt: 480, tvResultsGap: 80, tvFocusRoom: 40, onNowCardWidth: 244, resultRowArt: {poster: {width: 46, height: 69}, wide: {width: 100, height: 56}, square: {width: 56, height: 56}}},
+  search: {keyboardWidth: 500, topResultArt: 480, tvResultsGap: 80, tvFocusRoom: 40, onNowCardWidth: 244, resultRowArt: {poster: {width: 46, height: 69}, wide: {width: 100, height: 56}, square: {width: 56, height: 56}}},
   /** The Live TV guide grid: minutes to points (phone-guide g1, tablet-play 6, desktop-live live-guide, final3-tv-10), the
    * channel column, a row, a channel's mark, the time column of a list of airings, the ruler, the gap between cells. */
   guide: {

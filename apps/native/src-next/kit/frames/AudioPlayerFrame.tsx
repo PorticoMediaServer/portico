@@ -276,6 +276,10 @@ function TVAudio({more, context, source, artwork, cover, icon, title, byline = [
   // The title that needed a second line at its role (state keyed by the title, so a new title measures afresh).
   const titleStyle = theme.type.audioTitle, [longTitle, setLongTitle] = useState<string>(), long = longTitle === title;
   const [titleHeight, setTitleHeight] = useState(0);
+  // The line floor draws the one-line title in a box taller than the frame's (.98 of its size); the surplus is split above
+  // and below the words and given back, so the title and the artist 18 under it sit on tv.html 7's lines (they were 18 and
+  // 36 low) and the ink keeps its room.
+  const drawnLine = titleStyle.lineHeight, giveBack = typeof drawnLine !== 'number' ? 0 : Math.max(0, (drawnLine - (titleStyle.fontSize ?? 0) * tvSpec.titleLine) / 2);
   const shift = Math.max(0, titleHeight - (tvSpec.scrubberTop - tvSpec.titleTop - theme.space.md));
   const label = (item: AudioControl | AudioOption) => 'value' in item && item.value !== undefined ? `${item.value}  ${item.label}` : item.label;
   const buttons = [...(chapter ? [speed, sleep, chapters] : [lyrics, playlist])].filter((item): item is AudioControl => item !== undefined);
@@ -292,8 +296,8 @@ function TVAudio({more, context, source, artwork, cover, icon, title, byline = [
               A title that needs a second line takes the page title's role instead, so it is never cut, never squeezed
               (Android keeps the full line height when it shrinks text) and reserves room for the byline above the scrubber. */}
           <Text accessibilityRole="header" onTextLayout={event => {if (!long && event.nativeEvent.lines.length > 1) setLongTitle(title);}}
-            style={[long ? theme.type.pageTitle : titleStyle, {color: theme.colors.text}]}>{title}</Text>
-          {byline[0] && <Text style={[theme.type.audioByline, {marginTop: theme.space.sm}]}>{byline[0]}</Text>}
+            style={[long ? theme.type.pageTitle : titleStyle, {color: theme.colors.text}, long ? null : {marginTop: -giveBack, marginBottom: -giveBack}]}>{title}</Text>
+          {byline[0] && <Text style={[theme.type.audioByline, {marginTop: long ? theme.space.sm : theme.space.metaGap}]}>{byline[0]}</Text>}
           {byline[1] && <Text style={[theme.type.meta, {marginTop: theme.space.xs, color: theme.colors.textTertiary}]}>{byline[1]}</Text>}
           {signal !== undefined && <View style={{marginTop: theme.space.sm}}><AudioFocusRegion region={tvFocus?.signal}>{signal}</AudioFocusRegion></View>}
         </>}</View>
