@@ -58,7 +58,7 @@ function PorticoAccountPanel({context, t}: NativeSettingsPanelDeps) {
 
 function ProfilesPanel({context, t, openRoute}: NativeSettingsPanelDeps) {
   const theme = useTheme();
-  return theme.isTV ? <SettingsRow first testID="settings-panel-profiles" label={t('settings.section.profiles')} onPress={() => openRoute({kind: 'profiles'})}/>
+  return theme.isTV ? <SettingsRow first navigates testID="settings-panel-profiles" label={t('settings.section.profiles')} onPress={() => openRoute({kind: 'profiles'})}/>
     : <ProfileRoute context={context} route={context.navigation.getSnapshot().route} onBack={() => {}} embedded/>;
 }
 
@@ -203,7 +203,7 @@ export function renderNativeSettingsPanel(id: SettingsCustomId, deps: NativeSett
     case 'privacyNote': return <PrivacyNotePanel {...deps}/>;
     case 'remoteControls': return <RemoteControlsPanel {...deps}/>;
     case 'allowedDevices': return <AllowedDevicesPanel {...deps}/>;
-    case 'equalizer': return <SettingsRow first testID="settings-panel-equalizer" label={deps.t('next.settingsSpec.account.music.groups.0.rows.3.label')} onPress={() => deps.openRoute({kind: 'settings-equalizer'})}/>;
+    case 'equalizer': return <SettingsRow navigates testID="settings-panel-equalizer" label={deps.t('next.settingsSpec.account.music.groups.0.rows.3.label')} onPress={() => deps.openRoute({kind: 'settings-equalizer'})}/>;
     default: return undefined;
   }
 }

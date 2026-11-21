@@ -59,14 +59,19 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
         if (row.kind === 'server-setting') throw new Error('native_account_page_server_row');
         if (row.kind === 'action') {
           const target = nativeSettingsActionTarget(row.id);
-          return <SettingsRow key={id} testID={id} destructive={row.destructive} label={t(row.label)} description={row.help ? t(row.help) : undefined}
-            value={row.value ? t(row.value) : undefined} first={index === 0} onPress={() => {
+          const act = () => {
             controller.lifetime.assert();
             if (target === 'linkTV') ports.accountActions.linkTV();
             else if (target === 'customizeHome') ports.context.navigation.open({kind: 'home-customize'}, ports.context.authority());
             else if (target === 'quality') onQuality();
             else openConfirm(row.id === 'signOut' ? 'signOut' : 'resetRecommendations');
-          }}/>;
+          };
+          // On a touch screen an action that asks to confirm is the row's glass button (settings spec `action`, as the
+          // library settings rows draw it); a row that opens a page keeps its chevron.
+          const button = !isTV && target === 'confirm' && row.id === 'resetRecommendations';
+          return <SettingsRow key={id} testID={button ? undefined : id} destructive={row.destructive} navigates={target !== 'confirm'} label={t(row.label)} description={row.help ? t(row.help) : undefined}
+            value={row.value ? t(row.value) : undefined} first={index === 0} onPress={button ? undefined : act}
+            control={button ? <Button testID={id} variant="glass" size="small" onPress={act}>{t('settings.resetRecommendations.confirm')}</Button> : undefined}/>;
         }
         let value = row.kind === 'preference' ? state.preferences.effective[row.key] : row.storage === 'registry' ? readComposite(row.id, key => state.preferences.effective[key]) : devicePreferences.read(row.id);
         // No override stored: the drawn TV choice shows what the set reports. Both
@@ -122,7 +127,7 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
       {!isTV && page.id === 'profile' && section.id === 'notifications' && <NativeServerOfflineNoticeRow context={ports.context} runtime={runtime} lifetime={controller.lifetime}/>}
       {section.id === 'limits' && awayLimitLabel ? <>
         <SettingsRow testID="settings-away-limit" label={t('next.settingsSpec.account.quality.groups.0.rows.3.label')} description={t('next.settingsSpec.account.quality.groups.0.rows.3.help')} value={awayLimitLabel}/>
-        {!isTV && <SettingsRow testID="settings-away-limit-change" label={t('next.settingsSpec.account.quality.groups.0.rows.3.children.0.label')} onPress={onStreaming}/>}
+        {!isTV && <SettingsRow navigates testID="settings-away-limit-change" label={t('next.settingsSpec.account.quality.groups.0.rows.3.children.0.label')} onPress={onStreaming}/>}
       </> : null}
     </SectionCard>
     {isTV && page.id === 'device' && section.id === 'device' && (

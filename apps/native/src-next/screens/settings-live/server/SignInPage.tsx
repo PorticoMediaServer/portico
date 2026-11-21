@@ -86,8 +86,8 @@ export function NativeServerSignIn({ports, runtime, compactHeader = false, onOpe
         footer={<View style={{gap: 10}}><Button loading={finishBusy} disabled={finishBusy} onPress={() => {void finish();}}>{t('accounts.settings.finishNow')}</Button><Button variant="glass" disabled={finishBusy} onPress={() => setFinishing(false)}>{t('next.settings.cancel')}</Button></View>}>
         {finishError !== undefined ? <StateView variant="inline" {...runtime.error(finishError, () => {void finish();}, 'server-console')}/> : null}
       </BottomSheet>
-      <SettingsRow first label={t('settings.server.people')} onPress={() => {if (current()) onOpenPage('people');}}/>
-      <SettingsRow first label={t('settings.server.remote')} onPress={() => {if (current()) onOpenPage('remote');}}/>
+      <SettingsRow first navigates label={t('settings.server.people')} onPress={() => {if (current()) onOpenPage('people');}}/>
+      <SettingsRow first navigates label={t('settings.server.remote')} onPress={() => {if (current()) onOpenPage('remote');}}/>
       {theme.isTV && <View testID="server-signin-web-qr" style={{alignItems: 'center', gap: 12}}>
         <QRCode value={serverSignInSettingsURL(context.api.baseUrl)} size={240}/>
         <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{t('settings.openOnWeb', {url: serverSignInSettingsURL(context.api.baseUrl)})}</Text>

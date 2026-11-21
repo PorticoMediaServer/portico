@@ -197,7 +197,7 @@ export function NativeAccountSecurityPanel({kind, context, lifetime, t, runtime,
     {body}{copied && bodyText(t('api.credential.copied'))}
   </View>;
   return <>
-    <SettingsRow first testID={`settings-panel-${kind}`} label={label} onPress={open}/>
+    <SettingsRow first navigates testID={`settings-panel-${kind}`} label={label} onPress={open}/>
     {notice && <Text accessibilityLiveRegion="polite" style={[shellType(13, 400, 19), {color: theme.colors.textSecondary, padding: 14}]}>{notice}</Text>}
     {theme.platform === 'phone' ? <BottomSheet {...surface} fitContent keyboardAvoiding>{content}</BottomSheet>
       : <Dialog {...surface}><ScrollView keyboardShouldPersistTaps="handled" style={{maxHeight: Math.max(180, dimensions.height * .55)}}>{content}</ScrollView></Dialog>}
@@ -330,7 +330,7 @@ export function NativeAccessTokensPanel({context, lifetime, t, runtime}: NativeS
     footer: <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>{footer}</View>,
   };
   return <>
-    <SettingsRow first testID="settings-panel-access-tokens" label={t('api.tokens.title')} onPress={open}/>
+    <SettingsRow first navigates testID="settings-panel-access-tokens" label={t('api.tokens.title')} onPress={open}/>
     {notice && <Text accessibilityLiveRegion="polite" style={[shellType(13, 400, 19), {color: theme.colors.textSecondary, padding: 14}]}>{notice}</Text>}
     {theme.platform === 'phone' ? <BottomSheet {...surface} fitContent keyboardAvoiding>{content}</BottomSheet>
       : <Dialog {...surface}><ScrollView keyboardShouldPersistTaps="handled" style={{maxHeight: Math.max(180, dimensions.height * .55)}}>{content}</ScrollView></Dialog>}
