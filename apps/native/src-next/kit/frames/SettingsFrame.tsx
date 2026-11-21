@@ -54,7 +54,7 @@ export function SettingsListFrame({startFocus, ...props}: SettingsListFrameProps
 function SettingsListBody({bar, backdrop, search, list, profile, shortcuts, page, hints, testID, searching, closing}: Omit<SettingsListFrameProps, 'startFocus'>) {
   const frame = useFrameMetrics(), {form} = frame, phone = form === 'phone', width = searching && form === 'tv' ? frameSpec.settings.tvSearchWidth : frameSpec.settings.listWidth[form];
   // A TV row's focus ring is drawn outside the row: the list's scroll box leaves it that room so it is never cut.
-  const theme = useTheme(), column = useContext(FrameColumn), ring = form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
+  const theme = useTheme(), column = useContext(FrameColumn), tv = form === 'tv', ring = tv ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
   // A phone shows one of the two columns; the other stays mounted, hidden.
   const shown = {flex: 1}, hidden = {display: 'none'} as const;
   return <View testID={testID} pointerEvents={closing ? 'none' : undefined} style={{flex: 1, flexDirection: phone ? 'column' : 'row', paddingLeft: phone ? 0 : frame.gutter, gap: phone ? 0 : frameSpec.settings.gap[form]}}>
@@ -63,10 +63,10 @@ function SettingsListBody({bar, backdrop, search, list, profile, shortcuts, page
     <View style={phone ? page ? hidden : shown : {width}}>
       {phone && <SheetBar {...bar}/>}
       <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" style={phone ? undefined : {flex: 1, width: width + 2 * ring, marginLeft: -ring}}
-        contentContainerStyle={phone ? {paddingBottom: frameSpec.sheet.footerClear} : {paddingTop: frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}>
+        contentContainerStyle={phone ? {paddingBottom: frameSpec.sheet.footerClear} : {paddingTop: tv ? frameSpec.settings.tvTop : frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}>
         <FrameColumn.Provider value={!phone || column}>
-          {!phone && !searching && <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: frame.headerGap}]}>{bar.title}</Text>}
-          {phone ? <View style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.xs}}>{search}</View> : search}{phone && profile}{phone && shortcuts}{list}
+          {!phone && !searching && <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: tv ? frameSpec.settings.tvTitleGap : frame.headerGap}]}>{bar.title}</Text>}
+          {phone ? <View style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.xs}}>{search}</View> : tv && search ? <View style={{marginBottom: frameSpec.settings.tvFindGap}}>{search}</View> : search}{phone && profile}{phone && shortcuts}{list}
         </FrameColumn.Provider>
       </ScrollView>
       {form === 'tv' && hints ? <View style={{paddingBottom: frame.bottomClear}}>{hints}</View> : null}
@@ -126,7 +126,7 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     : beside ? <>
       {back && <Button icon="i-left" variant="link" size="compact" iconColor={theme.colors.textSecondary}
         textStyle={{color: theme.colors.textSecondary}} disabled={back.disabled} testID={back.testID} onPress={back.onPress}>{back.label}</Button>}
-      <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : frame.titleTop || frame.headerGap, marginBottom: frame.headerGap}}>
+      <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : theme.isTV ? frameSpec.settings.tvTop : frame.titleTop || frame.headerGap, marginBottom: theme.isTV ? frameSpec.settings.tvTitleGap : frame.headerGap}}>
         {/* "✓ Saved" follows the title, the page's own buttons keep the far end (desktop-settings f1, final3-tv-15). */}
         <Text accessibilityRole="header" style={[theme.type.pageTitle, {flexShrink: 1, color: theme.colors.text}]}>{title}</Text>
         {saved && <View style={{marginBottom: theme.space.xs}}>{saved}</View>}<View style={{flex: 1}}/>
