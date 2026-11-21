@@ -32,7 +32,7 @@ async function fixture(book = false, width = 390) {
     'react-native-reanimated': {default: {View: 'AnimatedView'}, runOnJS: (fn: any) => fn, useAnimatedStyle: (fn: any) => fn(), useSharedValue: (value: any) => ui.react.useRef({value}).current},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: () => ({supported: false})}},
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../shared/player/EqualizerPage': {EqualizerPage: 'Equalizer'},
-    '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'},
+    '../../../kit/player/SignalPath': {SignalLine: 'Signal', SignalSheet: 'SignalSheet', TVSignalSheet: 'SignalSheet'},
     '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string, values?: any) => key === 'player.opt.minutes' ? `${values.count} min`
       : key === 'player.clockOf' || key === 'player.chapterTotal' ? realI18n.t(key, values) : key}},
     '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText, clockText: (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`},

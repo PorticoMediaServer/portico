@@ -2,6 +2,7 @@ import {
   formatSignalText, musicSignal, musicSignalAccessibleName,
   type MusicSignalInput, type MusicSignalModel, type SignalStep, type SignalText, type SignalTranslate,
 } from '../../../../../../packages/client-core/src/music-signal';
+import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 
 export type NativeSignalStep = Readonly<{
   id: SignalStep['id']; label: string; value?: string; note?: string; percent?: number; changed: boolean;
@@ -26,4 +27,11 @@ export function nativeSignalPath(input: MusicSignalInput, t: SignalTranslate): N
       ...(step.percent === undefined ? {} : {percent: step.percent}), changed: step.changed,
     }))),
   });
+}
+
+const signalTranslate: SignalTranslate = (key, values) => defaultI18n.t(key as MessageId, values as never);
+export type MusicSignalView = Readonly<{input: MusicSignalInput; path: NativeSignalPath}>;
+/** The projection the host renders: one call, no store. */
+export function musicSignalView(input: MusicSignalInput): MusicSignalView {
+  return Object.freeze({input, path: nativeSignalPath(input, signalTranslate)});
 }

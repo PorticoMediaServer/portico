@@ -380,7 +380,7 @@ test('TV Now Playing names More and Lyrics from the actual mounted instance and 
     '../../../shell/model': {shellLayout: () => ({width: 1920, height: 1080, left: 0, top: 0, scale: 1})},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {supported: true}; return () => snapshot;})()}},
     '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../shared/player/EqualizerPage': {EqualizerPage: 'Equalizer'},
-    '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'}, '../../../kit/player/ListeningNotice': {NativeListeningNotice: 'Notice'},
+    '../../../kit/player/SignalPath': {SignalLine: 'Signal', SignalSheet: 'SignalSheet', TVSignalSheet: 'SignalSheet'}, '../../../kit/player/ListeningNotice': {NativeListeningNotice: 'Notice'},
     './useNowPlayingQueue': {nowPlayingSource: () => undefined, nowPlayingQueueRows: () => [], nowPlayingQueueFocusScope: () => '', nowPlayingQueueEditPort: () => undefined},
     '../../../kit/player/ListeningSongActions': {listeningSongFavorite: () => undefined}, '../../../kit/player/TVMusicFocus': {MusicFocusRegion: b.focus.FocusRegion, TVMusicFocus: 'MusicFocus', TVMusicSeek: 'Seek'}, './useTVQueuePolicy': {useTVQueuePolicy: () => ({})},
     '../../../tv/layout/TVPageMotion': {TVPageGroup: 'PageGroup', TVPageTransition: 'Transition', useTVPageMotion: () => ({open: true, ready: motionReady})}};

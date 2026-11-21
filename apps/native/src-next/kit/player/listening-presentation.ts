@@ -3,7 +3,7 @@ import {ScrollView, Text, View} from 'react-native';
 import {GestureDetector} from 'react-native-gesture-handler';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativeEqualizerCopy} from '../frames/EqualizerFrame';
-import {MusicSignalLine, MusicSignalSheet} from '../../screens/destinations/music/MusicSignal';
+import {SignalLine, SignalSheet, TVSignalSheet} from './SignalPath';
 import {NowPlayingQueue} from './NowPlayingQueue';
 import {NowPlayingLyrics} from './NowPlayingLyrics';
 import {ListeningSongActions, ListeningFavoritePaint} from './ListeningSongActions';
@@ -26,6 +26,6 @@ export const equalizerCopy = (): NativeEqualizerCopy => ({title: t('next.media.e
     return hz >= 1000 ? t('next.media.eq.khz', {frequency: hz / 1000}) : t('next.media.eq.hz', {frequency: hz});}});
 
 export const retainedListeningParts = [ListeningSurface, ListeningPanel, ListeningNoticeLine, ListeningPageBackground, ListeningGroup, ListeningSeekPaint,
-  ListeningQueuePaint, ListeningLyricsPaint, MusicSignalLine, MusicSignalSheet, ListeningFavoritePaint, AudioPanel, ChapterList,
+  ListeningQueuePaint, ListeningLyricsPaint, SignalLine, SignalSheet, TVSignalSheet, ListeningFavoritePaint, AudioPanel, ChapterList,
   ChapterTicks, AudioPlayerFrame, ListeningCover, View, Text, ScrollView, Artwork, AmbientArt, Button, Focusable, Icon, React.Fragment];
 export const omittedListeningParts = [GestureDetector, NowPlayingQueue, NowPlayingLyrics, ListeningSongActions];

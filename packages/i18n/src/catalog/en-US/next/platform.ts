@@ -64,6 +64,8 @@ export const platformMessages = {
   'next.platform.frame.playerLiveControls': 'Player: live TV',
   'next.platform.frame.playerLiveGuide': 'Player: live TV with the short guide',
   'next.platform.frame.playerLive': 'Player: live TV at the live edge',
+  'next.platform.frame.audioSignal': 'Audio player: the signal line, untouched and converted',
+  'next.platform.frame.audioSignalSheet': 'Audio player: the signal path sheet',
   'next.platform.frame.playerSkip': 'Player: Skip recap and the automatic-skip note',
   'next.platform.frame.playerUpNextCredits': 'Player: Up next with Skip credits and the scene after the credits',
   'next.platform.frame.playerUpNextCountdown': 'Player: Up next counting down',

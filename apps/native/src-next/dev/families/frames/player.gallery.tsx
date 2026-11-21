@@ -19,6 +19,7 @@ import {HeroMetadata, SeasonBar} from '../../../kit/layout';
 import {Icon} from '../../../kit/Icon';
 import {useTheme} from '../../../kit/theme';
 import {Layer} from '../../../kit/shell/Layer';
+import {SignalLine, SignalSheet, TVSignalSheet, type SignalPathView} from '../../../kit/player/SignalPath';
 import type {Gallery} from '../../gallery-registry';
 import {referenceOrigin} from '../../reference-art';
 
@@ -333,6 +334,27 @@ function Audio({variant}: {variant: AudioVariant}) {
     panel={panel}/></Window>;
 }
 
+/** The music signal path (music-plus 3/5, 3b/6), for looking at without a USB DAC: the line under the title, untouched
+ * (green, Bit-perfect) and converted, and the sheet each opens (TV's own side sheet on TV). */
+const signal = (changed: boolean): SignalPathView => ({healthy: !changed, pill: p(changed ? 'signalPillChanged' : 'signalPillLossless'), source: p('signalSource'),
+  state: p(changed ? 'signalStateChanged' : 'signalStateDirect'), steps: [
+    {id: 'file', label: p('signalStepFile'), value: p('signalStepFileValue'), changed: false},
+    {id: 'decode', label: p('signalStepDecode'), value: p('signalStepDecodeValue'), changed: false},
+    ...(changed ? [{id: 'rate', label: p('signalStepRate'), value: p('signalStepRateValue'), note: p('signalStepRateNote'), changed: true}] : []),
+    {id: 'volume', label: p('signalStepVolume'), value: p('signalStepVolumeValue'), note: p('signalStepVolumeNote'), changed: false},
+    {id: 'output', label: p('signalStepOutput'), value: p(changed ? 'signalStepOutputSpeaker' : 'signalStepOutputDac'), changed: false}]});
+function SignalLineCase() {
+  const theme = useTheme();
+  return <View testID="frames-audio-signal" style={{padding: theme.gutter, gap: theme.space.sm, alignItems: 'flex-start'}}>
+    <SignalLine path={signal(false)} onPress={() => {}}/>
+    <SignalLine path={signal(true)} onPress={() => {}}/>
+  </View>;
+}
+function SignalSheetCase({changed}: {changed: boolean}) {
+  const theme = useTheme();
+  return <Window>{theme.isTV ? <TVSignalSheet path={signal(changed)} onClose={() => {}}/> : <SignalSheet path={signal(changed)} onClose={() => {}}/>}</Window>;
+}
+
 const whole = {screen: true} as const;
 const galleries: readonly Gallery[] = [
   {id: 'frames-player', title: 'next.platform.frame.player', render: () => <Player/>, ...whole},
@@ -358,6 +380,9 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-audio-queue', title: 'next.platform.frame.audioQueue', render: () => <Audio variant="queue"/>, platforms: ['phone'], ...whole},
   {id: 'frames-audio-missing', title: 'next.platform.frame.audioMissing', render: () => <Audio variant="missing"/>, ...whole},
   {id: 'frames-audio-book', title: 'next.platform.frame.audioBook', render: () => <Audio variant="book"/>, ...whole},
+  {id: 'frames-audio-signal', title: 'next.platform.frame.audioSignal', render: SignalLineCase},
+  {id: 'frames-audio-signal-sheet', title: 'next.platform.frame.audioSignalSheet', render: () => <SignalSheetCase changed={false}/>, ...whole},
+  {id: 'frames-audio-signal-sheet-changed', title: 'next.platform.frame.audioSignalSheet', render: () => <SignalSheetCase changed/>, ...whole},
   {id: 'frames-audio-loading', title: 'next.platform.frame.audioLoading', render: () => <Audio variant="loading"/>, ...whole},
 ];
 export default galleries;

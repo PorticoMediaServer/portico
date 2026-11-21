@@ -4,6 +4,14 @@
 export const playerFixtureMessages = {
   // The queue (desktop-listen "now"): what the viewer added, with each song's artist and length.
   'next.player.fixture.addedByYou': 'Added by you',
+  // The music signal path (music-plus 3/5, 3b/6): the line under the title and its sheet, untouched and converted.
+  'next.player.fixture.signalPillLossless': 'Bit-perfect', 'next.player.fixture.signalPillChanged': 'Converted',
+  'next.player.fixture.signalSource': 'FLAC 24/96', 'next.player.fixture.signalStateDirect': 'Direct to the DAC', 'next.player.fixture.signalStateChanged': 'Resampled for this device',
+  'next.player.fixture.signalStepFile': 'Source file', 'next.player.fixture.signalStepFileValue': 'FLAC, 24-bit, 96 kHz',
+  'next.player.fixture.signalStepDecode': 'Decoder', 'next.player.fixture.signalStepDecodeValue': 'Untouched',
+  'next.player.fixture.signalStepVolume': 'Volume', 'next.player.fixture.signalStepVolumeValue': 'Fixed at 100%', 'next.player.fixture.signalStepVolumeNote': 'The app leaves volume to the DAC',
+  'next.player.fixture.signalStepRate': 'Sample rate', 'next.player.fixture.signalStepRateValue': '96 → 48 kHz', 'next.player.fixture.signalStepRateNote': 'This phone\'s speaker plays 48 kHz',
+  'next.player.fixture.signalStepOutput': 'Output', 'next.player.fixture.signalStepOutputDac': 'USB DAC, 24/96', 'next.player.fixture.signalStepOutputSpeaker': 'Phone speaker',
   'next.player.fixture.reorderTouch': 'Hold the handle to reorder',
   'next.player.fixture.reorderPointer': 'Drag to reorder',
   'next.player.fixture.queueCount': '6 songs, 28 min',
