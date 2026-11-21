@@ -115,8 +115,9 @@ export function MoveCodesHost({source, serverName, isCurrent, onError}: {
 		publishPort({expires, busy: held ?? '', make: accountId => {void makeFor(current, [accountId]);}});
 		return () => publishPort(undefined);
 	}, [current, list, held, publishPort, makeFor]);
+	// The row belongs to a move in progress: with no move, People opens on its own content (owner-people f1).
 	return <>
-		<div className={styles.codesRow}>
+		{(move || current) && <div className={styles.codesRow}>
 			<span>{t('accounts.move.sheetTitle')}
 				<small>{move ? t('accounts.settings.waiting', {waiting: move.waiting, total: move.people})
 					: list ? t(list.truncated ? 'accounts.move.waitingTruncated' : 'accounts.move.waitingCount', {count: defaultI18n.number(list.items.length)})
@@ -125,7 +126,7 @@ export function MoveCodesHost({source, serverName, isCurrent, onError}: {
 			{current && list ? <Button variant="glass" size="small" loading={held === 'all'} disabled={Boolean(held) || list.truncated}
 				onClick={() => void makeFor(current)}>{t('accounts.move.makeCodes')}</Button> : null}
 			{current ? <Button variant="glass" size="small" loading={held === 'finish'} disabled={Boolean(held)} onClick={() => {if (live(current)) setConfirmation(current);}}>{t('accounts.settings.finishNow')}</Button> : null}
-		</div>
+		</div>}
 		{move ? <p className={styles.hostNote}>{t('accounts.settings.finishNowHelp')}</p> : null}
 		{note && <p className={styles.hostNote}>{note}</p>}
 		{confirmation && live(confirmation) ? <MoveFinishConfirmation move={confirmation.move} isCurrent={() => live(confirmation)}
