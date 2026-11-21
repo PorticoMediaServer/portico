@@ -13,7 +13,7 @@ import {NativeDashboardController, type NativeDashboardAdmission, type NativeDas
 import {nativeServerAdmission} from './server/tv-server-reader';
 import {ServerSettingsPage} from '../../pages/tv/settings/ServerSettingsPage';
 import {isTVServerPage} from './server/TVServerPageMenu';
-import {NativeEqualizerSettingsScreen} from './EqualizerSettingsScreen';
+import {EqualizerSettingsPage} from '../../pages/shared/settings/EqualizerSettingsPage';
 import {NativeSettingsPage} from '../../pages/shared/settings/SettingsPage';
 import {NativeDashboardScreen} from './DashboardScreen';
 import {createNativeSettingsPorts, nativeSettingsRequestId} from './settings-ports';
@@ -105,7 +105,7 @@ export function createNativeEqualizerSettingsRenderer(context: NativeShellBootst
     render: (route, runtime) => {
       lifetime.assert();
       if (route.kind !== 'settings-equalizer') throw new Error('native_equalizer_settings_route_mismatch');
-      return <NativeEqualizerSettingsScreen runtime={runtime} onBack={() => {lifetime.assert(); context.navigation.back(context.authority());}}/>;
+      return <EqualizerSettingsPage runtime={runtime} onBack={() => {lifetime.assert(); context.navigation.back(context.authority());}}/>;
     },
     dispose: () => lifetime.dispose(),
   };

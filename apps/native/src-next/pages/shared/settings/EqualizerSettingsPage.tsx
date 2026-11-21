@@ -1,16 +1,16 @@
 import React, {useCallback} from 'react';
-import {View} from 'react-native';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import {nativeEqualizer} from '../../platform/playback/equalizer';
-import {NativeWatchEqualizer, type NativeEqualizerCopy} from '../watch/Equalizer';
-import {useTheme} from '../../kit/theme';
-import {useScreenBack} from './Screen';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+import {EqualizerFrame, type NativeEqualizerCopy} from '../../../kit/frames/EqualizerFrame';
+import {useEqualizer} from '../player/useEqualizer';
+import {useTheme} from '../../../kit/theme';
+import {useScreenBack} from '../../../screens/settings-live/Screen';
 
 /** Settings and playback edit the same persistent native device record. */
-export function NativeEqualizerSettingsScreen({runtime, onBack}: {runtime: NativeShellRuntime; onBack: () => void}) {
+export function EqualizerSettingsPage({runtime, onBack}: {runtime: NativeShellRuntime; onBack: () => void}) {
   const theme = useTheme(), t = runtime.text.t;
   const back = useCallback(() => {onBack(); return true;}, [onBack]);
   useScreenBack(runtime, back, theme.isTV);
+  const model = useEqualizer({reportError: runtime.reportError});
   const copy: NativeEqualizerCopy = {
     title: t('next.media.eq.title'), back: t('action.back'), thisDevice: t('settings.thisDevice'),
     bands: t('next.media.eq.bands'), preamp: t('next.media.eq.preamp'), reset: t('next.media.eq.reset'),
@@ -21,7 +21,5 @@ export function NativeEqualizerSettingsScreen({runtime, onBack}: {runtime: Nativ
       return t(accessible || frequency < 1000 ? 'next.media.eq.hz' : 'next.media.eq.khz', {frequency: accessible || frequency < 1000 ? frequency : frequency / 1000});
     },
   };
-  return <View style={{flex: 1}}>
-    <NativeWatchEqualizer store={nativeEqualizer} copy={copy} onBack={back} reportError={runtime.reportError}/>
-  </View>;
+  return <EqualizerFrame {...model} copy={copy} onBack={back}/>;
 }

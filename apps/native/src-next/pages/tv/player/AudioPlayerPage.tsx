@@ -5,7 +5,7 @@ import {AudioPlayerFrame} from '../../../kit/frames';
 import {TVAudioCanvas, TVAudioEqualizer, TVAudioLyrics, TVAudioSurface} from '../../../kit/player/TVAudioSurface';
 import {Menu} from '../../../kit/overlays';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
-import {NativeWatchEqualizer} from '../../../screens/watch/Equalizer';
+import {EqualizerPage} from '../../shared/player/EqualizerPage';
 import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/music/MusicSignal';
 import {NativeListeningNotice} from '../../../screens/destinations/music/ListeningNotice';
 import {NowPlayingQueue, nowPlayingQueueFocusScope, nowPlayingQueueEditPort} from '../../../screens/destinations/music/NowPlayingQueue';
@@ -73,7 +73,7 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
       {panel === 'signal' && signal && <MusicSignalSheet view={signal} contextTitle={p.identity.title} onClose={close} returnFocusRef={signalRef}/>}
       {panel === 'lyrics' && lyrics && <TVAudioLyrics testID={`${id}.lyrics`} open title={t('player.lyrics')} onOpenChange={open => {if (!open) close();}} returnFocusRef={lyricsRef} restoreFocus={false}>{lyrics}</TVAudioLyrics>}
       {panel === 'eq' && <TVAudioEqualizer canvas={canvas}>
-        <NativeWatchEqualizer focusScope={`${id}.eq`} onBack={close}
+        <EqualizerPage focusScope={`${id}.eq`} onBack={close}
           copy={equalizerCopy} reportError={reportError} store={nativeEqualizer}/>
       </TVAudioEqualizer>}
       {notice && <NativeListeningNotice notice={notice} persistent/>}

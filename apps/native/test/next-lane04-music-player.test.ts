@@ -31,7 +31,7 @@ async function fixture(book = false, width = 390) {
     'react-native-gesture-handler': {Gesture: {Pan: () => gesture}, GestureDetector: 'GestureDetector'},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, runOnJS: (fn: any) => fn, useAnimatedStyle: (fn: any) => fn(), useSharedValue: (value: any) => ui.react.useRef({value}).current},
     '../../../platform/playback/equalizer': {nativeEqualizer: {subscribe: () => () => {}, getSnapshot: () => ({supported: false})}},
-    '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../../screens/watch/Equalizer': {NativeWatchEqualizer: 'Equalizer'},
+    '../../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../shared/player/EqualizerPage': {EqualizerPage: 'Equalizer'},
     '../../../screens/destinations/music/MusicSignal': {MusicSignalLine: 'Signal', MusicSignalSheet: 'SignalSheet'},
     '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string, values?: any) => key === 'player.opt.minutes' ? `${values.count} min`
       : key === 'player.clockOf' || key === 'player.chapterTotal' ? realI18n.t(key, values) : key}},
