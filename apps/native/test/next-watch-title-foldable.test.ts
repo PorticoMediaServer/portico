@@ -34,7 +34,7 @@ const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watc
   '../../kit/theme': {nativeType: () => ({}), useTheme: () => theme},
   '../../platform/platformPosture': {usePlatformPosture: () => posture}, '../../shell/model': {mediumRailMetrics: {width: 84}},
   './TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, './SeasonsSheet': {NativeSeasonsSheet: 'SeasonsSheet'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'ShowSettingsSheet'},
-  './TitleSeasonBar': {TitleSeasonBar: 'TitleSeasonBar'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, './TitlePeople': {TitlePeople: 'TitlePeople'},
+  '../../kit/layout/SeasonBar': {SeasonBar: 'TitleSeasonBar'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, './TitlePeople': {TitlePeople: 'TitlePeople'},
 });
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
 const episode = {id: 'e1', kind: 'episode', title: 'When You’re Lost in the Darkness', libraryId: 'lib', seasonNumber: 1, episodeNumber: 1, duration: 3000};

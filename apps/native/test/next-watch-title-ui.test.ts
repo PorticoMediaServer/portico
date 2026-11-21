@@ -46,7 +46,7 @@ async function fixture() {
     '../../kit/theme': {nativeType, useTheme: () => theme}, '../../kit/focus': {FocusRegion: 'FocusRegion', useOptionalFocusRegistry: () => undefined},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (item: any) => item.id}, './tv-title-focus': {tvTitleRegionMap}, '../../shell/tv-focus': {},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable', window: null, folds: []})}, '../../shell/model': {mediumRailMetrics: {width: 84}},
-    './TitlePeople': {TitlePeople: 'TitlePeople'}, './TitleSeasonBar': {TitleSeasonBar: 'TitleSeasonBar'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, './SeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
+    './TitlePeople': {TitlePeople: 'TitlePeople'}, '../../kit/layout/SeasonBar': {SeasonBar: 'TitleSeasonBar'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, './SeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
     './TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'Settings'},
   };
   const {NativeTitleScreen, TitleRelated} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), modules);
