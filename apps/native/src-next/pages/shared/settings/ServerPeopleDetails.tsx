@@ -29,7 +29,8 @@ export function ServerPersonDetails({source, person, runtime, ask}: {
   const tabs = <Segmented testID="people-person-tabs" variant="phone" fill value={tab} onValueChange={detail.selectTab}
     items={detail.tabs.map((value, index) => ({value, label: t(tabTitles[index]!)}))}/>;
   const devices = state.devices?.person === person ? state.devices.items : [];
-  if (tab === 'devices') return <SettingsDataList testID="people-devices" items={devices} itemKey={device => device.id} header={tabs}
+  let body: React.ReactNode;
+  if (tab === 'devices') body = <SettingsDataList testID="people-devices" items={devices} itemKey={device => device.id}
     row={(device, index) => <SectionCard>
       <SettingsRow first={index === 0} label={device.name || device.platform}
         description={[device.platform, device.app, device.appVersion, device.profileName, t('web.devices.lastSeen', {when: defaultI18n.date(device.lastSeenAt)})]
@@ -49,10 +50,10 @@ export function ServerPersonDetails({source, person, runtime, ask}: {
         disabled={state.busy || state.devicesLoading || !devices.length} onPress={() => detail.signOutDevice()}>
         {t('next.settingsSpec.server.people.panels.person.tabs.3.groups.0.rows.1.control.label')}</Button></PanelBlock>}
     </>}/>;
-  if (tab === 'access') {
+  else if (tab === 'access') {
     const remote = t('next.settingsSpec.server.people.panels.person.tabs.1.groups.1.rows.1.label');
-    return <PeopleLibraryAccess source={source} runtime={runtime} all={allLibraries} selected={libraries}
-      disabled={!managed || state.busy} onChange={detail.changeLibraries} header={tabs} footer={<>
+    body = <PeopleLibraryAccess source={source} runtime={runtime} all={allLibraries} selected={libraries}
+      disabled={!managed || state.busy} onChange={detail.changeLibraries} footer={<>
         {managed && <PanelBlock><Button testID="people-save-libraries" variant="glass"
           disabled={state.busy || !allLibraries && !libraries.length || (allLibraries ? !person.allowedLibraries.length : JSON.stringify(libraries) === JSON.stringify(person.allowedLibraries))}
           onPress={detail.saveLibraries}>{t('action.save')}</Button></PanelBlock>}
@@ -69,7 +70,7 @@ export function ServerPersonDetails({source, person, runtime, ask}: {
           onPress={detail.saveLimits}>{t('action.save')}</Button></PanelBlock>}
       </>}/>;
   }
-  return <SettingsPageFrame hideHeader title={person.username} tabs={tabs}>
+  else body = <SettingsPageFrame hideHeader title={person.username}>
     {tab === 'account' && <>
       <SectionCard><SettingsRow first label={t('next.settingsSpec.server.people.panels.person.tabs.0.groups.0.rows.0.label')}
         value={person.username} description={person.email ?? undefined}/></SectionCard>
@@ -97,6 +98,7 @@ export function ServerPersonDetails({source, person, runtime, ask}: {
         onPress={detail.saveLimits}>{t('action.save')}</Button></PanelBlock>}
     </>}
   </SettingsPageFrame>;
+  return <><PanelBlock>{tabs}</PanelBlock>{body}</>;
 }
 
 function PeopleLibraryAccess({source, runtime, all, selected, disabled, onChange, header, footer}: {
@@ -135,7 +137,8 @@ export function ServerInvitationEditor({source, opening, runtime}: {source: Nati
     </OverlayFootRow>}>
     <PeopleLibraryAccess source={source} runtime={runtime} all={model.all} selected={model.libraries}
       disabled={state.busy} onChange={model.changeLibraries} header={<>
-        <PanelBlock><TextField label={t('next.settingsSpec.server.people.panels.invite.groups.0.rows.1.label')} value={model.notes}
+        <PanelBlock><TextField label={t('next.settingsSpec.server.people.panels.invite.groups.0.rows.1.label')}
+          description={t('next.settings.people.notesHelp')} value={model.notes}
           maxLength={500} editable={!state.busy} onChangeText={model.setNotes}/></PanelBlock>
         <SectionCard><SettingsRow first label={t('web.access.roleLabel')} control={<Select accessibilityLabel={t('web.access.roleLabel')}
           value={model.role} disabled={state.busy} options={(['member', 'admin'] as const).map(value => ({value, label: roleLabel(t, value)}))}

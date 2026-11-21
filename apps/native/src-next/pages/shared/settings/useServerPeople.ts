@@ -18,7 +18,7 @@ export function usePeopleSource(props: Props) {
   const [source, setSource] = useState<NativePeopleSource>();
   const {context, requestId} = props.ports, reportError = props.runtime.reportError;
   useLayoutEffect(() => {const next = new NativePeopleSource(context, requestId, reportError); setSource(next); void next.load(); return next.dispose;}, [context, requestId, reportError]);
-  return source?.context === context && source.current() ? source : undefined;
+  return source?.context === context ? source : undefined;
 }
 
 export function useServerPeople(source: NativePeopleSource) {

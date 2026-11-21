@@ -44,14 +44,16 @@ async function fixture(forms = {}) {
     const panel = ServerPeoplePage({ports, runtime}).props.panel;
     const page = panel ? panel.type(panel.props) : null;
     const details = nodes(page).find((node: any) => node.type === detailsModule.ServerPersonDetails);
-    let body = details ? details.type(details.props) : null;
+    const sections = details ? details.type(details.props).props.children : [];
+    const [tabs, content] = sections;
+    let body = content;
     if (body?.type?.name === 'PeopleLibraryAccess') body = body.type(body.props);
     if (body?.type === list.SettingsDataList) body = body.type(body.props);
-    return {page, details: body};
+    return {page, details: body, tabs};
   });
   const render = () => frames().details;
   render();host.flush();assert.ok(render());host.flush();
-  return {render, page: () => frames().page, host, writes, person, device, source, state};
+  return {render, page: () => frames().page, tabs: () => frames().tabs, host, writes, person, device, source, state};
 }
 
 test('People Advanced reads the default stream limit from the rebuilt server', async () => {
@@ -81,8 +83,8 @@ test('People Advanced reads the default stream limit from the rebuilt server', a
 });
 
 test('People keeps a saved non-preset stream limit visible and unchanged when another limit is edited', async () => {
-  const {render, host, writes, person} = await fixture();
-  nodes(render()).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('access');
+  const {render, host, writes, person, tabs} = await fixture();
+  nodes(tabs()).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('access');
   const listFooter = () => render().props.ListFooterComponent;
   const streamSelect = () => nodes(listFooter()).find((node: any) => node.props.control?.type === 'Select' && node.props.label === t('web.access.maxStreams')).props.control;
   assert.equal(streamSelect().props.value, '5');
@@ -101,12 +103,13 @@ test('People keeps a saved non-preset stream limit visible and unchanged when an
 test('Person Devices is windowed and both sign-out actions wait for confirmation', async () => {
   const f = await fixture();
   try {
-    const tabs = nodes(f.render().props.tabs).find((node: any) => node.props.testID === 'people-person-tabs');
+    const tabs = nodes(f.tabs()).find((node: any) => node.props.testID === 'people-person-tabs');
     assert.deepEqual(tabs.props.items.map((item: any) => item.value), ['account', 'access', 'profiles', 'devices', 'advanced']);
     tabs.props.onValueChange('devices');
     assert.deepEqual(f.writes, [{readDevices: f.person}]); f.writes.length = 0;
     const deviceList = f.render();
     assert.equal(deviceList.props.testID, 'people-devices');
+    assert.equal(deviceList.props.ListHeaderComponent, null, 'member tabs stay outside the device scroll');
     assert.deepEqual(deviceList.props.data, [f.device]);
     assert.equal(nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.open && node.props.title === f.person.username).props.scrollable, false);
     const item = deviceList.props.renderItem({item: f.device});
@@ -128,7 +131,7 @@ test('Person Devices is windowed and both sign-out actions wait for confirmation
 test('Person Profiles mounts the real read/editor surface with the exact selected person', async () => {
   const f = await fixture();
   try {
-    nodes(f.render().props.tabs).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('profiles');
+    nodes(f.tabs()).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('profiles');
     const profiles = nodes(f.render()).find((node: any) => node.type === 'PeopleMemberProfiles');
     assert.equal(profiles.props.person, f.person); assert.equal(profiles.props.people, f.source);
   } finally {f.host.dispose();}

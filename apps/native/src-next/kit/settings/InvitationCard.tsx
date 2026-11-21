@@ -50,6 +50,8 @@ export function InvitationPictureCapture({picture, pictureRef}: {picture: Invita
 
 /** The card drawn once as a picture: the same facts, never notes or the short code. */
 export const InvitationPicture = React.forwardRef<InvitationPictureHandle, {picture: InvitationPictureData}>(function InvitationPicture({picture}, ref) {
+  const {type} = useTheme();
+  const textProps = ({fontFamily, fontSize}: typeof type.caption) => ({fontFamily, fontSize});
   const rows = qrMatrix(picture.link, 'M');
   const size = rows.length, cell = Math.max(1, Math.floor(260 / (size + 8))), tile = cell * (size + 8), left = (512 - tile) / 2, top = 218;
   let path = '';
@@ -62,12 +64,12 @@ export const InvitationPicture = React.forwardRef<InvitationPictureHandle, {pict
       <RadialGradient id="green" cx="0" cy="680" r="460" gradientUnits="userSpaceOnUse"><Stop offset="0" stopColor="#1e5b52" stopOpacity={0.5}/><Stop offset="1" stopColor="#1e5b52" stopOpacity={0}/></RadialGradient>
     </Defs>
     <Rect width={512} height={680} fill="#0b1822"/><Rect width={512} height={680} fill="url(#blue)"/><Rect width={512} height={680} fill="url(#green)"/>
-    <SvgText x={26} y={42} fill="#edf5fa" fontSize={20} fontWeight="800">{picture.brand}</SvgText>
-    <SvgText x={26} y={68} fill="#bdccd6" fontSize={12} fontWeight="600">{picture.expiry}</SvgText>
-    <SvgText x={26} y={110} fill="#5cb3e2" fontSize={15} fontWeight="600">{picture.why}</SvgText>
-    <SvgText x={26} y={152} fill="#edf5fa" fontSize={36} fontWeight="800">{picture.serverName}</SvgText>
-    <SvgText x={26} y={184} fill="#bdccd6" fontSize={14} fontWeight="600">{picture.access}</SvgText>
+    <SvgText x={26} y={42} fill="#edf5fa" {...textProps(type.rowHeading)}>{picture.brand}</SvgText>
+    <SvgText x={26} y={68} fill="#bdccd6" {...textProps(type.caption)}>{picture.expiry}</SvgText>
+    <SvgText x={26} y={110} fill="#5cb3e2" {...textProps(type.rowLabel)}>{picture.why}</SvgText>
+    <SvgText x={26} y={152} fill="#edf5fa" {...textProps(type.pageTitle)}>{picture.serverName}</SvgText>
+    <SvgText x={26} y={184} fill="#bdccd6" {...textProps(type.rowHelp)}>{picture.access}</SvgText>
     <Rect x={left} y={top} width={tile} height={tile} fill="#ffffff"/><Path d={path} fill="#000000"/>
-    {lines.map((line, index) => <SvgText key={index} x={26} y={518 + index * 18} fill="#edf5fa" fontSize={12} fontFamily="monospace">{line}</SvgText>)}
+    {lines.map((line, index) => <SvgText key={index} x={26} y={518 + index * 18} fill="#edf5fa" {...textProps(type.caption)} fontFamily="monospace">{line}</SvgText>)}
   </Svg>;
 });

@@ -25,7 +25,7 @@ function Profiles({source, runtime}: {source: NativeMemberProfilesSource; runtim
   return <>
     <SectionCard>
       {state.items?.map(profile => <MemberProfileRow key={profile.id} testID={`people-profile-${profile.id}`}
-        name={profile.name} color={profile.art} locked={profile.pinRequired} picture={size => source.picture(profile, size)}
+        name={profile.name} art={profile.art} locked={profile.pinRequired} picture={size => source.picture(profile, size)}
         facts={[profile.primary ? t('profile.main') : '', profile.pinRequired ? t('profile.protected') : ''].filter(Boolean)}>
         {source.canManage(profile) && <Button testID={`people-profile-manage-${profile.id}`} variant="glass" size="compact"
           onPress={() => source.manage(profile)}>{t('next.settingsSpec.server.people.panels.person.tabs.2.groups.0.rows.0.control.itemAction.label')}</Button>}
@@ -52,7 +52,7 @@ function MemberProfileEditor({source, profile, runtime}: {source: NativeMemberPr
           onPress={model.save}>{t(action.kind === 'limits' ? 'limits.save' : 'action.save')}</Button>
       </OverlayFootRow> : undefined}>
       {!action && <>
-        <MemberProfilePortrait name={profile.name} color={profile.art} locked={profile.pinRequired} picture={size => source.picture(profile, size)}/>
+        <MemberProfilePortrait name={profile.name} art={profile.art} locked={profile.pinRequired} picture={size => source.picture(profile, size)}/>
         {model.localPictures && <PanelBlock><Button testID="people-profile-picture" variant="glass"
           disabled={!source.canPickPicture(profile)} loading={state.busy} onPress={model.choosePicture}>
           {t(profile.avatar ? 'profile.changePicture' : 'profile.addPicture')}</Button></PanelBlock>}

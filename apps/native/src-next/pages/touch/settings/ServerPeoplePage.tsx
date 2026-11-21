@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import type {SettingsPeopleQuery} from '../../../../../../packages/client-core/src/settings-people';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button, Select, Tabs, TextField} from '../../../kit/controls';
@@ -32,16 +32,37 @@ function PeoplePanel({source, ports, runtime, retry}: Props & {source: NativePeo
   const {state, loading, page, held, ownerControls} = people;
   const searchLabel = t('web.shell.search'), role = t('web.access.roleLabel'), status = t('web.general.status');
   const sort = t('web.filters.sortBy'), direction = t('builder.preset.order'), inviteStatus = t('web.access.invitationStatus');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersLabel = t('next.browse.filters');
+  if (!source.current()) {
+    const {title, body, icon, tone} = runtime.error(state.error ?? {status: 403}, people.refresh, 'server-console');
+    return <StateView title={title} body={body} icon={icon} tone={tone}/>;
+  }
   const header = <>
     {retry}
     <Tabs value={state.tab} onValueChange={people.selectTab}
       items={[{value: 'people', label: t('settings.server.people')}, {value: 'invitations', label: t('settings.server.invitations')}]}/>
     <PanelBlock><TextField testID="people-search" accessibilityLabel={searchLabel} placeholder={searchLabel} value={people.search} maxLength={160}
-      returnKeyType="search" editable={!state.busy} onChangeText={people.setSearch} onSubmitEditing={people.searchPeople}/></PanelBlock>
+      variant="search" returnKeyType="search" editable={!state.busy} onChangeText={people.setSearch} onSubmitEditing={people.searchPeople}
+      trailing={<Button size="compact" variant="link" disabled={loading} onPress={people.searchPeople}>{searchLabel}</Button>}/></PanelBlock>
     <PanelBlock><OverlayFootRow layout="halves">
-      <Button size="compact" variant="glass" onPress={people.searchPeople} disabled={loading}>{searchLabel}</Button>
-      <Button variant="glass" size="compact" icon="i-refresh" disabled={loading} onPress={people.refresh}>{t('action.refresh')}</Button>
+      <Button size="compact" variant="glass" disabled={loading} onPress={() => setFiltersOpen(true)}>{filtersLabel}</Button>
+      {ownerControls ? <Button testID="people-invite" variant="glass" size="compact" disabled={loading} onPress={() => people.invite()}>{t('web.access.inviteSomeone')}</Button>
+        : <Button variant="glass" size="compact" icon="i-refresh" disabled={loading} onPress={people.refresh}>{t('action.refresh')}</Button>}
     </OverlayFootRow></PanelBlock>
+    {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, people.refresh, 'server-console')}/>}
+    {page && <SettingsHelp>{defaultI18n.number(page.matchedCount)} {t(state.tab === 'people'
+      ? 'next.settingsSpec.server.people.groups.0.rows.0.control.noun.1' : 'next.settingsSpec.server.people.groups.1.rows.0.control.noun.1')}</SettingsHelp>}
+    {loading && <SectionCard><StateRow kind="loading"/></SectionCard>}
+  </>;
+
+  const pendingInvitation = state.invitationOpening, invitation = pendingInvitation?.invitation;
+  return <>
+    <BottomSheet open={filtersOpen} title={filtersLabel} onOpenChange={setFiltersOpen}
+      footer={<OverlayFootRow layout="halves">
+        <Button variant="glass" size="compact" icon="i-refresh" disabled={loading} onPress={people.refresh}>{t('action.refresh')}</Button>
+        <Button onPress={() => setFiltersOpen(false)}>{t('action.done')}</Button>
+      </OverlayFootRow>}>
     <SectionCard>
       {state.tab === 'people' ? <>
         <SettingsRow first label={role} control={<Select accessibilityLabel={role} value={state.query.role} disabled={loading}
@@ -66,16 +87,7 @@ function PeoplePanel({source, ports, runtime, retry}: Props & {source: NativePeo
         options={[{value: '', label: t('web.access.allInvitations')}, ...['pending', 'accepted', 'expired', 'revoked'].map(value => ({value, label: invitationState(t, value)}))]}
         onValueChange={people.filterInvitation}/>}/>}
     </SectionCard>
-    {ownerControls && <PanelBlock><Button testID="people-invite" variant="glass" size="compact" disabled={loading}
-      onPress={() => people.invite()}>{t('web.access.inviteSomeone')}</Button></PanelBlock>}
-    {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, people.refresh, 'server-console')}/>}
-    {page && <SettingsHelp>{defaultI18n.number(page.matchedCount)} {t(state.tab === 'people'
-      ? 'next.settingsSpec.server.people.groups.0.rows.0.control.noun.1' : 'next.settingsSpec.server.people.groups.1.rows.0.control.noun.1')}</SettingsHelp>}
-    {loading && <SectionCard><StateRow kind="loading"/></SectionCard>}
-  </>;
-
-  const pendingInvitation = state.invitationOpening, invitation = pendingInvitation?.invitation;
-  return <>
+    </BottomSheet>
     <SettingsDataList testID="server-people" items={people.rows} itemKey={row => 'username' in row ? row.accountId : row.id}
       header={header} empty={!loading && page && <SectionCard><StateRow kind="empty" icon="i-person" title={t('web.people.noResults')}/></SectionCard>}
       row={item => 'username' in item
