@@ -18,9 +18,11 @@ export function CoverFan({covers, shape, variant = 'library', spine = false, wid
   const scale = Math.min(w / recipe.width, h / recipe.height);
   const cw = recipe.cover * scale, ch = cw / coverAspect(shape);
   const count = renderFallback ? 3 : samples.length;
+  // desktop-listen .fan.n1: a music fan of one cover sets it at the right, turned a little, not in the left-hand slot.
+  const lone = variant === 'music' && count === 1 ? {right: 6, top: 0, rotate: 6} : undefined;
   return <View accessible={Boolean(alt)} accessibilityRole={alt ? 'image' : undefined} accessibilityLabel={alt} style={[{width: w, height: h}, style]}>
     {Array.from({length: count}, (_, index) => <View key={index} style={{position: 'absolute', width: cw, height: ch,
-      right: recipe.right[index]! * scale, top: recipe.top[index]! * scale, transform: [{rotate: `${recipe.rotate[index]}deg`}],
+      right: (lone?.right ?? recipe.right[index]!) * scale, top: (lone?.top ?? recipe.top[index]!) * scale, transform: [{rotate: `${lone?.rotate ?? recipe.rotate[index]}deg`}],
       borderRadius: 5 * scale, backgroundColor: theme.colors.raised,
       shadowColor: theme.colors.shadow, shadowOpacity: 0.85, shadowOffset: {width: 0, height: 12 * scale}, shadowRadius: 11 * scale}}>
       <View style={[StyleSheet.absoluteFillObject, {borderRadius: 5 * scale, overflow: 'hidden'}]}>
