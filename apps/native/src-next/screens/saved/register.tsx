@@ -15,7 +15,7 @@ import {SavedDirectoryPage} from '../../pages/shared/saved/SavedDirectoryPage';
 import type {NativeSavedDirectoryRoute} from '../../pages/shared/saved/useSavedDirectory';
 import {SavedListPage} from '../../pages/shared/saved/SavedListPage';
 import type {NativeSavedListRoute} from '../../pages/shared/saved/useSavedList';
-import {SavedResourceScreen} from './SavedResourceScreen';
+import {SavedResourcePage} from '../../pages/shared/saved/SavedResourcePage';
 import {createNativeSavedState} from './state';
 import {nativeSavedRouteTarget, openNativeSavedView, type NativeSavedRouteTarget} from './navigation';
 import type {NativeSavedDownloadsCopy} from '../../kit/saved/SavedDownloadCard';
@@ -148,7 +148,7 @@ function SavedResourceHost({context, entry, route, runtime, libraries, back, cha
   useEffect(() => () => reader.dispose(), [reader]);
   const labels = {t: runtime.text.t, has: defaultI18n.has, locale: runtime.text.region?.uiLocale ?? defaultI18n.locale};
   const condition = activationVisible && resource ? reader.line(resource, labels) : undefined;
-  return <SavedResourceScreen destination={entry.view.source} activation={entry.view.activation} runtime={runtime} actions={entry.view.actions}
+  return <SavedResourcePage destination={entry.view.source} activation={entry.view.activation} runtime={runtime} actions={entry.view.actions}
     route={route} libraries={libraries} back={back} changed={changed} selection={entry.view.selection} showOnHome={showOnHome} openInLibrary={openInLibrary} condition={condition}/>;
 }
 

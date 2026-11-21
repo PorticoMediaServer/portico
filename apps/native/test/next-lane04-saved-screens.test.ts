@@ -1,4 +1,4 @@
-import {savedFixture} from './helpers/saved-fixture.mjs';
+import {savedFixture, savedResourceFixture} from './helpers/saved-fixture.mjs';
 import test from 'node:test';
 import * as savedCore from '../../../packages/client-core/src/saved.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
@@ -123,7 +123,7 @@ test('Saved list carries selection to cards and prefetches before its loaded end
 });
 
 test('Saved resource menus keep membership commands beside canonical selection, and manual reorder commits guarded occurrence IDs', async () => {
-  const f = fixture(), {SavedResourceScreen} = await f.load('saved/SavedResourceScreen'), calls: any[] = [], selected = {active: false, selected: false, onEnter() {}, onToggle() {}};
+  const f = fixture(), {SavedResourcePage} = await savedResourceFixture(f.modules), calls: any[] = [], selected = {active: false, selected: false, onEnter() {}, onToggle() {}};
   const other = {...entry, id: 'movie-b'}, occurrence = {id: 'occ-a', kind: 'playlist_entry', media: entry}, second = {id: 'occ-b', kind: 'playlist_entry', media: other};
   const sorts = [{id: 'position', labelKey: 'sort.position', directions: ['asc']}, {id: 'title', labelKey: 'sort.title', directions: ['asc', 'desc']}];
   let snapshot: any = {phase: 'ready', saved: {playlist: {name: 'Playlist', entryCount: 2, revision: 3, actions: ['reorder', 'remove']},
@@ -133,7 +133,7 @@ test('Saved resource menus keep membership commands beside canonical selection, 
   const destination = {subscribe: () => () => {}, getSnapshot: () => snapshot, mutateSaved: async (command: unknown) => {calls.push(['command', command]);}};
   const props = {route: {view: 'playlist', playlistId: 'p'}, destination, activation: active, runtime, actions: {open() {}, play() {}, menu: (...args: unknown[]) => calls.push(['menu', ...args])},
     libraries: [], back() {}, selection: {item: () => selected, render: () => null}};
-  let tree = f.host.render(() => SavedResourceScreen(props));
+  let tree = f.host.render(() => SavedResourcePage(props));
   const row = nodes(tree).find(node => node.type?.name === 'SavedResourceRow'), anchor = {current: {native: true}};
   assert.equal(row.props.selection, selected); row.props.onMore(anchor);
   assert.equal(calls[0][1], entry); assert.equal(calls[0][2], anchor); assert.equal(calls[0][3], selected.onEnter);
@@ -142,7 +142,7 @@ test('Saved resource menus keep membership commands beside canonical selection, 
   const orderChip = nodes(tree).find(node => node.type === 'SavedSortMenu');
   assert.equal(orderChip.props.sort, 'position'); assert.deepEqual(orderChip.props.sorts, sorts);
   assert.ok(orderChip.props.label(sorts[0]).includes('Playlist order'));
-  find(tree, 'saved-reorder').props.onPress(); tree = f.host.render(() => SavedResourceScreen(props));
+  find(tree, 'saved-reorder').props.onPress(); tree = f.host.render(() => SavedResourcePage(props));
   const reorderBar = nodes(tree).find(node => node.type === 'TopBar');
   assert.ok(String(reorderBar.props.title).includes('Reordering')); assert.equal(reorderBar.props.trailing.props.testID, 'saved-reorder-done'); assert.equal(find(tree, 'saved-play'), undefined);
   const list = nodes(tree).find(node => node.type === 'SavedReorderList');

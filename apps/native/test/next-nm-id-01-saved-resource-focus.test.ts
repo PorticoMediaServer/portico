@@ -5,12 +5,12 @@ import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
 import type {SavedApi, SavedRoute, SavedScope} from '../../../packages/client-core/src/saved';
 import {legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 import type {NativeShellRuntime} from '../src-next/shell/runtime';
-import type {NativeSavedEntryActions} from '../src-next/screens/saved/SavedResourceScreen';
+import type {NativeSavedEntryActions} from '../src-next/pages/shared/saved/useSavedResource';
 
 /**
  * NM-ID-01 / BLK-TV-004 / FX-154 real-binding source. The standard-home loader
  * supplies the actual production React, native host boundary and module
- * resolution; fabric-host mounts the real SavedResourceScreen on the installed
+ * resolution; fabric-host mounts the real SavedResourcePage on the installed
  * Fabric reconciler. The page reads a real NativeSavedViewDestination and the
  * real PersonalSavedService, so scroll continuation and the owner visibility switch reach
  * the caller's own paged read and update receipt through the product callbacks.
@@ -78,7 +78,7 @@ test('NM-ID-01 / MOB-050: the real Saved page continues its offered cursor on sc
     const {FocusProvider} = await import('../src-next/kit/focus/FocusRegion.tsx');
     const {ThemeProvider} = await import('../src-next/kit/theme.ts');
     const {NativeSavedViewDestination} = await import('../src-next/screens/saved/view-model.ts');
-    const {SavedResourceScreen} = await import('../src-next/screens/saved/SavedResourceScreen.tsx');
+    const {SavedResourcePage} = await import('../src-next/pages/shared/saved/SavedResourcePage.tsx');
     const {defaultI18n} = await import('../../../packages/i18n/src/index.ts');
 
     const fixture = new CollectionFixture();
@@ -111,7 +111,7 @@ test('NM-ID-01 / MOB-050: the real Saved page continues its offered cursor on sc
     const text = () => nodes().map(node => typeof node.children === 'string' ? node.children : typeof node.props?.text === 'string' ? node.props.text : '').join('\n');
     const settle = async () => {await host.settle(); await app.settle();};
 
-    const page = (overrides: Record<string, unknown> = {}) => React.createElement(SavedResourceScreen, {
+    const page = (overrides: Record<string, unknown> = {}) => React.createElement(SavedResourcePage, {
       route, destination, activation, runtime, actions, libraries: [], back: () => {}, ...overrides});
     const tree = (content: any) => React.createElement(ThemeProvider, {width: 390, children: React.createElement(FocusProvider, {registry, children: content})});
 

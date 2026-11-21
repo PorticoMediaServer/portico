@@ -2,7 +2,8 @@ import * as pagingModule from '../src-next/screens/saved/paging.ts';
 import * as savedCore from '../../../packages/client-core/src/saved.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {savedResourceFixture} from './helpers/saved-fixture.mjs';
+import {hooks} from './helpers/screen-harness.mjs';
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
 
@@ -11,8 +12,8 @@ const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes)
 async function fixture() {
   const h = hooks(), react = {...h.react, useId: () => 'resource-instance', useLayoutEffect() {}}; react.default = react;
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
-  const theme = {isTV: true, gutter: 96, textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#222', line: '#333'}, type: {body: {}, caption: {}}};
-  const {SavedResourceScreen} = await screenModule(new URL('../src-next/screens/saved/SavedResourceScreen.tsx', import.meta.url), {'./paging': pagingModule, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, '../../../../../packages/client-core/src/saved': savedCore, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'}, '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
+  const theme = {isTV: true, gutter: 96, textScale: 1, space: {}, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#222', line: '#333'}, type: {body: {}, caption: {}}};
+  const {SavedResourcePage} = await savedResourceFixture({'./paging': pagingModule, './SavedReorderList': {SavedReorderList: 'SavedReorderList'}, '../../../../../packages/client-core/src/saved': savedCore, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'}, '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 1920, height: 1080})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, has: () => true}},
@@ -56,7 +57,7 @@ async function fixture() {
   const props: any = {route: {view: 'resource', resourceId: 'collection'}, destination,
     activation: {getSnapshot: () => active, subscribe: () => () => {}}, runtime: {getSnapshot: () => ({authority}), reportError() {}, artwork() {}, ambient() {}, text: {}},
     actions: {open() {}, play() {}, menu() {}}, libraries: [], back: () => {backs++;}, changed: () => {changes++;}};
-  const render = () => nodes(h.render(() => SavedResourceScreen(props)));
+  const render = () => nodes(h.render(() => SavedResourcePage(props)));
   const byId = (id: string) => render().find(node => node.props.testID === id);
   const pageAction = (id: string) => {byId('saved-resource-menu').props.onPress(); byId('saved-resource-page-menu').props.items.find((item: any) => item.id === id).onSelect();};
   return {render, byId, pageAction, intents, retries: () => retries, backs: () => backs, changes: () => changes,

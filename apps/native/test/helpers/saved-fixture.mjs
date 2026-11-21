@@ -71,3 +71,28 @@ export async function tvSavedDirectoryFixture(bindings) {
     return [kit.SavedTVDirectoryBody(body.props), sheet];
   }};
 }
+
+export async function savedResourceFixture(bindings) {
+  const i18n = bindings['../../../../../packages/i18n/src'];
+  const common = {
+    react: bindings.react, 'react-native': bindings['react-native'], '../../../../../../packages/i18n/src': i18n,
+    '../../../../../../packages/client-core/src/saved': bindings['../../../../../packages/client-core/src/saved'],
+    '../../../screens/saved/presentation': bindings['./presentation'],
+  };
+  const model = await load('pages/shared/saved/useSavedResource.ts', {
+    ...common, '../../../../../../packages/client-core/src/presentation/errors': bindings['../../../../../packages/client-core/src/presentation/errors'],
+    '../../../screens/read/platform': bindings['../read/platform'], '../../../shell/model': bindings['../../shell/model'],
+  });
+  const page = await load('pages/shared/saved/SavedResourcePage.tsx', {
+    ...common, './useSavedResource': model, '../../../screens/destinations/focus': bindings['../destinations/focus'],
+    '../../../kit/frames/SavedResourceFrame': {SavedResourceFrame: 'SavedResourceFrame'},
+    '../../../kit/saved/SavedResourceParts': {SavedResourceBand: 'SavedResourceBand', SavedResourceHero: 'SavedResourceHero',
+      SavedResourceRow: function SavedResourceRow() {}, SavedResourceViewGrid: 'SavedResourceViewGrid', viewSortLabel: () => ''},
+    '../../../kit/saved/SavedReorderList': bindings['./SavedReorderList'],
+    ...Object.fromEntries(Object.entries(bindings).filter(([key]) => key.startsWith('../../kit/')).map(([key, value]) => [`../${key}`, value])),
+  });
+  return {SavedResourcePage: props => {
+    const frame = page.SavedResourcePage(props).props;
+    return [frame.barAction, frame.children, frame.footer, frame.sheets];
+  }};
+}

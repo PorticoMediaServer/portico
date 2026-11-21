@@ -34,7 +34,7 @@ async function load(isTV: boolean) {
     './state': {createNativeSavedState: () => ({source: {}, offline: {}, actions: {}, activation: {subscribe: () => () => {}, getSnapshot: () => ({visible: true, intent: 'enter', revision: 1})},
       view: () => undefined, dispose: () => {}})},
     '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'}, '../../pages/shared/saved/SavedDirectoryPage': {SavedDirectoryPage: 'SavedDirectoryPage'},
-    '../../pages/shared/saved/SavedListPage': {SavedListPage: 'SavedListPage'}, './SavedResourceScreen': {SavedResourceScreen: 'SavedResourceScreen'},
+    '../../pages/shared/saved/SavedListPage': {SavedListPage: 'SavedListPage'}, '../../pages/shared/saved/SavedResourcePage': {SavedResourcePage: 'SavedResourcePage'},
     './navigation': {nativeSavedRouteTarget, openNativeSavedView: () => true},
     '../downloads/view': {createNativeDownloadsView: () => ({render: () => null, dispose: () => {}})},
     './selection': {createNativeSavedSelection: () => ({register: () => () => {}, item: () => undefined, render: () => null, dispose: () => {}})},

@@ -4,16 +4,16 @@ import Animated, {runOnJS, useSharedValue} from 'react-native-reanimated';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {MediaArt} from '../../kit/artwork';
-import {Focusable} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {alpha, browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {MediaArt} from '../artwork';
+import {Focusable} from '../controls';
+import {Icon} from '../Icon';
+import {alpha} from '../browse/presentation';
+import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {usePinDragPaint} from '../destinations/pins-drag-paint';
-import {createSavedReorderGesture, savedReorderTarget} from './paging';
+import {usePinDragPaint} from '../../screens/destinations/pins-drag-paint';
+import {createSavedReorderGesture, savedReorderTarget} from '../../screens/saved/paging';
 
-const t = defaultI18n.t, rowHeight = 80;
+const t = defaultI18n.t, minimumRowHeight = 80;
 type Row = Readonly<{id: string; media: ContentEntry}>;
 type Move = 'up' | 'down' | 'top' | 'bottom';
 type Drag = Readonly<{row: Row; ids: readonly string[]; index: number; target?: ReturnType<typeof savedReorderTarget>}>;
@@ -27,6 +27,8 @@ export function SavedReorderList({rows, runtime, disabled, onMove, onPlace, onDr
   onDragging: (value: boolean) => void;
 }) {
   const theme = useTheme(), paint = usePinDragPaint(), [drag, setDrag] = useState<Drag>();
+  const [rowHeight, setRowHeight] = useState(minimumRowHeight);
+  const measure = (height: number) => setRowHeight(current => Math.max(current, Math.ceil(height) + theme.space.xs * 2));
   const actual = useRef<Drag | undefined>(undefined), alive = useRef(true), latest = useRef({rows, disabled, onMove, onPlace, onDragging});
   latest.current = {rows, disabled, onMove, onPlace, onDragging};
   const cancel = () => {if (!actual.current) return; actual.current = undefined; paint.end(); setDrag(undefined); latest.current.onDragging(false);};
@@ -60,7 +62,7 @@ export function SavedReorderList({rows, runtime, disabled, onMove, onPlace, onDr
   return <View testID="saved-reorder-list" style={{position: 'relative', marginHorizontal: theme.gutter}}>
     {rows.map((row, index) => <View key={row.id} style={{height: rowHeight, borderRadius: 12,
       ...(drag?.row.id === row.id ? {borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.lineStrong} : {})}}>
-      <SavedDragRow row={row} index={index} last={rows.length - 1} runtime={runtime} callbacks={callbacks} paint={paint}
+      <SavedDragRow row={row} index={index} last={rows.length - 1} runtime={runtime} callbacks={callbacks} paint={paint} rowHeight={rowHeight} onMeasure={measure}
         disabled={disabled || !!drag && drag.row.id !== row.id} lifted={drag?.row.id === row.id}
         onMove={where => {if (alive.current && !latest.current.disabled) latest.current.onMove(row, where);}}/>
     </View>)}
@@ -70,15 +72,16 @@ export function SavedReorderList({rows, runtime, disabled, onMove, onPlace, onDr
         position: 'absolute', top: 0, left: -6, right: -6, borderRadius: 12, zIndex: 9, backgroundColor: theme.colors.raisedBright,
         borderWidth: 2, borderColor: theme.colors.accent, shadowColor: theme.colors.ink, shadowOpacity: .6, shadowRadius: 20,
         shadowOffset: {width: 0, height: 24}, elevation: 12,
-      }]}><ReorderFace row={drag.row} runtime={runtime}/></Animated.View>
+      }]}><ReorderFace row={drag.row} runtime={runtime} rowHeight={rowHeight}/></Animated.View>
     </>}
   </View>;
 }
 
-function SavedDragRow({row, index, last, runtime, callbacks, paint, disabled, lifted, onMove}: {
+function SavedDragRow({row, index, last, runtime, callbacks, paint, disabled, lifted, onMove, rowHeight, onMeasure}: {
   row: Row; index: number; last: number; runtime: NativeShellRuntime; disabled: boolean; lifted: boolean; onMove: (where: Move) => void;
   callbacks: {start: (id: string) => boolean; move: (translation: number) => void; drop: (success: boolean) => void; cancel: () => void};
   paint: ReturnType<typeof usePinDragPaint>;
+  rowHeight: number; onMeasure: (height: number) => void;
 }) {
   const latest = useRef(callbacks); latest.current = callbacks;
   const session = useMemo(() => createSavedReorderGesture({start: id => latest.current.start(id),
@@ -108,20 +111,23 @@ function SavedDragRow({row, index, last, runtime, callbacks, paint, disabled, li
         if (index > 0 && (name === 'top' || name === 'decrement')) onMove(name === 'top' ? 'top' : 'up');
         if (index < last && (name === 'bottom' || name === 'increment')) onMove(name === 'bottom' ? 'bottom' : 'down');
       }} style={{height: rowHeight}}>
-      <ReorderFace row={row} runtime={runtime} handle={<GestureDetector gesture={handle}>
+      <ReorderFace row={row} runtime={runtime} rowHeight={rowHeight} onMeasure={onMeasure} handle={<GestureDetector gesture={handle}>
         <View testID={`saved-reorder-handle-${encodeURIComponent(row.id)}`} style={{width: 36, height: rowHeight, alignItems: 'center', justifyContent: 'center'}}><DragIcon/></View>
       </GestureDetector>}/>
     </Focusable>
   </Animated.View></GestureDetector>;
 }
 function DragIcon() {const theme = useTheme(); return <Icon name="i-drag" size={20} color={theme.colors.textTertiary}/>;}
-function ReorderFace({row, runtime, handle}: {row: Row; runtime: NativeShellRuntime; handle?: React.ReactNode}) {
+function ReorderFace({row, runtime, handle, rowHeight, onMeasure}: {
+  row: Row; runtime: NativeShellRuntime; handle?: React.ReactNode; rowHeight: number; onMeasure?: (height: number) => void;
+}) {
   const theme = useTheme(), entry = row.media, square = ['album', 'song', 'book', 'audiobook_file'].includes(entry.kind);
   return <View style={{height: rowHeight, flexDirection: 'row', alignItems: 'center', gap: 12, paddingRight: 8}}>
     {handle ?? <View style={{width: 36, alignItems: 'center'}}><DragIcon/></View>}
     <MediaArt kind={square ? 'square' : 'poster'} source={runtime.artwork(entry.posterUrl)} width={48} height={square ? 48 : 72} style={{borderRadius: 6}}/>
-    <View style={{flex: 1, minWidth: 0, gap: 3}}><Text numberOfLines={1} style={[browseType(theme, 15.5, 700, -.01), {color: theme.colors.text}]}>{entry.displayTitle || entry.title}</Text>
-      {!!entry.year && <Text style={[browseType(theme, 12.5), {color: theme.colors.textTertiary}]}>{entry.year}</Text>}</View>
+    <View onLayout={onMeasure ? event => onMeasure(event.nativeEvent.layout.height) : undefined} style={{flex: 1, minWidth: 0, gap: 3}}>
+      <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{entry.displayTitle || entry.title}</Text>
+      {!!entry.year && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{entry.year}</Text>}</View>
     <View pointerEvents="none" style={{position: 'absolute', left: 48, right: 0, bottom: 0, height: 1, backgroundColor: alpha(theme.colors.line, .3)}}/>
   </View>;
 }
