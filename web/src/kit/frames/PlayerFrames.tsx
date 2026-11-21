@@ -63,6 +63,9 @@ export type PlayerChromeFrameProps = Readonly<{
   form?: PlayerForm;
   /** An upright phone only: the watch page under the picture (the title page's own content). */
   body?: ReactNode;
+  /** The frame fills a box the screen places (the web player's chrome over its retained video): it takes no height of its
+   * own and its stage fills the box in every form. */
+  fill?: boolean;
 }>;
 /** Frame 7, the video player's chrome, in its three drawn forms. From tablet width (desktop-player, tablet-play): the
  * picture fills the window; top bar, then a bar of scrubber, read-outs and a row of left end, transport, right end.
@@ -70,11 +73,11 @@ export type PlayerChromeFrameProps = Readonly<{
  * transport in the middle of the picture and the read-outs either side of the scrubber. An upright phone (phone-player
  * 4): the picture is a 16:9 strip with the chrome inside it, the scrubber on its lower edge, and the watch page below.
  * Every region is fixed; the parts that fill it are `kit/player`'s. */
-export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, resume, scrubbing, body, form}: PlayerChromeFrameProps) {
+export function PlayerChromeFrame({picture, chromeVisible, close, title, tools, scrubber, times, transport, leading, trailing, prompts, card, panel, panelCovers, resume, scrubbing, body, form, fill}: PlayerChromeFrameProps) {
   const windowShape = useSyncExternalStore(subscribeForm, windowForm, () => 'wide' as const), drawn = form ?? windowShape;
   const covered = card ? 'all' : panel ? panelCovers : undefined, shown = chromeVisible && covered !== 'all';
   const right = times.live ? <b className={styles.playerLive}>{times.live}</b> : <b>{times.remaining}</b>;
-  return <div className={styles.player} data-form={drawn} data-chrome={shown} data-covered={covered} data-scrubbing={scrubbing || undefined}>
+  return <div className={styles.player} data-form={drawn} data-chrome={shown} data-covered={covered} data-scrubbing={scrubbing || undefined} data-fill={fill || undefined}>
     <div className={styles.playerStage}>
       <div className={styles.playerPicture}>{picture}</div>
       <div className={styles.playerShade} />
