@@ -6,6 +6,7 @@ import {AmbientArt, ChannelMark, MediaArt, type AmbientArtSource, type ArtworkPa
 import {Button} from '../controls/index';
 import {frameSpec} from '@portico/design';
 import {useTheme} from '../theme';
+import {GuideProgrammeTitle} from '../live/GuideProgrammeTitle';
 import {CardOverlays} from './MediaCards';
 import {ArtFrame, CardFrame, Parts, Progress, alpha, titleStyle, type CardProps} from './primitives';
 import {sessionViewerParts, type SessionViewer} from './session-identity';
@@ -32,7 +33,9 @@ function Resume({read = false, kind = 'book', ...props}: ReadResumeCardProps & {
       <View style={{minHeight: height, flexDirection: 'row', gap: 14, padding: pad, paddingRight: 16}}>
         <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind={read ? kind : 'square'} source={props.artwork} fallback={props.artworkFallback} width={coverWidth} height={coverHeight} style={{borderRadius: read ? 5 : 8}} />
         <View style={{flex: 1, minWidth: 0, paddingTop: 6}}>
-          <Text style={[titleStyle(t, t.isTV ? 26 : 16, 800, -0.01), {lineHeight: (t.isTV ? 31.2 : 19.2) * t.textScale, color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+          {/* Two lines, then "…" after a whole word (owner ruling, 20 Nov, as grid titles): a long title no longer grows the
+            card and with it the whole row. */}
+          <View style={{flexDirection: 'row'}}><GuideProgrammeTitle title={props.title} lines={2} style={[titleStyle(t, t.isTV ? 26 : 16, 800, -0.01), {lineHeight: (t.isTV ? 31.2 : 19.2) * t.textScale, color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}/></View>
           <View style={{marginTop: 3}}><Parts parts={props.caption} fit="wrap" lines={0} style={{color: t.colors.textSecondary}} /></View>
           {/* The facts share one line when they fit; when they do not, the second takes a line of its own, so neither is cut
             ("Chapter 3" over "3 h 34 min left" on a narrow card). The no-cut rule. */}
