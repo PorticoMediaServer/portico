@@ -421,6 +421,11 @@
   .episode .backdropCrop { transform:scale(2.4); }
   .episode .length { display:none; }
   .episode .more { top:0; right:0; }
+  /* A sideways row of search results keeps the 16:9 card's own shape, the still over its words: as a list row its words had a
+     column of about 110 px ("My Hero / Academia" over three lines). */
+  .context-search.episode .primary { display:block; }
+  .context-search.episode .episodeCopy { margin-top:10px; }
+  .context-search.episode .episodeMeta { flex-direction:row; gap:12px; }
   .cover .watched { top:6px; right:6px; width:24px; height:24px; }
   .square .finished { left:6px; right:auto; top:6px; height:22px; padding:0 7px; background:rgba(7,16,24,.78); }
   .context-grid { --cards-width:108px; }
