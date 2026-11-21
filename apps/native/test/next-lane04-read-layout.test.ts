@@ -212,3 +212,30 @@ test('N5-4: a series volume the server can\'t serve takes no open, menu or selec
   assert.equal(missing.props.onLongPressAction, undefined);
   assert.equal(nodes(missing).some(node => node.type === 'SelectionCircle'), false, 'never part of a selection');
 });
+
+test('series page keeps Back, pending volumes and the server-selected Read action', async () => {
+  const r = renderer();
+  const usable = {id: 'readable', title: 'Volume 2', inventoryAvailable: true};
+  const events: unknown[] = [];
+  const state = {phase: 'loading', items: [] as unknown[], direction: 'rtl'};
+  const model = {state, actions: {actions: {show() {}}, selection() {}}, title: 'Series', readable: usable, readLabel: 'Read volume 2',
+    covers: [usable], offer() {}, open: (item: unknown) => events.push(item)};
+  const {ReadSeriesPage} = await screenModule(new URL('../src-next/pages/touch/read/ReadSeriesPage.tsx', import.meta.url), {
+    react: r.react, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../kit/frames/ReadingSeriesFrame': {ReadingSeriesFrame: 'ReadingSeriesFrame'},
+    '../../../kit/reading/ReadingActions': {ReadingSelectionToolbar: 'Toolbar', ReadingItemMenu: 'Menu'},
+    '../../../kit/reading/SeriesParts': {SeriesHero: 'SeriesHero'}, '../../../kit/states': {StateView: 'StateView'},
+    '../../../kit/theme': {useTheme: () => theme(false)}, '../../shared/read/useReadSeries': {useReadSeries: () => model},
+  });
+  const props = {route: {seriesId: 'one'}, comic: true, runtime: {}, onBack: () => events.push('back')};
+  assert.equal(r.render(ReadSeriesPage, props).props.ready, false);
+  state.phase = 'ready';
+  const page = r.render(ReadSeriesPage, props);
+  assert.equal(page.props.ready, true);
+  assert.equal(named(page.props.notice, 'StateView').props.testID, 'native-read-series-empty');
+  const hero = page.props.hero(() => {});
+  assert.equal(hero.props.direction, 'rtl');
+  hero.props.onRead();
+  page.props.back.onPress();
+  assert.deepEqual(events, [usable, 'back']);
+});
