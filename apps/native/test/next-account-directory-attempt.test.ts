@@ -73,7 +73,7 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
       TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required'},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
+    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, '../../pages/shared/accounts/OfflineServersPage': {OfflineServersPage: 'TVOfflineServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
     './NativeSetup': {NativeSetup: 'NativeSetup'},
@@ -162,4 +162,39 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     await host.unmount(); t.mock.timers.tick(1000);
     assert.equal(pending.length, count, 'unmount retires the timer');
   } finally {await host.unmount(); t.mock.timers.reset();}
+});
+
+test('Offline servers keep the captured retry, Back and Downloads on the current opening', async () => {
+  const modules = {react: React, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/frames': {SignInFrame: 'SignInFrame'},
+    '../../../kit/shell/OfflineServerRows': {OfflineServerRows: 'OfflineServerRows'},
+    '../../../kit/settings/SettingsParts': {SettingsHelp: 'SettingsHelp'}, '../../../kit/theme': {useTheme: () => theme}};
+  const model = await screenModule(new URL('../src-next/pages/shared/accounts/useOfflineServerOpening.ts', import.meta.url), modules);
+  const {OfflineServersPage} = await screenModule(new URL('../src-next/pages/shared/accounts/OfflineServersPage.tsx', import.meta.url), {
+    ...modules, './useOfflineServerOpening': model,
+  });
+  const calls: string[] = [];
+  let live = true, revision = 1, tree: any;
+  const scope = {};
+  const host = createFabricHookHost(() => {
+    tree = OfflineServersPage({rows: [{id: 'one', name: 'One'}], scope, revision, busy: false, isCurrent: () => live,
+      onRetry: (id: string) => calls.push(id), onBack: () => calls.push('back'), onDownloads: () => calls.push('downloads'), onRefresh() {}});
+  });
+  const row = () => nodes(tree).find(node => node.type === 'OfflineServerRows');
+  try {
+    await host.mount();
+    const retry = row().props.retry, prevBack = tree.props.back.onPress;
+    retry('unknown');
+    retry('one');
+    revision++;
+    await host.rerender();
+    retry('one');
+    prevBack();
+    assert.deepEqual(calls, ['one']);
+    nodes(tree).find(node => node.type === 'Button' && node.props.children === defaultI18n.t('downloads.title')).props.onPress();
+    tree.props.back.onPress();
+    live = false;
+    row().props.retry('one');
+    assert.deepEqual(calls, ['one', 'downloads', 'back']);
+  } finally {await host.unmount();}
 });

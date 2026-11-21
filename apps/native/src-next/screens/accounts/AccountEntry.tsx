@@ -53,7 +53,7 @@ import type {NativeInvitationLink} from '../../platform/invitation-links';
 import {PhoneAccountWorkspace} from './PhoneAccountWorkspace';
 import {NativeAccountWorkspace} from '../../platform/account-workspace';
 import {TVNoServers} from './TVNoServers';
-import {TVOfflineServers} from './TVOfflineServers';
+import {OfflineServersPage} from '../../pages/shared/accounts/OfflineServersPage';
 import {PhoneAccountMoveNotice} from './PhoneAccountMoveNotice';
 import {PhoneMovePassword} from './PhoneMovePassword';
 import {PhoneMoveCode} from './PhoneMoveCode';
@@ -1616,7 +1616,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         || capturedDownload.source !== downloads || !capturedDownload.source.current() || !capturedDownload.source.getSnapshot().available) return;
       capturedDownload.source.open();
     };
-    return <TVOfflineServers onDownloads={!!capturedDownload && capturedDownload.source === downloads && capturedDownload.active && downloadValue?.available && downloads?.current() ? openDownloads : undefined} username={nativeAccounts.accountCredentials().getSnapshot().session?.account.username}
+    return <OfflineServersPage onDownloads={!!capturedDownload && capturedDownload.source === downloads && capturedDownload.active && downloadValue?.available && downloads?.current() ? openDownloads : undefined} username={nativeAccounts.accountCredentials().getSnapshot().session?.account.username}
       onSettings={() => openAccountWorkspace(scope, current)}
       onJoin={() => {if (current() && !busyRef.current) openInvitationEntry();}}
       onFind={() => {if (!current() || busyRef.current) return; cancelDirectory(); setAddress(''); setPassword(''); setCode(''); stageRef.current = 'address'; setStage('address');}}
