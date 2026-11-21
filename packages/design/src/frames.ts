@@ -92,6 +92,10 @@ export const frame = {
       /** TV with focus in the panel (detail-tv-3): the folded title at the TV display size (it measures 62 on the frame), and
        * the wash of ink behind it and the tabs, solid to just above its foot, so a row moving up passes under it. */
       tvFoldedLockup: 62, tvBand: [[1, 0], [1, .88], [0, 1]] as readonly (readonly [number, number])[],
+      /** TV, folded (detail-tv 2 to 5): fixed places from the screen's top, as rule 12 asks of a header and its tab bar: the tabs
+       * at 170 (`.ttabs`) and the section that holds focus from 262 (`.rows-tv`, `.seasons`, `.eps`). The title page's tabs on TV
+       * have the frames' rule under them, gutter to safe edge (`.ttabs` border-bottom 1.5, frames 1 to 5). */
+      tvFoldedTabsTop: 170, tvFoldedSectionTop: 262, tvTabRule: 1.5,
       /** A cover page's cover, its width per form (a poster is 1.5 times as tall): phone-app 13 and phone-detail d3 frame 7
        * (220 square, 180 poster, 104 circle), tablet f8, desktop-listen album, artist and book (340); TV's square is tv-more frame 6's
        * album (480). R5 interim. */
