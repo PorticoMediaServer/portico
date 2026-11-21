@@ -152,13 +152,23 @@ export function LanguageList({label, value, available, limit, onChange, testID, 
   </View>;
 }
 
-export function SubtitlePreview({source, size, background, visible = true}: {source: ArtworkSource; size: 'small' | 'medium' | 'large' | 'extra-large'; background: 'none' | 'translucent' | 'opaque'; visible?: boolean}) {
-  const theme = useTheme();
-  const fontSize = ({small: 20, medium: 26, large: 32, 'extra-large': 40} as const)[size] * (theme.isTV ? 30 / 26 : 1);
-  return <View style={{height: theme.isTV ? 190 : 360, borderRadius: theme.isTV ? 18 : 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-    <Artwork source={source} visible={visible} position={{x: .5, y: .3}}/>
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.ink, theme.isTV ? .3 : .1)}]}/>
-    <View style={{position: 'absolute', bottom: theme.isTV ? 26 : 70, left: 0, right: 0, alignItems: 'center'}}><Text style={[shellType(fontSize, 600, fontSize * 1.3, 0, 1), {color: theme.colors.white, paddingHorizontal: theme.isTV ? 18 : 12, paddingVertical: theme.isTV ? 6 : 3, borderRadius: theme.isTV ? 6 : 4, backgroundColor: background === 'none' ? 'transparent' : alpha(theme.colors.shadow, background === 'opaque' ? 1 : .55), textShadowColor: background === 'opaque' ? 'transparent' : alpha(theme.colors.shadow, .8), textShadowOffset: {width: 0, height: 1}, textShadowRadius: 3}]}>{defaultI18n.t('settings.subtitlePreview.line')}</Text></View>
+/** What the subtitle preview paints: the player's own caption palette (platform/playback/caption-style captionPaint). */
+export type SubtitlePreviewPaint = Readonly<{scale: number; color: string; backgroundColor: string; edge: 'none' | 'outline' | 'shadow'; position: 'bottom' | 'raised' | 'top'}>;
+
+/** Audio & subtitles' preview: a 16:9 stage (an optional still behind it) with one caption line drawn in the chosen size,
+ * colour, background and position. The line is 5.2% of the stage's height at Medium, the proportion web draws. */
+export function SubtitlePreview({paint, source, visible = true, testID}: {paint: SubtitlePreviewPaint; source?: ArtworkSource; visible?: boolean; testID?: string}) {
+  const theme = useTheme(), [height, setHeight] = useState(0), line = defaultI18n.t('settings.subtitlePreview.line');
+  const cue = height * .052 * paint.scale;
+  const place = paint.position === 'top' ? {top: '8%' as const} : {bottom: paint.position === 'raised' ? '17%' as const : '6.5%' as const};
+  const edge = paint.edge === 'none' ? {} : {textShadowColor: theme.colors.shadow, textShadowOffset: {width: 0, height: paint.edge === 'shadow' ? 2 : 0}, textShadowRadius: paint.edge === 'shadow' ? 3 : 1.5};
+  return <View testID={testID} accessibilityRole="image" accessibilityLabel={line} onLayout={event => setHeight(event.nativeEvent.layout.height)}
+    style={{width: '100%', maxWidth: theme.isTV ? undefined : 480, aspectRatio: 16 / 9, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.ink, borderWidth: 1, borderColor: theme.colors.line}}>
+    {source && <Artwork source={source} visible={visible} position={{x: .5, y: .3}}/>}
+    {height > 0 && <View pointerEvents="none" style={{position: 'absolute', left: '5%', right: '5%', alignItems: 'center', ...place}}>
+      <Text allowFontScaling={false} style={[shellType(cue, 600, cue * 1.3), {color: paint.color, backgroundColor: paint.backgroundColor,
+        paddingHorizontal: cue * .38, paddingVertical: cue * .08, borderRadius: cue * .22, textAlign: 'center', ...edge}]}>{line}</Text>
+    </View>}
   </View>;
 }
 

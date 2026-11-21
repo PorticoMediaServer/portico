@@ -88,13 +88,13 @@ test('television gets none of it: the Dashboard alone for an owner, nothing for 
   assert.equal(sections(page(memberTV, 'account', 'profile')).includes('tokens'), false);
 });
 
-test('Card size, Show backdrops and the caption style are a phone’s and a television’s rows too', () => {
+test('Card size, Show backdrops and the caption style with its preview are a phone’s and a television’s rows too', () => {
   for (const television of [false, true]) {
     const s = settingsStructure({owner: false, platform: television ? 'tv' : 'phone', capabilities: {preferenceKeys: new Set(['appearance.cardSizePercent', 'appearance.showBackdrops', 'playback.subtitleSize', 'playback.subtitleBackground', 'notifications.badges'])}});
     const appearance = page(s, 'account', 'appearance').sections.flatMap(x => x.rows.map(settingsRowId));
     assert.deepEqual(appearance.slice(0, 3), ['customizeHome', 'cardSize', 'appearance.showBackdrops']);
     const captions = page(s, 'account', 'languages').sections.find(x => x.id === 'appearance')!;
-    assert.deepEqual(captions.rows.map(settingsRowId), ['playback.subtitleSize', 'playback.subtitleBackground']);
+    assert.deepEqual(captions.rows.map(settingsRowId), ['subtitlePreview', 'playback.subtitleSize', 'playback.subtitleBackground']);
   }
   // A server that does not publish the card size has no row for it.
   const bare = settingsStructure({owner: false, platform: 'phone', capabilities: {preferenceKeys: new Set(['appearance.showBackdrops'])}});

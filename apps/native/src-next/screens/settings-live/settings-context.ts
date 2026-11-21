@@ -49,7 +49,7 @@ export function nativeSettingsContext(source: NativeSettingsContextSource, platf
 }
 
 /** The account pages' custom rows this build draws, each from its own real reader or route. */
-export const nativeAccountPanelIds: readonly SettingsCustomId[] = Object.freeze(['identity', 'profiles', 'password', 'twoStep', 'devices', 'servers', 'porticoAccount', 'accessTokens', 'about', 'privacyNote', 'remoteControls', 'deviceName', 'downloadsStorage']);
+export const nativeAccountPanelIds: readonly SettingsCustomId[] = Object.freeze(['identity', 'profiles', 'password', 'twoStep', 'devices', 'servers', 'porticoAccount', 'accessTokens', 'about', 'privacyNote', 'remoteControls', 'deviceName', 'downloadsStorage', 'subtitlePreview']);
 
 /** Drawn rows whose genuine native surface is not built yet; their capability stays off. */
-export const nativeSettingsUnavailablePanelIds: readonly SettingsCustomId[] = Object.freeze(['subtitlePreview']);
+export const nativeSettingsUnavailablePanelIds: readonly SettingsCustomId[] = Object.freeze([]);

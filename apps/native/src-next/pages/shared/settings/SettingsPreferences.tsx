@@ -5,7 +5,7 @@ import {COMMON_LANGUAGES, languageName, MAX_LANGUAGES} from '../../../../../../p
 import {localeChoices} from '../../../../../../packages/client-core/src/presentation/region-choices';
 import {readComposite, settingsRowId, settingsScopeLabel, type SettingsRow as Row} from '../../../../../../packages/client-core/src/presentation/settings-structure';
 import {Button, Select, Switch} from '../../../kit/controls';
-import {ChoiceMatrix, LanguageList, SettingsRow} from '../../../kit/shell';
+import {ChoiceMatrix, LanguageList, SettingsRow, SubtitlePreview} from '../../../kit/shell';
 import {SectionCard} from '../../../kit/frames';
 import {SettingsControlRows, SettingsManagementCard} from '../../../kit/settings/SettingsParts';
 import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
@@ -22,6 +22,7 @@ import {NativeLossNoticesRow} from '../../../screens/settings-live/NativeLossNot
 import {DeviceCapabilityRows} from '../../../kit/settings/DeviceCapabilityRows';
 import {NativeServerOfflineNoticeRow} from '../../../screens/settings-live/NativeServerOfflineNoticeRow';
 import {passthroughFormats} from '../../../platform/playback/passthrough-formats';
+import {captionPaint} from '../../../platform/playback/caption-style';
 import {playerEngineHints, useSettingsPreferences, type SettingsPreferencesProps} from './useSettingsPreferences';
 
 const SKIP_KEYS: readonly string[] = ['playback.introSkip', 'playback.creditsSkip', 'playback.recapSkip'];
@@ -45,6 +46,8 @@ export function SettingsPreferences(props: SettingsPreferencesProps) {
           if (row.label === 'next.settingsSpec.account.device.groups.1.rows.6.label') return null;
           if (row.label === 'next.settingsSpec.account.device.groups.1.rows.7.label') return <NativeApplePassthroughRow key={id} testID={id}/>;
         }
+        // The preview paints the effective choices below it, so it redraws as each one changes.
+        if (row.kind === 'custom' && row.id === 'subtitlePreview') return <SubtitlePreview key={id} testID="settings-subtitle-preview" paint={captionPaint(state.preferences.effective)}/>;
         if (row.kind === 'custom') return <React.Fragment key={id}>{ports.renderSettingsPanel(row.id, runtime)}</React.Fragment>;
         // MOB-023: on tablet touch layouts Intro/Credits/Recap skipping is one choice matrix.
         if (skipMatrix && row.kind === 'preference' && SKIP_KEYS.includes(row.key)) {
