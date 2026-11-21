@@ -20,7 +20,7 @@ import {alpha} from '../shell/visual';
 import {SkeletonBlock} from '../states/SkeletonBlock';
 import {buttonGeometry} from '../controls/control-model';
 import {useTheme} from '../theme';
-import {FocusWithin, StartFocusScope} from '../focus';
+import {FocusRegion, FocusWithin, StartFocusScope} from '../focus';
 import {useMotion} from '../useMotion';
 import {FrameReveal, useFrameMetrics} from './metrics';
 import {PageStateFrame, type PageStateProps} from './PageStateFrame';
@@ -234,20 +234,24 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     {kicker.detail !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{kicker.detail}</Text>}
   </>;
   const kickerRow = {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centre, gap: theme.space.controlGap} as const;
+  // On TV each head link sits in a focus region of this page's own, so a page it opens gives focus back to it on Back
+  // (the layer stack keeps the control it left only when a region holds it). The page is drawn again on Back, so the
+  // region is named by the page itself, not by this mount.
+  const headLink = (id: string, link: ReactNode) => tv ? <FocusRegion id={`title.head.${testID ?? 'page'}.${title}.${id}`}>{link}</FocusRegion> : link;
   // On TV a kicker that opens something (the collection, tv-detail frame 1) is a focus stop of its own, above the buttons:
   // text alone takes no D-pad focus.
   const kickerLine = kicker && (tv && kicker.onPress
-    ? <Focusable focusId="title-kicker" testID="title-kicker" accessibilityRole="link" accessibilityLabel={[kicker.label, kicker.detail].filter(Boolean).join(', ')} onPress={kicker.onPress}
+    ? headLink('kicker', <Focusable focusId="title-kicker" testID="title-kicker" accessibilityRole="link" accessibilityLabel={[kicker.label, kicker.detail].filter(Boolean).join(', ')} onPress={kicker.onPress}
       // The ring is drawn outside the line: its room comes on top of the gap, so it never touches the title (R1).
-      style={[kickerRow, {alignSelf: 'flex-start', marginBottom: theme.space.controlGap + theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv}]}>{kickerWords}</Focusable>
+      style={[kickerRow, {alignSelf: 'flex-start', marginBottom: theme.space.controlGap + theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv}]}>{kickerWords}</Focusable>)
     : <View style={[kickerRow, {marginBottom: theme.space.controlGap}]}>{kickerWords}</View>);
   const identity = <>
     {kickerLine}
     {loading && !title ? <SkeletonBlock width="70%" height={lockup}/> : <Lockup title={title} size={lockup} lineRatio={frameSpec.hero.lockupLine} tracking={frameSpec.hero.lockupTracking} style={{textAlign: stacked ? 'center' : 'left'}}/>}
     {byline && (byline.onPress
-      ? <Focusable accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
+      ? headLink('byline', <Focusable focusId="title-byline" accessibilityRole="link" accessibilityLabel={byline.text} onPress={byline.onPress} style={{alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs}}>{byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
-          <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View></Focusable>
+          <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View></Focusable>)
       : <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, alignSelf: stacked ? 'center' : 'flex-start', marginTop: theme.space.hairline * 2}}>
         {byline.initials && <PersonCircle size={spec.parts.bylineCircle} initials={byline.initials}/>}
         <Text style={[theme.type.wideTitle, {color: theme.colors.accentStrong, textAlign: stacked ? 'center' : 'left'}]}>{byline.text}</Text></View>)}
