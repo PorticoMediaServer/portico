@@ -49,6 +49,8 @@
 .resourceRowCopy > .resourceRowVisible { color: var(--color-accent-strong); font-weight: var(--type-caption-strong-weight); }
 .resourceRowCopy > .resourceRowNote { color: var(--color-text-tertiary); }
 .resultCount { font-size: calc(var(--type-caption-size) * 14 / 13); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+/* The Playlists list's own count and New playlist, at the end of its toolbar. */
+.playlistsEnd { display: flex; }
 .toolbarEnd { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--color-text-tertiary); font-size: calc(var(--type-caption-size) * 14 / 13); }
 .directoryCount { color: var(--color-text-secondary); font-size: calc(var(--type-caption-size) * 29 / 26); font-weight: var(--type-caption-strong-weight); }
 .directoryHelp { color: var(--color-text-tertiary); font-size: calc(var(--type-caption-size) * 29 / 26); }
@@ -242,7 +244,11 @@
   .serverDownloads .actions { grid-column: 2 / -1; }
 }
 @media (max-width: 599px) {
-  .toolbar { padding: 20px 20px 0; flex-wrap: wrap; }
+  /* collections-14 frame 14a: one row (sort, then the chips scrolling); the bar's + is the one New playlist, so the toolbar's count
+     and its own New playlist are not drawn, and neither is the New playlist tile under an empty page. */
+  .toolbar { padding: 20px 20px 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .toolbar > * { flex: none; }
+  .playlistsEnd, .newTile { display: none; }
   .savedSection { margin: 20px 20px 0; }
   .resources { padding: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .resourceBack { padding: 16px 12px 0; }
