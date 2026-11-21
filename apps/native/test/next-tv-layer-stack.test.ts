@@ -70,7 +70,7 @@ test('a route whose page asked for its own start is claimed on that control, and
   const registry = createFocusRegistry(), time = clock(), log: string[] = [];
   const stack = createTVLayerStack(registry, time, undefined, focus => focus.regionId === 'rail');
   const card = {regionId: 'grid', childId: 'film'};
-  registry.configure({id: 'grid', order: ['film']}); registry.attach(card, host(log, 'card'));
+  registry.configure({id: 'grid', order: ['film']}); registry.attach(card, host(log, 'card', () => registry.didFocus(card)));
   registry.didFocus(card);
   const page = {key: 'page', host: () => host(log, 'page-layer')};
   registry.notePreferred(host(log, 'old-play')); // the page's own start, asked as it mounted
@@ -557,4 +557,25 @@ test('Android TV: a page\'s start ask and a return to its opener go on the next 
     assert.equal(afterLayerChange(() => {returned.push('card'); return true;}), true);
     assert.deepEqual(returned, [], 'a return to the opener waits a frame too'); frames.shift()!(); assert.deepEqual(returned, ['card']);
   } finally {deferStartFocus(false); (globalThis as any).requestAnimationFrame = raf;}
+});
+
+test('a restore the registry already names is not done until focus actually arrives; recovery elsewhere is asked again', () => {
+  // Back from an audiobook author: the registry still names the author card from before the route, the request lands a
+  // frame later, and Android TV's recovery first puts focus on the page's first control.
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time);
+  const card = {regionId: 'grid', childId: 'author'}, switcher = {regionId: 'header', childId: 'switch'};
+  registry.configure({id: 'header', order: ['switch']}); registry.attach(switcher, host(log, 'switch', () => registry.didFocus(switcher)));
+  registry.configure({id: 'grid', order: ['author']});
+  let lands = false;
+  registry.attach(card, host(log, 'author', () => {if (lands) registry.didFocus(card);}));
+  registry.didFocus(card);
+  const page = {key: 'page', host: () => host(log, 'page-layer')};
+  stack.sync([page]); stack.sync([page, {key: 'route:1'}]); log.length = 0;
+  stack.sync([page]);
+  assert.ok(log.length && log.every(name => name === 'author'), 'asked for the author card');
+  lands = true; log.length = 0;
+  registry.didFocus(switcher);
+  assert.deepEqual(log, ['author'], 'the recovery onto the first control is not where the person was: asked again');
+  assert.equal(registry.capture()?.childId, 'author');
 });

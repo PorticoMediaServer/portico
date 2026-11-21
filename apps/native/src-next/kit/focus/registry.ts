@@ -325,6 +325,8 @@ export function createFocusRegistry() {
     targetSnapshot: (id: string | undefined, edges: readonly string[], childId?: string, entries = false) => edges.reduce((latest, edge) => Math.max(latest, hostRevisions.get(edge) ?? 0, entries ? scopedRevisions.get(edge) ?? 0 : 0),
       id === undefined ? 0 : Math.max(targetRevisions.get(id) ?? 0, childId === undefined ? 0 : childRevisions.get(childKey(id, childId)) ?? 0)),
     capture: (): FocusSnapshot | undefined => active && {...currentSnapshot(active), order: [...currentSnapshot(active).order]},
+    /** Counts native focus events: a caller that asked for focus can tell a real arrival from the registry's last record. */
+    focusEpoch: (): number => epoch,
     focus, focusRegion, entryTarget, entryAddress, restore,
     /** capture() also retains historical return proof; this requires a still-attached enabled leaf. */
     attachedFocus: (): FocusSnapshot | undefined => active && enabledPath(active.regionId) && regions.get(active.regionId)?.children.has(active.childId) ? snapshot(active) : undefined,

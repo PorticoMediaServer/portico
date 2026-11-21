@@ -10,7 +10,7 @@ export type TVLayerSpec = Readonly<{
    * whether a request was sent; the stack asks again as elements attach, within its wait. */
   claim?: () => boolean;
 }>;
-type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'> & Partial<Pick<FocusRegistry, 'preferredAsk' | 'preferredCount'>>;
+type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'> & Partial<Pick<FocusRegistry, 'preferredAsk' | 'preferredCount' | 'focusEpoch'>>;
 type Clock = Readonly<{later: (run: () => void, ms: number) => unknown; cancel: (handle: unknown) => void}>;
 const realClock: Clock = {later: (run, ms) => setTimeout(run, ms), cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>)};
 /** How long a layer waits for the element it is owed to attach (a windowed grid re-projecting, a page re-enabling its cards). */
@@ -48,12 +48,13 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
       // Already on what it is owed counts only once a request for it was actually sent.
       const onOwed = !!now && granted && !!owed && (same(now, owed) || owed.entityId !== undefined && now.entityId === owed.entityId && now.regionId === owed.regionId);
       // A restore is done only on what it is owed: the platform's own recovery (Android TV puts focus on the layer's first
-      // control when the screen above it goes) is not where the person was.
-      return strict ? onOwed : !!now && (!same(now, before) && !outside(now) || onOwed);
+      // control when the screen above it goes) is not where the person was. Its request lands a frame later, and the registry
+      // can still name the owed element from before (Back from an audiobook author), so it also needs a focus event since it asked.
+      return strict ? onOwed && (registry.focusEpoch?.() ?? 0) !== askedAt : !!now && (!same(now, before) && !outside(now) || onOwed);
     };
-    let finished = false, asking = false, granted = false;
+    let finished = false, asking = false, granted = false, askedAt = -1;
     const finish = () => {if (finished) return; finished = true; off(); clock.cancel(timer); if (pending === finish) pending = undefined;};
-    const tryAsk = () => {if (asking || finished) return; asking = true; try {granted = ask() || granted;} finally {asking = false;} if (done()) finish();};
+    const tryAsk = () => {if (asking || finished) return; asking = true; askedAt = registry.focusEpoch?.() ?? -1; try {granted = ask() || granted;} finally {asking = false;} if (done()) finish();};
     // A claim on a page's named start (`once`) is sent again only if focus fell outside every layer: repeating it on every
     // registry change floods the native side with requests that race the page's own. Other claims ask again as elements attach.
     const off = registry.subscribe(() => {if (finished || asking) return; if (done()) finish(); else {const now = registry.capture(); if (!once || !granted || now && outside(now)) tryAsk();}});
