@@ -1,0 +1,9 @@
+/* Add a film's results under its search field. */
+.found { display: grid; gap: var(--space-tight); margin-top: var(--space-md); max-height: min(420px, 60vh); overflow-y: auto; }
+.none { margin: 0; color: var(--color-text-secondary); }
+.added { flex: none; font-size: var(--type-row-help-size); font-weight: var(--type-row-label-weight); color: var(--color-accent-strong); }
+/* Change order: each film's up and down in place of its Play. */
+.order { display: inline-flex; gap: var(--space-tight); }
+/* The side: About, then the owner's card a section's gap below it. */
+.aside { display: grid; gap: var(--frame-section-gap); }
+.aside > :first-child { margin-bottom: calc(-1 * var(--frame-section-gap)); }
