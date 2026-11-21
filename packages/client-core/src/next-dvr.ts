@@ -152,6 +152,7 @@ export class NextDVRClient {
     const dvr = await this.call(signal => callServer(this.api, 'GET /v1/dvr', {
       query: {scope: this.everyone ? 'everyone' : undefined}, signal}));
     return {upcoming: dvr.upcoming, recorded: dvr.recorded, rules: dvr.rules, conflicts: dvr.conflicts, groups: dvr.groups, unwatched: dvr.unwatched,
+      ...(typeof dvr.canRecord === 'boolean' ? {canRecord: dvr.canRecord} : {}),
       ...(typeof dvr.everyonesRecordings === 'boolean' ? {everyonesRecordings: dvr.everyonesRecordings} : {})};
   }
   /** One server page of titles, with its full counts and genuine newest recording. */

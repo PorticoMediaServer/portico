@@ -49,6 +49,9 @@ export type RecordingsProps = {controller: NativeRecordingsController; ports: Pi
 export function useRecordings({controller, ports, runtime, onGuide}: RecordingsProps) {
   const theme = useTheme(), t = defaultI18n.t;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), query = state.query;
+  const ownerCanSeeRules = ports.context.account.account.role === 'owner';
+  const canSeeRules = useCallback((snapshot: typeof state) => ownerCanSeeRules || snapshot.summary?.canRecord === true, [ownerCanSeeRules]);
+  const availableViews = canSeeRules(state) ? views : views.filter(view => view !== 'rules');
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]), tabs = ids.surface('recordings.views'), body = ids.surface('recordings.page');
   const registry = useFocusRegistry(), bodyFocused = useRef(false);
   const [group, setGroup] = useState<Group>(), [menu, setMenu] = useState<OverlayOpening>(), [detail, setDetail] = useState<OverlayOpening>(), [rule, setRule] = useState<RecordingRule>();
@@ -93,8 +96,22 @@ export function useRecordings({controller, ports, runtime, onGuide}: RecordingsP
   // The asks die with the screen in the layout phase, so StrictMode's
   // mount/unmount/mount leaves them live again on the committed mount.
   useLayoutEffect(() => {const ownedOperations = playOperations.current; alive.current = true; controller.beginViewerOpening(viewerOpening); return () => {alive.current = false; controller.endViewerOpening(viewerOpening); for (const operation of ownedOperations) operation.abort(); if (ask.current) controller.unpinViewerRow(ask.current.opening.pin, ask.current.opening.scope); if (overlay.current) controller.unpinViewerRow(overlay.current.pin, overlay.current.scope); if (confirmation.current) controller.unpinViewerRow(confirmation.current.opening.pin, confirmation.current.opening.scope); if (ruleOpening.current) controller.unpinViewerRow(ruleOpening.current.pin, ruleOpening.current.scope); ask.current = undefined;};}, [controller, viewerOpening]);
-  useEffect(() => {const previous = controller.getSnapshot().query; void controller.load(previous.group ? {view: 'recorded', sort: previous.sort} : previous); void controller.loadFacts();}, [controller]);
-  const select = (view: DVRView) => {if (view === query.view && !query.group) return; retire(); setGroup(undefined); void controller.load({view}); list.current?.scrollToOffset({offset: 0, animated: false});};
+  useEffect(() => {
+    const snapshot = controller.getSnapshot(), previous = snapshot.query;
+    const next = previous.view === 'rules' && !canSeeRules(snapshot) ? {view: 'upcoming'} as const
+      : previous.group ? {view: 'recorded', sort: previous.sort} as const : previous;
+    void controller.load(next);
+    void controller.loadFacts();
+  }, [controller, canSeeRules]);
+  const select = (view: DVRView) => {
+    // A profile that cannot record is not offered Series rules (the server refuses them with a 403).
+    if (view === 'rules' && !canSeeRules(controller.getSnapshot())) return;
+    if (view === query.view && !query.group) return;
+    retire();
+    setGroup(undefined);
+    void controller.load({view});
+    list.current?.scrollToOffset({offset: 0, animated: false});
+  };
   /** The drawn order of the Recorded grid; the groups reader does the ordering. */
   const sort: 'recent' | 'title' | 'oldest' = query.sort === 'title' || query.sort === 'oldest' ? query.sort : 'recent';
   const selectSort = (next: 'recent' | 'title' | 'oldest') => {setSortOpen(false); if (next === sort) return; retire(); void controller.load({view: 'recorded', sort: next});};
@@ -236,7 +253,7 @@ export function useRecordings({controller, ports, runtime, onGuide}: RecordingsP
     newRule, setNewRule, sortOpen, setSortOpen, opener, cancel, list, alive, viewerOpening, overlay,
     drawnCurrent, closeConfirm, retire, groups, rules, first, emptyGuide, entryRegion, enter, select, sort,
     selectSort, leaveGuide, back, open, close, askReady, run, play, askDelete, rowData, restartViewer, isEmpty, emptyTitle,
-    emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent};
+    emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent, availableViews};
 }
 export function storageFacts(storage: RecordingSpace) {
   const [used = '', free = ''] = defaultI18n.t('recordings.storageUsed', {used: storage.usedBytes === undefined ? '—' : defaultI18n.bytes(storage.usedBytes), free: defaultI18n.bytes(storage.freeBytes)}).split(' · ');
