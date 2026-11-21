@@ -18,11 +18,19 @@ export type NativeTVSearchPageProps = Readonly<{
 
 /** The actual Search destination keeps its own service, IDs and navigation intent.
  * Only the shared keyboard requests entry focus; result arrival never moves it. */
-export function useTVSearch({focusScope, destination, runtime, activation, explore, actions}: NativeTVSearchPageProps) {
+export function useTVSearch({focusScope, destination, runtime, activation, explore, actions, selection}: NativeTVSearchPageProps) {
   const theme = useTheme(), scroll = useRef<ScrollView>(null), [keyboardRow, setKeyboardRow] = useState<string>();
   const view = useSearch({destination, runtime, explore, activation, actions});
   const {active, state, t} = view, authority = runtime.getSnapshot().authority;
   const ids = useMemo(() => nativeDestinationFocusIds(authority, focusScope), [authority, focusScope]), registry = useFocusRegistry();
+  // History once, the genres each time the page shows, and the selection over the results (as the touch page does).
+  const historyLoaded = useRef(false);
+  useEffect(() => {
+    if (!active.visible) return;
+    if (!historyLoaded.current) {historyLoaded.current = true; void destination.refreshHistory().catch(runtime.reportError);}
+    void explore.load().catch(runtime.reportError);
+  }, [active.visible, destination, explore, runtime]);
+  useEffect(() => selection?.register(state.search, state.groups), [selection, state.search, state.groups]);
   useEffect(() => {
     if (!active.visible) return;
     return runtime.registerTVPageBack?.(() => {

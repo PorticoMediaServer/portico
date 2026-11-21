@@ -37,7 +37,7 @@ export type SearchHistoryProps = Readonly<{
 }>;
 
 /** Recent searches (phone-app 7, desktop-search s-empty): the heading with Clear, then each search. A phone lists them as
- * rows with a clock and a remove ×; wider forms as chips on one line that wraps. The live phone screen (`screens/search/SearchScreen.tsx`) still draws its own rows, which its tests read; Stage 2 moves it onto this part. */
+ * rows with a clock and a remove ×; wider forms as chips on one line that wraps. */
 export function SearchHistory({title, clear, items}: SearchHistoryProps) {
   const theme = useTheme(), frame = useFrameMetrics(), phone = frame.form === 'phone';
   if (!items.length) return null;
@@ -82,7 +82,7 @@ export type TopResultProps = Readonly<{
 
 /** The Top result (phone-app 8, desktop-search s-top, final3-tv-09): the title's picture with its words over it. A phone's
  * is a card the width of the page with a round Play; wider forms put the words beside the picture with the title's own
- * buttons. The live phone screen's copy (`screens/search/SearchScreen.tsx` `SearchTopResult`) moves onto this in Stage 2. */
+ * buttons. */
 export function TopResult({eyebrow, title, facts, details, synopsis, artwork, actions, play, onPress, testID, focusId, disabled, selection, selectionLabel, onMenu, menuOpen}: TopResultProps) {
   const theme = useTheme(), frame = useFrameMetrics(), gradient = useId(), anchor = useRef<View>(null), phone = frame.form === 'phone', tv = frame.form === 'tv';
   const width = frame.width - 2 * frame.cardInset, height = phone ? width * .5 : Math.min(width * .32, frame.form === 'tv' ? 300 : 360);

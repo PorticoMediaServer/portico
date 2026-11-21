@@ -1,8 +1,6 @@
 import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
 import React, {useEffect, useSyncExternalStore} from 'react';
-import {AppState, Platform, View, useWindowDimensions} from 'react-native';
-import {frameForm} from '@portico/design';
-import {SearchPage} from '../../pages/touch/search/SearchPage';
+import {AppState, Platform, View} from 'react-native';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeShellRoute} from '../../shell/routes';
@@ -14,7 +12,7 @@ import {createNativeSearchActions} from './actions';
 import {createNativeSearchGenreController, openNativeSearchGenre} from './navigation';
 import {NativeSearchExplore, NativeSearchGenreList} from './explore';
 import {NativeSearchOnNow} from './on-now';
-import {SearchScreen} from './SearchScreen';
+import {SearchPageFor} from './search-page';
 import {GenreBrowseScreen} from './GenreBrowseScreen';
 import {AllGenresScreen} from './AllGenresScreen';
 import {createNativeSearchSelection} from './selection';
@@ -115,21 +113,18 @@ export function createNativeSearchModule(context: NativeShellBootstrapContext): 
 function SearchHost({entry, runtime}: {entry: Root; runtime: NativeShellRuntime}) {
   const active = useSyncExternalStore(entry.search.activation.subscribe, entry.search.activation.getSnapshot);
   const place = useNativeStackPlacement(entry.route), stacked = useNativeStackHosted();
-  const Screen = Platform.isTV ? SearchScreen : TouchSearchRoute;
   useSyncExternalStore(entry.selection.subscribe, entry.selection.getSnapshot);
   // The captured-route query starts the ordinary search only after the screen is actually
   // visible; the controller seeds the draft, never a render-created request.
   useEffect(() => {if (active.visible) entry.search.seed();}, [active.visible, entry]);
   return place(<View pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible} importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}>
-    <Screen focusScope={entry.focusScope} destination={entry.search.source} activation={entry.search.activation} explore={entry.explore} onNow={entry.onNow} actions={entry.actions} selection={entry.selection} runtime={runtime}
-      tvCopy={{preferToTalk: 'next.search.preferToTalk', voiceHint: 'next.search.remoteMicrophoneHelp'}}/>
+    <SearchPageFor focusScope={entry.focusScope} destination={entry.search.source} activation={entry.search.activation} explore={entry.explore} onNow={entry.onNow} actions={entry.actions} selection={entry.selection} runtime={runtime}
+      tvCopy={tvSearchCopy}/>
   </View>);
 }
-function TouchSearchRoute(props: React.ComponentProps<typeof SearchScreen>) {
-  const {width, height} = useWindowDimensions();
-  return width >= height && frameForm(width, false, height) === 'phone' ? <SearchScreen {...props}/> : <SearchPage {...props}/>;
-}
+const tvSearchCopy = {preferToTalk: 'next.search.preferToTalk', voiceHint: 'next.search.remoteMicrophoneHelp'} as const;
+
 
 function AllHost({entry, runtime, navigation, back}: {entry: All; runtime: NativeShellRuntime; navigation: NativeShellBootstrapContext['navigation']; back: () => void}) {
   useSyncExternalStore(navigation.subscribe, navigation.getSnapshot);

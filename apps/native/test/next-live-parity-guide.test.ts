@@ -139,18 +139,18 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
 const order = (tree: any, wanted: string[]) => nodes(tree).map(node => node.props?.testID).filter((id): id is string => wanted.includes(id));
 
 // Item 5
-for (const [name, width, height, expected] of [['portrait phone', 390, 844, 'list'], ['landscape phone', 844, 390, 'guide'], ['upright tablet', 820, 1180, 'guide']] as const) {
+for (const [name, width, height, expected] of [['phone', 390, 844, 'list'], ['upright tablet', 820, 1180, 'guide']] as const) {
   test(`Live TV ${name} with no remembered choice opens on ${expected}`, async () => {
     const f = await fixture({width, height}); try {
       assert.equal(f.find('live-view').props.value, expected);
     } finally {await f.close();}
   });
 }
-test('a remembered List choice still wins on a landscape phone, and a remembered Guide choice on a portrait phone', async () => {
-  const landscape = await fixture({width: 844, height: 390}); try {
-    landscape.controller.chooseView('list'); await landscape.host.settle();
-    assert.equal(landscape.find('live-view').props.value, 'list');
-  } finally {await landscape.close();}
+test('a remembered List choice still wins on a tablet, and a remembered Guide choice on a phone', async () => {
+  const tablet = await fixture({width: 820, height: 1180}); try {
+    tablet.controller.chooseView('list'); await tablet.host.settle();
+    assert.equal(tablet.find('live-view').props.value, 'list');
+  } finally {await tablet.close();}
   const portrait = await fixture({width: 390, height: 844}); try {
     portrait.controller.chooseView('guide'); await portrait.host.settle();
     assert.equal(portrait.find('live-view').props.value, 'guide');

@@ -56,9 +56,9 @@ test('the actual TV Search caller binds genuine query, navigation activation and
     react, '../../../kit/frames': {SearchFrame: 'SearchFrame'}, '../../../kit/search/TVSearchContent': content,
     '../../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
   });
-  const props = {destination: {subscribe() {}, getSnapshot: () => state, setText: (text: string) => calls.push(text)},
-    runtime: {text: defaultI18n, getSnapshot: () => ({authority}), registerScrollToTop: () => () => {},
-      registerTVPageBack: (handler: () => boolean, destination: unknown) => {assert.deepEqual(destination, {kind: 'search'}); pageBack = handler; return () => {if (pageBack === handler) pageBack = undefined;};}}, activation: {subscribe() {}, getSnapshot: () => activation}, explore: {subscribe() {}, getSnapshot: () => ({genres: []})},
+  const props = {destination: {subscribe() {}, getSnapshot: () => state, setText: (text: string) => calls.push(text), refreshHistory: async () => {}},
+    runtime: {text: defaultI18n, getSnapshot: () => ({authority}), registerScrollToTop: () => () => {}, reportError: () => {},
+      registerTVPageBack: (handler: () => boolean, destination: unknown) => {assert.deepEqual(destination, {kind: 'search'}); pageBack = handler; return () => {if (pageBack === handler) pageBack = undefined;};}}, activation: {subscribe() {}, getSnapshot: () => activation}, explore: {subscribe() {}, getSnapshot: () => ({genres: []}), load: async () => {}},
     actions: {}, copy: {preferToTalk: 'voice-title', voiceHint: 'voice-body'}};
   const tree = render(() => TVSearchPage(props));
   const keyboard = elements(tree.props.keyboard).find(node => node.type === 'NativeTVKeyboard')!;

@@ -2,8 +2,19 @@ import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {orderedSearchGroups, SEARCH_CHIPS} from '../../../../../../packages/client-core/src/presentation/search-model';
 import {repeat} from '../../../../../../packages/client-core/src/timer';
 import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
-import type {NativeSearchOnNowSnapshot} from '../../../screens/search/on-now';
-import type {NativeSearchScreenProps} from '../../../screens/search/SearchScreen';
+import type {NativeSearchOnNowPort, NativeSearchOnNowSnapshot} from '../../../screens/search/on-now';
+import type {NativeSearchDestination} from '../../../screens/search/model';
+import type {NativeSearchActions, NativeSearchExplorePort, NativeSearchSelectionPort, NativeSearchTVCopy} from '../../../screens/search/types';
+import type {NativeDestinationActivationPort} from '../../../screens/destinations/focus';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+
+export type NativeSearchScreenProps = Readonly<{
+  focusScope?: string; destination: NativeSearchDestination; runtime: NativeShellRuntime;
+  explore: NativeSearchExplorePort; actions: NativeSearchActions;
+  /** Handheld only: what's on now for the empty page, offered when the server has Live TV. */
+  onNow?: NativeSearchOnNowPort; selection?: NativeSearchSelectionPort;
+  activation: NativeDestinationActivationPort; tvCopy: NativeSearchTVCopy;
+}>;
 
 const noSubscribe = () => () => {};
 const noMenu = () => 0;

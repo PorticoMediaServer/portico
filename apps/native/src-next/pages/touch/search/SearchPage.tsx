@@ -13,7 +13,7 @@ import {Banner} from '../../../kit/overlays';
 import {SearchCancel, SearchClear, SearchHistory, TopResult} from '../../../kit/search';
 import {SearchGenres, SearchLoading, SearchOnNow, SearchResultRow, SearchResultsGrid, SearchResultShelf, SearchSection} from '../../../kit/search/SearchResults';
 import {StateView} from '../../../kit/states';
-import type {NativeSearchScreenProps} from '../../../screens/search/SearchScreen';
+import type {NativeSearchScreenProps} from '../../shared/search/useSearch';
 import {nativeSearchGenreTiles} from '../../../screens/search/genre-tiles';
 import {nativeSearchEntryKey} from '../../../screens/search/model';
 import {useSearch} from '../../shared/search/useSearch';

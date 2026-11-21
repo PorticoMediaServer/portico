@@ -22,44 +22,6 @@ function host() {
   return {react, render: (run: () => any) => {owner = hooks(); return owner.render(run);}};
 }
 
-test('expanded Search shelves keep every loaded result and prefetch ten cards before the end', async () => {
-  const h = host(), calls: string[] = [];
-  const entries = Array.from({length: 40}, (_, index) => ({id: String(index), kind: 'movie', title: String(index)}));
-  const group = {id: 'movies', items: entries, status: 'success', totalCount: 100, totalCountExact: true, nextCursor: 'actual-page-2'};
-  const snapshot: any = {text: 'query', group: 'all', groups: [group], recent: [], paging: {}, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}};
-  let visible = true;
-  const {SearchScreen} = await screenModule(new URL('../src-next/screens/search/SearchScreen.tsx', import.meta.url), {'../../../../../packages/client-core/src/timer': await import('../../../packages/client-core/src/timer.ts'), 
-    '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})},
-    react: h.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View', Keyboard: {}, useWindowDimensions: () => ({width: 1200, height: 900})},
-    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
-    '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups: (groups: any) => groups, SEARCH_CHIPS: [], searchGroupLabel: (id: string) => id, topResultKindLabel: t},
-    '../../../../../packages/client-core/src/presentation/kit-model': {channelTint: () => '#000'},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards': {GenreTile: 'GenreTile'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame'},
-    '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-    '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({...theme, platform: 'tablet', layoutMode: 'desktop'})},
-    '../home/model': {homeCardText: () => ({}), nativeSearchCardText: () => ({})}, './model': {nativeSearchEntryKey: (id: string, entry: any) => `${id}:${entry.id}`},
-    './SearchGridCard': {SearchGridCard: 'SearchGridCard'}, '../../pages/tv/search/SearchPage': {TVSearchPage: 'TVSearchPage'}, './genre-tiles': {nativeSearchGenreTiles: () => []},
-  });
-  const props = {destination: {subscribe: () => () => {}, getSnapshot: () => snapshot, setText() {}, next: async (id: string) => {calls.push(id);}, retryGroup: async () => {calls.push('retry');}},
-    runtime: {text: {t}, reportError: (error: unknown) => {throw error;}, error: (_error: unknown, retry: () => void) => ({primaryAction: {onPress: retry}})},
-    actions: {}, activation: {subscribe: () => () => {}, getSnapshot: () => ({visible})}, explore: {subscribe: () => () => {}, getSnapshot: () => ({phase: 'idle'})}, tvCopy: {}};
-  const shelf = () => nodes(h.render(() => SearchScreen(props))).find(node => node.props.testID === 'search-shelf-movies');
-  const first = shelf();
-  assert.equal(first.props.data, entries); assert.equal(first.props.data.length, 40);
-  const pitch = first.props.getItemLayout(undefined, 1).length;
-  assert.equal(first.props.onEndReachedThreshold * 1200, pitch * 10);
-  assert.equal(first.props.renderItem({item: entries[39]}).props.entry, entries[39]);
-  first.props.onEndReached(); assert.deepEqual(calls, ['movies']);
-  snapshot.paging.movies = {loading: true}; const pending = shelf(); pending.props.onEndReached();
-  assert.equal(pending.props.ListFooterComponent.type, 'LoadingPaint'); assert.equal(calls.length, 1);
-  snapshot.paging.movies = {loading: false, error: new Error('page failed')}; const failed = shelf(); failed.props.onEndReached();
-  assert.equal(calls.length, 1, 'a failing cursor is not automatically retried in a loop');
-  failed.props.ListFooterComponent.props.primaryAction.onPress(); assert.equal(calls.at(-1), 'retry');
-  snapshot.paging.movies = {}; visible = false; shelf().props.onEndReached(); assert.equal(calls.length, 2);
-});
-
 test('touch See all keeps library Back, the app title and a square album grid', async () => {
   const h = host();
   const album = {kind: 'album', id: 'album-1', title: 'Album 1'};

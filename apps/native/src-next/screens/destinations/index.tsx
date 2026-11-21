@@ -3,7 +3,7 @@ import type {MessageId} from '../../../../../packages/i18n/src';
 import type {NativeOfflineDownloadsDevice} from '../../platform/offline-downloads';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeRouteRenderer} from '../../shell/route-registry';
-import {SearchScreen} from '../search/SearchScreen';
+import {SearchPageFor} from '../search/search-page';
 import {NativeSearchDestination} from '../search/model';
 import type {NativeSearchActions, NativeSearchExplorePort, NativeSearchSelectionPort, NativeSearchTVCopy} from '../search/types';
 import type {NativeSavedActions, NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
@@ -61,7 +61,7 @@ export function createNativeDestinationRenderers(ports: NativeDestinationPorts):
   const saved = createNativeSavedRenderer(ports.context, {...ports, activation: ports.activation('saved')});
   return Object.freeze({
     search: {render: (route, runtime) => current() && route.kind === 'shell' && route.destination.kind === 'search'
-      ? <SearchScreen destination={search} runtime={runtime} explore={ports.searchExplore} actions={ports.searchActions} selection={ports.searchSelection} activation={ports.activation('search')} tvCopy={ports.searchTVCopy}/> : null},
+      ? <SearchPageFor destination={search} runtime={runtime} explore={ports.searchExplore} actions={ports.searchActions} selection={ports.searchSelection} activation={ports.activation('search')} tvCopy={ports.searchTVCopy}/> : null},
     saved,
     downloads: {render: (_route, runtime) => current() ? <DownloadsPage runtime={runtime} device={ports.offline} {...ports.downloads}/> : null},
     dispose: () => {if (disposed) return; disposed = true; search.dispose(); saved.dispose();},

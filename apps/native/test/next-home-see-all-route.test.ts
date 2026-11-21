@@ -22,8 +22,8 @@ test('Home headings, On now and the TV Hold OK menu all open See all through the
   const assembly = readFileSync(new URL('../src-next/shell/assembly.tsx', import.meta.url), 'utf8');
   assert.match(assembly, /seeAll: \(destination, title\) => open\(homeSeeAllRoute\(destination, title\)\)/);
   assert.doesNotMatch(assembly, /kind: 'home-see-all', destination\}/);
-  // Ordinary rows open it from the Home screen; the live On now row from the kit's Home rows.
-  const home = readFileSync(new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url), 'utf8') + readFileSync(new URL('../src-next/kit/home/HomeRows.tsx', import.meta.url), 'utf8');
+  // Ordinary rows open it from the Home hook; the live On now row from the kit's Home rows.
+  const home = readFileSync(new URL('../src-next/pages/shared/home/useHome.ts', import.meta.url), 'utf8') + readFileSync(new URL('../src-next/kit/home/HomeRows.tsx', import.meta.url), 'utf8');
   assert.equal(home.match(/runtime\.actions\.seeAll\(row\.seeAll!, title\)/g)?.length, 2, 'ordinary rows and the live On now row');
   const menu = readFileSync(new URL('../src-next/shell/HomeSelectionOverlays.tsx', import.meta.url), 'utf8');
   assert.match(menu, /runtime\.actions\.seeAll\(row\.seeAll!, rowTitle\)/);

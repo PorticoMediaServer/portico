@@ -24,7 +24,7 @@ import type {useLiveGuide, GuidePageProps} from '../../pages/shared/live/useLive
 
 export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLiveGuide>): LiveFrameProps {
   const {controller, recordings, ports, runtime} = props;
-  const {theme, t, dockTop, serverName, state, guide, data, ids, compact, screenReader, landscape, phone, phoneChrome, expandedTouch,
+  const {theme, t, dockTop, serverName, state, guide, data, ids, compact, screenReader, phone, phoneChrome, expandedTouch,
     insetLeft, insetRight, now, start, view, setView, selected, setSelected, channelMenu, setChannelMenu, channelMenuBusy,
     channelMenuError, setChannelMenuError, channelMenuAnchor, content, setMeasuredWidth, measureContent, contentWidth,
     recording, setRecording, recordError, setRecordError, series, setSeries, toast, setToast, reminders, later,
@@ -47,7 +47,7 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
     current={state.sources.length === 1 ? state.sources[0].name : undefined} onChange={chooseSource}/>;
   const dayPicker = phoneChrome ? <GuideDayPicker testID="live-day" accessibilityLabel={t('guide.day')} value={String(currentDay)} disabled={daysCount < 1}
     onChange={chooseDay} options={days.map(day => ({id: String(day), label: dayName(day), trailing: dayTrailing(day)}))} note={dayNote}
-    name={dayName(currentDay)} date={landscape ? undefined : shortDate(currentDay)}/>
+    name={dayName(currentDay)} date={shortDate(currentDay)}/>
     : <Select testID="live-day" accessibilityLabel={t('guide.day')} disabled={daysCount < 1} value={String(currentDay)}
         options={days.map(day => ({value: String(day), label: day === today ? t('guide.today') : fullDate(day)}))} onValueChange={chooseDay}/>;
   const sortPicker = phoneChrome ? <NativeLivePhonePicker testID="live-sort" accessibilityLabel={t('channels.sort')} value={state.options.sort ?? 'number'}
@@ -165,7 +165,7 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
           region={{id: grid, edges: theme.isTV ? {up: filters, left: ids.rail} : undefined, stops: theme.isTV ? {right: true, down: true} : undefined,
             timeGrid: theme.isTV ? {initialTime: now, start, end} : undefined}}
           ruler={view === 'guide' ? {marks: ticks, nowAt: nowX, nowVisible: inNowSpan || panActive,
-            paneWidth: width - channelWidth, channelWidth, leading: landscape ? dayPicker : undefined, shift: rulerShift} : undefined}
+            paneWidth: width - channelWidth, channelWidth, shift: rulerShift} : undefined}
           marker={view === 'guide' && (inNowSpan || panActive) ? {channelWidth, nowAt: nowX, clock: clock(now), shift: nowShift, pill: nowPillShift,
             past: phone ? pastShade : undefined} : undefined}
           docked={phoneChrome && view === 'guide' ? {earlier: earlierNow, later: laterNow, label: t('guide.now'),
@@ -193,7 +193,6 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
   const overlays = <>
     {selected && <ProgrammePanel channel={selected.channel} programme={selected.program} now={now} runtime={runtime}
       favorite={favorite} busy={state.mutating} paneLeft={twoPane ? paneLeft : undefined}
-      landscape={landscape}
       region={programmeRegion} groups={programmeGroups} later={laterOn} actions={programmeActions} reason={sheetReason && t(sheetReason)}
       onClose={() => setSelected(undefined)} opener={theme.isTV || selected.channel.tuneAvailable || selected.channel.recordAvailable && selected.program ? opener : undefined}
       returnFocus={selectedOpener}
@@ -212,9 +211,9 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
   </>;
   return {title: t('search.chip.liveTV'), switcher: expandedTouch ? sourcePicker : undefined,
     actions: theme.isTV ? controlsRow : expandedTouch ? undefined : phoneActions,
-    tabs: landscape ? undefined : <>{expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts}
+    tabs: <>{expandedTouch && <NativeLiveTabs value="guide" t={t} conflicts={conflicts}
       onRecordings={hasRecordings ? () => setRecordingsOpen(true) : undefined}>{viewSwitch}</NativeLiveTabs>}{channelFilters}</>,
-    chips: landscape ? channelFilters : undefined, toolbar: theme.isTV ? undefined : phoneChrome ? phoneToolbar : timeRow,
+    toolbar: theme.isTV ? undefined : phoneChrome ? phoneToolbar : timeRow,
     list: guideView, overlay: overlays, flushList: theme.isTV, testID: theme.isTV ? 'tv-live-guide' : 'phone-live-guide'};
 }
 

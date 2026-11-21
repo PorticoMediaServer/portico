@@ -30,6 +30,7 @@ nativeShellRoutes.registerDestination('libraries', createNativeLibraryOverviewMo
 function LibrariesSurface(props: LibraryOverviewProps) {
   const {width, height} = useWindowDimensions();
   const active = React.useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot);
-  if (Platform.isTV || width >= height || frameForm(width, false, height) !== 'phone') return <NativeLibraryOverview {...props}/>;
+  // Tablets and TV still draw the old overview (tablet work); phones are upright only.
+  if (Platform.isTV || frameForm(width, false, height) !== 'phone') return <NativeLibraryOverview {...props}/>;
   return <CoveredLayer covered={!active.visible} style={{flex: 1}}><LibrariesPage {...props}/></CoveredLayer>;
 }
