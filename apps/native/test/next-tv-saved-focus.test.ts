@@ -30,7 +30,7 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       '../../../tv/layout/TVFocusGrid': {TVFocusGrid: 'TVFocusGrid'},
       '../../saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet'},
       '../../saved/SavedTVLoading': {SavedTVLoading: 'SavedTVLoading'},
-      '../../../kit/browse/LibraryJumpSheet': {LibraryJumpSheet: 'LibraryJumpSheet'},
+      '../../../kit/layout': {AlphabetRail: 'AlphabetRail'},
       '../useTVPageBack': {useTVPageBack(_runtime: unknown, _route: unknown, _enabled: boolean, page: unknown) {back = page;}},
       '../useEntryFocus': {useDestinationEntryFocus(_active: unknown, target: unknown) {entry = target;}},
       '../../../shell/model': {sameAuthority: () => true},
@@ -110,9 +110,9 @@ test('TV Saved tabs have a mounted content target and return edges for every tab
       posters.props.onGeometry(3, 420);
       const scroll: unknown[] = [];
       current.find(node => node.type?.name === 'TVSavedScroll').props.node.current = {scrollTo: (request: unknown) => scroll.push(request)};
-      current.find(node => node.props.focusId === 'saved-jump').props.onPress();
+      assert.ok(!current.some(node => node.props.focusId === 'saved-jump'), 'TV has no Jump to chip: the letter rail is at the right (owner, 20 Nov)');
       current = render();
-      current.find(node => node.type === 'LibraryJumpSheet').props.onSelect('M');
+      current.find(node => node.props?.alphabet).props.alphabet.props.onJump(0, 'M');
       assert.deepEqual(scroll, [{y: 289, animated: true}], 'Jump sums outer region, toolbar/body, inner padded section, grid and cell exactly once');
       snapshot.posters = {sections: [{entries: []}]}; snapshot.squares = {sections: [{entries: []}]}; render();
       assert.deepEqual(entry, {regionId: ids.savedGrid, childId: focusTestID('saved-empty', JSON.stringify(['action', 'browse-home']))}, 'the approved empty Browse Home child remains the actual entry');

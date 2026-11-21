@@ -7,7 +7,7 @@ import {Button, Chip} from '../../../kit/controls';
 import {PosterCard, SquareCard} from '../../../kit/cards';
 import {Menu} from '../../../kit/overlays';
 import {StateView} from '../../../kit/states';
-import {LibraryJumpSheet} from '../../../kit/browse/LibraryJumpSheet';
+import {AlphabetRail} from '../../../kit/layout';
 import {savedCardWidth, TVSavedCardCell, TVSavedDirectoryPane, TVSavedEmpty, TVSavedGrid, TVSavedHeading, TVSavedHistoryDay,
   TVSavedHistoryRow, TVSavedResults, TVSavedScroll, TVSavedSection, TVSavedToolbar, TVSavedToolbarDivider} from '../../../kit/saved/TVSavedParts';
 import {SavedConfirmSheet} from '../../../screens/saved/SavedForms';
@@ -23,7 +23,7 @@ export function TVSavedPage(props: TVSavedPageProps) {
     sortAnchor, filterAnchor, tabs, posterRegion, squareRegion, historyRegion, posters, squares, posterCount, squareCount, gridFocus,
     page, contentRoot, directoryPage, scrollY, setScrollY, viewportHeight, setViewportHeight, contentHeight, setContentHeight, count,
     measurement, scope, posterGeometry, squareGeometry, firstSection, directoryView, historyHeight, publishedFilters, quickFilters, emptyEntry,
-    openJump, opening, jumpLetters, selectedLetter, onJump, closeJump, showJump, run, openClear, clearView, closeClear, confirmClear, clearing, sortLabel} = useTVSavedPage(props);
+    alphabet, run, openClear, clearView, closeClear, confirmClear, clearing, sortLabel} = useTVSavedPage(props);
   const measure = (section: 'posters' | 'squares', entry: ContentEntry, child: React.ReactNode, top?: number) => <TVSavedCardCell key={`${scope}:${entry.id}`} onTop={y => {measurement.cards.set(entry.id, {section, y: top ?? y});}}>{child}</TVSavedCardCell>;
   const card = (entry: ContentEntry, onFocus?: () => void, top?: number) => measure('posters', entry, <PosterCard disabled={!active.visible} onFocus={onFocus} testID={`saved-poster-${encodeURIComponent(entry.id)}`} width={savedCardWidth} title={entry.displayTitle ?? entry.title} caption={factLine(historyLine(entry))} artwork={runtime.artwork(entry.posterUrl)}
     onNavigate={() => openEntry(entry)} onMore={() => actions.menu(entry, undefined, select?.(entry))} moreExpanded={actions.isMenuOpen(entry)} selection={selection?.item(entry)}/>, top);
@@ -64,7 +64,8 @@ export function TVSavedPage(props: TVSavedPageProps) {
           onGeometry={squareGeometry} renderItem={(entry, cell) => square(entry, cell.onFocus, cell.top)}/>
       </>}
     </TVSavedSection> : <TVSavedEmpty tab={tab} browseHome={browseHome}/>) : null;
-  return <BrowseFrame testID="native-saved-tv-frame" header={{title: t('saved.title'), tabs}} grid={<>
+  return <BrowseFrame testID="native-saved-tv-frame" header={{title: t('saved.title'), tabs}}
+    alphabet={alphabet && <AlphabetRail {...alphabet} testID="saved-alphabet"/>} grid={<>
     <TVSavedScroll node={page} root={contentRoot} onExtent={setContentHeight} onHeight={setViewportHeight} onOffset={setScrollY}>
       {directoryView ? <TVSavedDirectoryPane>
         <SavedTVDirectory view={directoryView} destination={controller.source(directoryView)} runtime={runtime} libraries={runtime.getSnapshot().libraries}
@@ -78,7 +79,6 @@ export function TVSavedPage(props: TVSavedPageProps) {
         {tab !== 'history' ? <>
           <Button focusId="saved-sort" ref={sortAnchor} variant="glass" icon="i-sort" size="compact" onPress={() => setSortOpen(true)} accessibilityLabel={t('saved.sort')}>{t(sortLabel)}</Button>
           <Button focusId="saved-filter" ref={filterAnchor} variant="glass" icon="i-filter" size="compact" onPress={() => setFilterOpen(true)} accessibilityLabel={t('filter.title')}>{t('filter.title')}</Button>
-          {showJump && <Chip focusId="saved-jump" disabled={!active.visible} onPress={openJump}>{t('next.browse.native.jumpTo')}</Chip>}
           <TVSavedToolbarDivider/>
           {quickFilters.length
             ? quickFilters.map(option => <Chip focusId={`saved-filter-${option.id}`} key={option.id} selected={filter === option.id}
@@ -108,8 +108,6 @@ export function TVSavedPage(props: TVSavedPageProps) {
     <SavedConfirmSheet open={clearView !== undefined} title={t('web.saved.clearHistoryTitle')} body={t('web.saved.clearHistoryBody')} action={t('web.saved.clearHistoryAction')}
       busy={clearing} destructive testID="saved-clear-history" onClose={() => {if (clearView) closeClear(clearView);}}
       onConfirm={() => {if (clearView) confirmClear(clearView);}}/>
-    {opening && <LibraryJumpSheet open panelId={`${ids.savedGrid}.jump`} letters={jumpLetters.map(letter => ({key: letter.key, index: letter.index}))} selected={selectedLetter}
-      onSelect={onJump} onClose={() => closeJump(opening)}/>}
     {selection?.render()}
   </>}/>;
 }
