@@ -77,7 +77,7 @@ function SettingsListBody({bar, backdrop, search, list, profile, shortcuts, page
 
 export type SettingsPageFrameProps = Readonly<{
   title: string;
-  /** Back to the list on a phone; named after the page it returns to. */
+  /** Back to the parent page, named after the page it returns to. */
   back?: TopBarBack;
   /** The bar's one text action in a sheet (Done, Save). */
   action?: SheetBarProps['action'];
@@ -123,12 +123,16 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   // Rule 3: the compact bar inside the phone's Settings sheet; the page title beside the list; a page shown alone keeps
   // Back and the large title at the gutter (tablets SC-8, r7 S6 on TV), like any pushed page.
   const header = inSheet ? <SheetBar title={title} back={back} action={action}/>
-    : beside ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : frame.titleTop || frame.headerGap, marginBottom: frame.headerGap}}>
-      {/* "✓ Saved" follows the title, the page's own buttons keep the far end (desktop-settings f1, final3-tv-15). */}
-      <Text accessibilityRole="header" style={[theme.type.pageTitle, {flexShrink: 1, color: theme.colors.text}]}>{title}</Text>
-      {saved && <View style={{marginBottom: theme.space.xs}}>{saved}</View>}<View style={{flex: 1}}/>
-      {(actions || own) && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{actions}{own}</View>}</View>
-    : <PageHeader title={title} back={back} trailing={trailing}/>;
+    : beside ? <>
+      {back && <Button icon="i-left" variant="link" size="compact" iconColor={theme.colors.textSecondary}
+        textStyle={{color: theme.colors.textSecondary}} disabled={back.disabled} testID={back.testID} onPress={back.onPress}>{back.label}</Button>}
+      <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: theme.space.sm, marginTop: server ? frame.headerGap : frame.titleTop || frame.headerGap, marginBottom: frame.headerGap}}>
+        {/* "✓ Saved" follows the title, the page's own buttons keep the far end (desktop-settings f1, final3-tv-15). */}
+        <Text accessibilityRole="header" style={[theme.type.pageTitle, {flexShrink: 1, color: theme.colors.text}]}>{title}</Text>
+        {saved && <View style={{marginBottom: theme.space.xs}}>{saved}</View>}<View style={{flex: 1}}/>
+        {(actions || own) && <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.controlGap}}>{actions}{own}</View>}
+      </View>
+    </> : <PageHeader title={title} back={back} trailing={trailing}/>;
   const strip = server && <View style={{marginHorizontal: beside ? 0 : frame.cardInset, marginTop: beside ? frame.titleTop || frame.headerGap : 0}}>{server}</View>;
   const body = <>
     {intro !== undefined && <Text style={[theme.type.intro, {color: theme.colors.textSecondary, marginHorizontal: beside ? 0 : frame.gutter, maxWidth: frameSpec.settings.paragraphMax}]}>{intro}</Text>}

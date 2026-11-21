@@ -901,3 +901,29 @@ test('Settings frames keep one tree on every form: a phone-tablet-phone resize r
     }
   } finally {state.theme = previous;}
 });
+
+test('a Settings detail keeps its parent Back action beside the tablet list', async () => {
+  const previous = state.theme;
+  state.theme = createTheme({isTV: false, width: 820});
+  let returned = 0;
+  const back = {label: 'Films', testID: 'films-back', onPress: () => {returned++;}};
+  const page = React.createElement(SettingsPageFrame, {title: '12 Angry Men', back});
+  const host = await mount(() => {
+    const list = SettingsListFrame({bar: {title: 'Settings'}, list: null, page});
+    const listBody = list.props.children.type(list.props.children.props);
+    const beside = nodes(listBody).find(node => node.props.value === true && node.props.children?.props?.children === page)!;
+    const context = beside.type as React.Context<boolean>;
+    const pageBody = SettingsPageFrame(page.props).props.children;
+    const saved = (context as any)._currentValue2;
+    (context as any)._currentValue2 = beside.props.value;
+    try {return pageBody.type(pageBody.props);}
+    finally {(context as any)._currentValue2 = saved;}
+  }, {});
+  try {
+    const control = find(host.tree, Button);
+    assert.equal(control.props.testID, 'films-back');
+    assert.equal(control.props.children, 'Films');
+    control.props.onPress();
+    assert.equal(returned, 1);
+  } finally {await host.host.unmount(); state.theme = previous;}
+});
