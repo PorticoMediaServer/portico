@@ -2,7 +2,7 @@ import React from 'react';
 import type {View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ShowWorkspaceData, WorkspaceSeason} from '../../../../../packages/client-core/src/show-workspace';
-import {SeasonSheet, type SeasonSheetRow} from '../../kit/layout/SeasonSheet';
+import {SeasonSheet, type SeasonSheetRow} from './SeasonSheet';
 
 export type NativeSeasonsSheetProps = Readonly<{
   open: boolean;

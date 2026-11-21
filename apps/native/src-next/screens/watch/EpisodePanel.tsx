@@ -11,7 +11,7 @@ import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {FocusRegion} from '../../kit/focus';
 import {useTVPanelInteractive} from '../../kit/overlays/TVPanelMotion';
 import {useTheme} from '../../kit/theme';
-import {NativeSeasonsSheet} from './SeasonsSheet';
+import {NativeSeasonsSheet} from '../../kit/layout/ShowSeasonsSheet';
 import type {NativeTitleController, NativeTitlePageLease} from './title-controller';
 import {Quiet} from '../../kit/states';
 import {TVRow} from '../../kit/layout/TVRow';

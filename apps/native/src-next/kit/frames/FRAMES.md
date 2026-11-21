@@ -363,7 +363,7 @@ Parts for the panel and the side, in `kit/frames/title-parts.tsx` (the web kit h
 and role; a sideways row on a phone and TV, wrapping groups on a tablet), `TrackPicker` (the audio and subtitles row),
 `NumberedRow` ("Films in order"), `OwnerCard` ("This collection", "Files"), `EpisodeNeighbour` (Previous and Next
 episode), `SeasonListRow` (TV season column; `screens/watch/TVEpisodeBrowser.tsx` draws its seasons and groups with it),
-`VersionRows` (Play a different version, R9 `versions`), `EpisodeDisplay` (the owner's Episode display, R9 `choice`). Moved into the kit, one copy: `kit/layout/SeasonSheet.tsx` (from `screens/watch/SeasonsSheet.tsx`, which now
+`VersionRows` (Play a different version, R9 `versions`), `EpisodeDisplay` (the owner's Episode display, R9 `choice`). Moved into the kit, one copy: `kit/layout/SeasonSheet.tsx` (from `kit/layout/ShowSeasonsSheet.tsx`, which now
 maps the show's seasons and groups to its rows). The kit `EpisodeTile layout="row"` on a tablet puts the synopsis
 beside the picture under the title and the length on the picture (R7, tablets.md SC-5).
 

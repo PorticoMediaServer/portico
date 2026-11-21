@@ -27,7 +27,7 @@ export type SeasonSheetProps = Readonly<{
 }>;
 
 /** phone-detail d2 frame 5: the season sheet. Jump to season leads on a long show, then each season with the server's
- * own count and the viewer's watched progress. Moved from `screens/watch/SeasonsSheet.tsx`, which maps the show's
+ * own count and the viewer's watched progress. Moved from `kit/layout/ShowSeasonsSheet.tsx`, which maps the show's
  * seasons and groups to rows; the title page and the watch page's Episodes panel draw this same part. */
 export function SeasonSheet(props: SeasonSheetProps) {
   const theme = useTheme(), t = defaultI18n.t, [jump, setJump] = useState(''), viewport = useWindowDimensions();
