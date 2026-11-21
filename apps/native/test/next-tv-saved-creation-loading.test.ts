@@ -5,7 +5,7 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {isSlowLoading, showSkeleton, skeletonTiming} from '../src-next/kit/states/model.ts';
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
-const theme = {isTV: true, gutter: 200, layout: {gutter: {tvRight: 96}}, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', line: '#333', raised: '#222'}};
+const theme = {isTV: true, gutter: 200, type: {rowHelp: {}, rowLabel: {}}, layout: {gutter: {tvRight: 96}}, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', line: '#333', raised: '#222'}};
 async function directory(view = 'collections') {
   const h = hooks(), react: any = {...h.react, useLayoutEffect() {}, useImperativeHandle() {}}; react.default = react;
   const focused: any[] = [], mutations: any[] = []; let retries = 0, fail = false, held: Promise<void> | undefined, arrived = true;

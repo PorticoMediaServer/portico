@@ -86,8 +86,9 @@ test('Tablet Saved changes all seven tabs locally and retains its own chrome', a
 
 test('Saved list carries selection to cards and prefetches before its loaded end', async () => {
   const f = fixture(false), calls: unknown[] = [], picked = {active: false, selected: false, onEnter() {}, onToggle() {}};
+  const bodyHost = hooks();
   const kit = await screenModule(new URL('../src-next/kit/saved/SavedListParts.tsx', import.meta.url), {
-    react: f.modules.react, 'react-native': f.modules['react-native'], 'react-native-safe-area-context': f.modules['react-native-safe-area-context'],
+    react: bodyHost.react, 'react-native': f.modules['react-native'], 'react-native-safe-area-context': f.modules['react-native-safe-area-context'],
     '../../screens/home/model': {savedCardText: () => ({caption: []})}, '../../screens/saved/paging': {savedNearEnd},
     '../browse': {ChipRail: 'ChipRail'}, '../cards': f.modules['../../kit/cards'], '../cards/caption-metrics': {cardCaptionHeight: () => 60},
     '../theme': f.modules['../../kit/theme'], './SavedLoading': f.modules['../../kit/saved/SavedLoading'],
@@ -108,7 +109,7 @@ test('Saved list carries selection to cards and prefetches before its loaded end
     selection: {item: () => picked, start() {}, render: () => 'selection'}};
   const page = f.host.render(() => SavedListPage(props));
   assert.equal(page.type, kit.SavedListBody, 'inline Favorites does not draw a second header');
-  const tree = f.host.render(() => kit.SavedListBody(page.props));
+  const tree = bodyHost.render(() => kit.SavedListBody(page.props));
   const card = nodes(tree).find(node => node.type?.name === 'SavedListCard');
   assert.equal(card.props.selection, picked); assert.equal(find(tree, 'saved-list-back'), undefined);
   const toolbar = nodes(tree).find(node => node.type === kit.SavedListTools);
