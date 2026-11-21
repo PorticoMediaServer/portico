@@ -25,7 +25,7 @@ import type {NativeTitleController, NativeTitlePageLease} from './title-controll
 import type {NativeTitleTab} from './title-memory';
 import {TitlePeople} from './TitlePeople';
 import {NativeTitleEpisodePlate} from './TitleEpisodePlate';
-import {NativeSeasonsSheet} from './SeasonsSheet';
+import {NativeSeasonsSheet} from '../../kit/layout/ShowSeasonsSheet';
 import {TVEpisodeBrowser} from './TVEpisodeBrowser';
 import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
 import type {NativeStartArtworkOffer} from '../../platform/playback/start-presentation';

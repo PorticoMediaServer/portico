@@ -129,7 +129,7 @@ test('Seasons has a stable sheet, selected-season entry, Done/Go identities and 
   const kit = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../controls': controlsAtoms, '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': themed,
   });
-  const wrapper = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': i18n, '../../kit/layout/SeasonSheet': kit});
+  const wrapper = await screenModule(new URL('../src-next/kit/layout/ShowSeasonsSheet.tsx', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': i18n, './SeasonSheet': kit});
   const NativeSeasonsSheet = (props: any) => {const sheet = wrapper.NativeSeasonsSheet(props); return kit.SeasonSheet(sheet.props);};
   const props: any = {open: true, onOpenChange() {}, returnFocusRef: opener, total: 40, seasons: [{id: 'one', number: 1}, {id: 'two', number: 2}], selectedId: 'two', onSelect: (id: string) => selected.push(id), hideWatched: false, onHideWatched() {}};
   try {
@@ -146,7 +146,7 @@ test('Episodes enters the playing row, and its season sheet returns to the actua
   const h = watchHooks();
   const {NativeWatchEpisodes} = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/theme': themed,
-    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true}, './SeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
+    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true}, '../../kit/layout/ShowSeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
     '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
     '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel: () => ''}, '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText: String},
   });

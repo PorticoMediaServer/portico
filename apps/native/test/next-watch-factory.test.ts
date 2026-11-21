@@ -43,10 +43,10 @@ const episodeAtoms = {react, 'react-native': {ScrollView: 'ScrollView', Text: 'T
   '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': {useTheme: () => ({colors: {}, type: {}})}};
 const seasonSheet = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {react, 'react-native': episodeAtoms['react-native'],
   '../../../../../packages/i18n/src': {defaultI18n}, '../controls': episodeAtoms['../../kit/controls'], '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': episodeAtoms['../../kit/theme']});
-const seasons = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {...episodeAtoms, '../../kit/layout/SeasonSheet': seasonSheet});
+const seasons = await screenModule(new URL('../src-next/kit/layout/ShowSeasonsSheet.tsx', import.meta.url), {...episodeAtoms, './SeasonSheet': seasonSheet});
 const episodes = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, ...episodeAtoms,
   '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel},
-  '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, './SeasonsSheet': seasons,
+  '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, '../../kit/layout/ShowSeasonsSheet': seasons,
   '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}});
 const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, 
   react, '../../../../../packages/client-core/src/cleanup': cleanup, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient},

@@ -50,7 +50,7 @@ test('phone/tablet: the season sheet offers every episode group, marks the open 
     '../controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
     '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': {useTheme: () => theme},
   });
-  const wrapper = await screenModule(new URL('../src-next/screens/watch/SeasonsSheet.tsx', import.meta.url), {react: {...React, default: React}, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/layout/SeasonSheet': kit});
+  const wrapper = await screenModule(new URL('../src-next/kit/layout/ShowSeasonsSheet.tsx', import.meta.url), {react: {...React, default: React}, '../../../../../packages/i18n/src': {defaultI18n}, './SeasonSheet': kit});
   const NativeSeasonsSheet = (props: any) => kit.SeasonSheet(wrapper.NativeSeasonsSheet(props).props);
   const calls: string[] = [];
   let tree: any;

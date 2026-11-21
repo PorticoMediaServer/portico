@@ -33,7 +33,7 @@ const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watc
   '../../kit/layout/Hero': {HeroMetadata: 'Facts'}, '../../kit/states': {TitleSkeleton: 'Skeleton'},
   '../../kit/theme': {nativeType: () => ({}), useTheme: () => theme},
   '../../platform/platformPosture': {usePlatformPosture: () => posture}, '../../shell/model': {mediumRailMetrics: {width: 84}},
-  './TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, './SeasonsSheet': {NativeSeasonsSheet: 'SeasonsSheet'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'ShowSettingsSheet'},
+  './TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, '../../kit/layout/ShowSeasonsSheet': {NativeSeasonsSheet: 'SeasonsSheet'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'ShowSettingsSheet'},
   '../../kit/layout/SeasonBar': {SeasonBar: 'TitleSeasonBar'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, './TitlePeople': {TitlePeople: 'TitlePeople'},
 });
 const descendants = (node: any): any[] => Array.isArray(node) ? node.flatMap(descendants) : node?.props ? [node, ...descendants(node.props.children)] : [];
