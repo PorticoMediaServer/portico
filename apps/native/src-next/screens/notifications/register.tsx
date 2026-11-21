@@ -7,7 +7,7 @@ import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-reg
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
 import {NativeScreenLifetime} from '../settings-live/lifetime';
-import {NativeNotificationsScreen} from './NotificationsScreen';
+import {NotificationsPage} from '../../pages/touch/notifications/NotificationsPage';
 import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NotificationsRetirement = Readonly<{
@@ -98,7 +98,7 @@ export function createNativeNotificationsRenderer(context: NativeShellBootstrapC
       const current = acquire(route);
       if (!current.retired()) current.lifetime.assert();
       if (route.kind !== 'notifications') throw new Error('native_notifications_route_mismatch');
-      return <NativeNotificationsScreen context={context} route={route} runtime={runtime}
+      return <NotificationsPage context={context} route={route} runtime={runtime}
         profileService={current.profile} retirement={current.retirement}/>;
     },
     dispose: () => {session?.dispose(); session = undefined;},
