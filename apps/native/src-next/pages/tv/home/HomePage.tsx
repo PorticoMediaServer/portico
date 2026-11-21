@@ -3,10 +3,9 @@ import {heroSpec} from '@portico/design';
 import {Artwork} from '../../../kit/artwork';
 import {FocusItem, FocusRegion} from '../../../kit/focus';
 import {BrowseFrame} from '../../../kit/frames';
-import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroArt, HomeHeroFacts,
+import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroArt, HomeHeroFacts, HomeHeroReason,
   HomeLiveRow, HomePendingRow, HomeRemoteHint, HomeRowPlace, HomeWindow} from '../../../kit/home';
 import {TVHomeCustomize, TVHomeRow, TVHomeSpotlight} from '../../../kit/home/HomeTVParts';
-import {Parts} from '../../../kit/cards/primitives';
 import {Hero, FocusPreviewHero, Row, type ArtworkRenderContext} from '../../../kit/layout';
 import {Banner} from '../../../kit/overlays';
 import {HomeSkeleton, LoadingPaint, StateView} from '../../../kit/states';
@@ -44,7 +43,7 @@ export function TVHomePage(props: TVHomeProps) {
       width={heroSpec.thumbnail.width} height={heroSpec.thumbnail.height}/>}
     onArtworkError={(error, candidate) => runtime.onArtworkError(error, candidate.entry)}/>;
   const preview = home.preview && <FocusPreviewHero focusedEntry={home.preview} repeating={home.repeating} active={home.heroActive} visible={home.visible && home.heroVisible}
-    renderArtwork={renderArtwork} renderReason={candidate => <Parts parts={homeCardText(candidate.entry, true, runtime.text).caption} fit="wrap"/>}
+    renderArtwork={renderArtwork} renderReason={candidate => <HomeHeroReason parts={homeCardText(candidate.entry, true, runtime.text).caption}/>}
     renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []} continuation={homeCardText(candidate.entry, true, runtime.text)}/>}
     renderHint={candidate => <HomeRemoteHint resume={!!candidate.target?.progressSeconds} text={runtime.text}/>}
     onPreviewError={(error, candidate) => runtime.onArtworkError(error, candidate.entry)}/>;
