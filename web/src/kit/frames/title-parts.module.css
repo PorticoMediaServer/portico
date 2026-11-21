@@ -73,12 +73,13 @@
   .tiles[data-layout=list] .episodeRow > button > [data-part=description] { grid-column: 1 / -1; grid-row: 2; margin-top: 9px; }
   .expanded { margin-top: -24px; }
 }
-/* A phone (phone-detail d2, phone-app ep-bar): the season and its count, Hide watched at the end; the order, Filters and ⋯ wrap onto the row under them. */
+/* A phone (phone-detail d2, phone-app ep-bar): one row, the season, Hide watched and the season bar's ⋯ (the order, which
+   episodes and Show settings are in that menu). The count is in the season sheet; on a 390 row it would push ⋯ onto a row
+   of its own. */
 @media (max-width: 599px) {
-  .toolbarActions { display: contents; }
-  .toolbarActions > :not(.hide) { order: 2; }
-  .hide { order: 1; }
-  .toolbar { row-gap: var(--space-control-gap); }
+  .toolbar { flex-wrap: nowrap; }
+  .toolbar > .progress { display: none; }
+  .hide { margin-left: auto; }
 }
 @media (min-width: 600px) and (max-width: 1023px) {
   .tiles[data-layout=list] .episodeRow > button { grid-template-columns: 210px minmax(0, 1fr); column-gap: 18px; }
@@ -142,6 +143,9 @@
 .numberedArt > :first-child { width: 100%; height: 100%; }
 .numberedArt i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--color-accent-strong); }
 .numberedCopy { display: flex; flex-direction: column; gap: var(--space-tight); min-width: 0; }
+.numberedOpen { appearance: none; border: 0; padding: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.numberedOpen:hover b { text-decoration: underline; text-underline-offset: 3px; }
+.numberedArt[data-pressable] { cursor: pointer; }
 .numberedCopy b { font-size: var(--type-row-heading-size); line-height: var(--type-row-heading-line); font-weight: var(--type-row-heading-weight); }
 .numberedCopy p { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-secondary); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .numberedEnd { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-control-gap); }

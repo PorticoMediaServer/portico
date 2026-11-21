@@ -26,6 +26,9 @@
 .lockup { margin: 0; font-size: var(--frame-hero-title-lockup); line-height: var(--frame-hero-lockup-line); font-weight: var(--type-lockup-weight); letter-spacing: var(--frame-hero-lockup-tracking); text-wrap: balance; text-shadow: 0 2px 30px color-mix(in srgb, var(--color-ink) 50%, transparent); }
 .meta { min-height: var(--type-row-label-line); margin-top: var(--space-control-gap); display: flex; justify-content: center; align-items: center; }
 .meta > * { margin: 0; flex-wrap: wrap; justify-content: inherit; }
+/* Up to 1024 a link in the facts line (a genre) is plain words with no rule under it (phone-detail d1, d2): the rule sat below a
+   line of 13 px type and split "Crime, Drama" apart. From 1024 the frame's facts keep their links' rule. */
+@media (max-width: 1023px) { .meta button { box-shadow: none; } }
 
 /* The body: the action row, the played line, the words, the picker. Centred under the art up to 1024. */
 .body { grid-row: 2; display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--frame-title-action-gap) var(--g) 0; min-width: 0; }
