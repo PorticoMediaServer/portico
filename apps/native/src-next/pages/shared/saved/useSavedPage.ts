@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject, type ReactNode} from 'react';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
+import {browseNameId} from '../../../../../../packages/client-core/src/presentation/browse-toolbar';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {PinnedResource} from '../../../../../../packages/client-core/src/library-pins';
 import type {PersonalResource} from '../../../../../../packages/client-core/src/personal-saved';
@@ -137,8 +138,15 @@ export function useSavedPage({destination, runtime, device, actions, selection, 
     void actions.selectMyList({...base, shape: 'posters'});
     void actions.selectMyList({...base, shape: 'squares'});
   };
-  const sortItems = (posterProjection?.sorts ?? []).map(sort => ({id: sort.id, label: t(sort.labelKey as MessageId), selected: posterProjection?.query.sort === sort.id,
+  // A sort is named as the library names it ("Date added", "Title"); the server's `sort.<id>` keys are not catalogue words.
+  const sortName = (sort: {id: string; labelKey: string}) => {const key = browseNameId(sort.id, sort.labelKey, defaultI18n.has); return key ? t(key as MessageId) : sort.id;};
+  const sortItems = (posterProjection?.sorts ?? []).map(sort => ({id: sort.id, label: sortName(sort), selected: posterProjection?.query.sort === sort.id,
     onSelect: () => {setSortOpen(false); applyMyList({sort: sort.id, direction: sort.directions.includes(posterProjection?.query.direction as never) ? posterProjection!.query.direction as 'asc' | 'desc' : sort.directions[0] ?? 'asc'});}}));
+  // The Sort control reads the current order, as the library's does ("Date added  Newest first").
+  const sortChoice = posterProjection?.sorts.find(sort => sort.id === posterProjection.query.sort);
+  const sortDirection = posterProjection?.query.direction === 'asc' || posterProjection?.query.direction === 'desc' ? posterProjection.query.direction : undefined;
+  const sortLabel = sortChoice ? sortName(sortChoice) : undefined;
+  const sortDetail = sortChoice && sortDirection && sortChoice.directions.length > 1 ? {field: sortChoice.id, direction: sortDirection as 'asc' | 'desc'} : undefined;
   const filterItems = filterOptions.map(option => ({id: `${option.field}:${option.id}`, label: option.label, trailing: option.count ? defaultI18n.number(option.count) : undefined,
     selected: posterProjection?.query.category === option.id, onSelect: () => {setFilterOpen(false); applyMyList({filter: option.id as SavedListFilter});}}));
   const nextMyListPage = (shape: 'posters' | 'squares', projection: NonNullable<typeof posterProjection>, sectionId: string) => {
@@ -171,5 +179,5 @@ export function useSavedPage({destination, runtime, device, actions, selection, 
   return {active, tablet, snapshot, deviceState, admitted, documentFacts, transportFailure, retainedDocument, report,
     savedTab, chooseTab, tabItems, downloadsOpen, otherTab, scroll, pull, viewport, nextPosters, nextShelf,
     myListColumns, gridWidth, setGridWidth, listMode, setListMode, filterRef, sortRef, filterOpen, setFilterOpen, sortOpen, setSortOpen,
-    posterProjection, posterEntries, squareEntries, summary, myListCount, filterOptions, sortItems, filterItems, applyMyList, localGroups, rows, showDownloads};
+    posterProjection, posterEntries, squareEntries, summary, myListCount, filterOptions, sortItems, sortLabel, sortDetail, filterItems, applyMyList, localGroups, rows, showDownloads};
 }

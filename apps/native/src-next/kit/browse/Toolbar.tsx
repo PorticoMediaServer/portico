@@ -21,9 +21,10 @@ const t = defaultI18n.t;
 
 /** `matches`: on a phone or tablet the toolbar has no count line, so while a filter applies the control reads "Filters · 12"
  * (owner, 18 Nov) in place of the applied-filter badge. */
-export function FiltersButton({count = 0, matches, onPress, open = false}: {count?: number; matches?: number; onPress: () => void; open?: boolean}) {
+export function FiltersButton({count = 0, matches, onPress, open = false, anchorRef, testID}: {count?: number; matches?: number; onPress: () => void; open?: boolean;
+  /** The control a popover of filters opens under (Saved's My List). */ anchorRef?: React.Ref<View>; testID?: string}) {
   const theme = useTheme(), tv = theme.isTV, phone = theme.platform === 'phone';
-  return <Focusable focusKind="chip" focusRadius={tv ? 14 : 10} accessibilityRole="button" onPress={onPress} accessibilityLabel={count ? t('next.browse.native.filtersCount', {count}) : t('next.browse.native.filters')} accessibilityState={{expanded: open}} style={{height: tv ? 64 : phone ? 34 : 40, paddingHorizontal: tv ? 26 : phone ? theme.spec.chip.paddingX.phone : 14, borderRadius: tv ? 14 : 10, flexDirection: 'row', alignItems: 'center', gap: tv ? 10 : phone ? theme.spec.chip.gap.phone : 8, backgroundColor: open ? tv ? alpha(theme.colors.text, .2) : theme.colors.raisedBright : tv ? alpha(theme.colors.text, .08) : theme.colors.raisedHigh}}>
+  return <Focusable ref={anchorRef} testID={testID} focusKind="chip" focusRadius={tv ? 14 : 10} accessibilityRole="button" onPress={onPress} accessibilityLabel={count ? t('next.browse.native.filtersCount', {count}) : t('next.browse.native.filters')} accessibilityState={{expanded: open}} style={{height: tv ? 64 : phone ? 34 : 40, paddingHorizontal: tv ? 26 : phone ? theme.spec.chip.paddingX.phone : 14, borderRadius: tv ? 14 : 10, flexDirection: 'row', alignItems: 'center', gap: tv ? 10 : phone ? theme.spec.chip.gap.phone : 8, backgroundColor: open ? tv ? alpha(theme.colors.text, .2) : theme.colors.raisedBright : tv ? alpha(theme.colors.text, .08) : theme.colors.raisedHigh}}>
     <Icon name="i-filter" size={tv ? 26 : phone ? 17 : 18} color={theme.colors.textTertiary}/><Text style={[phone ? theme.type.chip : browseType(theme, tv ? 22 : 14.5, 700), {color: tv && !open ? theme.colors.textSecondary : theme.colors.text}]}>{matches !== undefined ? t('next.browse.native.filtersMatching', {count: matches}) : t('next.browse.native.filters')}</Text>
     {count > 0 && matches === undefined && <View style={{minWidth: tv ? 32 : 21, height: tv ? 32 : 21, paddingHorizontal: tv ? 8 : 6, borderRadius: tv ? 16 : 11, backgroundColor: tv ? theme.colors.accent : theme.colors.accentStrong, alignItems: 'center', justifyContent: 'center'}}><Text style={[browseType(theme, tv ? 18 : 12, 800), {color: theme.colors.actionInk}]}>{count}</Text></View>}
   </Focusable>;
@@ -37,6 +38,23 @@ export function SaveViewButton({canSave, onSave}: {canSave: boolean; onSave: () 
 export function ViewToggle({value, onValueChange, itemProps}: {itemProps?: (value: 'grid' | 'list') => Pick<React.ComponentProps<typeof Focusable>, 'focusId' | 'testID'>; value: 'grid' | 'list'; onValueChange: (value: 'grid' | 'list') => void}) {
   const theme = useTheme(), phone = theme.platform === 'phone';
   return <View accessibilityRole="radiogroup" style={{flexDirection: 'row', padding: phone ? 0 : 3, borderRadius: 11, backgroundColor: phone ? 'transparent' : theme.colors.raisedHigh}}>{(['grid', 'list'] as const).map(choice => <Focusable key={choice} focusId={`view-${choice}`} {...itemProps?.(choice)} accessibilityRole="radio" accessibilityLabel={t(choice === 'grid' ? 'next.browse.native.grid' : 'next.browse.native.list')} accessibilityState={{checked: value === choice}} onPress={() => onValueChange(choice)} focusKind="row" focusRadius={8} style={{width: phone ? 32 : 38, height: phone ? 30 : 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: value === choice ? phone ? theme.colors.raisedHigh : theme.colors.raisedBright : 'transparent'}}><Icon name={choice === 'grid' ? 'i-grid' : 'i-list'} size={20} color={value === choice ? theme.colors.text : theme.colors.textTertiary}/></Focusable>)}</View>;
+}
+/** The Sort control: the current order ("Date added", and its direction where it has one) on a chip that opens the choices. The
+ * library's Sort menu draws it, and so does a list with its own sort (Saved's My List). */
+export function SortButton({label, detail, open, onPress, anchorRef, focusId, testID}: {label?: string; detail?: string; open: boolean; onPress: () => void;
+  anchorRef?: React.Ref<View>; focusId?: string; testID?: string}) {
+  const theme = useTheme(), {width: windowWidth} = useWindowDimensions(), phone = theme.form === 'phone';
+  return <Focusable ref={anchorRef} focusId={focusId} testID={testID} focusKind="chip" focusRadius={theme.isTV ? 14 : 10} accessibilityRole="button" accessibilityLabel={t('next.browse.native.sort')}
+    accessibilityState={{expanded: open}} onPress={onPress} style={{minHeight: theme.isTV ? 64 : phone ? 34 : 40, maxWidth: phone ? windowWidth * .45 : undefined, borderRadius: theme.isTV ? 14 : 10,
+      paddingHorizontal: theme.isTV ? 26 : phone ? theme.spec.chip.paddingX.phone : 14, flexDirection: 'row', alignItems: 'center', gap: phone ? theme.spec.chip.gap.phone : 8,
+      backgroundColor: theme.isTV ? alpha(theme.colors.text, .08) : theme.colors.raisedHigh}}>
+    <Icon name="i-sort" size={theme.isTV ? 26 : phone ? 17 : 18} color={theme.colors.textTertiary}/>
+    <View style={{flexDirection: 'row', gap: theme.space.tight, flexShrink: 1, alignItems: 'center'}}>
+      {label !== undefined && <Text style={[phone ? theme.type.chip : browseType(theme, theme.isTV ? 22 : 14.5, 700), {color: theme.colors.text, flexShrink: 1}]}>{label}</Text>}
+      {detail !== undefined && <Text style={[phone ? theme.type.chip : browseType(theme, theme.isTV ? 22 : 14.5), {color: theme.colors.textTertiary}]}>{detail}</Text>}
+      {!theme.isTV && theme.platform !== 'phone' && <Icon name="i-down" size={16} color={theme.colors.textTertiary}/>}
+    </View>
+  </Focusable>;
 }
 export function SortMenu({scope, focusId, sorts, value, label, onValueChange, onReshuffle, open: suppliedOpen, onOpenChange}: {
   scope?: string; /** The trigger's stable id inside a focus region. */ focusId?: string; sorts: readonly BrowseSortCapability[]; value: BrowseToolbarModel['sort']; label: (sort: BrowseSortCapability) => string;
@@ -57,14 +75,8 @@ export function SortMenu({scope, focusId, sorts, value, label, onValueChange, on
   };
   const rows = sorts.map(choice => <MenuRow key={choice.id} focusId={`sort:${choice.id}`} label={label(choice)} description={choice.expensive ? t('next.browse.native.expensiveSort') : undefined} selected={choice.id === value.field} preferredFocus={choice.id === value.field} accessibilityRole="radio" accessibilityState={{checked: choice.id === value.field}} variant={theme.isTV ? 'tv' : 'compact'} style={{minHeight: theme.isTV ? 64 : 44}} onPress={() => select(choice)}/>);
   return <>
-    <Focusable ref={anchorRef} focusId={focusId} focusKind="chip" focusRadius={theme.isTV ? 14 : 10} accessibilityRole="button" accessibilityLabel={t('next.browse.native.sort')} accessibilityState={{expanded: open}} onPress={() => setOpen(!open)} style={{minHeight: theme.isTV ? 64 : phone ? 34 : 40, maxWidth: phone ? windowWidth * .45 : undefined, borderRadius: theme.isTV ? 14 : 10, paddingHorizontal: theme.isTV ? 26 : phone ? theme.spec.chip.paddingX.phone : 14, flexDirection: 'row', alignItems: 'center', gap: phone ? theme.spec.chip.gap.phone : 8, backgroundColor: theme.isTV ? alpha(theme.colors.text, .08) : theme.colors.raisedHigh}}>
-      <Icon name="i-sort" size={theme.isTV ? 26 : phone ? 17 : 18} color={theme.colors.textTertiary}/>
-      <View style={{flexDirection: 'row', gap: theme.space.tight, flexShrink: 1, alignItems: 'center'}}>
-        {active && <Text style={[phone ? theme.type.chip : browseType(theme, theme.isTV ? 22 : 14.5, 700), {color: theme.colors.text, flexShrink: 1}]}>{label(active)}</Text>}
-        {active && value.flippable && !active.seeded && (!phone || value.field === 'title') && <Text style={[phone ? theme.type.chip : browseType(theme, theme.isTV ? 22 : 14.5), {color: theme.colors.textTertiary}]}>{direction(value.direction)}</Text>}
-        {!theme.isTV && theme.platform !== 'phone' && <Icon name="i-down" size={16} color={theme.colors.textTertiary}/>}
-      </View>
-    </Focusable>
+    <SortButton anchorRef={anchorRef} focusId={focusId} open={open} onPress={() => setOpen(!open)} label={active && label(active)}
+      detail={active && value.flippable && !active.seeded && (!phone || value.field === 'title') ? direction(value.direction) : undefined}/>
     <Popover testID={scope ? `${scope}.sort-menu` : undefined} open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={anchorRef} title={t('next.browse.native.sort')} width={theme.isTV ? 560 : 300} placement="bottom-end">
       {/* R9: on TV this is the side sheet, which scrolls its rows itself and spaces them; a scroll box of its own would cut the focused row's ring. */}
       {theme.isTV ? rows : <ScrollView style={{maxHeight: 560}} keyboardShouldPersistTaps="handled">{rows}</ScrollView>}
