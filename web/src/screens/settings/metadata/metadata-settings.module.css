@@ -32,4 +32,5 @@
 .keyControl > p { position: absolute; top: var(--list-row-padding-y); right: var(--list-row-padding-x); display: inline-flex; align-items: center; gap: 8px; max-width: 40%; margin: 0; font-size: var(--type-caption-size); font-weight: var(--type-row-label-weight); color: var(--color-text-secondary); text-align: right; }
 .keyControl > p::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--color-text-tertiary); }
 .keyControl > div { flex: 0 1 460px; min-width: 0; }
-@media (max-width: 599px) { .keyControl > p { position: static; flex-basis: 100%; max-width: none; text-align: left; } .keyControl > div { flex-basis: 100%; } }
+/* In a narrow card (a phone, or a tablet's page beside the list) the state is its own line above the field. */
+@container settings-card (max-width: 559px) { .keyControl > p { position: static; flex-basis: 100%; max-width: none; text-align: left; } .keyControl > div { flex-basis: 100%; } }

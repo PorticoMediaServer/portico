@@ -49,7 +49,16 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, phone
   const pending = useRef<{id: string; slot: number} | undefined>(undefined), before = useRef(rows.map(row => row.id));
   const restoreSearch = useRef(false), autoMore = useRef<string | undefined>(undefined);
   const phone = usePhone(), cards = phoneCards === true ? {rowHeight: settingsTablePhoneMetrics.row, actionsLine: false} : phoneCards || undefined;
-  const cardRow = phone ? cards?.rowHeight : undefined;
+  // A table drawn as cards on a phone is cards wherever it is that narrow: a tablet's page beside the Settings list too.
+  const section = useRef<HTMLElement>(null), [narrowBox, setNarrowBox] = useState(false);
+  const wantsCards = !!cards;
+  useLayoutEffect(() => {
+    const element = section.current; if (!element || !wantsCards) return;
+    const read = () => setNarrowBox(element.clientWidth < 600);
+    const observer = new ResizeObserver(read); observer.observe(element); read();
+    return () => observer.disconnect();
+  }, [wantsCards]);
+  const narrow = phone || narrowBox, cardRow = narrow ? cards?.rowHeight : undefined;
   const metrics = useMemo(() => cardRow === undefined ? settingsTableMetrics : {row: cardRow, header: settingsTablePhoneMetrics.header}, [cardRow]);
   const range = settingsTableWindow(rows.length, viewport.top, viewport.height, 3, metrics), selectable = !!onSelectionChange;
   const ids = useMemo(() => rows.map(row => row.id), [rows]), selectedCount = selected?.size ?? 0;
@@ -104,7 +113,7 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, phone
     if (hasMore && !loading && range.last >= rows.length - 8 && autoMore.current !== key) {autoMore.current = key; onLoadMore?.();}
   }, [range.last, rows, offset, query, hasMore, loading, onLoadMore]);
   const rendered = rows.slice(range.first, range.last + 1);
-  return <section className={styles.tableSection} aria-label={label} data-phone-cards={cards ? '' : undefined} data-phone-actions={cards?.actionsLine ? 'line' : undefined}
+  return <section ref={section} className={styles.tableSection} aria-label={label} data-phone-cards={cards && narrow ? '' : undefined} data-phone-actions={cards?.actionsLine ? 'line' : undefined}
     style={cards ? {'--phone-row-height': `${cards.rowHeight}px`} as CSSProperties : undefined}>
     <div className={styles.tableToolbar}>
       {selectedCount ? <><span role="status" className={styles.selectionCount}>{t('next.settings.selected', {count: selectedCount})}</span>{bulkActions.map(action => <Button size="xs" key={action.id} className={action.destructive ? styles.danger : undefined} onClick={event => action.onAction([...(selected ?? [])], event.currentTarget)}>{action.label}</Button>)}<Button size="xs" variant="text" onClick={() => {restoreSearch.current = true; onSelectionChange?.(new Set());}}>{t('next.settings.clear')}</Button></> : <>
