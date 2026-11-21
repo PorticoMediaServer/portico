@@ -12,9 +12,9 @@ import {StateView} from '../../../kit/states';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativePeopleSource} from '../../../screens/settings-live/server/people-source';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {ServerPeopleAdvanced, ServerInvitationEditor, ServerPersonDetails} from './ServerPeopleDetails';
-import {InvitationReadySheet} from './ServerInvitationReady';
-import {invitationState, roleLabel, usePeopleSource, useServerPeople} from './useServerPeople';
+import {ServerPeopleAdvanced, ServerInvitationEditor, ServerPersonDetails} from '../../shared/settings/ServerPeopleDetails';
+import {InvitationReadySheet} from '../../shared/settings/ServerInvitationReady';
+import {invitationState, roleLabel, usePeopleSource, useServerPeople} from '../../shared/settings/useServerPeople';
 
 type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime};
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;

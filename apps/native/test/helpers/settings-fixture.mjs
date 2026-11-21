@@ -33,9 +33,9 @@ export async function settingsFixture(previous) {
     '../../../kit/settings/SettingsParts': parts, '../../../kit/frames': fixtureFrame, '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'},
     '../../../kit/shell/SettingsProfileCard': {SettingsProfileCard: 'Focusable'}, './useSettingsPreferences': prefs};
   const body = await load('pages/shared/settings/SettingsPreferences.tsx', bindings);
-  const People = previous['./ServerPeoplePage']?.ServerPeoplePage;
+  const People = previous['../../touch/settings/ServerPeoplePage']?.ServerPeoplePage;
   const page = await load('pages/shared/settings/SettingsPage.tsx', {...bindings, './useSettingsPage': model, './SettingsPreferences': body,
-    './ServerPeoplePage': {ServerPeoplePage: function PeoplePage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'people', back}, e(People));}}});
+    '../../touch/settings/ServerPeoplePage': {ServerPeoplePage: function PeoplePage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'people', back}, e(People));}}});
   return {NativeSettingsScreen: page.NativeSettingsPage};
 }
 

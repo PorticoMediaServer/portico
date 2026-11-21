@@ -21,7 +21,7 @@ import {NativeServerGeneral} from '../../../screens/settings-live/server/General
 import {NativeRemoteAccessPage} from '../../../screens/settings-live/server/RemoteAccessPage';
 import {NativeServerStreaming} from '../../../screens/settings-live/server/StreamingPage';
 import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
-import {ServerPeoplePage} from './ServerPeoplePage';
+import {ServerPeoplePage} from '../../touch/settings/ServerPeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
 import {NativeServerHistory} from '../../../screens/settings-live/server/HistoryPage';

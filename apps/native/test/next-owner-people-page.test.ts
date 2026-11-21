@@ -36,8 +36,8 @@ async function fixture(forms = {}) {
     '../../../screens/settings-live/server/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
     '../../../screens/settings-live/server/SettingControl': {NativeSettingControl: 'Setting'},
   });
-  const {ServerPeoplePage} = await screenModule(new URL('../src-next/pages/shared/settings/ServerPeoplePage.tsx', import.meta.url), {
-    ...chrome, './ServerPeopleDetails': detailsModule, './ServerInvitationReady': {InvitationReadySheet: 'InvitationReadySheet'},
+  const {ServerPeoplePage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerPeoplePage.tsx', import.meta.url), {
+    ...chrome, '../../shared/settings/useServerPeople': model, '../../shared/settings/ServerPeopleDetails': detailsModule, '../../shared/settings/ServerInvitationReady': {InvitationReadySheet: 'InvitationReadySheet'},
   });
   const ports = {context, requestId: () => 'operation-fixture'};
   const frames = () => host.render(() => {
