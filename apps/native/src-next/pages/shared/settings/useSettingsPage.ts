@@ -19,6 +19,7 @@ import {setNativeScreenChromeHidden} from '../../../shell/chrome';
 import {useScreenBack, useScreenEntry} from '../../../screens/settings-live/Screen';
 import {registerBack} from '../../../kit/navigation/back';
 import type {NativeShellRoute} from '../../../shell/routes';
+import {nativeMenuRouteAvailable} from '../../../shell/account';
 import {readSettingsBinding, settingsBinding, type SettingsBindingValue} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {NativeLiveOwnerController} from '../../../screens/settings-live/live-owner-controller';
@@ -142,8 +143,8 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     && pageState.current.compact === compact && pageState.current.television === theme.isTV, [routeCurrent, selected, pushed, compact, theme.isTV]);
   const popPage = () => {if (!viewCurrent()) return; pageState.current = {...pageState.current, pushed: false}; setPushed(false);};
   // tv-more frame 22: the list keeps the spec's three groups, in the drawn order; Reading is not on TV.
-  const tvPageOrder = ['profile', 'privacy', 'playback', 'languages', 'quality', 'music', 'appearance', 'region', 'device'];
-  const tvPageGroups: readonly (readonly string[])[] = [['profile', 'privacy'], ['playback', 'languages', 'quality', 'music'], ['appearance', 'region', 'device']];
+  const tvPageOrder = ['profile', 'privacy', 'playback', 'languages', 'quality', 'music', 'appearance', 'region', 'device', 'servers'];
+  const tvPageGroups: readonly (readonly string[])[] = [['profile', 'privacy'], ['playback', 'languages', 'quality', 'music'], ['appearance', 'region', 'device'], ['servers']];
   const accountOrder = theme.isTV ? tvPageOrder : compact ? phoneAccountOrder : tabletAccountOrder;
   const orderedPages = [
     ...accountOrder.flatMap(id => accountPages.filter(value => value.id === id)),
@@ -335,6 +336,13 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const serverGroups = grouped(serverGroupPages, compact ? [] : tabletServerClusters);
   const focusSearch = () => {if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}};
   const openDashboard = () => {if (viewCurrent()) navigation.open({kind: 'server-dashboard'}, ports.context.authority());};
+  // connect-24: a TV's More group lists Notifications and Watch Together under Switch server. They open their own routes, so
+  // focusing one leaves the page shown as it is.
+  const tvMoreLinks = theme.isTV ? ([
+    {id: 'notifications', title: 'notifications.title', icon: 'i-bell', route: {kind: 'notifications'}},
+    {id: 'together', title: 'entry.group.together', icon: 'i-people', route: {kind: 'together'}},
+  ] as const).filter(link => nativeMenuRouteAvailable(link.route)) : [];
+  const openTVLink = (route: NativeShellRoute) => {if (viewCurrent()) navigation.open(route, ports.context.authority());};
   const openServerPage = (id: string) => {
     if (id === 'dashboard' && (dashboard === undefined || compact)) openDashboard(); else choose(id);
   };
@@ -345,7 +353,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     } else closeSettings();
   };
   return {theme, t, shell, state, ids, page, compact, pushed, query, setQuery, searchRevision, searching, searchField, keyboard, rows, column,
-    selectPage: setSelected, choose, focusSearch, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
+    selectPage: setSelected, choose, focusSearch, tvMoreLinks, openTVLink, sheetShortcuts, unreadNotifications, accountGroups, serverGroups, orderedPages, enter, openMatch,
     matches, matchingPages, matchRegions, matchEdges, voiceSearch, sheetChanged, closing, closeSettings, finishClose, phoneBack, signedIn,
     serverPage, viewerRole, dashboardCard, dashboardDenied, openDashboard, openServerPage, updatePending, leaveServerPage, setRemoteBack, setSegmentBack,
     librariesPage, livePage, troubleshootingPage, storagePage, integrationsPage, generalPage, streamingPage, segmentsPage, peoplePage,
