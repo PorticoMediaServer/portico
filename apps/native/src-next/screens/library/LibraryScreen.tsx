@@ -9,7 +9,6 @@ import type {BrowseNode} from '../../../../../packages/client-core/src/browse';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {libraryTabs, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
-import {TVMusicDiscover} from '../destinations/music/TVMusicDiscover';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
 import {type CardSelection} from '../../kit/cards';
 import {AmbientArt, Artwork} from '../../kit/artwork';
@@ -406,10 +405,6 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
         : loading ? <LibraryLoading theme={theme} width={theme.isTV ? dimensions.width : contentWidth} height={dimensions.height} tablet={tabletLayout} expanded={expanded} elapsedMs={loadingElapsed}/>
         : emptyShown ? <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} surface={state.tab.shows}
             libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}/>
-        : state.library.kind === 'music' && state.tab.id === 'discover' ? <TVMusicDiscover
-            destination={destination} state={state} runtime={runtime} active={active} anchor={props.mixAnchor} onEntered={onEntered}
-            renderEntry={(entry, width, context) => <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}
-              selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
         : state.tab.shows === 'rows' ? discoverRows() : null}
     </View>
     {sheet}

@@ -10,6 +10,7 @@ import {StateView} from '../../../kit/states';
 import {Artwork} from '../../../kit/artwork';
 import {Banner} from '../../../kit/overlays';
 import {FocusItem} from '../../../kit/focus';
+import {MusicMixesRow} from '../../../screens/destinations/music/MusicMixesRow';
 import {nativeLibraryEntryKey, useTVLibrary, useTVLibraryGrid, type LibraryProps} from '../../shared/library/useLibrary';
 
 export function LibraryPage(props: LibraryProps) {
@@ -25,19 +26,29 @@ export function LibraryPage(props: LibraryProps) {
   const loading = state.phase === 'loading' || state.phase === 'idle';
   const pageState = view.failure ?? view.emptyState;
   const shelfBar = shelfSelection?.render(path => path && <Artwork source={runtime.artwork(path)}/>);
-  return <BrowseFrame testID="library-frame" header={header} notice={props.tvMusicDiscover ? undefined : notice}
-    toolbar={props.tvMusicDiscover ? <>{notice}{shelfBar}</> : undefined}
+  const mix = view.mix;
+  const mixRow = mix && <MusicMixesRow port={mix.port} artwork={runtime.artwork} reportError={runtime.reportError}
+    active={active.visible} focus={mix.focus} onCardFocus={mix.onCardFocus}/>;
+  return <BrowseFrame testID="library-frame" header={header} notice={view.musicDiscover ? undefined : notice}
+    toolbar={view.musicDiscover ? <>{notice}{shelfBar}</> : undefined}
     state={pageState ? {...pageState, focus: view.pageState} : loading ? {kind: 'loading'} : undefined}
-    grid={props.tvMusicDiscover ?? (loading && state.tab.shows !== 'rows')}>
-    {!props.tvMusicDiscover && shelfBar}
+    grid={loading && state.tab.shows !== 'rows'}>
+    {!view.musicDiscover && shelfBar}
     {state.discover.error ? <StateView {...runtime.error(state.discover.error, destination.retry, 'library')}/> : null}
-    {view.shelves.map(row => <LibraryShelf key={row.id} title={row.title} items={row.entries}
-      shape={row.shape === 'landscape' ? 'wide' : row.shape ?? 'poster'} focus={row.focus} getKey={nativeLibraryEntryKey} onVisibleRange={row.onVisibleRange}
-      renderItem={(entry, cell, width, onCaptionLayout) => {
-        const selected = shelfSelection?.item(entry);
-        return <LibraryCard entry={entry} family={state.library.kind} width={width} wide={row.shape === 'landscape'} runtime={runtime} actions={actions}
-          focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>;
-      }}/>)}
+    {mix?.error !== undefined && <StateView {...runtime.error(mix.error, () => {void mix.port.load().catch(runtime.reportError);}, 'library')}/>}
+    {view.discoverEmpty && <StateView title={view.discoverEmpty}/>}
+    {!mix?.after && mixRow}
+    {view.shelves.map(row => <React.Fragment key={row.id}>
+      <LibraryShelf title={row.title} items={row.entries}
+        shape={row.shape === 'landscape' ? 'wide' : row.shape ?? 'poster'} focus={row.focus} getKey={nativeLibraryEntryKey} onVisibleRange={row.onVisibleRange}
+        renderItem={(entry, cell, width, onCaptionLayout) => {
+          const selected = shelfSelection?.item(entry);
+          return <LibraryCard entry={entry} family={state.library.kind} width={width} wide={row.shape === 'landscape'} runtime={runtime} actions={actions}
+            focusId={cell.focusId} onFocus={() => {cell.onFocus(); view.rememberShelf(row.focus.id, cell.focusId ?? cell.id);}}
+            onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>;
+        }}/>
+      {mix?.after === row.id && mixRow}
+    </React.Fragment>)}
   </BrowseFrame>;
 }
 
