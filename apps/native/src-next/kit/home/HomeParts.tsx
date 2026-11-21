@@ -9,7 +9,8 @@ import {FocusRegion, type FocusRegionProps} from '../focus';
 import type {ArtworkRenderContext} from '../layout/types';
 import type {IconName} from '../Icon';
 import {LoadingPaint, SkeletonBlock} from '../states';
-import {useTheme} from '../theme';
+import {nativeType, useTheme} from '../theme';
+import {frameSpec} from '@portico/design';
 import {roundBarSize} from '../layout/TopBar';
 
 export type HomeHeroAction = Readonly<{id: string; label: string; icon?: IconName; variant: 'primary' | 'glass'; onPress: () => void;
@@ -63,9 +64,14 @@ export function HomeSpotlight<T extends HeroCandidate>({toolbar, ...props}: Hero
   if (theme.form === 'phone') return showHero ? <Hero {...props} variant="phone-app"/> : null;
   const top = Math.max(insets.top, theme.space.md) + theme.space.controlGap;
   const spec = theme.spec.hero.tabletHome;
+  // On its side a tablet's Home title is the frames' size for this form (52), not the desktop 84: at 84 in the 440 column
+  // even "Solo Leveling" took two lines and lifted the words over the status bar (iPad, 21 Nov).
+  const size = wide ? frameSpec.hero.home.lockup.expanded : 0;
+  const lockup = wide ? nativeType({size, lineHeight: size * frameSpec.hero.lockupLine, weight: 800, tracking: frameSpec.hero.lockupTracking}, theme.textScale) : undefined;
   return <View style={{height: showHero ? props.height : toolbar ? top + roundBarSize : 0}}>
     {showHero && <Hero {...props} variant={wide ? 'desktop' : 'phone-app'}
       copySide={wide ? spec.landscapeCopy : undefined}
+      lockupStyle={lockup}
       copyStyle={wide ? undefined : spec.portraitCopy}
       longLockupStyle={wide ? theme.type.pageTitle : undefined}
       metadataStyle={{marginBottom: wide ? theme.space.sm : theme.space.md}}
