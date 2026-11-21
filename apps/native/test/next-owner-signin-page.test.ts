@@ -34,8 +34,8 @@ async function fixture(authorized = true, isTV = false) {
     '../../../../../../packages/client-core/src/sign-in': {serverSignInSettingsURL: (origin: string) => {assert.equal(origin, api.baseUrl); return new URL('/settings?scope=server&section=signin', origin).href;}},
     '../../../kit/theme': {useTheme: theme}, '../../../screens/settings-live/use-settings-request-scope': {useSettingsRequestScope: () => scope},
   });
-  const {ServerSignInPage} = await screenModule(new URL('../src-next/pages/shared/settings/ServerSignInPage.tsx', import.meta.url), {
-    react, './useServerSignIn': model, '../../../kit/settings/SignInMoveProgress': progress, '../../../kit/settings/SettingsParts': parts,
+  const {ServerSignInPage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerSignInPage.tsx', import.meta.url), {
+    react, '../../shared/settings/useServerSignIn': model, '../../../kit/settings/SignInMoveProgress': progress, '../../../kit/settings/SettingsParts': parts,
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'},
     '../../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => `date:${value}`}},
     '../../../kit/controls': {Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},

@@ -10,7 +10,7 @@ import {SettingsRow} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useServerSignIn} from './useServerSignIn';
+import {useServerSignIn} from '../../shared/settings/useServerSignIn';
 
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;
 

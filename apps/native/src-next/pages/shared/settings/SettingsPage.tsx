@@ -22,7 +22,7 @@ import {NativeRemoteAccessPage} from '../../../screens/settings-live/server/Remo
 import {NativeServerStreaming} from '../../../screens/settings-live/server/StreamingPage';
 import {NativeServerSegments} from '../../../screens/settings-live/server/SegmentsPage';
 import {NativeServerPeople} from '../../../screens/settings-live/server/PeoplePage';
-import {ServerSignInPage} from './ServerSignInPage';
+import {ServerSignInPage} from '../../touch/settings/ServerSignInPage';
 import {NativeServerMetadata} from '../../../screens/settings-live/server/MetadataPage';
 import {NativeServerHistory} from '../../../screens/settings-live/server/HistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
