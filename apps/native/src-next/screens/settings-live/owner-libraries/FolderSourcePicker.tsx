@@ -9,9 +9,10 @@ import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {NativeRemoteSourcesController} from '../../settings/remote-sources/controller';
-import {NativeRemoteSourcesScreen} from '../../settings/remote-sources/NativeRemoteSourcesScreen';
-import {SourceFolderBrowser} from '../../settings/remote-sources/SourceFolderBrowser';
-import {Problem, remoteSourceError, type ChosenSourceFolder} from '../../settings/remote-sources/RemoteSourceForms';
+import {RemoteSourcesPage} from '../../../pages/touch/settings/RemoteSourcesPage';
+import {SourceFolderBrowser} from '../../../kit/settings/remote-sources/SourceFolderBrowser';
+import {Problem} from '../../../kit/settings/remote-sources/RemoteSourceForms';
+import {remoteSourceError, type ChosenSourceFolder} from '../../settings/remote-sources/messages';
 import {FolderExplorer, type ExplorerFolder} from './FolderExplorer';
 import {SettingsGroup, SettingsRow} from '../../../kit/shell';
 
@@ -60,7 +61,7 @@ function SourcePicker({controller, ports, runtime, ...props}: Props & {controlle
   return <BottomSheet open onOpenChange={props.onOpenChange} title={t('web.libraries.addFolder')} scrollable={false} detents={[760]}>
     {mode.kind === 'remote' ? <View style={{flex: 1}}><SourceFolderBrowser controller={controller} source={mode.source} t={t} isCurrent={current} multiple={props.multiple}
       onCancel={menu} onChoose={folders => chooseRemote(mode.source, folders)}/></View>
-    : mode.kind === 'create' ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} initialCreate multipleFolders={props.multiple} onDismiss={() => {menu(); void controller.load();}}
+    : mode.kind === 'create' ? <RemoteSourcesPage ports={ports} runtime={runtime} initialCreate multipleFolders={props.multiple} onDismiss={() => {menu(); void controller.load();}}
       onChooseFolders={chooseRemote}/>
     : <FlatList data={snapshot.allowed ? snapshot.sources : []} keyExtractor={source => source.id}
       initialNumToRender={16} maxToRenderPerBatch={16} windowSize={7} contentContainerStyle={{gap: 12}}

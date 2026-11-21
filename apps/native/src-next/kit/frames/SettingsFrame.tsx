@@ -95,6 +95,7 @@ export type SettingsPageFrameProps = Readonly<{
   children?: ReactNode;
   /** A server panel that owns its own scrolling. */
   panel?: ReactNode;
+  footer?: ReactNode;
   /** An embedded panel or the TV search results already has a heading. */
   hideHeader?: boolean;
   /** The whole page can't load. One section failing is a `StateRow` in that section's card instead. */
@@ -113,7 +114,7 @@ export type SettingsPageFrameProps = Readonly<{
 export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps) {
   return <StartFocusScope id={startFocus}><SettingsPageBody {...props}/></StartFocusScope>;
 }
-function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, panel, hideHeader, state, testID, scrollRef, onScrollLayout}: Omit<SettingsPageFrameProps, 'startFocus'>) {
+function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, panel, footer, hideHeader, state, testID, scrollRef, onScrollLayout}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), parentColumn = useContext(FrameColumn), inListPlace = useContext(InListPlace), inSheet = useInSheet() || inListPlace, beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
@@ -153,5 +154,7 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
           provider on every form, so a form change restyles the body and never remounts it. */}
       <FrameColumn.Provider value={beside || parentColumn}>{body}</FrameColumn.Provider>
     </FormScrollView>)}
+    {footer && <View style={{paddingHorizontal: frame.gutter, paddingVertical: theme.space.sm,
+      borderTopWidth: theme.space.hairline, borderColor: theme.colors.lineSoft}}>{footer}</View>}
   </View>;
 }
