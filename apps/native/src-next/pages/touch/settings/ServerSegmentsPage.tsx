@@ -14,7 +14,7 @@ import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports
 import type {StorageForms} from '../../../screens/settings-live/server/storage/forms';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useSegmentsBulkAction, useSegmentsForms, useServerSegments} from './useServerSegments';
+import {useSegmentsBulkAction, useSegmentsForms, useServerSegments} from '../../shared/settings/useServerSegments';
 
 type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime};
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;

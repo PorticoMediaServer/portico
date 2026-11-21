@@ -87,8 +87,8 @@ test('Segments exposes every Advanced control the segments document has (the per
     '../../../screens/settings-live/server/storage/space-source': {nativeStorageOwner: (context: any) => context.current()},
     '../../../screens/settings-live/server/storage/forms': fixture.hooks,
   });
-  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerSegmentsPage.tsx', import.meta.url), {
-    react: host.react, './useServerSegments': model,
+  const module = await screenModule(new URL('../src-next/pages/touch/settings/ServerSegmentsPage.tsx', import.meta.url), {
+    react: host.react, '../../shared/settings/useServerSegments': model,
     '../../../kit/controls': {Button: 'Button'}, '../../../kit/states': {StateView: 'StateView'},
     '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame', PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
