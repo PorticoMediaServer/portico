@@ -1,4 +1,4 @@
-import {hooks} from './screen-harness.mjs';
+import {hooks, screenModule} from './screen-harness.mjs';
 import {DraftForm, FormSet} from '../../../../packages/client-core/src/server-admin/draft-form.ts';
 import * as specification from '../../../../packages/client-core/src/presentation/settings-spec.ts';
 
@@ -43,3 +43,17 @@ export const maintenance = () => ({windows: [
   {id: 'backup', name: 'Backups', enabled: true, cadence: 'nightly', days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], startMinute: 180, durationMinutes: 240, timezone: '', tasks: ['backup']},
   {id: 'heavy', name: 'Analysis', enabled: true, cadence: 'nightly', days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], startMinute: 60, durationMinutes: 300, timezone: '', tasks: ['analysis', 'trickplay']},
 ], retention: {conversions: 7, prepared: 90, downloads: 30, subtitles: 365, trickplay: 365}, backupKeepCount: 7, backgroundSpeed: 'normal'});
+
+/** Storage & backups: its shared hooks loaded with these namespaces (any other import an empty one), and the page on them. */
+export async function storagePage(react, hookModules, pageModules) {
+  const hookImports = ['server-admin/server-backups', 'server-admin/restore-gate', 'server-admin/console-words', 'server-admin/cache-source', 'server-admin/server-storage',
+    'home-selection/list-destinations', 'presentation/settings-bindings', 'presentation/settings-spec'].map(path => `../../../../../../packages/client-core/src/${path}`);
+  const empty = Object.fromEntries([...hookImports, '../../../../../../packages/i18n/src', '../../../screens/settings-live/lifetime',
+    '../../../screens/settings-live/use-settings-request-scope', '../../../screens/settings-live/server/storage/space-source'].map(path => [path, {}]));
+  const hook = await screenModule(new URL('../../src-next/pages/shared/settings/useServerStorage.ts', import.meta.url), {...empty, react, ...hookModules});
+  const kit = Object.fromEntries(['../../../kit/controls', '../../../kit/frames', '../../../kit/overlays', '../../../kit/overlays/surface', '../../../kit/settings/AdvancedSection',
+    '../../../kit/settings/SettingControl', '../../../kit/shell', '../../../screens/settings-live/owner-libraries/FolderExplorer'].map(path => [path, {}]));
+  const parts = Object.fromEntries(['BackupRow', 'PendingRestoreCard', 'StorageActions', 'StorageColumn', 'StorageList', 'StorageNote', 'StoragePath', 'StorageSheetBody', 'StorageUsage'].map(name => [name, name]));
+  return screenModule(new URL('../../src-next/pages/touch/settings/ServerStoragePage.tsx', import.meta.url), {...kit, react, '../../../kit/settings/StorageParts': parts, ...pageModules,
+    '../../shared/settings/useServerStorage': hook});
+}
