@@ -4,7 +4,7 @@ import type {NativeShellRoute} from '../../shell/routes';
 import {nativeScreenServices} from '../native-screen-services';
 import {nativeDestinationLifetime} from './lifetime';
 import {NativeDestinationPins} from './pins';
-import {NativePinEditorSheet} from './PinEditorSheet';
+import {PinEditorSheet} from '../../pages/touch/saved/PinEditorSheet';
 
 export const createNativeHandheldPinsModule: NativeRouteFactory = context => {
   const lifetime = nativeDestinationLifetime(context), common = nativeScreenServices(context);
@@ -22,7 +22,7 @@ export const createNativeHandheldPinsModule: NativeRouteFactory = context => {
           libraryIds: () => context.libraries().map(library => library.id),
           current: () => !disposed && lifetime.current() && context.navigation.getSnapshot().route === route});
       }
-      return <NativePinEditorSheet controller={controller} libraries={context.libraries()} onClose={() => {
+      return <PinEditorSheet controller={controller} libraries={context.libraries()} onClose={() => {
         if (!disposed && lifetime.current() && context.navigation.getSnapshot().route === route) context.navigation.back(context.authority());
       }}/>;
     },

@@ -24,21 +24,32 @@ test('ruling39 pin rows keep immediate toggles and handle accessibility moves wi
     react: host.react, 'react-native-reanimated': motion,
   });
   const pan = () => {const builder: any = new Proxy({}, {get: () => (..._args: unknown[]) => builder}); return builder;};
-  const {NativePinEditorSheet} = await screenModule(new URL('../src-next/screens/destinations/PinEditorSheet.tsx', import.meta.url), {
+  const groupBindings = await screenModule(new URL('../src-next/kit/saved/PinGroup.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-reanimated': motion,
     'react-native-gesture-handler': {Gesture: {Pan: pan}, GestureDetector: 'GestureDetector'},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet'},
-    '../../kit/browse/presentation': {browseType: () => ({}), alpha: (color: string) => color}, '../../kit/theme': {useTheme: () => theme},
-    './pins-drag': {nativePinDrop}, './pins-drag-paint': {usePinDragPaint},
+    '../../../../../packages/i18n/src': {defaultI18n}, '../controls': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'},
+    '../browse/presentation': {alpha: (color: string) => color}, '../theme': {useTheme: () => theme}, '../frames/metrics': {useFrameMetrics: () => ({rowTwoLine: 54})},
+    '../../screens/destinations/pins-drag': {nativePinDrop}, '../../screens/destinations/pins-drag-paint': {usePinDragPaint},
   });
+  const hook = await screenModule(new URL('../src-next/pages/shared/saved/usePinEditor.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/presentation/errors': {},
+  });
+  const {PinEditorSheet} = await screenModule(new URL('../src-next/pages/touch/saved/PinEditorSheet.tsx', import.meta.url), {
+    react: host.react, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/frames': {StateRow: 'StateRow'},
+    '../../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet'}, '../../../kit/saved/PinGroup': groupBindings,
+    '../../../kit/settings/SettingsParts': {SettingsHelp: 'SettingsHelp'}, '../../shared/saved/usePinEditor': hook,
+  });
+  const longName = 'A long library name stays entirely visible in the edit pins list';
   const controller = {subscribe() {}, getSnapshot: () => state, pinLibrary: (...value: unknown[]) => calls.push(value), placeLibrary() {}, moveLibrary() {}};
-  const tree = host.render(() => NativePinEditorSheet({controller, libraries: [{id: 'a', name: 'Actual A'}, {id: 'b', name: 'Actual B'}, {id: 'c', name: 'Actual C'}], onClose() {}}));
+  const tree = host.render(() => PinEditorSheet({controller, libraries: [{id: 'a', name: 'Actual A'}, {id: 'b', name: longName}, {id: 'c', name: 'Actual C'}], onClose() {}}));
   assert.equal(tree.type, 'BottomSheet'); assert.equal(tree.props.title, defaultI18n.t('pins.editTitle'));
   assert.equal(tree.props.description, defaultI18n.t('pins.librariesHint')); assert.equal(tree.props.footer, undefined);
   const group = nodes(tree).find(node => node.type?.name === 'PinGroup');
   assert.deepEqual(group.props.rows.map((row: any) => [row.id, row.pinned, row.moveable]), [['b', true, true], ['a', true, true], ['c', false, false]]);
   const rows = host.render(() => group.type(group.props)), controls = nodes(rows).filter(node => node.type === 'Focusable');
+  const name = nodes(rows).find(node => node.type === 'Text' && node.props.children.includes(longName));
+  assert.ok(name);
+  assert.equal(name.props.numberOfLines, undefined);
   assert.equal(controls.length, 3); assert.ok(controls.every(node => node.props.accessibilityRole === 'togglebutton'));
   assert.deepEqual(controls.map(node => node.props.accessibilityState.checked), [true, true, false]);
   controls[0].props.onPress(); assert.deepEqual(calls, [['b', false]]);
@@ -63,7 +74,7 @@ test('all pin entries use one real route factory and Back retires its captured c
   const {createNativeHandheldPinsModule} = await screenModule(new URL('../src-next/screens/destinations/PinsRoute.tsx', import.meta.url), {
     react: host.react, '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (kind: string, factory: any) => registrations.set(kind, factory)}},
     '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'actual-operation'})}, './lifetime': {nativeDestinationLifetime},
-    './pins': {NativeDestinationPins}, './PinEditorSheet': {NativePinEditorSheet: 'PinEditor'},
+    './pins': {NativeDestinationPins}, '../../pages/touch/saved/PinEditorSheet': {PinEditorSheet: 'PinEditor'},
   });
   assert.equal(registrations.get('edit-pins'), createNativeHandheldPinsModule);
   assert.equal(registrations.get('library-edit-pins'), createNativeHandheldPinsModule);
