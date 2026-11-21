@@ -70,7 +70,7 @@ async function emptyPage(isTV: boolean) {
     './LibraryToolbar': {LibraryToolbar: 'LibraryToolbar'}, '../../kit/browse/LibraryListRow': {LibraryListRow: 'LibraryListRow'}, './directory': {NativeLibraryDirectory: 'NativeLibraryDirectory'},
     '../../kit/browse/LibraryFilterFields': {useLibraryFrameFilters: () => undefined},
     './LibraryFilters': {LibraryFilters: 'LibraryFilters', libraryFiltersDockWidth: 380}, '../../kit/frames': {BrowseFrame: 'BrowseFrame'}, './applied-filters': {libraryAppliedFilters: () => []}, './library-grid': {libraryTabletGridGeometry: () => ({})},
-    '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, '../destinations/music/TVMusicDiscover': {TVMusicDiscover: 'TVMusicDiscover'},
+    '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'},
     '../read/platform': {hiddenReadingLibraryOnTV: () => false, isReadingLibraryKind: () => false}, '../share/share-actions': {shareLinkActions: () => []},
     '../../kit/browse/LibraryJumpSheet': {}, './jump': {}, '../../kit/cards/TVSparseCardFrame': {}, '../../platform/home-action-diagnostics': {homeActionDiagnostics: () => {}},
   };

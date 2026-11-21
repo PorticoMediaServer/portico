@@ -13,8 +13,6 @@ import {frameForm} from '@portico/design';
 import {CoveredLayer} from '../../kit/focus';
 import {homeSeeAllRoute} from '../../shell/routes';
 import {LibraryPage} from '../../pages/touch/library/LibraryPage';
-import {LibraryCard} from '../../kit/browse/LibraryCard';
-import {TVMusicDiscover} from '../destinations/music/TVMusicDiscover';
 import {LibraryPage as TVLibraryPage} from '../../pages/tv/library/LibraryPage';
 import type {LibraryProps} from '../../pages/shared/library/useLibrary';
 import {LibraryScreen, type NativeLibraryActions, type NativeLibrarySelectionPort} from './LibraryScreen';
@@ -153,16 +151,7 @@ function LibrarySurface(props: LibraryProps) {
   const {width, height} = useWindowDimensions(), posture = usePlatformPosture();
   const active = React.useSyncExternalStore(props.activation.subscribe, props.activation.getSnapshot);
   const state = React.useSyncExternalStore(props.destination.subscribe, props.destination.getSnapshot);
-  if (Platform.isTV) {
-    const tvMusicDiscover = state.library.kind === 'music' && state.tab.id === 'discover' && state.phase === 'ready' ?
-      <TVMusicDiscover destination={props.destination} state={state} runtime={props.runtime} active={active} anchor={props.mixAnchor}
-        renderEntry={(entry, width, cell, onCaptionLayout) => {
-          const selected = props.shelfSelection?.item(entry);
-          return <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={props.runtime} actions={props.actions}
-            focusId={cell.focusId} onFocus={cell.onFocus} onBlur={cell.onBlur} selected={selected} onSelect={selected?.onEnter} onCaptionLayout={onCaptionLayout} disabled={!active.visible}/>;
-        }}/> : undefined;
-    return <TVLibraryPage {...props} tvMusicDiscover={tvMusicDiscover}/>;
-  }
+  if (Platform.isTV) return <TVLibraryPage {...props}/>;
   const folded = posture.status === 'available' && posture.folds.some(fold => fold.orientation === 'vertical');
   if (folded || (width >= height && frameForm(width, false, height) === 'phone')) return <LibraryScreen {...props}/>;
   return <CoveredLayer covered={!active.visible} testID={`native-library-${encodeURIComponent(state.library.id)}`} style={{flex: 1}}><LibraryPage {...props} mixes={state.library.kind === 'music' && props.runtime.mixes ? events =>

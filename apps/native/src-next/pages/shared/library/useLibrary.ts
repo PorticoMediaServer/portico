@@ -30,7 +30,6 @@ import {useFirstScanning} from './useFirstScanning';
 export {nativeLibraryEntryKey};
 export type LibraryProps = NativeLibraryScreenProps & {
   onSeeAll: (target: HomeSeeAll, title: string) => void;
-  tvMusicDiscover?: ReactNode;
   mixes?: (events: Pick<ComponentProps<typeof MusicMixesRow>, 'onReady' | 'onLayout'>) => ReactNode;
 };
 
@@ -279,6 +278,8 @@ function libraryCounts(counts: readonly Readonly<{kind: string; count: number; a
     text: t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: countNames[part.kind]})}] : []);
 }
 
+const rememberedMusicShelf = new WeakMap<LibraryProps['destination'], {regionId: string; childId: string}>();
+
 export function useTVLibrary(props: LibraryProps) {
   const view = useLibrary(props, true), {state, active} = view;
   const ids = nativeDestinationFocusIds(props.runtime.getSnapshot().authority);
@@ -320,17 +321,54 @@ export function useTVLibrary(props: LibraryProps) {
   // tab has focus on the loaded page.
   const tabChosen = useRef<number | undefined>(undefined), [refocusTab, setRefocusTab] = useState<string>();
   const settled = state.phase !== 'loading' && state.phase !== 'idle';
-  const rowId = (index: number) => `${gridId}.row.${index}`;
+  const musicDiscover = state.library.kind === 'music' && state.tab.id === 'discover';
+  const mixPort = musicDiscover ? props.runtime.mixes : undefined;
+  const mixes = useSyncExternalStore(mixPort?.subscribe ?? subscribeEmpty, mixPort?.getSnapshot ?? getEmpty);
+  const musicRows = mixes?.phase === 'ready' ? mixes.rows : [];
+  const mixId = `${gridId}.mixes`, recent = view.rows.findIndex(row => row.id === 'recently_played');
+  const rows = musicDiscover && recent > 0 ? [view.rows[recent]!, ...view.rows.filter((_, index) => index !== recent)] : view.rows;
+  const rowId = (index: number) => `${gridId}.row.${musicDiscover ? rows[index]?.id : index}`;
+  const mixAfter = recent >= 0 ? rows[0]?.id : undefined;
+  const regions = rows.map((_, index) => rowId(index));
+  if (musicRows.length) regions.splice(mixAfter ? 1 : 0, 0, mixId);
+  const edges = (region: string) => {
+    const index = regions.indexOf(region);
+    return {left: ids.rail, up: regions[index - 1] ?? tabsId, down: index < 0 ? undefined : regions[index + 1]};
+  };
+  const firstChild = (region: string) => {
+    if (region === mixId) return musicRows[0] && `music-mix:${musicRows[0].id}`;
+    const entry = rows.find((_, index) => rowId(index) === region)?.entries[0];
+    return entry && nativeLibraryEntryKey(entry);
+  };
+  const remembered = active.intent === 'restore' ? rememberedMusicShelf.get(props.destination) : undefined;
+  const anchor = !!props.mixAnchor && active.intent !== 'restore';
+  const waitingForMix = anchor && mixPort && (mixes?.phase === 'idle' || mixes?.phase === 'loading');
+  const startRegion = remembered && firstChild(remembered.regionId) ? remembered.regionId
+    : anchor && musicRows.length ? mixId : regions[0];
+  const startChild = startRegion && (remembered?.regionId === startRegion && registry.child(remembered) ? remembered.childId : firstChild(startRegion));
+  const allowShelfFocus = musicDiscover && settled && !waitingForMix && !failure && !emptyState && tabChosen.current !== active.revision;
+  useDestinationEntryFocus({...active, intent: active.intent === 'restore' ? 'enter' : active.intent},
+    allowShelfFocus && startRegion && startChild ? {regionId: startRegion, childId: startChild} : undefined);
+  const rememberShelf = (regionId: string, childId: string) => {
+    if (!musicDiscover || !props.activation.getSnapshot().visible) return;
+    rememberedMusicShelf.set(props.destination, {regionId, childId});
+    if (refocusTab) setRefocusTab(undefined);
+  };
   return {...view, failure, emptyState, gridId, toolbarId, tabsId, stateId, tabChosen: tabChosen.current === active.revision,
     switcher: {id: switcherId, enabled: active.visible, edges: {left: ids.rail, right: tabsId, down: tabsId}},
     tabs: {...view.tabs, region: {id: tabsId, enabled: active.visible, edges: {left: switcherId, up: switcherId,
-      down: firstAction ? stateId : state.collection ? toolbarId : view.rows.length && !props.tvMusicDiscover ? rowId(0) : undefined}},
+      down: firstAction ? stateId : state.collection ? toolbarId : regions[0]}},
       itemProps: (item: {value: string}) => ({focusId: item.value, preferredFocus: refocusTab === item.value, onFocus: () => {
         if (state.tab.id !== item.value) {tabChosen.current = active.revision; setRefocusTab(item.value); view.tabs.onValueChange(item.value);}
         else if (refocusTab && settled) setRefocusTab(undefined);
       }})},
-    shelves: view.rows.map((row, index) => ({...row, focus: {id: rowId(index), enabled: active.visible,
-      edges: {left: ids.rail, up: index ? rowId(index - 1) : tabsId, down: index + 1 < view.rows.length ? rowId(index + 1) : undefined}}})),
+    shelves: rows.map((row, index) => ({...row, focus: {id: rowId(index), enabled: active.visible, edges: edges(rowId(index))}})),
+    mix: mixPort && {port: mixPort, after: mixAfter, focus: {id: mixId, ...edges(mixId)},
+      error: anchor && mixes?.phase === 'error' ? mixes.error : undefined,
+      onCardFocus: (id: string) => rememberShelf(mixId, id)},
+    discoverEmpty: musicDiscover && !regions.length && state.discover.projection?.empty
+      ? serverTextLabel(defaultI18n, state.discover.projection.empty) : undefined,
+    musicDiscover, rememberShelf,
     pageState: firstAction ? {id: stateId, entry: firstAction,
       edges: {left: ids.rail, up: tabsId, ...(!view.emptyState && heldEmpty && state.collection ? {down: gridId, right: gridId} : {})}} : undefined,
   };
