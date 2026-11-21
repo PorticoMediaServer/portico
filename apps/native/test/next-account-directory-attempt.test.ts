@@ -73,7 +73,7 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
       TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required'},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
+    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, '../../pages/touch/accounts/NoServersPage': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
     './NativeSetup': {NativeSetup: 'NativeSetup'},
@@ -162,4 +162,36 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     await host.unmount(); t.mock.timers.tick(1000);
     assert.equal(pending.length, count, 'unmount retires the timer');
   } finally {await host.unmount(); t.mock.timers.reset();}
+});
+
+test('the no-servers invitation cannot be submitted from a retired draft or directory', async () => {
+  const {useNoServersInvitation} = await screenModule(new URL('../src-next/pages/shared/accounts/useNoServersInvitation.ts', import.meta.url), {
+    react: {...React, default: React}, '../../../../../../packages/client-core/src/join-link': joinLink,
+    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../platform/qr-scanner': {qrScannerAvailable: () => false},
+  });
+  let view: any, current = true, busy = false;
+  const calls: string[][] = [];
+  const props = {isCurrent: () => current, onJoin: (code: string, address: string) => calls.push([code, address])};
+  const source = createFabricHookHost(() => {view = useNoServersInvitation({...props, busy});});
+  try {
+    await source.mount();
+    await act(() => view.changeAddress('https://server.test'));
+    await act(() => view.changeInvitation('FIRST-CODE'));
+    const old = view;
+    await act(() => view.changeInvitation('NEW-CODE'));
+    old.join();
+    current = false;
+    view.join();
+    assert.deepEqual(calls, []);
+    current = true;
+    busy = true;
+    await source.rerender();
+    view.join();
+    busy = false;
+    await source.rerender();
+    view.join();
+    assert.deepEqual(calls, [['NEW-CODE', 'https://server.test']]);
+  } finally {
+    await source.unmount();
+  }
 });
