@@ -5,24 +5,27 @@ import type {WebPlaybackRuntimeSnapshot} from '../../../platform/playback';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import {generatedCoverTint} from '@design';
 import {ArtworkGlow, GeneratedCover, WholeArtwork} from '../../../kit/artwork';
-import {Button, Segmented, Slider} from '../../../kit/controls';
+import {Button} from '../../../kit/controls';
+import {AudioPlayerFrame} from '../../../kit/frames';
+import {AudioPanelSurface, PlayerVolume} from '../../../kit/player';
+import {SeekLine} from '../../../kit/media';
 import {Banner} from '../../../kit/overlays';
 import {StateView} from '../../../kit/states';
 import {Icon} from '../../../kit/Icon';
 import type {WatchBindings} from '../types';
 import {watchClock, watchSeek, watchSeekBounds, type WatchIntent} from '../model';
 import {durationText} from '@core/presentation/kit-model/text.ts';
-import {ListeningSeek} from './ListeningSeek';
 import {BookChapterList, playingBookChapter} from './BookChapterList';
 import styles from './audiobook-listening.module.css';
-import {sleepChoiceFrom, sleepChoiceLabel, sleepChoiceValue, type ListeningSleepChoice} from './listening-owner';
+import {sleepChoiceLabel, sleepChoiceValue, type ListeningSleepChoice} from './listening-owner';
 const t = defaultI18n.t;
 
 /** Authored audiobook view of an existing local host. It mounts no media,
  * service, timer or runtime. Source-bearing callbacks carry the drawn witness. */
-export function AudiobookListening({snapshot, title, subtitle, cover, ambient, chapters, speedChoices, sleepChoices, sleepChoice, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
+export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [], cover, ambient, chapters, speedChoices, sleepChoices, sleepChoice, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
   onIntent, onSpeed, onSleep, onChapter, onChapterPage, onChapterRetry, onCollapse, aside, notice}: Readonly<{
-  snapshot: WebPlaybackRuntimeSnapshot; title: string; subtitle: ReactNode; cover?: ArtworkSource; ambient?: AmbientArtSource;
+  snapshot: WebPlaybackRuntimeSnapshot; title: string; subtitle: ReactNode;
+  /** The byline as words, for the frame (the author, then who reads it). */ subtitleParts?: readonly string[]; cover?: ArtworkSource; ambient?: AmbientArtSource;
   skips: WatchBindings['skips']; phone?: boolean; sourceLabel?: string;canPlayOn?:boolean;
   onShowPanel?: (shown: WebPlaybackRuntimeSnapshot, panel: 'speed' | 'sleep' | 'chapters' | 'play-on' | 'options') => void;
   chapters: PlayerChaptersSnapshot | null; speedChoices: readonly number[]; sleepChoices: readonly ListeningSleepChoice[]; sleepChoice: ListeningSleepChoice;
@@ -54,56 +57,49 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   const speedLeft = bookLeft !== undefined && p.rate > 0 ? t('web.player.speedLeft', {time: durationText(bookLeft / p.rate, t) ?? '', rate: new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}) : undefined;
   const sleepAt = snapshot.playback?.listeningDeadlines?.sleepAtMs, sleepLeft = typeof sleepAt === 'number' ? Math.max(0, (sleepAt - Date.now()) / 1000) : undefined;
   const sleepStops = sleepLeft !== undefined && sleepLeft >= 60 ? t('web.player.sleepStops', {time: durationText(sleepLeft, t) ?? ''}) : undefined;
+  const rate = new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate);
+  const position = chapterBar ? Math.max(0, p.positionSeconds - chapterBar.offset) : p.positionSeconds;
+  const length = chapterBar ? chapterBar.duration - chapterBar.offset : p.durationSeconds;
+  const lo = chapterBar?.bounds?.start ?? bounds?.start ?? 0, hi = chapterBar?.bounds?.end ?? bounds?.end ?? Math.max(p.durationSeconds, 1);
+  const at = Math.min(hi, Math.max(lo, p.positionSeconds));
+  const show = (panel: 'speed' | 'sleep' | 'chapters' | 'play-on' | 'options') => () => onShowPanel?.(snapshot, panel);
+  // frame 8's book form (desktop-listen "book-player", phone-app 15): the kit's AudioPlayerFrame places every region; this view
+  // hands it the book's facts and the listening owner's commands.
   return <section className={`portico-cover ${styles.frame}`} data-cover={ambient ? 'audio' : undefined} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
     <ArtworkGlow source={ambient} phone={phone}/>
-    <header className={styles.top}>
-      <Button variant={phone ? 'ghost' : 'glass'} icon="i-down" aria-label={t('player.minimize')} onClick={onCollapse}/>
-      {/* phone-app 15: on a phone "Playing from" sits centred over its source, on two lines. */}
-      {sourceLabel && (phone ? <span className={styles.from}><small>{t('web.player.playingFromLabel')}</small><b>{sourceLabel}</b></span>
-        : <span>{t('next.music.playingFrom', {source: sourceLabel})}</span>)}{!phone && notice}
-      {/* desktop-listen, audiobook player: Play on and More sit at the right, as in the music player. */}
-      <span className={styles.topEnd}>
-        {!phone && onShowPanel && canPlayOn === true && <Button variant="glass" icon="i-cast" aria-label={t('next.dock.playOn')} onClick={() => onShowPanel(snapshot, 'play-on')}/>}
-        {onShowPanel && <Button variant={phone ? 'ghost' : 'glass'} icon="i-more" aria-label={t('player.opt.menu')} onClick={() => onShowPanel(snapshot, 'options')}/>}
-      </span>
-    </header>
-    <div className={styles.main}>
-      <div className={styles.bookTop}><div className={styles.cover}><ListeningCover cover={cover} title={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
-      {/* desktop-listen 8: "Chapter 15 · 12:04 of 31:40". phone-app 15: "≡ Chapter 8 … of 19". */}
-      {active && (phone ? <div className={styles.chapter}><b><Icon name="i-chapters" size={16}/>{active.title}</b>{chapterTotal !== undefined && <span>{t('player.chapterTotal', {total: chapterTotal})}</span>}</div>
-        : <div className={styles.chapter}><b>{active.title}</b><span>{t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)})}</span></div>)}
-      {/* phone-app 15: on a phone the bar is the playing chapter's ("14:02 … −17:43"), with the whole
-          book's time left between its times. Desktop keeps frame 8's bar over the playing part. */}
-      <ListeningSeek className={styles.scrub} position={p.positionSeconds} disabled={!can('seek')} phone={phone} onSeek={seek}
-        {...(chapterBar ? chapterBar : {duration: p.durationSeconds, bounds, chapters: ticks})}
-        middle={phone && bookLeft !== undefined && bookLeft >= 60 ? t('web.player.bookLeft', {time: durationText(bookLeft, t) ?? ''}) : undefined}/>
-      <div className={styles.transport}>
-        <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-prev" aria-label={t(book ? 'next.dock.previousChapter' : 'next.dock.previous')} disabled={!can('previous')} onClick={() => onIntent(snapshot, {kind: 'previous'})}/>
-        <button type="button" className={styles.skip} aria-label={t('next.dock.back', {seconds: skips.back})} disabled={!can('seek') || !bounds} onClick={() => seek(p.positionSeconds - skips.back)}><Icon name="i-back" size={phone ? 38 : 34}/><span>{skips.back}</span></button>
-        <Button variant="primary" className={styles.playPause} data-playback-primary iconOnly iconSize={phone ? 34 : 30} icon={p.playing ? 'i-pause' : 'i-play'} aria-label={t(p.playing ? 'next.dock.pause' : 'next.dock.play')}
-          disabled={!can(p.playing ? 'pause' : 'play')} onClick={() => onIntent(snapshot, {kind: p.playing ? 'pause' : 'play'})}/>
-        <button type="button" className={styles.skip} aria-label={t('next.dock.forward', {seconds: skips.forward})} disabled={!can('seek') || !bounds} onClick={() => seek(p.positionSeconds + skips.forward)}><Icon name="i-fwd" size={phone ? 38 : 34}/><span>{skips.forward}</span></button>
-        <Button variant="ghost" className={styles.control} iconOnly iconSize={phone ? 28 : 24} icon="i-next" aria-label={t(book ? 'next.dock.nextChapter' : 'next.dock.next')} disabled={!can('next')} onClick={() => onIntent(snapshot, {kind: 'next'})}/>
-      </div>
-      {phone && notice && <div className={styles.notice}>{notice}</div>}
-      {!phone && <div className={styles.options}>
-        {!!speedChoices.length && <div className={styles.option}><b>{t('player.opt.speed')}{speedLeft && <small>{speedLeft}</small>}</b><Segmented className={styles.segments} aria-label={t('player.opt.speed')} value={String(p.rate)} items={speedChoices.map(rate => ({value: String(rate), label: `${defaultI18n.region.formatLocale ? new Intl.NumberFormat(defaultI18n.region.formatLocale).format(rate) : rate}×`}))}
-          onValueChange={value => {const rate = Number(value);if (speedChoices.includes(rate)) onSpeed(snapshot, rate);}}/></div>}
-        {!!sleepChoices.length && <div className={styles.option}><b>{t('player.opt.sleepTimer')}{sleepStops && <small>{sleepStops}</small>}</b><Segmented className={styles.segments} aria-label={t('player.opt.sleepTimer')} value={sleepChoiceValue(sleepChoice)}
-          items={sleepChoices.map(choice => ({value: sleepChoiceValue(choice), label: typeof choice === 'number' && choice > 0 ? t('next.kit.duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice)}))}
-          onValueChange={value => {const choice = sleepChoiceFrom(value);if (sleepChoices.includes(choice)) onSleep(snapshot, choice);}}/></div>}
-      </div>}
-      {!phone && can('volume') && <div className={styles.volume}><Button variant="ghost" icon="i-vol" aria-label={t(p.muted ? 'player.unmute' : 'player.mute')} onClick={() => onIntent(snapshot, {kind: 'mute'})}/>
-        <Slider aria-label={t('player.volume')} min={0} max={1} step={.01} value={p.muted ? 0 : p.volume} onValueChange={volume => onIntent(snapshot, {kind: 'volume', volume})}/></div>}
-      {phone && <div className={styles.phoneOptions}>
-        <button type="button" disabled={!onShowPanel || !speedChoices.length} onClick={() => onShowPanel?.(snapshot, 'speed')}><b>{new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}×</b>{t('player.opt.speed')}</button>
-        <button type="button" disabled={!onShowPanel || !sleepChoices.length} onClick={() => onShowPanel?.(snapshot, 'sleep')}><b><Icon name="i-moon" size={15}/>{typeof sleepChoice === 'number' && sleepChoice > 0 ? t('duration.minutes', {minutes: sleepChoice}) : sleepChoiceLabel(sleepChoice)}</b>{t('player.opt.sleepTimer')}</button>
-        <button type="button" disabled={!onShowPanel || !chapters && !book} onClick={() => onShowPanel?.(snapshot, 'chapters')}><b><Icon name="i-chapters" size={16}/>{book ? book.chapters.length : chapters?.data?.status === 'available' ? chapters.data.totalCount : null}</b>{t('player.opt.chapters')}</button>
-        {onShowPanel && canPlayOn===true && <button type="button" onClick={() => onShowPanel(snapshot, 'play-on')}><b><Icon name="i-cast" size={17}/></b>{t('next.dock.playOn')}</button>}
-      </div>}
-    </div>
-    {!phone && <aside className={styles.side} aria-label={t('player.opt.chapters')}>
-      {aside ?? <>
+    <AudioPlayerFrame
+      close={{icon: 'i-down', label: t('player.minimize'), onPress: onCollapse}}
+      context={sourceLabel ? t('web.player.playingFromLabel') : undefined} source={sourceLabel}
+      device={onShowPanel && canPlayOn === true ? {icon: 'i-cast', label: t('device.thisDevice'), onPress: show('play-on')} : undefined}
+      more={{icon: 'i-more', label: t('player.opt.menu'), disabled: !onShowPanel, onPress: show('options')}}
+      icon="i-book" cover={<ListeningCover cover={cover} title={title}/>}
+      title={title} byline={subtitleParts}
+      chapter={{label: active?.title ?? '', of: phone ? (chapterTotal !== undefined ? t('player.chapterTotal', {total: chapterTotal}) : '')
+        : active ? t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)}) : ''}}
+      scrubber={<SeekLine variant="player" value={hi > lo ? (at - lo) / (hi - lo) : 0}
+        marks={chapterBar || !(p.durationSeconds > 0) ? [] : ticks.map(chapter => ({id: String(chapter.startSeconds), kind: 'chapter' as const, start: chapter.startSeconds / p.durationSeconds, end: chapter.startSeconds / p.durationSeconds}))}
+        input={{min: lo, max: hi, step: .1, value: at, disabled: !can('seek'), 'aria-label': t('player.position'),
+          'aria-valuetext': t('player.clockOf', {position: watchClock(position), duration: watchClock(length)}),
+          onChange: event => {const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) seek(value);}}} />}
+      times={{position: watchClock(position), end: `−${watchClock(Math.max(0, length - position))}`,
+        ...(phone && bookLeft !== undefined && bookLeft >= 60 ? {middle: t('web.player.bookLeft', {time: durationText(bookLeft, t) ?? ''})} : {})}}
+      transport={[
+        {icon: 'i-prev', label: t(book ? 'next.dock.previousChapter' : 'next.dock.previous'), disabled: !can('previous'), onPress: () => onIntent(snapshot, {kind: 'previous'})},
+        {icon: 'i-back', label: t('next.dock.back', {seconds: skips.back}), skip: skips.back, disabled: !can('seek') || !bounds, onPress: () => seek(p.positionSeconds - skips.back)},
+        {icon: p.playing ? 'i-pause' : 'i-play', label: t(p.playing ? 'next.dock.pause' : 'next.dock.play'), disabled: !can(p.playing ? 'pause' : 'play'), onPress: () => onIntent(snapshot, {kind: p.playing ? 'pause' : 'play'})},
+        {icon: 'i-fwd', label: t('next.dock.forward', {seconds: skips.forward}), skip: skips.forward, disabled: !can('seek') || !bounds, onPress: () => seek(p.positionSeconds + skips.forward)},
+        {icon: 'i-next', label: t(book ? 'next.dock.nextChapter' : 'next.dock.next'), disabled: !can('next'), onPress: () => onIntent(snapshot, {kind: 'next'})},
+      ]}
+      volume={!phone && can('volume') ? <PlayerVolume value={p.volume} muted={p.muted} label={t('player.volume')} muteLabel={t(p.muted ? 'player.unmute' : 'player.mute')}
+        onChange={volume => onIntent(snapshot, {kind: 'volume', volume})} onMute={() => onIntent(snapshot, {kind: 'mute'})} /> : undefined}
+      speed={speedChoices.length ? {label: t('player.opt.speed'), value: `${rate}×`, ...(speedLeft ? {help: speedLeft} : {}), disabled: !onShowPanel && phone, onPress: show('speed'),
+        choices: speedChoices.map(choice => ({label: `${new Intl.NumberFormat(defaultI18n.region.formatLocale).format(choice)}×`, selected: choice === p.rate, onPress: () => onSpeed(snapshot, choice)}))} : undefined}
+      sleep={sleepChoices.length ? {icon: 'i-moon', label: t('player.opt.sleepTimer'), value: typeof sleepChoice === 'number' && sleepChoice > 0 ? t('duration.minutes', {minutes: sleepChoice}) : sleepChoiceLabel(sleepChoice),
+        active: sleepChoice !== 0, ...(sleepStops ? {help: sleepStops} : {}), onPress: show('sleep'),
+        choices: sleepChoices.map(choice => ({label: typeof choice === 'number' && choice > 0 ? t('next.kit.duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice), selected: sleepChoiceValue(choice) === sleepChoiceValue(sleepChoice), onPress: () => onSleep(snapshot, choice)}))} : undefined}
+      chapters={phone ? {icon: 'i-chapters', label: t('player.opt.chapters'), value: chapterTotal !== undefined ? String(chapterTotal) : '', disabled: !onShowPanel || !chapters && !book, onPress: show('chapters')} : undefined}
+      panel={phone ? undefined : <AudioPanelSurface label={t('player.opt.chapters')}><div className={styles.side}>
+        {aside ?? <>
         <h2>{t('player.opt.chapters')}</h2>
         {book ? <BookChapterList book={book} playing={p.playing} positionSeconds={p.positionSeconds} disabled={!can('seek')} onPick={chapter => onIntent(snapshot, {kind: 'book-chapter', chapterId: chapter.id})}/> : <>
         {chapters?.phase === 'loading' || chapters?.phase === 'idle' ? <p role="status">{t('player.opt.loadingChapters')}</p>
@@ -120,8 +116,8 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
           {chapters.data?.nextCursor && <Button variant="glass" loading={chapters.phase === 'loading'} onClick={() => onChapterPage(chapters, 'next')}>{t('next.live.more')}</Button>}
         </div>}
         </>}
-      </>}
-    </aside>}
+      </>}</div></AudioPanelSurface>} />
+    {notice && <div className={phone ? styles.notice : styles.topNotice}>{notice}</div>}
   </section>;
 }
 

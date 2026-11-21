@@ -303,7 +303,10 @@ async function mountedPlayback(kind:'music'|'audiobook'='audiobook',settings?:{r
   const queueWindow=await componentModule(new URL('../src/screens/watch/listening/ListeningQueueWindow.tsx',import.meta.url),deps);
   const queue=await componentModule(new URL('../src/screens/watch/listening/ListeningQueue.tsx',import.meta.url),{...deps,'./ListeningQueueWindow':queueWindow});
   const panels=await componentModule(new URL('../src/screens/watch/listening/ListeningPanels.tsx',import.meta.url),{...deps,'./ListeningChapters':chapters,'./LyricsPanel':lyrics,'./ListeningQueue':queue,'./listening-owner':{listeningSleepChoices:[0,15,30,45,60,90]}});
-  const book=await componentModule(new URL('../src/screens/watch/listening/AudiobookListening.tsx',import.meta.url),deps);
+  // The kit audio frame as a stand-in: Close as the bar's Button, the panel drawn (the chapters list it holds).
+  const book=await componentModule(new URL('../src/screens/watch/listening/AudiobookListening.tsx',import.meta.url),{...deps,
+    '../../../kit/frames':{AudioPlayerFrame:({panel,close}:any)=>[{type:'Button',props:{'aria-label':close.label,onClick:close.onPress}},panel]},
+    '../../../kit/player':{PlayerVolume:'PlayerVolume',AudioPanelSurface:({children}:any)=>children},'../../../kit/media':{SeekLine:'SeekLine'}});
   const bookHost=await componentModule(new URL('../src/screens/watch/listening/AudiobookHost.tsx',import.meta.url),{...deps,'./AudiobookListening':book,'./ListeningPanels':panels,'./listening-owner':{listeningSleepChoices:[0,15,30,45,60,90]}});
   const hook=await componentModule(new URL('../src/screens/watch/listening/use-listening-owner.ts',import.meta.url),{react:h.react,'./listening-owner':{ListeningOwner},'../../../shell/playback-model':{fenceKey}});
   const expansion=await componentModule(new URL('../src/screens/watch/music/expansion-owner.tsx',import.meta.url),{react:h.react,'../../../shell/playback-model':{fenceKey}});
