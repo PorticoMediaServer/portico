@@ -59,10 +59,10 @@ export function SearchFrame({title, field, cancel, keyboard, scopes, notice, non
     : <View style={[edge, {flexDirection: 'row'}]}><ChipRail>{scopes}</ChipRail></View>);
   // TV: the results column runs to the window's right edge and starts a gutter early, so its rows and sections, which
   // keep their own gutters, line up with the column's edge.
-  const {keyboardWidth, tvResultsGap, tvFocusRoom} = frameSpec.search;
+  const {keyboardWidth, tvResultsGap, tvFocusRoom, tvKeyboardGap} = frameSpec.search;
   if (tv) return <View testID={testID} pointerEvents={visible ? 'auto' : 'none'} accessibilityElementsHidden={!visible}
     importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1, flexDirection: 'row', paddingTop: frame.titleTop, paddingLeft: frame.gutter}}>
-    <View style={{width: keyboardWidth, gap: frame.headingGap}}>{field}{keyboard}</View>
+    <View style={{width: keyboardWidth, gap: tvKeyboardGap}}>{field}{keyboard}</View>
     {/* The column is the page inset by the keyboard's column: parts that size from the page width (a row of tiles, the Top result) size from it. */}
     <NativePageInsetProvider value={inset + frame.gutter + keyboardWidth + tvResultsGap}>
       <View style={{flex: 1, minWidth: 0, marginLeft: list ? tvResultsGap - tvFocusRoom : tvResultsGap - frame.gutter, marginTop: list ? -tvFocusRoom : 0, gap: frame.headingGap}}>{chips}{results}</View>

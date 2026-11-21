@@ -293,7 +293,9 @@ export const frame = {
   pane: {width: {...forms(0, 380, 420, 640), web: 600}},
   /** TV Search: the keyboard column beside the results (final3-tv-09: 416 of 1600) and the Top result's 16:9 picture (400 of 1600). */
   live: {programmePanel: {tabletMin: 700, tablet: 400, landscape: 376, tv: 640}, recordedGrid: {wideMin: 700, phone: 2, tablet: 3, tv: 4}},
-  search: {keyboardWidth: 500, topResultArt: 480, tvResultsGap: 80, tvFocusRoom: 40, onNowCardWidth: 244, resultRowArt: {poster: {width: 46, height: 69}, wide: {width: 100, height: 56}, square: {width: 56, height: 56}}},
+  /** TV (tv.html 5 `.sfield`, `.kb`, `.voice`): the keyboard 32 under the field; the voice hint 52 under the keyboard, its mic
+   * a 56 circle with a 28 glyph. */
+  search: {tvKeyboardGap: 32, tvVoice: {gap: 52, mic: 56, glyph: 28}, keyboardWidth: 500, topResultArt: 480, tvResultsGap: 80, tvFocusRoom: 40, onNowCardWidth: 244, resultRowArt: {poster: {width: 46, height: 69}, wide: {width: 100, height: 56}, square: {width: 56, height: 56}}},
   /** The Live TV guide grid: minutes to points (phone-guide g1, tablet-play 6, desktop-live live-guide, final3-tv-10), the
    * channel column, a row, a channel's mark, the time column of a list of airings, the ruler, the gap between cells. */
   guide: {

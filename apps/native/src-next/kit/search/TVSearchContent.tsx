@@ -61,13 +61,14 @@ export function TVSearchQuery({text, label, placeholder}: {text: string; label: 
 export function TVSearchVoice({focus, title, description, busy, onPress}: {
   focus: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>; title: string; description: string; busy: boolean; onPress: () => void;
 }) {
-  const theme = useTheme(), size = theme.targets.touch;
-  return <FocusRegion {...focus} entry="voice" style={{marginTop: theme.space.sm}}>
+  // tv.html 5 `.voice`: 52 under the keyboard (the column already gives the keyboard's gap), a 56 mic, 18 to the words at 20.
+  const theme = useTheme(), voice = frameSpec.search.tvVoice, size = voice.mic;
+  return <FocusRegion {...focus} entry="voice" style={{marginTop: voice.gap - frameSpec.search.tvKeyboardGap}}>
     <Focusable focusId="voice" disabled={!focus.enabled || busy} focusableWhenDisabled={busy} accessibilityRole="button" accessibilityLabel={title}
-      onPress={onPress} style={{flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.sm}}>
+      onPress={onPress} style={{flexDirection: 'row', alignItems: 'flex-start', gap: theme.space.metaGap}}>
       <View style={{width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: alpha(theme.colors.text, .08)}}><Icon name="i-mic" size={theme.type.listLabel.fontSize} color={theme.colors.textSecondary}/></View>
-      <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, flex: 1}]}>
+        backgroundColor: alpha(theme.colors.text, .08)}}><Icon name="i-mic" size={voice.glyph} color={theme.colors.textSecondary}/></View>
+      <Text style={[theme.type.caption, {color: theme.colors.textTertiary, flex: 1}]}>
         <Text style={[theme.type.listLabel, {color: theme.colors.textSecondary}]}>{title}</Text>{' '}{description}
       </Text>
     </Focusable>
