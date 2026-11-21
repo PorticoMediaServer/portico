@@ -11,7 +11,7 @@ import type {NativeTogetherService} from '../src-next/screens/settings-live/toge
 
 /**
  * NM-ID-02 / BLK-TV-005 / FX-155 Together confirmation source. The actual
- * NativeTogetherTVRoom is mounted on the installed Fabric reconciler with the
+ * TV room (pages/tv/together TogetherRoomPage) is mounted on the installed Fabric reconciler with the
  * real controller/lifetime, the product focus registry and a healthy in-memory
  * room service. It proves the confirmation is its own region with Cancel and
  * the destructive action, busy keeps that binding and re-enables it, and Back
@@ -36,7 +36,7 @@ test('NM-ID-02: the real Together confirmation keeps its region, busy binding, B
     const {ThemeProvider} = await import('../src-next/kit/theme.ts');
     const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
     const {NativeTogetherController} = await import('../src-next/screens/settings-live/together-controller.ts');
-    const {NativeTogetherTVRoom} = await import('../src-next/screens/settings-live/TogetherTVRoom.tsx');
+    const {TogetherRoomPage} = await import('../src-next/pages/tv/together/TogetherPage.tsx');
     const {tvFocusIds} = await import('../src-next/shell/tv-focus.ts');
     const {Platform} = await import('react-native');
 
@@ -87,7 +87,7 @@ test('NM-ID-02: the real Together confirmation keeps its region, busy binding, B
     const footer = tvFocusIds(booted.authority()).surface('together.room.footer');
     const Room = () => {
       const state = React.useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-      return React.createElement(NativeTogetherTVRoom, {state, group: state.group!, controller, media, ports, runtime});
+      return React.createElement(TogetherRoomPage, {state, group: state.group!, controller, media, ports, runtime});
     };
     try {
       await host.render(React.createElement(ThemeProvider, {width: 1920, children: React.createElement(FocusProvider, {registry, children: React.createElement(Room)})}));

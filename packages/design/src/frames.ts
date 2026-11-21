@@ -295,6 +295,11 @@ export const frame = {
    * the web from 1024 is desktop-live live-sheet). A phone draws the pane as a sheet. */
   pane: {width: {...forms(0, 380, 420, 640), web: 600}},
   /** TV Search: the keyboard column beside the results (final3-tv-09: 416 of 1600) and the Top result's 16:9 picture (400 of 1600). */
+  /** Watch Together on TV (tv-more 11 to 16): the lobby card's width; the room's two columns (what is on, its controls and the
+   * queue; the people and the invite) and the gap between them; the card of what is on; faces in the lobby and the people
+   * list; a queue row's still; the form's side sheet narrow (Start a group) and wide (with the keyboard beside the fields). */
+  together: {tv: {card: 1180, nowWidth: 840, sideWidth: 688, columnsGap: 96, nowHeight: 290, lobbyFace: 56, faceOverlap: 14, memberFace: 64,
+    queueStill: {width: 64, height: 36}, queueRow: 80, memberRow: 88, field: 72, formNarrow: 760, formWide: 1240}},
   live: {programmePanel: {tabletMin: 700, tablet: 400, landscape: 376, tv: 640}, recordedGrid: {wideMin: 700, phone: 2, tablet: 3, tv: 4}},
   /** TV (tv.html 5 `.sfield`, `.kb`, `.voice`): the keyboard 32 under the field; the voice hint 52 under the keyboard, its mic
    * a 56 circle with a 28 glyph. */
