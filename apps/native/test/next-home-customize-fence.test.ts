@@ -14,7 +14,7 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 // The route module, with its React views stubbed and its controller, lifetime and authority checks real.
 const loadRoute = () => screenModule(new URL('../src-next/screens/home/CustomizeRoute.tsx', import.meta.url), {
   react, 'react-native': reactNative, '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/personal-saved': personalSaved,
-  '../../kit/states': {StateView: 'StateView'}, './HomeCustomize': {HomeCustomize: 'HomeCustomize'}, './customize-controller': {NativeHomeCustomizeController},
+  '../../kit/states': {StateView: 'StateView'}, './HomeCustomize': {HomeCustomize: 'HomeCustomize'}, '../../pages/touch/home/HomeCustomizePage': {HomeCustomizePage: 'HomeCustomize'}, './customize-controller': {NativeHomeCustomizeController},
   './saved-view-summaries': {NativeHomeSavedViewSummaries: class {subscribe() {return () => {};} getSnapshot() {return undefined;} dispose() {} load() {} line() {return '';}}},
   './customize-intent': {takeHomeCustomizeView: () => undefined}, '../../shell/model': shellModel, '../destinations/lifetime': lifetime,
   '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},

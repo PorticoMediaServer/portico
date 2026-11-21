@@ -4,6 +4,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {PersonalSavedService, readPersonalResource} from '../../../../../packages/client-core/src/personal-saved';
 import {StateView} from '../../kit/states';
 import {HomeCustomize, type NativeHomeCustomizeCopy} from './HomeCustomize';
+import {HomeCustomizePage} from '../../pages/touch/home/HomeCustomizePage';
 import {NativeHomeCustomizeController} from './customize-controller';
 import {NativeHomeSavedViewSummaries} from './saved-view-summaries';
 import {takeHomeCustomizeView, type HomeCustomizeViewIntent} from './customize-intent';
@@ -163,7 +164,8 @@ function Customization({source, runtime, close}: {source: Source; runtime: Nativ
       if (!intentAdded.current) setIntentProblem(runtime.text.t('error.unavailable'));
     }, () => {if (source.current()) setIntentProblem(runtime.text.t('error.unavailable'));});
   }, [source, state.phase, runtime]);
-  return <HomeCustomize summary={view => source.summaries.line(view, labels)} controller={source.controller} copy={copy} i18n={labels} onClose={close} onAddView={retry} notice={customizeNotice(intentProblem, state.noLongerAvailable ? runtime.text.t('next.home.viewsNoLongerAvailable', {count: state.noLongerAvailable}) : undefined)} renderError={(error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-error"/>} testID="home-customize"
+  const Page = Platform.isTV ? HomeCustomize : HomeCustomizePage;
+  return <Page summary={view => source.summaries.line(view, labels)} controller={source.controller} copy={copy} i18n={labels} onClose={close} onAddView={retry} notice={customizeNotice(intentProblem, state.noLongerAvailable ? runtime.text.t('next.home.viewsNoLongerAvailable', {count: state.noLongerAvailable}) : undefined)} renderError={(error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-error"/>} testID="home-customize"
       views={{items: views.resources, loading: views.loading, error: views.error, retry, hasMore: !!views.nextCursor,
         loadMore: () => {if (source.current()) void source.views.next().catch(error => {if (source.current()) runtime.reportError(error);});},
         renderError: (error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-views-error"/>}}/>;
