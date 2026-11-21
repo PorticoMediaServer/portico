@@ -137,8 +137,43 @@ test('Saved list carries selection to cards and prefetches before its loaded end
   assert.equal(nodes(historyTree).some(node => node.type?.name === 'SavedListCard'), false);
 });
 
+/** The touch Saved resource page with the real shared hook (kit parts stubbed). */
+async function resourcePage(host: ReturnType<typeof hooks>) {
+  const react: any = {...host.react, useLayoutEffect() {}, useId: () => 'saved-resource'}; react.default = react;
+  const packages = '../../../../../../packages';
+  const hook = await screenModule(new URL('../src-next/pages/shared/saved/useSavedResource.ts', import.meta.url), {
+    react, [`${packages}/i18n/src`]: {defaultI18n: i18n}, [`${packages}/client-core/src/presentation/errors`]: {presentError: () => ({body: 'error'})},
+    [`${packages}/client-core/src/saved`]: savedCore, [`${packages}/client-core/src/presentation/kit-model/text`]: {durationText: () => '4 min'},
+    '../../../shell/model': {sameAuthority: (a: any, b: any) => a === b}, '../../../screens/read/platform': {isReadingLibraryKind: () => false},
+    '../../../screens/saved/presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [],
+      savedDuration: String, savedItemCount: String, savedLibraryName: () => undefined, savedPlaylistEyebrow: 'playlist',
+      savedResourceEyebrow: () => 'collection', savedTitleCount: String, savedViewConditionCount: () => 1, savedVisibility: () => undefined,
+      savedVisibilityHelp: () => ''},
+    '../../../screens/saved/paging': {savedNearEnd},
+  });
+  const stub = (name: string) => name;
+  return screenModule(new URL('../src-next/pages/touch/saved/SavedResourcePage.tsx', import.meta.url), {
+    react, [`${packages}/i18n/src`]: {defaultI18n: i18n}, [`${packages}/client-core/src/saved`]: {},
+    [`${packages}/client-core/src/presentation/kit-model/text`]: {durationText: () => '4 min'},
+    '../../../kit/artwork': {AmbientArt: stub('AmbientArt'), CoverMosaic: stub('CoverMosaic')}, '../../../kit/browse': {ChipRail: stub('ChipRail')},
+    '../../../kit/controls': {Chip: stub('Chip')},
+    '../../../kit/frames': {musicScroller: () => 'scroller', PanelBlock: stub('PanelBlock'), PosterGridWindow: stub('PosterGridWindow'),
+      SheetFrame: stub('SheetFrame'), StateRow: stub('StateRow'), TitleFrame: stub('TitleFrame'), TitleRowWindow: stub('TitleRowWindow')},
+    '../../../kit/layout': {HeroMetadata: stub('HeroMetadata')},
+    '../../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Menu: 'Menu'},
+    '../../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'},
+    '../../../kit/saved/SavedReorderList': {SavedReorderList: 'SavedReorderList'},
+    '../../../kit/saved/SavedResourceParts': {SavedResourceMenuFacts: 'Facts', SavedResourceUndo: 'Undo', SavedResourceViewInfo: 'ViewInfo',
+      SavedResourceVisibility: 'Visibility', viewSortLabel: () => 'Newest first'},
+    '../../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'},
+    '../../../screens/saved/presentation': {savedLibraryName: () => undefined},
+    '../../shared/library/useLibrary': {browseFailure: (value: unknown) => ({failed: value})},
+    '../../shared/saved/useSavedResource': hook,
+  });
+}
+
 test('Saved resource menus keep membership commands beside canonical selection, and manual reorder commits guarded occurrence IDs', async () => {
-  const f = fixture(), {SavedResourceScreen} = await f.load('saved/SavedResourceScreen'), calls: any[] = [], selected = {active: false, selected: false, onEnter() {}, onToggle() {}};
+  const host = hooks(), {SavedResourcePage} = await resourcePage(host), calls: any[] = [], selected = {active: false, selected: false, onEnter() {}, onToggle() {}};
   const other = {...entry, id: 'movie-b'}, occurrence = {id: 'occ-a', kind: 'playlist_entry', media: entry}, second = {id: 'occ-b', kind: 'playlist_entry', media: other};
   const sorts = [{id: 'position', labelKey: 'sort.position', directions: ['asc']}, {id: 'title', labelKey: 'sort.title', directions: ['asc', 'desc']}];
   let snapshot: any = {phase: 'ready', saved: {playlist: {name: 'Playlist', entryCount: 2, revision: 3, actions: ['reorder', 'remove']},
@@ -148,18 +183,18 @@ test('Saved resource menus keep membership commands beside canonical selection, 
   const destination = {subscribe: () => () => {}, getSnapshot: () => snapshot, mutateSaved: async (command: unknown) => {calls.push(['command', command]);}};
   const props = {route: {view: 'playlist', playlistId: 'p'}, destination, activation: active, runtime, actions: {open() {}, play() {}, menu: (...args: unknown[]) => calls.push(['menu', ...args])},
     libraries: [], back() {}, selection: {item: () => selected, render: () => null}};
-  let tree = f.host.render(() => SavedResourceScreen(props));
-  const row = nodes(tree).find(node => node.type?.name === 'SavedResourceRow'), anchor = {current: {native: true}};
-  assert.equal(row.props.selection, selected); row.props.onMore(anchor);
+  let tree = host.render(() => SavedResourcePage(props));
+  const row = nodes(tree).find(node => node.type === 'TitleRowWindow').props.rows[0], anchor = {current: {native: true}};
+  assert.equal(row.selection, selected); row.onMore(anchor);
   assert.equal(calls[0][1], entry); assert.equal(calls[0][2], anchor); assert.equal(calls[0][3], selected.onEnter);
   assert.ok(calls[0][4].some((action: any) => action.id === 'remove-entry'));
   // collections.html 18: the sort chip names the playlist's own order and offers the server's sorts.
   const orderChip = nodes(tree).find(node => node.type === 'SavedSortMenu');
   assert.equal(orderChip.props.sort, 'position'); assert.deepEqual(orderChip.props.sorts, sorts);
   assert.ok(orderChip.props.label(sorts[0]).includes('Playlist order'));
-  find(tree, 'saved-reorder').props.onPress(); tree = f.host.render(() => SavedResourceScreen(props));
-  const reorderBar = nodes(tree).find(node => node.type === 'TopBar');
-  assert.ok(String(reorderBar.props.title).includes('Reordering')); assert.equal(reorderBar.props.trailing.props.testID, 'saved-reorder-done'); assert.equal(find(tree, 'saved-play'), undefined);
+  find(tree, 'saved-reorder').props.onPress(); tree = host.render(() => SavedResourcePage(props));
+  const reorder = nodes(tree).find(node => node.type === 'SheetFrame');
+  assert.ok(String(reorder.props.bar.title).includes('Reordering')); assert.equal(reorder.props.bar.action.testID, 'saved-reorder-done');
   const list = nodes(tree).find(node => node.type === 'SavedReorderList');
   list.props.onPlace(list.props.rows[0], 'occ-b', ['occ-a', 'occ-b']); await Promise.resolve(); await Promise.resolve();
   assert.deepEqual(calls[1], ['command', {action: 'reorder', entryIds: ['occ-a'], afterEntryId: 'occ-b'}]);

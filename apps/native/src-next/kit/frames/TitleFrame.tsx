@@ -45,7 +45,10 @@ export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: str
 export type TitleCover = Readonly<{node: ReactNode | ((size: number) => ReactNode); shape: 'poster' | 'square' | 'circle';
   /** An artist's circle: drawn large on a phone (phone-app frame 15b), where a person's is small (phone-detail d3 frame 7);
    * on TV at the right, as on touch, with room for its rings (tv-more frame 8), where a person's is at the left. */
-  large?: boolean}>;
+  large?: boolean;
+  /** A saved list's cover mosaic (a playlist, collection or saved view, collections 18 to 21): on TV smaller than an
+   * album's, at the head's top, with a smaller name, so the list starts higher. Other forms draw it as any square. */
+  mosaic?: boolean}>;
 /** Where the collapsed bar shows, for a page's own scroller (`MusicScrollView`'s `collapseAt` and `onCollapse`). */
 export type TitleCollapse = Readonly<{at: number; onChange: (collapsed: boolean) => void;
   /** Where the page's tabs reach the bar and pin under it (a page with tabs): past `pinAt`, `onPin(true)`. */
@@ -224,7 +227,8 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
     <PageStateFrame {...failure}/>
   </View>;
-  const height = split ? spec.height.phone : tv && shortHead ? spec.tvShortHeight : spec.height[form], lockup = cover ? spec.coverLockup[split ? 'phone' : form] : split ? spec.lockup.phone : spec.lockup[form];
+  const mosaicTV = tv && !!cover?.mosaic, saved = spec.parts.savedCoverTV;
+  const height = split ? spec.height.phone : tv && shortHead ? spec.tvShortHeight : spec.height[form], lockup = mosaicTV ? saved.lockup : cover ? spec.coverLockup[split ? 'phone' : form] : split ? spec.lockup.phone : spec.lockup[form];
   const discTop = insets.top + theme.space.tight, discRow = discTop + roundBarSize + theme.space.sm;
   const centre = stacked ? 'center' as const : 'flex-start' as const;
 
@@ -329,7 +333,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // A square cover on TV (an album, tv-more frame 6) sits level with the words, its head starting where an artist's does,
   // and what the page sets `beside` it (the songs) runs under its words.
   const besideCoverTV = tv && (cover?.shape === 'square' || cover?.shape === 'circle' && !cover.large && !!beside);
-  const coverSize = artistTV || besideCoverTV && cover?.shape === 'circle' ? ring.size : cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
+  const coverSize = mosaicTV ? saved.size : artistTV || besideCoverTV && cover?.shape === 'circle' ? ring.size : cover?.shape === 'circle' && (split || form === 'phone') ? cover.large ? spec.parts.coverCircleLargePhone : spec.parts.coverCirclePhone
     : spec.cover[cover?.shape ?? 'square'][split ? 'phone' : form];
   // Its box holds the rings' room around the circle (a parent clips what is drawn outside it): the circle stays 280 from the
   // screen's edge and level with the words.
@@ -341,7 +345,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
     ? <View style={{paddingTop: discRow, paddingHorizontal: frame.gutter, alignItems: 'center', gap: theme.space.sm}}>{split && discs}{coverBox}<View onLayout={event => setHeroEnd(event.nativeEvent.layout.y)} style={{alignSelf: 'stretch'}}>{identity}</View>
       {/* A cover page with no buttons and no words (a person without a biography) ends at its name: no empty gap. */}
       {(primary || actions.length > 0 || words || picker) && <View style={{alignSelf: 'stretch', marginTop: spec.actionGap.phone - theme.space.sm}}>{body}</View>}</View>
-    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: artistTV || besideCoverTV ? ring.top : tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && (!tv || artistTV) ? 'row-reverse' : 'row', alignItems: (cover.shape === 'circle' || besideCoverTV) && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
+    : <View onLayout={event => setHeroEnd(event.nativeEvent.layout.y + event.nativeEvent.layout.height)} style={{paddingTop: mosaicTV ? saved.top : artistTV || besideCoverTV ? ring.top : tv ? frame.titleTop : discRow, paddingLeft: frame.gutter, paddingRight: frame.rightGutter, flexDirection: cover.shape === 'circle' && (!tv || artistTV) ? 'row-reverse' : 'row', alignItems: (cover.shape === 'circle' || besideCoverTV) && tv ? 'flex-start' : 'center', gap: spec.coverGap}}>
       {/* Where the name starts (a page offset: the head is the page's first part): the bar takes over as it reaches the bar. */}
       {split && discs}{coverBox}<View onLayout={event => setWordsTop(event.nativeEvent.layout.y)} style={{flex: 1, minWidth: 0}}>{identity}<View style={{marginTop: theme.space.sm}}>{body}</View>
         {besideCoverTV && beside && <View style={{marginTop: frame.sectionGap}}>{beside}</View>}</View></View>
