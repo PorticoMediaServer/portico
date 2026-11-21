@@ -116,7 +116,7 @@ export async function recordingsPageModule(previous) {
   });
   const content = await load('kit/live/RecordingsContent.tsx', {
     ...liveContentBindings(bindings), '../../pages/shared/live/useRecordings': state,
-    './RecordingDialogs': sheets, './Recordings': parts,
+    './RecordingDialogs': sheets, './Recordings': parts, './OwnerRecordingSettings': previous['./OwnerRecordingSettings'],
   });
   const form = previous['../../kit/theme'].useTheme().isTV ? 'tv' : 'touch';
   const page = await load(`pages/${form}/live/RecordingsPage.tsx`, {

@@ -8,7 +8,7 @@ import type {LiveFrameProps} from '../frames';
 import {ConflictCard, RecordingRow as KitRecordingRow, RecordingCard, recordingGridColumns, RecordingFacts, RecordingList, RecordingResults, RecordingSection, RecordingSpaceFacts, RecordingStorageSummary, RecordingViewTabs, RuleCard} from './Recordings';
 import {Menu} from '../overlays';
 import {Quiet, StateView} from '../states';
-import {NewRuleSheet} from '../../screens/settings-live/LiveRecordingOwner';
+import {NewRuleSheet} from './OwnerRecordingSettings';
 import {NativeLiveTabs} from './LiveTabs';
 import {keepLabel, ruleFacts, ruleKeep, ruleNext, ruleScope} from '../../screens/settings-live/recording-rule-presentation';
 
