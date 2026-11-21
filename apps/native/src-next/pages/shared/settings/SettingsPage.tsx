@@ -15,7 +15,7 @@ import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
 import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
 import {NativeServerTroubleshooting} from '../../../screens/settings-live/server/TroubleshootingPage';
-import {ServerStoragePage} from './ServerStoragePage';
+import {ServerStoragePage} from '../../touch/settings/ServerStoragePage';
 import {NativeServerIntegrations} from '../../../screens/settings-live/server/IntegrationsPage';
 import {ServerGeneralPage} from './ServerGeneralPage';
 import {NativeRemoteAccessPage} from '../../../screens/settings-live/server/RemoteAccessPage';

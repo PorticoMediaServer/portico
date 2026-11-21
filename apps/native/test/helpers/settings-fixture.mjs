@@ -35,7 +35,7 @@ export async function settingsFixture(previous) {
   const body = await load('pages/shared/settings/SettingsPreferences.tsx', bindings);
   const page = await load('pages/shared/settings/SettingsPage.tsx', {...bindings, './useSettingsPage': model, './SettingsPreferences': body,
     './ServerGeneralPage': previous['./ServerGeneralPage'] ?? {ServerGeneralPage: 'ServerGeneralPage'},
-    './ServerStoragePage': previous['./ServerStoragePage'] ?? {ServerStoragePage: 'ServerStoragePage'}});
+    '../../touch/settings/ServerStoragePage': previous['../../touch/settings/ServerStoragePage'] ?? {ServerStoragePage: 'ServerStoragePage'}});
   return {NativeSettingsScreen: page.NativeSettingsPage};
 }
 

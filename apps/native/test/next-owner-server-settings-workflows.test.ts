@@ -33,8 +33,8 @@ test('Storage keeping reads only notices and saves their revision, with Messages
     '../../../screens/settings-live/server/storage/space-source': {},
     '../../../screens/settings-live/use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime})},
   });
-  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerStoragePage.tsx', import.meta.url), {
-    react: host.react, './useServerStorage': model, './StorageBackups': {},
+  const module = await screenModule(new URL('../src-next/pages/touch/settings/ServerStoragePage.tsx', import.meta.url), {
+    react: host.react, '../../shared/settings/useServerStorage': model, '../../shared/settings/StorageBackups': {},
     '../../../kit/controls': {Select: 'Select', FormError: 'FormError'}, '../../../kit/frames': {SectionCard: 'SectionCard', PanelBlock: 'PanelBlock'},
     '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/overlays': {}, '../../../kit/overlays/surface': {},
     '../../../kit/settings/SettingsParts': {}, '../../../kit/settings/StorageParts': {},

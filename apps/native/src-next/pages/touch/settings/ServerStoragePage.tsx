@@ -9,8 +9,8 @@ import {SettingsRow} from '../../../kit/shell';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {StorageBackups} from './StorageBackups';
-import {useCacheConfirmation, useEmptyCache, useStorageKeeping, useStorageSpace} from './useServerStorage';
+import {StorageBackups} from '../../shared/settings/StorageBackups';
+import {useCacheConfirmation, useEmptyCache, useStorageKeeping, useStorageSpace} from '../../shared/settings/useServerStorage';
 
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;
 type StorageProps = {context: NativeShellBootstrapContext; runtime: NativeShellRuntime};
