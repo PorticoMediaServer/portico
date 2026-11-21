@@ -52,7 +52,7 @@ export async function storagePage(react, hookModules, pageModules) {
     '../../../screens/settings-live/use-settings-request-scope', '../../../screens/settings-live/server/storage/space-source'].map(path => [path, {}]));
   const hook = await screenModule(new URL('../../src-next/pages/shared/settings/useServerStorage.ts', import.meta.url), {...empty, react, ...hookModules});
   const kit = Object.fromEntries(['../../../kit/controls', '../../../kit/frames', '../../../kit/overlays', '../../../kit/overlays/surface', '../../../kit/settings/AdvancedSection',
-    '../../../kit/settings/SettingControl', '../../../kit/shell', '../../../screens/settings-live/owner-libraries/FolderExplorer'].map(path => [path, {}]));
+    '../../../kit/settings/SettingControl', '../../../kit/shell', '../../../kit/settings/FolderExplorer'].map(path => [path, {}]));
   const parts = Object.fromEntries(['BackupRow', 'PendingRestoreCard', 'StorageActions', 'StorageColumn', 'StorageList', 'StorageNote', 'StoragePath', 'StorageSheetBody', 'StorageUsage'].map(name => [name, name]));
   return screenModule(new URL('../../src-next/pages/touch/settings/ServerStoragePage.tsx', import.meta.url), {...kit, react, '../../../kit/settings/StorageParts': parts, ...pageModules,
     '../../shared/settings/useServerStorage': hook});

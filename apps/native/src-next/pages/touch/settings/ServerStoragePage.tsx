@@ -9,7 +9,7 @@ import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
 import {NativeSettingControl} from '../../../kit/settings/SettingControl';
 import {BackupRow, PendingRestoreCard, StorageActions, StorageColumn, StorageList, StorageNote, StoragePath, StorageSheetBody, StorageUsage} from '../../../kit/settings/StorageParts';
 import {SettingsRow} from '../../../kit/shell';
-import {FolderExplorer} from '../../../screens/settings-live/owner-libraries/FolderExplorer';
+import {FolderExplorer} from '../../../kit/settings/FolderExplorer';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
