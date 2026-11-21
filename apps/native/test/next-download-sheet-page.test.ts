@@ -21,7 +21,7 @@ async function sheet(model: Record<string, unknown>) {
     '../../../kit/overlays/SurfacePaintHost': {RetainedOverlay: 'RetainedOverlay'},
     '../../../kit/saved/DownloadChoiceRows': {DownloadChoiceRow: 'Choice', DownloadQualityRow: 'Quality'},
     '../../../kit/states': {StateView: 'StateView'},
-    '../../../screens/downloads/ReadingDownloadSheet': {NativeReadingDownloadSheet: 'Reading'},
+    './ReadingDownloadSheet': {ReadingDownloadSheet: 'Reading'},
     '../../../screens/downloads/request': {getNativeDownloadSnapshot: () => request, nativeDownloadRequestKey: () => 'k', subscribeNativeDownload: () => () => {}},
     '../../shared/downloads/useDownloadChoice': {useDownloadChoice: () => value},
   });

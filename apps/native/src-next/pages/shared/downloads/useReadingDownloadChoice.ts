@@ -1,25 +1,18 @@
-import {readDownloadOptions} from '../../../../../packages/client-core/src/device-downloads';
-import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {Text, View} from 'react-native';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {downloadBytes, downloadReasonMessage, parseDownloadOptions, type DownloadOptionsView} from '../../../../../packages/client-core/src/downloads';
-import type {ReadingClient} from '../../../../../packages/client-core/src/reading';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
-import {nativeRouteCrypto} from '../../platform/server-connections';
-import {createDownloadAttempts, type DownloadAttempts} from './download-attempt';
-import {Button, Focusable} from '../../kit/controls';
-import {BottomSheet, Popover, SidePanel} from '../../kit/overlays';
-import {overlayPaintKey, overlayPaintPermit, RetainedOverlay} from '../../kit/overlays/SurfacePaintHost';
-import {StateView} from '../../kit/states';
-import {Icon} from '../../kit/Icon';
-import {useTheme} from '../../kit/theme';
-import {alpha, browseType} from '../../kit/browse/presentation';
-import {createNativeDownloadsDevice} from './device';
-import {getNativeDownloadSnapshot, closeNativeDownload, type NativeDownloadRequest} from './request';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {linkNativeAbortSignals} from '../../platform/abort-signals';
-import {captureNativeDownloadPaintCurrent} from './download-opening';
+import {readDownloadOptions} from '../../../../../../packages/client-core/src/device-downloads';
+import {useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {downloadBytes, downloadReasonMessage, parseDownloadOptions, type DownloadOptionsView} from '../../../../../../packages/client-core/src/downloads';
+import type {ReadingClient} from '../../../../../../packages/client-core/src/reading';
+import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
+import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
+import {nativeRouteCrypto} from '../../../platform/server-connections';
+import {createDownloadAttempts, type DownloadAttempts} from '../../../screens/downloads/download-attempt';
+import {overlayPaintPermit} from '../../../kit/overlays/SurfacePaintHost';
+import {createNativeDownloadsDevice} from '../../../screens/downloads/device';
+import {getNativeDownloadSnapshot, closeNativeDownload, type NativeDownloadRequest} from '../../../screens/downloads/request';
+import {nativeDestinationLifetime} from '../../../screens/destinations/lifetime';
+import {linkNativeAbortSignals} from '../../../platform/abort-signals';
+import {captureNativeDownloadPaintCurrent} from '../../../screens/downloads/download-opening';
 
 /** `unreadable`: why the server cannot open this version, in its words; such a version offers no download. */
 type Version = Readonly<{sourceId: string; format: string; size: number; inventoryAvailable: boolean; policy: DownloadOptionsView; unreadable?: string}>;
@@ -35,10 +28,11 @@ type State = Readonly<{opening?: Opening; versions?: readonly Version[]; policy?
  * or a folder of pictures as a CBZ. */
 const readableOffline = (format: string) => ['epub', 'pdf', 'cbz', 'mobi', 'azw3', 'cbr', 'cb7', 'images'].includes(format);
 
-/** The existing download sheet's original-publication branch: the book's versions, each with the
- * size of its original as the server's download choices give it; no media-quality ladder. */
-export function NativeReadingDownloadSheet({context, request}: {context: NativeShellBootstrapContext; request: NativeDownloadRequest}) {
-  const theme = useTheme(), t = defaultI18n.t;
+
+/** The Download choice for a book, comic or magazine (tablet-read 12b): its versions this device can read, each with the
+ * size of its original as the server's download choices give it, one chosen, then Download. No media-quality ladder. */
+export function useReadingDownloadChoice({context, request}: {context: NativeShellBootstrapContext; request: NativeDownloadRequest}) {
+  const t = defaultI18n.t;
   const family = useMemo<Family>(() => ({retired: false, binding: {context, request}}), [context, request]);
   const rendered = useRef(family);
   if (rendered.current !== family) {rendered.current.retired = true; rendered.current.active?.retire(); rendered.current = family;}
@@ -139,87 +133,18 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
   const selectedVersion = versions.find(value => value.sourceId === selected) ?? versions.find(ready) ?? versions[0];
   const opening = shown.opening, freeBytes = opening?.lease.device.getSnapshot().freeBytes;
   const admission = selectedVersion && opening?.current() ? opening.lease.device.admission?.(selectedVersion.size) : undefined;
-  const surface = {open: true as const, title: t('action.download'), description: request.title, testID: 'native-reading-download-sheet',
-    onOpenChange: (open: boolean) => {if (!open) close(shown.opening);}};
-  // tablet-read#1b/12b: the upright side panel draws its own radio rows and a
-  // stacked action group, while the phone sheet and the anchored popover keep the
-  // exact presentation they have today. Geometry and typography here are caller
-  // props; no shared kit, type or guard changes.
-  const primaryAction = (side: boolean) => selectedVersion ? <Focusable testID="reading-download-primary" accessibilityRole="button" disabled={!ready(selectedVersion) || !!shown.busy}
-      onPress={() => {if (opened && ready(selectedVersion)) void choose(opened, selectedVersion);}}
-      style={side
-        ? {height: 54, borderRadius: 12, paddingHorizontal: 26, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-            backgroundColor: ready(selectedVersion) && !shown.busy ? theme.colors.text : theme.colors.raisedBright, opacity: ready(selectedVersion) && !shown.busy ? 1 : .55}
-        : {minHeight: 50, borderRadius: 12, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-            backgroundColor: ready(selectedVersion) && !shown.busy ? theme.colors.text : theme.colors.raisedBright, opacity: ready(selectedVersion) && !shown.busy ? 1 : .55}}>
-      {side ? <Icon name="i-dl" size={22} color={theme.colors.ink}/> : null}
-      <Text style={side ? [browseType(theme, 17, 700), {color: theme.colors.ink}] : [theme.type.bodyStrong, {color: theme.colors.ink}]}>{t(shown.busy ? 'downloads.adding' : 'action.download')}</Text>
-      <Text style={side ? [browseType(theme, 17, 700), {color: theme.colors.ink}] : [theme.type.caption, {color: theme.colors.ink}]}>{downloadBytes(selectedVersion.size)}</Text>
-    </Focusable> : null;
-  const status = <>
-      {!shown.versions && shown.error === undefined && nativePublicationReadsAvailable() && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('status.loading')}</Text>}
-      {(!nativePublicationReadsAvailable() || shown.versions && !versions.length) && <StateView variant="inline" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}/>}
-      {blocked && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{downloadReasonMessage(shown.policy!.policy.reason) || t('downloads.offForProfile')}</Text>}
-      {!blocked && !!admission && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{admission}</Text>}
-      {shown.error !== undefined && <StateView variant="inline" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
-        primaryAction={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (shown.opening?.current() && !shown.opening.pending) setRetry(value => value + 1);}}}/>}
-    </>;
-  const renderBody = (side: boolean) => <View style={side ? {flex: 1} : {gap: 12}}>
-      {side ? <View style={{gap: 12}}>{status}</View> : status}
-      {versions.map(version => {
-        const available = ready(version), selectedVersionId = selectedVersion?.sourceId === version.sourceId;
-        return <Focusable key={version.sourceId} testID={`reading-download-${version.sourceId}`} accessibilityRole={side ? 'radio' : 'button'} disabled={!available}
-          focusKind="row" focusRadius={side ? 14 : 12} accessibilityState={side ? {checked: selectedVersionId, disabled: !available} : {selected: selectedVersionId}}
-          onPress={() => {if (available) setSelected(version.sourceId);}}
-          style={side
-            ? {minHeight: 78, marginBottom: 10, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: available ? 1 : .5,
-                backgroundColor: selectedVersionId ? alpha(theme.colors.accent, .16) : theme.colors.raisedHigh}
-            : {minHeight: 64, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: available ? 1 : .5,
-                backgroundColor: theme.colors.raisedHigh, borderWidth: selectedVersionId ? 1.5 : 0, borderColor: alpha(theme.colors.accentStrong, .75)}}>
-          {side && selectedVersionId ? <View pointerEvents="none" accessible={false}
-            style={{position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 14, borderWidth: 2, borderColor: alpha(theme.colors.accentStrong, .7)}}/> : null}
-          {side ? <View style={{width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2,
-              borderColor: selectedVersionId ? theme.colors.accentStrong : theme.colors.lineStrong}}>
-            {selectedVersionId ? <View style={{width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.accentStrong}}/> : null}
-          </View> : null}
-          {side
-            ? <><Text style={[browseType(theme, 16, 800), {color: theme.colors.text, flex: 1}]}>{version.format.toUpperCase()}</Text>
-                {version.unreadable === undefined ? <Text style={[browseType(theme, 14.5, 700), {color: theme.colors.textSecondary}]}>{downloadBytes(version.size)}</Text> : null}</>
-            : <><View style={{width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', borderWidth: 2,
-                borderColor: selectedVersionId ? theme.colors.accentStrong : theme.colors.lineStrong}}>
-                {selectedVersionId ? <View style={{width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.accentStrong}}/> : null}
-              </View>
-                <Text style={[browseType(theme, 15, 700), {color: theme.colors.text, flex: 1}]}>{version.format.toUpperCase()}</Text>
-                {version.unreadable === undefined ? <Text style={[browseType(theme, 13, 700), {color: theme.colors.textSecondary}]}>{downloadBytes(version.size)}</Text> : null}</>}
-        </Focusable>;
-      })}
-      {/* A version the server cannot open says why, in full, and offers no download (10-reading rule 4). */}
-      {versions.filter(version => version.unreadable !== undefined).map(version => <Text key={'why-' + version.sourceId}
-        style={[theme.type.body, {color: theme.colors.textSecondary}]}>{`${version.format.toUpperCase()}: ${version.unreadable}`}</Text>)}
-      {freeBytes !== undefined && <Text style={side ? [browseType(theme, 13.5, 400), {color: theme.colors.textTertiary, marginTop: 6}] : [theme.type.caption, {color: theme.colors.textTertiary}]}>{t(theme.platform === 'phone' ? 'next.saved.phone.free' : 'downloads.freeOnDevice', {size: downloadBytes(freeBytes)})}</Text>}
-      {side
-        ? <View style={{marginTop: 'auto', gap: 10}}>
-            {primaryAction(true)}
-            <Button variant="glass" testID="reading-download-cancel" onPress={() => surface.onOpenChange(false)}
-              style={{height: 54, borderRadius: 12, paddingHorizontal: 26, alignSelf: 'stretch'}} textStyle={[browseType(theme, 17, 700)]}>{t('action.cancel')}</Button>
-          </View>
-        : primaryAction(false)}
-    </View>;
-  // tablet-read12b: on the expanded width the same real choice opens under the
-  // book's own Download button. The original page lifetime is already linked, and a
-  // replaced route or viewer cannot take the popover over.
-  // An upright tablet uses the platform's side panel (frame 12b), the expanded width keeps
-  // the popover under the book's own button, and the phone keeps its sheet.
-  const anchored = !!request.anchorRef && theme.width >= 1024;
   const paintCurrent = opened?.paintCurrent;
   const permit = paintCurrent ? overlayPaintPermit(paintCurrent,
     [listener => context.navigation.subscribe(listener), listener => context.subscribeAuthority(listener)], request.lifetime ? [request.lifetime.signal] : []) : undefined;
-  const node = anchored
-    ? <Popover {...surface} anchorRef={request.anchorRef} placement="bottom-end" offset={8} width={360} showTitle>{renderBody(false)}</Popover>
-    : theme.platform === 'phone'
-      ? <BottomSheet {...surface} fitContent>{renderBody(false)}</BottomSheet>
-      : <SidePanel {...surface} width={360} topInset={0} style={{paddingTop: 66, paddingBottom: 28}} contentStyle={{paddingHorizontal: 24}}
-          titleType={{size: 26, lineHeight: 'normal', weight: 800, tracking: -.03}} descriptionTextStyle={{fontSize: 15, lineHeight: 22.5}}>{renderBody(true)}</SidePanel>;
-  return <RetainedOverlay key={overlayPaintKey(request)} permit={permit}
-    allowedTypes={[BottomSheet, Popover, SidePanel, React.Fragment, View, Text, Focusable, Button, StateView, Icon]}>{node}</RetainedOverlay>;
+  const loading = !shown.versions && shown.error === undefined && nativePublicationReadsAvailable();
+  const unavailable = !nativePublicationReadsAvailable() || !!shown.versions && !versions.length;
+  const refusal = blocked ? downloadReasonMessage(shown.policy!.policy.reason) || t('downloads.offForProfile') : admission || undefined;
+  const failed = shown.error !== undefined;
+  const busy = !!shown.busy;
+  const retryLoad = () => {if (shown.opening?.current() && !shown.opening.pending) setRetry(value => value + 1);};
+  const dismiss = () => close(shown.opening);
+  const download = () => {if (opened && selectedVersion && ready(selectedVersion)) void choose(opened, selectedVersion);};
+  const free = freeBytes === undefined ? undefined : downloadBytes(freeBytes);
+  return {versions, selectedVersion, ready, select: setSelected, loading, unavailable, refusal, failed, busy, retryLoad, dismiss, download, free, permit,
+    size: (version: Version) => downloadBytes(version.size)};
 }
