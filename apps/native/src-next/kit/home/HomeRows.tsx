@@ -152,7 +152,9 @@ export function HomeLiveRow({row, runtime, visible, itemWidth, onRange, onVisibl
   const subtitle = serverTextLabel(labels, row.subtitleText);
   // Only a phone draws the live row's sub-line ("Synthetic Live TV"); Row sets it in the phone's 13 px role.
   const rowSubtitle = subtitle && theme.layoutMode === 'phone' && theme.platform === 'phone' ? subtitle : undefined;
-  const title = serverTextLabel(labels, row.titleText, row.title);
+  // A row the app knows by id reads in the app's words ("Recently added", as a library's Discover, #4703); a server's
+  // own titleText, or a row the app does not know, keeps the server's words.
+  const title = serverTextLabel(labels, row.titleText ?? {key: `library.landing.${row.id}`, fallback: row.title}, row.title);
   return <Row title={title} subtitle={rowSubtitle} items={live.channels} getKey={homeChannelKey} getFocusId={homeChannelFocusId} focus={focus} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory}
     itemWidth={itemWidth} itemHeight={theme.isTV ? 225 : theme.layoutMode === 'desktop' ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone} selection={runtime.selection(row.id)} onVisibleRange={onRange} onVisibleKeys={onVisibleKeys} onItemFocus={onItemFocus}
     gutter={medium ? mediumGutter : undefined} rightGutter={medium ? mediumGutter : undefined} gap={medium ? homeRowsSpec.medium.gap : undefined} headingStyle={medium ? headingStyle : undefined}
