@@ -25,7 +25,7 @@ import {Button} from '../../kit/controls';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {nativeScreenServices} from '../native-screen-services';
-import {NativeDestinationPicker} from '../destinations/DestinationPicker';
+import {NativeDestinationPicker} from '../../kit/selection/LoadedDestinationPicker';
 import {NativeLoadedDestinations} from '../search/loaded-destinations';
 import {NativeBulkMedia} from '../destinations/bulk-media';
 import {nativeLibraryEntryKey, type NativeLibraryDestination} from './model';

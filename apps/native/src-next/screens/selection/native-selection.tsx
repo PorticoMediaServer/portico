@@ -20,7 +20,7 @@ import {nativeDestinationLifetime} from '../destinations/lifetime';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import {nativeScreenServices} from '../native-screen-services';
 import {NativeLoadedDestinations} from '../search/loaded-destinations';
-import {NativeDestinationPicker} from '../destinations/DestinationPicker';
+import {NativeDestinationPicker} from '../../kit/selection/LoadedDestinationPicker';
 import {NativeBulkMedia} from '../destinations/bulk-media';
 import {viewerQueriesFor} from '../../shell/freshness';
 

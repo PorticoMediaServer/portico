@@ -33,7 +33,7 @@ test('actual native Library selection composes the refusal without an executor a
   '../../kit/selection':{SelectionBar:'SelectionBar',SelectionPhoneActionBar:'SelectionPhoneActionBar'},
   '../../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../../kit/overlays':{},'../../kit/controls':{},
   '../destinations/lifetime':{nativeDestinationLifetime:()=>({current:()=>true})},
-  '../native-screen-services':{nativeScreenServices:()=>({})},'../destinations/DestinationPicker':{},'../search/loaded-destinations':{},'../destinations/bulk-media':{},
+  '../native-screen-services':{nativeScreenServices:()=>({})},'../../kit/selection/LoadedDestinationPicker':{},'../search/loaded-destinations':{},'../destinations/bulk-media':{},
   './model':{nativeLibraryEntryKey:()=>''},'./play-selection':{createNativeLibraryPlaySelection:()=>producer},
   './selection-unavailable-actions':selectionUnavailableActions,
  });

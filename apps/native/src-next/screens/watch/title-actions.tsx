@@ -14,7 +14,7 @@ import {Artwork} from '../../kit/artwork';
 import {BulkEditor, DeleteMediaDialog, RatingDialog} from '../../kit/selection';
 import {useTheme} from '../../kit/theme';
 import {NativeLoadedDestinations} from '../search/loaded-destinations';
-import {NativeDestinationPicker} from '../destinations/DestinationPicker';
+import {NativeDestinationPicker} from '../../kit/selection/LoadedDestinationPicker';
 import {NativeBulkMedia} from '../destinations/bulk-media';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {nativeScreenServices} from '../native-screen-services';

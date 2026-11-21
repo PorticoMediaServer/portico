@@ -23,6 +23,8 @@ function DestinationPicker({kind, ...props}: DestinationPickerProps & {kind: 'pl
   const retryRecovery = props.onRetryError ?? props.onRetryOperation, recovering = !!retryRecovery;
   const entryRef = useRef<View>(null);
   const listRef = useRef<FlatList<PickerEntry>>(null);
+  // The empty and loading lines start where the sheet's title does (they were at the sheet's edge on touch).
+  const footerInset = isTV ? undefined : {paddingHorizontal: 20, paddingTop: 12};
   const windowKey = JSON.stringify([props.query, props.entries.map(entry => entry.id)]);
   const page = useRef<{direction: 'next' | 'previous'; key: string; loading: boolean; focus: boolean} | null>(null);
   const lastQuery = useRef(props.query), scroll = useRef(0), focused = useRef(false);
@@ -108,7 +110,7 @@ function DestinationPicker({kind, ...props}: DestinationPickerProps & {kind: 'pl
           onEndReached={() => {if (direction.current === 'next') turnPage('next');}}
           style={{height: Math.min(Math.max(1, props.entries.length) * (isTV ? 116 : 64), isTV ? 580 : 320)}}
           ItemSeparatorComponent={isTV ? () => <View style={{height: 12}} /> : undefined}
-          ListFooterComponent={props.loading ? <SelectionText secondary>{selectionText('next.selection.native.loading')}</SelectionText> : props.entries.length === 0 ? <SelectionText secondary>{selectionText(`next.selection.native.empty.${kind}`)}</SelectionText> : null} />
+          ListFooterComponent={props.loading ? <SelectionText secondary style={footerInset}>{selectionText('next.selection.native.loading')}</SelectionText> : props.entries.length === 0 ? <SelectionText secondary style={footerInset}>{selectionText(`next.selection.native.empty.${kind}`)}</SelectionText> : null} />
       </>}
     </SelectionSurface>
     {complete ? <ToastHost bottomOffset={84} toast={{id: `${kind}-${props.result!.destination.id}`, icon: 'i-check', message: selectionText('next.selection.native.added', {count: props.result!.inserted!, title: props.result!.destination.title}), action: {label: selectionText('next.selection.native.view'), onPress: () => props.onViewDestination(props.result!.destination.id)}}} onDismiss={props.onResultDismiss} /> : null}

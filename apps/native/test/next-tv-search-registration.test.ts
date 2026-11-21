@@ -109,7 +109,7 @@ async function setup() {
     // its own focus/identity coverage is next-shell-tv-overlay-ids.
     '../search/loaded-destinations': {NativeLoadedDestinations},
     '../destinations/bulk-media': {NativeBulkMedia},
-    '../destinations/DestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'},
+    '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'},
   });
   const {createNativeSearchSelection} = await screenModule(new URL('../src-next/screens/search/selection.ts', import.meta.url), {
     react: hooks().react, '../selection/native-selection': engine,

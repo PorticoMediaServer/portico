@@ -22,7 +22,7 @@ export function registerLibrarySelectionFooterTests({bindings, overlayBindings, 
       '../../../../../packages/client-core/src/selection-model': selection, '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': await import('../../../../packages/client-core/src/media-selection'),
       '../../shell/selection-display': display, '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'PhoneBar', BulkEditor: 'Bulk', DeleteMediaDialog: 'Delete'},
       '../../kit/theme': {useTheme: () => b.theme}, '../../kit/overlays': o.surface, '../../kit/controls': {Button: o.Button},
-      '../destinations/lifetime': scope, '../native-screen-services': {nativeScreenServices: () => ({})}, '../destinations/DestinationPicker': {NativeDestinationPicker: 'Picker'},
+      '../destinations/lifetime': scope, '../native-screen-services': {nativeScreenServices: () => ({})}, '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'Picker'},
       '../search/loaded-destinations': {NativeLoadedDestinations: class {}}, '../destinations/bulk-media': {NativeBulkMedia: class {}}, './model': {},
       './selection-unavailable-actions': selectionUnavailableActions,
       './play-selection': {createNativeLibraryPlaySelection() {throw new Error('footer vector must not create a producer');}}});
