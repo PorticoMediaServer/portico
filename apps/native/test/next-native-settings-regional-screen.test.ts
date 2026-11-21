@@ -92,7 +92,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     '../../touch/settings/ServerIntegrationsPage': {ServerIntegrationsPage: 'NativeServerIntegrations'},
     './ServerGeneralPage': {ServerGeneralPage: 'ServerGeneralPage'},
     '../../touch/settings/ServerStreamingPage': {ServerStreamingPage: 'NativeServerStreaming'},
-    './server/SegmentsPage': {NativeServerSegments: 'NativeServerSegments'},
+    '../../touch/settings/ServerSegmentsPage': {ServerSegmentsPage: 'NativeServerSegments'},
     './server/PeoplePage': {NativeServerPeople: 'NativeServerPeople'},
     './server/SignInPage': {NativeServerSignIn: 'NativeServerSignIn'},
     './server/MetadataPage': {NativeServerMetadata: 'NativeServerMetadata'},
