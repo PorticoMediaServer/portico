@@ -189,6 +189,7 @@ export const selectionMessages = {
   'next.selection.findCollection': 'Find a collection',
   'next.selection.name': 'Name',
   'next.selection.createAndAdd': 'Create and add {count, number}',
+  'next.selection.createAndAddOne': 'Create and add',
   'next.selection.alreadyIn': '{count, number} already in',
   'next.selection.added': '{count, number} added',
   'next.selection.addedPartial': 'Added {added, number} of {total, number} to {name}',

@@ -1,9 +1,11 @@
-import React, {useSyncExternalStore} from 'react';
+import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {PlaylistCard} from '../../../../../../packages/client-core/src/saved';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {Menu, type MenuEntry} from '../../../kit/overlays';
+import {SavedNameSheet} from '../../../kit/saved/SavedForms';
+import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {nativeDestinationLifetime} from '../lifetime';
 import {nativeScreenServices} from '../../native-screen-services';
 import {MusicPlaylistPort, type MusicAlbumResult, type MusicPlaylistSnapshot} from './playlist-port';
@@ -74,6 +76,13 @@ export class MusicPlaylistPickerController {
       if (!this.disposed && state.lifetime && this.current(state.lifetime)) throw error;
     }
   };
+  /** select.html 13: New playlist makes the playlist and adds the title (or the whole album) to it in one step. */
+  createAndAdd = async (name: string): Promise<void> => {
+    const state = this.state, port = state.port;
+    if (!state.open || !port || !state.lifetime || !this.current(state.lifetime)) return;
+    const id = await port.create(name);
+    if (this.state === state) await this.add({id, kind: 'playlist', title: name} as PlaylistCard);
+  };
   retryLeaf = async (): Promise<void> => {
     const state = this.state, port = state.port, leaf = port?.getSnapshot().leaf;
     if (!state.open || !port || !state.lifetime || !leaf || !this.current(state.lifetime)) return;
@@ -124,6 +133,9 @@ function PickerSurface({controller, runtime}: {controller: MusicPlaylistPickerCo
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const port = state.port;
   const snapshot: MusicPlaylistSnapshot = useSyncExternalStore(port?.subscribe ?? (() => () => {}), port?.getSnapshot ?? (() => emptyPlaylists));
+  // New playlist names it in a sheet over the picker (the picker stays open beneath, so nothing waits on one sheet closing).
+  const [naming, setNaming] = useState(false), [creating, setCreating] = useState(false), [createError, setCreateError] = useState<string>();
+  useEffect(() => {if (!state.open) {setNaming(false); setCreating(false); setCreateError(undefined);}}, [state.open]);
   if (!state.open || !port) return null;
   const album = snapshot.album, leaf = snapshot.leaf, adding = album?.phase === 'loading' || album?.phase === 'adding';
   const partial = album?.phase === 'partial' && album.added > 0;
@@ -140,10 +152,22 @@ function PickerSurface({controller, runtime}: {controller: MusicPlaylistPickerCo
       : snapshot.phase === 'error' ? [{id: 'retry', label: t('saved.retry'), closeOnSelect: false, onSelect: () => report(controller.retry())}]
         : snapshot.playlists.map(playlist => ({id: playlist.id, label: playlist.title, trailing: playlist.count === undefined ? undefined : defaultI18n.number(playlist.count),
           disabled: busy, closeOnSelect: false, onSelect: () => report(controller.add(playlist))}));
+  const offerNew = !partial && !failed && !leaf && snapshot.phase === 'ready';
+  const newEntry: MenuEntry[] = offerNew ? [{id: 'new-playlist', icon: 'i-plus', label: `${t('web.saved.newPlaylist')}…`, disabled: busy, closeOnSelect: false,
+    onSelect: () => {setCreateError(undefined); setNaming(true);}}] : [];
+  const create = (name: string) => {
+    setCreating(true); setCreateError(undefined);
+    void controller.createAndAdd(name).then(() => setNaming(false), error => setCreateError(presentError(error, 'saved', {operation: 'action'}).body)).finally(() => setCreating(false));
+  };
   const description = partial ? t('next.selection.playlistAlbumPartial', {count: album?.added ?? 0})
     : adding && album?.playlistName ? t('next.selection.playlistAlbumProgress', {playlist: album.playlistName}) : undefined;
-  return <Menu testID="music-playlist-picker" open onOpenChange={open => {if (!open) controller.close();}}
-    title={t('entry.addToPlaylist')} description={description} items={items}/>;
+  return <>
+    <Menu testID="music-playlist-picker" open onOpenChange={open => {if (!open && !naming) controller.close();}}
+      title={t('entry.addToPlaylist')} description={description} items={[...newEntry, ...(offerNew && !snapshot.playlists.length ? [] : items)]}/>
+    <SavedNameSheet open={naming} testID="music-playlist-new" title={t('web.saved.newPlaylist')} action={t('next.selection.createAndAddOne')}
+      initialName={t('web.saved.newPlaylist')} withSummary={false} busy={creating} error={createError}
+      onClose={() => {if (!creating) setNaming(false);}} onSave={input => create(input.name)}/>
+  </>;
 }
 
 export type MusicPlaylistPickerHandle = Readonly<{

@@ -100,6 +100,16 @@ export class MusicPlaylistPort {
       if (this.current() && generation === this.generation) this.publish({phase: 'error', error});
     }
   };
+  /** A new playlist of the profile's, made with the same Saved command as Saved's own New playlist; its id is the
+   * server's receipt. The caller then adds to it like any other playlist. */
+  create = async (name: string): Promise<string> => {
+    if (!this.current()) throw new Error('playlist_picker_closed');
+    const service = this.service();
+    await service.mutate({action: 'create', name});
+    const id = service.getSnapshot().lastReceipt?.playlistId;
+    if (!id) throw new Error('The new playlist could not be read.');
+    return id;
+  };
   add = (playlistId: string, itemId: string, playlistName = ''): Promise<void> => {
     if (this.pendingAdd) return this.pendingAdd;
     let task: Promise<void>;
