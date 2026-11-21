@@ -36,3 +36,10 @@ export function AccountTerms({open}: {open: (url: string) => void}) {
 }
 
 export const profileFaceSize = {pin: 92};
+
+/** What a profile command just did ("Demo now opens with the new PIN"), read out once, under the page's rows. */
+export function AccountNotice({children, testID}: {children: ReactNode; testID?: string}) {
+  const theme = useTheme();
+  return <Text testID={testID} accessibilityLiveRegion="polite"
+    style={[theme.type.caption, {color: theme.colors.textSecondary, marginHorizontal: theme.space.sm}]}>{children}</Text>;
+}

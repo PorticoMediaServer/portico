@@ -52,7 +52,7 @@ async function fixture() {
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../../platform/offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'}, '../../kit/theme': {useTheme: () => theme},
     './AccountEntry': {AccountEntry: 'AccountEntry'}, './downloads-entry': {createAccountDownloadsEntry: () => ({dispose() {}})},
-    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
+    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
     '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, '../../pages/tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'}, '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'},
     './sign-out-downloads': {removeCapturedServerDownloads: async () => {}}, '../../tv/auth': {TVProfilePINForm: 'TVProfilePINForm', TVForgotPINHandoff: 'TVForgotPINHandoff'},
     './account-form-values': values,
@@ -65,6 +65,9 @@ async function fixture() {
   return {AccountRoute, ServersRoute, context, calls, host, tree: () => tree, factories, nav};
 }
 
+// The Profiles page (its rows are the page's own test) is handed the route's profile commands.
+const profilePage = (tree: any) => {const page = nodes(tree).find(value => value.type === 'ProfileSwitchPage'); assert.ok(page, 'ProfileSwitchPage'); return page.props.view;};
+
 // The Portico Account sign-in this app holds, if any; switched by a test.
 let heldAccount = false;
 const accountCredentials = {subscribe: () => () => {}, getSnapshot: () => ({session: heldAccount ? {account: {id: 'account'}, familyId: 'family'} : undefined}), synchronize: async () => {}};
@@ -73,13 +76,13 @@ test('profile Add and Rename submit the chosen color and preselect the current c
   const f = await fixture(); await act(() => f.host.mount());
   try {
     // Add profile is the kit picker's own tile.
-    await act(() => nodes(f.tree()).find(value => value.type === 'ProfilePicker').props.onAdd());
+    await act(() => profilePage(f.tree()).openAddition());
     await act(() => byID(f.tree(), 'profile-add-name').props.onChangeText('Cinema'));
     const picker = byID(f.tree(), 'profile-add-colors'); assert.equal(picker.props.value, 'blue');
     await act(() => picker.props.onChange('mint'));
     await act(() => button(byID(f.tree(), 'profile-add'), 'action.save').props.onPress());
     assert.deepEqual(f.calls.find(call => call[0] === 'create'), ['create', 'Cinema', 'mint']);
-    await act(() => byID(f.tree(), 'profile-rename').props.onPress());
+    await act(() => profilePage(f.tree()).openEditor('rename'));
     const rename = byID(f.tree(), 'profile-rename-colors'); assert.equal(rename.props.value, 'violet');
     await act(() => rename.props.onChange('gold'));
     const dialog = nodes(f.tree()).find(value => value.type === 'Dialog' && value.props.testID === 'profile-rename');
@@ -92,7 +95,7 @@ test('a new profile nobody coloured sends no colour, so the server gives the fir
   const f = await fixture(); await act(() => f.host.mount());
   try {
     // Add profile is the kit picker's own tile.
-    await act(() => nodes(f.tree()).find(value => value.type === 'ProfilePicker').props.onAdd());
+    await act(() => profilePage(f.tree()).openAddition());
     await act(() => byID(f.tree(), 'profile-add-name').props.onChangeText('Cinema'));
     // The account's one profile is violet, so the server's pick is blue, the first unused.
     assert.equal(byID(f.tree(), 'profile-add-colors').props.value, 'blue');
@@ -104,7 +107,7 @@ test('a new profile nobody coloured sends no colour, so the server gives the fir
 test('PIN editor has New and Repeat cell rows and keeps the mismatch guard', async () => {
   const f = await fixture(); await act(() => f.host.mount());
   try {
-    await act(() => byID(f.tree(), 'profile-pin').props.onPress());
+    await act(() => profilePage(f.tree()).openEditor('pin'));
     assert.equal(byID(f.tree(), 'profile-pin-new').type, 'PhonePINEntry');
     assert.equal(byID(f.tree(), 'profile-pin-again').type, 'PhonePINEntry');
     assert.equal(byID(f.tree(), 'profile-pin-again').props.autoFocus, false);
@@ -120,7 +123,7 @@ test('PIN editor has New and Repeat cell rows and keeps the mismatch guard', asy
 
 test('Hidden labels picker saves the chosen labels with the original restriction revision and feature flags', async () => {
   const f = await fixture(); await act(() => f.host.mount()); let sheet: any;
-  await act(() => byID(f.tree(), 'profile-limits').props.onPress());
+  await act(() => profilePage(f.tree()).openEditor('limits'));
   const element = nodes(f.tree()).find(value => typeof value.type === 'function' && value.type.name === 'ProfileLimitsSheet');
   // The sheet draws ProfileRestrictionsFields once its draft has loaded. Mount the fields as their
   // own child component (their hooks are theirs), and read the sheet with the fields' drawn tree.
