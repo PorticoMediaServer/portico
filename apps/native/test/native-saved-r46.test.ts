@@ -48,7 +48,7 @@ async function savedScreen() {
   const downloads = {supported: true, entries: [], usedBytes: 3.4e9};
   const {SavedScreen} = await savedFixture('Saved', {
     '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'},
-    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, './SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'},
+    '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'},
     './paging': {savedNearEnd: () => false},
     react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 24})},

@@ -29,3 +29,29 @@ test('the TV Saved activation returns one snapshot until navigation actually cha
     assert.equal(activation.getSnapshot().intent, 'restore');
   } finally {dispose();}
 });
+
+
+test('TV Saved sends title A to Z to both lists and honors an explicit direction', async () => {
+  const routes: unknown[] = [];
+  class Service {
+    subscribe() {return () => {};}
+    getSnapshot() {return {};}
+    async select(route: unknown) {routes.push(route);}
+    dispose() {}
+  }
+  const {NativeTVSavedController} = await screenModule(new URL('../src-next/screens/destinations/saved/model.ts', import.meta.url), {
+    '../../../../../../packages/client-core/src/saved': {savedListSorts: [], SavedService: Service},
+    '../../saved/view-model': {NativeSavedViewDestination: Service}, '../lifetime': {}, '../../native-screen-services': {}, react: {default: {}},
+  });
+  const controller = new NativeTVSavedController({api: {}, scope: {}, current: () => true});
+  try {
+    await controller.select('favorites', {sort: 'title'});
+    await controller.select('watchlist', {sort: 'title', direction: 'desc'});
+    assert.deepEqual(routes, [
+      {view: 'favorites', shape: 'posters', sort: 'title', direction: 'asc', filter: 'all'},
+      {view: 'favorites', shape: 'squares', sort: 'title', direction: 'asc', filter: 'all'},
+      {view: 'watchlist', shape: 'posters', sort: 'title', direction: 'desc', filter: 'all'},
+      {view: 'watchlist', shape: 'squares', sort: 'title', direction: 'desc', filter: 'all'},
+    ]);
+  } finally {controller.dispose();}
+});
