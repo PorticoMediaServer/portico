@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {bindingModule, lifecycleHooks, nodes, content, t, i18n, theme, specification} from './helpers/owner-server-settings.mjs';
+import {bindingModule, lifecycleHooks, nodes, content, t, i18n, specification} from './helpers/owner-server-settings.mjs';
 import {createStorageForms} from '../src-next/screens/settings-live/server/storage/forms.ts';
 
 async function fixture(forms = {}) {
@@ -12,29 +12,48 @@ async function fixture(forms = {}) {
   const context = {account: {account: {id: 'owner-fixture'}}, authority: () => ({accountId: 'owner-fixture'}), serverName: 'Test server'}, writes: any[] = [];
   const source = {context, ownerControls: () => true, current: () => true, subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, dispose() {}, loadLibraries() {}, loadDevices(captured: unknown) {writes.push({readDevices: captured});}, signOutDevices: async (captured: unknown, capturedDevice: unknown) => {writes.push({signOut: captured, device: capturedDevice});}, limits: async (captured: unknown, limits: unknown) => {writes.push({captured, limits});}};
   const runtime = {text: {t}, reportError: assert.fail, error: () => ({title: 'Error'})};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/PeoplePage.tsx', import.meta.url), {
-    react: host.react, 'react-native': {FlatList: 'FlatList', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    '../../../../../../packages/client-core/src/server-admin/people-words': {roleLabel: (_: unknown, role: string) => role},
-    '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
-    '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
-    '../../../../../../packages/i18n/src': {defaultI18n: {...i18n, date: (value: string) => value}},
-    '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', Tabs: 'Tabs', TextField: 'TextField'},
-    '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
-    '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})},
-    '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => theme},
-    '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
-    './storage/forms': forms, './people-source': {NativePeopleSource: class {constructor() {return source;}}}, './InvitationReadySheet': {InvitationReadySheet: 'InvitationReadySheet'}, './PeopleMemberProfiles': {PeopleMemberProfiles: 'PeopleMemberProfiles'},
+  const model = await screenModule(new URL('../src-next/pages/shared/settings/useServerPeople.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/server-admin/people-words': {roleLabel: (_: unknown, role: string) => role},
+    '../../../screens/settings-live/server/people-source': {NativePeopleSource: class {constructor() {return source;}}},
+  });
+  const detailModel = await screenModule(new URL('../src-next/pages/shared/settings/useServerPeopleDetails.ts', import.meta.url), {
+    react: host.react, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
+    '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../screens/settings-live/server/storage/forms': forms,
+  });
+  const list = await screenModule(new URL('../src-next/kit/settings/SettingsDataList.tsx', import.meta.url), {
+    react: host.react, 'react-native': {FlatList: 'FlatList', View: 'View'}, '../frames/metrics': {useFrameMetrics: () => ({})},
+  });
+  const chrome = {
+    react: host.react, '../../../../../../packages/i18n/src': {defaultI18n: {...i18n, date: (value: string) => value}},
+    '../../../kit/controls': {Button: 'Button', Segmented: 'Segmented', Select: 'Select', Switch: 'Switch', Tabs: 'Tabs', TextField: 'TextField'},
+    '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', SettingsPageFrame: 'SettingsPageFrame', StateRow: 'StateRow'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    '../../../kit/settings/SettingsDataList': list, '../../../kit/settings/SettingsParts': {SettingsHelp: 'Text'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/states': {StateView: 'StateView'}, './useServerPeople': model,
+  };
+  const detailsModule = await screenModule(new URL('../src-next/pages/shared/settings/ServerPeopleDetails.tsx', import.meta.url), {
+    ...chrome, './useServerPeopleDetails': detailModel, './ServerMemberProfiles': {ServerMemberProfiles: 'PeopleMemberProfiles'},
+    '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    '../../../kit/settings/SettingControl': {NativeSettingControl: 'Setting'},
+  });
+  const {ServerPeoplePage} = await screenModule(new URL('../src-next/pages/touch/settings/ServerPeoplePage.tsx', import.meta.url), {
+    ...chrome, '../../shared/settings/useServerPeople': model, '../../shared/settings/ServerPeopleDetails': detailsModule, '../../shared/settings/ServerInvitationReady': {InvitationReadySheet: 'InvitationReadySheet'},
   });
   const ports = {context, requestId: () => 'operation-fixture'};
-  // Render the private details component reached through the public page.
   const frames = () => host.render(() => {
-    const element = module.NativeServerPeople({ports, runtime}), page = element ? element.type(element.props) : null;
-    const details = nodes(page).find((node: any) => typeof node.type === 'function' && node.props.person === person);
-    return {page, details: details ? details.type(details.props) : null};
+    const panel = ServerPeoplePage({ports, runtime}).props.panel;
+    const page = panel ? panel.type(panel.props) : null;
+    const details = nodes(page).find((node: any) => node.type === detailsModule.ServerPersonDetails);
+    const sections = details ? details.type(details.props).props.children : [];
+    const [tabs, content] = sections;
+    let body = content;
+    if (body?.type?.name === 'PeopleLibraryAccess') body = body.type(body.props);
+    if (body?.type === list.SettingsDataList) body = body.type(body.props);
+    return {page, details: body, tabs};
   });
   const render = () => frames().details;
   render();host.flush();assert.ok(render());host.flush();
-  return {render, page: () => frames().page, host, writes, person, device, source, state};
+  return {render, page: () => frames().page, tabs: () => frames().tabs, host, writes, person, device, source, state};
 }
 
 test('People Advanced reads the default stream limit from the rebuilt server', async () => {
@@ -51,26 +70,28 @@ test('People Advanced reads the default stream limit from the rebuilt server', a
     useStorageSet: (value: ReturnType<typeof createStorageForms>) => value.set.getSnapshot(),
   });
   try {
-    const advanced = nodes(f.page()).find((node: any) => node.type?.name === 'PeopleAdvanced');
+    const advanced = nodes(f.page()).find((node: any) => node.type?.name === 'SettingsDataList');
     assert.ok(advanced);
-    f.host.render(() => advanced.type(advanced.props));
+    const panel = nodes(advanced.props.footer).find((node: any) => node.type?.name === 'ServerPeopleAdvanced');
+    f.host.render(() => panel.type(panel.props));
     assert.deepEqual(Object.keys(group!.forms), ['streamLimits']);
     await group!.forms.streamLimits.load();
-    const tree = f.host.render(() => {const panel = advanced.type(advanced.props);return panel.type(panel.props);});
+    const tree = f.host.render(() => {const body = panel.type(panel.props);return body.type(body.props);});
     assert.equal(nodes(tree).find((node: any) => node.props.row?.id === 'people.maxStreamsEach')?.props.value, '3');
     assert.deepEqual(reads, [['GET', '/v1/admin/playback/stream-limits']]);
   } finally {group?.dispose();f.host.dispose();}
 });
 
 test('People keeps a saved non-preset stream limit visible and unchanged when another limit is edited', async () => {
-  const {render, host, writes, person} = await fixture();
-  nodes(render()).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('access');
-  const streamSelect = () => nodes(render()).find((node: any) => node.type === 'Select' && node.props.label === t('web.access.maxStreams'));
+  const {render, host, writes, person, tabs} = await fixture();
+  nodes(tabs()).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('access');
+  const listFooter = () => render().props.ListFooterComponent;
+  const streamSelect = () => nodes(listFooter()).find((node: any) => node.props.control?.type === 'Select' && node.props.label === t('web.access.maxStreams')).props.control;
   assert.equal(streamSelect().props.value, '5');
   assert.deepEqual(streamSelect().props.options.find((option: any) => option.value === '5'), {value: '5', label: '5', disabled: true});
-  nodes(render()).find((node: any) => node.type === 'Switch').props.onCheckedChange(false);
+  nodes(listFooter()).find((node: any) => node.props.control?.type === 'Switch').props.control.props.onCheckedChange(false);
   assert.equal(streamSelect().props.value, '5');
-  nodes(render()).find((node: any) => node.props.testID === 'people-save-limits' && !node.props.disabled).props.onPress();
+  nodes(listFooter()).find((node: any) => node.props.testID === 'people-save-limits' && !node.props.disabled).props.onPress();
   assert.deepEqual(writes, [{captured: person, limits: {...person.limits, allowRemote: false}}]);
   streamSelect().props.onValueChange('6');
   assert.equal(streamSelect().props.value, '6');
@@ -82,11 +103,13 @@ test('People keeps a saved non-preset stream limit visible and unchanged when an
 test('Person Devices is windowed and both sign-out actions wait for confirmation', async () => {
   const f = await fixture();
   try {
-    const tabs = nodes(f.render()).find((node: any) => node.props.testID === 'people-person-tabs');
+    const tabs = nodes(f.tabs()).find((node: any) => node.props.testID === 'people-person-tabs');
     assert.deepEqual(tabs.props.items.map((item: any) => item.value), ['account', 'access', 'profiles', 'devices', 'advanced']);
     tabs.props.onValueChange('devices');
     assert.deepEqual(f.writes, [{readDevices: f.person}]); f.writes.length = 0;
-    const deviceList = nodes(f.render()).find((node: any) => node.props.testID === 'people-devices');
+    const deviceList = f.render();
+    assert.equal(deviceList.props.testID, 'people-devices');
+    assert.equal(deviceList.props.ListHeaderComponent, null, 'member tabs stay outside the device scroll');
     assert.deepEqual(deviceList.props.data, [f.device]);
     assert.equal(nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.open && node.props.title === f.person.username).props.scrollable, false);
     const item = deviceList.props.renderItem({item: f.device});
@@ -96,7 +119,7 @@ test('Person Devices is windowed and both sign-out actions wait for confirmation
     assert.equal(confirmation.props.open, true);
     await nodes(confirmation.props.footer).find((node: any) => node.type === 'Button' && content(node) === 'action.signOut').props.onPress();
     assert.deepEqual(f.writes, [{signOut: f.person, device: f.device}]); f.writes.length = 0;
-    nodes(f.render()).find((node: any) => node.props.testID === 'people-devices-signout-all').props.onPress();
+    nodes(f.render().props.ListFooterComponent).find((node: any) => node.props.testID === 'people-devices-signout-all').props.onPress();
     assert.equal(f.writes.length, 0);
     confirmation = nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
     await nodes(confirmation.props.footer).find((node: any) => node.type === 'Button' && content(node) === 'action.signOut').props.onPress();
@@ -108,7 +131,7 @@ test('Person Devices is windowed and both sign-out actions wait for confirmation
 test('Person Profiles mounts the real read/editor surface with the exact selected person', async () => {
   const f = await fixture();
   try {
-    nodes(f.render()).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('profiles');
+    nodes(f.tabs()).find((node: any) => node.props.testID === 'people-person-tabs').props.onValueChange('profiles');
     const profiles = nodes(f.render()).find((node: any) => node.type === 'PeopleMemberProfiles');
     assert.equal(profiles.props.person, f.person); assert.equal(profiles.props.people, f.source);
   } finally {f.host.dispose();}
@@ -120,8 +143,8 @@ test('the owner\'s Let back in sits on a Left row only and asks once before it i
     const left = {...f.person, accountId: 'left-fixture', username: 'left', status: 'left', allowedLibraries: [], libraryNames: [], profileNames: [], effectiveMaxStreams: null, liveState: 'idle'};
     const active = {...left, accountId: 'active-fixture', username: 'active', status: 'active'};
     (f.source as any).letBackIn = async (captured: unknown) => {f.writes.push({letBackIn: captured});};
-    const list = () => nodes(f.page()).find((node: any) => node.type === 'FlatList');
-    const button = (item: unknown, id: string) => nodes(list().props.renderItem({item})).find((node: any) => node.props.testID === `people-let-back-in-${id}`);
+    const list = () => nodes(f.page()).find((node: any) => node.props.testID === 'server-people');
+    const button = (item: unknown, id: string) => nodes(list().props.row(item, 0)).find((node: any) => node.props.testID === `people-let-back-in-${id}`);
     assert.equal(button(active, 'active-fixture'), undefined, 'no button for someone who has not left');
     button(left, 'left-fixture').props.onPress();
     assert.equal(f.writes.length, 0, 'nothing is sent before it is confirmed');
@@ -134,5 +157,19 @@ test('the owner\'s Let back in sits on a Left row only and asks once before it i
     assert.deepEqual(f.writes, [{letBackIn: left}]);
     (f.source as any).ownerControls = () => false;
     assert.equal(button(left, 'left-fixture'), undefined, 'only the owner sees it');
+  } finally {f.host.dispose();}
+});
+
+test('All invitations sends an unfiltered selection', async () => {
+  const f = await fixture();
+  try {
+    f.state.tab = 'invitations';
+    f.state.invitationStatus = 'pending';
+    const selections: unknown[] = [];
+    Object.assign(f.source, {select: (...args: unknown[]) => selections.push(args)});
+    const picker = nodes(f.page()).find((node: any) => node.type === 'Select' && node.props.value === 'pending');
+    assert.ok(picker.props.options.some((option: any) => option.value === ''));
+    picker.props.onValueChange('');
+    assert.deepEqual(selections, [['invitations', f.state.query, '']]);
   } finally {f.host.dispose();}
 });

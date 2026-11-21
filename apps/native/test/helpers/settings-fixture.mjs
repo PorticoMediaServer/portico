@@ -33,6 +33,7 @@ export async function settingsFixture(previous) {
     '../../../kit/settings/SettingsParts': parts, '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'NativeAdvancedSection'}, '../../../kit/frames': fixtureFrame, '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'},
     '../../../kit/shell/SettingsProfileCard': {SettingsProfileCard: 'Focusable'}, './useSettingsPreferences': prefs};
   const body = await load('pages/shared/settings/SettingsPreferences.tsx', bindings);
+  const People = previous['../../touch/settings/ServerPeoplePage']?.ServerPeoplePage;
   const History = previous['../../touch/settings/ServerHistoryPage']?.ServerHistoryPage;
   const page = await load('pages/shared/settings/SettingsPage.tsx', {...bindings, './useSettingsPage': model, './SettingsPreferences': body,
     './ServerGeneralPage': previous['./ServerGeneralPage'] ?? {ServerGeneralPage: 'ServerGeneralPage'},
@@ -40,11 +41,12 @@ export async function settingsFixture(previous) {
     '../../touch/settings/ServerStreamingPage': previous['../../touch/settings/ServerStreamingPage'] ?? {ServerStreamingPage: 'ServerStreamingPage'},
     '../../touch/settings/ServerSegmentsPage': previous['../../touch/settings/ServerSegmentsPage'] ?? {ServerSegmentsPage: 'ServerSegmentsPage'},
     '../../touch/settings/ServerIntegrationsPage': previous['../../touch/settings/ServerIntegrationsPage'] ?? {ServerIntegrationsPage: 'ServerIntegrationsPage'},
+    '../../touch/settings/ServerPeoplePage': {ServerPeoplePage: function PeoplePage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'people', back}, e(People));}},
     '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: function HistoryPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'history', back}, e(History));}}});
   return {NativeSettingsScreen: page.NativeSettingsPage};
 }
 
 export function settingsFixtureChildren(element) {
-  return ['SettingsListFrame', 'SettingsPageFrame', 'SettingsPageLink', 'SettingsKeyHints', 'PhoneDashboardCard', 'HistoryPage'].includes(element?.type?.name)
+  return ['SettingsListFrame', 'SettingsPageFrame', 'SettingsPageLink', 'SettingsKeyHints', 'PhoneDashboardCard', 'HistoryPage', 'PeoplePage'].includes(element?.type?.name)
     ? element.type(element.props) : element?.props?.children;
 }

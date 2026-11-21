@@ -24,7 +24,7 @@ import {nativeNetworkFetch} from '../../platform/server-connections';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
 import {NativeScreenLifetime} from '../settings-live/lifetime';
-import {ProfileColorPicker, ProfileRestrictionsFields} from '../settings-live/ProfileEditorFields';
+import {ProfileColorPicker, ProfileRestrictionsFields} from '../../kit/settings/ProfileEditorFields';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
 import {TVAccountFields, TVAuthLayout} from '../../kit/frames/TVAuthLayout';

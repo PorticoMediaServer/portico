@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 
-const deferred = () => {let resolve!: (value: any) => void; const promise = new Promise<any>(next => {resolve = next;}); return {promise, resolve};};
+const deferred = () => {let resolve!: (value: any) => void, reject!: (reason: unknown) => void; const promise = new Promise<any>((next, fail) => {resolve = next; reject = fail;}); return {promise, resolve, reject};};
 const row = {accountId: 'member-fixture', username: 'member', role: 'member', revision: 2, limitsRevision: 3};
 const person = {...row, disabled: false, notes: '', limits: {allowRemote: true}};
 const page = (items = [row]) => ({items, totalCount: items.length, matchedCount: items.length, nextCursor: '', limit: 40});
@@ -224,4 +224,23 @@ test('the owner lets back in someone who left from the row shown, and People is 
     if (role === 'admin') assert.equal(f.writes.length, 0, 'an administrator sends nothing');
     f.source.dispose();
   }
+});
+
+test('a refused People read clears account data and notifies listeners after retiring', async () => {
+  const f = await fixture();
+  await f.load();
+  const snapshots: any[] = [];
+  f.source.subscribe(() => snapshots.push(f.source.getSnapshot()));
+  const request = f.source.load();
+  const refused = new Error('forbidden');
+  Object.assign(refused, {status: 403});
+  f.reads.at(-1).reject(refused);
+  await request;
+  assert.equal(f.source.current(), false);
+  assert.deepEqual(snapshots.at(-1).error, {status: 403});
+  assert.equal(snapshots.at(-1).people, undefined);
+  assert.equal(snapshots.at(-1).loading, false);
+  await f.source.load();
+  assert.equal(f.reads.length, 2);
+  f.source.dispose();
 });
