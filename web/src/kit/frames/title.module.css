@@ -51,6 +51,7 @@
 .tagline { display: none; margin: 0; font-size: var(--type-row-label-size); line-height: var(--type-row-label-line); font-weight: var(--type-row-label-weight); }
 .synopsis { margin: 0; font-size: var(--type-intro-size); line-height: var(--type-intro-line); font-weight: var(--type-intro-weight); color: var(--color-text-secondary); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--frame-hero-title-synopsis-lines); overflow: hidden; max-width: var(--spec-hero-synopsis-max-width-web); }
 .synopsis[data-read-more] { -webkit-line-clamp: 4; }
+.synopsis[data-expanded] { display: block; overflow: visible; }
 .readMore { margin: 0; display: flex; align-items: center; gap: var(--space-md); font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }
 .readMore button { display: inline-flex; align-items: center; gap: var(--space-tight); padding: 0; border: 0; background: none; color: var(--color-text); font: inherit; font-weight: var(--type-row-label-weight); cursor: pointer; }
 .credits { display: none; margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-help-line); color: var(--color-text-tertiary); }

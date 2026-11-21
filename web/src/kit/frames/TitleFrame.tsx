@@ -58,7 +58,9 @@ export type TitleFrameProps = Readonly<{
   tagline?: string;
   synopsis?: string;
   /** A biography's Read more and where it is from ("Biography from TMDB"). */
-  readMore?: Readonly<{label: string; onPress: () => void; note?: string}>;
+  readMore?: Readonly<{label: string; onPress: () => void; note?: string;
+    /** The whole text is shown (Show less): the synopsis is not clamped and the chevron points up. */
+    expanded?: boolean}>;
   /** "Directed by" and "Starring", from 1024. */
   credits?: readonly TitleCredit[];
   /** The cast circles on the left page when the window is two pages (foldable f2). Elsewhere the cast is in Details. */
@@ -125,9 +127,9 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
   const words = loading ? <div className={styles.words} aria-hidden="true"><Skeleton line width="96%" /><Skeleton line width="70%" /></div>
     : (tagline !== undefined || synopsis !== undefined || credits?.length) ? <div className={styles.words}>
       {tagline !== undefined && <p className={styles.tagline}>{tagline}</p>}
-      {synopsis !== undefined && <p className={styles.synopsis} data-read-more={readMore ? true : undefined}>{inlineMarkup(synopsis).map((run, index) => run.kind === 'break' ? <br key={index} />
+      {synopsis !== undefined && <p className={styles.synopsis} data-read-more={readMore ? true : undefined} data-expanded={readMore?.expanded || undefined}>{inlineMarkup(synopsis).map((run, index) => run.kind === 'break' ? <br key={index} />
         : run.strong && run.emphasis ? <strong key={index}><em>{run.text}</em></strong> : run.strong ? <strong key={index}>{run.text}</strong> : run.emphasis ? <em key={index}>{run.text}</em> : <Fragment key={index}>{run.text}</Fragment>)}</p>}
-      {readMore && <p className={styles.readMore}><button type="button" onClick={readMore.onPress}>{readMore.label}<Icon name="i-chdown" size={16} /></button>{readMore.note !== undefined && <span>{readMore.note}</span>}</p>}
+      {readMore && <p className={styles.readMore}><button type="button" onClick={readMore.onPress}>{readMore.label}<Icon name={readMore.expanded ? 'i-up' : 'i-chdown'} size={16} /></button>{readMore.note !== undefined && <span>{readMore.note}</span>}</p>}
       {credits && credits.length > 0 && <p className={styles.credits}>{credits.map(credit => <span key={credit.label}>{credit.label} <b>{names(credit.names)}</b></span>)}</p>}
     </div> : null;
   const kickerLine = kicker && <p className={styles.kicker}>
