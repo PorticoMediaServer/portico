@@ -109,7 +109,7 @@
 .guideFlag[data-flag='premiere'] { box-shadow: inset 0 0 0 1.5px var(--color-accent-strong); color: var(--color-accent-strong); }
 .guideProgress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .guideProgress i { display: block; height: 100%; background: var(--color-accent-strong); }
-.guideNowLine { position: absolute; top: -6px; bottom: 0; width: 2px; margin-left: -1px; background: var(--color-accent-strong); box-shadow: 0 0 14px color-mix(in srgb, var(--color-accent-strong) 55%, transparent); pointer-events: none; z-index: -1; }
+.guideNowLine { position: absolute; top: -6px; bottom: 0; width: 2px; margin-left: calc(var(--guide-column) - 1px); background: var(--color-accent-strong); box-shadow: 0 0 14px color-mix(in srgb, var(--color-accent-strong) 55%, transparent); pointer-events: none; z-index: -1; }
 .guideKbd { line-height: normal; margin: 0; padding: 18px var(--shell-gutter) 44px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 @media (max-width: 1023px) {
   .guideSource { display: none; }
