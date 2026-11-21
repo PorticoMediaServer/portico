@@ -695,7 +695,7 @@ test('actual Search registration keeps equal-value retained genre R1/R2 sort roo
       const snapshot = {phase: 'ready', capabilities: {library: {kind: 'movie'}, sorts}, sort, predicates: [], collection, queryRevision: 0};
       return {source: {subscribe: () => () => {}, getSnapshot: () => snapshot, getMemory: () => ({firstVisibleIndex: 0, offset: 0}), contains: () => false,
         setQuery: (_: any, sort: any) => commands.push({route, sort})}, activation: {subscribe: () => () => {}, getSnapshot: (() => {const visible = {visible: true}, hidden = {visible: false}; return () => showing === route ? visible : hidden;})()}, dispose() {}};
-    }}, './GenreBrowseScreen': genreModule, '../../shell/model': {authorityKey}});
+    }}, './GenreBrowseScreen': genreModule, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'}, '../../shell/model': {authorityKey}});
   const context = {authority: () => authority, subscribeAuthority: () => () => {}, session: () => ({viewer: {role: 'member'}}), navigation: {
     subscribe: () => () => {}, retainedRoutes: () => [r1], getSnapshot: () => ({route: showing}), back() {} }};
   let latestReads = 0;
