@@ -60,9 +60,11 @@
 .removeIcon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--browse-secondary); }
 .appliedChip:hover .removeIcon { background: color-mix(in srgb, var(--color-text) 14%, transparent); color: var(--browse-text); }
 .appliedChip:hover { background: color-mix(in srgb, var(--color-raised-bright), var(--color-accent) 16%); }
-.toolbar[data-sticky] { position: sticky; background: color-mix(in srgb, var(--color-ink) 86%, transparent); backdrop-filter: blur(22px) saturate(1.2); -webkit-backdrop-filter: blur(22px) saturate(1.2); box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text) 6%, transparent); padding-block: 12px; }
+.toolbar[data-sticky] { position: sticky; padding-block: 12px; }
+/* The glass is drawn only while the bar is held at the top (data-stuck): at rest it sits on the backdrop, with no band or edge. */
+.toolbar[data-sticky][data-stuck] { background: color-mix(in srgb, var(--color-ink) 86%, transparent); backdrop-filter: blur(22px) saturate(1.2); -webkit-backdrop-filter: blur(22px) saturate(1.2); box-shadow: 0 1px 0 color-mix(in srgb, var(--color-text) 6%, transparent); }
 .toolbar[data-sticky] .toolbarMain { padding-top: 0; }
-.toolbar[data-sticky]::after { content: ''; position: absolute; inset: 100% 0 auto; height: 28px; background: linear-gradient(color-mix(in srgb, var(--color-ink) 70%, transparent), transparent); pointer-events: none; }
+.toolbar[data-sticky][data-stuck]::after { content: ''; position: absolute; inset: 100% 0 auto; height: 28px; background: linear-gradient(color-mix(in srgb, var(--color-ink) 70%, transparent), transparent); pointer-events: none; }
 /* Phone width: one row (owner, 18 Nov): Filters, sort, the chips' sideways rail fading at its end, grid / list pinned at the right. */
 .toolbar[data-platform=phone] .toolbarMain { padding: 10px var(--shell-gutter); flex-wrap: nowrap; }
 .chipRail { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }

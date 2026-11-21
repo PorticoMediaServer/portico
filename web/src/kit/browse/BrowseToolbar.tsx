@@ -1,4 +1,4 @@
-import {useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import type {BrowseSortCapability, BrowseSortSelection} from '@core/browse';
 import {sortDirectionKind} from '@core/presentation/browse-toolbar';
@@ -151,27 +151,43 @@ function ResultCount({children, accepted, source, className}: {children: ReactNo
   useAcceptedArrival(ref, accepted, source);
   return <span ref={ref} className={className}>{children}</span>;
 }
+/** Whether a sticky toolbar is held at its top inset: the glass behind it is drawn only then, so at rest it sits on the
+ * backdrop with no band and no edge (desktop-browse see all). Any scroll in the document is heard. */
+function useStuck(sticky: boolean, topInset: number) {
+  const ref = useRef<HTMLDivElement>(null), [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    if (!sticky) {setStuck(false); return;}
+    let frame = 0;
+    const measure = () => {frame = 0; const node = ref.current; if (node) setStuck(node.getBoundingClientRect().top <= topInset + 0.5);};
+    const queue = () => {if (!frame) frame = requestAnimationFrame(measure);};
+    measure();
+    document.addEventListener('scroll', queue, {capture: true, passive: true}); window.addEventListener('resize', queue);
+    return () => {document.removeEventListener('scroll', queue, {capture: true}); window.removeEventListener('resize', queue); if (frame) cancelAnimationFrame(frame);};
+  }, [sticky, topInset]);
+  return {ref, stuck};
+}
 export function BrowseToolbar({model, labels, resultCount, resultTotal, platform = 'desktop', sticky = false, topInset = 76, onQuickChange, onFilters, filtersOpen,
   onSortChange, onReshuffle, view, cardSize, save, applied = [], onRemoveFilter, onClearFilters, onJump, selection, actions, className, sortLabel, quickIds, accepted, acceptedSource, selectionActive}: BrowseToolbarProps) {
   const sortLabels = surfaceSortLabels(labels, sortLabel);
   const quick = quickIds === undefined ? model.quick : model.quick.filter(item => quickIds.includes(item.id));
   const sort = model.sorts.length > 0 && <SortMenu sorts={model.sorts} value={model.sort} onValueChange={onSortChange} label={sortLabels.sort} onReshuffle={onReshuffle} showOrder={sortLabel === undefined}/>;
   const phone = platform === 'phone';
+  const stuck = useStuck(sticky, topInset);
   const filters = (model.groups.length > 0 || model.filterQuick.length > 0) && <FiltersButton count={applied.length} matches={phone && applied.length > 0 ? resultTotal : undefined} open={filtersOpen} onClick={onFilters}/>;
   const quickChips = quick.map(item => <QuickToggle key={item.id} selected={item.active} onCheckedChange={checked => onQuickChange(item.id, checked)}>{item.label?.text ?? labels.quick(item)}</QuickToggle>);
   // Phone width (owner, 18 Nov): ONE row under the tabs: Filters, sort, the applied filters and quick chips in a sideways rail
   // that fades at its end, grid / list pinned at the right. No count line; Filters says how many match while a filter applies.
-  if (phone) return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
+  if (phone) return <div ref={stuck.ref} className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} data-stuck={stuck.stuck || undefined} style={{top: topInset}}>
     {selection}{!(selectionActive ?? selection != null) && <div className={styles.toolbarMain}>{filters}{sort}
       <ChipRail>{applied.length > 0 && onRemoveFilter && <AppliedFilterChips items={applied} onRemove={onRemoveFilter}/>}{actions}{quickChips}</ChipRail>
       {view && <ViewToggle {...view}/>}</div>}
   </div>;
-  return <div className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} style={{top: topInset}}>
+  return <div ref={stuck.ref} className={[styles.toolbar, className].filter(Boolean).join(' ')} data-platform={platform} data-sticky={sticky || undefined} data-stuck={stuck.stuck || undefined} style={{top: topInset}}>
     {selection}{!(selectionActive ?? selection != null) && <><div className={styles.toolbarMain}>
       {/* Sort sits directly after Filters on every form (owner, 18 Nov); the count and grid / list end the row. */}
       {filters}{sort}{platform === 'tv' && onJump && <Chip onClick={onJump}>{t('next.browse.jump')}<Icon name="i-down" size={16}/></Chip>}
       {/* The divider separates Filters and Sort from what follows them; with nothing after them (Comics' Volumes and issues) it is not drawn. */}
-      {(actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
+      {(filters || sort || platform === 'tv' && onJump) && (actions != null && actions !== false || quick.length > 0) && <span className={styles.separator} aria-hidden="true"/>}
       {actions}{quickChips}
       {<div className={styles.toolbarEnd}>{platform === 'desktop' && <ResultCount className={styles.resultCount} accepted={accepted} source={acceptedSource}>{resultCount}</ResultCount>}
         {view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>} {save && <SaveViewButton {...save}/>}</div>}
