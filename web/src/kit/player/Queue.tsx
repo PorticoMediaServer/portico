@@ -24,6 +24,12 @@ export function AudioPanel({tabs, footer, children, label}: {
   </section>;
 }
 
+/** The panel's raised surface alone, for a screen whose own panel content (tabs, queue, lyrics, the equaliser) already lays
+ * itself out: the same glass card as `AudioPanel`. */
+export function AudioPanelSurface({label, children}: {label: string; children: ReactNode}) {
+  return <section className={`${styles.panel} ${styles.surface}`} aria-label={label}>{children}</section>;
+}
+
 /** A group's label ("Now playing", "Next from After Hours", "Added by you") with its hint at the right ("Drag to reorder", "Chapter 15 of 26"). */
 export function QueueGroup({label, hint}: {label: string; hint?: string}) {
   return <h3 className={styles.group}><span>{label}</span>{hint !== undefined && <small>{hint}</small>}</h3>;
