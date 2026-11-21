@@ -43,7 +43,7 @@ export function createNativeTVMusicRenderer(context: NativeShellBootstrapContext
     // whose original object was replaced is retired, never drawn dead.
     if(page&&page.route!==route){close(page);pages.delete(key);page=undefined;}
     if (!page) {
-      const controller = new NativeTVMusicController({api: context.api, entry:route.entry,similarScope,lifetime:{scope:lifetime.scope,current:pageCurrent},playback: context.playback, requestId: nativeScreenServices(context).requestId});
+      const controller = new NativeTVMusicController({api: context.api, entry:route.entry,similarScope,lifetime:{scope:lifetime.scope,current:pageCurrent},playback: context.playback, expandOnPlay: Platform.isTV && route.entry.kind === 'album', requestId: nativeScreenServices(context).requestId});
       const actions = createNativeEntryActions(context, {current:pageCurrent,
         contains: entry => controller.contains(entry), subscribe: controller.subscribe});
       const tvSelection = Platform.isTV ? createNativeMusicSelection(context, controller, key, pageCurrent) : undefined;
