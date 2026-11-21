@@ -33,7 +33,7 @@ const chromeModules = {
   'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'GestureDetector'},
   '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds},
   './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})},
-  '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, '../../pages/tv/player/PlayerPage': {TVPlayerPage: 'TVPlayerPage'}, './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'},
+  '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, '../../pages/touch/player/SidewaysPlayerPage': {SidewaysPlayerPage: 'SidewaysPlayerPage'}, '../../pages/tv/player/PlayerPage': {TVPlayerPage: 'TVPlayerPage'}, './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'},
   './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {}; return () => snapshot;})()},
   './live-actions': {noLiveActionsSubscription: () => () => {}, emptyLiveActions: (() => {const snapshot = {}; return () => snapshot;})()},
   '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})},
@@ -154,7 +154,7 @@ const descendants = (node: any): any[] => {
   if (Array.isArray(node)) return node.flatMap(descendants);
   if (!React.isValidElement(node)) return [];
   const props = (node as any).props;
-  const content = node.type === 'PlayerPage' || node.type === 'TVPlayerPage'
+  const content = node.type === 'PlayerPage' || node.type === 'TVPlayerPage' || node.type === 'SidewaysPlayerPage'
     ? [props.picture, props.tools, props.scrubber, props.transport, props.prompts, props.card, props.leading, props.trailing, props.timeAction, props.identity?.accessory]
     : props.children;
   return [node, ...descendants(content)];
@@ -235,7 +235,7 @@ test('seek preview keeps transport native targets mounted for a guide-based Down
   } finally {await host.unmount(); controls.dispose();}
 });
 
-test('phone-player 1b: while you drag, the chips step aside in place, and come back when you let go', async () => {
+test('phone-player 1b: the sideways phone is the frame\'s sideways form; while you drag, its pills step aside in place, and come back when you let go', async () => {
   const previousTV = isTV; isTV = false;
   const artwork = () => undefined;
   const controls = new NativeWatchControls(false), currentFence = {...fence, showId: 'show'};
@@ -248,15 +248,16 @@ test('phone-player 1b: while you drag, the chips step aside in place, and come b
   await host.mount();
   try {
     assert.equal(descendants(tree).find(node => node.type === 'Timeline' && !node.props.tv).props.artwork, artwork, 'the scrub picture still reaches the timeline (#605)');
-    const row = () => descendants(tree).find(node => node.props.testID === 'watch-chip-row');
-    assert.equal(row().props.style.opacity, 1); assert.equal(row().props.pointerEvents, 'auto');
+    // The pills are the frame's sideways form now: the page passes `scrubbing`, and the frame keeps their row in place, hidden.
+    const page = () => descendants(tree).find(node => node.type === 'SidewaysPlayerPage');
+    assert.equal(page().props.scrubbing, false);
+    assert.deepEqual(page().props.leading, {id: 'episodes', icon: 'i-stack', name: defaultI18n.t('title.episodes'), value: undefined, open: false});
+    assert.deepEqual(page().props.pills.map((pill: any) => pill.id), ['subtitles', 'quality']);
     const timeline = descendants(tree).find(node => node.type === 'Timeline' && !node.props.tv);
     timeline.props.onPreview(25); await host.flush();
-    assert.equal(row().props.style.opacity, 0, 'hidden while dragging');
-    assert.equal(row().props.pointerEvents, 'none'); assert.equal(row().props.importantForAccessibility, 'no-hide-descendants');
-    assert.equal(row().props.style.marginTop, 10, 'its space is kept, so nothing moves');
+    assert.equal(page().props.scrubbing, true, 'hidden while dragging');
     timeline.props.onPreview(undefined); await host.flush();
-    assert.equal(row().props.style.opacity, 1, 'back when you let go');
+    assert.equal(page().props.scrubbing, false, 'back when you let go');
   } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
 });
 

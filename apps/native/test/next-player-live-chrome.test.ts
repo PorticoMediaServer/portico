@@ -5,7 +5,8 @@ import {playbackFence, sameFence} from '../../../packages/player-core/src/identi
 import {followedByScene} from '../../../packages/player-core/src/segment-skip.ts';
 import * as landingStoreModule from '../src-next/screens/watch/landing-store.ts';
 
-const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
+const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.type === 'SidewaysPlayerPage'
+  ? [value.props.picture, value.props.transport, value.props.scrubber, value.props.prompts, value.props.card] : value.props.children)] : [];
 const strings = (value: any): string => Array.isArray(value) ? value.map(strings).join(' ') : value?.props ? strings(value.props.children) : value == null || value === false ? '' : String(value);
 const noopSubscription = () => () => {};
 const scope = {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'} as const;
@@ -51,7 +52,7 @@ async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'col
     '../../kit/useScreenReader': {useScreenReader: () => false},
     '../../kit/useMotion': {useMotion: () => ({reduce: true, timing: () => ({}), duration: () => 0}), useReducedMotion: () => true},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined},
-    '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, '../../pages/tv/player/PlayerPage': {TVPlayerPage: 'TVPlayerPage'}, './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, './landing-store': landingStoreModule, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, './controls': {}, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
+    '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, '../../pages/touch/player/SidewaysPlayerPage': {SidewaysPlayerPage: 'SidewaysPlayerPage'}, '../../pages/tv/player/PlayerPage': {TVPlayerPage: 'TVPlayerPage'}, './TVControlLabel': {TVControlLabel: 'TVControlLabel'}, './landing-store': landingStoreModule, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, './controls': {}, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
     './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})}, './UpNextCard': {NativeUpNextCard: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: noopSubscription}, './live-actions': {emptyLiveActions: () => ({}), noLiveActionsSubscription: noopSubscription},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: String},

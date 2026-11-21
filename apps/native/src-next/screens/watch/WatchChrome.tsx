@@ -15,6 +15,7 @@ import {admitTVPlayPause, tvPlayPauseTogglesPlayback} from '../../platform/tv-pl
 import {useTVPlayPauseOwner} from '../../platform/tv-play-pause-owner';
 import {Button, Focusable} from '../../kit/controls';
 import {PlayerPage} from '../../pages/touch/player/PlayerPage';
+import {SidewaysPlayerPage, type SidewaysPill} from '../../pages/touch/player/SidewaysPlayerPage';
 import {TVPlayerPage} from '../../pages/tv/player/PlayerPage';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
@@ -836,6 +837,37 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
         onSelect={channel => {const row = liveGuide.rows.find(value => value.channel === channel);if (current() && row) void props.liveGuide?.tune(row, liveGuide);}}
         onClose={() => {if (current()) props.liveGuide?.close(liveGuide);}} onFullGuide={() => {if (current()) props.liveGuide?.fullGuide(liveGuide);}}
         error={liveGuide.error ? <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{playbackUserMessage(liveGuide.error)}</Text> : undefined}/>}
+    </Animated.View></GestureDetector>;
+  }
+  // phone-player 1: a phone turns sideways only in the video player, and there it is the frame's sideways form.
+  if (!theme.isTV && !compact && !tablet && !linear && width > height && height < 600) {
+    const admitted = !initialPlayer || initialPlayer.controlsAdmitted;
+    const pill = (id: NativeWatchPanel, icon: IconName, name: string, value?: string): SidewaysPill => ({id, icon, name, value, open: state.panel === id});
+    return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={admitted ? 'box-none' : 'none'}
+      accessibilityElementsHidden={!admitted} importantForAccessibility={admitted ? 'auto' : 'no-hide-descendants'} style={[{width, height}, chromeMorphStyle]}>
+      <SidewaysPlayerPage chromeVisible={visible} scrubbing={scrubbing}
+        identity={identity ? {title: identity.title, subtitle: identity.subtitle.map(part => part.text).join('  ')} : undefined}
+        picture={<Focusable ref={picture} testID="watch-picture" accessibilityRole="button" accessibilityLabel={identity?.title ?? t('player.opt.menu')}
+          onPress={() => {if (controlsCurrent()) controls.toggleVisibility(fence);}} style={{flex: 1}}/>}
+        onMinimize={() => {if (minimizeCurrent()) props.onMinimize(fence);}}
+        controlsEnabled={controlsEnabled} castRef={castButton} onOptions={() => {if (controlsCurrent()) panel('options');}}
+        onCast={props.onCast ? () => {if (controlsCurrent()) props.onCast!(fence, castButton);} : undefined}
+        onPictureInPicture={pipOffered ? () => {if (controlsCurrent()) props.onPictureInPicture!(fence);} : undefined}
+        transport={props.waiting || stillWatching ? null : transport}
+        times={{position: clockText(source.playback.positionSeconds) ?? '',
+          remaining: `-${clockText(Math.max(0, source.playback.duration - source.playback.positionSeconds))}`}}
+        scrubber={<NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={false}
+          enabled={controlsEnabled} onPreview={setLanding} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds}
+          skipForwardSeconds={props.skipForwardSeconds}/>}
+        leading={fence.kind === 'queue' && fence.showId ? pill('episodes', 'i-stack', t('title.episodes')) : undefined}
+        pills={[
+          ...(source.capabilities.subtitleTrack ? [pill('subtitles', 'i-cc', t('player.opt.subtitles'), props.subtitle)] : []),
+          ...(source.capabilities.audioTrack && audioTracks > 1 ? [pill('audio', 'i-audio', t('title.audio'), props.audio)] : []),
+          pill('quality', 'i-quality', t('player.opt.quality'), props.quality),
+        ]} onPill={id => {if (controlsCurrent()) panel(id as NativeWatchPanel);}}
+        prompts={skipOfferNode ? undefined : skipNodes} card={skipOfferNode} onControlsLayout={props.onPictureControlsLayout}/>
+      {props.notice && state.panel === undefined && <LossNotice notice={props.notice} top={64} gutter={54} available={width}/>}
+      {stillWatchingNode}
     </Animated.View></GestureDetector>;
   }
   return <GestureDetector gesture={minimizeSwipe}><Animated.View testID="watch-chrome" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted} importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{width, height}, chromeMorphStyle]}>
