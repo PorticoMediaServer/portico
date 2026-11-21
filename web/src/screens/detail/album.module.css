@@ -1,19 +1,4 @@
-/* desktop-listen's album page, lifted onto the current kit. */
-.page { position: relative; isolation: isolate; padding: 0 var(--shell-gutter) 80px; color: var(--color-text); }
-/* The back row lies over the hero's top, as on the artist and audiobook pages; the cover hero keeps
-   its own clearance under it and under the desktop top bar. */
-.bar { position: absolute; z-index: var(--layer-content); top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 12px var(--shell-gutter) 0; }
-/* The cover hero carries its own gutter; inside this padded page it bleeds back to the edge. */
-.heroBleed { margin: 0 calc(-1 * var(--shell-gutter)) 28px; }
-/* desktop-listen#album: under the desktop top bar there is no back row. The rail and phone keep theirs. */
-:global([data-navigation='topbar']) .bar { display: none; }
-/* A row carries its own gutter; inside this padded page it bleeds back to the edge so its heading
-   and first card sit on the page gutter, not twice it. */
-.page > [data-layout-row] { margin-inline: calc(-1 * var(--shell-gutter)); }
-.barTitle { font-size: var(--type-body-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.unplayable { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
-.split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; padding-top: 52px; margin-bottom: 56px; }
-.full { display: grid; grid-template-columns: minmax(0, 1fr); padding-top: 52px; margin-bottom: 56px; }
+/* desktop-listen's album page: its own parts inside the title frame (the songs, the Details side, the format badges). */
 .tracks { min-width: 0; }
 .sortBar { display: flex; justify-content: flex-end; margin-bottom: 18px; }
 .trackGroup + .trackGroup { margin-top: 24px; }
@@ -27,15 +12,10 @@
 .source { display: block; margin: -8px 0 24px; color: var(--color-text-tertiary); font-size: var(--type-caption-size); }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
 .badge { display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--color-text) 30%, transparent); font-size: var(--type-fixed-size-13px); font-weight: var(--type-caption-strong-weight); color: var(--color-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
-@media (max-width: 1279px) {
-  .split { grid-template-columns: minmax(0, 1fr) 280px; gap: 40px; }
-}
 @media (max-width: 1023px) {
-  .split { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .facts { grid-template-columns: 88px 1fr; }
 }
 @media (max-width: 599px) {
-  .page { padding-bottom: 64px; }
   .badge { font-size: var(--type-fixed-size-11px); height: 20px; padding: 0 6px; border-radius: 4px; }
   .badges { justify-content: center; }
 }
