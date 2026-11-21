@@ -165,7 +165,7 @@ function IntroPart({part}: {part: RowReasonPart}) {
 function BrowseHeader({title, back, trailing, switcher, menu, counts, ambient, tabs: tabItems, intro, introParts, actions}: BrowseHeaderProps) {
   const frame = useFrameMetrics(), form = frame.form;
   // TV sets the tabs beside the title, in the header's own row; elsewhere they run from the gutter under it.
-  const strip = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange}
+  const strip = tabItems && <Tabs items={tabItems.items} value={tabItems.value} onValueChange={tabItems.onValueChange} pivots={form === 'tv'}
     disabled={tabItems.disabled} itemProps={tabItems.itemProps} style={form === 'tv' ? undefined : {marginTop: form === 'phone' ? 0 : frame.headerGap}}
     contentContainerStyle={form === 'tv' ? {paddingHorizontal: 0} : {paddingLeft: frame.gutter, paddingRight: frame.rightGutter}}/>;
   const tabs = tabItems?.region ? <FocusRegion {...tabItems.region} orientation="horizontal" entry={tabItems.value}>{strip}</FocusRegion> : strip;
