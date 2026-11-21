@@ -55,3 +55,29 @@ test('TV Saved sends title A to Z to both lists and honors an explicit direction
     ]);
   } finally {controller.dispose();}
 });
+
+test('TV Saved reads the shown tab again in place when its page comes back, so a deleted playlist does not linger', async () => {
+  const calls: string[] = [];
+  class Service {
+    route: any;
+    subscribe() {return () => {};}
+    getSnapshot() {return {};}
+    async select(route: any) {this.route = route; calls.push(`select:${route.view}${route.shape ? `:${route.shape}` : ''}`);}
+    async refresh() {calls.push(`refresh:${this.route?.view}${this.route?.shape ? `:${this.route.shape}` : ''}`);}
+    dispose() {}
+  }
+  const {NativeTVSavedController} = await screenModule(new URL('../src-next/screens/destinations/saved/model.ts', import.meta.url), {
+    '../../../../../../packages/client-core/src/saved': {savedListSorts: ['title'], SavedService: Service},
+    '../../saved/view-model': {NativeSavedViewDestination: Service}, '../lifetime': {}, '../../native-screen-services': {}, react: {default: {}},
+  });
+  const controller = new NativeTVSavedController({api: {}, scope: {}, current: () => true});
+  try {
+    await controller.select('playlists', {filter: 'mine'});
+    await controller.reload();
+    assert.deepEqual(calls, ['select:playlists', 'refresh:playlists'], 'the same playlists route is read again, not reset');
+    calls.length = 0;
+    await controller.select('favorites');
+    await controller.reload();
+    assert.deepEqual(calls.filter(call => call.startsWith('refresh')), ['refresh:favorites:posters', 'refresh:favorites:squares']);
+  } finally {controller.dispose();}
+});

@@ -121,6 +121,12 @@ export function useTVSavedPage({controller, runtime, activation, authority, init
   const run = useCallback((work: Promise<unknown>) => {void work.catch(runtime.reportError);}, [runtime]);
   const started = useRef(false);
   useEffect(() => {if (started.current) return; started.current = true; run(controller.select(tab, {sort, filter, period})); run(controller.summary());}, [controller, filter, period, run, sort, tab]);
+  // Coming back from a page opened from here (a playlist that was deleted or renamed there) reads the tab again.
+  const shown = useRef(active.visible);
+  useEffect(() => {
+    const returned = active.visible && !shown.current && started.current; shown.current = active.visible;
+    if (returned) {run(controller.reload()); run(controller.summary());}
+  }, [active.visible, controller, run]);
   const choose = useCallback((next: Tab) => {if (next === tab) return; setTab(next); run(controller.select(next, {sort, filter, period}));}, [controller, filter, period, run, sort, tab]);
   const tabsState = useMemo(() => ({phase: snapshot.phase, route: {view: tab} as const, error: snapshot.error}), [snapshot.phase, snapshot.error, tab]);
   const tabsDestination = useMemo(() => ({
