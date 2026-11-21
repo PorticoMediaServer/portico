@@ -7,7 +7,7 @@ const route = readFileSync(new URL('../src/screens/account/Notifications.route.t
 test('at phone width /notifications is phone-app 21: the bar with Mark all read, one view row, and a section per audience', () => {
   assert.match(route, /if \(narrow\) return <PhoneNotifications captured=\{captured\}\/>;/);
   assert.match(route, /<PushedNavBar safeArea=\{false\} backLabel=\{t\('next\.shell\.settings'\)\} title=\{t\('notifications\.title'\)\}/);
-  assert.match(route, /trailing=\{<Button variant="text" size="small" className=\{styles\.markAll\} onClick=\{readAll\}>\{t\('notifications\.markAllRead'\)\}<\/Button>\}/);
+  assert.match(route, /trailing=\{<Button variant="text" size="small" className=\{styles\.markAll\} disabled=\{unread === 0 && !serverState\?\.unread\} onClick=\{readAll\}>\{t\('notifications\.markAllRead'\)\}<\/Button>\}/);
   assert.match(route, /<Tabs phone className=\{styles\.phoneViews\} value=\{view\}/);
   assert.match(route, /section=\{\{audience: 'profile', view, title: t\('notifications\.audience\.profile'\)\}\}/);
   assert.match(route, /section=\{\{audience: 'account-admin', view, title: <>\{t\('notifications\.audience\.admin'\)\}<span>\{t\('next\.shell\.ownerOnly'\)\}<\/span><\/>\}\}/);
