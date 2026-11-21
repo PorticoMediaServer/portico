@@ -66,14 +66,20 @@ test('the hardware group draws the rebuilt report in shared words and runs its t
     react: host.react, 'react-native': {Text: 'Text', View: 'View'},
     '../../../../../packages/client-core/src/server-admin/streaming-hardware': await import('../../../packages/client-core/src/server-admin/streaming-hardware.ts'),
     '../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../../packages/client-core/src/presentation/settings-spec': specification, '../controls': {Button: 'Button'}, '../shell': {SettingsRow: 'SettingsRow'}, '../frames': {SectionCard: 'SectionCard'}, '../overlays': {Banner: 'Banner'}, '../states': {DetailsPanel: 'DetailsPanel'},
+    '../../../../../packages/client-core/src/presentation/settings-spec': specification, '../controls': {Button: 'Button'}, '../shell': {SettingsRow: 'SettingsRow'}, '../frames': {SectionCard: 'SectionCard'}, '../overlays': {Banner: 'Banner'}, '../shell/visual': {alpha: (color: string) => color},
+    '../theme': {useTheme: () => ({...theme, space: {xs: 4, sm: 8, hairline: 1}, baseRadii: {control: 8}})},
   });
   const hardware = {checking: false, devices: [{id: 'opaque1', name: 'Measured GPU', method: 'vaapi', inUse: true, toneMappingWithMasteringData: true, toneMappingWithoutMasteringData: true, formats: []}],
     formats: [{format: 'h264', decode: true, encode: false}], toneMappingWithMasteringData: true, toneMappingWithoutMasteringData: false, lastError: {reason: 'opaque_failure'}};
   const tree = host.render(() => module.StreamingHardware({hardware, disabled: false, testing: false, onTest: () => {tests++;}, t}));
   assert.ok(nodes(tree).some((node: {props: {label?: string}}) => node.props.label === 'Measured GPU'));
   assert.doesNotMatch(JSON.stringify(nodes(tree)), /opaque_failure/);
-  assert.equal(nodes(tree).filter((node: any) => node.props.testID === 'server-streaming-formats').length, 1);
+  const matrix = nodes(tree).find((node: any) => node.props.testID === 'server-streaming-formats');
+  assert.ok(matrix);
+  const formatLabels = nodes(matrix).filter((node: any) => node.type === 'Text').map(content);
+  for (const column of row('streaming.hwFormats').control.columns ?? []) assert.ok(formatLabels.includes(t(column.label)));
+  assert.ok(formatLabels.includes(t('next.settings.hardware.job.hardware')));
+  assert.ok(formatLabels.includes(t('next.settings.hardware.job.processor')));
   assert.equal(tests, 0);nodes(tree).find((node: any) => node.props.testID === 'server-streaming-test-hardware').props.onPress();assert.equal(tests, 1);
 });
 

@@ -9,7 +9,7 @@ import {NativeAdvancedSection} from '../../../kit/settings/AdvancedSection';
 import {NativeSettingControl} from '../../../kit/settings/SettingControl';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useServerStreaming} from './useServerStreaming';
+import {useServerStreaming} from '../../shared/settings/useServerStreaming';
 
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;
 

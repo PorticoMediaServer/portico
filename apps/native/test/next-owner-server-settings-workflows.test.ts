@@ -188,8 +188,8 @@ test('Streaming edits its folder and server-wide tone-map method', async () => {
     '../../../screens/settings-live/server/settings-values': values, '../../../screens/settings-live/lifetime': {NativeScreenLifetime: Lifetime},
     '../../../../../../packages/client-core/src/presentation/hardware-selection': await import('../../../packages/client-core/src/presentation/hardware-selection.ts'),
   });
-  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerStreamingPage.tsx', import.meta.url), {
-    ...chrome, react: host.react, './useServerStreaming': model,
+  const module = await screenModule(new URL('../src-next/pages/touch/settings/ServerStreamingPage.tsx', import.meta.url), {
+    ...chrome, react: host.react, '../../shared/settings/useServerStreaming': model,
     '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', SettingsPageFrame: 'SettingsPageFrame', StateRow: 'StateRow'},
     '../../../kit/overlays/surface': {OverlayFootRow: 'Footer'}, '../../../kit/settings/StreamingHardware': {StreamingHardware: 'Hardware'},
     '../../../kit/settings/AdvancedSection': {NativeAdvancedSection: 'Advanced'},
