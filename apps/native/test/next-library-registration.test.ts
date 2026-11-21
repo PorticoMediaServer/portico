@@ -44,9 +44,10 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../destinations/bulk-media': {NativeBulkMedia: 'NativeBulkMedia'}, './model': {nativeLibraryEntryKey}, './play-selection': playSelection,
     './selection-unavailable-actions': selectionUnavailableActions,
   });
-  const {NativeLibraryMarkAllDialog} = await screenModule(new URL('../src-next/screens/library/MarkAllDialog.tsx', import.meta.url), {
-    react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Button: 'Button'}, '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog'}, '../../kit/theme': {useTheme: () => theme},
+  const {NativeLibraryMarkAllDialog} = await screenModule(new URL('../src-next/kit/library/LibraryDialogs.tsx', import.meta.url), {
+    react, 'react-native': {Text: 'Text', TextInput: 'TextInput', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
+    '../controls': {Button: 'Button', TextField: 'TextField'}, '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../theme': {useTheme: () => ({space: {sm: 16}, ...theme})},
   });
   const {createNativeHandheldLibraryModule} = await screenModule(new URL('../src-next/screens/library/register.tsx', import.meta.url), {
     react, '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {browseNameId},
@@ -55,8 +56,8 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
     '../destinations/entry-actions': {createNativeEntryActions: () => ({open() {}, play() {}, menu() {}, dispose() {}})},
     './index': {createNativeLibraryRenderer: (_context: unknown, actual: unknown) => {ports = actual; return {render: () => null, dispose: () => {disposed++;}};}},
-    './model': {nativeLibraryCanSave}, './save-view': {NativeLibrarySaveView}, './SaveViewSheet': {NativeLibrarySaveViewSheet: 'SaveViewSheet'},
-    './selection': {createNativeLibrarySelection}, './mark-all': {NativeLibraryMarkAll: nativeMarkAll.NativeLibraryMarkAll}, './MarkAllDialog': {NativeLibraryMarkAllDialog},
+    './model': {nativeLibraryCanSave}, './save-view': {NativeLibrarySaveView}, 
+    './selection': {createNativeLibrarySelection}, './mark-all': {NativeLibraryMarkAll: nativeMarkAll.NativeLibraryMarkAll}, '../../kit/library/LibraryDialogs': {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet: 'SaveViewSheet'},
   });
   assert.equal(kind, 'library'); assert.equal(create, createNativeHandheldLibraryModule);
   const context = {current: () => true, navigation, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}),

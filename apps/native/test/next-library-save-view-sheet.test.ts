@@ -12,10 +12,10 @@ function elements(node: any): any[] {
 test('ruling 37 naming sheet keeps exact existing fields/copy, glass Cancel and guarded white Save', async () => {
   const host = hooks(); let saved = 0, closed = 0;
   let state: any = {open: true, name: '', busy: false, nameLocked: false};
-  const {NativeLibrarySaveViewSheet} = await screenModule(new URL('../src-next/screens/library/SaveViewSheet.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../kit/controls': {Button: 'Button', TextField: 'TextField'},
-    '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet'}, '../../kit/theme': {useTheme: () => ({type: {caption: {}}, colors: {textTertiary: '#aaa'}})},
+  const {NativeLibrarySaveViewSheet} = await screenModule(new URL('../src-next/kit/library/LibraryDialogs.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Text: 'Text', TextInput: 'TextInput', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../controls': {Button: 'Button', TextField: 'TextField'},
+    '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../theme': {useTheme: () => ({type: {caption: {}}, colors: {textTertiary: '#aaa'}, space: {sm: 16}})},
   });
   const controller = {subscribe() {}, getSnapshot: () => state, close: () => {closed++;}, save: async () => {saved++;}, setName() {}};
   const render = () => host.render(() => NativeLibrarySaveViewSheet({controller}));

@@ -12,8 +12,7 @@ import {createNativeLibrarySelection} from './selection';
 import {nativeLibraryCanSave, type NativeLibraryDestination, type NativeLibraryViewDraft} from './model';
 import {NativeLibrarySaveView} from './save-view';
 import {NativeLibraryMarkAll, type NativeMarkAllRequest} from './mark-all';
-import {NativeLibraryMarkAllDialog} from './MarkAllDialog';
-import {NativeLibrarySaveViewSheet} from './SaveViewSheet';
+import {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet} from '../../kit/library/LibraryDialogs';
 
 const label = (value: {id: string; labelKey?: string}) => {
   const id = browseNameId(value.id, value.labelKey, defaultI18n.has);
