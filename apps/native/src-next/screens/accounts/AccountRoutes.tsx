@@ -45,7 +45,8 @@ import {ServerChooserPage} from '../../pages/touch/accounts/ServerChooserPage';
 import {TVTrustedCertificates} from './TVTrustedCertificates';
 import {TVServerChooserPage} from '../../pages/tv/accounts/ServerChooserPage';
 import {removeCapturedServerDownloads} from './sign-out-downloads';
-import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage, TVWhosWatching} from '../../tv/auth';
+import {ProfilesPage as TVProfilesPage} from '../../pages/tv/accounts/ProfilesPage';
+import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage} from '../../tv/auth';
 import {registerBack} from '../../kit/navigation/back';
 
 const t = defaultI18n.t;
@@ -324,15 +325,29 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     code={pin} onCodeChange={setPin} busy={busy} error={error ? <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError> : undefined}
     onSubmit={value => {void choose(profile.id, value);}} onBack={back}
     onForgotPIN={() => {if (!busy) {cancelWrongPin(); setPin(''); setError(undefined); setForgotPIN(true);}}}/>
-    : <TVWhosWatching testID="accounts-profile-switch">
-      {/* F-PROFILE-7: only the faces take focus; Back is the remote key. A picker has no Add or Manage profiles (design 6212c813); owners do that in Settings on web or phone. */}
-      <ProfilePicker focusScope={lease?.live.value && lease.route === route ? `tv.account.profiles.${JSON.stringify([lease.authority, lease.revision])}` : undefined} focusBusy={busy} title={t('profiles.title')} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id)}))}
-        selectedId={current?.viewer.profileId} preferredProfileId={lease ? profileFocus.get(lease) : undefined}
-        onFocusChange={id => {if (id && lease) profileFocus.set(lease, id);}} onSelect={id => {const value = profiles.find(item => item.id === id)!;
-          if (id === current?.viewer.profileId) back(); else if (value.pinRequired) {setProfile(value); setPin(''); setError(undefined);} else void choose(id);}}/>
+    : <TVProfilesPage serverName={context.serverName} picker={{
+      // Only the faces take focus. Profile management stays in Settings on touch.
+      focusScope: lease?.live.value && lease.route === route ? `tv.account.profiles.${JSON.stringify([lease.authority, lease.revision])}` : undefined,
+      focusBusy: busy, profiles: profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art,
+        primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id)})),
+      selectedId: current?.viewer.profileId, preferredProfileId: lease ? profileFocus.get(lease) : undefined,
+      onFocusChange: id => {if (id && lease) profileFocus.set(lease, id);},
+      onSelect: id => {
+        const value = profiles.find(item => item.id === id)!;
+        if (id === current?.viewer.profileId) {
+          back();
+        } else if (value.pinRequired) {
+          setProfile(value);
+          setPin('');
+          setError(undefined);
+        } else {
+          void choose(id);
+        }
+      },
+    }} status={<>
       {!!error && <FormError>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError>}
       {errorRefresh}
-    </TVWhosWatching>}
+    </>}/>}
   </TVProfileSwitchPage>;
   const moveProfile = (target: ManagedProfile, direction: -1 | 1) => {
     if (!profileActionsCurrent()) return;
