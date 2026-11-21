@@ -10,7 +10,11 @@ const loader = registerHooks({load(url, context, next) {
   const module = (source: string) => ({format: 'module' as const, source, shortCircuit: true});
   if (url.endsWith('.module.css')) return module('export default new Proxy({}, {get:(_,k)=>String(k)});');
   if (url.endsWith('/kit/controls/index.ts')) return module("export const Button='button',Segmented='segmented',Slider='slider',TextField='input';");
-  if (url.endsWith('/kit/overlays/index.ts')) return module("export const Banner='banner',Dialog='dialog';");
+  if (url.endsWith('/kit/overlays/index.ts')) return module("export const Banner='banner',Dialog='dialog',Menu='menu';");
+  // The kit audio frame and player parts: the frame is a stand-in element whose props the tests read, with its panel drawn.
+  if (url.endsWith('/kit/frames/index.ts')) return module("export const AudioPlayerFrame='audio-frame',ArtPlaceholder='art-placeholder';");
+  if (url.endsWith('/kit/player/index.ts')) return module("export const PlayerVolume='player-volume',AudioPanelSurface='panel-surface';");
+  if (url.endsWith('/kit/media/index.ts')) return module("export const SeekLine='seek-line';");
   if (url.endsWith('/kit/artwork/index.ts')) return module("export const Artwork='artwork',AmbientArt='ambient',ArtworkGlow='artwork-glow',WholeArtwork='whole-artwork',GeneratedCover='generated-cover',useCoverAspect=()=>({aspect:undefined,onReady:()=>{}}),wholeCoverBox=()=>undefined;");
   if (url.endsWith('/kit/states/index.ts')) return module("export const StateView='state';");
   if (url.endsWith('/kit/Icon.tsx')) return module("export const Icon='icon';");
@@ -24,7 +28,7 @@ const {ListeningQueue} = await import('../src/screens/watch/listening/ListeningQ
 const {ListeningQueueWindow} = await import('../src/screens/watch/listening/ListeningQueueWindow.tsx');
 const {ListeningSeek} = await import('../src/screens/watch/listening/ListeningSeek.tsx');
 const {ListeningTabs} = await import('../src/screens/watch/listening/ListeningPanels.tsx');
-function elements(tree: ReactNode): any[] {const result: any[] = [];Children.forEach(tree, child => {if (isValidElement<any>(child)) {result.push(child);result.push(...elements((child as import('react').ReactElement<{children?: ReactNode}>).props.children));}});return result;}
+function elements(tree: ReactNode): any[] {const result: any[] = [];Children.forEach(tree, child => {if (isValidElement<any>(child)) {result.push(child);result.push(...elements((child as import('react').ReactElement<{children?: ReactNode}>).props.children));result.push(...elements((child as import('react').ReactElement<{panel?: ReactNode}>).props.panel));}});return result;}
 const noop = () => {};
 const chapter = (index: number, start: number, end: number): PlayerChapter => ({id: `source:${index}`, index, title: `Chapter ${index}`, startSeconds: start, endSeconds: end, action: {id: 'seek', positionSeconds: start}});
 const chapters: PlayerChaptersSnapshot = {generation: 1, phase: 'ready', target: {libraryId: 'library', itemId: 'book', sessionId: 'session', sessionGeneration: 1, sourceId: 'source'}, scope: {serverId: 'server', viewerId: 'viewer'}, pagination: {cursor: null, canPrevious: true}, error: null,
@@ -39,19 +43,19 @@ test('audiobook view uses actual part-local chapters and only offered pages/rate
   assert.deepEqual(calls.shift(), [chapters, chapters.data!.chapters[1]]);
   const pages = tree.filter(e => e.type === 'button' && e.props.children === 'Show more');pages[0].props.onClick();
   assert.deepEqual(calls.shift(), [chapters, 'next']);
-  const speed = tree.find(e => e.type === 'segmented' && e.props['aria-label'] === 'Speed');speed.props.onValueChange('2');assert.equal(calls.length, 0);
-  speed.props.onValueChange('1.25');assert.deepEqual(calls.shift(), [playback, 1.25]);
+  // Speed is the frame's row of offered rates (frame 8 from 600): only an offered rate is a choice, and it sends that rate.
+  const speed = tree.find(e => e.type === 'audio-frame').props.speed;
+  assert.deepEqual(speed.choices.map((choice: {label: string}) => choice.label), ['0.75×', '1×', '1.25×']);
+  speed.choices[2].onPress();assert.deepEqual(calls.shift(), [playback, 1.25]);
   assert.equal(elements(AudiobookListening(book({snapshot: {...playback, dock: {remote: {phase: 'playing'}}}}))).length, 0);
 });
 
 test('desktop-listen, audiobook player: Playing from, then Play on and More at the right; sleep choices read as drawn', () => {
   const tree = elements(AudiobookListening(book({sourceLabel: 'Audiobooks', canPlayOn: true, onShowPanel: noop})));
-  assert.ok(tree.some(e => e.type === 'span' && String(e.props.children).includes('Audiobooks')), 'Playing from its source');
-  const end = tree.find(e => e.type === 'span' && e.props.className === 'topEnd');
-  assert.ok(end, 'the right-hand group');
-  assert.deepEqual(elements(end.props.children).filter(e => e.type === 'button').map(e => e.props.icon), ['i-cast', 'i-more']);
-  const sleep = tree.find(e => e.type === 'segmented' && e.props['aria-label'] === defaultI18n.t('player.opt.sleepTimer'));
-  assert.deepEqual(sleep.props.items.map((item: {label: string}) => item.label).slice(1), ['15 min', '30 min']);
+  const frame = tree.find(e => e.type === 'audio-frame').props;
+  assert.equal(frame.source, 'Audiobooks', 'Playing from its source');
+  assert.deepEqual([frame.device.icon, frame.more.icon], ['i-cast', 'i-more'], 'Play on and More at the right');
+  assert.deepEqual(frame.sleep.choices.map((choice: {label: string}) => choice.label).slice(1), ['15 min', '30 min']);
 });
 
 test('chapter unavailable/none/error remain distinct, and paging never invents totals or requests', () => {
@@ -104,10 +108,10 @@ test('queue renders occurrence identity and forwards only that original witness;
 });
 test('phone audiobook uses the authored one-tap panels and no device volume slider', () => {
   const calls: unknown[] = [], tree = elements(AudiobookListening(book({phone: true, onShowPanel: (...args: unknown[]) => calls.push(args)})));
-  assert.equal(tree.some(e => e.type === 'slider' || e.type === 'segmented'), false);
-  const options = tree.filter(e => e.type === 'button' && typeof e.props.children !== 'string' && e.props.onClick && elements(e.props.children).some(child => child.type === 'b'));
-  options[0].props.onClick();assert.deepEqual(calls.shift(), [playback, 'speed']);
-  assert.equal(tree.some(e => e.type === 'aside'), false);
+  const frame = tree.find(e => e.type === 'audio-frame').props;
+  assert.equal(frame.volume, undefined, 'no device volume on a phone');
+  frame.speed.onPress();assert.deepEqual(calls.shift(), [playback, 'speed'], 'Speed is one tap to its panel');
+  assert.equal(frame.panel, undefined, 'no side panel on a phone');
 });
 
 test('queue save uses canonical progress and the rendered occurrence/revision witness', () => {
@@ -135,7 +139,7 @@ test('MU-2: with the whole book known, the player lists every part\'s chapters n
   const list = tree.find(e => e.type === BookChapterList);
   assert.equal(list.props.book, view, 'the side list is the whole book, not the part\'s pages');
   assert.ok(!tree.some(e => e.type === 'button' && e.props.children === 'Show more'));
-  assert.ok(tree.some(e => e.type === 'b' && e.props.children === 'Three'), 'the playing chapter is named');
+  assert.equal(tree.find(e => e.type === 'audio-frame').props.chapter.label, 'Three', 'the playing chapter is named');
   list.props.onPick(view.chapters[0]);
   assert.deepEqual(intents, [{kind: 'book-chapter', chapterId: 'part-a:1'}]);
   const rows = elements(BookChapterList({book: {...view, current: 0}, playing: true, disabled: false, onPick: noop}));
@@ -149,7 +153,7 @@ test('MU-2: with the whole book known, the player lists every part\'s chapters n
 });
 
 test('the chapter arrows say Previous/Next chapter only when the book\'s list covers the part; else Previous/Next, as they move parts', () => {
-  const arrows = (snapshot: unknown) => elements(AudiobookListening(book({snapshot}))).filter(e => ['i-prev', 'i-next'].includes(e.props.icon)).map(e => e.props['aria-label']);
+  const arrows = (snapshot: unknown) => elements(AudiobookListening(book({snapshot}))).find(e => e.type === 'audio-frame').props.transport.filter((slot: {icon: string}) => ['i-prev', 'i-next'].includes(slot.icon)).map((slot: {label: string}) => slot.label);
   assert.deepEqual(arrows(playback), ['Previous', 'Next'], 'the part\'s own chapters don\'t make the arrows move by chapter');
   assert.deepEqual(arrows({...playback, bookChapters: {bookId: 'book', itemId: 'part-b', phase: 'error', chapters: [], current: -1}}), ['Previous', 'Next']);
   const ready = {bookId: 'book', itemId: 'part-b', phase: 'ready', current: 0, chapters: [{id: 'part-b:1', itemId: 'part-b', index: 1, number: 1, title: 'One', startSeconds: 0, endSeconds: 60}]};
@@ -167,16 +171,14 @@ test('published one-based chapter numbers stay exact on the first and later page
   assert.deepEqual(received, [later, later.data!.chapters[0]]);
 });
 
-test('desktop/phone transports use local authored geometry and explicit icon sizes', () => {
+test('frame 8: the transport is the audio frame\'s five slots, the skips carrying their seconds, Play or Pause in the middle', () => {
   for (const phone of [false, true]) {
-    const tree = elements(AudiobookListening(book({phone})));
-    for (const icon of ['i-prev', 'i-next']) {const button = tree.find(e => e.props.icon === icon);assert.equal(button.props.className, 'control');assert.equal(button.props.iconOnly, true);assert.equal(button.props.iconSize, phone ? 28 : 24);}
-    const play = tree.find(e => e.props.className === 'playPause');assert.equal(play.props.iconSize, phone ? 34 : 30);assert.equal(play.props.iconOnly, true);assert.equal(play.props.variant, 'primary');
+    const slots = elements(AudiobookListening(book({phone}))).find(e => e.type === 'audio-frame').props.transport;
+    assert.deepEqual(slots.map((slot: {icon: string}) => slot.icon), ['i-prev', 'i-back', 'i-pause', 'i-fwd', 'i-next']);
+    assert.deepEqual(slots.map((slot: {skip?: number}) => slot.skip), [undefined, 15, undefined, 30, undefined], 'the book\'s own skips');
   }
-  const css = readFileSync(new URL('../src/screens/watch/listening/audiobook-listening.module.css', import.meta.url), 'utf8');
-  assert.match(css, /\.frame \.transport \.control \{ width: 50px; height: 50px; padding: 0; border-radius: 50%;/);
-  assert.match(css, /\.frame \.transport \.playPause \{ width: 74px; height: 74px; padding: 0; border-radius: 50%;/);
 });
+
 
 test('absent canonical lyrics choice capability offers no resource action', () => {
   const snapshot = lyrics(), tree = elements(LyricsPanel({snapshot, positionSeconds: 2.5, enabled: true, canSeek: false, onRetry: noop, onSeek: noop}));
@@ -220,10 +222,11 @@ test('desktop-listen 8: the chapter clock reads "12:04 of 31:40"; on a phone the
   const view = {bookId: 'book', itemId: 'part-b', phase: 'ready' as const, current: 2,
     chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('part-b:1', 'part-b', 3, 'Three', 0, 500)]};
   const desktop = elements(AudiobookListening(book({snapshot: {...playback, bookChapters: view}})));
-  assert.ok(desktop.some(e => e.type === 'span' && e.props.children === '0:12 of 8:20'), 'position of length, in words');
-  assert.equal(desktop.find(e => e.type === ListeningSeek).props.middle, undefined, 'desktop says the book\'s time left under Speed instead');
+  const desktopFrame = desktop.find(e => e.type === 'audio-frame').props;
+  assert.equal(desktopFrame.chapter.of, '0:12 of 8:20', 'position of length, in words');
+  assert.equal(desktopFrame.times.middle, undefined, 'desktop says the book\'s time left under Speed instead');
   const phone = elements(AudiobookListening(book({snapshot: {...playback, bookChapters: view}, phone: true})));
-  assert.equal(phone.find(e => e.type === ListeningSeek).props.middle, '8 min left in the book');
+  assert.equal(phone.find(e => e.type === 'audio-frame').props.times.middle, '8 min left in the book');
   const seek = elements(ListeningSeek({position: 12, duration: 500, phone: true, middle: '8 min left in the book', onSeek: noop}));
   assert.ok(seek.some(e => e.props.className === 'middle' && e.props.children === '8 min left in the book'));
   assert.equal(elements(ListeningSeek({position: 12, duration: 500, middle: 'ignored off a phone', onSeek: noop})).some(e => e.props.className === 'middle'), false);
@@ -235,20 +238,17 @@ test('phone-app 15 at phone widths: a centred two-line Playing from, "≡ Chapte
     chapters: [row('part-a:1', 'part-a', 1, 'One', 0, 600), row('part-a:2', 'part-a', 2, 'Two', 600, 1200), row('part-b:1', 'part-b', 3, 'Three', 0, 10), row('part-b:2', 'part-b', 4, 'Four', 10, 400)]};
   const at = {...playback, presentation: {...playback.presentation, positionSeconds: 130, durationSeconds: 400, controls: ['seek', 'pause']}, bookChapters: view};
   const phone = elements(AudiobookListening(book({snapshot: at, phone: true, sourceLabel: 'Continue Listening', onShowPanel: noop})));
-  const from = phone.find(e => e.type === 'span' && e.props.className === 'from');
-  assert.deepEqual(elements(from.props.children).map(e => e.props.children), [defaultI18n.t('web.player.playingFromLabel'), 'Continue Listening']);
-  assert.deepEqual(phone.filter(e => e.props.icon === 'i-down' || e.props.icon === 'i-more').map(e => e.props.variant), ['ghost', 'ghost'], 'bare buttons on a phone');
-  const line = phone.find(e => e.type === 'div' && e.props.className === 'chapter');
-  assert.ok(elements(line.props.children).some(e => e.type === 'span' && e.props.children === 'of 4'), 'the book\'s chapter count on the right');
-  const bar = phone.find(e => e.type === ListeningSeek).props;
-  assert.equal(bar.offset, 10); assert.equal(bar.duration, 400); assert.deepEqual(bar.chapters, []);
-  assert.deepEqual(bar.bounds, {start: 10, end: 400}, 'the playing chapter, clamped to what can be sought');
-  const seek = elements(ListeningSeek({position: 130, duration: 400, bounds: {start: 10, end: 400}, offset: 10, phone: true, onSeek: noop}));
-  assert.ok(seek.some(e => e.props.className === 'elapsed' && e.props.children === '2:00'), 'chapter-relative elapsed');
-  assert.ok(seek.some(e => e.props.className === 'remaining' && e.props.children === '−4:30'), 'chapter-relative remaining');
-  const desktop = elements(AudiobookListening(book({snapshot: at, sourceLabel: 'Continue Listening', onShowPanel: noop}))).find(e => e.type === ListeningSeek).props;
-  assert.equal(desktop.offset, undefined); assert.equal(desktop.duration, 400, 'desktop: the part bar');
-  assert.equal(desktop.chapters.length, 2, 'with this part\'s chapter ticks');
+  const frame = phone.find(e => e.type === 'audio-frame').props;
+  assert.deepEqual([frame.context, frame.source], [defaultI18n.t('web.player.playingFromLabel'), 'Continue Listening'], 'Playing from over its source');
+  assert.equal(frame.chapter.of, 'of 4', 'the book\'s chapter count on the right');
+  // The bar is the playing chapter's (10 to 400), its times relative to the chapter's start.
+  const bar = frame.scrubber.props;
+  assert.equal(bar.input.min, 10); assert.equal(bar.input.max, 400); assert.deepEqual(bar.marks, []);
+  assert.deepEqual([frame.times.position, frame.times.end], ['2:00', '−4:30'], 'chapter-relative times');
+  const wide = elements(AudiobookListening(book({snapshot: at, sourceLabel: 'Continue Listening', onShowPanel: noop})));
+  const part = wide.find(e => e.type === 'audio-frame').props.scrubber.props;
+  assert.equal(part.input.max, 400, 'desktop: the part bar');
+  assert.equal(part.marks.length, 2, 'with this part\'s chapter ticks');
 });
 
 test('desktop-listen 8: the audiobook side tabs carry their drawn icons', () => {
