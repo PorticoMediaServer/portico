@@ -128,5 +128,5 @@ test('the lists are loaded only by the licence screens, never at start', () => {
     assert.match(source, /export function loadLicences\(\)[^{]*\{\s*(\/\/[^\n]*\n\s*)?return parseLicenceData\(require\(/, loader);
   }
   const importers = (dir: string): string[] => readdirSync(at(dir), {withFileTypes: true}).flatMap(e => e.isDirectory() ? importers(`${dir}${e.name}/`) : /\.tsx?$/.test(e.name) && /from ['"][^'"]*platform\/licences['"]/.test(read(`${dir}${e.name}`)) ? [`${dir}${e.name}`] : []);
-  assert.deepEqual(importers('apps/native/src-next/'), ['apps/native/src-next/screens/settings-live/NativeLicencesScreen.tsx']);
+  assert.deepEqual(importers('apps/native/src-next/'), ['apps/native/src-next/pages/shared/settings/useLicences.ts']);
 });
