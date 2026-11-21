@@ -81,7 +81,7 @@ export function GuideSourcePicker({label, value, options, current, phone, onChan
 }) {
   const theme = useTheme(), style = {minHeight: theme.targets.touch - theme.space.xs, borderWidth: theme.space.hairline,
     borderColor: theme.colors.lineStrong, borderRadius: theme.baseRadii.control, paddingHorizontal: theme.space.sm, justifyContent: 'center' as const};
-  if (!phone) return <Select focusId="live-source" testID="live-source" accessibilityLabel={label} value={value} options={options} onValueChange={onChange}/>;
+  if (!phone) return <Select focusId="live-source" chevron="down" testID="live-source" accessibilityLabel={label} value={value} options={options} onValueChange={onChange}/>;
   if (current) return <View testID="live-source" style={style}><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{current}</Text></View>;
   return <NativeLivePhonePicker testID="live-source" style={style} accessibilityLabel={label} value={value ?? ''}
     options={options.map(option => ({id: option.value, label: option.label}))} onChange={onChange}>{options.find(option => option.value === value)?.label}</NativeLivePhonePicker>;
