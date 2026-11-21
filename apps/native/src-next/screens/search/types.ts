@@ -24,6 +24,8 @@ export type NativeSearchExplorePort = Readonly<{
   getSnapshot: () => NativeSearchExploreSnapshot;
   load: () => Promise<void>;
   openGenre: (genre: NativeSearchGenre) => void;
+  /** All genres (desktop-search's "All genres ›" at the end of Browse by genre), while Search is the page in front. */
+  openAll: () => void;
 }>;
 export type NativeSearchSelectionPort = Readonly<{
   /** The producer's exact scope/query/revision and IDs, with bounded mounted windows. */

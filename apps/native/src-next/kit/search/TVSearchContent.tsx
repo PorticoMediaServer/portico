@@ -17,7 +17,7 @@ import type {NativeSearchGenre, NativeSearchSelectionPort} from '../../screens/s
 import {nativeSearchGenreTiles} from '../../screens/search/genre-tiles';
 import type {useSearch} from '../../pages/shared/search/useSearch';
 import {Artwork} from '../artwork';
-import {Chip, Focusable} from '../controls';
+import {Button, Chip, Focusable} from '../controls';
 import {Parts, Progress} from '../cards/primitives';
 import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
@@ -82,7 +82,7 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
   const {t, state, landing, active, typed, empty, emptyAll, emptyIn, top, groups, problem, chips, chipsDrawn} = view;
   // The chip row shows whole chips only, never one cut at its ends (owner, 20 Nov 20:30).
   const wholeChips = useWholeItems('x', 'fit', chips.map(chip => chip.id), focusRoom, focusRoom);
-  const genreTiles = nativeSearchGenreTiles(landing.genres, 'tv');
+  const genreTiles = nativeSearchGenreTiles(landing.genres, 'tv'), allGenres = `${ids.searchLanding}.all`;
   const sections = typed && !empty && !problem ? groups.filter(group =>
     (state.group === 'all' || state.group === group.id) && (group.items.length > 0 || group.status === 'error')) : [];
   const contentRoot = useRef<View>(null), [viewport, setViewport] = useState({y: 0, height: 0}), [contentHeight, setContentHeight] = useState(0);
@@ -116,9 +116,14 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
           {!!genreTiles.length && <Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text, marginBottom: frame.headingGap}]}>{t(emptyAll ? landing.emptyHeading : landing.initialHeading)}</Text>}
           {landing.phase === 'error' && <StateView testID="tv-search-landing-error" {...runtime.error(landing.error, () => run(explore.load()))}/>}
           <FocusRegion id={ids.searchLanding} enabled={active.visible} grid={{columns: 2, count: genreTiles.length}} order={genreTiles.map(genre => `genre:${genre.id}`)}
-            edges={{left: keyboard, ...(!typed && state.recent.length ? {down: ids.searchRecent} : {})}} stops={{up: true, right: true, ...(!typed && state.recent.length ? {} : {down: true})}} style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.md}}>{genreTiles.map(genre => <TVSearchGenre key={genre.id} genre={genre} width={(resultsWidth - theme.space.md) / 2}
+            edges={{left: keyboard, ...(genreTiles.length ? {down: allGenres} : !typed && state.recent.length ? {down: ids.searchRecent} : {})}} stops={{up: true, right: true, ...(genreTiles.length || !typed && state.recent.length ? {} : {down: true})}} style={{flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.md}}>{genreTiles.map(genre => <TVSearchGenre key={genre.id} genre={genre} width={(resultsWidth - theme.space.md) / 2}
             disabled={!active.visible} runtime={runtime} onPress={() => explore.openGenre(genre)}/>)}</FocusRegion>
-          {!typed && !!state.recent.length && <FocusRegion id={ids.searchRecent} enabled={active.visible} orientation="vertical" entry={`recent:${state.recent[0]?.q}`} edges={{left: keyboard, ...(genreTiles.length ? {up: ids.searchLanding} : {})}} style={{marginTop: frame.sectionGap, width: resultsWidth}}><Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text, marginBottom: theme.space.sm}]}>{t('web.search.recent')}</Text>
+          {/* desktop-search's "All genres ›": on TV a stop of its own after the tiles. */}
+          {!!genreTiles.length && <FocusRegion id={allGenres} enabled={active.visible} entry="all-genres" edges={{left: keyboard, up: ids.searchLanding, ...(!typed && state.recent.length ? {down: ids.searchRecent} : {})}}
+            stops={{right: true, ...(!typed && state.recent.length ? {} : {down: true})}} style={{marginTop: theme.space.sm, alignSelf: 'flex-start'}}>
+            <Button focusId="all-genres" testID="tv-search-all-genres" variant="text" trailingIcon="i-right" disabled={!active.visible} onPress={explore.openAll}>{t('next.search.allGenres')}</Button>
+          </FocusRegion>}
+          {!typed && !!state.recent.length && <FocusRegion id={ids.searchRecent} enabled={active.visible} orientation="vertical" entry={`recent:${state.recent[0]?.q}`} edges={{left: keyboard, ...(genreTiles.length ? {up: allGenres} : {})}} style={{marginTop: frame.sectionGap, width: resultsWidth}}><Text accessibilityRole="header" style={[theme.type.rowHeading, {color: theme.colors.text, marginBottom: theme.space.sm}]}>{t('web.search.recent')}</Text>
             {state.recent.map(recent => <Focusable key={recent.q} focusId={`recent:${recent.q}`} focusKind="row" disabled={!active.visible} onPress={() => destination.useRecent(recent.q)}
               focusRadius={frame.cardRadius}
               // The ring sits outside the words: the row is padded and pulled out by the same, so the clock and words stay on the heading's line.

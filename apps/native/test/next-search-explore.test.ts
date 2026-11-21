@@ -17,7 +17,7 @@ async function adapters(read: (api: LibraryContentApi, request: Request, signal:
     react: {default: {}}, '../../../../../packages/client-core/src/search-genres': {readSearchGenres: read,releaseSearchGenres:release,searchGenresReadMetadata:()=>undefined},
   }) as typeof import('../src-next/screens/search/explore.ts');
 }
-const options = {api, current: () => true, openGenre() {}};
+const options = {api, current: () => true, openGenre() {}, openAll() {}};
 
 test('phone requests two bounded slot previews and preserves each independent server prefix and exact art', async () => {
   const requests: Request[] = [], opened: unknown[] = [];
@@ -26,7 +26,7 @@ test('phone requests two bounded slot previews and preserves each independent se
   const {NativeSearchExplore} = await adapters(async (_api, request) => {
     requests.push(request); return {queryId:'fixture_query',revision: 'opaque', hasGenres: true, genres: request.preview === 'covers' ? covers : backdrops};
   });
-  const controller = new NativeSearchExplore({...options, surface: 'phone', openGenre: value => opened.push(value)});
+  const controller = new NativeSearchExplore({...options, surface: 'phone', openGenre: value => {opened.push(value);}});
   try {
     assert.equal(requests.length, 0);
     const loading = controller.load(); assert.equal(controller.load(), loading); await loading;
@@ -158,30 +158,37 @@ test('ordinary list keeps its FlatList mounted for paging errors, uses scroll ed
   const explore = {subscribe: () => () => {}, getSnapshot: () => snapshot,
     setVisible: (ids: string[]) => events.push(['visible', ids]), setFocused: (id: string, focused: boolean) => events.push(['focus', id, focused]),
     next: async () => {events.push('next');}, previous: async () => {events.push('previous');}, load: async () => {events.push('retry');}, openGenre: (value: unknown) => events.push(['open', value])};
-  const {AllGenresScreen} = await screenModule(new URL('../src-next/screens/search/AllGenresScreen.tsx', import.meta.url), {'../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
-    react: host.react, 'react-native': {FlatList: 'FlatList', Text: 'Text', View: 'View'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/overlays': {MenuRow: 'MenuRow'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/browse/presentation': {browseType: () => ({})},
-    '../../kit/theme': {useTheme: () => ({colors: {ink: '#000', text: '#fff'}})},
-  });
+  // The page (pages/touch/search/AllGenresPage) on the real hook and the real kit list; its frame is a stub, its list is drawn here.
+  const shared = await screenModule(new URL('../src-next/pages/shared/search/useAllGenres.ts', import.meta.url), {react: host.react,
+    '../library/useLibrary': {browseFailure: (value: unknown) => value}});
+  const kit = await screenModule(new URL('../src-next/kit/search/GenreList.tsx', import.meta.url), {react: {...host.react, default: host.react},
+    'react-native': {FlatList: 'FlatList', Text: 'Text', View: 'View'}, '../controls': {Focusable: 'Focusable'}, '../focus': {FocusRegion: 'FocusRegion'},
+    '../frames/metrics': {useFrameMetrics: () => ({cardInset: 16, bottomClear: 24, rowTwoLine: 60, cardPadding: 14, cardRadius: 14, sectionGap: 24})}, '../Icon': {Icon: 'Icon'},
+    '../theme': {useTheme: () => ({colors: {raised: 'r', lineSoft: 'l', text: 't', textTertiary: 'tt'}, space: {sm: 12, hairline: 1}, type: {rowLabel: {fontSize: 15}, rowHelp: {}}})}});
+  const {AllGenresPage} = await screenModule(new URL('../src-next/pages/touch/search/AllGenresPage.tsx', import.meta.url), {react: host.react,
+    '../../../kit/frames': {BrowseFrame: 'BrowseFrame'}, '../../../kit/search/GenreList': kit, '../../../kit/states': {StateView: 'StateView'},
+    '../../shared/search/useAllGenres': shared});
   const elements = (node: any): any[] => Array.isArray(node) ? node.flatMap(elements) : node?.props ? [node, ...elements(node.props.children)] : [];
   let current = true;
-  const render = () => host.render(() => AllGenresScreen({explore, runtime: {text: {t: (id: string, params?: any) => params?.count ?? id}, error: (_error: unknown, retry: () => void) => ({onRetry: retry})}, visible: true, current: () => current, onBack() {}}));
+  const render = () => host.render(() => {
+    const page = AllGenresPage({explore, runtime: {text: {t: (id: string, params?: any) => params?.count ?? id}, error: (_error: unknown, retry: () => void) => ({onRetry: retry})}, visible: true, current: () => current, onBack() {}});
+    return page.props.grid.type(page.props.grid.props);
+  });
   const list = elements(render()).find(node => node.type === 'FlatList'); assert.ok(list);
   assert.deepEqual(list.props.maintainVisibleContentPosition, {minIndexForVisible: 0});
   list.props.onEndReached(); list.props.onStartReached(); assert.deepEqual(events, [], 'layout callbacks alone cannot drain pages');
   list.props.onViewableItemsChanged({viewableItems: [{item: rows[0], isViewable: true}]});
-  const row = list.props.renderItem({item: rows[0]}); assert.equal(row.props.label, 'Exact artless name'); assert.equal(row.props.description, 17);
+  const row = list.props.renderItem({item: list.props.data[0], index: 0}); assert.equal(row.props.accessibilityLabel, 'Exact artless name, 17');
   row.props.onFocus(); row.props.onPress(); row.props.onBlur();
   assert.deepEqual(events, [['visible', ['artless']], ['focus', 'artless', true], ['open', rows[0]], ['focus', 'artless', false]]);
   list.props.onScroll({nativeEvent: {contentOffset: {y: 200}, contentSize: {height: 400}, layoutMeasurement: {height: 200}}});
   list.props.onScroll({nativeEvent: {contentOffset: {y: 0}, contentSize: {height: 400}, layoutMeasurement: {height: 200}}});
   assert.deepEqual(events.slice(-2), ['next', 'previous']);
   snapshot = {...snapshot, phase: 'error', error: new Error('edge failed')};
-  const retained = elements(render()).find(node => node.type === 'FlatList'); assert.ok(retained); assert.equal(retained.props.data, rows);
-  retained.props.ListFooterComponent.props.onRetry(); assert.equal(events.at(-1), 'retry');
-  current = false; row.props.onPress(); retained.props.ListFooterComponent.props.onRetry(); assert.equal(events.at(-1), 'retry');
+  const retained = elements(render()).find(node => node.type === 'FlatList'); assert.ok(retained); assert.deepEqual(retained.props.data.map((item: any) => item.genre), rows);
+  const footer = [retained.props.ListFooterComponent.props.children].flat()[0];
+  footer.props.onRetry(); assert.equal(events.at(-1), 'retry');
+  current = false; row.props.onPress(); footer.props.onRetry(); assert.equal(events.at(-1), 'retry');
 });
 
 test('All genres detects resident cursor cycles without retaining lifetime cursor or ID history', async () => {

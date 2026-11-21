@@ -55,10 +55,10 @@ test('real App Search keeps separate eligible previews and an artless All genres
     const all = context.navigation.getSnapshot().route; assert.equal(all.kind, 'search-genres');
     const allList = app.hosts().find((host: any) => host.name === 'FlatList' && host.props.data?.some((item: any) => item.id === 'artless'));
     assert.ok(allList); assert.equal(allList.props.data.length, 3); assert.equal(genreReads, 3, 'All genres starts its own ordinary read');
-    const artlessRow = allList.props.renderItem({item: allList.props.data[0]});
-    assert.equal(artlessRow.props.label, 'Artless metadata'); assert.equal(artlessRow.props.description, '1 title');
+    const artlessRow = allList.props.renderItem({item: allList.props.data[0], index: 0});
+    assert.equal(artlessRow.props.accessibilityLabel, 'Artless metadata, 1 title');
     const actual = allList.props.data.find((item: any) => item.id === 'actual-value');
-    allList.props.renderItem({item: actual}).props.onPress(); await app.settle();
+    allList.props.renderItem({item: actual, index: 1}).props.onPress(); await app.settle();
     const genre = context.navigation.getSnapshot().route;
     assert.deepEqual(genre, {kind: 'search-genre', value: 'actual-value', label: 'Stored Genre'});
     assert.ok(browse.length);
