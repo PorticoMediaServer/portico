@@ -5,6 +5,7 @@ import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {useShellWidth} from '../../shell/viewport';
 import {PagedShelf} from '../browse/PagedShelf';
+import {Row} from '../../kit/layout';
 import {t} from '../detail/text';
 import {ScreenProblem} from '../detail/ScreenProblem';
 import type {SearchBindings} from './bindings';
@@ -19,7 +20,7 @@ const periodical = (entry: SearchEntry) => (entry.kind === 'ebook' || entry.kind
  * shapes, and Songs keeps four rows per horizontal column. Neither changes server order. */
 export function AllResultsRow({result, binding, selection, excluded, size, onSeeAll, renderEntry}: {
   result: SearchGroupResult; binding: SearchBindings; selection?: SearchSelection; excluded?: SearchEntry; size: number;
-  onSeeAll: () => void; renderEntry: (entry: SearchEntry, index: number, selectionVisible: boolean) => ReactNode;
+  onSeeAll: () => void; renderEntry: (entry: SearchEntry, index: number, selectionVisible: boolean, row?: boolean) => ReactNode;
 }) {
   const viewport = useShellWidth(), compact = viewport < 1024, root = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(0);
@@ -85,6 +86,18 @@ export function AllResultsRow({result, binding, selection, excluded, size, onSee
     {(more || entries.length > cap) && <Button variant="text" size="small" onClick={onSeeAll}><span className={styles.seeAll}>{t('web.search.seeAll')}<Icon name="i-right" size={18} /></span></Button>}
   </>;
   if (!rendered) return null;
+  // final3-mobileweb-02, phone-app 8: on a phone a group of titles is its first results as rows, not a shelf; See all opens
+  // the group (songs are rows already). People, artists and channels keep their own shelves.
+  if (viewport > 0 && viewport < 600 && !['people', 'artists', 'live-tv'].includes(result.id)) {
+    const shown = entries.slice(0, Math.min(cap, 4));
+    return <section ref={root} className={`${styles.section} ${styles.listSection}`} data-group={result.id}>
+      <Row className={styles.listRow} heading={t(searchGroupLabel(result.id))} platform="phone-web"
+        subtitle={result.totalCountExact ? result.totalCount > shown.length ? t('web.search.someOf', {shown: shown.length, total: result.totalCount}) : result.totalCount : undefined}
+        actions={(more || entries.length > shown.length) ? <Button variant="text" size="small" onClick={onSeeAll}><span className={styles.seeAll}>{t('web.search.seeAll')}<Icon name="i-right" size={18} /></span></Button> : undefined}>
+        <div className={styles.resultList}>{shown.map((entry, index) => <div key={keyOf(entry)}>{renderEntry(entry, index, true, true)}</div>)}</div>
+      </Row>
+    </section>;
+  }
   return <section ref={root} className={`${styles.section} ${styles.pagedSection}`} data-group={result.id}
     style={{'--search-preview-count': Math.max(1, Math.min(cap, entries.length)), '--search-preview-width': `${result.id === 'people' || result.id === 'artists' ? 124 : result.id === 'live-tv' ? 300 : compact ? 132 : 150 * size}px`} as CSSProperties}>
     {parts.map((part, index) => <div key={index} ref={node => {if (node) partNodes.current.set(index, node); else partNodes.current.delete(index);}}><PagedShelf className={`${styles.pagedRow} ${index ? styles.followingRow : ''}`} heading={t(searchGroupLabel(result.id))}

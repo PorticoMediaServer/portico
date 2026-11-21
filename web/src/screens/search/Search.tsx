@@ -34,7 +34,7 @@ import {useLoadingClock} from '../detail/Loading';
 import {ScreenProblem} from '../detail/ScreenProblem';
 import {useShellWidth} from '../../shell/viewport';
 import {useTitleMenu, type TitleMenuSubject} from '../../shell/title-menu';
-import {SearchHistory} from '../../kit/search';
+import {ResultRow, SearchHistory} from '../../kit/search';
 import {nowNext} from '@core/guide/index.ts';
 import {channelTint, type FactPart} from '@portico/client-core/kit-model';
 import {clockText, durationText} from '@core/presentation/kit-model/text.ts';
@@ -222,7 +222,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
           : allRows.map((result, groupIndex, ordered) => {
             const offset = ordered.slice(0, groupIndex).reduce((sum, value) => sum + value.items.length, 0);
             return <AllResultsRow key={`${snapshot.generation}:${result.id}`} result={result} binding={binding} selection={selection} excluded={top?.entry} size={size} onSeeAll={() => setChip(result.id)}
-              renderEntry={(entry, position, selectionVisible) => <SearchResult key={keyOf(entry)} entry={entry} binding={binding} selection={selection} selectionVisible={selectionVisible} position={offset + position} onCommit={commit}
+              renderEntry={(entry, position, selectionVisible, row) => <SearchResult key={keyOf(entry)} entry={entry} binding={binding} selection={selection} selectionVisible={selectionVisible} position={offset + position} onCommit={commit} row={row}
                 albumArt={entry.kind === 'artist' ? artistAlbumArt(entry, groups) : undefined} />} />;
           })}
       </div>
@@ -239,7 +239,9 @@ function SearchLoading() {
 export const SearchTitleMenu = createContext<((anchor: HTMLElement, subject: TitleMenuSubject) => void) | undefined>(undefined);
 const noSelectionSubscription = () => () => {};
 const noSelectionSnapshot = () => 0;
-export function SearchResult({entry, binding, selection, selectionVisible = true, position = 0, onCommit, albumArt}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; selectionVisible?: boolean; position?: number; onCommit: () => void; albumArt?: string}) {
+export function SearchResult({entry, binding, selection, selectionVisible = true, position = 0, onCommit, albumArt, row = false}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; selectionVisible?: boolean; position?: number; onCommit: () => void; albumArt?: string;
+  /** A phone's All view lists a group's first results as rows (final3-mobileweb-02). */
+  row?: boolean}) {
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const epoch = selection?.epoch();
   useLayoutEffect(() => {if (selection && selectionVisible && 'libraryId' in entry) return selection.register(entry, position);}, [selection, entry, position, epoch, selectionVisible]);
@@ -261,6 +263,17 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   const model = entryCard(entry, {t, locale: locale()}, 'search'), playable = entryPlayable(entry);
   const props = {model, selection: picked, context: 'search' as const, watched: entry.watched, isNew: entry.new, onNavigate: open, onMore: more,
     onPlay: playable ? () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); } : undefined};
+  if (row && entry.kind !== 'song' && entry.kind !== 'artist') {
+    const shape = entry.kind === 'episode' ? 'wide' as const : ['album', 'book', 'audiobook_file'].includes(entry.kind) ? 'square' as const
+      : (entry.kind === 'ebook' || entry.kind === 'comic') && (entry.publicationType === 'magazine' || entry.publicationType === 'newspaper') ? 'portrait' as const : 'poster' as const;
+    const source = entry.kind === 'episode' ? context.artwork.foreground(entry.stillUrl ?? entry.backdropUrl, 224, 16 / 9) : context.artwork.foreground(entry.posterUrl, 112, shape === 'square' ? 1 : shape === 'portrait' ? 3 / 4 : 2 / 3);
+    const title = entry.displayTitle ?? entry.title;
+    return <ResultRow rootRef={interactionRoot} rootProps={range} art={<Artwork source={source} alt="" />} shape={shape} title={title}
+      facts={model.caption.length ? model.caption.map(part => <span key={part.id}>{part.text}</span>) : undefined} selected={picked?.checked} preview={picked?.preview}
+      lead={picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}
+      onPress={() => {if (picked?.active) picked.onToggle({range: false, source: 'pointer'}); else open();}}
+      more={more && <Button variant="icon" size="small" icon="i-more" iconOnly aria-haspopup="menu" aria-label={t('next.browse.moreFor', {title})} onClick={event => more(event.currentTarget)} />} />;
+  }
   if (entry.kind === 'song') return <div ref={interactionRoot} className={styles.songSelection} data-selected={picked?.checked || undefined} data-preview={picked?.preview || undefined} {...range}>{picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}<button className={styles.song} type="button" onClick={event => {if (picked?.active) picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'}); else if (playable) void binding.play(entry).then(onCommit).catch(context.effects.reportError); else open();}}><Artwork source={context.artwork.foreground(entry.posterUrl, 88, 1)} alt="" /><span><b>{entry.displayTitle ?? entry.title}</b><small>{entry.artist?.name}{entry.album?.name && <span>{entry.album.name}</span>}</small></span><span>{clockText(entry.duration)}</span></button>{more && <Button className={styles.songMore} variant="icon" size="small" icon="i-more" iconOnly aria-haspopup="menu" aria-label={t('next.browse.moreFor', {title: entry.displayTitle ?? entry.title})} onClick={event => more(event.currentTarget)} />}</div>;
   if (entry.kind === 'episode') return <EpisodeTile {...props} length={durationText(entry.duration, t)} artwork={context.artwork.foreground(entry.stillUrl ?? entry.backdropUrl, 632, 16 / 9)} artworkKind={entry.stillUrl ? 'still' : 'backdrop'} description={entry.overview} />;
   if (entry.kind === 'artist') {
