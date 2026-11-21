@@ -241,6 +241,14 @@ export function Badge({children, kind = 'plain'}: {children?: ReactNode; kind?: 
   </View>;
 }
 
+/** TV's watched mark on an episode still: the check alone in an ink disc (tv-detail 4 `.ep .wk`). */
+export function WatchedDisc() {
+  const t = useTheme(), disc = t.spec.episode.watchedTV;
+  return <View style={{width: disc.disc, height: disc.disc, borderRadius: disc.disc / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(t.colors.ink, disc.inkAlpha)}}>
+    <Icon name="i-check" size={disc.glyph} color={t.colors.text}/>
+  </View>;
+}
+
 /** A separate phone/pointer action; TV keeps its one root focus and real hold-OK menu. */
 export function CardAction({name, label, onPress, size = 40, style, color, testID, focusId}: {testID?: string; focusId?: string; name: IconName; label: string; onPress: () => void; size?: number; style?: StyleProp<ViewStyle>; color?: string}) {
   const t = useTheme();

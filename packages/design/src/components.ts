@@ -409,6 +409,8 @@ export const episode = {
   fallback: {cropScale: 2.6, saturation: 0.55, brightness: 0.42, numeral: false, labelBelowTitle: true},
   duration: {inset: same(12, 14), paddingX: same(8, 10), paddingY: same(3, 4), radius: same(6, 8), inkAlpha: 0.65, size: same(12, 18)},
   progressHeight: same(4, 6),
+  /** TV: a watched episode is a check in a disc at the still's top left, over a still dimmed nearly to ink (tv-detail 4 `.ep .wk`, `.ep.seen`). */
+  watchedTV: {disc: 38, inset: 14, glyph: 22, inkAlpha: 0.72, stillDim: 0.8},
 } as const;
 export const generatedArt = {
   height: 236, radius: 14, surface: 'raisedSoft' as ColorToken, marginBottom: 20,
