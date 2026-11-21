@@ -34,6 +34,16 @@ test('a playlist page lists its entries in its own order with the last entry, an
   saved.dispose();
 });
 
+test('the playlists chips count every playlist the profile can see and the chosen one shows as chosen', async () => {
+  const s = server(), saved = service(s.api);
+  await saved.select({view: 'playlists', filter: 'mine'});
+  const projection = saved.getSnapshot().projection!;
+  assert.deepEqual(projection.filters[0]!.options.map(option => [option.id, option.count]), [['all', 2], ['mine', 1], ['shared', 1]]);
+  assert.equal(projection.query.category, 'mine');
+  assert.deepEqual(projection.sections[0]!.entries.map(entry => entry.id), ['pl'], 'the list itself still shows only the chosen ones');
+  saved.dispose();
+});
+
 test('the playlists list holds the profile\'s own and shared ones, and Pinned waits for the pins setting', async () => {
   const s = server(), saved = service(s.api);
   await saved.select({view: 'playlists', filter: 'mine'});

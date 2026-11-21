@@ -195,6 +195,9 @@ function projection(v: unknown, bound: SavedScope, selected: SavedRoute): SavedP
   if (q.category !== expected) invalid();
  } else if (selected.view === 'playlist') {
   if (q.category !== (selected.filter ?? 'all') || q.sort !== (selected.sort ?? 'position') || selected.direction !== undefined && q.direction !== selected.direction || !int(v.playlistRevision)) invalid();
+ } else if (selected.view === 'playlists') {
+  // The playlists list may echo its chosen filter, so its chip shows as chosen; an older reply leaves it empty.
+  if (q.category !== '' && (!playlistListFilters.includes(q.category as PlaylistListFilter) || q.category !== ((selected as { filter?: string }).filter ?? 'all'))) invalid();
  } else if (q.category !== '') invalid();
  if (selected.view !== 'playlist' && (selected.sort !== undefined && q.sort !== selected.sort || selected.direction !== undefined && q.direction !== selected.direction)) invalid();
  // Sizes and cursors refuse the whole page. Past that, an entry, section, tab, sort or filter this app

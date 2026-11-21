@@ -37,7 +37,7 @@ export function SavedTVDirectoryBody({view, runtime, libraries, regionId, edges,
       {view === 'playlists' && !!sorts.length && <PlaylistToolbar sorts={sorts} filters={filters} enabled={interactive} focusScope={toolbarId}
         value={{sort: saved?.projection?.query.sort ?? sorts[0]?.id ?? '',
           direction: saved?.projection?.query.direction === 'asc' ? 'asc' : 'desc',
-          filter: (saved?.projection?.query.category ?? 'all') as PlaylistListFilter}}
+          filter: (saved?.projection?.query.category || 'all') as PlaylistListFilter}}
         onSelect={model.choose}/>}
       <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginLeft: 'auto'}]}>{countText}</Text>
     </FocusRegion>
