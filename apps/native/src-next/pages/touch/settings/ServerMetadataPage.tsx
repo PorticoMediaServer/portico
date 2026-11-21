@@ -12,7 +12,7 @@ import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports
 import type {NativeMetadataController, MetadataPatch} from '../../../screens/settings-live/server/metadata-controller';
 import type {StorageForms} from '../../../screens/settings-live/server/storage/forms';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {useMetadataController, useServerMetadata, useTitleDataset, useTitleDatasetForms} from './useServerMetadata';
+import {useMetadataController, useServerMetadata, useTitleDataset, useTitleDatasetForms} from '../../shared/settings/useServerMetadata';
 
 type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; onLibraries: () => void};
 type Frame = Pick<React.ComponentProps<typeof SettingsPageFrame>, 'back' | 'server'>;

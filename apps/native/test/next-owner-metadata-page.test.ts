@@ -33,8 +33,8 @@ async function fixture(legacy = false) {
     '../../../screens/settings-live/server/metadata-controller': {NativeMetadataController: Controller},
     '../../../screens/settings-live/server/storage/forms': {},
   });
-  const module = await screenModule(new URL('../src-next/pages/shared/settings/ServerMetadataPage.tsx', import.meta.url), {
-    react, '../../../../../../packages/client-core/src/metadata-settings': words, './useServerMetadata': model,
+  const module = await screenModule(new URL('../src-next/pages/touch/settings/ServerMetadataPage.tsx', import.meta.url), {
+    react, '../../../../../../packages/client-core/src/metadata-settings': words, '../../shared/settings/useServerMetadata': model,
     '../../../kit/controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
     '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame', PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'},

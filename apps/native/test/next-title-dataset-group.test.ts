@@ -38,8 +38,8 @@ async function fixture(on: boolean | undefined, tv = false, saving = false) {
       '../../../../../../packages/i18n/src': {}, '../../../screens/settings-live/server/metadata-controller': {},
       '../../../screens/settings-live/server/storage/forms': forms, '../../../screens/settings-live/use-settings-request-scope': {},
     });
-    const page = await screenModule(new URL('../src-next/pages/shared/settings/ServerMetadataPage.tsx', import.meta.url), {
-      react, '../../../../../../packages/client-core/src/metadata-settings': {}, './useServerMetadata': model,
+    const page = await screenModule(new URL('../src-next/pages/touch/settings/ServerMetadataPage.tsx', import.meta.url), {
+      react, '../../../../../../packages/client-core/src/metadata-settings': {}, '../../shared/settings/useServerMetadata': model,
       '../../../kit/controls': {Switch: 'Switch'}, '../../../kit/frames': {SectionCard: 'SectionCard'},
       '../../../kit/overlays': {}, '../../../kit/overlays/surface': {}, '../../../kit/settings/AdvancedSection': {},
       '../../../kit/settings/SettingsParts': {}, '../../../kit/states': {}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
