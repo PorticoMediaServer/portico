@@ -12,22 +12,37 @@ async function fixture() {
   const h = hooks(), react = {...h.react, useId: () => 'resource-instance', useLayoutEffect() {}}; react.default = react;
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'};
   const theme = {isTV: true, gutter: 96, textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#222', line: '#333'}, type: {body: {}, caption: {}}};
-  const {SavedResourceScreen} = await screenModule(new URL('../src-next/screens/saved/SavedResourceScreen.tsx', import.meta.url), {'./paging': pagingModule, '../../kit/saved/SavedReorderList': {SavedReorderList: 'SavedReorderList'}, '../../../../../packages/client-core/src/saved': savedCore, '../../kit/saved/SavedSortMenu': {SavedSortMenu: 'SavedSortMenu'}, '../../kit/saved/SavedLoading': {SavedLoading: 'SavedLoading', SavedTail: 'SavedTail'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
-    react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => ({width: 1920, height: 1080})},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, has: () => true}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Retry this saved change'})},
-    '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch'},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork', MediaArt: 'MediaArt'},
-    '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard'},
-    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Menu: 'Menu', ToastHost: 'ToastHost'},
-    '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: () => '', browseType: () => ({})},
-    '../../kit/theme': {useTheme: () => theme}, '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)},
-    '../destinations/focus': {nativeDestinationFocusIds: () => ({rail: 'rail'})}, '../home/model': {homeCardText: () => ({})},
-    '../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'}, '../read/platform': {isReadingLibraryKind: () => false},
-    './presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [], savedDuration: String,
-      savedItemCount: String, savedLibraryName: () => 'Movies', savedPlaylistEyebrow: 'Playlist', savedResourceEyebrow: () => 'Collection',
-      savedTitleCount: String, savedViewConditionCount: () => 0, savedVisibility: () => ({text: 'Private'}), savedVisibilityHelp: () => ''},
+  const relative = '../../../../../../packages';
+  const hook = await screenModule(new URL('../src-next/pages/shared/saved/useSavedResource.ts', import.meta.url), {
+    react, [`${relative}/i18n/src`]: {defaultI18n: {t: (key: string) => key, has: () => true}},
+    [`${relative}/client-core/src/presentation/errors`]: {presentError: () => ({body: 'Retry this saved change'})},
+    [`${relative}/client-core/src/saved`]: savedCore,
+    '../../../shell/model': {sameAuthority: (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)},
+    '../../../screens/read/platform': {isReadingLibraryKind: () => false},
+    '../../../screens/saved/presentation': {exactDurationSeconds: () => undefined, personalMosaic: () => [], playlistEntryMosaic: () => [],
+      savedDuration: String, savedItemCount: String, savedLibraryName: () => 'Movies', savedPlaylistEyebrow: 'Playlist',
+      savedResourceEyebrow: () => 'Collection', savedTitleCount: String, savedViewConditionCount: () => 0,
+      savedVisibility: () => ({text: 'Private'}), savedVisibilityHelp: () => ''},
+    '../../../screens/saved/paging': pagingModule,
+    [`${relative}/client-core/src/presentation/kit-model/text`]: {durationText: () => '4 min'},
+  });
+  const component = (name: string) => name;
+  const {SavedResourcePage} = await screenModule(new URL('../src-next/pages/tv/saved/SavedResourcePage.tsx', import.meta.url), {
+    react, [`${relative}/i18n/src`]: {defaultI18n: {t: (key: string) => key, number: String}},
+    [`${relative}/client-core/src/saved`]: {}, [`${relative}/client-core/src/presentation/kit-model/text`]: {durationText: () => '4 min'},
+    '../../../kit/artwork': {AmbientArt: component('AmbientArt'), CoverMosaic: component('CoverMosaic')},
+    '../../../kit/browse': {ChipRail: component('ChipRail')}, '../../../kit/controls': {Chip: component('Chip')},
+    '../../../kit/controls/KeyHints': {KeyHints: component('KeyHints')},
+    '../../../kit/frames': {musicScroller: () => 'scroller', PanelBlock: component('PanelBlock'), PosterGridWindow: component('PosterGridWindow'),
+      StateRow: component('StateRow'), TitleFrame: component('TitleFrame'), TitleRowWindow: component('TitleRowWindow')},
+    '../../../kit/layout': {HeroMetadata: component('HeroMetadata')},
+    '../../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Menu: 'Menu'},
+    '../../../kit/saved/SavedForms': {SavedConfirmSheet: 'SavedConfirmSheet', SavedNameSheet: 'SavedNameSheet'},
+    '../../../kit/saved/SavedResourceParts': {SavedResourceMenuFacts: 'Facts', SavedResourceUndo: 'Undo', SavedResourceViewInfo: 'ViewInfo',
+      viewSortLabel: () => 'Newest first'},
+    '../../../screens/saved/presentation': {savedLibraryName: () => 'Movies'},
+    '../../shared/library/useLibrary': {browseFailure: (value: unknown) => ({failed: value})},
+    '../../shared/saved/useSavedResource': hook,
   });
   let active = {visible: true, revision: 1, intent: 'enter'}, fail = true, held: Promise<void> | undefined, retries = 0, backs = 0, changes = 0;
   const intents: any[] = [];
@@ -56,8 +71,14 @@ async function fixture() {
   const props: any = {route: {view: 'resource', resourceId: 'collection'}, destination,
     activation: {getSnapshot: () => active, subscribe: () => () => {}}, runtime: {getSnapshot: () => ({authority}), reportError() {}, artwork() {}, ambient() {}, text: {}},
     actions: {open() {}, play() {}, menu() {}}, libraries: [], back: () => {backs++;}, changed: () => {changes++;}};
-  const render = () => nodes(h.render(() => SavedResourceScreen(props)));
-  const byId = (id: string) => render().find(node => node.props.testID === id);
+  const render = () => nodes(h.render(() => SavedResourcePage(props)));
+  // The page's own buttons (Play, Shuffle, Pin, ⋯) are the title frame's actions, not drawn nodes here.
+  const byId = (id: string) => {
+    const drawn = render();
+    const frame = drawn.find(node => node.type === 'TitleFrame');
+    return drawn.find(node => node.props.testID === id) ?? frame?.props.actions?.filter((action: any) => action.testID === id)
+      .map((action: any) => ({props: action}))[0];
+  };
   const pageAction = (id: string) => {byId('saved-resource-menu').props.onPress(); byId('saved-resource-page-menu').props.items.find((item: any) => item.id === id).onSelect();};
   return {render, byId, pageAction, intents, retries: () => retries, backs: () => backs, changes: () => changes,
     fail: (value: boolean) => {fail = value;}, hold: (value: Promise<void> | undefined) => {held = value;},
@@ -102,7 +123,7 @@ test('failed collection Delete stays on its page; only its acknowledged Retry na
 
 test('TV collection row opens on Open and a failed Move retries the exact original reorder', async () => {
   const f = await fixture();
-  f.render().find(node => node.props.row?.id === 'first').props.onMore();
+  f.render().find(node => node.type === 'TitleRowWindow').props.rows.find((row: any) => row.id === 'first').onMore();
   let menu = f.byId('saved-resource-row-menu'); assert.equal(menu.props.initialFocusId, 'open');
   assert.deepEqual(menu.props.items.filter((item: any) => ['up', 'down'].includes(item.id)).map((item: any) => [item.id, item.closeOnSelect]), [['up', false], ['down', false]]);
   const down = menu.props.items.find((item: any) => item.id === 'down'); down.onSelect(); down.onSelect(); await tick();
@@ -125,4 +146,13 @@ test('a completion from before leave-and-return cannot close or navigate the new
 test('collection page menus advertise only the current resource grants', async () => {
   const f = await fixture(); f.grants([]); f.byId('saved-resource-menu').props.onPress();
   assert.deepEqual(f.byId('saved-resource-page-menu').props.items, []);
+});
+
+test('a TV collection page starts on Play all, keeps its own ⋯ beside Shuffle and Pin, and says how to move rows', async () => {
+  const f = await fixture(), drawn = f.render(), frame = drawn.find(node => node.type === 'TitleFrame');
+  assert.equal(frame.props.startFocus, 'saved-play');
+  assert.equal(frame.props.primary.label, 'next.cards.playAll');
+  assert.deepEqual(frame.props.actions.map((action: any) => action.testID), ['saved-shuffle', 'saved-pin', 'saved-resource-menu']);
+  assert.ok(drawn.some(node => node.type === 'TitleRowWindow' && node.props.longPressOnly), 'OK opens a row; holding OK opens its sheet');
+  assert.ok(drawn.some(node => node.type === 'KeyHints'));
 });
