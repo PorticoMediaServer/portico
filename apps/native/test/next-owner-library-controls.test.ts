@@ -16,17 +16,22 @@ async function fixture(tab: string, kind: string, facts: Record<string, unknown>
   const h = lifecycleHooks(), writes: unknown[] = [], lyrics: unknown[] = [];
   const document = {libraryId: 'library', libraryKind: kind, eligibleControls: Object.keys(facts), settings: {lyricsSource: facts['libraries.lyrics']},
     availableProviders: [{id: 'tmdb', mediaKinds: ['movie', 'show']}, {id: 'anilist', mediaKinds: ['show']} ]};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/owner-libraries/LibrarySettingsRows.tsx', import.meta.url), {
+  const imports = {
     react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec},
     '../../../../../../packages/client-core/src/presentation/errors': {presentError},
     '../../../../../../packages/client-core/src/presentation/settings-bindings': {
       readLibrarySettingsBinding: (id: string, original: unknown) => {assert.equal(original, document); return id in facts ? {current: facts[id]} : undefined;},
       patchLibrarySettingsBinding: (id: string, value: unknown, original: unknown) => {assert.equal(original, document); if (failure) throw failure; writes.push([id, value]); return {written: id, value};},
     },
-    '../../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../kit/controls/FormError': formErrorModule, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Select': {Select: 'Select'},
-    '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'},
-    '../../../kit/theme': {useTheme: () => ({colors: {record: '#f00'}, type: {caption: {}}})}, './controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
-    './library-settings-model': model,
+    '../../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../controls/FormError': formErrorModule, '../../controls/Button': {Button: 'Button'}, '../../controls/Select': {Select: 'Select'},
+    '../../controls/Switch': {Switch: 'Switch'}, '../../controls/TextField': {TextField: 'TextField'}, '../../overlays/BottomSheet': {BottomSheet: 'BottomSheet'},
+    '../../theme': {useTheme: () => ({colors: {record: '#f00'}, type: {caption: {}}})}, './controls': {SectionTitle: 'SectionTitle'}, '../../shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
+    '../../../screens/settings-live/owner-libraries/library-settings-model': model,
+    '../../frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard'},
+  };
+  const controls = await screenModule(new URL('../src-next/pages/shared/settings/useOwnerLibrarySettingsRows.ts', import.meta.url), imports);
+  const module = await screenModule(new URL('../src-next/kit/settings/libraries/LibrarySettingsRows.tsx', import.meta.url), {
+    ...imports, '../../../pages/shared/settings/useOwnerLibrarySettingsRows': controls,
   });
   const saves: unknown[] = [];
   return {writes, saves, lyrics, flush: h.flush, dispose: h.dispose, render: () => h.render(() => module.LibrarySettingsRows({tab, document, busy: false, t, save: (value: unknown) => saves.push(value), fetchLyrics: async (current: () => boolean) => {if (current()) lyrics.push(document);}}))};

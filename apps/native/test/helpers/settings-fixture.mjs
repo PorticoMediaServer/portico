@@ -40,6 +40,7 @@ export async function settingsFixture(previous) {
     '../../touch/settings/ServerStreamingPage': previous['../../touch/settings/ServerStreamingPage'] ?? {ServerStreamingPage: 'ServerStreamingPage'},
     '../../touch/settings/ServerSegmentsPage': previous['../../touch/settings/ServerSegmentsPage'] ?? {ServerSegmentsPage: 'ServerSegmentsPage'},
     '../../touch/settings/ServerIntegrationsPage': previous['../../touch/settings/ServerIntegrationsPage'] ?? {ServerIntegrationsPage: 'ServerIntegrationsPage'},
+    '../../touch/settings/OwnerLibrariesPage': previous['../../touch/settings/OwnerLibrariesPage'] ?? {OwnerLibrariesPage: 'OwnerLibrariesPage'},
     '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: function HistoryPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'history', back}, e(History));}}});
   return {NativeSettingsScreen: page.NativeSettingsPage};
 }

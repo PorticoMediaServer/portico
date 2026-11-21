@@ -13,7 +13,7 @@ test('library settings selects the actual owner library and denies secondary/mem
     react: {...React, default: React}, '../lifetime': {NativeScreenLifetime},
     '../settings-ports': {createNativeSettingsPorts: (context: unknown) => ({context})},
     '../SettingsRoute': {createNativeSettingsRenderer: () => ({render: () => {fallback++; return 'fallback';}, dispose() {}})},
-    '../Screen': {Screen: 'Screen'}, './OwnerLibrariesPanel': {NativeOwnerLibrariesPanel: 'Panel'},
+    '../Screen': {Screen: 'Screen'}, '../../../pages/touch/settings/OwnerLibrariesPage': {OwnerLibrariesPage: 'Panel'},
   });
   for (const variant of [{role: 'owner', primaryProfileId: 'primary', disabled: false}, {role: 'owner', primaryProfileId: 'other'}, {role: 'member', primaryProfileId: 'primary'}, {role: 'admin', primaryProfileId: 'primary'}, {role: 'owner', primaryProfileId: 'primary', disabled: true}, {role: 'owner', primaryProfileId: 'primary', disabled: false, canManage: false}]) {
     const context = {current: () => true, authority: () => authority, subscribeAuthority: () => () => {}, account: {canManage: !('canManage' in variant) || variant.canManage !== false, account: variant}};
