@@ -122,7 +122,8 @@
 .channelMark { position: relative; display: grid; place-items: center; flex: none; border-radius: 8px; background: var(--channel-tint); color: #fff; overflow: hidden; line-height: normal; }
 .monogram { font-size: var(--type-live-monogram-size); font-weight: var(--type-live-monogram-weight); line-height: normal; }
 .channelLogo { position: absolute; inset: 0; }
-.channelLogo:has(.decoded) { background: var(--channel-tint); }
+/* A loaded logo covers the monogram under it: a transparent logo must not show the number through it. */
+.channelLogo[data-artwork-status="ready"] { background: var(--channel-tint); }
 
 .profileFace { --profile-colour: var(--profile-art-blue); position: relative; display: grid; place-items: center; flex: none; width: var(--profile-size, 34px); height: var(--profile-size, 34px); border-radius: 50%; font-size: calc(var(--profile-size, 34px) * .39); font-weight: 800; letter-spacing: -.03em; line-height: normal; color: #fff;
   background: linear-gradient(140deg, color-mix(in srgb, var(--profile-colour) 100%, #fff 18%), var(--profile-colour) 55%, color-mix(in srgb, var(--profile-colour) 60%, #071018)); }

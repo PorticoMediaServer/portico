@@ -14,7 +14,9 @@ import {homeChannelSelection, homeEntryCapabilities} from '@core/home-selection.
 import {homeContinuationCard, homeContinuationSource} from '@core/presentation/home-continuation.ts';
 import {homeCollectionCaption} from '@core/presentation/home-spotlight.ts';
 import {continueBookFacts} from '@core/presentation/continue-books.ts';
-import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
+import {channelMonograms, type TimeEnvironment} from '@portico/client-core/kit-model';
+import {wallClockText} from '@core/presentation/kit-model/channels.ts';
+import type {FactPart} from '@core/presentation/kit-model/text.ts';
 import {useFreshness, useRecovering} from '../../platform/freshness';
 import {Artwork, AmbientArt, GeneratedArt, GeneratedCover, coverTitle} from '../../kit/artwork';
 import {HeroFacts, longTitle, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
@@ -341,6 +343,13 @@ function VisibleBookCard({entry, row, rowIndex, index, artwork, effects, selecti
   return <div ref={interest.ref}>{facts.reading ? <ReadResumeCard {...card} kind={facts.shape === 'audiobook' ? 'book' : facts.shape} /> : <ResumeCard {...card} />}</div>;
 }
 
+/** An On now card says one thing under the programme: when it ends (mock.html On now, "Ends 4:30 PM"). The rest of the
+ * programme's facts belong to the guide; on a card this narrow they were cut to "2:15 to 2:4…", "TV…". */
+function onNowFacts(endMs: number | undefined, time: TimeEnvironment): readonly FactPart[] {
+  const end = endMs === undefined ? undefined : wallClockText(endMs, time);
+  return end ? [{id: 'ends', role: 'context', text: t('next.watch.ends', {time: end})}] : [];
+}
+
 function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, selection, appearance}: HomePresentation & {item: HomeChannel; mark: Parameters<typeof LiveCard>[0]['channel']['mark']; nowMs: number; order: number; row: HomeRow}) {
   const interest = useVisible(), width = useShellWidth(), {channel} = item;
   const programme = channel.programmes.find(item => Date.parse(item.start) <= nowMs && nowMs < Date.parse(item.end));
@@ -349,6 +358,6 @@ function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, sel
   const play = () => { if (current()) void effects.playChannel(channel).catch(effects.reportError); };
   const canPlay = homeChannelSelection(item, {platform: 'web', playbackAvailable: true, queueAvailable: true}).capabilities.play;
   return <div ref={interest.ref}><LiveCard style={{width: '100%', height: (width >= 1024 ? 178 : 140) * cardScale(appearance)}} channel={{sourceId: channel.sourceId, id: channel.id, name: channel.name, number: channel.number, mark}}
-    programme={programme ? {title: programme.title, facts: programmeFactParts({startMs: start, endMs: end, subtitle: programme.subtitle, categories: programme.categories, rating: programme.rating?.value, flags: programme.flags, recording: programme.recordingState === 'recording'}, time, nowMs), progress: start !== undefined && end !== undefined && end > start ? (nowMs - start) / (end - start) : undefined, live: programme.flags?.live === true, isNew: programme.flags?.new === true, premiere: programme.flags?.premiere === true} : undefined}
+    programme={programme ? {title: programme.title, facts: onNowFacts(end, time), progress: start !== undefined && end !== undefined && end > start ? (nowMs - start) / (end - start) : undefined, live: programme.flags?.live === true, isNew: programme.flags?.new === true, premiere: programme.flags?.premiere === true} : undefined}
     visible={interest.visible} selection={selection.channel(row, item)} logo={artwork.foreground(channel.logoPath, 34 * devicePixelRatio, 1, {group: row.id, order})} onNavigate={canPlay ? play : () => { if (current()) effects.openSeeAll({type: 'guide', sourceId: channel.sourceId}); }} onPlay={canPlay ? play : undefined} /></div>;
 }
