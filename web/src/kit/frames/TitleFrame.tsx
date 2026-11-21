@@ -41,7 +41,7 @@ export type TitleFrameProps = Readonly<{
   cover?: TitleCover;
   /** A glass disc over the art up to tablet width. From 1024 the nav is the way back. Absent where there is no way back. */
   back?: FrameBack;
-  /** One glass disc opposite Back (Play on). */
+  /** One glass disc opposite Back (Play on; a playlist's ⋯, with `wrap`). */
   topAction?: TitleAction;
   kicker?: TitleKicker;
   title: string;
@@ -104,7 +104,11 @@ const names = (value: TitleCredit['names']) => typeof value === 'string' ? value
 export function TitleFrame({art, cover, back, topAction, kicker, title, metadata, picker, primary, actions = [], tagline, synopsis, opening, readMore, credits, cast, tabs, children, aside, collapsed, state}: TitleFrameProps) {
   const phone = usePhone(), failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   const tabsTop = useRef<HTMLDivElement>(null), slot = useRef<HTMLDivElement>(null), shown = useCollapsed(tabsTop, slot, collapsed);
-  const disc = (action: TitleAction) => <Button variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} disabled={action.disabled} onClick={action.onPress} className={styles.disc} />;
+  // A disc whose action is a menu (a playlist's ⋯ beside Back, collections-11) is handed to the screen to wrap, as a round action is.
+  const disc = (action: TitleAction) => {
+    const button = <Button variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} disabled={action.disabled} onClick={action.onPress} className={styles.disc} />;
+    return action.wrap ? action.wrap(button) : button;
+  };
   const backButton = back && disc({icon: 'i-left', label: back.label, onPress: back.onPress}), panelId = useId();
   if (failure) return <div className={styles.title}><div className={styles.top}>{backButton}</div><PageStateFrame {...failure} /></div>;
   const round = (action: TitleAction) => <Button key={`${action.label}:round`} variant="glass" phone={phone} iconOnly icon={action.icon} aria-label={action.label} title={action.label} aria-pressed={action.active} data-active={action.active || undefined} data-labelled={action.labelled || undefined} data-wide={action.wide || undefined} disabled={action.disabled || loading} onClick={action.onPress} className={styles.round} />;
@@ -156,7 +160,8 @@ export function TitleFrame({art, cover, back, topAction, kicker, title, metadata
           <span className={styles.barEnd}>
             {primary && <Button variant="primary" size="small" icon={primary.icon} disabled={primary.disabled || loading} onClick={primary.onPress}>{primary.label}</Button>}
             {pinned.map(action => <Button key={action.label} variant="glass" size="small" iconOnly icon={action.icon} aria-label={action.label} aria-pressed={action.active} disabled={action.disabled || loading} onClick={action.onPress} />)}
-            {topAction && <span className={styles.barCast}>{disc(topAction)}</span>}
+            {/* A disc that is a menu stays in the head only: one menu, one trigger. */}
+            {topAction && !topAction.wrap && <span className={styles.barCast}>{disc(topAction)}</span>}
           </span>
         </div>
         {tabs && <Tabs className={styles.barTabsUnder} listClassName={styles.inset} phone items={tabs.items} value={tabs.value} onValueChange={tabs.onValueChange} />}

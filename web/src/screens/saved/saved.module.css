@@ -63,20 +63,15 @@
 .newTile { width: 172px; margin: 30px var(--shell-gutter) 0; }
 .visibility { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 18px; font-size: var(--type-body-size); line-height: normal; font-weight: var(--type-row-heading-weight); }
 .visibilityHelp { margin: 8px 0 0; font-size: var(--type-caption-size); line-height: calc(var(--type-caption-size) * 1.5); color: var(--color-text-tertiary); }
-.resourceBack { position: relative; z-index: var(--layer-content); display: flex; align-items: center; justify-content: space-between; padding: 104px var(--shell-gutter) 0; }
+/* The title frame wrapping a list's head, toolbar and rows; from 1024 it starts lower to leave "‹ Saved" its own line. */
+.resourceTitle { position: relative; z-index: var(--layer-content); }
+@media (min-width: 1024px) { .resourceTitle { padding-top: var(--space-xl); } }
+/* From 1024, "‹ Saved" over the title frame's own top space (collections-4); below 1024 the frame's Back disc is the way back. */
+.resourceBack { position: absolute; z-index: var(--layer-content); top: calc(var(--shell-top, 76px) + var(--space-md)); left: 0; right: 0; display: flex; align-items: center; padding: 0 var(--shell-gutter); }
 .resourceAmbient.resourceAmbient { height: 560px; }
 .resourceAmbient.resourceAmbient > div { -webkit-mask-image: linear-gradient(180deg, var(--color-shadow) 0, color-mix(in srgb, var(--color-shadow) 70%, transparent) 40%, transparent 100%); mask-image: linear-gradient(180deg, var(--color-shadow) 0, color-mix(in srgb, var(--color-shadow) 70%, transparent) 40%, transparent 100%); }
 .resourceAmbient.resourceAmbient.resourceAmbient.resourceAmbient > div > span { top: -20%; left: calc(-8% + var(--art-order, 0) * 30%); width: 50%; height: 140%; filter: blur(90px) saturate(1.5); opacity: .4; }
-.resourceHeader { position: relative; z-index: var(--layer-content); display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 40px; align-items: end; padding: 22px var(--shell-gutter) 0; }
-.resourceCover { aspect-ratio: 1; border-radius: 14px; overflow: hidden; box-shadow: 0 40px 70px -30px color-mix(in srgb, var(--color-shadow) 90%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); }
-.resourceCover > * { width: 100%; height: 100%; }
-.resourceCover > span { gap: 2px; }
-.resourceHeader h1 { margin: 0 0 12px; font-size: calc(var(--type-lockup-size) * 16 / 21); line-height: calc(var(--type-lockup-size) * 16 / 21 * 0.98); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); }
-.resourceHeader p { margin: 8px 0; color: var(--color-text-secondary); }
-.resourceKind { display: block; margin: 0 0 10px; font-size: var(--type-eyebrow-size); font-weight: var(--type-row-heading-weight); color: var(--color-accent-strong); }
-.resourceActions { display: flex; align-items: center; gap: 10px; margin-top: 20px; }
-.resourceActions > button { height: 50px; padding: 0 22px; border-radius: 12px; font-size: var(--type-wide-title-size); }
-.resourceVisibility { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; padding: 10px 14px 10px 16px; width: fit-content; border-radius: 12px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.resourceVisibility { display: flex; margin-inline: var(--shell-gutter); align-items: center; gap: 16px; margin-bottom: 18px; padding: 10px 14px 10px 16px; width: fit-content; border-radius: 12px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .resourceVisibility b { font-size: calc(var(--type-caption-size) * 29 / 26); font-weight: var(--type-row-heading-weight); }
 .resourceVisibility small { display: block; margin-top: 2px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 .personalRows { padding: 12px var(--shell-gutter) 0; }
@@ -230,8 +225,6 @@
   .serverDownloads .downloadRow { grid-template-columns: 64px minmax(0, 1fr) 220px 220px; }
 }
 @media (max-width: 1023px) {
-  .resourceHeader { grid-template-columns: 160px minmax(0, 1fr); gap: 24px; padding: 24px; }
-  .resourceHeader h1 { font-size: var(--type-display-size); }
   .historyRow { grid-template-columns: 120px minmax(0, 1fr) 90px; gap: 16px; }
   .historyArt { width: 120px; height: 68px; }
   .historyRow > div:nth-child(3) { display: none; }
@@ -249,17 +242,7 @@
   .playlistsEnd, .newTile { display: none; }
   .savedSection { margin: 20px 20px 0; }
   .resources { padding: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .resourceBack { padding: 16px 12px 0; }
-  .resourceHeader { display: block; padding: 20px; text-align: center; }
-  .resourceCover { width: 152px; margin: 0 auto 14px; box-shadow: 0 30px 60px -20px color-mix(in srgb, var(--color-shadow) 90%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent); }
-  .resourceHeader h1 { font-size: var(--type-fixed-size-30px); line-height: calc(var(--type-fixed-line-1) * 1.08); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-035em); margin-bottom: 6px; }
-  .resourceHeader p { font-size: var(--type-fixed-size-13px); }
-  .resourceKind { font-size: var(--type-fixed-size-13point-5px); margin-bottom: 2px; }
-  .resourceActions { margin-top: 14px; }
-  .resourceActions > button { height: 46px; border-radius: 10px; font-size: var(--type-fixed-size-15px); }
-  .resourceActions > .resourcePlay { flex: 1; justify-content: center; }
-  .resourceActions > button[data-icon-only] { width: 46px; min-width: 46px; padding: 0; }
-  .resourceVisibility { text-align: left; width: 100%; }
+  .resourceVisibility { text-align: left; width: auto; }
   .resourceEntryPrimary.resourceEntryPrimary { grid-template-columns: 48px minmax(0, 1fr); gap: 12px; padding: 0 44px 0 0; }
   .resourceEntry[data-reordering] .resourceEntryPrimary { padding-left: 32px; }
   .resourceOrdinal, .resourceEntryStatus { display: none; }
