@@ -374,9 +374,11 @@
 }
 @media (max-width: 599px) {
   .recordingsBar, .recordingsBanner, .recBody { padding-inline: var(--shell-gutter); }
-  .recRow { grid-template-columns: 84px minmax(0, 1fr); gap: 12px; }
-  .recArt { grid-row: span 2; }
-  .recRight { grid-column: 1 / -1; }
+  /* phone-app 12: a row is the time, the words, then its state and More; no picture. */
+  .recRow { grid-template-columns: 76px minmax(0, 1fr) auto; gap: 12px; }
+  .recRow > .recArt { display: none; }
+  .recRow > .recRight { grid-column: auto; }
+  .recMeta { flex-wrap: wrap; gap: 2px 12px; }
   .recordedGrid { grid-template-columns: 1fr; }
   .groupRow { grid-template-columns: 84px minmax(0, 1fr); }
   .conflictRow { grid-template-columns: 84px minmax(0, 1fr); }
