@@ -9,7 +9,7 @@ import {NativeReadBook} from './read-book-model';
 import {NativeReadPeriodical} from './read-periodical-model';
 import {NativeReadSeries} from './read-series-model';
 import {ReadBookHost} from './ReadBookHost';
-import {ReadPeriodicalScreen} from './ReadPeriodicalScreen';
+import {ReadPeriodicalPage} from '../../pages/touch/read/ReadPeriodicalPage';
 import {ReadSeriesPage} from '../../pages/touch/read/ReadSeriesPage';
 
 /** phone-read 3/3c and 4/4c: route-owned book and series destinations. The cache
@@ -140,7 +140,7 @@ export function createNativeReadPeriodicalRenderer(context: NativeShellBootstrap
       if (route.kind !== 'read-periodical') return null;
       const controller = controllerFor(route);
       if (!controller) return null;
-      return <ReadPeriodicalScreen controller={controller} route={route} context={context} runtime={runtime}
+      return <ReadPeriodicalPage controller={controller} route={route} context={context} runtime={runtime}
         onBack={() => {if (current() && context.navigation.getSnapshot().route === route) context.navigation.back(context.authority());}}/>;
     },
     dispose: () => {
