@@ -5,10 +5,12 @@ import {StateView} from '../states';
 import type {NativeShellRuntime} from '../../shell/runtime';
 
 /** One of This device's setting rows with its own failure line under it, dismissed in place. */
-export function DeviceRowBlock({error, onDismiss, runtime, children}: {error: unknown; onDismiss: () => void; runtime: NativeShellRuntime; children: ReactNode}) {
+export function DeviceRowBlock({error, onDismiss, runtime, errorContext, children}: {error: unknown; onDismiss: () => void; runtime: NativeShellRuntime;
+  /** Whose words the failure line uses (presentError's context); the runtime's default when absent. */
+  errorContext?: Parameters<NativeShellRuntime['error']>[2]; children: ReactNode}) {
   return <View>
     {children}
-    {error !== undefined && <StateView variant="inline" {...runtime.error(error, onDismiss)}/>}
+    {error !== undefined && <StateView variant="inline" {...runtime.error(error, onDismiss, errorContext)}/>}
   </View>;
 }
 

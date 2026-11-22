@@ -13,7 +13,7 @@ const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/scre
   '../../pages/touch/settings/AccessTokensPanel': {AccessTokensPanel: 'AccessTokensPanel'},
   '../../pages/touch/settings/DeviceAboutRows': {DeviceAboutRows: 'DeviceAboutRows'},
   '../../pages/tv/settings/AllowedDevicesRows': {AllowedDevicesRows: 'AllowedDevicesRows'},
-  './NativeConnectionRows': {NativeConnectionStatusRow: 'NativeConnectionStatusRow', NativeConnectionAddressRow: 'NativeConnectionAddressRow', NativeTestConnectionRow: 'NativeTestConnectionRow', NativeInsecureConnectionsRow: 'NativeInsecureConnectionsRow'},
+  '../../pages/shared/settings/ConnectionRows': {NativeConnectionStatusRow: 'NativeConnectionStatusRow', NativeConnectionAddressRow: 'NativeConnectionAddressRow', NativeTestConnectionRow: 'NativeTestConnectionRow', NativeInsecureConnectionsRow: 'NativeInsecureConnectionsRow'},
   '../../../../../packages/client-core/src/installation': {installationIdentity: () => undefined},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {},
   '../../kit/controls': {},
