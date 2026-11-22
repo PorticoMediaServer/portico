@@ -62,8 +62,6 @@ export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [
   const lo = chapterBar?.bounds?.start ?? bounds?.start ?? 0, hi = chapterBar?.bounds?.end ?? bounds?.end ?? Math.max(p.durationSeconds, 1);
   const at = Math.min(hi, Math.max(lo, p.positionSeconds));
   const show = (panel: 'speed' | 'sleep' | 'chapters' | 'play-on' | 'options') => () => onShowPanel?.(snapshot, panel);
-  // A book known to have no chapters offers End of this book, not End of this chapter as well (both stop at the same place).
-  const sleepOffered = !book && chapters?.data?.status === 'none' ? sleepChoices.filter(choice => choice !== 'chapter') : sleepChoices;
   // frame 8's book form (desktop-listen "book-player", phone-app 15): the kit's AudioPlayerFrame places every region; this view
   // hands it the book's facts and the listening owner's commands.
   return <section className={`portico-cover ${styles.frame}`} data-cover={ambient ? 'audio' : undefined} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
@@ -97,7 +95,7 @@ export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [
         choices: speedChoices.map(choice => ({label: `${new Intl.NumberFormat(defaultI18n.region.formatLocale).format(choice)}×`, selected: choice === p.rate, onPress: () => onSpeed(snapshot, choice)}))} : undefined}
       sleep={sleepChoices.length ? {icon: 'i-moon', label: t('player.opt.sleepTimer'), value: typeof sleepChoice === 'number' && sleepChoice > 0 ? t('duration.minutes', {minutes: sleepChoice}) : sleepChoiceLabel(sleepChoice),
         active: sleepChoice !== 0, ...(sleepStops ? {help: sleepStops} : {}), onPress: show('sleep'),
-        choices: sleepOffered.map(choice => ({label: typeof choice === 'number' && choice > 0 ? t('next.kit.duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice), selected: sleepChoiceValue(choice) === sleepChoiceValue(sleepChoice), onPress: () => onSleep(snapshot, choice)}))} : undefined}
+        choices: sleepChoices.map(choice => ({label: typeof choice === 'number' && choice > 0 ? t('next.kit.duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice), selected: sleepChoiceValue(choice) === sleepChoiceValue(sleepChoice), onPress: () => onSleep(snapshot, choice)}))} : undefined}
       chapters={phone ? {icon: 'i-chapters', label: t('player.opt.chapters'), value: chapterTotal !== undefined ? String(chapterTotal) : '', disabled: !onShowPanel || !chapters && !book, onPress: show('chapters')} : undefined}
       panel={phone ? undefined : <AudioPanelSurface label={t('player.opt.chapters')}><div className={styles.side}>
         {aside ?? <>
