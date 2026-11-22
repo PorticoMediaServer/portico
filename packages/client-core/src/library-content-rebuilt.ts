@@ -15,7 +15,7 @@ import type {Home, Item, ItemPage, Library as WireLibrary, Marker, Person} from 
 import type {ContentEntry, ContentProjection, ContentRoute, ContentScope, ContentSection} from './library-content.ts';
 import {entriesFromItems, entryFromItem, entryFromPerson, libraryKind} from './items.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
-import {firstOfEach} from './tolerant.ts';
+import {firstOfEach, keepReadable} from './tolerant.ts';
 
 /** The library's kind, which the layouts read, in the app's words; "" (the default layout) when the
  * library cannot be read. That read never fails the page. */
@@ -157,7 +157,10 @@ async function discoverFromLanding(api: ServerRequester, route: ContentRoute, bo
   const rows = Array.isArray(landing?.rows) ? landing.rows : [];
   const sections: ContentSection[] = [];
   for (const row of firstOfEach('content', 'landing.rows', rows.filter(row => typeof row?.id === 'string' && row.id && Array.isArray(row.items)), row => row.id)) {
-    const entries = firstOfEach('content', 'entries', entriesFromItems(row.items, route.libraryId), entry => entry.id).slice(0, railLimit);
+    // A row of people (an audiobook library's Authors) opens each author's page.
+    const cards = Array.isArray(row.people) && row.people.length ? keepReadable('landing', 'people', row.people, person => entryFromPerson(person as Person, route.libraryId, 'author'))
+      : entriesFromItems(row.items, route.libraryId);
+    const entries = firstOfEach('content', 'entries', cards, entry => entry.id).slice(0, railLimit);
     if (!entries.length && !next) continue;
     // An audiobook library's Continue is the screen's resume shelf, which it knows by this id.
     const id = row.id === 'continue' && library.kind === 'audiobook' ? 'continue_listening' : row.id;

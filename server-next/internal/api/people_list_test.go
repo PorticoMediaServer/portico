@@ -134,4 +134,28 @@ func TestAnAudiobookLibrarysAuthorsAndSeries(t *testing.T) {
 			t.Errorf("%s answered %d", query, code)
 		}
 	}
+
+	// The library's Discover (listen-7): Recently Added names each book's author, and an Authors
+	// row follows it, holding only the authors the profile may see.
+	landing := func(token string) (authors []string, byline map[string]string) {
+		t.Helper()
+		byline = map[string]string{}
+		for _, row := range get[Home](t, s, token, "/v1/libraries/"+lib.PublicID+"/landing").Rows {
+			for _, it := range row.Items {
+				byline[it.Title] = it.Author
+			}
+			if row.ID == "authors" {
+				for _, p := range row.People {
+					authors = append(authors, p.Name)
+				}
+			}
+		}
+		return
+	}
+	if authors, byline := landing(owner); !slices.Equal(authors, []string{"Ada Adams", "Ben Brook", "Cy Cole"}) || byline["Alone"] != "Ben Brook" || byline["Thunder"] != "Cy Cole" {
+		t.Errorf("the owner's Discover: authors %v, bylines %v", authors, byline)
+	}
+	if authors, byline := landing(onKid.AccessToken); !slices.Equal(authors, []string{"Ada Adams", "Ben Brook"}) || byline["Low Water"] != "Ada Adams" {
+		t.Errorf("the kid's Discover: authors %v, bylines %v", authors, byline)
+	}
 }

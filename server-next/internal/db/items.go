@@ -31,6 +31,7 @@ type Item struct {
 	ParentIndex     *int
 	ChildCount      int
 	ContentRating   string
+	Author          string // a book's or audiobook's first credited author (authors.go)
 	CommunityRating float64
 	ParentID        int64
 	RootID          int64
@@ -948,9 +949,6 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 
 // loadImages attaches chosen pictures, falling back to a visible album for a track with none.
 func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
-	if len(items) == 0 {
-		return nil
-	}
 	ids := make([]int64, 0, len(items))
 	for _, item := range items {
 		ids = append(ids, item.ID)
@@ -968,7 +966,7 @@ func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
 			items[n].Images = byID[items[n].imageParentID]
 		}
 	}
-	return nil
+	return loadAuthors(ctx, tx, items) // every card is read through here (authors.go)
 }
 
 // imageQueryer is a connection or transaction that can read many rows.
