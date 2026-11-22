@@ -15,7 +15,8 @@ import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatch
 import type {MusicPlaylistPickerHandle} from './music-playlist-picker';
 import type {NativeTitleActionsHandle} from './title-actions';
 import {NativePlaybackInfoPanel, playbackInfoWords} from '../kit/player/PlaybackInfoPanel';
-import {NativeWatchPanels, type NativeWatchPanelsProps, type NativeWatchStylePort} from '../screens/watch/WatchPanels';
+import {WatchPanelsPage} from '../pages/shared/player/WatchPanelsPage';
+import type {NativeWatchPanelsProps, NativeWatchStylePort} from '../pages/shared/player/useWatchPanels';
 import {NativeWatchPanelOptions} from '../screens/watch/panel-options';
 import type {NativeWatchHostBindings} from '../pages/shared/player/useWatchHost';
 import {sameAuthority} from './model';
@@ -215,7 +216,7 @@ export function createNativeWatchModule(context: NativeShellBootstrapContext, bi
       onGuide: liveGuide.guideAction(),
       ...(bindings.onPictureInPicture ? {onPictureInPicture: bindings.onPictureInPicture} : {}),
     }),
-    panel: host => <NativeWatchPanels context={host} options={options} playback={context.playback} names={bindings.names ?? createNativeWatchPanelNames(host.runtime.text)} copy={copy}
+    panel: host => <WatchPanelsPage context={host} options={options} playback={context.playback} names={bindings.names ?? createNativeWatchPanelNames(host.runtime.text)} copy={copy}
       subtitleControls={fence => context.playback.subtitleControls?.(fence)} sleep={context.playback.setSleepTimer ? sleepPort() : undefined} style={stylePort(host.source)}
       reportError={host.runtime.reportError} renderError={bindings.title.renderError} playbackInfo={bindings.playbackInfo ?? (value => <NativePlaybackInfoPanel context={value} read={screens.readPlaybackInfo} renderError={bindings.title.renderError}/>)} episodes={bindings.episodes ?? screens.watch.episodes}/>,
     notice: (fence, lifetime) => screens.readPlaybackInfo(fence, playbackInfoWords(), lifetime).then(info => info?.notice),

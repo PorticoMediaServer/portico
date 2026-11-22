@@ -198,7 +198,7 @@ Changed in the final round before the owner's review (r6):
 
 Left for Stage 2, listed so it is not forgotten:
 
-- `screens/watch/WatchPanels.tsx` (options, Subtitles, Audio, Quality, Speed, sleep timer, subtitle style) and
+- `kit/player/WatchPanelsView.tsx` (its state is `pages/shared/player/useWatchPanels`; options, Subtitles, Audio, Quality, Speed, sleep timer, subtitle style) and
   `kit/player/WatchEpisodesView.tsx` (the episode panel; its reads are `pages/shared/player/useWatchEpisodes`) still draw their own header, groups and rows. They read the playback adapter and the title
   controller directly, so they could not be moved as they are. Stage 2 puts them on `PlayerPanel`, `PlayerPanelGroup`,
   `PlayerPanelRow` and `PlayerEpisodeRow` and deletes their private rows.

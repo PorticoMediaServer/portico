@@ -15,7 +15,7 @@ const {createNativeWatchModule} = await screenModule(new URL('../src-next/shell/
   '../../../../../packages/client-core/src/audiobook-preferences': {}, '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n: {t: (s: string) => s}},
   '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue},
   '../../../../../packages/client-core/src/playback-v1/quality': {}, '../../shell/watch-factory': {createNativeWatchScreens: (ports: any) => {captured = ports; return {watch: {}, dispose() {}};}},
-  '../../kit/player/PlaybackInfoPanel': {}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
+  '../../kit/player/PlaybackInfoPanel': {}, '../../pages/shared/player/WatchPanelsPage': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
   './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {}, '../../shell/channel-route': {}, './live-guide': {NativeTVLiveGuide: class {guideAction() {return () => {};} close() {return false;} dispose() {}}}, './live-actions': {NativeTVLiveActions: class {close() {return false;} dispose() {}}}, '../../kit/player/LiveActionPanels': {}, '../../kit/player/PlaybackFailed': {NativePlaybackFailed: 'TVFailure'},
   '../../kit/player/HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {},
   './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},
