@@ -7,11 +7,9 @@ import {screenModule} from './helpers/screen-harness.mjs';
 // (states.html 13): backdrop, drawn below Back and the status bar; TV keeps its side backdrop, centred.
 async function page(isTV: boolean) {
   const react = {createElement: (type: any, props: any, ...children: any[]) => ({type, props: {...props, ...(children.length ? {children} : {})}})};
-  const mod = await screenModule(new URL('../src-next/screens/native-screen-services.tsx', import.meta.url), {
-    react: {...react, default: react, useSyncExternalStore: () => undefined}, 'react-native': {NativeModules: {}},
-    '../kit/dock/DockClearance': {useDockClearance: () => 0}, '../kit/overlays': {ToastHost: 'ToastHost'},
-    '../kit/states': {StateLayout: 'StateLayout', StateView: 'StateView'}, '../kit/theme': {useTheme: () => ({isTV})},
-    './screen-services': {NativeScreenServices: class {}},
+  const mod = await screenModule(new URL('../src-next/kit/states/ScreenErrorPage.tsx', import.meta.url), {
+    react: {...react, default: react}, './StateView': {StateView: 'StateView'}, './StateLayout': {StateLayout: 'StateLayout'},
+    '../theme': {useTheme: () => ({isTV})},
   });
   const service = {error: (_error: unknown, retry: () => void, context: string) => ({title: `${context} failed`, body: 'Check the server.', icon: 'i-warn', primaryAction: {id: 'retry', label: 'Try again', onPress: retry}})};
   const element = mod.nativeScreenErrorPage(service, 'detail')(new Error('offline'), () => {}) as {type: any; props: any};
