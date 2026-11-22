@@ -529,6 +529,20 @@ type Progress struct {
 	// OwnerOnly saves no place and no watched mark: a finished play goes into the owner's
 	// Play history only, as a Library Channel's plays do.
 	OwnerOnly bool
+	// Opening is where this playing began and the furthest it reached, when the server saw it
+	// played; nil for progress a device sends from what it played out of reach.
+	Opening *Opening
+}
+
+// Opening is how a playing began and how far it went, in milliseconds of the title.
+type Opening struct {
+	FromMS     int64
+	FurthestMS int64
+	// StartedAtMS is when the playing began, in Unix milliseconds.
+	StartedAtMS int64
+	// Exact says FurthestMS is what the server saw. Without it, FurthestMS is a bound that
+	// cannot see a seek (a final position sent after the server let the session go).
+	Exact bool
 }
 
 // Settings a profile can change that decide what a position means. Values are percentages.
@@ -699,16 +713,16 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	var id, duration int64
 	var kind ItemKind
 	var title, holder, completion string
-	var resumeAt, credits sql.NullInt64
+	var resumeAt, credits, pointAt sql.NullInt64
 	// Only a trusted credits marker can finish a title: see MarkerSource.Trusted.
 	err = w.queryRow(`SELECT i.id, i.kind, ifnull(i.duration_ms, 0), i.title,
-		ifnull((SELECT r.title FROM items r WHERE r.id = ifnull(i.root_id, i.parent_id)), ''), s.position_ms,
+		ifnull((SELECT r.title FROM items r WHERE r.id = ifnull(i.root_id, i.parent_id)), ''), s.position_ms, s.position_at,
 		ifnull((SELECT json_extract(l.options, '$.videoCompletion') FROM libraries l WHERE l.id = i.library_id), ''),
 		(SELECT min(k.start_ms) FROM media m JOIN media_markers k ON k.media_id = m.id
 			WHERE m.item_id = i.id AND k.dismissed = 0 AND k.kind = `+itoa(int64(MarkerCredits))+` AND k.source <> `+itoa(int64(MarkerFromAnalysis))+`)
 		FROM items i LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE i.public_id = @item AND `+w.access.visible("i"), w.named(sql.Named("item", sample.ItemID))...).
-		Scan(&id, &kind, &duration, &title, &holder, &resumeAt, &completion, &credits)
+		Scan(&id, &kind, &duration, &title, &holder, &resumeAt, &pointAt, &completion, &credits)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, ErrNotFound // removed, or no longer this profile's to see
 	}
@@ -795,6 +809,15 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	}
 	if position < started && !resumeAt.Valid {
 		return false, nil
+	}
+	if position < started && misStart(sample.Opening, started, resumeAt.Int64, pointAt.Int64, w.began(sample, ago)) {
+		// Opened under the started mark and clearly before the resume point (Play from the start
+		// instead of Resume, or the other copy of a show) and stopped before reaching the mark:
+		// the earlier resume point stays (owner, 22 Nov, on rule 8). A playing that began from
+		// the resume point, wherever it is, keeps rule 8 exactly: a stop moves the point. The
+		// title still counts as played now, so one taken off Continue Watching comes back to it
+		// (rule 13).
+		return false, w.touchPlayed(id, w.now-ago.Milliseconds(), w.began(sample, ago))
 	}
 	_, _, err = w.apply(sample.ItemID, StateEdit{PositionMS: &position, Ago: ago})
 	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrInvalid) {

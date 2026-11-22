@@ -20,9 +20,11 @@ type playbackProgressClaim struct {
 	PlayID    string
 	ItemID    string
 	StartedAt int64
-	Away      bool
-	Delivery  db.PlayDelivery
-	OwnerOnly bool
+	// OpenedAtMs is where the playing began (playback.Session.OpenedAtMs).
+	OpenedAtMs int64
+	Away       bool
+	Delivery   db.PlayDelivery
+	OwnerOnly  bool
 }
 
 func (s *Server) progressToken(v playback.Session) string {
@@ -30,7 +32,7 @@ func (s *Server) progressToken(v playback.Session) string {
 		return ""
 	}
 	return s.tokens.Remember("playback-progress", playbackProgressClaim{Viewer: v.Viewer(), DeviceID: v.Device.ID,
-		Device: v.Device.PublicID, Account: v.Device.UserPublicID, Profile: v.ProfilePublicID, PlayID: v.ID, ItemID: v.Item.PublicID, StartedAt: v.StartedAt.UnixMilli(),
+		Device: v.Device.PublicID, Account: v.Device.UserPublicID, Profile: v.ProfilePublicID, PlayID: v.ID, ItemID: v.Item.PublicID, StartedAt: v.StartedAt.UnixMilli(), OpenedAtMs: v.OpenedAtMs,
 		Away: v.Network != playback.NetworkLocal, Delivery: db.ParsePlayDelivery(v.Plan.Route), OwnerOnly: v.Channel != nil})
 }
 
@@ -71,8 +73,18 @@ func (s *Server) saveFinalPlayback(r *http.Request, req PlaybackStop) error {
 	if elapsed < 0 {
 		return ErrField("madeAgoMs", "The position must have been observed after this play started.")
 	}
+	// How far the playing went: at least where it began plus the time it played, or where it ends;
+	// with the session the server still has, also the furthest it was seen at, and then exactly.
+	opening := &db.Opening{FromMS: claim.OpenedAtMs, FurthestMS: max(*req.PositionMs, claim.OpenedAtMs+min(req.PlayClockMs, elapsed)),
+		StartedAtMS: claim.StartedAt}
+	if furthest, ok := s.playback.Furthest(claim.PlayID, claim.Viewer.UserID); ok {
+		opening.FurthestMS, opening.Exact = max(furthest, opening.FurthestMS), true
+	}
 	_, err = s.db.SaveProgress(context.WithoutCancel(r.Context()), db.User, []db.Progress{{Viewer: claim.Viewer,
 		ProfilePublicID: claim.Profile, DeviceID: claim.DeviceID, ItemID: claim.ItemID, PlayID: claim.PlayID, At: at, PositionMS: *req.PositionMs,
-		WatchedMS: min(req.PlayClockMs, elapsed), Away: claim.Away, Delivery: claim.Delivery, OwnerOnly: claim.OwnerOnly}})
+		WatchedMS: min(req.PlayClockMs, elapsed), Away: claim.Away, Delivery: claim.Delivery, OwnerOnly: claim.OwnerOnly,
+		// A final position sent later has no record of how far the playing went: it went no
+		// further than where it began plus the time it played, unless it ends further on.
+		Opening: opening}})
 	return err
 }
