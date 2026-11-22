@@ -55,7 +55,7 @@ test('while a row is lifted the list holds still and the foot steps away', async
 
 test('TV: while a row is lifted every grip is off, its own too, so focus stays on the lifted row (Up and Down move only a row that holds focus)', async () => {
   const tvParts = ['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel',
-    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeViewMark'];
+    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeRowSwitch', 'TVHomeViewMark'];
   const lifted = {...ready, state: {...ready.state, pickedId: 'trending'}, pickRow() {}, rowHeight: 58};
   const {HomeCustomizePage} = await screenModule(new URL('../src-next/pages/tv/home/HomeCustomizePage.tsx', import.meta.url), {
     react: {...React, default: React},

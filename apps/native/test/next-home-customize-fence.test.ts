@@ -148,7 +148,7 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
   const theme = {isTV: true, platform: 'tv', colors: {text: '#fff', textSecondary: '#aaa', textTertiary: '#777', raisedHigh: '#222', accentStrong: '#0af', shadow: '#000', line: '#333'},
     textScale: 1, type: {title: {}, body: {}, bodyStrong: {}, caption: {}, captionStrong: {}}};
   const tvParts = ['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel',
-    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeViewMark'];
+    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeRowSwitch', 'TVHomeViewMark'];
   const pageModules = {
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', TVEventHandler: {addListener: () => ({remove() {}})}, findNodeHandle: () => 1},
     'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
@@ -215,7 +215,7 @@ for (const os of ['android', 'ios'] as const) test(`TV (${os}): a dropped row ta
   const registry = {capture: () => capture, attachedFocus: () => capture, subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}};
   const theme = {isTV: true, platform: 'tv', colors: {}, textScale: 1, type: {}};
   const tvParts = ['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel',
-    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeViewMark'];
+    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeRowSwitch', 'TVHomeViewMark'];
   const pageModules = {
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', TVEventHandler: {addListener: (listener: (raw: any) => void) => {keys.push(listener); return {remove() {}};}}, findNodeHandle: () => 1, Platform: {OS: os}},
     'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
