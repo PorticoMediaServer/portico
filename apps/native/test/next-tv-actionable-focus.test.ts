@@ -661,7 +661,8 @@ test('actual Search registration keeps equal-value retained genre R1/R2 focus ro
     '../../../../../../packages/client-core/src/presentation/browse-toolbar': direction, '../../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},
     '../../../../../../packages/client-core/src/search-genres': genres, '../../../../../../packages/i18n/src': {defaultI18n}, '../library/useLibrary': {browseFailure: (value: unknown) => value}});
   const {useTVGenreBrowse} = await screenModule(new URL('../src-next/pages/shared/search/useTVGenreBrowse.ts', import.meta.url), {react: b.react, './useGenreBrowse': shared});
-  const context = {authority: () => authority, subscribeAuthority: () => () => {}, session: () => ({viewer: {role: 'member'}}), navigation: {
+  const context = {authority: () => authority, subscribeAuthority: () => () => {}, session: () => ({viewer: {role: 'member'}}),
+    playback: {subscribe: () => () => {}, getSnapshot: () => ({dock: {}})}, navigation: {
     subscribe: () => () => {}, retainedRoutes: () => [r1], getSnapshot: () => ({route: showing}), back() {} }};
   let latestReads = 0;
   const controller = register.createNativeSearchModule(context), runtime = {text: {t: defaultI18n.t, locale: 'en-US'}, getSnapshot() {latestReads++; return {authority};}};
