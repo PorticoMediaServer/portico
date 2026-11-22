@@ -292,6 +292,9 @@ function IssueCard({issue, width, height, theme, runtime, onOpen, offer, actions
   const unavailable = issue.item.inventoryAvailable !== true;
   const anchor = useRef<View>(null), target = unavailable ? undefined : offer(issue, anchor), selection = target ? actions.selection(target) : undefined;
   const date = calendarDate(defaultI18n, issue.issueDate), read = readingItemIsRead(issue.item), month = byMonth ? issueCardTitle(issue.issueDate) : undefined;
+  // phone-read 24: under its date, the issue's volume and number when its name gives them ("Vol. 4, No. 9").
+  const {volume, number} = issue as ReadingPeriodicalIssue & {volume?: number; number?: number};
+  const numbered = month && volume && number ? t('next.reader.volumeIssue', {volume, number}) : undefined;
   return <Focusable ref={anchor} accessibilityRole="button" accessibilityLabel={`${issue.item.title}${date ? `. ${date}` : ''}`} focusKind="row" focusRadius={10} disabled={unavailable}
     accessibilityState={selection?.active ? {selected: selection.selected} : unavailable ? {disabled: true} : undefined} onPress={selection?.active ? selection.onToggle : onOpen}
     onLongPressAction={target ? () => actions.actions.show(target) : undefined} style={{width}}>
@@ -303,7 +306,8 @@ function IssueCard({issue, width, height, theme, runtime, onOpen, offer, actions
     <View style={{flexDirection: 'row', marginTop: theme.space.xs, minHeight: 2 * textLine(theme.type.cardTitle) * theme.fontScale}}>
       <GuideProgrammeTitle title={month ?? issue.item.title} lines={2} style={[theme.type.cardTitle, {color: theme.colors.text}]}/>
     </View>
-    {date && !month ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 2}]}>{date}</Text> : null}
+    {date && !month ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 2}]}>{date}</Text>
+      : numbered ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 2}]}>{numbered}</Text> : null}
   </Focusable>;
 }
 

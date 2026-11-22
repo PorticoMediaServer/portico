@@ -70,6 +70,8 @@ export const readerMessages = {
   'next.reader.readIssue': 'Read {issue}',
   'next.reader.magazine': 'Magazine',
   'next.reader.yearRange': '{from} to {to}',
+  'next.reader.frequency': '{frequency, select, daily {Daily} weekly {Weekly} fortnightly {Every two weeks} monthly {Monthly} bimonthly {Every two months} quarterly {Quarterly} annual {Yearly} other {}}',
+  'next.reader.volumeIssue': 'Vol. {volume}, No. {number}',
   'next.reader.shortReads': 'Short reads',
   'next.reader.underThreeHours': 'Under three hours',
   'next.reader.shortReadsFromWordCount': 'Under three hours, from the word count',
