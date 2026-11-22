@@ -327,7 +327,10 @@ export function useTVLibrary(props: LibraryProps) {
   const musicRows = mixes?.phase === 'ready' ? mixes.rows : [];
   const mixId = `${gridId}.mixes`, recent = view.rows.findIndex(row => row.id === 'recently_played');
   const rows = musicDiscover && recent > 0 ? [view.rows[recent]!, ...view.rows.filter((_, index) => index !== recent)] : view.rows;
-  const rowId = (index: number) => `${gridId}.row.${musicDiscover ? rows[index]?.id : index}`;
+  // A row's region is named by its row, not its place: a row arriving above (Continue Watching on a fresh launch) took the
+  // place-named region while the row it pushed down still held the same title there, and TV red-screened on the duplicate
+  // live card (Apple TV, Films › Discover, 21 Nov).
+  const rowId = (index: number) => `${gridId}.row.${rows[index]?.id ?? index}`;
   const mixAfter = recent >= 0 ? rows[0]?.id : undefined;
   const regions = rows.map((_, index) => rowId(index));
   if (musicRows.length) regions.splice(mixAfter ? 1 : 0, 0, mixId);
