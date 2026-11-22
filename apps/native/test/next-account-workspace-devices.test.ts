@@ -9,7 +9,8 @@ import {createTheme} from '../src-next/kit/theme';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// The page frame holds its header action and its confirmation sheet in slots beside its content.
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.action), ...nodes(node.props.overlay)] : [];
 const texts = (node: any) => nodes(node).filter(item => (item.type === 'Text' || item.type === FormError)).map(item => [item.props.children].flat().join(''));
 const t = defaultI18n.t;
 
@@ -26,18 +27,21 @@ async function mount(state: Record<string, unknown>) {
     revokeSession: async (value: any) => {calls.push('one:' + (typeof value === 'string' ? value : value.id));},
     revokeOtherSessions: async () => {calls.push('others');},
   };
-  const {PhoneAccountWorkspace} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountWorkspace.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useAccountWorkspace.ts', import.meta.url), {
     react: {...React, default: React},
-    'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
-    '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {FormError, Button: 'Button'},
-    '../../kit/overlays': {BottomSheet: 'Sheet'},
-    '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
-    '../../kit/artwork': {ColourBackdrop: 'Backdrop'},
-    '../../../../../packages/client-core/src/account-sessions': sessions,
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
-    '../../pages/touch/accounts/AccountSecurityPage': {AccountSecurityPage: 'Security'},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
+  });
+  // The page's kit parts stand in as what they draw: text lines as Text, cards and rows as View.
+  const {AccountWorkspacePage: PhoneAccountWorkspace} = await screenModule(new URL('../src-next/pages/touch/accounts/AccountWorkspacePage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../kit/states': {Quiet: ({children}: any) => children},
+    '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/controls': {FormError, Button: 'Button'},
+    '../../../kit/overlays': {BottomSheet: 'Sheet'},
+    '../../../kit/accounts/WorkspaceParts': {WorkspaceFrame: 'Frame',
+      WorkspaceText: 'Text', WorkspaceCaption: 'Text', WorkspaceNotice: 'Text', WorkspaceCard: 'View', WorkspacePager: 'View', WorkspaceFooter: 'View', WorkspaceDangerButton: 'Button'},
+    '../../../../../../packages/client-core/src/account-sessions': sessions,
+    './AccountSecurityPage': {AccountSecurityPage: 'Security'},
+    '../../shared/accounts/useAccountWorkspace': hook,
   });
   let tree: any;
   const createSource = () => source;
