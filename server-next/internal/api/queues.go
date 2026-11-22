@@ -74,6 +74,8 @@ type QueueEntry struct {
 	RootID      string            `json:"rootId,omitempty"`
 	RootTitle   string            `json:"rootTitle,omitempty"`
 	Images      map[string]string `json:"images"`
+	// LibraryID is the library the title is in, so a player can open it and act on it.
+	LibraryID string `json:"libraryId,omitempty"`
 }
 
 // QueueEntries is a run of a queue's entries. Start is the position of the first.
@@ -248,7 +250,8 @@ func entriesOut(entries []db.QueueEntry) []QueueEntry {
 		out = append(out, QueueEntry{EntryID: playqueue.EntryID(e.EntryID), Position: e.Index, ItemID: e.Item.PublicID,
 			Kind: e.Item.Kind.String(), Title: e.Item.Title, Added: e.Added, Available: e.Available, DurationMs: e.Item.DurationMS,
 			Year: e.Item.Year, Index: e.Item.IndexNumber, ParentIndex: e.Item.ParentIndex, ParentID: e.Item.ParentPublicID,
-			ParentTitle: e.ParentTitle, RootID: e.Item.RootPublicID, RootTitle: e.Item.RootTitle, Images: images})
+			ParentTitle: e.ParentTitle, RootID: e.Item.RootPublicID, RootTitle: e.Item.RootTitle, Images: images,
+			LibraryID: e.Item.LibraryID})
 	}
 	return out
 }

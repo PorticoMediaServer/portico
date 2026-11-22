@@ -116,7 +116,8 @@ func TestQueueEditsPagingRepeatAndRestart(t *testing.T) {
 	made := th.create(QueueCreate{Source: playqueue.QueueSource{Container: album}, StartAt: tracks[2]})
 	q, path := made.Queue, "/v1/queues/"+made.Queue.ID
 	if q.Total != 12 || q.Current == nil || q.Current.Position != 2 || q.RemainingCount != 9 || q.RemainingMs != 9*180_000 ||
-		q.Medium != "audio" || len(made.Window) != 12 || made.Window[2].ItemID != tracks[2] || made.Window[0].ParentTitle != "Record" {
+		q.Medium != "audio" || len(made.Window) != 12 || made.Window[2].ItemID != tracks[2] || made.Window[0].ParentTitle != "Record" ||
+		made.Window[2].LibraryID == "" || made.Window[2].LibraryID != get[Item](t, th.s, th.owner.AccessToken, "/v1/items/"+tracks[2]).LibraryID {
 		t.Fatalf("a new queue: %+v, window of %d", q, len(made.Window))
 	}
 	// The current entry is started as an ordinary session that names the queue.
