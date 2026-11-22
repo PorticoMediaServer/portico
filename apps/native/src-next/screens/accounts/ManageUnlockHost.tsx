@@ -7,7 +7,7 @@ import {nativeManageGate} from '../../platform/manage-gate';
 import {Dialog} from '../../kit/overlays';
 import {Button, FormError} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
-import {PhonePINEntry} from './PhonePINEntry';
+import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
 import {profilePinFailureText} from './profile-pin-failure';
 
 const t = defaultI18n.t;

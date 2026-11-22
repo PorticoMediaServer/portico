@@ -82,7 +82,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../platform/portico-sign-in': {NativePorticoSignIn: Portico, porticoUsernameUnavailable: () => false},
     '../../platform/server-connections': {browseNearby: async () => []},
     '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}},
-    './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'AccountSignIn'},
+    './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'AccountSignIn'},
     './LegalAgreement': legal, '../../kit/accounts/AccountForm': {AccountForm: 'AccountForm'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
     '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
   };

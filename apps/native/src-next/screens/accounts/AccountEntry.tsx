@@ -45,7 +45,7 @@ import type {ResetFileLocation} from '../../../../../packages/client-core/src/ac
 import {NativeSetup} from './NativeSetup';
 import {PhoneFindServer} from './PhoneFindServer';
 import {ServerSignInPage} from '../../pages/touch/accounts/ServerSignInPage';
-import {PhonePINEntry} from './PhonePINEntry';
+import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
 import {PhoneNoServers} from './PhoneNoServers';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 import type {AccountDownloadsEntry} from './downloads-entry-model';
@@ -64,7 +64,7 @@ import {directoryAccessRefused, directoryClockSkew, directoryIdentityUnconfirmed
 import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
 import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
-import {RememberProfileRow} from './RememberProfileRow';
+import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
 import {SignInPage} from '../../pages/touch/accounts/SignInPage';
 import {LegalAgreement} from './LegalAgreement';
 import {AccountForm} from '../../kit/accounts/AccountForm';
