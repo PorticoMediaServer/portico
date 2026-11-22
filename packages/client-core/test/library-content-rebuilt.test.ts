@@ -42,6 +42,19 @@ test('an audiobooks library\'s Discover says its kind, so it draws square cards;
   nav.dispose();
 });
 
+test('an audiobooks library\'s Discover draws its Authors row as people opening their pages, and each book names its author', async () => {
+  const nav = service(path => path.endsWith('/landing')
+    ? {rows: [{id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [{id: 'b1', kind: 'audiobook', title: 'A Study in Scarlet', author: 'Arthur Conan Doyle', images: {}}]},
+      {id: 'authors', title: 'Authors', shape: 'circle', items: [], people: [{id: 'per_1', name: 'Arthur Conan Doyle', images: {}, titleCount: 2}]}]}
+    : {id: 'lib_b', name: 'Audiobooks', kind: 'audiobooks'});
+  await nav.select({libraryId: 'lib_b', view: 'discover'});
+  const [added, authors] = nav.getSnapshot().sections;
+  assert.equal(added!.entries[0]!.author, 'Arthur Conan Doyle');
+  assert.deepEqual([authors!.id, authors!.heading.fallback], ['authors', 'Authors']);
+  assert.deepEqual(authors!.entries.map(entry => [entry.kind, entry.title, entry.navigation]), [['author', 'Arthur Conan Doyle', {view: 'author', entityId: 'per_1'}]]);
+  nav.dispose();
+});
+
 const track = (id: string, disc: number, n: number) => ({id, kind: 'track', title: `Song ${id}`, index: n, parentIndex: disc, durationMs: 180_000});
 
 function holderApi(paths: string[], children: Record<string, unknown>, titles: Record<string, unknown>) {

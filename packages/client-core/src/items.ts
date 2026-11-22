@@ -56,7 +56,7 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
   const entry: Record<string, unknown> = {
     id: item.id, kind, title: item.title, libraryId: library, posterUrl: picture, backdropUrl: item.images?.backdrop,
     stillUrl: item.kind === 'episode' ? item.images?.thumb : undefined,
-    overview: item.summary, year: item.year, releaseDate: item.releaseDate, airDate: item.kind === 'episode' ? item.releaseDate : undefined,
+    overview: item.summary, author: item.author, year: item.year, releaseDate: item.releaseDate, airDate: item.kind === 'episode' ? item.releaseDate : undefined,
     contentRating: item.contentRating, addedAt: item.addedAt, rating: item.ratings?.community, userRating: stars(state?.rating),
     duration: item.durationMs === undefined ? undefined : Math.round(item.durationMs / 1000),
     progressSeconds: state?.positionMs ? Math.round(state.positionMs / 1000) : undefined,

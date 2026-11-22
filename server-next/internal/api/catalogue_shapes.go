@@ -154,6 +154,8 @@ type Item struct {
 	LibraryID string `json:"libraryId"`
 	// Chapter is, for an audiobook in Home's Continue your books, the chapter the place is in.
 	Chapter *ItemChapter `json:"chapter,omitempty"`
+	// Author is a book's or audiobook's first credited author, on every card of one.
+	Author string `json:"author,omitempty"`
 	// EntryID names a list entry for moves and removals. In a sorted view it is omitted when the item occurs twice or more.
 	EntryID string `json:"entryId,omitempty"`
 
@@ -451,6 +453,9 @@ type HomeRow struct {
 	Reason string `json:"reason,omitempty"`
 	Shape  string `json:"shape"`
 	Items  []Item `json:"items"`
+	// People is a row of people instead of titles: an audiobook library's Authors, each opening
+	// their page; Items is then empty.
+	People []Person `json:"people,omitempty"`
 	// Live is the apps' On now row; catalogue Items stays empty.
 	Live *HomeLive `json:"live,omitempty"`
 	// Hidden is true only on GET /v1/home?hidden=include, for a row the profile hid: it is sent
@@ -586,6 +591,7 @@ func itemShape(it db.Item) Item {
 	if len(it.Credits) > 0 {
 		out.Credits = creditShapes(it.Credits)
 	}
+	out.Author = it.Author
 	if !it.Kind.Playable() {
 		out.Counts = &ItemCounts{Children: it.ChildCount, Leaves: it.Leaves, UnwatchedLeaves: it.Leaves - it.WatchedLeaves}
 	}

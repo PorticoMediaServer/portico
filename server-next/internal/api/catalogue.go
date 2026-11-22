@@ -98,6 +98,14 @@ func (s *Server) catalogueRoutes() {
 		if _, err := s.pageHomeRows(r, rows[:3], l.PublicID); err != nil {
 			return Home{}, err
 		}
+		// An audiobook library browses by author too (listen-7): its authors follow Recently Added.
+		if l.Kind == db.LibraryAudiobooks {
+			authors, err := s.authorsRow(r, l.PublicID)
+			if err != nil {
+				return Home{}, err
+			}
+			rows = slices.Insert(rows, 2, authors)
+		}
 		collections, err := s.collectionHomeRows(r, l.PublicID, "")
 		if err != nil {
 			return Home{}, err
@@ -797,10 +805,20 @@ func because(from []db.MoodReason) string {
 // shownRows leaves out a row with nothing in it, so an app never draws an empty shelf. A hidden
 // row sent to the Customize Home editor has no items and is always sent, and so is a deferred
 // saved-view row, whose titles the app reads itself.
+// authorsRow is a library's first authors by name, the start of its Authors tab.
+func (s *Server) authorsRow(r *http.Request, library string) (HomeRow, error) {
+	row := HomeRow{ID: "authors", Title: "Authors", Shape: "circle", Items: []Item{}}
+	page, err := s.db.People(r.Context(), viewer(r), library, "author", "", 40, false)
+	for _, p := range page.People {
+		row.People = append(row.People, Person{ID: p.PublicID, Name: p.Name, Images: imageMap(p.Images), TitleCount: &p.Titles})
+	}
+	return row, err
+}
+
 func shownRows(rows []HomeRow) []HomeRow {
 	out := []HomeRow{}
 	for _, row := range rows {
-		if len(row.Items) > 0 || row.Live != nil && len(row.Live.Channels) > 0 || row.Hidden || row.Deferred {
+		if len(row.Items) > 0 || len(row.People) > 0 || row.Live != nil && len(row.Live.Channels) > 0 || row.Hidden || row.Deferred {
 			out = append(out, row)
 		}
 	}
