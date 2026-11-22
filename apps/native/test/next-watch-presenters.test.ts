@@ -11,7 +11,7 @@ import {FileInfoSession} from '../../../packages/client-core/src/file-info-sessi
 import {item as fileItem, locations} from './helpers/file-info-windows.ts';
 import {NativeShellNavigation} from '../src-next/shell/routes.ts';
 import type {NativeShellBootstrapContext} from '../src-next/shell/bootstrap.ts';
-import type {NativeWatchMenuActions} from '../src-next/screens/watch/factory.tsx';
+import type {NativeWatchMenuActions} from '../src-next/shell/watch-factory.tsx';
 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const entry = {id: 'movie', kind: 'movie' as const, title: 'Real title', displayTitle: 'Real title: Edition', libraryId: 'library'};

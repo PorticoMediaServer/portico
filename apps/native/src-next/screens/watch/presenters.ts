@@ -9,7 +9,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {sameAuthority} from '../../shell/model';
 import type {NativeScreenServices} from '../screen-services';
-import type {NativeWatchCapture, NativeWatchMenuActions, NativeWatchMenuEntry, NativeVersionDestination, NativeVersionsOpening} from './factory';
+import type {NativeWatchCapture, NativeWatchMenuActions, NativeWatchMenuEntry, NativeVersionDestination, NativeVersionsOpening} from '../../shell/watch-factory';
 import {NATIVE_VERSION_DELETE, nativeFileInfoFile, nativeFileInfoMergeGroups, nativeSplitCandidates, type NativeFileInfoOwner} from './file-info';
 import type {NativeDiscTitlesController} from './disc-titles-controller';
 import {nativeTogetherSession} from '../settings-live/together-session';

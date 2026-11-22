@@ -1,7 +1,7 @@
 import type {DetailProjection} from '../../../../../packages/client-core/src/detail';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import {entryActions, type EntryActionGroup, type EntryCapabilities} from '../../../../../packages/client-core/src/presentation/entry-actions';
-import type {NativeWatchMenuEntry} from './factory';
+import type {NativeWatchMenuEntry} from '../../shell/watch-factory';
 
 const containers = ['show', 'season', 'album', 'artist', 'book', 'collection', 'playlist'];
 export type NativeWatchMenuInput = Readonly<{

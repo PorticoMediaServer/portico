@@ -1,6 +1,6 @@
 import type {NativePlaybackAdapter} from '../../platform/playback/types';
 import type {PlaybackOptions} from '../../../../../packages/client-core/src/playback-v1/types';
-import type {NativeWatchCapture} from './factory';
+import type {NativeWatchCapture} from '../../shell/watch-factory';
 import type {DiscTitles} from './disc-titles';
 import type {NativeVersionRow} from './version-options';
 
