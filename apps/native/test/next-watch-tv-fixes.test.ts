@@ -328,7 +328,7 @@ async function chromeFixture(live = false) {
     '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds: (microseconds: string) => Number(microseconds) / 1000000},
     '../../../../../packages/client-core/src/presentation/kit-model': {playbackIdentity: () => identity}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`},
     '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
-    '../../kit/Icon': {Icon: 'Icon'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, '../../kit/theme': themed,
+    '../../kit/Icon': {Icon: 'Icon'}, '../../pages/tv/player/GroupPillPage': {TVGroupPill: 'GroupPill'}, '../../kit/theme': themed,
     '../../kit/useMotion': {useMotion: () => ({duration: () => 0, timing: () => ({duration: 0})}), useReducedMotion: () => true}, './controls': {NativeWatchControls},
     '../../kit/player/WatchTimeline': {NativeWatchTimeline: 'Timeline'}, './useSkipPromptMotion': {useSkipPromptMotion: () => ({value: undefined, interactive: false, bodyStyle: {}, positionStyle: {}})},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined}, '../../kit/player/PlayerUpNext': {PlayerUpNext: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
