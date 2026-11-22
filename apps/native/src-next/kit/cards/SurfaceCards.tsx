@@ -142,7 +142,8 @@ export type LibraryCardProps = CardProps & ArtCollection & {shape: CoverShape; h
 function Library({compact = false, ...props}: LibraryCardProps & {compact?: boolean}) {
   const t = useTheme(), width = props.width ?? (t.isTV ? 560 : 358), height = props.height ?? (compact ? t.isTV ? 120 : 108 : t.isTV ? 180 : 108);
   const fanWidth = t.isTV ? 190 : 112, fanHeight = t.isTV ? 140 : 80;
-  return <CardFrame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
+  const Frame = props.frame ?? CardFrame;
+  return <Frame {...props} width={width} overlay={s => <CardOverlays props={props} hovered={s.hovered} holding={s.holding} height={height} />}>
     {s => <ArtFrame height={height} radius={16} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
       {props.ambient || props.covers.length ? <AmbientArt source={props.ambient} palette={props.palette} treatment="library" visible={props.visible} priority={props.priority} />
         : <GeneratedArt glyph={props.glyph} palette={props.palette} width={width} height={height}/>}
@@ -152,7 +153,7 @@ function Library({compact = false, ...props}: LibraryCardProps & {compact?: bool
       </View>
       <CoverFan covers={props.covers} shape={props.shape} variant="library" width={fanWidth} height={fanHeight} visible={props.visible} renderFallback={props.renderCoverFallback} style={{position: 'absolute', right: 22, top: (height - fanHeight) / 2}} />
     </ArtFrame>}
-  </CardFrame>;
+  </Frame>;
 }
 export function LibraryCard(props: LibraryCardProps) {return <Library {...props} />;}
 export function LibraryRow(props: LibraryCardProps) {return <Library {...props} compact />;}
