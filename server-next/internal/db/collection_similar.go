@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 )
 
 const collectionSimilarFilms = 12
@@ -44,9 +45,12 @@ func (d *DB) collectionSimilarPage(ctx context.Context, v Viewer, itemID, cursor
 	}
 	seen := map[int64]bool{}
 	var lists [][]Item
+	copies := map[string]bool{}
 	for _, film := range members.Items {
 		seen[film.ID] = true
 	}
+	// Another library's copy of one of the collection's films is not a suggestion either.
+	oneCopyEach(slices.Clone(members.Items), copies)
 	// A long collection is represented by its first films; each costs one similar-titles read.
 	for _, film := range members.Items[:min(len(members.Items), collectionSimilarFilms)] {
 		like, err := d.MoreLikeThisPage(ctx, v, film.PublicID, "", limit)
@@ -63,7 +67,7 @@ func (d *DB) collectionSimilarPage(ctx context.Context, v Viewer, itemID, cursor
 				continue
 			}
 			more = true
-			if it := list[n]; !seen[it.ID] && len(page.Items) < limit {
+			if it := list[n]; !seen[it.ID] && len(page.Items) < limit && len(oneCopyEach([]Item{it}, copies)) == 1 {
 				seen[it.ID] = true
 				page.Items = append(page.Items, it)
 			}

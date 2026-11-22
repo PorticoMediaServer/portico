@@ -91,6 +91,9 @@ func (d *DB) localSimilarPage(ctx context.Context, v Viewer, itemID, cursor stri
 		last := page.Items[limit-1]
 		page.NextCursor = (listCursor{Sort: SortOrder, Desc: true, Values: last.sortValues, ID: last.ID}).encode()
 	}
+	// Copies of a title in two libraries score alike and so sit together: one is kept. The
+	// cursor is the page's last row read, so the next page goes on from the same place.
+	page.Items = oneCopyEach(page.Items, map[string]bool{})
 	if err := loadImages(ctx, tx, page.Items); err != nil {
 		return page, err
 	}

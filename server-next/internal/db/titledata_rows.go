@@ -627,6 +627,7 @@ func (d *DB) MoreLikeThis(ctx context.Context, v Viewer, itemID string) ([]Item,
 			return nil, err
 		}
 	}
+	out = oneCopyEach(out, map[string]bool{})
 	if err := loadImages(ctx, tx, out); err != nil {
 		return nil, err
 	}

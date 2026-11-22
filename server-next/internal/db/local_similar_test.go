@@ -95,6 +95,38 @@ func TestLocalSimilarUsesNarrowSignalsAndNeverPadsEnhancedData(t *testing.T) {
 		}
 	}
 	v := Viewer{UserID: 1, ProfileID: 1}
+	// A second copy of a suggested film (the same title in another library, as a 4K copy) is
+	// suggested once.
+	if err := d.write(ctx, User, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO libraries(id,public_id,name,kind,created_at,updated_at) VALUES(2,'lib4k','Movies 4K','movies',0,0)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO items(id,public_id,library_id,kind,title,sort_title,rating_age,added_at,updated_at) VALUES(200,'copy',2,1,'Title 2','Title 2',0,0,0)`); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO credits(item_id,position,person_id,role) VALUES(200,0,1,1)`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	copies := 0
+	for cursor := ""; ; {
+		page, err := d.MoreLikeThisPage(ctx, v, "i1", cursor, 90)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range page.Items {
+			if it.Title == "Title 2" {
+				copies++
+			}
+		}
+		if cursor = page.NextCursor; cursor == "" {
+			break
+		}
+	}
+	if copies != 1 {
+		t.Fatalf("a title held twice was suggested %d times", copies)
+	}
 	// A collection's More like this is its films' (1 and 5), each film taking turns, without the
 	// collection's own films; it is one page.
 	collection, err := d.MoreLikeThisPage(ctx, v, "collection", "", 7)
