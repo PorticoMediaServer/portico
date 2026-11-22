@@ -21,6 +21,7 @@ import {BulkEditor, DeleteMediaDialog, SelectionBar, SelectionPhoneActionBar, ty
 import type {LayoutSelection} from '../kit/layout';
 import {useTheme} from '../kit/theme';
 import {Dialog, SidePanel} from '../kit/overlays';
+import {OverlayPortal} from '../kit/overlays/OverlayHost';
 import {Button} from '../kit/controls';
 import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
 import type {NativeDestinationActivationPort} from '../screens/destinations/focus';
@@ -367,8 +368,16 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     const owner = producer, ownerToken = token, live = () => owner === producer && ownerToken === token && !!owner;
     layoutSnapshot = Object.freeze({active: entering || !!snapshot()?.active,
       isSelected: (key: string) => live() && !!entryForKey(key) && selectedKeys().includes(keyOf(entryForKey(key)!) ?? ''),
-      onToggle: (key: string) => {if (live()) toggle(key);}, onEnter: (key: string) => {if (live()) toggle(key);}});
+      onToggle: (key: string) => {if (live()) toggle(key);}, onEnter: (key: string) => {if (live()) toggle(key); else if (!owner) enter(key);}});
     return layoutSnapshot;
+  };
+  // Select from a card's menu before anything is selected: no producer exists yet, so the card's enter starts one (as the
+  // toolbar's Select does) and queues that card's pick; it is applied once the card's window is read (prepare), or at once if
+  // a window already is. Without this, Select from a card's menu did nothing in a library opened fresh (22 Nov).
+  const enter = (key: string) => {
+    if (!ensure()) return;
+    entering = true; queued = key; emit(); prepareAll();
+    if (windows.size && queued === key) {queued = undefined; toggle(key);}
   };
   const port: NativeLibrarySelectionPort = {
     start: () => {ensure(); entering = true; emit(); prepareAll();},
@@ -394,7 +403,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
       const owner = producer, ownerToken = token, key = nativeLibraryEntryKey(entry), live = () => owner === producer && ownerToken === token && !!owner;
       return {active: entering || !!snapshot()?.active,
         selected: live() && !!keyOf(entry) && selectedKeys().includes(keyOf(entry)!),
-        onToggle: () => {if (live()) toggle(key);}, onEnter: () => {if (live()) toggle(key);}};
+        onToggle: () => {if (live()) toggle(key);}, onEnter: () => {if (live()) toggle(key); else if (!owner) enter(key);}};
     },
     render: (artwork?: (path?: string) => React.ReactNode) => <LibrarySelectionBars store={store} artwork={artwork ?? (() => null)}/>,
   };
@@ -492,9 +501,11 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
   const footer = personal && <><Button ref={doneRef} focusId="done" disabled={store.personalBusy()} onPress={done}>{defaultI18n.t('next.selection.done')}</Button>
     {failed && <Button ref={retryRef} focusId="retry" disabled={store.personalBusy()} onPress={retry}>{defaultI18n.t('next.selection.retry')}</Button>}</>;
   return <>
-    <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.navigation + 1}}>
-      {!theme.isTV && <View style={{position: 'absolute', left: 0, right: 0, bottom: 0}}><SelectionPhoneActionBar {...props} bottomInset={Math.max(34, insets.bottom)}/></View>}
-    </View>
+    {/* The library draws these bars in its toolbar's place, so the phone's action bar goes to the screen's own overlay
+        layer: inside the toolbar it sat at the toolbar's foot and covered Cancel and the count. */}
+    {!theme.isTV && <OverlayPortal><View pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>
+      <View style={{position: 'absolute', left: 0, right: 0, bottom: 0}}><SelectionPhoneActionBar {...props} bottomInset={Math.max(34, insets.bottom)}/></View>
+    </View></OverlayPortal>}
     {theme.isTV ? <View style={{marginLeft: 200, marginRight: 96}}><SelectionBar {...props}/></View> : <SelectionBar {...props}/>}
     {personal && summary && (theme.isTV
       ? <SidePanel testID="library-selection-results" open onOpenChange={closeResults} showClose={false} dismissOnBack={!store.personalBusy()}
