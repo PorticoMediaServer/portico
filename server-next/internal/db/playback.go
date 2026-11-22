@@ -785,7 +785,9 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	}
 	// A resume point is kept once the title counts as started, and from then on is wherever
 	// the person stopped, even after seeking back to the first minute. A title of unknown
-	// length counts as started after thirty seconds, and an audiobook after one.
+	// length counts as started after thirty seconds, and an audiobook after one. A playing too
+	// short to count as started (opened from the start, stopped at once) leaves an existing
+	// resume point where it was: it is not a stop the person would expect to lose their place to.
 	started := int64(30_000)
 	switch {
 	case kind == KindAudiobook:
@@ -793,7 +795,7 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	case duration > 0:
 		started = duration * percent(prefs, PrefStartedAt, 5, 1, 25) / 100
 	}
-	if position < started && !resumeAt.Valid {
+	if position < started && (!resumeAt.Valid || sample.WatchedMS < started) {
 		return false, nil
 	}
 	_, _, err = w.apply(sample.ItemID, StateEdit{PositionMS: &position, Ago: ago})
