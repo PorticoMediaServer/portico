@@ -43,7 +43,7 @@ test(`compact ${category} recovery admits only original usable downloads: ${cond
     '../platform/app-session-storage': {readNativeSelectedViewer: async () => undefined, subscribeNativeAppSessions: () => () => {}},
     '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
     '../../../../packages/i18n/src': {defaultI18n}, '../platform/sign-in-ended': {NativeSignInEnded: class extends Error {}},
-    '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}}, '../screens/accounts/PhoneFirstLibrary': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
+    '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}}, './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
     '../screens/accounts/ServerIdentityFailure': {ServerIdentityFailure: 'ServerIdentityFailure'},
     '../platform/invitation-links': {nativeInvitationLinks: {subscribe: () => () => {}, getSnapshot: () => undefined, acquire: () => () => {}}},
     '../platform/installation': {beginNativeInstallation: () => ({current: () => live, dispose() {}})},

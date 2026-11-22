@@ -1,9 +1,9 @@
 import React from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {BottomSheet} from '../../kit/overlays';
-import {Button} from '../../kit/controls';
-import {useTheme} from '../../kit/theme';
+import {BottomSheet} from '../overlays';
+import {Button} from '../controls';
+import {useTheme} from '../theme';
 
 export function PhoneSetupApproval({display, busy, error, onClose, onApprove}: {
   display: {serverName: string; address: string; accountName: string}; busy: boolean; error?: React.ReactNode;

@@ -44,7 +44,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     '../platform/home-action-diagnostics': {homeActionDiagnostics: {error: (_: string, error: unknown) => {errors.push(error);}, lifetime() {}}},
     '../platform/secure-records': {isSecureRecordsLost: (error: {code?: string}) => error?.code === 'secure_records_key_lost', secureRecordsRecoveredNotice: () => undefined, acknowledgeSecureRecordsRecovered() {}},
     '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
-    '../screens/accounts/PhoneFirstLibrary': {PhoneFirstLibrary: 'PhoneFirstLibrary'}, '../screens/accounts/ServerIdentityFailure': {ServerIdentityFailure: 'ServerIdentityFailure'},
+    './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'}, '../screens/accounts/ServerIdentityFailure': {ServerIdentityFailure: 'ServerIdentityFailure'},
     './settings-appearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
     '../pages/touch/downloads/RememberedDownloadsPage': {RememberedDownloadsPage: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
     '../screens/downloads/presentation': {downloadEntryIdentity: () => ''},
