@@ -10,7 +10,7 @@ import {StateView} from '../../../kit/states';
 import {Artwork} from '../../../kit/artwork';
 import {Banner} from '../../../kit/overlays';
 import {FocusItem} from '../../../kit/focus';
-import {MusicMixesRow} from '../../../screens/destinations/music/MusicMixesRow';
+import {MusicMixesRow} from '../../../kit/music/MusicMixesRow';
 import {nativeLibraryEntryKey, useTVLibrary, useTVLibraryGrid, type LibraryProps} from '../../shared/library/useLibrary';
 
 export function LibraryPage(props: LibraryProps) {

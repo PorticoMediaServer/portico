@@ -27,7 +27,7 @@ test('the Library descriptor requires the actual authorized ID and never supplie
   const {createNativeLibraryRenderer, createNativeLibraryPlaySelection: exportedPlay} = await screenModule(new URL('../src-next/shell/library-renderer.tsx', import.meta.url), {
     '@portico/design': {}, '../kit/focus': {}, './routes': {},
     '../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
-    '../pages/touch/library/LibraryPage': {}, '../pages/tv/library/LibraryPage': {}, '../kit/browse/LibraryCard': {}, '../screens/destinations/music/MusicMixesRow': {},
+    '../pages/touch/library/LibraryPage': {}, '../pages/tv/library/LibraryPage': {}, '../kit/browse/LibraryCard': {}, '../kit/music/MusicMixesRow': {},
     '../screens/library/first-scan': {observeFirstScan: () => () => {}},
     react: {default: React}, 'react-native': {Platform: platform}, '../screens/library/types': {}, '../screens/library/model': {NativeLibraryDestination}, '../screens/library/directory': {NativeLibraryDirectory},
     './model': {sameAuthority},

@@ -1,6 +1,6 @@
 import {shapeFor, type ShapeFamily} from '../../../../../../packages/client-core/src/presentation/card-shape';
 import type {ComponentProps, ReactNode} from 'react';
-import type {MusicMixesRow} from '../../../screens/destinations/music/MusicMixesRow';
+import type {MusicMixesRow} from '../../../kit/music/MusicMixesRow';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {BrowseNode} from '../../../../../../packages/client-core/src/browse';
