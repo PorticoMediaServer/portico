@@ -90,7 +90,7 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
         const row = settingsRowIndex.get(`troubleshooting.${tab.id}`)!.row, stuckRow = tab.id === 'reports' && stuck;
         return <SettingsRow key={tab.id} label={stuckRow ? t('next.settings.troubleshootingStuckFiles') : t(row.label)} help={stuckRow ? t('next.settings.troubleshootingStuckFilesHelp') : row.help && t(row.help)}>
           {/* settings-troubleshooting: opening a viewer is the accent link with its chevron, as every section link draws. */}
-          <button type="button" ref={element => {openers.current[tab.id] = element;}} className={serverStyles.sectionLink} onClick={() => {if (isCurrent()) {opener.current = tab.id;setView(tab.id);}}}>{stuckRow ? t('next.settings.troubleshootingOpenStuckFiles') : t(row.control.label ?? row.label)}<Icon name="i-right" size={16} /></button>
+          <button type="button" ref={element => {openers.current[tab.id] = element;}} className={serverStyles.sectionLink} onClick={() => {if (isCurrent()) {opener.current = tab.id;setView(tab.id);}}}><span className={serverStyles.sectionLinkText}>{stuckRow ? t('next.settings.troubleshootingOpenStuckFiles') : t(row.control.label ?? row.label)}</span><Icon name="i-right" size={16} /></button>
         </SettingsRow>;
       })}
     </SettingsGroup>
