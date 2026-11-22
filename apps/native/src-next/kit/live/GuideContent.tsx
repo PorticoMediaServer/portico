@@ -127,7 +127,9 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
     {sourcePicker}
     {dayPicker}
     <Button testID="live-now" variant="glass" size="small" onPress={goNow}>{t('guide.now')}</Button>
-    {hasRecordings && <Button focusId="live-recordings" testID="live-recordings" variant="glass" size="small" icon="i-repeatrule" onPress={() => setRecordingsOpen(true)}>{t('recordings.title')}</Button>}
+    {/* Back from Recordings draws the guide again: Recordings asks for focus as the guide's start (asked again for a few
+        frames, past the first control Android TV focuses by itself), so it lands back on the control that opened it. */}
+    {hasRecordings && <Button focusId="live-recordings" testID="live-recordings" variant="glass" size="small" icon="i-repeatrule" preferredFocus={recordingsReturn > 0} onPress={() => setRecordingsOpen(true)}>{t('recordings.title')}</Button>}
     {ownerButton}
   </GuideActionRow>;
   const timeRow = <GuideActionRow testID="live-time">
