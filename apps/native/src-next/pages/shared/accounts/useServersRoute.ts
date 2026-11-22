@@ -48,7 +48,13 @@ export function useServersRoute(props: ServersRouteProps) {
   // "Sign out of Portico Account" is offered whenever this app holds one, whatever servers are saved (ruling, 13 Nov).
   const accountCredentials = nativeAccounts.accountCredentials();
   const accountHeld = useSyncExternalStore(accountCredentials.subscribe, () => accountCredentials.getSnapshot().session !== undefined, () => false);
-  useEffect(() => {void accountCredentials.synchronize().catch(() => {});}, [accountCredentials]);
+  // Whether this app holds a Portico Account is known only once the stored session has been read.
+  const [accountChecked, setAccountChecked] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void accountCredentials.synchronize().catch(() => {}).finally(() => {if (live) setAccountChecked(true);});
+    return () => {live = false;};
+  }, [accountCredentials]);
   type AddOpening = {active: boolean; generation: number; context?: NativeShellBootstrapContext; fallback?: AccountDownloadsEntry; downloads?: AccountDownloadsEntry; disposeDownloads?: () => void};
   const addOwner = useRef<AddOpening | undefined>(undefined), [committedAdd, setCommittedAdd] = useState<AddOpening>();
   const panelRef = useRef(panel), addIntent = useRef({generation: addGeneration, context});
@@ -104,6 +110,9 @@ export function useServersRoute(props: ServersRouteProps) {
     await nativeAccounts.signOutPorticoAccount(accountScope); close(); onComplete?.();
   });
   const localConsentOffered = !!context && servers?.servers.find(value => value.id === servers.selectedServerId)?.signIn === 'local';
+  // Neither way to approve a TV is open: no local sign-in on this server and no Portico Account. Said only once both are known,
+  // so it never flashes for someone who does hold an account.
+  const consentUnavailable = !localConsentOffered && !accountHeld && accountChecked && servers !== undefined;
   const chooseLocalConsent = () => {void run(async () => {
     approver.current = await nativeAccounts.localTVConsent(context!.api, context!.session); setConsentKind('local'); setPanel('consent-code');
   });};
@@ -183,7 +192,7 @@ export function useServersRoute(props: ServersRouteProps) {
   const tvSignOutPortico = opens ? () => signOutFromSettings(opens) : signOutPortico;
 
   return {tv: theme.isTV, panel, busy, errorBody, secondaryAction, back: onBack ? cancel : undefined, addGeneration, addDownloads, addBack, addComplete,
-    signOutAccountAction, localConsentOffered, consentPortico: consentKind === 'portico', chooseLocalConsent, choosePorticoConsent, code, changeCode, reviewAction, previewLines, approveAction, deny,
+    signOutAccountAction, localConsentOffered, consentUnavailable, consentPortico: consentKind === 'portico', chooseLocalConsent, choosePorticoConsent, code, changeCode, reviewAction, previewLines, approveAction, deny,
     done, doneAction, sheet, servers, select, signOut: capture('sign-out-server'), forget: capture('forget-server'), refresh, add, linkTV, signOutPortico,
     accountHeld, owner, tvAdd, tvLinkTV, tvSignOutPortico};
 }
