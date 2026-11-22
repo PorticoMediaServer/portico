@@ -7,7 +7,7 @@ import {alpha, browseType} from '../src-next/kit/browse/presentation.ts';
 import {createTheme} from '../src-next/kit/theme.ts';
 import {nativeDestinationFocusIds} from '../src-next/screens/destinations/focus.ts';
 import {applyNativeTVKeyboardKey, nativeTVKeyboardRows} from '../src-next/screens/search/keyboard.ts';
-import {nativeSearchEntryKey} from '../src-next/screens/search/model.ts';
+import {nativeSearchChipCount, nativeSearchEntryKey} from '../src-next/screens/search/model.ts';
 import {nativeSearchGenreTiles} from '../src-next/screens/search/genre-tiles.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
@@ -68,7 +68,7 @@ async function screen(react: unknown) {
     '../cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame', Parts: 'Parts', Progress: 'Progress'}, '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()},
     './Search': {TopResult}, '../Icon': {Icon: 'Icon'}, '../states': {StateView: 'StateView'}, '../browse/presentation': presentation,
     '../theme': {useTheme: () => theme}, '../destinations/focus': {nativeDestinationFocusIds}, '../../screens/home/model': {homeSubject: (content: unknown) => content},
-    '../../screens/search/model': {nativeSearchEntryKey}, './TVSearchSection': {TVSearchSection: 'TVSearchSection'},
+    '../../screens/search/model': {nativeSearchChipCount, nativeSearchEntryKey}, './TVSearchSection': {TVSearchSection: 'TVSearchSection'},
     '../../screens/search/genre-tiles': {nativeSearchGenreTiles},
     '../layout/ListEdgeFade': {useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})},
     '../frames/metrics': {useFrameMetrics: () => ({width: 1140, rightGutter: 96, bottomClear: 72, sectionGap: 44, headingGap: 22})},

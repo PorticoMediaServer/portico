@@ -34,6 +34,9 @@ export type NativeSearchSnapshot = Readonly<{
   clearing: boolean;
   capabilities?: NonNullable<SearchSnapshot['data']>['capabilities'];
   paging?: Readonly<Partial<Record<SearchGroup, NativeSearchPageState>>>;
+  /** Each kind's total from this query's All read, kept while one kind is chosen: that kind's own read carries only its
+   * own group, and the chips lost the others' counts and All's sum (Pixel, 21 Nov: "All 58" after choosing Movies). */
+  totals?: readonly Readonly<{id: SearchGroup; totalCount: number; totalCountExact: boolean}>[];
 }>;
 
 /** One genuine SearchService and its history for one restored viewer lifetime.
@@ -66,6 +69,7 @@ export class NativeSearchDestination {
   private paused = false;
   private selectionRevision = 0;
   private pageQuery = '';
+  private totals?: Readonly<{q?: string; groups: NonNullable<NativeSearchSnapshot['totals']>}>;
   private displayedData?: SearchSnapshot['data'];
   private capabilityQuery = '';
   private pages = new Map<SearchGroup, SearchGroupResult>();
@@ -129,7 +133,13 @@ export class NativeSearchDestination {
     const capabilities = !denied && search.data?.capabilities || (!denied && search.query?.q === this.capabilityQuery ? this.state.capabilities : undefined);
     if (search.data && !denied) this.capabilityQuery = search.data.query.q;
     else if (!capabilities) this.capabilityQuery = '';
-    this.publish({search, capabilities, groups: Object.freeze([...this.pages.values()]), ...(reset ? {paging: {}} : {})});
+    if (arrived && search.data) {
+      const q = search.query?.q;
+      if (!search.query?.group) this.totals = {q, groups: Object.freeze(search.groups.map(group => Object.freeze({id: group.id, totalCount: group.totalCount, totalCountExact: group.totalCountExact})))};
+      else if (this.totals?.q !== q) this.totals = undefined;
+    }
+    const totals = this.totals && this.totals.q === search.query?.q ? this.totals.groups : undefined;
+    this.publish({search, capabilities, groups: Object.freeze([...this.pages.values()]), totals, ...(reset ? {paging: {}} : {})});
     // Something to keep now: a move during the first load is read.
     if (search.phase === 'ready') this.freshness.check();
   };
@@ -331,4 +341,14 @@ export class NativeSearchDestination {
     this.unsubscribe(); this.stopGroupReads(); this.service.cancel(); this.service.dispose(); this.pages.clear(); this.listeners.clear();
     this.state = Object.freeze({...this.state, text: '', search: this.service.getSnapshot(), capabilities: undefined, paging: {}, groups: [], recent: [], clearing: false});
   };
+}
+
+/** A search chip's count: All sums every kind when each count is exact; a kind shows its own. The kind's own read wins
+ * for its chip; the others come from this query's All read (`totals`), so choosing a kind keeps the other chips' counts. */
+export function nativeSearchChipCount(chip: SearchGroup | 'all', groups: readonly SearchGroupResult[], totals?: NativeSearchSnapshot['totals']): number | undefined {
+  const known = (totals ?? []).map(total => groups.find(group => group.id === total.id) ?? total);
+  const all = known.length ? known : groups;
+  if (chip === 'all') return all.length && all.every(value => value.totalCountExact) ? all.reduce((sum, value) => sum + value.totalCount, 0) : undefined;
+  const one = groups.find(group => group.id === chip) ?? totals?.find(total => total.id === chip);
+  return one?.totalCountExact ? one.totalCount : undefined;
 }

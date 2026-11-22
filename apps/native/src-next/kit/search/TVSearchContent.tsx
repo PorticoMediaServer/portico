@@ -10,7 +10,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeDestinationFocusIds} from '../../screens/destinations/focus';
 import {homeSubject} from '../../screens/home/model';
-import {nativeSearchEntryKey} from '../../screens/search/model';
+import {nativeSearchChipCount, nativeSearchEntryKey} from '../../screens/search/model';
 import {TVSearchSection} from './TVSearchSection';
 import type {NativeTVSearchPageProps} from '../../pages/shared/search/useTVSearch';
 import type {NativeSearchGenre, NativeSearchSelectionPort} from '../../screens/search/types';
@@ -103,7 +103,7 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
           <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} {...wholeChips.scroll}
             contentContainerStyle={[tvSearchR46.chips, {padding: focusRoom, paddingRight: focusRoom + wholeChips.pad}]}>{chips.map(chip => {
           const group = groups.find(value => value.id === chip.id);
-          const count = chip.id === 'all' ? groups.every(value => value.totalCountExact) ? groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined : group?.totalCountExact ? group.totalCount : undefined;
+          const count = nativeSearchChipCount(chip.id, groups, state.totals);
           return <View key={chip.id} {...wholeChips.item(chip.id)}><Chip focusId={`chip:${chip.id}`} onFocus={() => wholeChips.focus(chip.id)} testID={`tv-search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'}
             disabled={!active.visible} style={tvSearchR46.chip} textStyle={tvSearchR46.chipLabel} onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip></View>;
         })}</ScrollView></TVRow></FocusRegion>}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {NativeSearchDestination} from '../src-next/screens/search/model.ts';
+import {NativeSearchDestination, nativeSearchChipCount} from '../src-next/screens/search/model.ts';
 import {SEARCH_CHIPS} from '../../../packages/client-core/src/presentation/search-model.ts';
 import type {SearchGroup} from '../../../packages/client-core/src/search.ts';
 import {legacySearchFetch, legacySearchRequest, legacySearchResponse} from '../../../packages/client-core/test/fixtures/legacy-search.ts';
@@ -72,5 +72,23 @@ test('with history off, opening a result records nothing', async () => {
     const before = calls.length;
     destination.recordOpened(); await tick();
     assert.equal(calls.length, before);
+  } finally {destination.dispose();}
+});
+
+test('choosing a kind keeps every chip count from the All read: All still sums them all (Pixel, 21 Nov)', async () => {
+  const {destination} = setup();
+  try {
+    destination.setText('harbor'); await destination.commit(); await tick();
+    const all = destination.getSnapshot();
+    const before = nativeSearchChipCount('all', all.groups, all.totals);
+    assert.equal(before, all.groups.reduce((sum, group) => sum + group.totalCount, 0));
+    destination.selectGroup('movies'); await tick();
+    const one = destination.getSnapshot();
+    assert.deepEqual(one.groups.map(group => group.id), ['movies'], 'the kind read carries only its own group');
+    assert.equal(nativeSearchChipCount('all', one.groups, one.totals), before);
+    for (const group of all.groups) assert.equal(nativeSearchChipCount(group.id, one.groups, one.totals), group.totalCount);
+    // A new query does not keep the old one's totals.
+    destination.setText('other'); await destination.commit(); await tick();
+    assert.ok(destination.getSnapshot().totals?.every(total => total.totalCountExact));
   } finally {destination.dispose();}
 });
