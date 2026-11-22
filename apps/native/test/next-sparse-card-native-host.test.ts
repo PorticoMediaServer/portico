@@ -52,14 +52,14 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
   const address = {regionId: 'actual-grid', childId: 'original-pending-host'};
   let commands = 0;
   const open = () => {commands++;};
-  function Slot({kind}: {kind: 'waiting' | 'poster' | 'square'}) {
+  function Slot({kind}: {kind: 'waiting' | 'poster' | 'square' | 'wide'}) {
     const props = {title: kind === 'waiting' ? '' : 'Actual title', width: 214, onNavigate: open, frame: sparse.TVCardPaintFrame};
     return React.createElement(focus.FocusItem, {focusId: address.childId, entityId: kind === 'waiting' ? undefined : 'actual-entity', waiting: kind === 'waiting'},
       React.createElement(sparse.TVSparseCardFrame, {title: props.title, width: 214, onAccessibilityTap: open, onMagicTap: open, ...(kind === 'waiting' ? {} : {onNavigate: open})},
         kind === 'waiting' ? React.createElement(sparse.TVPendingCardPaint, {height: 321})
-          : React.createElement(kind === 'poster' ? media.PosterCard : media.SquareCard, props)));
+          : React.createElement(kind === 'poster' ? media.PosterCard : kind === 'wide' ? media.WideCard : media.SquareCard, props)));
   }
-  const render = (kind: 'waiting' | 'poster' | 'square') => renderer.render(React.createElement(focus.FocusProvider, {registry},
+  const render = (kind: 'waiting' | 'poster' | 'square' | 'wide') => renderer.render(React.createElement(focus.FocusProvider, {registry},
     React.createElement(focus.FocusRegion, {id: address.regionId, grid: {columns: 1, count: 1}}, React.createElement(Slot, {kind}))));
   const nodes = (): any[] => {const visit = (items: any[]): any[] => items.flatMap(node => [node, ...visit(node.children)]); return visit(renderer.root);};
   const host = () => nodes().find(node => node.type === 'RCTPressable');
@@ -70,7 +70,8 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
     assert.equal(host().props.onAccessibilityTap, undefined); assert.equal(host().props.onMagicTap, undefined);
     host().props.onFocus(); await renderer.settle();
     host().props.onPress(); host().props.onLongPress(); assert.equal(commands, 0); assert.equal(menus.length, 0);
-    for (const kind of ['poster', 'square'] as const) {
+    // A library's Continue row draws wide cards: one host too, or TV red-screens on a duplicate focus child (#5070 look).
+    for (const kind of ['poster', 'square', 'wide'] as const) {
       await render(kind);
       assert.equal(nodes().filter(node => node.type === 'RCTPressable').length, 1);
       assert.equal(host().tag, tag); assert.strictEqual(registry.child(address), ref);
@@ -80,6 +81,6 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
       const before: number = commands; oldPress(); oldHold(); assert.equal(commands, before, 'a retained waiting callback cannot acquire the newly offered action');
       host().props.onPress();
     }
-    assert.equal(commands, 2);
+    assert.equal(commands, 3);
   } finally {await renderer.unmount();}
 });

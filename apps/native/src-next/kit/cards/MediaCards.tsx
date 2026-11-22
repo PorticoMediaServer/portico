@@ -137,7 +137,10 @@ export function WideCard(props: WideCardProps) {
   // them rather than at the card's middle, so the first line is not left on bright art. Never shorter than the drawn .45.
   const [copyTop, setCopyTop] = useState<number>();
   const scrimStart = t.isTV || copyTop === undefined ? undefined : Math.max(0, Math.min(.45, (copyTop - 20) / height));
-  return <CardFrame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={52} centered />}>
+  // TV's sparse frame owns the one focus host and hands its paint frame in `frame` (as every card does): drawing a second
+  // CardFrame here put two live hosts with one id in a row, and TV red-screened on a library's Continue row (#5070 look).
+  const Frame = props.frame ?? CardFrame;
+  return <Frame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={52} centered />}>
     {s => <><ArtFrame height={height} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
       <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={fallbackFor(props, 'wide', width, height)} width={width} height={height} />
       {props.captionBelow ? <View style={{position: 'absolute', left: 0, right: 0, bottom: 0}}><Progress value={props.progress}/></View> : <>
@@ -149,7 +152,7 @@ export function WideCard(props: WideCardProps) {
       </View></>}
     </ArtFrame>{props.captionBelow ? <Caption {...props} titleLines={2} caption={[...(props.caption ?? []), ...(props.detail ?? [])]} detail={undefined} selected={props.selection?.selected}/>
       : under && <View style={{marginTop: wideDetailGap}}><Parts parts={props.detail} gap={factsGap} /></View>}</>}
-  </CardFrame>;
+  </Frame>;
 }
 /** A wide card's detail (Continue Watching's time left) sits under the picture on a tablet, in the caption grey, as on the web
  * (tablet 1, desktop-browse f1); a phone keeps it inside with the number (phone-app 4b), TV leaves it to the hero. A row of
