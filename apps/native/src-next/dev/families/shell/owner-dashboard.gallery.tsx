@@ -9,7 +9,7 @@ import type {TelemetryReading} from '../../../../../../packages/client-core/src/
 import type {Gallery} from '../../gallery-registry';
 import {useTheme} from '../../../kit/theme';
 import {OwnerDashboardPage} from '../../../screens/settings-live/owner-dashboard/page';
-import {OwnerMoveSheet} from '../../../screens/settings-live/owner-dashboard/move-sheet';
+import {OwnerMoveSheet} from '../../../kit/dashboard/OwnerMoveSheet';
 import {ownerAlertView, ownerHealthLine, ownerJobView, ownerStreamView, type OwnerSessionTotals, type OwnerViewing} from '../../../screens/settings-live/owner-dashboard/model';
 
 const t = defaultI18n.t;

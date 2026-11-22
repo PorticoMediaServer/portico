@@ -8,11 +8,11 @@ import {useTheme} from '../../../kit/theme';
 import {alpha, shellType} from '../../../kit/shell/visual';
 import type {OwnerAlertView, OwnerHealthWindow, OwnerJobView, OwnerSessionTotals, OwnerStreamView, OwnerViewing, OwnerViewingPeriod, Translate} from './model';
 import {ownerCompactWindow, ownerStreamTotals, ownerUsesCompactRows} from './model';
-import {OwnerAlertCard, OwnerCalm, OwnerJobGroup, OwnerJobRow, OwnerSection, OwnerSubheading} from './parts';
-import {OwnerHealthSection} from './health';
-import {OwnerStatisticsSection} from './statistics';
-import {OwnerUpdateCard, type OwnerUpdateView} from './update-card';
-import {OwnerCompactRows, OwnerNowPlayingHeader, OwnerShowAll, OwnerStreamCards, OwnerStreamTotals, type OwnerStreamEntry} from './streams';
+import {OwnerAlertCard, OwnerCalm, OwnerJobGroup, OwnerJobRow, OwnerSection, OwnerSubheading} from '../../../kit/dashboard/OwnerParts';
+import {OwnerHealthSection} from '../../../kit/dashboard/OwnerHealthSection';
+import {OwnerStatisticsSection} from '../../../kit/dashboard/OwnerStatisticsSection';
+import {OwnerUpdateCard, type OwnerUpdateView} from '../../../kit/dashboard/OwnerUpdateCard';
+import {OwnerCompactRows, OwnerNowPlayingHeader, OwnerShowAll, OwnerStreamCards, OwnerStreamTotals, type OwnerStreamEntry} from '../../../kit/dashboard/OwnerStreams';
 import {BarSurface} from '../../../kit/layout/TopBar';
 
 export type OwnerDashboardPageProps = Readonly<{

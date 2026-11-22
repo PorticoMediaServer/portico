@@ -1,14 +1,14 @@
 import React from 'react';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Text, View} from 'react-native';
-import {ProfileFace, type ArtworkSource} from '../../../kit/artwork';
-import {SessionCard} from '../../../kit/cards';
-import {Focusable} from '../../../kit/controls';
-import {Icon} from '../../../kit/Icon';
-import {useTheme} from '../../../kit/theme';
-import {alpha, shellType} from '../../../kit/shell/visual';
-import {OWNER_COMPACT_ROW_PX, type OwnerStreamTotal, type OwnerStreamView, type Translate} from './model';
-import {OwnerCalm} from './parts';
+import {ProfileFace, type ArtworkSource} from '../artwork';
+import {SessionCard} from '../cards';
+import {Focusable} from '../controls';
+import {Icon} from '../Icon';
+import {textLines, useTheme} from '../theme';
+import {alpha, shellType} from '../shell/visual';
+import {OWNER_COMPACT_ROW_PX, type OwnerStreamTotal, type OwnerStreamView, type Translate} from '../../screens/settings-live/owner-dashboard/model';
+import {OwnerCalm} from './OwnerParts';
 
 export type OwnerStreamEntry = Readonly<{view: OwnerStreamView; artwork?: ArtworkSource}>;
 
@@ -39,7 +39,7 @@ export function OwnerNowPlayingHeader({t, people, count, expanded, onShowFewer, 
     style={sticky ? {paddingHorizontal: 20, paddingVertical: 10} : {marginTop: 32, paddingHorizontal: 16}}>
     <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 10, paddingHorizontal: sticky ? 0 : 4, marginBottom: sticky ? 0 : 12}}>
       <Text accessibilityRole="header" style={[shellType(20, 700, 'normal', -.015), {color: theme.colors.text}]}>{t('settings.server.nowPlaying')}</Text>
-      <Text numberOfLines={1} style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{expanded ? t('next.dashboard.streams', {count}) : people}</Text>
+      <Text {...textLines(1)} style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{expanded ? t('next.dashboard.streams', {count}) : people}</Text>
       {expanded ? <View style={{marginLeft: 'auto'}}>
         <Focusable testID={sticky ? 'owner-stream-show-fewer-sticky' : 'owner-stream-show-fewer'} accessibilityRole="button" accessibilityLabel={t('next.dashboard.fewer')} onPress={onShowFewer} focusKind="row" focusRadius={8}
           style={{height: 32, paddingHorizontal: 10, borderRadius: 8, alignItems: 'center', justifyContent: 'center'}}>
@@ -76,12 +76,12 @@ export function OwnerStreamTotals({totals}: {totals: readonly OwnerStreamTotal[]
   const theme = useTheme();
   return <View testID="owner-stream-totals" style={{flexDirection: 'row', gap: 2, marginHorizontal: 16, marginBottom: 12, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.lineSoft}}>
     {totals.map(tile => <View key={tile.id} style={{flex: 1, minWidth: 0, backgroundColor: theme.colors.raised, paddingHorizontal: 12, paddingVertical: 12}}>
-      <Text numberOfLines={1} style={[shellType(12.5, 600), {color: theme.colors.textTertiary}]}>{tile.label}</Text>
+      <Text {...textLines(1)} style={[shellType(12.5, 600), {color: theme.colors.textTertiary}]}>{tile.label}</Text>
       <View style={{flexDirection: 'row', alignItems: 'baseline', marginTop: 2}}>
-        <Text numberOfLines={1} style={[shellType(26, 800, 'normal', -.03), {color: tile.tone === 'converting' ? theme.colors.accentStrong : theme.colors.text, fontVariant: ['tabular-nums']}]}>{tile.value}</Text>
+        <Text {...textLines(1)} style={[shellType(26, 800, 'normal', -.03), {color: tile.tone === 'converting' ? theme.colors.accentStrong : theme.colors.text, fontVariant: ['tabular-nums']}]}>{tile.value}</Text>
         {tile.unit ? <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, marginLeft: 3}]}>{tile.unit}</Text> : null}
       </View>
-      {tile.note ? <Text numberOfLines={1} style={[shellType(12, 600), {color: theme.colors.textTertiary, marginTop: 1}]}>{tile.note}</Text> : null}
+      {tile.note ? <Text {...textLines(1)} style={[shellType(12, 600), {color: theme.colors.textTertiary, marginTop: 1}]}>{tile.note}</Text> : null}
     </View>)}
   </View>;
 }
@@ -104,12 +104,12 @@ export function OwnerCompactRow({entry, index, t, onMenu}: {entry: OwnerStreamEn
       {face(index, username, 32)}
       <View style={{flex: 1, minWidth: 0}}>
         <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 8}}>
-          <Text numberOfLines={1} style={[shellType(14.5, 800), {color: theme.colors.text, flexShrink: 1}]}>{username}</Text>
-          {profile ? <Text numberOfLines={1} style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 1000}]}>{profile}</Text> : null}
-          <Text numberOfLines={1} style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 100000}]}>{view.viewer.device}</Text>
+          <Text {...textLines(1)} style={[shellType(14.5, 800), {color: theme.colors.text, flexShrink: 1}]}>{username}</Text>
+          {profile ? <Text {...textLines(1)} style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 1000}]}>{profile}</Text> : null}
+          <Text {...textLines(1)} style={[shellType(13, 600), {color: theme.colors.textTertiary, flexShrink: 100000}]}>{view.viewer.device}</Text>
         </View>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 1}}>
-          <Text numberOfLines={1} style={[shellType(13, 400), {color: theme.colors.textSecondary, flexShrink: 1}]}>{view.title}{qualifier ? <Text style={[shellType(13, 400), {color: theme.colors.textTertiary}]}>{`  ${qualifier}`}</Text> : null}</Text>
+          <Text {...textLines(1)} style={[shellType(13, 400), {color: theme.colors.textSecondary, flexShrink: 1}]}>{view.title}{qualifier ? <Text style={[shellType(13, 400), {color: theme.colors.textTertiary}]}>{`  ${qualifier}`}</Text> : null}</Text>
           {note ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 'auto', flexShrink: 0}}>
             {note.tone === 'paused' ? <Icon name="i-pause" size={11} color={theme.colors.textTertiary}/>
               : <View style={{width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.amber, ...(note.tone === 'problem' ? {shadowColor: theme.colors.amber, shadowOpacity: .32, shadowRadius: 3, shadowOffset: {width: 0, height: 0}} : {})}}/>}
