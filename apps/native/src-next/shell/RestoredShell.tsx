@@ -14,7 +14,7 @@ import {NativeShell} from './NativeShell';
 import {nativeAccounts} from '../platform/accounts';
 import {readNativeSelectedViewer, subscribeNativeAppSessions} from '../platform/app-session-storage';
 import {AccountEntry} from '../screens/accounts/AccountEntry';
-import {ServersRoute} from '../screens/accounts/AccountRoutes';
+import {ServersRoutePage as ServersRoute} from '../pages/shared/accounts/ServersRoutePage';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import {NativeSignInEnded} from '../platform/sign-in-ended';
 import {NativeIdentityFailure} from '../platform/identity-failure';

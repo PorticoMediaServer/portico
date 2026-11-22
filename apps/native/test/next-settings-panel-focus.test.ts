@@ -8,7 +8,7 @@ const {react} = hooks();
 let television = true;
 const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/screens/settings-live/settings-panels.tsx', import.meta.url), {
   react, 'react-native': {},
-  '../accounts/AccountRoutes': {ProfileRoute: 'ProfileRoute', ServersRoute: 'ServersRoute'},
+  '../../pages/shared/accounts/ProfilesRoutePage': {ProfilesRoutePage: 'ProfileRoute'}, '../../pages/shared/accounts/ServersRoutePage': {ServersRoutePage: 'ServersRoute'},
   '../../pages/shared/settings/AccountSecurityPanel': {AccountSecurityPanel: 'AccountSecurityPanel'},
   '../../pages/touch/settings/AccessTokensPanel': {AccessTokensPanel: 'AccessTokensPanel'},
   '../../pages/touch/settings/DeviceAboutRows': {DeviceAboutRows: 'DeviceAboutRows'},

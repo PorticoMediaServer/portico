@@ -9,7 +9,7 @@ import {Button} from '../../../kit/controls';
 import {useTheme} from '../../../kit/theme';
 import {TVCodePresenter, TVCredentialForm, TVFrontDoor} from '../../../tv/auth';
 import {AccountEntry} from '../../../screens/accounts/AccountEntry';
-import {ServersRoute} from '../../../screens/accounts/AccountRoutes';
+import {ServersRoutePage as ServersRoute} from '../../../pages/shared/accounts/ServersRoutePage';
 import {TVServerChooserPage} from '../../../pages/tv/accounts/ServerChooserPage';
 import {NoServersPage} from '../../../pages/tv/accounts/NoServersPage';
 import {OfflineServersPage} from '../../../pages/tv/accounts/OfflineServersPage';
