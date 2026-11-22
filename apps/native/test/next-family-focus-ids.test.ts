@@ -304,7 +304,7 @@ test('a state action keeps one identity across busy, enabled and sibling composi
     assert.equal((binding.tree as Element).props.disabled, false);
   } finally {await binding.host.unmount();}
 
-  // TVPeoplePanel's composition: one FocusRegion, a runtime error StateView whose
+  // People's (pages/tv/settings/PeoplePage) composition: one FocusRegion, a runtime error StateView whose
   // actions are the shared component, and distinct sibling prefixes elsewhere.
   const composition = await mount(StateView, {title: 'Error', primaryAction: {id: 'retry', label: 'Retry', onPress() {}}, secondaryAction: {id: 'back', label: 'Back', testID: 'tv.people.back', onPress() {}}, additionalActions: [{id: 'details', label: 'Details', onPress() {}}]});
   try {
