@@ -108,8 +108,11 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   // Play or Resume, with the played part, the time left and Start over.
   const action = detail?.actions.find(value => value.enabled && value.playback && value.id !== 'start_over');
   // A show plays its next episode, named on the button ("Play S1 E1", phone-detail d2).
-  const nextUp = show ? workspace?.nextUp : undefined, code = nextUp ? episodeLabel(numbering(nextUp), 'player', text)?.text : undefined;
-  const playback = action?.playback ?? nextUp?.playback ?? entry.playback;
+  // A show watched to the end has no next episode; Play starts it again from the first in the list (Plex), the episode the
+  // controller's play falls back to.
+  const nextUp = show ? workspace?.nextUp : undefined, again = show && !nextUp ? workspace?.episodes?.sections[0]?.entries[0] : undefined;
+  const code = nextUp ?? again ? episodeLabel(numbering((nextUp ?? again)!), 'player', text)?.text : undefined;
+  const playback = action?.playback ?? nextUp?.playback ?? again?.playback ?? entry.playback;
   const progressSeconds = nextUp ? nextUp.progressSeconds : detail?.personal.progressSeconds ?? entry.progressSeconds;
   const playDuration = nextUp ? nextUp.duration : duration;
   const resuming = !!playback?.startSeconds && (progressSeconds ?? 0) > 0 && !!playDuration;
@@ -126,7 +129,11 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
     const subscribe = (listener: () => void) => {artListeners.current.add(listener); if (!paintCurrent()) listener(); return () => {artListeners.current.delete(listener);};};
     return Object.freeze({artwork: foreground, bounds, paintCurrent, subscribe});
   };
-  const play = (fromStart = false) => {void controller.play(fromStart ? entry : undefined, fromStart, fromStart ? undefined : startArt()).catch(fail);};
+  // A watched-through show names the episode it starts (as Play season does): the controller plays a show only from the
+  // server's next episode otherwise.
+  // Watched through, it starts that episode from its beginning: a watched episode's own start point can be its end.
+  const rewatch = again?.playback ? {...again, playback: {itemId: again.playback.itemId, startSeconds: 0}} : undefined;
+  const play = (fromStart = false) => {void controller.play(fromStart ? entry : rewatch && !action ? rewatch : undefined, fromStart, fromStart ? undefined : startArt()).catch(fail);};
   const primary: TitlePrimary | undefined = playback ? {icon: 'i-play', label: code ? t(resuming ? 'title.resumeEpisode' : 'title.playEpisode', {code}) : t(resuming ? 'entry.resume' : 'entry.play'), onPress: () => play(), testID: 'watch-title-play',
     ...(resuming ? {progress: Math.min(1, progressSeconds! / playDuration!), remaining: t('next.kit.remaining', {time: durationText(Math.max(0, playDuration! - progressSeconds!), text.t)}),
       ...(startOver ? {startOver: {label: t('action.startOver'), onPress: () => play(true)}} : {})} : {})} : undefined;
