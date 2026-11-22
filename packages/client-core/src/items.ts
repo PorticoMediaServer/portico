@@ -50,7 +50,10 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
   const state = item.state, counts = item.counts, view = holderViews[item.kind], library = item.libraryId ?? libraryId;
   // An artist's picture is their portrait (the scanner and the artwork editor file it under that role).
   const picture = item.images?.poster ?? item.images?.cover ?? item.images?.thumb ?? item.images?.portrait;
-  const numbered = item.kind === 'episode' ? {episodeNumber: item.index, seasonNumber: item.parentIndex}
+  // An episode placed by its air date (a daily show, a recording) has no real season or number:
+  // its card says when it aired instead of "S2026 E326".
+  const numbered = item.kind === 'episode' && item.dateBased ? {dateBased: true}
+    : item.kind === 'episode' ? {episodeNumber: item.index, seasonNumber: item.parentIndex}
     : item.kind === 'season' ? {seasonNumber: item.index}
     : item.kind === 'track' ? {trackNumber: item.index, discNumber: item.parentIndex} : {};
   const entry: Record<string, unknown> = {

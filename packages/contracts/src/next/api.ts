@@ -1343,6 +1343,7 @@ export interface Item {
   images: Record<string, string>;
   counts?: ItemCounts;
   state: ItemState;
+  dateBased?: boolean;
   libraryId: string;
   chapter?: ItemChapter;
   author?: string;

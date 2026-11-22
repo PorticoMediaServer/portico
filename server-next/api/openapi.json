@@ -4466,6 +4466,9 @@
             },
             "type": "array"
           },
+          "dateBased": {
+            "type": "boolean"
+          },
           "durationMs": {
             "type": "integer"
           },
