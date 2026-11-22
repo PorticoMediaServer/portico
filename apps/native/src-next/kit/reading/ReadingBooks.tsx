@@ -7,38 +7,38 @@ import type {Library} from '../../../../../packages/client-core/src';
 import type {LibraryTab} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {BrowseLabels} from '../../kit/browse';
-import {BrowseToolbar, FilteredEmpty} from '../../kit/browse';
-import {Button, Chip, Focusable} from '../../kit/controls';
-import {MediaArt} from '../../kit/artwork';
-import {CircleCard, PosterCard} from '../../kit/cards';
-import {cardTitleLine} from '../../kit/cards/caption-metrics';
-import {Parts} from '../../kit/cards/primitives';
-import {cardAccessibilityLabel} from '../../kit/cards/model';
-import {AlphabetRail, WindowedGrid, type WindowedGridHandle} from '../../kit/layout';
-import {StateView} from '../../kit/states';
-import {ReadingLoading, ReadingGridSkeleton} from '../../kit/reading/ReadingLoading';
-import {ReadingItemMenu, ReadingSelectionToolbar, ReadingMenuAnchor} from '../../kit/reading/ReadingActions';
+import type {BrowseLabels} from '../browse';
+import {BrowseToolbar, FilteredEmpty} from '../browse';
+import {Button, Chip, Focusable} from '../controls';
+import {MediaArt} from '../artwork';
+import {CircleCard, PosterCard} from '../cards';
+import {cardTitleLine} from '../cards/caption-metrics';
+import {Parts} from '../cards/primitives';
+import {cardAccessibilityLabel} from '../cards/model';
+import {AlphabetRail, WindowedGrid, type WindowedGridHandle} from '../layout';
+import {StateView} from '../states';
+import {ReadingLoading, ReadingGridSkeleton} from './ReadingLoading';
+import {ReadingItemMenu, ReadingSelectionToolbar, ReadingMenuAnchor} from './ReadingActions';
 import {useReadingActions} from '../../pages/shared/read/useReadingActions';
-import {SelectionCircle} from '../../kit/selection';
-import type {CardSelection} from '../../kit/cards/model';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {SelectionCircle} from '../selection';
+import type {CardSelection} from '../cards/model';
+import {browseType} from '../browse/presentation';
+import {textLines, useTheme} from '../theme';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {homeCardText} from '../home/model';
-import {libraryAppliedFilters} from '../library/applied-filters';
-import {NativeLibraryDestination, nativeLibraryEntryKey} from '../library/model';
-import {LibraryFilters} from '../../kit/browse/LibraryFilters';
-import type {NativeLibraryFilterDraft} from '../library/filters';
-import {openNativeReadSeries, type NativeReadOrigin} from './eligibility';
-import {audiobookAuthorInitials} from '../destinations/audiobooks/presentation';
-import {nativeReadingDownloadOffer, nativeReadingRowLifetime, type NativeReadingPageOpening, type NativeReadingDownloadOffer} from './reading-page-opening';
-import {PhoneReadingBookCard, PhoneReadingBookCover} from '../../kit/reading/PhoneReadingBookCard';
+import {nativeDestinationLifetime} from '../../screens/destinations/lifetime';
+import {homeCardText} from '../../screens/home/model';
+import {libraryAppliedFilters} from '../../screens/library/applied-filters';
+import {NativeLibraryDestination, nativeLibraryEntryKey} from '../../screens/library/model';
+import {LibraryFilters} from '../browse/LibraryFilters';
+import type {NativeLibraryFilterDraft} from '../../screens/library/filters';
+import {openNativeReadSeries, type NativeReadOrigin} from '../../screens/read/eligibility';
+import {audiobookAuthorInitials} from '../../screens/destinations/audiobooks/presentation';
+import {nativeReadingDownloadOffer, nativeReadingRowLifetime, type NativeReadingPageOpening, type NativeReadingDownloadOffer} from '../../screens/read/reading-page-opening';
+import {PhoneReadingBookCard, PhoneReadingBookCover} from './PhoneReadingBookCard';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
-import {openNativeReadingBookEntry} from './reading-books-open';
-import {usePageWidth} from '../../kit/layout/page-inset';
+import {openNativeReadingBookEntry} from '../../screens/read/reading-books-open';
+import {usePageWidth} from '../layout/page-inset';
 
 const noopSubscribe = () => () => {};
 /** One committed layout of the grid: the route it was drawn under, and the
@@ -283,7 +283,7 @@ function ReadingListRow({entry, width, runtime, onOpen, onMenu, selection, phone
     {phone ? <View style={{borderRadius: 5, overflow: 'hidden'}}><PhoneReadingBookCover title={title} author={entry.author} artwork={runtime.artwork(entry.posterUrl)} width={36} height={54}/></View>
       : <MediaArt kind="poster" source={runtime.artwork(entry.posterUrl)} width={36} height={54} style={{borderRadius: 5}}/>}
     <View style={{flex: 1, minWidth: 0, gap: phone ? 2 : 3}}>
-      <Text numberOfLines={1} style={[browseType(theme, 15, 600), {color: theme.colors.text}]}>{title}</Text>
+      <Text {...textLines(1)} style={[browseType(theme, 15, 600), {color: theme.colors.text}]}>{title}</Text>
       <Parts parts={text.caption} style={phone ? [browseType(theme, 12.5, 500), {color: theme.colors.textTertiary}] : [browseType(theme, 12.5, 400), {color: theme.colors.textSecondary}]}/>
     </View>
     <View pointerEvents="none" style={{position: 'absolute', left: 12, right: 12, bottom: 0, height: 1, backgroundColor: theme.colors.line}}/>

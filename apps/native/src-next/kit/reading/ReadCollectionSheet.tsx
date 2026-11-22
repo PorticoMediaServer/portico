@@ -1,18 +1,18 @@
 import React, {useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Focusable} from '../../kit/controls';
-import {BottomSheet} from '../../kit/overlays';
-import {overlayPaintPermit, RetainedOverlay} from '../../kit/overlays/SurfacePaintHost';
-import {LoadingBoundary, SkeletonBlock, StateView} from '../../kit/states';
-import {Icon} from '../../kit/Icon';
-import {useTheme} from '../../kit/theme';
+import {Focusable} from '../controls';
+import {BottomSheet} from '../overlays';
+import {overlayPaintPermit, RetainedOverlay} from '../overlays/SurfacePaintHost';
+import {LoadingBoundary, SkeletonBlock, StateView} from '../states';
+import {Icon} from '../Icon';
+import {textLines, useTheme} from '../theme';
 import {linkNativeAbortSignals} from '../../platform/abort-signals';
-import {nativeScreenServices} from '../native-screen-services';
+import {nativeScreenServices} from '../../screens/native-screen-services';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeReadOwnerEditLease} from './read-book-model';
-import {NativeReadingCollectionPicker} from './read-collection-picker';
-import type {NativeReadingCollectionKind} from './read-collection-capability';
+import type {NativeReadOwnerEditLease} from '../../screens/read/read-book-model';
+import {NativeReadingCollectionPicker} from '../../screens/read/read-collection-picker';
+import type {NativeReadingCollectionKind} from '../../screens/read/read-collection-capability';
 
 const {t} = defaultI18n;
 
@@ -80,7 +80,7 @@ export function ReadCollectionSheet({context, lease, owner, itemId, libraryId, k
             style={{minHeight: 60, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
               backgroundColor: theme.colors.raised, opacity: state.busy && !busy ? .6 : 1}}>
             <View style={{flex: 1}}>
-              <Text numberOfLines={2} style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{resource.name}</Text>
+              <Text {...textLines(2)} style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{resource.name}</Text>
               <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.selection.titles', {count: resource.entryCount})}</Text>
             </View>
             {result ? <Icon name="i-check" size={20} color={theme.colors.text}/> : busy ? <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('status.loading')}</Text> : null}
