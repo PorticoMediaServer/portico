@@ -95,6 +95,17 @@ func TestLocalSimilarUsesNarrowSignalsAndNeverPadsEnhancedData(t *testing.T) {
 		}
 	}
 	v := Viewer{UserID: 1, ProfileID: 1}
+	// A collection's More like this is its films' (1 and 5), each film taking turns, without the
+	// collection's own films; it is one page.
+	collection, err := d.MoreLikeThisPage(ctx, v, "collection", "", 7)
+	if err != nil || len(collection.Items) != 7 || collection.NextCursor != "" || collection.Items[0].ID != 2 {
+		t.Fatalf("collection More like this: %+v %v", collection, err)
+	}
+	for n, it := range collection.Items {
+		if it.ID == 1 || it.ID == 5 || slices.ContainsFunc(collection.Items[:n], func(o Item) bool { return o.ID == it.ID }) {
+			t.Fatalf("collection More like this holds its own film or a title twice: %d", it.ID)
+		}
+	}
 	if page, err := d.MoreLikeThisPage(ctx, v, "i7", "", 15); err != nil || len(page.Items) != 0 {
 		t.Fatal("genre alone qualified a candidate", err)
 	}
