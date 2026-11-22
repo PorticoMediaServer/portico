@@ -16,6 +16,9 @@ export function SavedDownloadCard({group, device, copy, onOpen}: {group: Offline
   const facts = useDownloadArtwork(device, first);
   const title = group.title || first.title, width = 214, height = width * 9 / 16, radius = theme.spec.card.radius[theme.column];
   const source = facts?.backdropUrl ? {uri: facts.backdropUrl, cacheKey: JSON.stringify([downloadEntryIdentity(first), facts.backdropUrl])} : undefined;
+  // A download with no backdrop (a book, a comic) shows its own saved cover, upright in the middle of the card, not an
+  // empty tile (Saved on a phone, 22 Nov).
+  const cover = !source && first.artworkUrl ? {uri: first.artworkUrl, cacheKey: JSON.stringify([downloadEntryIdentity(first), first.artworkUrl])} : undefined;
   const singleTransfer = group.entries.length === 1 && first.state === 'downloading' && !first.waiting;
   const progress = singleTransfer ? downloadTransferProgress(first) : undefined;
   const size = group.entries.reduce((sum, entry) => sum + (entry.state === 'ready' ? entry.bytes : entry.bytesDone), 0);
@@ -23,7 +26,9 @@ export function SavedDownloadCard({group, device, copy, onOpen}: {group: Offline
   return <CardFrame testID={`saved-download-${encodeURIComponent(group.key)}`} title={title} width={width} onNavigate={onOpen}>
     {interaction => <>
       <ArtFrame height={height} radius={radius} focused={interaction.focused} hovered={interaction.hovered} holding={interaction.holding}>
-        <Artwork source={source} width={width} height={height}/>
+        {cover ? <View style={{width, height, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.raised}}>
+          <Artwork source={cover} width={Math.round(height * .82 * 2 / 3)} height={Math.round(height * .82)} style={{borderRadius: 4}}/>
+        </View> : <Artwork source={source} width={width} height={height}/>}
       </ArtFrame>
       <View style={{marginTop: theme.space.xs}}>
         <Text style={[theme.type.wideTitle, {color: theme.colors.text}]}>{title}</Text>
