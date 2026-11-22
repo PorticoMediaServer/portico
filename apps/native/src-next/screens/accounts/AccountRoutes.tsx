@@ -1,57 +1,31 @@
-import {createProfileAvatarOpeningTransport} from '../../../../../packages/client-core/src/query/profile-security-transport';
-import {readDirectAccount} from '../../../../../packages/client-core/src/query/connection-operations.ts';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {Dimensions, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {profilePinFailureText} from './profile-pin-failure';
-import {ManagedProfilesClient, nextProfileArt, parseDirectSnapshot, type ManagedProfile, type ProfileArt, type ProfileDeletion} from '../../../../../packages/client-core/src/profile-management';
-import {routePath} from '../../../../../packages/contracts/src/routes';
-import {IdentityClient} from '../../../../../packages/client-core/src/identity-client';
-import type {ProfileRestrictions, RatingSystem} from '../../../../../packages/client-core/src/identity-restrictions';
-import {HttpHostedApi} from '../../../../../packages/client-core/src';
 import type {SetupPreview} from '../../../../../packages/client-core/src/setup-code';
 import type {TVConsentApprover} from '../../../../../packages/client-core/src/tv-consent';
 import type {AppServerSession} from '../../../../../packages/client-core/src/app-sessions';
 import {nativeAccounts} from '../../platform/accounts';
 import {nativeAppSessions, subscribeNativeAppSessions} from '../../platform/app-session-storage';
-import {switchNativeProfile} from '../../platform/native-session-lifecycle';
-import {NativeProfileRecovery, temporaryRecoveryApi} from '../../platform/profile-recovery';
-import {hostedUrl} from '../../platform/account-authority';
-import {pickProfilePicture, profileAvatarUpload, profilePicturePickerAvailable, profilePictureSource} from '../../platform/profile-avatars';
-import type {ProfileAvatar} from '../../../../../packages/client-core/src/identity-restrictions';
-import {nativeNetworkFetch} from '../../platform/server-connections';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeServersPanel, NativeShellRoute} from '../../shell/routes';
-import {NativeScreenLifetime} from '../settings-live/lifetime';
-import {ProfileColorPicker, ProfileRestrictionsFields} from '../../kit/settings/ProfileEditorFields';
-import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
 import {TVAccountFields, TVAuthLayout} from '../../kit/frames/TVAuthLayout';
-import {StateLayout, StateView} from '../../kit/states';
-import {ProfileFace, ProfilePicker} from '../../kit/artwork';
+import {StateLayout} from '../../kit/states';
 import {Button, Focusable, TextField, FormError} from '../../kit/controls';
-import {BottomSheet, Dialog} from '../../kit/overlays';
+import {BottomSheet} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import {offlineDownloads, offlineOwnerKey} from '../../../platform/offline-downloads';
 import {useTheme} from '../../kit/theme';
 import {AccountEntry} from './AccountEntry';
 import {createAccountDownloadsEntry, type AccountDownloadsEntry} from './downloads-entry';
-import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
-import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
-import {ProfileSwitchPage, ProfileSwitchStatus} from '../../pages/touch/accounts/ProfileSwitchPage';
 import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
-import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
 import {ServerChooserPage} from '../../pages/touch/accounts/ServerChooserPage';
 import {TrustedCertificatesPage} from '../../pages/shared/accounts/TrustedCertificatesPage';
 import {TVServerChooserPage, TVServerSettingsPanel} from '../../pages/tv/accounts/ServerChooserPage';
 import {removeCapturedServerDownloads} from './sign-out-downloads';
-import {ProfilesPage as TVProfilesPage} from '../../pages/tv/accounts/ProfilesPage';
-import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage} from '../../tv/auth';
 import {registerBack} from '../../kit/navigation/back';
-import {useProfiles, type ProfileLease, type ProfilesProps} from '../../pages/shared/accounts/useProfiles';
-import {ProfileActionRow} from '../../kit/accounts/ProfileActionRow';
-import {ProfileLimitsSheet} from '../../pages/shared/accounts/ProfileLimitsSheet';
+import {ProfilesRoutePage} from '../../pages/shared/accounts/ProfilesRoutePage';
 
 const t = defaultI18n.t;
 type Panel = 'servers' | 'add' | 'sign-out-server' | 'forget-server' | 'sign-out-account' | 'consent-kind' | 'consent-code' | 'consent-review' | 'consent-done';
@@ -63,140 +37,8 @@ export function AccountRoute({route, context}: {route: NativeShellRoute; context
   return route.kind === 'profiles' ? <ProfileRoute context={context} route={route} onBack={back}/> : <ServersRoute context={context} initialPanel={route.kind === 'servers' ? route.initialPanel : undefined} onBack={back}/>;
 }
 
-export function ProfileRoute({context, route, onBack, embedded = false}: ProfilesProps) {
-  const theme = useTheme(), view = useProfiles({context, route, onBack, embedded});
-  const {canRefresh, pickPicture, removePicture, actionBusy, active, activeTicket, addArt, addName, addNameRef, additionCurrent, alive, artDraft, avatarSource, avatars, back, backRef, busy, busyRef, cancelWrongPin, choose, closeAddition, closeDeletion, closeEdit, current, deleteName, deleteNameRef, deletion, deletionCurrent, deletionRef, edit, editDraftRef, editorCurrent, error, forgetAction, forgetProfile, forgotPIN, identityForLimits, lease, limitsLease, limitsProfile, localPictures, manage, managedId, management, managementCurrent, moveProfile, nameDraft, notice, openAddition, openEditor, pin, pinAgain, pinDraft, problem, profile, profileActionsCurrent, profileFocus, profiles, recovery, refreshProfiles, removePin, removePinAction, retireEditor, retirement, runAction, setAddArt, setAddName, setArtDraft, setAvatars, setBusy, setDeleteName, setDeletion, setError, setForgotPIN, setManagedId, setNameDraft, setNotice, setPin, setPinAgain, setPinDraft, setProblem, setProfile, setRecovery, setRetirement, startRecovery, submitAdd, submitPin, submitRename, tvLeave} = view;
-  const errorRefresh = canRefresh
-    ? <Button variant="text" disabled={busy} onPress={() => {void refreshProfiles();}}>{t('action.refresh')}</Button> : null;
-  if (recovery) return <ProfileRecoveryPage controller={recovery.controller} profileName={recovery.name} username={context.account.account.username}
-    onOpen={value => {const id = recovery.id; recovery.controller.dispose(); setRecovery(undefined); setPin(value); void choose(id, value);}}
-    onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setPin('');}}/>;
-  // TV: the picker, its PIN page and the forgotten-PIN page are one page Modal over the shell (TVProfileSwitchPage).
-  if (theme.isTV && !embedded) return <TVProfileSwitchPage leave={tvLeave} onBack={() => {if (!busyRef.current) backRef.current();}} onGone={onBack}>
-    {profile && forgotPIN ? <TVForgotPINHandoff profileName={profile.name}
-    serverAddress={context.api.baseUrl} server={{id: context.account.serverId, signIn: context.account.account.hostedAccountId ? 'portico' : 'local'}} onBack={back}/>
-    : profile ? <TVProfilePINForm
-    profile={{id: profile.id, name: profile.name, initial: [...profile.name][0] ?? '', color: profile.art, primary: profile.primary, pinRequired: true}}
-    code={pin} onCodeChange={setPin} busy={busy} error={error ? <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError> : undefined}
-    onSubmit={value => {void choose(profile.id, value);}} onBack={back}
-    onForgotPIN={() => {if (!busy) {cancelWrongPin(); setPin(''); setError(undefined); setForgotPIN(true);}}}/>
-    : <TVProfilesPage serverName={context.serverName} picker={{
-      // Only the faces take focus. Profile management stays in Settings on touch.
-      focusScope: lease?.live.value && lease.route === route ? `tv.account.profiles.${JSON.stringify([lease.authority, lease.revision])}` : undefined,
-      focusBusy: busy, profiles: profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art,
-        primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id)})),
-      selectedId: current?.viewer.profileId, preferredProfileId: lease ? profileFocus.get(lease) : undefined,
-      onFocusChange: id => {if (id && lease) profileFocus.set(lease, id);},
-      onSelect: id => {
-        const value = profiles.find(item => item.id === id)!;
-        if (id === current?.viewer.profileId) {
-          back();
-        } else if (value.pinRequired) {
-          setProfile(value);
-          setPin('');
-          setError(undefined);
-        } else {
-          void choose(id);
-        }
-      },
-    }} status={<>
-      {!!error && <FormError>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError>}
-      {errorRefresh}
-    </>}/>}
-  </TVProfileSwitchPage>;
-  const managementActions = manage && lease && active ? <View testID="profile-actions" style={{marginTop: 18}}>
-          <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary, marginBottom: 8}]}>{[active.name, active.primary ? t('profile.main') : active.id === current?.viewer.profileId ? t('profile.current') : ''].filter(Boolean).join(' · ')}</Text>
-          <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-            {!localPictures && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('profile.pictureInPorticoAccount')}</Text>}
-            <ProfileActionRow testID="profile-rename" label={t('profile.rename')} onPress={() => openEditor('rename')}/>
-            {localPictures && profilePicturePickerAvailable() ? <ProfileActionRow testID="profile-picture" label={t(avatars.some(value => value.profileId === active.id) ? 'profile.changePicture' : 'profile.addPicture')} onPress={() => pickPicture(active)}/> : null}
-            {localPictures && avatars.some(value => value.profileId === active.id) ? <ProfileActionRow testID="profile-remove-picture" label={t('profile.removePicture')} onPress={() => removePicture(active)}/> : null}
-            <ProfileActionRow testID="profile-pin" label={t(active.pinRequired ? 'profile.changePin' : 'profile.setPin')} description={active.pinRequired ? undefined : t('profile.setPinHelp', {name: active.name})} onPress={() => openEditor('pin')}/>
-            {active.pinRequired ? <ProfileActionRow testID="profile-remove-pin" label={t('profile.removePin')} onPress={() => openEditor('remove-pin')}/>: null}
-            <ProfileActionRow testID="profile-limits" label={t('profile.limits')} description={t('profile.limitsHelp')} onPress={() => openEditor('limits')}/>
-            <ProfileActionRow testID="profile-forget-devices" label={t('profile.forgetDevices')} onPress={() => openEditor('forget')}/>
-            {embedded && profiles.indexOf(active) > 0 && <ProfileActionRow testID="profile-move-up" label={t('web.profile.moveUp')} onPress={() => moveProfile(active, -1)}/>}
-            {embedded && profiles.indexOf(active) < profiles.length - 1 && <ProfileActionRow testID="profile-move-down" label={t('web.profile.moveDown')} onPress={() => moveProfile(active, 1)}/>}
-            {embedded && !active.primary && <Button variant="danger" size="compact" disabled={actionBusy} onPress={() => {
-              if (!management || !profileActionsCurrent()) return;
-              void runAction(async ({manager}) => {const preview = await manager.previewDelete(active); if (lease.current() && managementCurrent()) {const next = {preview, management}; deletionRef.current = next; deleteNameRef.current = ''; setDeletion(next); setDeleteName('');}});
-            }}>{t('profile.delete')}</Button>}
-          </View>
-          {problem ? <FormError>{problem}</FormError> : null}
-          {notice ? <Text accessibilityLiveRegion="polite" style={[theme.type.caption, {color: theme.colors.textSecondary, marginTop: 8}]}>{notice}</Text> : null}
-        </View> : null;
-  const failureLine = error ? <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError> : undefined;
-  return <>
-    {embedded ? <View testID="settings-profile-management" style={{gap: 8}}>
-      <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-        {profiles.map(value => <Focusable key={value.id} testID={`settings-profile-${value.id}`} accessibilityRole="button" accessibilityLabel={value.name} disabled={!manage || actionBusy} onPress={() => {if (!manage || !lease?.current() || activeTicket.current) return; retireEditor(); closeDeletion(); setManagedId(value.id); setProblem(''); setNotice('');}} focusKind="row" style={{minHeight: 62, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 12}}>
-          <ProfileFace initial={[...value.name][0] ?? ''} color={value.art} size={44} locked={value.pinRequired} source={avatarSource(value.id)} scaleOnFocus={false}/>
-          <View style={{flex: 1}}><Text style={[theme.type.body, {color: theme.colors.text, fontWeight: '700'}]}>{value.name}</Text><Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{[value.primary ? t('profile.main') : '', value.id === current?.viewer.profileId ? t('profile.current') : ''].filter(Boolean).join(' · ')}</Text></View>
-          {manage && <Icon name="i-more" size={20} color={theme.colors.textTertiary}/>}
-        </Focusable>)}
-        {manage && profiles.length < 8 && <ProfileActionRow testID="settings-profile-add" label={t('profile.add')} onPress={openAddition}/>}
-      </View>
-      {problem && !managedId ? <FormError placement="inline">{problem}</FormError> : null}
-      <BottomSheet open={!!managedId && !!active && manage} onOpenChange={open => {if (!open && !activeTicket.current && managementCurrent() && !retirement) {retireEditor(); setManagedId(undefined); closeDeletion();}}} title={active?.name} dismissOnBack={!actionBusy} dismissOnGesture={!actionBusy} dismissOnOutsidePress={!actionBusy}>{managementActions}</BottomSheet>
-    </View> : profile ? <ProfilePINPage testID="accounts-profile-switch" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: profile.art, source: avatarSource(profile.id)}}}
-      value={pin} onChange={setPin} onSubmit={value => {void choose(profile.id, value);}} busy={busy} rejected={!!error}
-      status={failureLine}
-      onForgot={() => {void startRecovery();}} onBack={back}/>
-    : <ProfileSwitchPage view={view} status={<ProfileSwitchStatus canRefresh={canRefresh} busy={busy} onRefresh={() => {void refreshProfiles();}}
-        failure={error ? profilePinFailureText(error) ?? presentError(error, 'profiles').body : undefined}/>}/>}
-    <Dialog testID="profile-add" open={additionCurrent()} onOpenChange={open => {if (!open) closeAddition();}} title={t('profile.addTitle')}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeAddition}>{t('action.cancel')}</Button><Button focusId="save" loading={actionBusy} disabled={!addName.trim()} onPress={submitAdd}>{t('action.save')}</Button></View>}>
-      <TextField label={t('profile.name')} value={addName} onChangeText={value => {if (additionCurrent() && !activeTicket.current) {addNameRef.current = value; setAddName(value);}}} maxLength={120} testID="profile-add-name"/>
-      {!theme.isTV && <ProfileColorPicker value={addArt ?? nextProfileArt(profiles)} onChange={value => {if (additionCurrent() && !activeTicket.current) setAddArt(value);}} disabled={actionBusy} testID="profile-add-colors"/>}
-    </Dialog>
-    <Dialog testID="profile-rename" open={edit?.kind === 'rename' && editorCurrent()} onOpenChange={open => {if (!open) closeEdit();}} title={t('profile.renameTitle', {name: edit?.profile.name ?? ''})}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeEdit}>{t('action.cancel')}</Button><Button focusId="save" loading={actionBusy} disabled={!nameDraft.trim()} onPress={submitRename}>{t('action.save')}</Button></View>}>
-      <TextField label={t('profile.name')} value={nameDraft} onChangeText={value => {if (edit?.kind === 'rename' && editorCurrent() && !activeTicket.current) {editDraftRef.current = {...editDraftRef.current, name: value}; setNameDraft(value);}}} maxLength={120} testID="profile-rename-name"/>
-      {!theme.isTV && <ProfileColorPicker value={artDraft} onChange={value => {if (edit?.kind === 'rename' && editorCurrent() && !activeTicket.current) setArtDraft(value);}} disabled={actionBusy} testID="profile-rename-colors"/>}
-    </Dialog>
-    <Dialog testID="profile-pin-edit" open={edit?.kind === 'pin' && editorCurrent()} onOpenChange={open => {if (!open) closeEdit();}} title={t('profile.pinTitle', {name: edit?.profile.name ?? ''})}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeEdit}>{t('action.cancel')}</Button><Button focusId="save" loading={actionBusy} disabled={pinDraft.length !== 4 || pinAgain.length !== 4} onPress={submitPin}>{t('action.save')}</Button></View>}>
-      {theme.isTV ? <>
-        <TextField label={t('profile.pinChoose')} value={pinDraft} onChangeText={value => {if (edit?.kind === 'pin' && editorCurrent() && !activeTicket.current) {editDraftRef.current = {...editDraftRef.current, pin: value}; setPinDraft(value);}}} keyboardType="number-pad" secureTextEntry maxLength={4} testID="profile-pin-new"/>
-        <TextField label={t('profile.pinRepeat')} value={pinAgain} onChangeText={value => {if (edit?.kind === 'pin' && editorCurrent() && !activeTicket.current) {editDraftRef.current = {...editDraftRef.current, again: value}; setPinAgain(value);}}} keyboardType="number-pad" secureTextEntry maxLength={4} testID="profile-pin-again" containerStyle={{marginTop: 12}}/>
-      </> : <View style={{gap: 12}}>
-        <Text style={[theme.type.captionStrong, {color: theme.colors.text}]}>{t('profile.pinChoose')}</Text>
-        <PhonePINEntry testID="profile-pin-new" label={t('profile.pinChoose')} value={pinDraft} onChange={value => {if (edit?.kind === 'pin' && editorCurrent() && !activeTicket.current) {editDraftRef.current = {...editDraftRef.current, pin: value}; setPinDraft(value);}}} busy={actionBusy}/>
-        <Text style={[theme.type.captionStrong, {color: theme.colors.text}]}>{t('profile.pinRepeat')}</Text>
-        <PhonePINEntry testID="profile-pin-again" label={t('profile.pinRepeat')} value={pinAgain} onChange={value => {if (edit?.kind === 'pin' && editorCurrent() && !activeTicket.current) {editDraftRef.current = {...editDraftRef.current, again: value}; setPinAgain(value);}}} busy={actionBusy} autoFocus={false}/>
-      </View>}
-      {problem ? <FormError>{problem}</FormError> : null}
-    </Dialog>
-    <Dialog testID="profile-remove-pin" open={!!removePin && editorCurrent()} onOpenChange={open => {if (!open) closeEdit();}} title={t('profile.removePinConfirm.title', {name: removePin?.name ?? ''})} description={t('profile.removePinConfirm.body', {name: removePin?.name ?? ''})}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeEdit}>{t('action.cancel')}</Button><Button focusId="remove-pin" loading={actionBusy} onPress={removePinAction}>{t('profile.removePin')}</Button></View>}><View/></Dialog>
-    <Dialog testID="profile-forget-devices" open={!!forgetProfile && editorCurrent()} onOpenChange={open => {if (!open) closeEdit();}} title={t('profile.forgetDevices')}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeEdit}>{t('action.cancel')}</Button><Button focusId="forget-devices" loading={actionBusy} onPress={forgetAction}>{t('profile.forgetDevices')}</Button></View>}><View/></Dialog>
-    <BottomSheet open={deletionCurrent()} title={t('profile.delete')} onOpenChange={open => {if (!open && !activeTicket.current && deletionCurrent()) closeDeletion();}} dismissOnBack={!actionBusy} dismissOnGesture={!actionBusy} dismissOnOutsidePress={!actionBusy}
-      footer={retirement === 'removed'
-        ? <View style={{flexDirection: 'row', gap: 8}}><Button testID="profile-delete-done" focusId="done" variant="glass" onPress={() => {if (deletionCurrent() && !activeTicket.current) {closeDeletion(); setManagedId(undefined);}}}>{t('action.done')}</Button></View>
-        : <View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={actionBusy} onPress={() => {if (deletionCurrent() && !activeTicket.current) closeDeletion();}}>{t('action.cancel')}</Button><Button variant="danger" loading={actionBusy} disabled={!deletionCurrent() || deleteName !== (deletion?.preview.name ?? profiles.find(value => value.id === deletion?.preview.profileId)?.name)} onPress={() => {
-          const captured = deletion;
-          if (!deletionCurrent(captured) || captured.preview.primary || deleteNameRef.current !== deleteName || deleteName !== (captured.preview.name ?? profiles.find(value => value.id === captured.preview.profileId)?.name)) return;
-          // The accepted retirement is waited out on the same preview: only `removed` ends it,
-          // and the sheet stays open saying so after the profile leaves the refreshed list.
-          void runAction(({manager}) => manager.delete(captured.preview, {onStatus: status => {
-            if (alive.current && deletionCurrent(captured)) setRetirement(status.state === 'removed' ? 'removed' : 'removing');
-          }}), undefined, () => deletionCurrent(captured));
-        }}>{t('profile.delete')}</Button></View>}>
-      <View style={{gap: 4}}>
-        {retirement === 'removed'
-          ? <Text accessibilityLiveRegion="polite" style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('profile.deleteConfirm.removed')}</Text>
-          : <><Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('profile.deleteConfirm.body')}</Text>
-            {retirement === 'removing' ? <Text testID="profile-delete-retirement" accessibilityLiveRegion="polite" style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('profile.deleteConfirm.removing')}</Text> : null}</>}
-        {retirement !== 'removed' && deletion?.preview.playlists ? <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('profile.deleteConfirm.playlists', {count: deletion.preview.playlists})}</Text> : null}
-        {retirement !== 'removed' && deletion?.preview.savedResources ? <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('profile.deleteConfirm.savedItems', {count: deletion.preview.savedResources})}</Text> : null}
-      </View>
-      {retirement !== 'removed' ? <TextField label={t('profile.name')} description={deletion?.preview.name ?? profiles.find(value => value.id === deletion?.preview.profileId)?.name} value={deleteName} onChangeText={value => {if (deletionCurrent() && !activeTicket.current) {deleteNameRef.current = value; setDeleteName(value);}}} editable={!actionBusy}/> : null}
-      {problem ? <FormError placement="inline">{problem}</FormError> : null}
-    </BottomSheet>
-    {limitsProfile && limitsLease && editorCurrent() ? <ProfileLimitsSheet profile={limitsProfile} lease={limitsLease} serverOwner={context.account.account.role === 'owner'} identityFor={identityForLimits} onClose={closeEdit} onSaved={() => {if (editorCurrent()) {setNotice(t('limits.saved', {name: limitsProfile.name})); closeEdit();}}}/> : null}
-  </>;
-}
+/** Moved to a page; kept under this name for Settings until the rest of this file moves. */
+export const ProfileRoute = ProfilesRoutePage;
 
 /** Also usable when no selected server can restore: retained servers remain reachable. */
 /** `embedded`: a TV's Switch server Settings page (connect-24) draws the chooser inside Settings, which owns Back; Use a local
