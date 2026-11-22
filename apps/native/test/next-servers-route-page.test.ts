@@ -28,7 +28,7 @@ async function load(held: boolean, calls: unknown[][], theme: unknown, signIn = 
     '../../../kit/frames/TVAuthLayout': {TVAuthLayout: 'TVAuthLayout', TVAccountFields: 'TVAccountFields'},
     '../../../kit/states': {StateLayout: 'StateLayout'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'TextField', FormError: 'FormError'},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/Icon': {Icon: 'Icon'},
-    '../../../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, './TrustedCertificatesPage': {TrustedCertificatesPage: 'Certificates'},
+    './AccountEntryPage': {AccountEntryPage: 'AccountEntry'}, './TrustedCertificatesPage': {TrustedCertificatesPage: 'Certificates'},
     '../../touch/accounts/ServerChooserPage': {ServerChooserPage: 'Chooser'},
     '../../tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVChooser', TVServerSettingsPanel: 'TVPanel'},
   });

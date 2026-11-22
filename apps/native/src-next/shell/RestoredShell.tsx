@@ -13,7 +13,7 @@ import {ServerNeedsUpdate} from '../kit/accounts/ServerNeedsUpdate';
 import {NativeShell} from './NativeShell';
 import {nativeAccounts} from '../platform/accounts';
 import {readNativeSelectedViewer, subscribeNativeAppSessions} from '../platform/app-session-storage';
-import {AccountEntry} from '../screens/accounts/AccountEntry';
+import {AccountEntryPage} from '../pages/shared/accounts/AccountEntryPage';
 import {ServersRoutePage as ServersRoute} from '../pages/shared/accounts/ServersRoutePage';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import {NativeSignInEnded} from '../platform/sign-in-ended';
@@ -337,7 +337,7 @@ export function RestoredShell() {
       setRecovered(previous => previous === recovered && renderedCurrent() ? undefined : previous);
     }}}/>;
   if (renderedRoot) renderedRoot.input = incoming?.current() ? incoming : undefined;
-  if (incoming?.current()) return <AccountEntry key={'incoming-invitation:' + incoming.id} incomingInvitation={incoming} onSetupComplete={setupComplete}
+  if (incoming?.current()) return <AccountEntryPage key={'incoming-invitation:' + incoming.id} incomingInvitation={incoming} onSetupComplete={setupComplete}
     onBack={() => {if (!renderedCurrent() || !incoming.current()) return; incoming.dismiss(); renderedRoot?.finishInput?.();}}
     onComplete={() => {if (!renderedCurrent() || !incoming.current()) return; incoming.dismiss(); complete();}}/>;
   const remembered = downloads && root.current?.active && root.current.attempt === attempt && downloads.current() ? downloads : undefined;
@@ -367,7 +367,7 @@ export function RestoredShell() {
     return withDownloads(<ServerIdentityFailurePage failure={failure} onRetry={retry} onChoose={chooseAccounts}
       onForget={async () => {if (renderedCurrent()) await nativeAccounts.forgetServer(failure.server);}} onError={error => {if (renderedCurrent()) setState(previous => renderedCurrent() ? {phase: 'ended', error} : previous);}}/>);
   }
-  if (restoreError instanceof NativeSignInEnded) return withDownloads(<AccountEntry downloads={remembered?.entry} key={restoreError.hint.serverId + ':' + restoreError.hint.familyId} endedSignIn={restoreError.hint} onSetupComplete={setupComplete} onComplete={complete} onBack={chooseAccounts}/>);
+  if (restoreError instanceof NativeSignInEnded) return withDownloads(<AccountEntryPage downloads={remembered?.entry} key={restoreError.hint.serverId + ':' + restoreError.hint.familyId} endedSignIn={restoreError.hint} onSetupComplete={setupComplete} onComplete={complete} onBack={chooseAccounts}/>);
   if (restoreError) {
     const error = presentError(restoreError, 'home', {deviceOnline: online});
     const recoveryWait = state.phase === 'loading' ? waiting : undefined;
@@ -394,7 +394,7 @@ export function RestoredShell() {
       primaryAction={restore ? {id: 'restore', label: error.actionLabel, onPress: retry, preferredFocus: theme.isTV} : undefined}
       secondaryAction={{id: 'accounts', label: defaultI18n.t('portico.landing.chooseAnother'), onPress: chooseAccounts, preferredFocus: theme.isTV && !restore}}/></TVDesignCanvas></View>);
   }
-  return withDownloads(<AccountEntry downloads={remembered?.entry} onSetupComplete={setupComplete} onComplete={complete} resumeAccount/>);
+  return withDownloads(<AccountEntryPage downloads={remembered?.entry} onSetupComplete={setupComplete} onComplete={complete} resumeAccount/>);
   };
   const content = renderContent();
   const boot = content === null && state.phase === 'loading' && waiting.stage === 'boot';

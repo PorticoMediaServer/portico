@@ -8,7 +8,7 @@ import {FormError} from '../../../kit/controls/FormError';
 import {Button} from '../../../kit/controls';
 import {useTheme} from '../../../kit/theme';
 import {TVCodePresenter, TVCredentialForm, TVFrontDoor} from '../../../tv/auth';
-import {AccountEntry} from '../../../screens/accounts/AccountEntry';
+import {AccountEntryPage} from '../../../pages/shared/accounts/AccountEntryPage';
 import {ServersRoutePage as ServersRoute} from '../../../pages/shared/accounts/ServersRoutePage';
 import {TVServerChooserPage} from '../../../pages/tv/accounts/ServerChooserPage';
 import {NoServersPage} from '../../../pages/tv/accounts/NoServersPage';
@@ -68,17 +68,17 @@ const galleries: readonly Gallery[] = [
     onTypeCredentials={noop} onBack={noop} onLocal={noop}/></Whole>},
   {id: 'tv-account-activate-busy', title: T, platforms: ['tv'], render: () => <Whole><TVCodePresenter mode="portico" body={t('accounts.consent.portico')} busy
     verificationUri="https://web.getportico.tv/tv" onTypeCredentials={noop} onBack={noop} onLocal={noop}/></Whole>},
-  // The real first screen: AccountEntry starts the code exactly as the app does at launch (one request to the configured
+  // The real first screen: AccountEntryPage starts the code exactly as the app does at launch (one request to the configured
   // Portico Services). Whatever comes back is drawn: the code, or, if it cannot be created, the reason in the code card.
-  {id: 'tv-account-activate-live', title: T, platforms: ['tv'], render: () => <Whole><AccountEntry onComplete={noop}/></Whole>},
+  {id: 'tv-account-activate-live', title: T, platforms: ['tv'], render: () => <Whole><AccountEntryPage onComplete={noop}/></Whole>},
   // No code could be fetched: the same composition, the card says why and what to do.
   {id: 'tv-account-activate-unavailable', title: T, platforms: ['tv'], render: () => <Whole><TVFrontDoor busy={false} onPortico={noop} onLocal={noop}
     reason={t('activation.unreachable')}/></Whole>},
   {id: 'tv-account-welcome', title: T, platforms: ['tv'], render: () => <Whole><TVFrontDoor busy={false} onPortico={noop} onLocal={noop}/></Whole>},
   {id: 'tv-account-welcome-busy', title: T, platforms: ['tv'], render: () => <Whole><TVFrontDoor busy onPortico={noop} onLocal={noop}/></Whole>},
-  {id: 'tv-account-address-empty', title: T, platforms: ['tv'], render: () => <Whole><AccountEntry initialStage="address" onComplete={noop} onBack={noop}/></Whole>},
-  {id: 'tv-account-address-filled', title: T, platforms: ['tv'], render: () => <Whole><AccountEntry initialStage="address" initialAddress="https://demo.getportico.tv" onComplete={noop} onBack={noop}/></Whole>},
-  {id: 'tv-account-address-long', title: T, platforms: ['tv'], render: () => <Whole><AccountEntry initialStage="address" initialAddress={fixture['next.controls.native.fixture.longAddress']} onComplete={noop} onBack={noop}/></Whole>},
+  {id: 'tv-account-address-empty', title: T, platforms: ['tv'], render: () => <Whole><AccountEntryPage initialStage="address" onComplete={noop} onBack={noop}/></Whole>},
+  {id: 'tv-account-address-filled', title: T, platforms: ['tv'], render: () => <Whole><AccountEntryPage initialStage="address" initialAddress="https://demo.getportico.tv" onComplete={noop} onBack={noop}/></Whole>},
+  {id: 'tv-account-address-long', title: T, platforms: ['tv'], render: () => <Whole><AccountEntryPage initialStage="address" initialAddress={fixture['next.controls.native.fixture.longAddress']} onComplete={noop} onBack={noop}/></Whole>},
   {id: 'tv-account-sign-in-empty', title: T, platforms: ['tv'], render: () => <Credentials kind="local"/>},
   {id: 'tv-account-sign-in-username', title: T, platforms: ['tv'], render: () => <Credentials kind="local" username={fixture['next.controls.native.fixture.username']}/>},
   {id: 'tv-account-sign-in-filled', title: T, platforms: ['tv'], render: () => <Credentials kind="local" username={fixture['next.controls.native.fixture.username']} password={fixture['next.controls.native.fixture.password']}/>},

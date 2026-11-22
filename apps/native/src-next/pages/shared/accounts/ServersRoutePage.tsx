@@ -6,7 +6,7 @@ import {Button, TextField, FormError} from '../../../kit/controls';
 import {BottomSheet} from '../../../kit/overlays';
 import {ServerRemoveDownloads, ServerSignOutBody, ServerSignOutFooter, ServerSignOutText, ServersConsentChoices, ServersConsentCodeBox, ServersConsentReview,
   ServersFooter} from '../../../kit/accounts/ServersRouteParts';
-import {AccountEntry} from '../../../screens/accounts/AccountEntry';
+import {AccountEntryPage} from './AccountEntryPage';
 import {ServerChooserPage} from '../../touch/accounts/ServerChooserPage';
 import {TVServerChooserPage, TVServerSettingsPanel} from '../../tv/accounts/ServerChooserPage';
 import {TrustedCertificatesPage} from './TrustedCertificatesPage';
@@ -24,7 +24,7 @@ export function ServersRoutePage(props: ServersRouteProps) {
   const AccountLayout = view.tv ? TVAuthLayout : StateLayout;
   const layout = (title: string, body?: string, before?: React.ReactNode, primary?: typeof view.doneAction, more?: React.ReactNode) => <AccountLayout testID="accounts-servers" title={title} body={body}
     beforeActions={<>{before}{errorView}</>} primaryAction={primary} secondaryAction={view.secondaryAction}>{more}</AccountLayout>;
-  if (panel === 'add') return <AccountEntry key={view.addGeneration} downloads={view.addDownloads} onSetupComplete={props.onSetupComplete} initialStage="address"
+  if (panel === 'add') return <AccountEntryPage key={view.addGeneration} downloads={view.addDownloads} onSetupComplete={props.onSetupComplete} initialStage="address"
     onBack={view.addBack} onComplete={view.addComplete}/>;
   if (panel === 'sign-out-account') return layout(t('accounts.signOut.portico'), undefined, undefined, view.signOutAccountAction);
   if (panel === 'consent-kind') return layout(t('settings.linkTV'), t(view.consentUnavailable ? 'linkTV.signInFirst' : 'linkTV.enterCode'), <ServersConsentChoices>

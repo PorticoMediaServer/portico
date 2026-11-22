@@ -58,7 +58,7 @@ function modules(state: {
     '../platform/accounts': {nativeAccounts: {snapshot: async () => ({servers: []}), onSettled: () => () => {}, onFence: () => () => {}}},
     '../platform/app-session-storage': {readNativeSelectedViewer: state.reads, subscribeNativeAppSessions: state.hints},
     './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
-    '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'},
+    '../pages/shared/accounts/AccountEntryPage': {AccountEntryPage: 'AccountEntry'},
     '../pages/shared/accounts/ServersRoutePage': {ServersRoutePage: 'ServersRoute'},
     '../../../../packages/i18n/src': {defaultI18n},
     '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}},

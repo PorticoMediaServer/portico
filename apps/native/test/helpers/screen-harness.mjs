@@ -248,6 +248,7 @@ export async function screenModule(file, modules) {
     }));
     // A path the fixture never named still reaches the fixture's own answer for it (a fixture
     // Proxy's unvisited port), as it did while the logic lived in the screen.
+    // The lookup uses the hook-relative path; a fixture key spelled the same but meaning another file would answer it.
     const rebased = new Proxy(own, {get: (all, name) => Object.hasOwn(all, name) ? all[name] : modules[name]});
     modules = withModules(modules, {[declaration.source.value]: await screenModule(target, rebased)});
   }

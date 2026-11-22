@@ -72,19 +72,19 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
     '../../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'},
   });
   const modules:any={react:{...React,default:React},'react-native':rn,'react-native-qrcode-svg':{default:'QR'},
-    '../../../../../packages/i18n/src':{defaultI18n},'../../../../../packages/client-core/src':{HttpHostedApi:class {}},
-    '../../../../../packages/client-core/src/route-identity':{routeOrigin:(s:string)=>s},'../../../../../packages/client-core/src/server-address':serverAddress,'../../../../../packages/client-core/src/hosted-security':security,
-    '../../../../../packages/client-core/src/presentation/errors':{presentError:()=>({body:'Refused',silent:false})},
-    '../../../../../packages/client-core/src/password-strength':passwordPolicy,'../../kit/theme':{useTheme:()=>theme},
-    '../../kit/states':{StateLayout:'Layout'},'../../kit/controls':{Button:'Button',TextField:'Field',Focusable:'Focusable'},
-    '../../platform/account-work': accountWork, '../../platform/accounts':{nativeAccounts:accounts},'../../platform/server-sign-in':{NativeServerSignIn:Server},'../../platform/portico-sign-in':auth,
-    '../../platform/server-connections':{browseNearby:async()=>[]},'../../platform/account-authority':{hostedUrl:'https://hosted.example'},
-    '../../platform/qr-scanner':{qrScannerAvailable:()=>false},'../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}}, './tv-code-opening':tvOpening,'./directory-chooser':chooser,
-    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage':phone,'./directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
-    '../../platform/hosted-sign-in-unavailable':{HostedSignInUnavailable:class extends Error {}},
+    '../../../../../../packages/i18n/src':{defaultI18n},'../../../../../../packages/client-core/src':{HttpHostedApi:class {}},
+    '../../../../../../packages/client-core/src/route-identity':{routeOrigin:(s:string)=>s},'../../../../../../packages/client-core/src/server-address':serverAddress,'../../../../../../packages/client-core/src/hosted-security':security,
+    '../../../../../../packages/client-core/src/presentation/errors':{presentError:()=>({body:'Refused',silent:false})},
+    '../../../../../../packages/client-core/src/password-strength':passwordPolicy,'../../../kit/theme':{useTheme:()=>theme},
+    '../../../kit/states':{StateLayout:'Layout'},'../../../kit/controls':{Button:'Button',TextField:'Field',Focusable:'Focusable'},
+    '../../../platform/account-work': accountWork, '../../../platform/accounts':{nativeAccounts:accounts},'../../../platform/server-sign-in':{NativeServerSignIn:Server},'../../../platform/portico-sign-in':auth,
+    '../../../platform/server-connections':{browseNearby:async()=>[]},'../../../platform/account-authority':{hostedUrl:'https://hosted.example'},
+    '../../../platform/qr-scanner':{qrScannerAvailable:()=>false},'../../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../../platform/tv-menu': {useTVMenuCapture() {}}, '../../../screens/accounts/tv-code-opening':tvOpening,'../../../screens/accounts/directory-chooser':chooser,
+    '../../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../touch/accounts/SignInPage':phone,'../../../screens/accounts/directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
+    '../../../platform/hosted-sign-in-unavailable':{HostedSignInUnavailable:class extends Error {}},
   };
   const ports=new Proxy(modules,{get:(obj,name)=>name in obj?obj[name]:new Proxy({},{get:(_,exported)=>(..._args:any[])=>{throw new Error('Unexpected port '+String(name)+'.'+String(exported));}})});
-  const {AccountEntry}=await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx',import.meta.url),ports);
+  const {AccountEntryPage: AccountEntry}=await screenModule(new URL('../src-next/pages/shared/accounts/AccountEntryPage.tsx',import.meta.url),ports);
   const previous=Object.getOwnPropertyDescriptor(globalThis,'require');Object.defineProperty(globalThis,'require',{configurable:true,value:()=> 'wordmark'});
   context.after(()=>{if(previous)Object.defineProperty(globalThis,'require',previous);else Reflect.deleteProperty(globalThis,'require');});
   const listeners=new Set<()=>void>();let active=true;
