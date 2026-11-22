@@ -63,7 +63,8 @@ export function ReadCollectionSheet({context, lease, owner, itemId, libraryId, k
     description: title, testID: 'native-reading-collection', onOpenChange: (open: boolean) => {if (!open) close();}};
   const paintPermit = overlayPaintPermit(() => !lease.signal.aborted && lease.isCurrent(), [listener => context.navigation.subscribe(listener), listener => context.subscribeAuthority(listener), listener => lease.subscribe(listener)], [lease.signal]);
   return <RetainedOverlay permit={paintPermit} allowedTypes={[BottomSheet, React.Fragment, View, Text, Focusable, Icon, LoadingBoundary, SkeletonBlock, StateView]}><BottomSheet {...surface} fitContent>
-    <View style={{gap: 10}}>
+    {/* The sheet's body sits in from its edges like every other settings sheet (StorageSheetBody); "0 collections" and the rows touched them. */}
+    <View style={{gap: 10, paddingHorizontal: theme.isTV ? 0 : 20}}>
       {state?.phase === 'error' ? <StateView variant="inline" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}
         primaryAction={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (model) void model.retryLoad().catch(() => {});}}}/> : <LoadingBoundary ready={state?.phase === 'ready'} skeleton={<SkeletonBlock width="100%" height={180}/>}>
       {state?.phase === 'ready' ? <>
