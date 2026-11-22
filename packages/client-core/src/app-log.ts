@@ -43,7 +43,7 @@ function facts(raw: unknown): Record<string, string | number> {
  }
  return out;
 }
-/** A fact-less line (it names only that something happened) is kept at most once a minute per level, area and message. */
+/** A fact-less warning repeating the line just before it is kept at most once a minute (see AppLog.last). */
 export const APP_LOG_BARE_QUIET_MS = 60_000;
 export class AppLog {
  private lines: {at: number; text: string; bytes: number}[] = [];
@@ -55,25 +55,26 @@ export class AppLog {
   const oldest = this.now() - APP_LOG_AGE_MS;
   while (this.lines.length && (this.size > APP_LOG_BYTES || this.lines[0].at < oldest)) this.size -= this.lines.shift()!.bytes;
  }
- /** When each fact-less line (a console warning, a repeated screen warning) was last kept. Such a line says only that
-  * something happened, so a repeat within a minute adds nothing, and a dev build's warning twice a second would
-  * otherwise push every useful line out of the bounded ring. */
- private bare = new Map<string, number>();
- private append(at: number, level: unknown, area: unknown, message: unknown, raw: unknown) {
+ /** The line this log kept last, from a live write. A fact-less warning that repeats the line just before it, within a
+  * minute, is not kept: it says only that the same thing happened again, and a dev build's warning twice a second would
+  * otherwise push every useful line out of the bounded ring. Any other line in between ends the run, errors and crashes
+  * are never folded, and restored lines (an earlier run's file, already folded when written) are kept as they are. */
+ private last?: {key: string; at: number};
+ private append(at: number, level: unknown, area: unknown, message: unknown, raw: unknown, fold = false) {
   if (typeof level !== 'string' || !levels.has(level) || typeof area !== 'string' || !areas.has(area) || typeof message !== 'string' || !messages.has(message)
    || !Number.isFinite(at) || at < this.now() - APP_LOG_AGE_MS || at > this.now()) return;
   const kept = facts(raw);
-  if (Object.keys(kept).length === 0) {
-   const key = `${level} ${area} ${message}`, last = this.bare.get(key);
-   if (last !== undefined && Math.abs(at - last) < APP_LOG_BARE_QUIET_MS) return;
-   this.bare.set(key, at);
+  if (fold) {
+   const key = level === 'warn' && Object.keys(kept).length === 0 ? `${area} ${message}` : '';
+   if (key && this.last?.key === key && at - this.last.at < APP_LOG_BARE_QUIET_MS) return;
+   this.last = {key, at};
   }
   const text = JSON.stringify({time: at, level, area, message, facts: kept});
   const bytes = new TextEncoder().encode(text).length + 1;
   this.lines.push({at,text,bytes}); this.size += bytes;
  }
  write(level: AppLogLevel, area: AppLogArea, message: AppLogMessage, raw: Readonly<Record<string,unknown>> = {}) {
-  this.append(this.now(),level,area,message,raw); this.trim();
+  this.append(this.now(),level,area,message,raw,true); this.trim();
   for (const changed of this.listeners) changed();
  }
  /** Re-validate every restored line at write time too. Older runs cannot smuggle free text. */
@@ -85,7 +86,7 @@ export class AppLog {
   this.lines.sort((a,b)=>a.at-b.at); this.trim();
  }
  snapshot(): string {this.trim(); return this.lines.map(line=>line.text).join('\n');}
- clear() {this.lines=[];this.size=0;this.bare.clear();for (const changed of this.listeners) changed();}
+ clear() {this.lines=[];this.size=0;this.last=undefined;for (const changed of this.listeners) changed();}
  subscribe(changed:()=>void) {this.listeners.add(changed);return ()=>{this.listeners.delete(changed);};}
 }
 /** Web uses this memory-only ring. Native binds its private last-run file to the same instance. */
