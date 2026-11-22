@@ -9,7 +9,9 @@ import {sameAuthority} from '../../shell/model';
 
 export type NativeLiveGuideRow = Readonly<{channel: GuideChannelRow; step: number; programmes: readonly GuideProgram[]}>;
 export type NativeLiveGuideSnapshot = Readonly<{fence?: ChannelPlaybackFence; phase: 'unavailable' | 'loading' | 'ready'; open: boolean;
-  rows: readonly NativeLiveGuideRow[]; previous?: NativeLiveGuideRow; next?: NativeLiveGuideRow; busy: boolean; error?: unknown; timezone?: string}>;
+  rows: readonly NativeLiveGuideRow[]; previous?: NativeLiveGuideRow; next?: NativeLiveGuideRow; busy: boolean; error?: unknown; timezone?: string;
+  /** The programmes for the open guide are being read (the channel rows arrive first). */
+  programmesLoading?: boolean}>;
 const empty: NativeLiveGuideSnapshot = Object.freeze({phase: 'unavailable', open: false, rows: [], busy: false});
 export const emptyLiveGuide = () => empty;
 export const noLiveGuideSubscription = (_listener: () => void) => () => {};
@@ -109,7 +111,7 @@ export class NativeTVLiveGuide {
         || !raw.tuneAvailable || (raw.hidden && !opening.options.includeHidden)) throw new Error('channel_source_unavailable');
       opening.origin = Object.freeze({row: channel, options: opening.options});
       if (!this.current(opening)) return;
-      this.publish({...this.state, phase: 'ready', rows, previous: rows.find(row => row.step === -1), next: rows.find(row => row.step === 1)});
+      this.publish({...this.state, phase: 'ready', rows, previous: rows.find(row => row.step === -1), next: rows.find(row => row.step === 1), programmesLoading: !!this.panel && this.state.open});
       if (this.panel && this.state.open) void this.programmes(opening, this.panel);
     } catch (error) {if (this.current(opening)) {this.panel?.abort();this.panel = undefined;this.publish({...empty, fence: opening.fence, error});}}
   }
@@ -124,8 +126,8 @@ export class NativeTVLiveGuide {
       const complete = rows.map(row => ({...row, programmes: fresh.find(value => sameTarget(value.channel, row.channel))?.programmes ?? []}));
       if (!current()) return;
       complete.sort((a, b) => a.step - b.step);
-      this.publish({...this.state, phase: 'ready', rows: complete, previous: complete.find(row => row.step === -1), next: complete.find(row => row.step === 1)});
-    } catch (error) {if (current()) this.publish({...this.state, error});}
+      this.publish({...this.state, phase: 'ready', rows: complete, previous: complete.find(row => row.step === -1), next: complete.find(row => row.step === 1), programmesLoading: false});
+    } catch (error) {if (current()) this.publish({...this.state, error, programmesLoading: false});}
     finally {opening.controller.signal.removeEventListener('abort', stop);}
   }
   open = () => {
@@ -133,7 +135,7 @@ export class NativeTVLiveGuide {
     if (!opening || !this.current(opening) || this.state.phase === 'unavailable') return false;
     if (this.state.open) return true;
     this.panel?.abort();const panel = new AbortController();this.panel = panel;
-    this.publish({...this.state, open: true});
+    this.publish({...this.state, open: true, programmesLoading: this.state.phase === 'ready'});
     if (this.state.phase === 'ready') void this.programmes(opening, panel);
     return true;
   };
@@ -154,7 +156,7 @@ export class NativeTVLiveGuide {
     if (!this.state.open || expected && this.state !== expected) return false;
     this.panel?.abort();this.panel = undefined;
     if (this.command?.fromMini) {this.command.controller.abort();this.command = undefined;if (this.opening) this.opening.busy = false;}
-    this.publish({...this.state, open: false, busy: this.opening?.busy ?? false});return true;
+    this.publish({...this.state, open: false, busy: this.opening?.busy ?? false, programmesLoading: false});return true;
   };
   tune = async (advertised: NativeLiveGuideRow, expected: NativeLiveGuideSnapshot, onError?: (error: unknown) => void) => {
     const opening = this.opening;
