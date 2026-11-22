@@ -96,6 +96,23 @@ func TestAnAudiobookLibrarysAuthorsAndSeries(t *testing.T) {
 	if names, counts, _ := people(owner, "&role=narrator"); !slices.Equal(names, []string{"Nora Reader"}) || counts[0] != 3 {
 		t.Errorf("the narrators: %v %v", names, counts)
 	}
+	// The Libraries page counts the library's authors beside its books, as each profile sees them.
+	authorCount := func(token string) int {
+		t.Helper()
+		for _, l := range get[Libraries](t, s, token, "/v1/libraries").Items {
+			if l.ID == lib.PublicID && l.Summary != nil {
+				for _, c := range l.Summary.Counts {
+					if c.Kind == "author" {
+						return c.Count
+					}
+				}
+			}
+		}
+		return -1
+	}
+	if owner, kid := authorCount(owner), authorCount(onKid.AccessToken); owner != 3 || kid != 2 {
+		t.Errorf("authors counted: owner %d, kid %d", owner, kid)
+	}
 	// An author's page lists their books in this library.
 	ada := page.Items[0].ID
 	if got := titles(owner, "/v1/items?library="+lib.PublicID+"&author="+ada); !slices.Equal(got, []string{"High Water", "Low Water"}) {
