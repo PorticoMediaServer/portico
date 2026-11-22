@@ -181,6 +181,8 @@ button.audioSlot.audioSlot { flex: 1; min-width: 0; height: 100%; padding: 0 var
   .audio[data-book] .audioColumn { width: min(100%, var(--frame-audio-wide-book-column)); grid-template-columns: var(--frame-audio-wide-book-art) minmax(0, 1fr); column-gap: var(--frame-audio-wide-book-art-gap); }
   .audio[data-book] .audioArt { max-width: none; }
   .audio[data-book] .audioWords { margin: 0 0 var(--space-tight); }
+  /* desktop-listen's book player sets its title a size up from music's (.npf.book h1: 42 against 36). */
+  .audio[data-book] .audioWords h1 { font-size: calc(var(--type-audio-title-size) * 7 / 6); line-height: 1.05; }
   .audio[data-book] .audioChapter { margin-top: var(--frame-audio-wide-chapter-gap); color: var(--color-text); }
   .audio[data-book] .audioChapter > svg { display: none; }
   .audio[data-book] .audioChapter > b { font-weight: var(--type-button-weight); }
