@@ -23,8 +23,8 @@ import {presentError} from '../../../../../packages/client-core/src/presentation
 import {nativeType, useTheme} from '../../kit/theme';
 import type {NativeTitleController, NativeTitlePageLease} from './title-controller';
 import type {NativeTitleTab} from './title-memory';
-import {TitlePeople} from './TitlePeople';
-import {NativeTitleEpisodePlate} from './TitleEpisodePlate';
+import {TitlePeople} from '../../kit/title/TitlePeople';
+import {NativeTitleEpisodePlate} from '../../kit/title/TitleEpisodePlate';
 import {NativeSeasonsSheet} from '../../kit/layout/ShowSeasonsSheet';
 import {TVEpisodeBrowser} from '../../kit/frames/TVEpisodeBrowser';
 import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
