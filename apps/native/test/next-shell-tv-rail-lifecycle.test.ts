@@ -452,3 +452,40 @@ test('the rail pins Search and Home above and Live TV and Saved over Settings; o
   assert.deepEqual(render(true).filter(node => node.type === 'ListEdgeFade').map(node => node.props.edge), ['top'], 'scrolled to its end: the top fades');
   assert.deepEqual(focusIds(render(false)).slice(-3), ['saved', 'settings', ids.profile], 'without Live TV, Saved sits over Settings');
 });
+
+test('Apple TV: focus coming back to Profile and server after its menu stays there; an entry by position still goes to the page item', async () => {
+  const {hooks} = await import('./helpers/screen-harness.mjs');
+  const {motionRules} = await import('../../../packages/design/src/index');
+  const {defaultI18n} = await import('../../../packages/i18n/src');
+  const h = hooks(), registry = createFocusRegistry(), theme = createTheme({isTV: true, width: 1920}), ids = focusModel.tvFocusIds(authority);
+  const frames: (() => void)[] = [], requestFrame = (globalThis as any).requestAnimationFrame;
+  (globalThis as any).requestAnimationFrame = (run: () => void) => {frames.push(run); return frames.length;};
+  try {
+    const {TVRail} = await screenModule(new URL('../src-next/shell/TVRail.tsx', import.meta.url), {
+      react: h.react, '@portico/design': {motionRules}, 'react-native': {Image: 'Image', Platform: {OS: 'ios'}, ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: () => null},
+      'react-native-svg': {default: 'Svg', Path: 'Path'}, '../kit/shell/BrandSymbol': {BrandSymbol: 'BrandSymbol'},
+      'react-native-reanimated': {default: {View: 'AnimatedView', Text: 'AnimatedText'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => ({value}), withTiming: (value: unknown) => value, withDelay: (_delay: unknown, value: unknown) => value},
+      '../../../../packages/i18n/src': {defaultI18n}, '../kit/controls': {Focusable: 'Focusable'},
+      '../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
+      '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
+      '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
+      '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})},
+    });
+    let menus = 0;
+    const tree = nodes(h.render(() => TVRail({authority, libraries: [], hasLiveTV: false, destination: {kind: 'settings'}, profile: {id: 'p', name: 'Actual'},
+      onNavigate() {}, onProfile: () => {menus++;}, profileRef: {current: null}, onExpandedChange() {}})));
+    const region = tree.find(node => node.type === 'FocusRegion'), profile = tree.find(node => node.props?.focusId === ids.profile);
+    registry.configure({id: ids.rail, orientation: 'vertical'});
+    const address = {regionId: ids.rail, childId: ids.profile};
+    registry.attach(address, {});
+    registry.didFocus(address);
+    profile.props.onPress();
+    assert.equal(menus, 1);
+    region.props.onFocusChange(false);
+    region.props.onFocusChange(true);
+    assert.equal(frames.length, 0, 'Back from the menu or its page stays on Profile and server');
+    region.props.onFocusChange(false);
+    region.props.onFocusChange(true);
+    assert.equal(frames.length, 1, 'a later entry onto the same item by position still asks for the current page item');
+  } finally {(globalThis as any).requestAnimationFrame = requestFrame;}
+});

@@ -65,12 +65,23 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
   // grown, so it is never used): Left lands on whichever item is level with the card. Entering from the page goes to the
   // current page's item, as Android TV's nextFocusLeft does.
   const opened = useRef(false);
+  // The profile menu was opened from Profile and server: focus coming back to that item (the menu closed, or the page it
+  // opened went Back) is a return, not an entry, and stays there (tv-focus "Choices made": Back returns to the rail's
+  // profile item). Used once.
+  const profileReturn = useRef(false);
+  const openProfile = () => {profileReturn.current = true; onProfile();};
   const focusChanged = useCallback((owns: boolean) => {
+    const returning = owns && profileReturn.current;
+    if (owns) profileReturn.current = false;
+    const landed = registry.capture();
+    const toProfile = returning && landed?.regionId === ids.rail && landed.childId === ids.profile;
     // A frame later and only if focus is still in the rail: focus that only passed through it (dropped there while a page
     // opened, then asked onto that page's start) must not be pulled back to the rail.
-    if (owns && !opened.current && Platform.OS === 'ios') requestAnimationFrame(() => {if (registry.capture()?.regionId === ids.rail) registry.focusRegion(ids.rail);});
+    if (owns && !opened.current && Platform.OS === 'ios' && !toProfile) {
+      requestAnimationFrame(() => {if (registry.capture()?.regionId === ids.rail) registry.focusRegion(ids.rail);});
+    }
     opened.current = owns; changeRef.current(owns);
-  }, [registry, ids.rail]);
+  }, [registry, ids.rail, ids.profile]);
   React.useEffect(() => {if (!motion.transforms) expanded.value = open ? 1 : 0;}, [expanded, motion.transforms, open]);
   const panel = useAnimatedStyle(() => ({transform: [{translateX: (expanded.value - 1) * (spec.openWidth - spec.width)}]}));
   const counter = useAnimatedStyle(() => ({transform: [{translateX: (1 - expanded.value) * (spec.openWidth - spec.width)}]}));
@@ -134,7 +145,7 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
         <View style={{flex: 1}}/>
         <View style={{gap: spec.itemGap, paddingTop: 8}}>
           {item({key: 'settings', label: defaultI18n.t('settings.title'), icon: 'i-settings', destination: {kind: 'settings'}})}
-          <Focusable ref={profileRef} {...returnProps} focusId={ids.profile} testID={focusTestID(ids.rail, ids.profile)} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.home.native.profileAndServer')} onPress={onProfile} focusRadius={14}
+          <Focusable ref={profileRef} {...returnProps} focusId={ids.profile} testID={focusTestID(ids.rail, ids.profile)} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.home.native.profileAndServer')} onPress={openProfile} focusRadius={14}
             style={{height: 76, width: spec.openItemWidth, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 22}}>
             <View style={{width: 40, height: 40}}>
               <ProfileFace {...profile} size={40} scaleOnFocus={false}/>
