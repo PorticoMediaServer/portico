@@ -9,7 +9,7 @@ import {TVHomeCustomize, TVHomeRow, TVHomeSpotlight} from '../../../kit/home/Hom
 import {Hero, FocusPreviewHero, Row, type ArtworkRenderContext} from '../../../kit/layout';
 import {Banner} from '../../../kit/overlays';
 import {HomeSkeleton, LoadingPaint, StateView, TVHomeRecovery} from '../../../kit/states';
-import {MusicMixesRow} from '../../../screens/destinations/music/MusicMixesRow';
+import {MusicMixesRow} from '../../../kit/music/MusicMixesRow';
 import {homeCardText} from '../../../screens/home/model';
 import {authorityKey} from '../../../shell/model';
 import {useTVHome, type TVHomeProps} from '../../shared/home/useTVHome';

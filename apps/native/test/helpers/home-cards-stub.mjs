@@ -37,7 +37,10 @@ export async function withHomeCards(stubs, actualSpotlight = false) {
   const deeper = key => key.replace(/^\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\//, '../../../../../../packages/')
     .replace(/^\.\.\/\.\.\/(kit|platform|shell)(\/|$)/, '../../../$1$2').replace(/^\.\.\/destinations\//, '../../../screens/destinations/')
     .replace(/^\.\/([\w-]+)$/, '../../../screens/home/$1');
+  // The mixes row moved into the kit: a test's stub for it (keyed from screens/home) also answers the pages' kit path.
+  const mixesStub = stubs['../destinations/music/MusicMixesRow'] ?? {MusicMixesRow: 'MusicMixesRow'};
   const page = {...Object.fromEntries(Object.entries(stubs).map(([key, value]) => [deeper(key), value])),
+    '../../../kit/music/MusicMixesRow': mixesStub,
     '@portico/design': {...design, ...stubs['@portico/design']}, '../../../kit/home': home, '../../../kit/frames/metrics': layout,
     '../../../kit/home/HomeTVParts': {TVHomeSpotlight: 'TVHomeSpotlight',
       TVHomeRow: 'TVHomeRow', TVHomeCustomize: 'TVHomeCustomize'},
@@ -52,7 +55,7 @@ export async function withHomeCards(stubs, actualSpotlight = false) {
   // screens/home names because the pages and kit are keyed from there).
   const shell = Object.fromEntries(Object.entries({'../kit/theme': stubs['../../kit/theme'], './model': stubs['../../shell/model'],
     './PlayOnButton': stubs['../../shell/PlayOnButton'], './runtime': stubs['../../shell/runtime'],
-    '../screens/destinations/music/MusicMixesRow': stubs['../destinations/music/MusicMixesRow']}).filter(([, value]) => value !== undefined));
+    '../kit/music/MusicMixesRow': mixesStub}).filter(([, value]) => value !== undefined));
   return {...stubs, ...shell, '../../kit/home': home, '../../pages/touch/home/HomePage': homePage, '../../pages/tv/home/HomePage': tvHomePage,
     '../pages/touch/home/HomePage': homePage, '../pages/tv/home/HomePage': tvHomePage};
 }

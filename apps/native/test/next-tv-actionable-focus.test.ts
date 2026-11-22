@@ -172,7 +172,7 @@ async function overlayBindings(b: Awaited<ReturnType<typeof bindings>>) {
   const common = {react: b.react, 'react-native': native, 'react-native-reanimated': animation, 'react-native-svg': svg,
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, left: 0, right: 0, bottom: 0})},
     '../../../../../packages/i18n/src/index': {defaultI18n}, '../controls/Button': {Button}, '../controls/Focusable': {Focusable: b.Focusable},
-    '../focus': b.focus, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme, nativeType}, '../useMotion': motion,
+    '../focus': b.focus, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => b.theme, nativeType, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../useMotion': motion,
     './OverlayHost': host, './OverlayPaintContext': b.paint, './TVDesignCanvas': {TVDesignCanvas: 'DesignCanvas'}, '../focus/FocusRegion': {FocusWithin: ({children}: any) => children}, '../layout/ListEdgeFade': {ListEdgeFade: () => null, useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}})},
     './native-dismissal': await screenModule(new URL('../src-next/kit/overlays/native-dismissal.ts', import.meta.url), {react: b.react, 'react-native': native, '../focus/layer-stack': {LAYER_FOCUS_WAIT_MS: 1000}})};
   const surface = await screenModule(new URL('../src-next/kit/overlays/surface.tsx', import.meta.url), {...common, '../../platform/layout/tv-canvas': canvas, './BottomSheet': {BottomSheet: 'UnusedTouchSheet'}});
@@ -322,11 +322,11 @@ test('TV Saved caller passes original grid sort/filter roots through actual Menu
 
 test('MusicMixes actual original caller scope names its panel through failed busy work without enabling commands', async () => {
   const b = await bindings(), o = await overlayBindings(b), presentation = await import('../src-next/kit/browse/presentation');
-  const {MusicMixesRow} = await screenModule(new URL('../src-next/screens/destinations/music/MusicMixesRow.tsx', import.meta.url), {
-    react: b.react, 'react-native': b.native, 'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}, '../../../../../../packages/client-core/src/music-mixes-controller': {mixSaveOnServer: false},
-    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../../kit/controls': {Focusable: b.Focusable},
-    '../../../kit/focus': b.focus, '../../../kit/overlays': {...o.menu, SidePanel: o.surface.SidePanel}, '../../../kit/theme': {useTheme: () => b.theme, nativeType},
-    '../../../kit/browse/presentation': presentation});
+  const {MusicMixesRow} = await screenModule(new URL('../src-next/kit/music/MusicMixesRow.tsx', import.meta.url), {
+    react: b.react, 'react-native': b.native, 'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}, '../../../../../packages/client-core/src/music-mixes-controller': {mixSaveOnServer: false},
+    '../../../../../packages/i18n/src': {defaultI18n}, '../artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../controls': {Focusable: b.Focusable},
+    '../focus': b.focus, '../overlays': {...o.menu, SidePanel: o.surface.SidePanel}, '../theme': {useTheme: () => b.theme, nativeType, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
+    '../browse/presentation': presentation});
   const row = {id: 'original-mix', name: 'Mix', tint: '#123456', artists: [], more: false, songCount: 20, covers: []};
   const snapshot = {phase: 'ready', rows: [row]}, lifetime = {isCurrent: () => true};
   let reject!: (error: Error) => void, calls = 0, tree: any, mixScope = 'original-library-scope';

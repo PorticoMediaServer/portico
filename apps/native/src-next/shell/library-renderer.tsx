@@ -7,7 +7,7 @@ import type {NativeRouteRenderer} from './route-registry';
 import type {NativeDestinationActivationPort} from '../screens/destinations/focus';
 import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
 import type {NativeSelection} from './native-selection';
-import {MusicMixesRow} from '../screens/destinations/music/MusicMixesRow';
+import {MusicMixesRow} from '../kit/music/MusicMixesRow';
 import {CoveredLayer} from '../kit/focus';
 import {homeSeeAllRoute} from './routes';
 import {LibraryPage} from '../pages/touch/library/LibraryPage';

@@ -1,16 +1,16 @@
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import Svg, {Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {Artwork} from '../../../kit/artwork';
-import {Focusable} from '../../../kit/controls';
-import {useTheme} from '../../../kit/theme';
-import {browseType} from '../../../kit/browse/presentation';
-import {FocusRegion} from '../../../kit/focus';
-import {MenuRow, SidePanel} from '../../../kit/overlays';
-import type {NativeMusicMixRow, NativeMusicMixesCaller, NativeMusicMixesPort} from './mixes';
-import {mixSaveOnServer} from '../../../../../../packages/client-core/src/music-mixes-controller';
-import {TVRow} from '../../../kit/layout/TVRow';
+import {defaultI18n} from '../../../../../packages/i18n/src';
+import {Artwork} from '../artwork';
+import {Focusable} from '../controls';
+import {textLines, useTheme} from '../theme';
+import {browseType} from '../browse/presentation';
+import {FocusRegion} from '../focus';
+import {MenuRow, SidePanel} from '../overlays';
+import type {NativeMusicMixRow, NativeMusicMixesCaller, NativeMusicMixesPort} from '../../screens/destinations/music/mixes';
+import {mixSaveOnServer} from '../../../../../packages/client-core/src/music-mixes-controller';
+import {TVRow} from '../layout/TVRow';
 
 const t = defaultI18n.t;
 /** music-plus 15: three covers fanned at the top right, each a little smaller than the card's
@@ -51,12 +51,12 @@ export function MusicMixCard({row, artwork, width = 186, onPlay, onFocus, onMenu
           </View>;
         })}
       </View>
-      <Text numberOfLines={2} style={[browseType(theme, styleSize, 800, -.035, styleSize), {position: 'absolute', left: at.left, right: at.right, bottom: at.bottom,
+      <Text {...textLines(2)} style={[browseType(theme, styleSize, 800, -.035, styleSize), {position: 'absolute', left: at.left, right: at.right, bottom: at.bottom,
         color: theme.colors.white, textShadowColor: 'rgba(7,16,24,.6)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 18}]}>{row.name}</Text>
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, {borderRadius: radius, borderWidth: 1, borderColor: 'rgba(237,245,250,.08)'}]}/>
     </View>
-    <Text numberOfLines={2} style={[browseType(theme, name.size, name.weight), {marginTop: name.top, color: name.color}]}>{t('music.mix.name', {name: row.name})}</Text>
-    <Text numberOfLines={2} style={[browseType(theme, caption.size, 400, 0, caption.size * 1.35),
+    <Text {...textLines(2)} style={[browseType(theme, name.size, name.weight), {marginTop: name.top, color: name.color}]}>{t('music.mix.name', {name: row.name})}</Text>
+    <Text {...textLines(2)} style={[browseType(theme, caption.size, 400, 0, caption.size * 1.35),
       {marginTop: caption.top, minHeight: caption.size * 1.35 * 2, color: theme.colors.textTertiary}]}>{artists}</Text>
   </Focusable>;
 }
