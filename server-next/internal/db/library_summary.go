@@ -81,6 +81,17 @@ func summarizeLibrary(ctx context.Context, tx *sql.Tx, v Viewer, acc access, lib
 			Kind: kind.name, Count: min(count, librarySummaryCountLimit), AtLeast: count > librarySummaryCountLimit,
 		})
 	}
+	// An audiobook library also says how many authors it holds ("9 books · 7 authors"): the
+	// people credited as author on a title the profile may see, as its Authors tab lists them.
+	if library.Kind == LibraryAudiobooks {
+		var authors int
+		if err := tx.QueryRowContext(ctx, `SELECT count(DISTINCT c.person_id) FROM items i CROSS JOIN credits c
+			ON c.item_id = i.id AND c.role = ? WHERE i.library_id = ? AND `+acc.visible("i"), RoleAuthor, library.ID).Scan(&authors); err != nil {
+			return out, err
+		}
+		out.Counts = append(out.Counts, LibrarySummaryCount{Kind: "author", Count: min(authors, librarySummaryCountLimit),
+			AtLeast: authors > librarySummaryCountLimit})
+	}
 	covers, err := libraryCoverHashes(ctx, tx, library, acc.visible("i"), 3)
 	out.CoverHashes = covers
 	return out, err
