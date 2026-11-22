@@ -8,10 +8,15 @@ const nodes=(value:any):any[]=>Array.isArray(value)?value.flatMap(nodes):value?.
 test('pinned titles read only the revealed prefix, Show more resolves the next twenty, and retirement stops label work',async()=>{
  const calls:string[]=[],ids=Array.from({length:45},(_,i)=>`item-${i}`);let active=true,tree:any;
  const lookup={api:{},current:()=>active,report:assert.fail},group={lookup,libraries:[{id:'library',name:'Movies',kind:'movie'}]};
- const {NativeChannelPins}=await screenModule(new URL('../src-next/screens/settings-live/server/channels/ChannelPins.tsx',import.meta.url),{
-  react:{...React,default:React},'react-native':{Text:'Text',View:'View'},
+ const hook=await screenModule(new URL('../src-next/pages/shared/live/channels/useChannelPins.ts',import.meta.url),{
+  react:{...React,default:React},
   '../../../../../../../packages/client-core/src/server-admin/owner-library-channels':{readChannelTitle:async(_api:any,id:string)=>{calls.push(id);return {id,title:`Title ${id}`,kind:'movie'};},findChannelTitles:assert.fail},
-  '../../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v}},'../../../../kit/controls':{Button:'Button',Chip:'Chip',Select:'Select',TextField:'TextField'},'../../../../kit/theme':{useTheme:()=>({colors:{}})},'./source':{terminal:()=>false},
+  '../../../../screens/settings-live/server/channels/source':{terminal:()=>false},
+ });
+ const {NativeChannelPins}=await screenModule(new URL('../src-next/kit/live/channels/ChannelPins.tsx',import.meta.url),{
+  react:{...React,default:React},'react-native':{Text:'Text',View:'View'},
+  '../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v}},'../../controls':{Button:'Button',Chip:'Chip',Select:'Select',TextField:'TextField'},'../../theme':{useTheme:()=>({colors:{}})},
+  '../../../pages/shared/live/channels/useChannelPins':hook,
  });
  const host=createFabricHookHost(()=>{tree=NativeChannelPins({group,libraryIds:['library'],ids,locked:false,label:'Always',onChange:assert.fail});});
  try{await act(()=>host.mount());assert.deepEqual(calls.sort(),ids.slice(0,20).sort());assert.equal(nodes(tree).filter(v=>v.type==='Chip').length,20);
