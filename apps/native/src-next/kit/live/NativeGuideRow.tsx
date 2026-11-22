@@ -16,7 +16,7 @@ import {GuideLoadingMarker} from './GuideLoadingMarker';
 import {GuideProgrammeTitle} from './GuideProgrammeTitle';
 import {ProgrammeFlags} from './ProgrammeDetails';
 import type {NativeLiveController} from '../../screens/settings-live/live-controller';
-import {useScreenEntry} from '../../screens/settings-live/Screen';
+import {useScreenEntry} from '../layout/Screen';
 import {nativeGuideCellWindow, nativeGuideElapsedWidth, nativeGuideTitleLines, type nativeGuidePanRange} from '../../screens/settings-live/guide-pan-model';
 import {cellFocusId, channelFocusId, nativeGuideNext, nativeProgrammeCaption, type GuideCellIdentity} from '../../screens/settings-live/guide-presentation';
 import {tvGuideNavigationCells} from '../../tv/layout/guide-focus';

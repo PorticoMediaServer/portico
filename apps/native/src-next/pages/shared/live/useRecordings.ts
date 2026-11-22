@@ -12,7 +12,7 @@ import {nativeHomeEntryLifetime} from '../../../screens/home/entry-lifetime';
 import type { NativeLiveOwnerController } from '../../../screens/settings-live/live-owner-controller';
 import type { NativeSettingsLivePorts } from '../../../screens/settings-live/ports';
 import type { NativeRecordingsController } from '../../../screens/settings-live/recordings-controller';
-import {useScreenBack, useScreenEntry} from '../../../screens/settings-live/Screen';
+import {useScreenBack, useScreenEntry} from '../../../kit/layout/Screen';
 import type { NativeShellRuntime } from '../../../shell/runtime';
 import {tvFocusIds} from '../../../shell/tv-focus';
 

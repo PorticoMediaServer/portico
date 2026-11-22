@@ -11,7 +11,7 @@ import {SettingsRow} from '../../../kit/shell';
 import {TogetherTVChoice, TogetherTVControls, TogetherTVEyebrow, TogetherTVField, TogetherTVFooter, TogetherTVForm, TogetherTVInvitation, TogetherTVInviteCode, TogetherTVNote,
   TogetherTVNowCard, TogetherTVPeople, TogetherTVQueue, TogetherTVRoomFrame, TogetherTVSection} from '../../../kit/together/TogetherTVParts';
 import {NativeTVKeyboard} from '../../../kit/search/TVKeyboard';
-import {useScreenEntry} from '../../../screens/settings-live/Screen';
+import {useScreenEntry} from '../../../kit/layout/Screen';
 import {useTogetherLobby, useTogetherLobbyArt, type TogetherProps} from '../../shared/together/useTogetherLobby';
 import {useTogetherTVRoom, type TogetherTVRoomProps} from '../../shared/together/useTogetherTVRoom';
 

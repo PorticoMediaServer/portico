@@ -85,7 +85,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: () => {}},
     './settings-actions': settingsActions,
-    './Screen': {Screen: 'Screen', useScreenEntry: () => undefined, useScreenBack: (runtime: any, handler: () => boolean, isTV: boolean) => {if (isTV) runtime.registerTVPageBack?.(handler);}},
+    '../../kit/layout/Screen': {Screen: 'Screen', useScreenEntry: () => undefined, useScreenBack: (runtime: any, handler: () => boolean, isTV: boolean) => {if (isTV) runtime.registerTVPageBack?.(handler);}},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
     'react-native-qrcode-svg': {default: 'QRCode'},
     '../../shell/chrome': {setNativeScreenChromeHidden: () => {}},

@@ -19,7 +19,7 @@ import {TVServerPageMenu} from './server/TVServerPageMenu';
 import {TVDiskUsage} from './server/TVDiskUsage';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {tvFocusIds} from '../../shell/tv-focus';
-import {Screen, ScreenText, useScreenEntry} from './Screen';
+import {Screen, ScreenText, useScreenEntry} from '../../kit/layout/Screen';
 import type {NativeSettingsLivePorts} from './ports';
 import type {NativeDashboardController} from './dashboard-controller';
 import {nativeDashboardIdentity} from './dashboard-presentation';

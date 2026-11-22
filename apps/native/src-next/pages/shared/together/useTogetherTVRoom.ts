@@ -10,7 +10,7 @@ import {sameAuthority} from '../../../shell/model';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {tvFocusIds} from '../../../shell/tv-focus';
 import {groupPort} from '../../../screens/settings-live/group-port';
-import {useScreenEntry} from '../../../screens/settings-live/Screen';
+import {useScreenEntry} from '../../../kit/layout/Screen';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeTogetherController} from '../../../screens/settings-live/together-controller';
 import type {NativeTogetherMedia} from '../../../screens/settings-live/together-media';

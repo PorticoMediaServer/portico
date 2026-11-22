@@ -76,7 +76,7 @@ test('an unavailable Room occurrence keeps its unavailable queue-sheet title and
     '../../../../../../packages/client-core/src/presentation/kit-model': {}, '../../../../../../packages/client-core/src/timer': {repeat: () => ({stop() {}})},
     '../../../kit/focus': {useOptionalFocusRegistry: () => undefined},
     '../../../shell/model': {sameAuthority: () => false}, '../../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})},
-    '../../../screens/settings-live/group-port': {groupPort: () => undefined}, '../../../screens/settings-live/Screen': {useScreenEntry: () => undefined},
+    '../../../screens/settings-live/group-port': {groupPort: () => undefined}, '../../../kit/layout/Screen': {useScreenEntry: () => undefined},
     '../../../screens/settings-live/together-presentation': {memberNames},
   });
   const playback = {subscribe: () => () => {}, getSnapshot: () => ({playback: {}})};

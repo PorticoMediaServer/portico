@@ -3,7 +3,7 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import {EqualizerFrame, type NativeEqualizerCopy} from '../../../kit/frames/EqualizerFrame';
 import {useEqualizer} from '../player/useEqualizer';
 import {useTheme} from '../../../kit/theme';
-import {useScreenBack} from '../../../screens/settings-live/Screen';
+import {useScreenBack} from '../../../kit/layout/Screen';
 
 /** Settings and playback edit the same persistent native device record. */
 export function EqualizerSettingsPage({runtime, onBack}: {runtime: NativeShellRuntime; onBack: () => void}) {

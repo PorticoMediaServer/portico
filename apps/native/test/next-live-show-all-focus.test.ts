@@ -28,7 +28,7 @@ type Shell = {destination: {kind: string}; contentVisible?: boolean; mediaExpand
 // `noTVEvents`: Android's Back never reaches TVEventHandler, so only BackHandler can see it.
 async function scene(platform: 'android' | 'tvos', {showAllAsks = true, rowsHeld = false, noTVEvents = false}: {showAllAsks?: boolean; rowsHeld?: boolean; noTVEvents?: boolean} = {}) {
   const kit = await tvFocusKit({platform}), {e, engine, focus, Stop, React} = kit, n = engine.native;
-  const {useScreenEntry} = await screenModule(new URL('../src-next/screens/settings-live/Screen.tsx', import.meta.url), {
+  const {useScreenEntry} = await screenModule(new URL('../src-next/kit/layout/Screen.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': n, '../../kit/theme': {useTheme: () => ({isTV: true, colors: {}})},
     '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/focus': focus, '../../kit/artwork': {StandardBackdrop: () => null}});
   // The real Back ladder (kit/navigation/back) over the fake engine's BackHandler: the ask observes Back in its `observer` scope.

@@ -102,7 +102,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     '../../kit/controls': controls, '../../kit/focus': focus, '../../kit/overlays': {Banner: 'Banner', Dialog: 'Dialog', Menu: 'Menu', ToastHost: 'ToastHost'}, '../../kit/artwork': {Artwork: 'Artwork', ChannelMark: 'ChannelMark'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: (props: any) => jsx('StateView', props)},
     '../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme, fontFamilies: {}},
-    '../../shell/tv-focus': {tvFocusIds}, './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack: noop, useScreenEntry: () => noop}, './recording-rule-presentation': rules,
+    '../../shell/tv-focus': {tvFocusIds}, '../../kit/layout/Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack: noop, useScreenEntry: () => noop}, './recording-rule-presentation': rules,
     './tv-settings-focus': tvSettingsFocus,
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 'react-native-gesture-handler': {GestureDetector: 'GestureDetector'},
     'react-native-reanimated': {useDerivedValue: (fn: () => unknown) => ({value: fn()}), default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn()}, '../../../../../packages/client-core/src/channel-guide': channels,
