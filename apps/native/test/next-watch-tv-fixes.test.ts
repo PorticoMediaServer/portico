@@ -144,16 +144,18 @@ test('Seasons has a stable sheet, selected-season entry, Done/Go identities and 
 
 test('Episodes enters the playing row, and its season sheet returns to the actual opener', async () => {
   const h = watchHooks();
-  const {NativeWatchEpisodes} = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
-    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/theme': themed,
-    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true}, '../../kit/layout/ShowSeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
-    '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
-    '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel: () => ''}, '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText: String},
+  const {WatchEpisodesPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchEpisodesPage.tsx', import.meta.url), {'../../../kit/states': {Quiet: ({children}: any) => children}, 
+    react: h.react, 'react-native': nativeAtoms, '../../../../../../packages/i18n/src': i18n, '../../../kit/controls': controlsAtoms, '../../../kit/artwork': {Artwork: 'Artwork'}, '../../../kit/theme': {...themed, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../../../kit/shell/visual': {shellType: () => ({})},
+    '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true}, '../../../kit/layout/ShowSeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
+    '../../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
+    '../../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel: () => ''}, '../../../../../../packages/client-core/src/presentation/kit-model/text': {durationText: String},
   });
   const lease = {}, state = {workspace: {phase: 'ready', data: {selected: {seasonId: 'season'}}}, seasons: [{id: 'season', number: 1}], episodes: [{id: 'first', title: 'First'}, {id: 'playing', title: 'Playing'}], place: {hideWatched: false}};
   const controller = {getSnapshot: () => state, subscribe: () => () => {}, open: async () => {}, pageLease: () => lease};
   try {
-    const tree = h.render(() => NativeWatchEpisodes({controller, currentId: 'playing', playing: true, text: {}, artwork() {}, onPlay() {}, onClose() {}}));
+    // The page draws the kit's WatchEpisodesView; draw it so the checks below see its tree.
+    const drawn = (node: any) => typeof node?.type === 'function' ? node.type(node.props) : node;
+    const tree = drawn(h.render(() => WatchEpisodesPage({controller, currentId: 'playing', playing: true, text: {}, artwork() {}, onPlay() {}, onClose() {}})));
     // tv-player 1: a band of title-page tiles over the picture, entered on the playing episode.
     assert.equal(tree.props.entry, 'episodes-playing');
     const tiles = descendants(tree).filter((node: any) => node.type === 'EpisodeTile');
@@ -161,7 +163,7 @@ test('Episodes enters the playing row, and its season sheet returns to the actua
     assert.equal(tiles[1].props.width, 384); assert.equal(tiles[1].props.status, i18n.defaultI18n.t('player.miniPlaying'));
     assert.ok(tiles[1].props.menuAnchorRef && !tiles[0].props.menuAnchorRef);
     const opener = find(tree, 'watch-episodes-seasons'); opener.props.onPress();
-    const open = h.flush(), sheet = descendants(open).find((node: any) => node.type === 'Seasons');
+    const open = drawn(h.flush()), sheet = descendants(open).find((node: any) => node.type === 'Seasons');
     assert.equal(sheet.props.returnFocusRef, opener.props.ref); assert.equal(sheet.props.open, true); assert.equal(open.props.enabled, false);
   } finally {h.unmount();}
 });

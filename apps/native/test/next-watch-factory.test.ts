@@ -40,14 +40,17 @@ const episodeAtoms = {react, 'react-native': {ScrollView: 'ScrollView', Text: 'T
   '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/Icon': {Icon: 'Icon'},
   '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
   '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true},
-  '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': {useTheme: () => ({colors: {}, type: {}})}};
+  '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/theme': {useTheme: () => ({colors: {}, type: {}}), textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}};
 const seasonSheet = await screenModule(new URL('../src-next/kit/layout/SeasonSheet.tsx', import.meta.url), {react, 'react-native': episodeAtoms['react-native'],
   '../../../../../packages/i18n/src': {defaultI18n}, '../controls': episodeAtoms['../../kit/controls'], '../Icon': {Icon: 'Icon'}, '../overlays': {BottomSheet: 'BottomSheet'}, '../theme': episodeAtoms['../../kit/theme']});
 const seasons = await screenModule(new URL('../src-next/kit/layout/ShowSeasonsSheet.tsx', import.meta.url), {...episodeAtoms, './SeasonSheet': seasonSheet});
-const episodes = await screenModule(new URL('../src-next/screens/watch/EpisodePanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, ...episodeAtoms,
+// The episode panel is a shared page now (pages/shared/player), one folder deeper than these stubs were written from.
+const fromWatch = (stubs: Record<string, any>) => Object.fromEntries(Object.entries(stubs).map(([key, value]) => [key.startsWith('../../') ? `../${key}` : key, value]));
+const episodePageStubs = {'../../../kit/shell/visual': {shellType: () => ({})}};
+const episodes = await screenModule(new URL('../src-next/pages/shared/player/WatchEpisodesPage.tsx', import.meta.url), {...fromWatch({'../../kit/states': {Quiet: ({children}: any) => children}, ...episodeAtoms,
   '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, '../../kit/layout/ShowSeasonsSheet': seasons,
-  '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}});
+  '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}}), ...episodePageStubs});
 const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, 
   react, '../../../../../packages/client-core/src/cleanup': cleanup, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient},
   '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http},
@@ -57,7 +60,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
   './disc-titles-controller': {NativeDiscTitlesController}, './disc-titles': {prepareDiscTitle, readDiscTitles},
   '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n},
   '../../shell/model': {sameAuthority}, './controls': {NativeWatchControls}, '../../../../../packages/client-core/src/file-info-session': {FileInfoSession, fileInfoUsesGroups}, '../../pages/shared/title/FileInfoPanel': {NativeFileInfoPanel: 'FileInfoPanel'}, './playback-info': {readNativePlaybackInfo},
-  './track-identity': {nativeWatchTracks}, './EpisodePanel': episodes,
+  './track-identity': {nativeWatchTracks}, '../../pages/shared/player/WatchEpisodesPage': episodes,
   './title-controller': {NativeTitleController}, './title-starts': {NativeTitleStarts}, './TitleScreen': {NativeTitleScreen: 'Title'}, '../../pages/touch/title/routes': {touchTitlePages: {movie: 'Title', show: 'Title'}},
   '../../pages/tv/title/routes': {tvTitlePages: {movie: 'Title'}},
   './version-destination': {NativeVersionChooserController}, './version-options': {nativeVersionChoices, nativeVersionNames},
