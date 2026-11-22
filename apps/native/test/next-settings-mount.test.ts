@@ -10,7 +10,7 @@ test('the one settings mount registers the Settings destination and owner Dashbo
     // A side-effect import only loads the notification route registrations, which
     // this mount test neither composes nor asserts; the harness supplies the
     // namespace instead of evaluating a .tsx module under node.
-    '../screens/settings-live/server/NotificationDestinations': {},
+    './notification-destinations': {},
     '../screens/settings-live/SettingsRoute': {
       createNativeTVServerSettingsRenderer: (context: unknown) => ({render: (route: unknown) => ({screen: 'server-settings', route})}),
       createNativeEqualizerSettingsRenderer: (context: unknown) => {built.push(['equalizer', context]); return {render: (route: unknown) => ({screen: 'equalizer', route})};},

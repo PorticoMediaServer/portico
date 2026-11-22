@@ -50,7 +50,7 @@ async function editor(f = fixture(), firstRun = true) {
       RadioRow: ({label, description, checked, onPress}: any) => ({type: 'Focusable', props: {accessibilityLabel: label, accessibilityHint: description, accessibilityState: {checked}, onPress}})},
     '../../../kit/settings/StorageParts': {StorageActions: 'StorageActions', StorageNote: 'StorageNote', StorageSheetBody: 'StorageSheetBody'},
     '../../../kit/shell': {SettingsRow: 'SettingsRow'},
-    '../../../screens/settings-live/owner-libraries/FolderSourcePicker': {FolderSourcePicker: 'FolderSourcePicker'},
+    '../../../kit/settings/FolderSourcePicker': {FolderSourcePicker: 'FolderSourcePicker'},
     '../../../screens/settings-live/owner-libraries/presentation': {ownerLibraryKind: (kind: string) => ({label: kind, description: kind}), ownerLibraryKinds: [], ownerLibraryIntervals: []},
     '../../shared/settings/useLibraryForms': hook,
   });

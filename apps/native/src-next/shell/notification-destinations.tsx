@@ -1,15 +1,15 @@
 import React from 'react';
 import {Platform, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {NativeScreenLifetime} from '../lifetime';
-import {createNativeSettingsPorts} from '../settings-ports';
-import {createNativeRecordingsController} from '../recordings-controller';
-import {RecordingsPage as TouchRecordingsPage} from '../../../pages/touch/live/RecordingsPage';
-import {RecordingsPage as TVRecordingsPage} from '../../../pages/tv/live/RecordingsPage';
-import {ServerTroubleshootingPage} from '../../../pages/touch/settings/ServerTroubleshootingPage';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
-import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import type {NativeShellRuntime} from '../../../shell/runtime';
+import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
+import {createNativeSettingsPorts} from '../screens/settings-live/settings-ports';
+import {createNativeRecordingsController} from '../screens/settings-live/recordings-controller';
+import {RecordingsPage as TouchRecordingsPage} from '../pages/touch/live/RecordingsPage';
+import {RecordingsPage as TVRecordingsPage} from '../pages/tv/live/RecordingsPage';
+import {ServerTroubleshootingPage} from '../pages/touch/settings/ServerTroubleshootingPage';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeShellRuntime} from './runtime';
 
 /** The existing recordings list and the existing Troubleshooting Feedback tab, mounted
  * as real destinations for notification Open actions. They read through the same owner
