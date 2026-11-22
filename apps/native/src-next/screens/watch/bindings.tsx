@@ -10,7 +10,7 @@ import {askNativeDownload} from '../downloads/request';
 import {createMusicPlaylistPicker} from '../destinations/music/MusicPlaylistPicker';
 import {nativeDownloadRequest} from './download-request';
 import {createNativeTitleActions} from './title-actions';
-import {createNativeTitleSelection} from './title-selection';
+import {createNativeTitleSelection} from '../../pages/shared/title/title-selection';
 
 /** One real authority-local composition, borrowed by handheld and TV entry.
  * It owns Title/File info overlays; shared feedback is mounted by assembly. */

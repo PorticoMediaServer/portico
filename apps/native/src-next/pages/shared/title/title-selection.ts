@@ -1,9 +1,8 @@
-import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import type {SearchEntry} from '../../../../../packages/client-core/src/search';
-import type {SelectionContext} from '../../../../../packages/client-core/src/selection-model';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from '../selection/native-selection';
-import type {NativeTitleController} from './title-controller';
+import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
+import type {SelectionContext} from '../../../../../../packages/client-core/src/selection-model';
+import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
+import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from '../../../screens/selection/native-selection';
+import type {NativeTitleController} from '../../../screens/watch/title-controller';
 
 /**
  * The title page's own multi-select (DESIGN: every grid, row, list and search result
@@ -37,7 +36,3 @@ export function createNativeTitleSelection(context: NativeShellBootstrapContext,
   return createNativeSelection(context, source, {area: 'show', selectAll: true});
 }
 
-/** The card's own selection entry for the menu the row's hold opened. */
-export function titleCardSelection(selection: NativeSelection | undefined, entry: SearchEntry) {
-  return selection?.item(entry);
-}
