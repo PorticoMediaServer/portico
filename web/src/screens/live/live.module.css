@@ -65,6 +65,10 @@
 .guideCell[data-state='past'] .guideCellTitle { color: var(--color-text-tertiary); }
 .guideCell[data-state='past'] .guideCellDetail { opacity: .65; }
 .guideCell[data-selected] { background: var(--color-raised-bright); box-shadow: inset 0 0 0 2px var(--color-accent-strong); }
+/* A programme too short to draw a title (a one-minute item) keeps its true width: the touch-target minimum would stretch
+   it over its neighbours and stack their titles. Its name stays in the button's label and the programme panel. */
+.guideCell[data-tier='sliver'] { min-width: 0; padding: 0; }
+.guideCell[data-tier='sliver'] > * { display: none; }
 /* Inset: the lane clips at its edges, where most long programmes start or end. */
 .guideCell:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; z-index: var(--layer-content); }
 .guideCell[data-kind='gap'] { cursor: default; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 3.5%, transparent) 0 7px, transparent 7px 14px); box-shadow: inset 0 0 0 1px var(--color-line); }

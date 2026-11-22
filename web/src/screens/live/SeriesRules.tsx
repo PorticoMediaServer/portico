@@ -43,8 +43,9 @@ export function RecordingsFrame({views, view, onView, conflicts, onGuide, facts,
     switcher={!sub && <PickChip label={t('channels.source')} pill={phone} value="all" options={[{value: 'all', label: t('channels.all')}]} onChange={() => {}}/>}
     facts={facts} tabs={tabs}
     chips={!phone && <>{views.map(item => <Chip key={item.id} variant="search" selected={item.id === view} count={item.count} onClick={onView ? () => onView(item.id) : undefined}>{item.label}</Chip>)}
-      {storage && <><span className={live.guideToolbarGap}/>{storage}</>}</>}
-    toolbar={(toolbar || phone && storage) && <>{toolbar}{phone && storage && <><span className={live.guideToolbarGap}/>{storage}</>}</>}>
+      {(toolbar || storage) && <span className={live.guideToolbarGap}/>}{toolbar}{storage}</>}
+    // From 600 whose recordings sits at the end of the views' line, not alone on a line of its own; a phone keeps the line under the tabs.
+    toolbar={phone && (toolbar || storage) && <>{toolbar}{storage && <><span className={live.guideToolbarGap}/>{storage}</>}</>}>
     {children}
   </LiveFrame>;
 }

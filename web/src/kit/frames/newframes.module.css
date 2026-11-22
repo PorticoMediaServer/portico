@@ -30,6 +30,9 @@
 .live > .tabs { margin-bottom: var(--frame-heading-gap); }
 .liveEnd { display: flex; align-items: center; gap: var(--space-sm); }
 .live > .chips { margin-bottom: var(--frame-heading-gap); }
+/* Live's groups stay one line at every width (desktop-live draws one row); more groups, or the owner's Show hidden
+   channels, scroll with the row instead of wrapping onto a line of their own. The block padding keeps focus rings. */
+@media (min-width: 1024px) { .live > .chips { flex-wrap: nowrap; overflow-x: auto; padding-block: var(--space-px-2); } }
 .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: calc(var(--frame-heading-gap) - var(--frame-section-gap)); }
 .hints { font-size: var(--type-row-help-size); color: var(--color-text-tertiary); }
 /* A phone on its side: one row under the shell's top, the chips taking the room between the switch and the toolbar. */
