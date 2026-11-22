@@ -11,7 +11,7 @@ import type {NativeDashboardController} from '../../../screens/settings-live/das
 import {ownerLibraryCounts, ownerLibraryKind, ownerLibraryState} from '../../../screens/settings-live/owner-libraries/presentation';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import {TVRemoteAccessPanel} from '../../../screens/settings-live/server/TVRemoteAccessPanel';
-import {TVPeoplePanel} from '../../../screens/settings-live/server/TVPeoplePanel';
+import {PeoplePage} from './PeoplePage';
 import {tvServerPageDefinition, tvServerPagesFor, type TVServerPage} from '../../../screens/settings-live/server/TVServerPageMenu';
 import {TVServerReadOnlyPanel} from '../../../screens/settings-live/server/TVServerReadOnlyPanel';
 import {useTVServerSettings} from '../../shared/settings/useTVServerSettings';
@@ -37,7 +37,7 @@ export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'ge
     : <SettingsPageFrame title={t(tvServerPageDefinition(page).label)}
       server={<ServerHeader serverName={serverName} viewerRole={role} audience={audience} viewOnly/>}>
       <SettingsControlRows key={page} id={rows} orientation="vertical" edges={{left: column}}>
-        {page === 'people' ? <TVPeoplePanel ports={ports} runtime={runtime} lifetime={lifetime}/>
+        {page === 'people' ? <PeoplePage ports={ports} runtime={runtime} lifetime={lifetime}/>
           : page === 'remote' ? <TVRemoteAccessPanel ports={ports} runtime={runtime} lifetime={lifetime}/>
           : page !== 'libraries' ? <TVServerReadOnlyPanel page={page} ports={ports} runtime={runtime} lifetime={lifetime}/>
           : <>
@@ -59,3 +59,4 @@ export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'ge
   return <SettingsListFrame testID="native-tv-server-settings" bar={{title: t('next.shell.serverSettings')}}
     backdrop={<ServerBand viewerRole={role} audience={audience}/>} list={list} page={body}/>;
 }
+
