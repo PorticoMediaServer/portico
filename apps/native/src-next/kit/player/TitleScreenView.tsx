@@ -512,7 +512,6 @@ function TitleRegion({children, style, ...config}: Partial<FocusRegionProps>) {
 }
 
 /** The retained touch title keeps its original ancestry; TV animates its hero copy. */
-
 function TitleHeroCopy({browsing, style, children}: React.ComponentProps<typeof TVTitleHeroCopy>) {
   const {isTV} = useTheme();
   return isTV ? <TVTitleHeroCopy browsing={browsing} style={style}>{children}</TVTitleHeroCopy> : <View style={style}>{children}</View>;

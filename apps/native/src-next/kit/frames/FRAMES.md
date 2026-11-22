@@ -355,7 +355,7 @@ the actions marked `pinned` (desktop-detail f3).
 
 Loading keeps the loaded page's boxes: the title the card already had, the facts and synopsis as skeletons, the action
 row in place without the time left, and skeleton cards in the panel. The frame draws no page colour (R10); the title
-screen's TV ink under the page is gone (`screens/watch/TitleScreen.tsx`).
+screen's TV ink under the page is gone (`kit/player/TitleScreenView.tsx`).
 
 Parts for the panel and the side, in `kit/frames/title-parts.tsx` (the web kit has the same names):
 `PanelBlock` (a block at the gutter), `PanelHeading` (heading, count, grey note, control at the end), `AboutTable`
