@@ -4046,6 +4046,12 @@
           "nextCursor": {
             "type": "string"
           },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array"
+          },
           "query": {
             "type": "string"
           },
@@ -4429,6 +4435,9 @@
           },
           "albumAudio": {
             "$ref": "#/components/schemas/AlbumAudioSummary"
+          },
+          "author": {
+            "type": "string"
           },
           "available": {
             "type": "boolean"
