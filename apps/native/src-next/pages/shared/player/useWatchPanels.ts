@@ -58,12 +58,9 @@ export type NativeUpNextOpening = Readonly<{
   entryId: string;
 }>;
 
-/** The real Options/Audio/Subtitles/Quality/Speed/Chapters renderer. The host
- * positions it inside its accepted pane/canvas. It owns no Surface or engine. */
-
 /** The player panels' state and commands: the panel options' load, the report ask and its consent, the command epoch,
  * focus entry and scroll restore. Moved from screens/watch/WatchPanels as it was; `WatchPanelsView` draws the panels. */
-export function useWatchPanels({context, options, playback, names, copy, reportError, renderError, playbackInfo, episodes, subtitleControls, sleep, style}: NativeWatchPanelsProps) {
+export function useWatchPanels({context, options, playback, reportError}: NativeWatchPanelsProps) {
   const {source, fence, state} = context, theme = useTheme(), t = defaultI18n.t, registry = useFocusRegistry();
   const panelInteractive = useTVPanelInteractive();
   // tablet-play2b: an expanded-size-class device draws its choice rows at 48 pt

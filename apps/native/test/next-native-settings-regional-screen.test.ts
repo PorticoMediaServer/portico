@@ -56,7 +56,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     './NativePassthroughRow': {NativePassthroughRow: 'NativePassthroughRow', nativePassthroughFocusId: 'settings-device-audio-passthrough'},
     './NativeApplePassthroughRow': {NativeApplePassthroughRow: 'NativeApplePassthroughRow'},
     '../../kit/settings/DeviceCapabilityRows': {DeviceCapabilityRows: 'DeviceCapabilityRows'},
-    '../../pages/touch/dashboard/ServerDashboardPage': {ServerDashboardPage: 'NativeDashboardScreen'},
+    '../../pages/touch/dashboard/ServerDashboardPage': {ServerDashboardPage: 'ServerDashboardPage'},
     './ServerRemoteAccessPage': {ServerRemoteAccessPage: 'ServerRemoteAccessPage'},
     './NativeLossNoticesRow': {NativeLossNoticesRow: 'NativeLossNoticesRow', nativeLossNoticesFocusId: 'settings-device-loss-notices'},
     '../../pages/shared/settings/ServerOfflineNoticeRow': {NativeServerOfflineNoticeRow: 'NativeServerOfflineNoticeRow'},
