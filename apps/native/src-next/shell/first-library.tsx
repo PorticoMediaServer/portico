@@ -1,15 +1,15 @@
 import React, {useLayoutEffect, useMemo, useRef, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
-import {routeBase64} from '../../../../../packages/client-core/src/route-identity';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {NativeScreenLifetime} from '../settings-live/lifetime';
-import {NativeOwnerLibrariesController} from '../settings-live/owner-libraries/controller';
-import {viewerQueriesFor} from '../../shell/freshness';
-import {AddLibraryPage} from '../../pages/touch/settings/LibraryFormPages';
-import {nativeRouteCrypto} from '../../platform/server-connections';
-import {useTheme} from '../../kit/theme';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import type {LibraryContentApi} from '../../../../packages/client-core/src/library-content';
+import {routeBase64} from '../../../../packages/client-core/src/route-identity';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
+import {NativeOwnerLibrariesController} from '../screens/settings-live/owner-libraries/controller';
+import {viewerQueriesFor} from './freshness';
+import {AddLibraryPage} from '../pages/touch/settings/LibraryFormPages';
+import {nativeRouteCrypto} from '../platform/server-connections';
+import {useTheme} from '../kit/theme';
 
 /** Setup reuses the real owner library editor and server folder explorer, after
  * normal session admission. No setup token or pending claim can reach this page. */

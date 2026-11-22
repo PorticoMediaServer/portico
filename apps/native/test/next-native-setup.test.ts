@@ -90,7 +90,7 @@ async function fixture(options: FixtureOptions) {
     // The layout and the approval sheet are real components here so their props stay inspectable and the form's
     // beforeActions children actually mount; every leaf they draw is still a string stub.
     '../../kit/accounts/AccountForm': {AccountForm: (props: any) => React.createElement('PhoneAccountForm', props, props.beforeActions)},
-    './PhoneSetupApproval': {PhoneSetupApproval: (props: any) => React.createElement('PhoneSetupApproval', props)},
+    '../../kit/accounts/PhoneSetupApproval': {PhoneSetupApproval: (props: any) => React.createElement('PhoneSetupApproval', props)},
   });
   const admitted: string[] = [], left: string[] = [];
   const element = React.createElement(NativeSetup, {target,

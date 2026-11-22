@@ -18,7 +18,7 @@ import {ServersRoute} from '../screens/accounts/AccountRoutes';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import {NativeSignInEnded} from '../platform/sign-in-ended';
 import {NativeIdentityFailure} from '../platform/identity-failure';
-import {PhoneFirstLibrary} from '../screens/accounts/PhoneFirstLibrary';
+import {PhoneFirstLibrary} from './first-library';
 import {ServerIdentityFailure} from '../screens/accounts/ServerIdentityFailure';
 import {nativeInvitationLinks, type NativeInvitationLink} from '../platform/invitation-links';
 import {nativeShareLinks} from '../platform/share-links';

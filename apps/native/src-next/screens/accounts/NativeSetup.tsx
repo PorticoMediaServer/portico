@@ -13,7 +13,7 @@ import {nativeAccounts} from '../../platform/accounts';
 import {createNativeSetupAdapter, type NativeSetupTarget} from '../../platform/setup-adapter';
 import {PasswordStrengthMeter} from './PasswordStrengthMeter';
 import {AccountForm} from '../../kit/accounts/AccountForm';
-import {PhoneSetupApproval} from './PhoneSetupApproval';
+import {PhoneSetupApproval} from '../../kit/accounts/PhoneSetupApproval';
 
 /** First-run setup in the phone app (auth.html frame 1p, B-DESIGN §6) on the shared setup controller. The server decides
  * every state; this draws it. A Portico Account signed in to the app approves here (label 28 to 29); otherwise the

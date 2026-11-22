@@ -57,7 +57,7 @@ function modules(state: {
     '../platform/sign-in-ended': {NativeSignInEnded: class extends Error {}},
     '../platform/accounts': {nativeAccounts: {snapshot: async () => ({servers: []}), onSettled: () => () => {}, onFence: () => () => {}}},
     '../platform/app-session-storage': {readNativeSelectedViewer: state.reads, subscribeNativeAppSessions: state.hints},
-    '../screens/accounts/PhoneFirstLibrary': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
+    './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
     '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'},
     '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
     '../../../../packages/i18n/src': {defaultI18n},
