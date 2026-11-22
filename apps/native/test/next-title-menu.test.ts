@@ -6,6 +6,7 @@ import {homeEntryCapabilities} from '../../../packages/client-core/src/home-sele
 import {titleMenuItems, titleMenuRowIds} from '../src-next/kit/overlays/title-menu.ts';
 import {nativeWatchMenuCapabilities, nativeWatchMenuGroups} from '../src-next/screens/watch/menu-model.ts';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 
 // FX-S3/FX-S4: one title action menu on every surface. The model decides the rows; one renderer draws them.
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
@@ -105,17 +106,18 @@ async function overlays(tv: boolean) {
     '../platform/haptics': {selectionHaptic: async () => {}}, './selection-display': {memberTitle: () => 'Actual film'}, './HomeDestinationPicker': {HomeDestinationPicker: 'Picker'},
     './HomeBulkEditor': {HomeBulkEditor: 'Editor'}, './tv-focus': {tvFocusIds: () => ({menu: () => 'menu', surface: () => 'surface'})},
   });
-  const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
+  const {WatchOverlaysPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchOverlaysPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', {
     '../../../../../packages/client-core/src/presentation/kit-model/technical': {},
     react: h.react, 'react-native': {Modal: 'Modal', Platform: {isTV: tv}, ScrollView: 'ScrollView', StyleSheet: {}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/administration': {}, '../../../../../packages/client-core/src/title-identity': {},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {}, '../../shell/model': {}, '../../kit/controls': {Button: 'Button', TextField: 'TextField'},
     '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', Menu: 'Menu'},
     '../../kit/overlays/title-menu': shared, './menu-model': {nativeWatchMenuGroups}, '../../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'}, '../../kit/overlays/surface': {},
-    '../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})}, '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {nativeType: () => ({}), useTheme: () => theme(tv)},
+    '../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})}, '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'}), nativeType: () => ({}), useTheme: () => theme(tv)},
     '../../kit/player/VersionChooser': {}, '../../kit/player/DiscTitlesSheet': {}, '../../kit/title/FileInfoContent': {}, './file-info': {},
-    '../../kit/overlays/SurfacePaintHost': {overlayPaintKey: () => 'opening', overlayPaintPermit: () => ({}), RetainedOverlay: 'RetainedOverlay'},
-  });
+    '../../kit/overlays/SurfacePaintHost': {overlayPaintKey: () => 'opening', overlayPaintPermit: () => ({}), RetainedOverlay: 'RetainedOverlay'}, '../../kit/shell/visual': {shellType: () => ({})}}));
+  // The page hands each surface to a kit view; draw that view here so the checks below see the surface's tree.
+  const NativeWatchOverlays = (props: any) => {const tree: any = WatchOverlaysPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;};
   const homeEntry = {...entry, homeActions} as any;
   const platform = {platform: tv ? 'tv' as const : 'phone-app' as const, playbackAvailable: true, queueAvailable: true, nativeDownloadsAvailable: true};
   const caps: EntryCapabilities = homeEntryCapabilities(homeEntry, platform);

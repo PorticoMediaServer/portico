@@ -2,6 +2,7 @@ import * as tvKeyAdapter from '../src-next/platform/tv-key-adapter.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {hooks, screenModule, stackSlotFixture} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import * as seeAllModel from '../src-next/screens/home/see-all-model.ts';
 import {nativeWatchMenuGroups} from '../src-next/screens/watch/menu-model.ts';
 
@@ -72,7 +73,7 @@ test('the shared touch entry menu composes offered Play, My List, playlist and r
   const presenters = {subscribe: () => () => {}, getSnapshot: () => value, overlayCurrent: () => true, current: () => true, togetherActions: () => ({queue: false, watch: false}),
     playEntry: () => calls.push('play'), personal: () => calls.push('watchlist'), addToPlaylist: () => calls.push('playlist'),
     extraEntry: (opening: unknown, id: string) => {assert.equal(opening, value); calls.push(id);}};
-  const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
+  const {WatchOverlaysPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchOverlaysPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', {
     '../../../../../packages/client-core/src/presentation/kit-model/technical': {},
     react: h.react, 'react-native': {Modal: 'Modal', Platform: {isTV: false}, ScrollView: 'ScrollView', StyleSheet: {}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../../../packages/client-core/src/administration': {}, '../../../../../packages/client-core/src/title-identity': {},
@@ -81,9 +82,10 @@ test('the shared touch entry menu composes offered Play, My List, playlist and r
     '../../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'}, '../../kit/overlays/surface': {}, '../../kit/overlays/TVPanelMotion': {useTVPanelPresence: () => ({})},
     '../../kit/overlays/title-menu': await screenModule(new URL('../src-next/kit/overlays/title-menu.ts', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': {defaultI18n: {t}}}),
     './menu-model': {nativeWatchMenuGroups},
-    '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {nativeType: type, useTheme: () => theme}, '../../kit/player/VersionChooser': {}, '../../kit/player/DiscTitlesSheet': {}, '../../kit/title/FileInfoContent': {}, './file-info': {},
-    '../../kit/overlays/SurfacePaintHost': {overlayPaintKey: () => 'opening', overlayPaintPermit: () => ({}), RetainedOverlay: 'RetainedOverlay'},
-  });
+    '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'}), nativeType: type, useTheme: () => theme}, '../../kit/player/VersionChooser': {}, '../../kit/player/DiscTitlesSheet': {}, '../../kit/title/FileInfoContent': {}, './file-info': {},
+    '../../kit/overlays/SurfacePaintHost': {overlayPaintKey: () => 'opening', overlayPaintPermit: () => ({}), RetainedOverlay: 'RetainedOverlay'}, '../../kit/shell/visual': {shellType: () => ({})}}));
+  // The page hands each surface to a kit view; draw that view here so the checks below see the surface's tree.
+  const NativeWatchOverlays = (props: any) => {const tree: any = WatchOverlaysPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;};
   const render = () => nodes(h.render(() => NativeWatchOverlays({presenters, runtime: {artwork: () => undefined}, common: {}}))).find(node => node.type === 'Menu');
   const menu = render();
   assert.deepEqual(menu.props.items.filter((item: any) => !item.separator).map((item: any) => item.id), ['play', 'watchlist', 'addToPlaylist', 'file-info', 'not-interested']);

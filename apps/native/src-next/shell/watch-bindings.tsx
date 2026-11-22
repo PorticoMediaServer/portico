@@ -3,7 +3,7 @@ import {defaultI18n} from '../../../../packages/i18n/src';
 import type {NativeShellBootstrapContext} from './bootstrap';
 import {nativeScreenError, nativeScreenErrorPage, nativeScreenServices} from '../screens/native-screen-services';
 import {NativeWatchPresenters} from '../screens/watch/presenters';
-import {NativeWatchOverlays} from '../screens/watch/WatchOverlays';
+import {WatchOverlaysPage} from '../pages/shared/player/WatchOverlaysPage';
 import type {NativeWatchModuleBindings} from '../screens/watch/module';
 import {NativeWatchExternalRequests} from '../screens/watch/external-requests';
 import {askNativeDownload} from '../screens/downloads/request';
@@ -39,7 +39,7 @@ export function createNativeWatchBindings(context: NativeShellBootstrapContext):
     playlistPicker: playlist, titleActions,
     notice: common.notice, manageFile: presenters.manageFile, openFileInfo: presenters.openFileInfo, reopenFileInfo: presenters.reopenFileInfo, openMenu: presenters.openMenu, openDiscTitles: presenters.openDiscTitles,
     openVersions: presenters.openVersions, beginVersions: presenters.beginVersions, startVersion: context.playback.startVersion,
-    renderOverlays: runtime => <><NativeWatchOverlays presenters={presenters} runtime={runtime} common={common}/>{playlist.render(runtime)}{titleActions.render(runtime)}</>,
+    renderOverlays: runtime => <><WatchOverlaysPage presenters={presenters} runtime={runtime} common={common}/>{playlist.render(runtime)}{titleActions.render(runtime)}</>,
     ...(external ? {onPictureInPicture: (fence: Parameters<NativeWatchExternalRequests['request']>[0]) => {void external.request(fence);}} : {}),
     dispose: () => {external?.dispose(); presenters.dispose(); playlist.dispose(); titleActions.dispose();},
   });
