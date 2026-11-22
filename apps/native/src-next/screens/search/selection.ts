@@ -1,7 +1,7 @@
 import type {SelectionContext} from '../../../../../packages/client-core/src/selection-model';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
-import {createNativeSelection} from '../selection/native-selection';
+import {createNativeSelection} from '../../shell/native-selection';
 import type {NativeSearchDestination} from './model';
 
 /** Search keeps its own query/generation context and existing explicit-selection UX. */

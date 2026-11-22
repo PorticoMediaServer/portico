@@ -6,7 +6,7 @@ import {sameAuthority} from './model';
 import type {NativeRouteRenderer} from './route-registry';
 import type {NativeDestinationActivationPort} from '../screens/destinations/focus';
 import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
-import type {NativeSelection} from '../screens/selection/native-selection';
+import type {NativeSelection} from './native-selection';
 import {MusicMixesRow} from '../screens/destinations/music/MusicMixesRow';
 import {CoveredLayer} from '../kit/focus';
 import {homeSeeAllRoute} from './routes';

@@ -8,7 +8,7 @@ import type {LayoutSelection} from '../../kit/layout';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeEntryMenuState} from '../destinations/entry-actions';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
-import type {NativeSelection} from '../selection/native-selection';
+import type {NativeSelection} from '../../shell/native-selection';
 import type {NativeLibraryDirectory} from './directory';
 import type {NativeLibraryFirstScanPort} from './first-scan';
 import type {NativeMarkAllRequest} from './mark-all';
