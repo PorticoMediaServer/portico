@@ -22,12 +22,12 @@ export async function tvRefusedPage(kit, {wait = 60} = {}) {
   const homes = [];
   const StateLayout = ({primaryAction}) => e(native.View, {style: {flexDirection: 'row', marginTop: 400}},
     e(Stop, {id: 'refused-home', focusId: primaryAction.id, w: 240, h: 80, onPress: () => {homes.push('press'); primaryAction.onPress();}}));
-  const links = await screenModule(src('screens/share/NativeContentLinks.tsx'), {react, 'react-native': native,
-    '../../../../../packages/i18n/src': {defaultI18n: {t: key => key}}, '../../kit/artwork': {StandardBackdrop: () => null},
-    '../../kit/focus': {...focus, ...pageModal}, '../../kit/overlays/native-dismissal': dismissal, '../../kit/overlays/OverlayHost': host,
-    '../../kit/overlays/OverlayPaintContext': paint, '../../kit/overlays/TVDesignCanvas': {TVDesignCanvas: ({children}) => children},
-    '../../kit/states': {StateLayout, StateView: () => null}, '../../kit/theme': {useTheme: () => theme},
-    '../../platform/content-links': {nativeContentLinks: {subscribe: () => () => {}, getSnapshot: () => undefined}}, './share-open': {openContentLink: async () => undefined}});
+  const links = await screenModule(src('shell/NativeContentLinks.tsx'), {react, 'react-native': native,
+    '../../../../packages/i18n/src': {defaultI18n: {t: key => key}}, '../kit/artwork': {StandardBackdrop: () => null},
+    '../kit/focus': {...focus, ...pageModal}, '../kit/overlays/native-dismissal': dismissal, '../kit/overlays/OverlayHost': host,
+    '../kit/overlays/OverlayPaintContext': paint, '../kit/overlays/TVDesignCanvas': {TVDesignCanvas: ({children}) => children},
+    '../kit/states': {StateLayout, StateView: () => null}, '../kit/theme': {useTheme: () => theme},
+    '../platform/content-links': {nativeContentLinks: {subscribe: () => () => {}, getSnapshot: () => undefined}}, '../screens/share/share-open': {openContentLink: async () => undefined}});
   /** The page as NativeContentLinks shows it: mounted while `open`, until its Home (or Back) is reported gone. */
   const Refused = ({onGone}) => {
     const [open, setOpen] = React.useState(true);

@@ -1,7 +1,7 @@
 import {screenModule} from './screen-harness.mjs';
 
 /**
- * HomeScreen draws Home's rows and hero facts from the kit (`kit/home`). A test that loads HomeScreen with stubbed
+ * HomeScreen (now in shell/) draws Home's rows and hero facts from the kit (`kit/home`). A test that loads HomeScreen with stubbed
  * imports passes the same stubs here: `kit/home` sits as deep as `screens/home`, so only HomeScreen's `../../kit/…`
  * paths are re-keyed to the kit's own `../…`, the real kit modules are loaded against them, and `kit/home` is added
  * under HomeScreen's import path.
@@ -48,7 +48,13 @@ export async function withHomeCards(stubs, actualSpotlight = false) {
     '../../shared/home/useTVHomeRecoveryView': {useTVHomeRecoveryView: () => ({retry: {}, facts: [], opener: {current: null}})}});
   const useHome = await screenModule(new URL('../../src-next/pages/shared/home/useHome.ts', import.meta.url), page);
   const homePage = await screenModule(new URL('../../src-next/pages/touch/home/HomePage.tsx', import.meta.url), {...page, '../../shared/home/useHome': useHome});
-  return {...stubs, '../../kit/home': home, '../../pages/touch/home/HomePage': homePage, '../../pages/tv/home/HomePage': tvHomePage};
+  // HomeScreen itself now sits in shell/: its own imports are offered under those names too (the stubs above keep the
+  // screens/home names because the pages and kit are keyed from there).
+  const shell = Object.fromEntries(Object.entries({'../kit/theme': stubs['../../kit/theme'], './model': stubs['../../shell/model'],
+    './PlayOnButton': stubs['../../shell/PlayOnButton'], './runtime': stubs['../../shell/runtime'],
+    '../screens/destinations/music/MusicMixesRow': stubs['../destinations/music/MusicMixesRow']}).filter(([, value]) => value !== undefined));
+  return {...stubs, ...shell, '../../kit/home': home, '../../pages/touch/home/HomePage': homePage, '../../pages/tv/home/HomePage': tvHomePage,
+    '../pages/touch/home/HomePage': homePage, '../pages/tv/home/HomePage': tvHomePage};
 }
 
 /** HomeScreen is a switch (touch draws HomePage, TV its own HomePage); tests that call it as a

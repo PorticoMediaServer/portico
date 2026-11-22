@@ -1,11 +1,11 @@
 import React from 'react';
-import {useTheme} from '../../kit/theme';
-import {authorityKey, type ShellAuthority} from '../../shell/model';
-import {PlayOnButton} from '../../shell/PlayOnButton';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
-import {HomePage} from '../../pages/touch/home/HomePage';
-import {TVHomePage} from '../../pages/tv/home/HomePage';
+import {useTheme} from '../kit/theme';
+import {authorityKey, type ShellAuthority} from './model';
+import {PlayOnButton} from './PlayOnButton';
+import type {NativeShellRuntime} from './runtime';
+import {MusicMixesRow} from '../screens/destinations/music/MusicMixesRow';
+import {HomePage} from '../pages/touch/home/HomePage';
+import {TVHomePage} from '../pages/tv/home/HomePage';
 
 type HomeScreenProps = {
   runtime: NativeShellRuntime; authority: ShellAuthority;
