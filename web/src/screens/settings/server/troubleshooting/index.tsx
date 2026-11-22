@@ -8,6 +8,7 @@ import type {HttpLocalApi} from '@core/index.ts';
 import {settingsRowIndex} from '@core/presentation/settings-spec.ts';
 import {Button, Select} from '../../../../kit/controls';
 import {SettingsGroup} from '../../../../kit/settings';
+import {useShellWidth} from '../../../../shell/viewport';
 import {SettingsRow} from '../../../../kit/shell/SettingsSurfaces';
 import {Icon} from '../../../../kit/Icon';
 import serverStyles from '../server.module.css';
@@ -118,7 +119,9 @@ function DetailWindowRow({source, reportError}: {source: SettingsMessagesSource;
   useEffect(() => {void source.load();const timer = setInterval(() => setNow(serverNow()), 30_000);return () => {clearInterval(timer);source.pause();};}, [source]);
   const until = state.detailUntil, detailed = !!until && Date.parse(until) > now;
   const row = settingsRowIndex.get('troubleshooting.detailWindow')!.row;
-  return <SettingsRow label={t(row.label)} help={detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : row.help && t(row.help)}>
+  // On a phone its period picker and Start go under the label: beside it they squeezed "Record more detail" to two lines.
+  const phone = useShellWidth() < 600;
+  return <SettingsRow stacked={phone} label={t(row.label)} help={detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : row.help && t(row.help)}>
     {!detailed && <Select aria-label={t('settings.server.detailWindow.length')} value={String(state.detailMinutes)} disabled={state.changing}
       onValueChange={value => {const chosen = Number(value) as LogDetailMinutes; source.chooseLength(chosen);}}
       options={LOG_DETAIL_MINUTES.map(value => ({value: String(value), label: t(DETAIL_LENGTH(value))}))} />}
