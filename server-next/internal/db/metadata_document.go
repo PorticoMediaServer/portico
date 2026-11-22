@@ -48,13 +48,13 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	var publication int
 	var title, sortTitle string
 	var original, summary, tagline, edition, release, rating, locked, local sql.NullString
-	var year sql.NullInt64
+	var year, number sql.NullInt64
 	var provided string
 	var community sql.NullFloat64
-	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, ifnull(extra ->> '$.sortTitle', ''), original_title, summary, tagline, edition, year,
+	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, ifnull(extra ->> '$.sortTitle', ''), original_title, summary, tagline, edition, year, index_number,
 		release_date, content_rating, community_rating, locked_fields, local_fields, ifnull(extra ->> '$.episodeOrder', ''),
 		ifnull(extra ->> '$.episodeOffset', 0), ifnull(extra -> '$.provider', '{}'), ifnull(extra ->> '$.language', '') FROM items WHERE public_id = ?`, publicID).Scan(
-		&id, &publication, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &release, &rating,
+		&id, &publication, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &number, &release, &rating,
 		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset, &provided, &doc.Language)
 	if errors.Is(err, sql.ErrNoRows) {
 		return doc, ErrNotFound
@@ -73,6 +73,9 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 		FieldYear: nil, FieldRating: nil}
 	if year.Valid {
 		doc.Fields[FieldYear] = year.Int64
+	}
+	if number.Valid {
+		doc.Fields[FieldNumber] = number.Int64
 	}
 	if community.Valid {
 		doc.Fields[FieldRating] = community.Float64

@@ -24,6 +24,9 @@ const (
 	FieldCredits       = "credits"
 	FieldMatch         = "match"
 	FieldEdition       = "edition"
+	// FieldNumber is a volume's or issue's number in its series (reading rule 42: the owner
+	// sets it); a scan never changes it once a person has.
+	FieldNumber = "number"
 )
 
 // tagFields are the lists a provider or an NFO file speaks for, by tag kind. Labels and moods
@@ -89,3 +92,9 @@ func keptFields(locked sql.NullString, sources map[string]string) map[string]boo
 	}
 	return keep
 }
+
+// numberLocked is the condition that the items row in hand is a volume (a book, audiobook, comic
+// or issue) whose number a person set. An episode's, track's or season's number always follows
+// its file's name, even under Lock all.
+var numberLocked = `(kind IN (` + itoa(int64(KindBook)) + `, ` + itoa(int64(KindAudiobook)) + `, ` + itoa(int64(KindComic)) + `, ` +
+	itoa(int64(KindIssue)) + `) AND EXISTS (SELECT 1 FROM json_each(ifnull(locked_fields, '[]')) WHERE value = '` + FieldNumber + `'))`

@@ -8251,6 +8251,9 @@
             },
             "type": "array"
           },
+          "number": {
+            "type": "integer"
+          },
           "originalTitle": {
             "type": "string"
           },
