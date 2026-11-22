@@ -1,4 +1,4 @@
-import React, {useId, useRef, useState, type RefObject} from 'react';
+import React, {memo, useId, useRef, useState, type RefObject} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {fieldSpec, frameSpec} from '@portico/design';
@@ -75,7 +75,8 @@ export function TVSearchVoice({focus, title, description, busy, onPress}: {
   </FocusRegion>;
 }
 
-export function TVSearchResults(props: Pick<NativeTVSearchPageProps, 'destination' | 'runtime' | 'explore' | 'actions' | 'selection'> & {
+/** Drawn again only when what it shows changes (Search passes it a deferred copy of the page, so a keystroke skips it). */
+export const TVSearchResults = memo(function TVSearchResults(props: Pick<NativeTVSearchPageProps, 'destination' | 'runtime' | 'explore' | 'actions' | 'selection'> & {
   view: ReturnType<typeof useSearch>; ids: ReturnType<typeof nativeDestinationFocusIds>; keyboard: string;
   screenStart?: FocusAddress; scroll: RefObject<ScrollView | null>;
 }) {
@@ -142,7 +143,7 @@ export function TVSearchResults(props: Pick<NativeTVSearchPageProps, 'destinatio
           contentRoot={contentRoot} width={resultsWidth} focusRoom={focusRoom} layoutRevision={contentHeight} paging={state.group === 'all' ? state.paging?.[group.id] : {loading: state.search.phase === 'loading', error: state.search.error}}/>)}
       </View></ScrollView>
     </FocusRegion>;
-}
+});
 
 export function TVSearchGenre({genre, runtime, width, disabled, onPress}: {genre: NativeSearchGenre; runtime: NativeShellRuntime; width: number; disabled: boolean; onPress: () => void}) {
   const theme = useTheme(), gradient = useId();
