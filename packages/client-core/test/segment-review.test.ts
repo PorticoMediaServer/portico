@@ -65,6 +65,6 @@ test('bulk measurement actions use the rebuilt server routes and return queued c
 test("an Intros title keeps its poster from the server's image route, and nothing else", () => {
  const markers={automatic:0,suggested:0,approved:0,dismissed:0};
  const page=parseSegmentTitles(envelope({libraryId:'films',nextCursor:'',titles:[{id:'a',title:'Alien',kind:'movie',files,markers,poster:'/v1/images/abc'},
-  {id:'b',title:'Aliens',kind:'movie',files,markers,poster:'https://elsewhere.example/x.jpg'},{id:'c',title:'Alpha',kind:'movie',files,markers}]}));
- assert.deepEqual(page.titles.map(t=>t.posterUrl),['/v1/images/abc',undefined,undefined]);
+  {id:'b',title:'Aliens',kind:'movie',files,markers,poster:'https://elsewhere.example/x.jpg'},{id:'d',title:'Alpine',kind:'movie',files,markers,poster:'/v1/images/../x'},{id:'c',title:'Alpha',kind:'movie',files,markers}]}));
+ assert.deepEqual(page.titles.map(t=>t.posterUrl),['/v1/images/abc',undefined,undefined,undefined]);
 });
