@@ -14,7 +14,8 @@ const t = defaultI18n.t;
  * its place over the title, the author with their initials, the book's facts, Read or Continue reading with its progress
  * in the button, My List (or Mark read) and Download, the version and where the reader is, the description, the first
  * lines, Contents (every chapter, the one being read marked) and Details under tabs that pin under the bar, and the rest
- * of the series. `selectionBar` is the host's bar for selecting the series' volumes. */
+ * of the series. `selectionBar` is the host's bar for selecting the series' volumes, drawn only with that row: a book with
+ * no series has nothing to select (iPad: a lone Select floated above Contents). */
 export function ReadBookPage({selectionBar, ...props}: ReadBookPageProps & Readonly<{selectionBar?: ReactNode}>) {
   const view = useReadBook(props), theme = useTheme(), tv = theme.isTV;
   const wide = theme.form === 'expanded' || tv;
@@ -37,7 +38,7 @@ export function ReadBookPage({selectionBar, ...props}: ReadBookPageProps & Reado
       kicker={view.kicker} title={view.title} byline={view.byline} metadata={<HeroMetadata facts={view.facts}/>}
       primary={{icon: 'i-book', label: view.primary.label, progress: view.primary.progress, disabled: view.primary.disabled, onPress: view.primary.onPress, testID: 'read-book-read'}}
       actions={tv ? [...view.actions, moreAction] : view.actions} place={view.place} synopsis={view.synopsis} readMore={view.readMore}
-      quote={view.firstLines === undefined ? undefined : {label: t('next.reader.firstLines'), text: view.firstLines}} selectionBar={selectionBar}
+      quote={view.firstLines === undefined ? undefined : {label: t('next.reader.firstLines'), text: view.firstLines}} selectionBar={view.shelf ? selectionBar : undefined}
       tabs={tabs} aside={wide && view.tabs ? details : undefined} scroller={musicScroller({testID: 'read-book-scroll'})}>
       {view.state && <PanelBlock><StateRow {...view.state}/></PanelBlock>}
       {wide ? view.tabs ? <TitleSection tab="contents">{contents}</TitleSection> : details : view.tab === 'contents' ? contents : details}

@@ -40,4 +40,11 @@ test('Book keeps the chapter and details panes on a wide tablet and offers More 
   tv.props.actions.find((action: any) => action.testID === 'read-book-more').onPress();
   tv.props.primary.onPress();
   assert.deepEqual(calls, ['chapter', 'more', 'read']);
+  // The host's Select is for a series' volumes: a book with no volumes row draws none (iPad, 22 Nov: a lone Select
+  // floated above Contents); with the row it is drawn.
+  form = 'expanded';
+  const bar = 'SelectionBar';
+  assert.equal(nodes(ReadBookPage({onBack() {}, selectionBar: bar})).find(node => node.type === 'TitleFrame').props.selectionBar, undefined);
+  Object.assign(view, {shelf: {title: 'Series', items: []}});
+  assert.equal(nodes(ReadBookPage({onBack() {}, selectionBar: bar})).find(node => node.type === 'TitleFrame').props.selectionBar, bar);
 });
