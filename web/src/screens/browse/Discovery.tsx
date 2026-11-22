@@ -22,6 +22,7 @@ import type {BrowsePresentation} from './Library';
 import {browsePresentation, type ScreenAppearance} from './appearance';
 import type {MusicMixesBinding} from './music-mixes-binding';
 import {MusicMixesRow} from './MusicMixesRow';
+import {homeLayout} from '../home/layout';
 import styles from './recent-tiles.module.css';
 
 export type DiscoveryBindings = Readonly<{
@@ -95,7 +96,10 @@ export function LibraryDiscoveryScreen({menuContext, service, route, header, emp
       // An audiobook library's Continue listening is the wide resume card from 600px up
       // (desktop-listen #books) and the square card with its time left on a phone (phone-app).
       const continuing = snapshot.projection!.scope.libraryKind === 'audiobook' && section.id === 'continue_listening', resume = continuing && width >= 600;
-      const cardWidth = resume ? 456 : appearance.cardWidth, musicGenres = snapshot.projection!.scope.libraryKind === 'music' && section.id === 'genres';
+      // Discover's rows are Home's rows (kit .card: 190 at 1440, 118 / square 132 on a phone);
+      // only the full grid keeps the frame's seven fluid columns.
+      const rowWidth = homeLayout(width)[square ? 'square' : 'poster'] * (appearance.cardSize === 'small' ? .8 : appearance.cardSize === 'large' ? 1.2 : 1);
+      const cardWidth = resume ? 456 : rowWidth, musicGenres = snapshot.projection!.scope.libraryKind === 'music' && section.id === 'genres';
       const shape = resume ? 456 / 180 : musicGenres ? cardWidth / 152 : square ? 1 : 2 / 3;
       return <PagedShelf key={section.id} focusScope={service} heading={discoveryHeading(section)}
         platform={width >= 1024 ? 'desktop' : 'phone-web'} reducedMotion={preferences?.reducedMotion ?? reducedMotion} items={section.entries} getKey={entry => entry.id} cardWidth={cardWidth} artworkRatio={shape}
