@@ -11,8 +11,8 @@ import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
 import type {NativeLibraryDirectory} from './directory';
+import {visibleLibraryCounts} from '../../../../../packages/client-core/src/library-summary';
 
-const pivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', episode: 'episodes', artist: 'artists', album: 'albums', song: 'songs', book: 'books', author: 'authors', series: 'series', ebook: 'books', comic: 'titles'};
 /** Phone4d: the single authorized summary read supplies order, names, counts,
  * covers and ambient. The shell owns the real page and bottom navigation. */
 export function NativeLibraryOverview({directory, runtime, activation, openLibrary, editPins}: {
@@ -39,8 +39,8 @@ export function NativeLibraryOverview({directory, runtime, activation, openLibra
           covers={library.summary.coverUrls.map(path => runtime.artwork(path)).filter((source): source is ArtworkSource => !!source)}
           glyph={[...library.name][0]}
           ambient={library.summary.latestArtwork ? runtime.ambient(library.summary.latestArtwork) : undefined}
-          caption={library.summary.counts.filter(part => pivots[part.kind]).map(part => ({id: part.kind, role: 'value' as const,
-            text: defaultI18n.t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: pivots[part.kind]})}))}
+          caption={visibleLibraryCounts(library.summary.counts).map(part => ({id: part.kind, role: 'value' as const,
+            text: defaultI18n.t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: part.pivot})}))}
           onNavigate={() => openLibrary(library.id)}/>)}
       </View>
       <Text style={[browseType(theme, 13, 400, 0, 19.5), {color: theme.colors.textTertiary, marginHorizontal: 24, marginTop: 18}]}>{defaultI18n.t('next.browse.native.libraryOrderHint')}</Text>
