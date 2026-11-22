@@ -71,9 +71,10 @@ type Presentation = Readonly<{
  * then dismissed, or while another is still being dismissed, so a new one waits for all of them: a menu's item that opens a confirmation sheet would otherwise
  * open nothing (iPhone, Switch server › ⋯ › Sign out). Each leaving presentation is retired by its own report or fallback. */
 const leavingModals = new Set<object>(), leavingListeners = new Set<() => void>();
-const leavingChanged = () => {for (const listener of [...leavingListeners]) listener();};
+const leavingChanged = () => {console.log('[modal-probe] leaving', leavingModals.size); for (const listener of [...leavingListeners]) listener();};
 const subscribeLeaving = (listener: () => void) => {leavingListeners.add(listener); return () => {leavingListeners.delete(listener);};};
 const leavingCount = () => leavingModals.size;
+let probeCount = 0;
 /** How long a Modal unmounted while shown is treated as still leaving: React Native reports no dismissal after unmount,
  * and a Menu's non-animated dismissal is done well within this. */
 export const UNMOUNTED_DISMISS_MS = 500;
@@ -101,7 +102,11 @@ export function useNativeModalPresence(present: boolean, shown = present, wait =
   const report = useCallback((token: number) => setState(current => current.token !== token ? current // an earlier presentation's
     : current.leaving ? {...current, leaving: false}
     : current.shown && !current.gone ? {...current, gone: true} : current), []);
-  const token = now.token, onDismiss = useMemo(() => () => report(token), [report, token]);
+  const token = now.token, onDismiss = useMemo(() => () => {console.log('[modal-probe] onDismiss', token); report(token);}, [report, token]);
+  const probeId = useRef(0); if (!probeId.current) probeId.current = ++probeCount;
+  useEffect(() => {console.log('[modal-probe] presence', JSON.stringify({id: probeId.current, present, shown, closing, token: state.token, stateShown: state.shown, leaving: state.leaving, gone: state.gone, others, armed, ask, visible: now.shown, mounted: present || now.leaving}));});
+  useEffect(() => () => console.log('[modal-probe] unmount', probeId.current, 'showing', showingProbe.current), []);
+  const showingProbe = useRef(false); showingProbe.current = now.shown && present;
   const holding = ios && (state.leaving || closing && state.shown);
   // A Modal whose owner unmounts it while it is shown (a menu drawn only while its entry exists, closed by its own item)
   // never reports a dismissal, yet UIKit is still taking it down: it counts as leaving for a short while, so a picker the

@@ -136,6 +136,7 @@ function PickerSurface({controller, runtime}: {controller: MusicPlaylistPickerCo
   // New playlist names it in a sheet over the picker (the picker stays open beneath, so nothing waits on one sheet closing).
   const [naming, setNaming] = useState(false), [creating, setCreating] = useState(false), [createError, setCreateError] = useState<string>();
   useEffect(() => {if (!state.open) {setNaming(false); setCreating(false); setCreateError(undefined);}}, [state.open]);
+  console.log('[modal-probe] playlist picker render', JSON.stringify({open: state.open, port: !!port}));
   if (!state.open || !port) return null;
   const album = snapshot.album, leaf = snapshot.leaf, adding = album?.phase === 'loading' || album?.phase === 'adding';
   const partial = album?.phase === 'partial' && album.added > 0;

@@ -196,6 +196,7 @@ function NativeTitleActionSurfaces({handle, runtime, view, rate, close}: {handle
   rate: Readonly<{onRate: (value: number | null) => void; onRetry: () => void}>; close: (expected?: Open) => void}) {
   useSyncExternalStore(handle.subscribe, handle.getSnapshot);
   const theme = useTheme(), current = view();
+  console.log('[modal-probe] title actions render', current?.kind);
   if (!current) return null;
   const entry = current.entry, title = entry.displayTitle ?? entry.title;
   const label = selectedItemsLabel({count: 1, types: [{kind: entry.kind as SelectionKind, count: 1}]});
