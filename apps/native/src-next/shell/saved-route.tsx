@@ -25,7 +25,7 @@ import {createNativeSavedSelection, createNativeSavedViewSelection} from '../scr
 import {NativeSavedViewDestination} from '../screens/saved/view-model';
 import {createNativeEntryActions} from '../screens/destinations/entry-actions';
 import type {SavedRoute} from '../../../../packages/client-core/src/saved';
-import {createNativeDownloadsView} from '../screens/downloads/view';
+import {createNativeDownloadsView} from './downloads-view';
 import {NativeHomeSavedViewSummaries} from '../screens/home/saved-view-summaries';
 import {createNativeSavedDirectoryCommands} from '../screens/saved/directory-commands';
 import {createNativeSavedViewSummaryOwner} from '../screens/saved/view-summary-owner';

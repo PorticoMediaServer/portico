@@ -1,9 +1,9 @@
 import React from 'react';
-import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import type {SelectionContext} from '../../../../../../packages/client-core/src/selection-model';
-import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from '../../selection/native-selection';
-import type {NativeTVMusicController} from './model';
+import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
+import type {SelectionContext} from '../../../../packages/client-core/src/selection-model';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from '../screens/selection/native-selection';
+import type {NativeTVMusicController} from '../screens/destinations/music/model';
 
 /** The album and artist row cards (releases, other releases, similar) draw from this
  * page's own projection: its viewer fence and catalog/viewer revisions. */
@@ -53,7 +53,7 @@ export function createNativeMusicSelection(context: NativeShellBootstrapContext,
   const stops = [...ports, rows].map(port => port.subscribe(() => {revision++; for (const listener of [...listeners]) listener();}));
   // Ending the page's selection ends every owner it drew from (tracks and row cards).
   const clear = () => {let any = false; for (const port of [...ports, rows]) any = port.clear() || any; return any;};
-  const rowOnly = (entry: import('../../../../../../packages/client-core/src/search').SearchEntry, group?: string) => {
+  const rowOnly = (entry: import('../../../../packages/client-core/src/search').SearchEntry, group?: string) => {
     const own = rows.item(entry, group === 'releases' || group === 'similar' ? group : undefined);
     if (!own) return undefined;
     const pick = () => {

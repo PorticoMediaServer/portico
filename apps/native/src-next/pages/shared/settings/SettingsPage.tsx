@@ -10,7 +10,7 @@ import {SettingsProfileCard} from '../../../kit/shell/SettingsProfileCard';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {StateView} from '../../../kit/states';
 import {PhoneDashboardCard, SettingsHelp, SettingsKeyHints, SettingsNavigationGroup, SettingsNotificationCount, SettingsPageLink, SettingsSearchGroup} from '../../../kit/settings/SettingsParts';
-import {NativeTVKeyboard} from '../../../screens/destinations';
+import {NativeTVKeyboard} from '../../../kit/search/TVKeyboard';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
 import {ServerLibrariesPage} from '../../touch/settings/ServerLibrariesPage';
 import {LiveOwnerPage} from '../../touch/live/LiveOwnerPage';

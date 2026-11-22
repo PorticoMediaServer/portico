@@ -13,17 +13,17 @@ test('the ordinary Downloads route registers its own real-data renderer and exac
   const host = hooks(); let kind: string | undefined, factory: any, retired = 0;
   const device = {getSnapshot: () => ({entries: []})};
   const {nativeDownloadsCopy} = await import('../src-next/screens/downloads/presentation.ts');
-  const view = await screenModule(new URL('../src-next/screens/downloads/view.tsx', import.meta.url), {
-    react: host.react, '../../pages/touch/saved/DownloadsPage': {DownloadsPage: 'Downloads'},
-    './device': {createNativeDownloadsDevice: () => ({device, service: undefined, dispose: () => {retired++;}})},
-    '../../shell/model': {sameAuthority}, '../../shell/routes': {nativeEntryRoute: (entry: unknown) => ({kind: 'title', entry})},
-    '../read/eligibility': readEligibility, '../read/platform': readPlatform, './presentation': {nativeDownloadsCopy},
+  const view = await screenModule(new URL('../src-next/shell/downloads-view.tsx', import.meta.url), {
+    react: host.react, '../pages/touch/saved/DownloadsPage': {DownloadsPage: 'Downloads'},
+    '../screens/downloads/device': {createNativeDownloadsDevice: () => ({device, service: undefined, dispose: () => {retired++;}})},
+    './model': {sameAuthority}, './routes': {nativeEntryRoute: (entry: unknown) => ({kind: 'title', entry})},
+    '../screens/read/eligibility': readEligibility, '../screens/read/platform': readPlatform, '../screens/downloads/presentation': {nativeDownloadsCopy},
   });
   await screenModule(new URL('../src-next/shell/downloads-route.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View', useWindowDimensions: () => ({width: 390, height: 844})}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 34})},
     './route-registry': {nativeShellRoutes: {registerRoute: (key: string, create: any) => {kind = key; factory = create;}}},
     './model': {phoneBarHeight: () => 84, shellLayout: () => ({tabs: true})},
-    '../screens/downloads/view': view,
+    './downloads-view': view,
   });
   assert.equal(kind, 'downloads');
   assert.equal(Object.keys(nativeDownloadsCopy).length, 11);

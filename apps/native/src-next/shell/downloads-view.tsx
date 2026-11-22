@@ -1,15 +1,15 @@
 import React, {useLayoutEffect, useState, useSyncExternalStore} from 'react';
-import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {sameAuthority, type ShellAuthority} from '../../shell/model';
-import {nativeEntryRoute} from '../../shell/routes';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import {DownloadsPage} from '../../pages/touch/saved/DownloadsPage';
-import {createNativeDownloadsDevice} from './device';
-import type {NativeOfflineDownloadsDevice, OfflineEntry} from '../../platform/offline-downloads';
-import {openNativeReadingDetail, type NativeReadOrigin} from '../read/eligibility';
-import {isReadingLibraryKind} from '../read/platform';
-import {nativeDownloadsCopy} from './presentation';
+import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {sameAuthority, type ShellAuthority} from './model';
+import {nativeEntryRoute} from './routes';
+import type {NativeShellRuntime} from './runtime';
+import {DownloadsPage} from '../pages/touch/saved/DownloadsPage';
+import {createNativeDownloadsDevice} from '../screens/downloads/device';
+import type {NativeOfflineDownloadsDevice, OfflineEntry} from '../platform/offline-downloads';
+import {openNativeReadingDetail, type NativeReadOrigin} from '../screens/read/eligibility';
+import {isReadingLibraryKind} from '../screens/read/platform';
+import {nativeDownloadsCopy} from '../screens/downloads/presentation';
 
 
 /** The route instance this view actually rendered on, committed in layout. A

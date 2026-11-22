@@ -18,8 +18,8 @@ const musicState = () => ({albums: [{id: 'album-one'}, {id: 'album-two'}], simil
 const port = () => ({subscribe: () => () => {}, getSnapshot: () => 0, start() {}, clear: () => true, register: () => () => {}, render: () => null, dispose() {}, item: () => undefined});
 const modules = async () => ({
   discover: await screenModule(new URL('../src-next/screens/library/discover-selection.ts', import.meta.url), {react: {default: React, createElement: React.createElement}, '../selection/native-selection': {createNativeSelection: () => port()}}),
-  music: await screenModule(new URL('../src-next/screens/destinations/music/selection.tsx', import.meta.url),
-    {react: {createElement: React.createElement, Fragment: React.Fragment}, '../../selection/native-selection': {createNativeSelection: () => port()}}),
+  music: await screenModule(new URL('../src-next/shell/music-selection.tsx', import.meta.url),
+    {react: {createElement: React.createElement, Fragment: React.Fragment}, '../screens/selection/native-selection': {createNativeSelection: () => port()}}),
 });
 
 test('a Discover page that is not loaded, or one that left the route, offers no Select at all', async () => {
@@ -38,8 +38,8 @@ test('the music page routes a row card to the page row selection and a track row
     created.push({options, item});
     return {...port(), item} as never;
   }};
-  const music = await screenModule(new URL('../src-next/screens/destinations/music/selection.tsx', import.meta.url),
-    {react: {createElement: React.createElement, Fragment: React.Fragment}, '../../selection/native-selection': selectionStub});
+  const music = await screenModule(new URL('../src-next/shell/music-selection.tsx', import.meta.url),
+    {react: {createElement: React.createElement, Fragment: React.Fragment}, '../screens/selection/native-selection': selectionStub});
   const page = music.createNativeMusicSelection({session: () => ({viewer}), current: () => true},
     {subscribe: () => () => {}, getSnapshot: () => musicState(), selectionPage: () => ({generation: 1, query: 'songs', revision: 'rev', offset: 0}), contains: () => true},
     'route-key', () => true);
