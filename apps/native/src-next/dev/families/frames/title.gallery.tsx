@@ -10,7 +10,7 @@ import {TrackWindow} from '../../../kit/music/TrackWindow';
 import {AboutTable, ArtistCover, CastRow, ChoiceChips, TitleRowWindow, EpisodeList, musicScroller, posterGridScroller, PosterWindowRow, titleRowsScroller, type EpisodePlateProps, EpisodeDisplay, EpisodeNeighbour, NumberedRow, OwnerCard, PanelBlock, PanelHeading, PeopleSheet, SheetFrame, TVEpisodeShelf, TVSeasonList, type EpisodeBandData, type TVEpisodeItem, TitleDetails, TitleFrame, TitleSection, TrackPicker, VersionRows, type CastPerson, type TitleFrameProps} from '../../../kit/frames';
 import {fileInfoModel, type FileFacts} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {durationText} from '../../../../../../packages/client-core/src/presentation/kit-model/text';
-import {NativeFileInfoContent} from '../../../screens/watch/FileInfoContent';
+import {NativeFileInfoContent} from '../../../kit/title/FileInfoContent';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {HeroMetadata, PosterRow, SeasonBar} from '../../../kit/layout';

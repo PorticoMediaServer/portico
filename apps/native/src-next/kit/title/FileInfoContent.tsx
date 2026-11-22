@@ -2,11 +2,12 @@ import React from 'react';
 import {Platform, ScrollView, StyleSheet, Text, View} from 'react-native';
 import type {FactPart, FileInfoModel, ManageAction} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {nativeType, useTheme, type Theme} from '../../kit/theme';
+import {Button} from '../controls';
+import {Icon} from '../Icon';
+import {useTheme, type Theme} from '../theme';
+import {shellType} from '../shell/visual';
 import Svg, {Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
-import type {NativeFileInfoDisc, NativeFileInfoLocation} from './file-info';
+import type {NativeFileInfoDisc, NativeFileInfoLocation} from '../../screens/watch/file-info';
 
 /** Real entry identity for the drawn context line under the sheet title. Never inferred. */
 export type NativeFileInfoIdentity = Readonly<{series?: string; code?: string}>;
@@ -38,7 +39,7 @@ function More({more, label, focusId}: {more?: NativeFileInfoMore; label: string;
 const words = (parts: readonly FactPart[]) => parts.map(part => part.text).join('');
 function Parts({parts, comma = false}: {parts: readonly FactPart[]; comma?: boolean}) {
   const theme = useTheme();
-  return <Text style={{color: theme.colors.text, fontFamily: theme.type.body.fontFamily, fontSize: 12.5, lineHeight: 19}}>{comma ? words(parts) : parts.map(part => part.text).join(' ')}</Text>;
+  return <Text style={[shellType(12.5, 400, 19, 0, 1), {color: theme.colors.text}]}>{comma ? words(parts) : parts.map(part => part.text).join(' ')}</Text>;
 }
 
 /** Canonical parts already carry their own separators; adjacent facts take the drawn space. */
@@ -58,13 +59,13 @@ function OwnerSurface({children}: {children: React.ReactNode}) {
   </View>;
 }
 
-const tvType = (theme: Theme, size: number, weight: 400 | 500 | 600 | 700 | 800) => nativeType({size, weight, tracking: 0, lineHeight: 'normal'}, theme.textScale);
+const tvType = (theme: Theme, size: number, weight: 400 | 500 | 600 | 700 | 800) => shellType(size, weight, 'normal', 0, theme.textScale);
 
 /** Informational version cards; no radio, Play button, grants or synthesized file count. */
 export function NativeFileInfoContent({model, locations, identity, disc: discFacts, onManage, versionCount, more, earlier, trackMore, filesMore}: NativeFileInfoContentProps) {
   const theme = useTheme(), t = defaultI18n.t;
-  const label = {color: theme.colors.textTertiary, fontFamily: theme.type.body.fontFamily, fontSize: 12.5};
-  const value = {color: theme.colors.text, fontFamily: theme.type.bodyStrong.fontFamily, fontSize: 12.5};
+  const label = {...shellType(12.5, 400, 'normal', 0, 1), color: theme.colors.textTertiary};
+  const value = {...shellType(12.5, 600, 'normal', 0, 1), color: theme.colors.text};
   const headings = [t('title.version'), t('next.kit.resolution'), t('next.kit.video'), t('next.kit.audio'), t('next.kit.size'), t('next.kit.length')];
   const comma = t('next.kit.fileInfo.comma');
   // A disc image's own probed title and chapter count, per asset. Never inferred.
@@ -118,8 +119,8 @@ export function NativeFileInfoContent({model, locations, identity, disc: discFac
       <More more={earlier} label={t('next.overlays.fileInfoFirstVersion')} focusId="watch-file-first-version"/><More more={more} label={t('next.overlays.fileInfoMoreVersions')} focusId="watch-file-more-versions"/>
     </> : <>{model.files.map(file => <View key={file.id} style={{backgroundColor: '#172e3c', borderRadius: 14, padding: 14}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12}}>
-        <View style={{paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: '#244555'}}><Text style={[label, {fontSize: 11, color: theme.colors.accentStrong}]}>{file.display.heading.text}</Text></View>
-        <Text style={[value, {fontSize: 15, flex: 1}]}>{file.display.summary.map(part => part.text).join(' ')}</Text>
+        <View style={{paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: '#244555'}}><Text style={[label, shellType(11, 400, 'normal', 0, 1), {color: theme.colors.accentStrong}]}>{file.display.heading.text}</Text></View>
+        <Text style={[value, shellType(15, 600, 'normal', 0, 1), {flex: 1}]}>{file.display.summary.map(part => part.text).join(' ')}</Text>
       </View>
       {(['resolution', 'video', 'audio', 'subtitles', 'size', 'length'] as const).map(id => {
         const row = file.rows.find(candidate => candidate.id === id);
@@ -132,7 +133,7 @@ export function NativeFileInfoContent({model, locations, identity, disc: discFac
       })}
       <More more={trackMore?.(file.id)} label={t('next.overlays.fileInfoMoreTracks')} focusId={`watch-file-more-tracks-${file.id}`}/>
     </View>)}<More more={earlier} label={t('next.overlays.fileInfoFirstVersion')} focusId="watch-file-first-version"/><More more={more} label={t('next.overlays.fileInfoMoreVersions')} focusId="watch-file-more-versions"/></>}
-    <Text style={[label, {fontSize: theme.isTV ? 20 : 12.5, lineHeight: theme.isTV ? 28 : 19, marginTop: theme.isTV ? 14 : 2}]}>{t('next.overlays.native.fileInfoNote')}</Text>
+    <Text style={[label, shellType(theme.isTV ? 20 : 12.5, 400, theme.isTV ? 28 : 19, 0, 1), {marginTop: theme.isTV ? 14 : 2}]}>{t('next.overlays.native.fileInfoNote')}</Text>
     {model.owner && theme.isTV ? <OwnerSurface>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, paddingBottom: 14}}>
         <Icon name="i-server" size={26} color={theme.colors.textTertiary}/>
@@ -142,7 +143,7 @@ export function NativeFileInfoContent({model, locations, identity, disc: discFac
       {(locations ?? model.owner.locations).map(location => <View key={location.id} style={{borderTopWidth: 1.5, borderColor: '#28404fb3', paddingVertical: 12}}>
         <View style={{flexDirection: 'row', alignItems: 'center', gap: 18}}>
           <Text style={[tvType(theme, 20, 600), {color: theme.colors.textTertiary, width: 150}]}>{model.files.find(file => file.id === location.versionId)?.display.heading.text}</Text>
-          {!!location.path && <Text selectable style={[tvType(theme, 19, 400), {color: theme.colors.textSecondary, flex: 1, lineHeight: 26, fontFamily: Platform.select({ios: 'Menlo', default: 'monospace'})}]}>{location.path}</Text>}
+          {!!location.path && <Text selectable style={[shellType(19, 400, 26, 0, theme.textScale), {color: theme.colors.textSecondary, flex: 1, fontFamily: Platform.select({ios: 'Menlo', default: 'monospace'})}]}>{location.path}</Text>}
         </View>
         {!!location.actions.length && <View style={{flexDirection: 'row', gap: 12, marginTop: 14}}>{location.actions.map(action => <Button key={action.id} focusId={`watch-file-${location.id}-${action.id}`} testID={`watch-file-${location.id}-${action.id}`} variant="glass" size="small" icon="i-trash" onPress={() => onManage(action.id, location.id)}>{action.label}</Button>)}</View>}
       </View>)}
@@ -150,22 +151,22 @@ export function NativeFileInfoContent({model, locations, identity, disc: discFac
       {!!model.owner.actions.filter(action => action.id !== 'merge-title').length && <View style={{flexDirection: 'row', gap: 12, paddingTop: 14, paddingBottom: 8}}>
         {model.owner.actions.filter(action => action.id !== 'merge-title').map(action => <Button key={action.id} focusId={`watch-file-owner-${action.id}`} testID={`watch-file-owner-${action.id}`} variant="glass" size="small" icon={action.id === 'split-versions' ? 'i-split' : 'i-merge'} onPress={() => onManage(action.id)}>{action.label}</Button>)}
       </View>}
-      <Text style={[tvType(theme, 18, 400), {color: theme.colors.textTertiary, lineHeight: 26, paddingTop: 4, paddingBottom: 12}]}>{t('next.overlays.deleteVersionNote')}</Text>
+      <Text style={[shellType(18, 400, 26, 0, theme.textScale), {color: theme.colors.textTertiary, paddingTop: 4, paddingBottom: 12}]}>{t('next.overlays.deleteVersionNote')}</Text>
     </OwnerSurface> : model.owner && <View style={{marginTop: 16, borderWidth: 1, borderColor: theme.colors.line, borderRadius: 16, overflow: 'hidden'}}>
       <View style={{flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, backgroundColor: '#153140'}}>
         <Icon name="i-server" size={20} color={theme.colors.textSecondary}/>
-        <Text style={[nativeType({size: 16, weight: 800, tracking: -.015, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, flex: 1}]}>{model.owner.heading}</Text>
-        <Text style={[label, {fontSize: 11}]}>{t('next.overlays.native.ownerOnly')}</Text>
+        <Text style={[shellType(16, 800, 'normal', -.015, theme.textScale), {color: theme.colors.text, flex: 1}]}>{model.owner.heading}</Text>
+        <Text style={[label, shellType(11, 400, 'normal', 0, 1)]}>{t('next.overlays.native.ownerOnly')}</Text>
       </View>
       <View style={{padding: 14, gap: 12}}>
         {(locations ?? model.owner.locations).map(location => <View key={location.id} style={{gap: 8, borderBottomWidth: 1, borderColor: theme.colors.line, paddingBottom: 14}}>
           <Text style={label}>{model.files.find(file => file.id === location.versionId)?.display.heading.text}</Text>
-          {location.path && <Text selectable style={[label, {lineHeight: 19}]}>{location.path}</Text>}
+          {location.path && <Text selectable style={[label, shellType(12.5, 400, 19, 0, 1)]}>{location.path}</Text>}
           {location.actions.map(action => <Button key={action.id} focusId={`watch-file-${location.id}-${action.id}`} testID={`watch-file-${location.id}-${action.id}`} variant="glass" size="small" icon="i-trash" onPress={() => onManage(action.id, location.id)} textStyle={{color: theme.colors.record}}>{action.label}</Button>)}
         </View>)}
         {model.files.map(file => <More key={file.id} more={filesMore?.(file.id)} label={t('next.overlays.fileInfoMoreFiles')} focusId={`watch-file-more-files-${file.id}`}/>)}
         {model.owner.actions.map(action => <Button key={action.id} focusId={`watch-file-owner-${action.id}`} testID={`watch-file-owner-${action.id}`} variant="glass" size="small" onPress={() => onManage(action.id)}>{action.label}</Button>)}
-        <Text style={[label, {lineHeight: 19}]}>{t('next.overlays.deleteVersionNote')}</Text>
+        <Text style={[label, shellType(12.5, 400, 19, 0, 1)]}>{t('next.overlays.deleteVersionNote')}</Text>
       </View>
     </View>}
   </ScrollView>;

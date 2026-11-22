@@ -7,7 +7,7 @@ test('File info draws its versions and asks for the next window only when Show m
   const {NativeFileInfoPanel} = await screenModule(new URL('../src-next/pages/shared/title/FileInfoPanel.tsx', import.meta.url), {
     react: host.react,
     '../../../../../../packages/client-core/src/file-info-session': {fileInfoTrackKey: (id: string, lane: string) => `${id}:${lane}`},
-    '../../../screens/watch/FileInfoContent': {NativeFileInfoContent: 'Content'},
+    '../../../kit/title/FileInfoContent': {NativeFileInfoContent: 'Content'},
     '../../../screens/watch/file-info': {
       nativeFileInfoShowVersion: (_session: unknown, group: {id: string}) => {shown.push(group.id);}, nativeFileInfoShowFile() {},
       nativeFileInfoView: () => ({model: {id: 'model'}, locations: [], versionCount: 2}),

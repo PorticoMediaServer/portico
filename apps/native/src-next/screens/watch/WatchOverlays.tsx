@@ -24,7 +24,7 @@ import type {NativeScreenServices} from '../screen-services';
 import type {NativeWatchOverlay, NativeWatchPresenters} from './presenters';
 import {NativeVersionChooser} from '../../kit/player/VersionChooser';
 import {NativeDiscTitlesSheet} from '../../kit/player/DiscTitlesSheet';
-import {NativeFileInfoContent} from './FileInfoContent';
+import {NativeFileInfoContent} from '../../kit/title/FileInfoContent';
 import {overlayPaintKey, overlayPaintPermit, RetainedOverlay, type OverlayPaintPermit} from '../../kit/overlays/SurfacePaintHost';
 
 const named = (entry: NativeWatchOverlay['capture']['entry']) => entry.displayTitle ?? entry.title;

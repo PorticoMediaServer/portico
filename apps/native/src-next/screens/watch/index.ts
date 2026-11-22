@@ -9,7 +9,7 @@ export {NativeTitleMemory} from './title-memory';
 export {NativeWatchControls} from './controls';
 export type {NativeWatchControlContext, NativeWatchPanel} from './controls';
 export {nativeWatchTracks} from './track-identity';
-export {NativeFileInfoContent} from './FileInfoContent';
+export {NativeFileInfoContent} from '../../kit/title/FileInfoContent';
 export {nativeVersionChoices, nativeVersionNames} from './version-options';
 export {NativeWatchHost} from './WatchHost';
 export type {NativeWatchHostBindings, NativeWatchHostContext} from './WatchHost';
