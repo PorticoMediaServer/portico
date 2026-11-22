@@ -1,21 +1,21 @@
 import React, {useRef} from 'react';
 import {Text, View} from 'react-native';
-import {useFocusWaiting} from '../../kit/focus';
+import {useFocusWaiting} from '../focus';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core/src/search';
-import {PosterCard, SquareCard, CircleCard, EpisodeTile, type CardSelection} from '../../kit/cards';
+import {PosterCard, SquareCard, CircleCard, EpisodeTile, type CardSelection} from '../cards';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {Artwork} from '../../kit/artwork';
-import {ArtFrame, CardFrame, type CardFrameSurfaceProps} from '../../kit/cards/primitives';
-import {SongRow} from '../../kit/browse';
-import {SelectionCircle} from '../../kit/selection';
-import {Icon} from '../../kit/Icon';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {Artwork} from '../artwork';
+import {ArtFrame, CardFrame, type CardFrameSurfaceProps} from '../cards/primitives';
+import {SongRow} from '../browse';
+import {SelectionCircle} from '../selection';
+import {Icon} from '../Icon';
+import {browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
 import {cardText, nameInitials} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {nativeSearchCardText} from '../home/model';
-import {nativeSearchEntryKey} from './model';
-import type {NativeSearchActions} from './types';
+import {nativeSearchCardText} from '../../screens/home/model';
+import {nativeSearchEntryKey} from '../../screens/search/model';
+import type {NativeSearchActions} from '../../screens/search/types';
 const media = (entry: SearchEntry): entry is ContentEntry => entry.kind !== 'person' && entry.kind !== 'channel';
 
 export function SearchGridCard({entry, group, runtime, actions, selection, width, disabled, onFocus, onBlur, focusId, testID, index, previousFocused, titleLines, onCaptionLayout}: {onCaptionLayout?: (height: number) => void; titleLines?: 0 | 1 | 2; entry?: SearchEntry; index?: number; previousFocused?: boolean; focusId?: string; testID?: string; group: SearchGroup; runtime: NativeShellRuntime; actions: NativeSearchActions; selection?: CardSelection; width: number; disabled?: boolean; onFocus?: () => void; onBlur?: () => void}) {
