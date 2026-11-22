@@ -50,7 +50,7 @@ import {NoServersPage as PhoneNoServersPage} from '../../pages/touch/accounts/No
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 import type {AccountDownloadsEntry} from './downloads-entry-model';
 import type {NativeInvitationLink} from '../../platform/invitation-links';
-import {PhoneAccountWorkspace} from './PhoneAccountWorkspace';
+import {AccountWorkspacePage} from '../../pages/touch/accounts/AccountWorkspacePage';
 import {NativeAccountWorkspace} from '../../platform/account-workspace';
 import {OfflineServersPage} from '../../pages/touch/accounts/OfflineServersPage';
 import {NoServersPage as TVNoServersPage} from '../../pages/tv/accounts/NoServersPage';
@@ -1024,7 +1024,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       if (destination === 'servers') void run(directory);
       if (destination === 'address') setAddress('');
     };
-    return <PhoneAccountWorkspace createSource={ticket.createSource!} username={ticket.username}
+    return <AccountWorkspacePage createSource={ticket.createSource!} username={ticket.username}
       onDone={() => leave('servers')} onJoin={() => leave('invitation-entry')} onFind={() => leave('address')} onSignOut={() => leave('account-sign-out')}/>;
   }
   // Why a TV has no code, in plain words, for the code card (the door and the code screen say the same).
