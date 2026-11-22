@@ -315,14 +315,14 @@ test('the real picker controller closes without a choice and writes nothing', as
     react: {default: {}},
     '../../../../../../packages/client-core/src/saved': {default: {}, SavedService: FakeSavedService},
   });
-  const {MusicPlaylistPickerController} = await screenModule(new URL('../src-next/screens/destinations/music/MusicPlaylistPicker.tsx', import.meta.url), {
+  const {MusicPlaylistPickerController} = await screenModule(new URL('../src-next/shell/music-playlist-picker.tsx', import.meta.url), {
     react: {default: {createElement() {}, useSyncExternalStore() {}}, useSyncExternalStore: () => ({})},
-    '../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'},
-    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
-    '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}})},
-    '../../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request-id'})},
-    './playlist-port': {MusicPlaylistPort},
+    '../../../../packages/i18n/src': {defaultI18n},
+    '../kit/overlays': {Menu: 'Menu'}, '../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'},
+    '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}})},
+    '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request-id'})},
+    '../screens/destinations/music/playlist-port': {MusicPlaylistPort},
   });
   const controller = new MusicPlaylistPickerController({api: {request: async () => ({})}, current: () => true});
   const lifetime = {signal: new AbortController().signal, isCurrent: () => true};
@@ -343,14 +343,14 @@ test('New playlist makes the playlist and adds the song to it in one step', asyn
     react: {default: {}},
     '../../../../../../packages/client-core/src/saved': {default: {}, SavedService: FakeSavedService},
   });
-  const {MusicPlaylistPickerController} = await screenModule(new URL('../src-next/screens/destinations/music/MusicPlaylistPicker.tsx', import.meta.url), {
+  const {MusicPlaylistPickerController} = await screenModule(new URL('../src-next/shell/music-playlist-picker.tsx', import.meta.url), {
     react: {default: {createElement() {}, useSyncExternalStore() {}}, useSyncExternalStore: () => ({})},
-    '../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'},
-    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
-    '../lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}})},
-    '../../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request-id'})},
-    './playlist-port': {MusicPlaylistPort},
+    '../../../../packages/i18n/src': {defaultI18n},
+    '../kit/overlays': {Menu: 'Menu'}, '../kit/saved/SavedForms': {SavedNameSheet: 'SavedNameSheet'},
+    '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}})},
+    '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request-id'})},
+    '../screens/destinations/music/playlist-port': {MusicPlaylistPort},
   });
   const controller = new MusicPlaylistPickerController({api: {request: async () => ({})}, current: () => true});
   const added: unknown[] = [];

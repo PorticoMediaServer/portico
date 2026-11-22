@@ -11,7 +11,7 @@ import {AlbumPage} from '../pages/touch/music/AlbumPage';
 import {ArtistPage} from '../pages/touch/music/ArtistPage';
 import {ArtistPage as TVArtistPage} from '../pages/tv/music/ArtistPage';
 import {AlbumPage as TVAlbumPage} from '../pages/tv/music/AlbumPage';
-import {createMusicPlaylistPicker, type MusicPlaylistPickerHandle} from '../screens/destinations/music/MusicPlaylistPicker';
+import {createMusicPlaylistPicker, type MusicPlaylistPickerHandle} from './music-playlist-picker';
 import {nativeDownloadRequest} from '../screens/watch/download-request';
 import {askNativeDownload} from '../screens/downloads/request';
 import {nativeScreenServices} from '../screens/native-screen-services';

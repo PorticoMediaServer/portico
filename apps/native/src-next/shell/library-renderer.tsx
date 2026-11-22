@@ -1,33 +1,33 @@
 import React from 'react';
 import {Platform} from 'react-native';
-import type {BrowseLabels} from '../../kit/browse';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {sameAuthority} from '../../shell/model';
-import type {NativeRouteRenderer} from '../../shell/route-registry';
-import type {NativeDestinationActivationPort} from '../destinations/focus';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import type {NativeSelection} from '../selection/native-selection';
-import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
-import {CoveredLayer} from '../../kit/focus';
-import {homeSeeAllRoute} from '../../shell/routes';
-import {LibraryPage} from '../../pages/touch/library/LibraryPage';
-import {LibraryPage as TVLibraryPage} from '../../pages/tv/library/LibraryPage';
-import type {LibraryProps} from '../../pages/shared/library/useLibrary';
-import type {NativeLibraryActions, NativeLibrarySelectionPort} from './types';
-import {NativeLibraryDestination} from './model';
-import {NativeLibraryDirectory} from './directory';
-import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../read/platform';
-import {libraryTab, libraryTabs, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
-import {BooksPage} from '../../pages/touch/reading/BooksPage';
-import {createNativeLibraryPlaySelection} from './play-selection';
-import {createNativeDiscoverSelection} from './discover-selection';
-import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNamingPanelId} from './tv-library';
-import {NativeTVLibrarySurface} from '../../kit/library/TVSaveViewPanel';
-import type {NativeTVLibraryNamingStore} from './tv-library';
-import {nativeLibraryOpening, nativeLibraryOpeningRoute} from './opening';
-import {takeLibrarySavedView} from './saved-view-intent';
-import {observeFirstScan, type NativeLibraryFirstScanPort} from './first-scan';
-import {viewerQueriesFor} from '../../shell/freshness';
+import type {BrowseLabels} from '../kit/browse';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {sameAuthority} from './model';
+import type {NativeRouteRenderer} from './route-registry';
+import type {NativeDestinationActivationPort} from '../screens/destinations/focus';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import type {NativeSelection} from '../screens/selection/native-selection';
+import {MusicMixesRow} from '../screens/destinations/music/MusicMixesRow';
+import {CoveredLayer} from '../kit/focus';
+import {homeSeeAllRoute} from './routes';
+import {LibraryPage} from '../pages/touch/library/LibraryPage';
+import {LibraryPage as TVLibraryPage} from '../pages/tv/library/LibraryPage';
+import type {LibraryProps} from '../pages/shared/library/useLibrary';
+import type {NativeLibraryActions, NativeLibrarySelectionPort} from '../screens/library/types';
+import {NativeLibraryDestination} from '../screens/library/model';
+import {NativeLibraryDirectory} from '../screens/library/directory';
+import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../screens/read/platform';
+import {libraryTab, libraryTabs, type LibraryTabId} from '../../../../packages/client-core/src/presentation/library-tabs';
+import {BooksPage} from '../pages/touch/reading/BooksPage';
+import {createNativeLibraryPlaySelection} from '../screens/library/play-selection';
+import {createNativeDiscoverSelection} from '../screens/library/discover-selection';
+import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNamingPanelId} from '../screens/library/tv-library';
+import {NativeTVLibrarySurface} from '../kit/library/TVSaveViewPanel';
+import type {NativeTVLibraryNamingStore} from '../screens/library/tv-library';
+import {nativeLibraryOpening, nativeLibraryOpeningRoute} from '../screens/library/opening';
+import {takeLibrarySavedView} from '../screens/library/saved-view-intent';
+import {observeFirstScan, type NativeLibraryFirstScanPort} from '../screens/library/first-scan';
+import {viewerQueriesFor} from './freshness';
 
 export type NativeLibraryRendererPorts = Readonly<{
   activation: (libraryId: string) => NativeDestinationActivationPort;
@@ -142,8 +142,8 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
   };
 }
 
-export type {NativeLibraryActions, NativeLibrarySelectionPort} from './types';
-export type {NativeLibraryViewDraft} from './model';
+export type {NativeLibraryActions, NativeLibrarySelectionPort} from '../screens/library/types';
+export type {NativeLibraryViewDraft} from '../screens/library/model';
 export {createNativeLibraryPlaySelection};
 
 function LibrarySurface(props: LibraryProps) {
