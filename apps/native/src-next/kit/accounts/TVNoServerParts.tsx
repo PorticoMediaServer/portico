@@ -1,6 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {tvAccountSpec} from '@portico/design';
+import QRCode from 'react-native-qrcode-svg';
 import {Focusable} from '../controls';
 import {FocusRegion, type FocusRegionProps} from '../focus';
 import {Icon, type IconName} from '../Icon';
@@ -26,7 +27,7 @@ export function TVAccountWidePage({kicker, title, body, notice, children, foot, 
         {body !== undefined && <Text style={[theme.type.accountLede, {color: theme.colors.textSecondary, maxWidth: wide.ledeMax}]}>{body}</Text>}
         {notice && <View style={{marginTop: wide.noticeGap, gap: tvAccountSpec.fieldGap}}>{notice}</View>}
         <View style={{marginTop: wide.sectionGap}}>{children}</View>
-        {foot && <View style={{marginTop: wide.sectionGap}}>{foot}</View>}
+        {foot}
       </ScrollView>
     </View>
   </View>;
@@ -52,14 +53,16 @@ export function TVDoors({region, children}: {region: Region; children: ReactNode
 /** The page's links under the doors (Find a server on this Wi-Fi, Sign out of Portico Account), far enough apart that one's
  * focus ring never covers the other's words. */
 export function TVAccountLinks({region, children}: {region: Region; children: ReactNode}) {
-  return <FocusRegion {...region} orientation="horizontal" style={{flexDirection: 'row', flexWrap: 'wrap', gap: wide.linkGap}}>{children}</FocusRegion>;
+  return <FocusRegion {...region} orientation="horizontal"
+    style={{flexDirection: 'row', flexWrap: 'wrap', gap: wide.linkGap, marginTop: wide.sectionGap}}>{children}</FocusRegion>;
 }
 
 /** One door: its glyph in a round chip, its title and what it does; the set-up door carries its download code at the right. */
 /** `short`: under a notice (connect 38) the doors are lower and the code smaller, so the links under them stay inside the TV's
  * safe area. */
-export function TVDoor({focusId, icon, title, body, aside, disabled, onPress, accessibilityLabel, short = false}: {focusId: string; icon: IconName;
-  title: string; body: string; aside?: ReactNode; disabled?: boolean; onPress?: () => void; accessibilityLabel?: string; short?: boolean}) {
+export function TVDoor({focusId, icon, title, body, code: codeUrl, codeLabel, disabled, onPress, accessibilityLabel, short = false}: {
+  focusId: string; icon: IconName; title: string; body: string; code?: string; codeLabel?: string; disabled?: boolean;
+  onPress?: () => void; accessibilityLabel?: string; short?: boolean}) {
   const theme = useTheme(), door = wide.door, height = short ? door.short.height : door.height, code = tvDoorCode(short);
   return <Focusable focusId={focusId} focusKind="card" focusRadius={door.radius} disabled={disabled} focusableWhenDisabled onPress={onPress} accessibilityRole="button"
     accessibilityLabel={accessibilityLabel ?? title} style={{flex: 1, minHeight: height, padding: door.padding, borderRadius: door.radius,
@@ -70,14 +73,15 @@ export function TVDoor({focusId, icon, title, body, aside, disabled, onPress, ac
     <Text style={[theme.type.title, {color: theme.colors.text, marginBottom: theme.space.sm}]}>{title}</Text>
     <View style={{flexDirection: 'row', gap: theme.space.lg}}>
       <Text style={[theme.type.accountLede, {flex: 1, color: theme.colors.textSecondary}]}>{body}</Text>
-      {aside && <View style={{width: code, height: code, padding: door.codePad, borderRadius: theme.baseRadii.control,
-        backgroundColor: theme.colors.white, marginTop: -door.codeRise}}>{aside}</View>}
+      {codeUrl && <View accessible accessibilityLabel={codeLabel ?? codeUrl} style={{width: code, height: code, padding: door.codePad,
+        borderRadius: theme.baseRadii.control, backgroundColor: theme.colors.white, marginTop: -door.codeRise}}>
+        <QRCode value={codeUrl} size={code - 2 * door.codePad}/>
+      </View>}
     </View>
   </Focusable>;
 }
 
-/** The set-up door's code size, so its caller draws the code to fit. */
-export function tvDoorCode(short = false) {
+function tvDoorCode(short = false) {
   return short ? wide.door.short.code : wide.door.code;
 }
 

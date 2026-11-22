@@ -1,14 +1,13 @@
 import React from 'react';
-import QRCode from 'react-native-qrcode-svg';
 import {tvAccountSpec} from '@portico/design';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {TVAccountLinks, TVAccountNotice, TVAccountWidePage, TVDoor, TVDoors, TVInvitationForm, tvDoorCode} from '../../../kit/accounts/TVNoServerParts';
+import {TVAccountLinks, TVAccountNotice, TVAccountWidePage, TVDoor, TVDoors, TVInvitationForm} from '../../../kit/accounts/TVNoServerParts';
 import {Button, TextField} from '../../../kit/controls';
 import {FocusProvider} from '../../../kit/focus';
 import {NativeTVKeyboard} from '../../../screens/search/TVKeyboard';
 import {useTVNoServers, type TVNoServersProps} from '../../shared/accounts/useTVNoServers';
 
-const t = defaultI18n.t, download = 'https://getportico.tv/download/', door = tvAccountSpec.wide.door;
+const t = defaultI18n.t, download = 'https://getportico.tv/download/';
 
 /** A Portico Account with no servers on a TV (connect 35; connect 38 when the account was just removed from one): Join with an
  * invitation and Set up your own server (its download code), Find a server on this Wi-Fi and Sign out under them. OK on Join
@@ -51,7 +50,7 @@ export function NoServersPage(props: TVNoServersProps) {
           short={!!noticeView}/>
         {/* Set up is informational: OK keeps its code and steps in front and runs nothing. */}
         <TVDoor focusId="setup" icon="i-server" title={t('services.start.setup')} body={t('services.start.phoneSetupBody')} disabled={busy}
-          short={!!noticeView} aside={<QRCode value={download} size={tvDoorCode(!!noticeView) - 2 * door.codePad}/>}/>
+          short={!!noticeView} code={download} codeLabel={download}/>
       </TVDoors>
     </TVAccountWidePage>}</FocusProvider>;
 }
