@@ -7,7 +7,7 @@ import {AppState, Keyboard, NativeModules, Platform, type ScrollView, type View}
 import {settingsStructure, settingsRowId, searchSettings, findSettingsPage, type SettingsPage} from '../../../../../../packages/client-core/src/presentation/settings-structure';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 import {useTheme} from '../../../kit/theme';
-import {useCovered, useFocusRegistry} from '../../../kit/focus';
+import {useCovered, useFocusRegistry, type FocusAddress} from '../../../kit/focus';
 import type {SettingsRowTargeting} from '../../../kit/shell';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {tvFocusIds} from '../../../shell/tv-focus';
@@ -185,7 +185,9 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const openMatch = (address: string, rowId?: string) => {
     const found = findSettingsPage(searchable, address);
     if (!found || !viewCurrent()) return;
-    if (theme.isTV) {setSearching(false); setQuery('');}
+    // TV: closing search here is a settle too, as on Back: the field focus Android drops as the keyboard goes must not
+    // reopen search before focus reaches the chosen page's row.
+    if (theme.isTV) {settling.current = true; settleAim.current = rowId ? {regionId: ids.surface(`settings.rows.${found.page.id}`), childId: rowId} : undefined; setSearching(false); setQuery('');}
     else Keyboard.dismiss();
     choose(found.page.id);
     if (rowId) setTarget({opening, page: found.page.id, rowId, serial: ++targetSerial.current});
@@ -231,13 +233,17 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
     : {flash: {rowId: aimed.rowId, serial: aimed.serial, reveal}}, [aimed, theme.isTV, reveal]);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
   const column = ids.surface('settings.pages'), rows = ids.surface(`settings.rows.${page?.id ?? ''}`), keyboard = ids.surface('settings.keyboard'), searchField = ids.surface('settings.search');
-  // TV: focus that the platform drops on the search field while Settings settles (as it opens, or as Back closes search and
-  // the keyboard goes) does not open search, or Back could never leave it: only a move the user makes onto the field does.
+  // TV: focus that the platform drops on the search field while Settings settles (as it opens, or as Back or a chosen result
+  // closes search and the keyboard goes) does not open search, or Back could never leave it: only a move the user makes onto
+  // the field does.
   // Settling ends once focus lands in Settings anywhere but the field, the keyboard or results that are going, or the side menu.
-  const settling = useRef(true), matchesPrefix = ids.surface('settings.matches.');
+  // A result chosen in search is that settle's aim: when the dropped focus lands on the field (after the row's own entry ask
+  // has landed, so that ask has stopped), the row asks again (`focusSearch`).
+  const settling = useRef(true), settleAim = useRef<FocusAddress | undefined>(undefined), matchesPrefix = ids.surface('settings.matches.');
   useLayoutEffect(() => theme.isTV ? registry.subscribe(() => {
     const now = registry.capture();
-    if (settling.current && now && now.regionId !== searchField && now.regionId !== ids.rail && !now.regionId.startsWith(keyboard) && !now.regionId.startsWith(matchesPrefix)) settling.current = false;
+    if (!settling.current || !now) return;
+    if (now.regionId !== searchField && now.regionId !== ids.rail && !now.regionId.startsWith(keyboard) && !now.regionId.startsWith(matchesPrefix)) {settling.current = false; settleAim.current = undefined;}
   }) : undefined, [registry, searchField, keyboard, matchesPrefix, ids, theme.isTV]);
   // Actual attached controls decide which result groups participate in the focus graph.
   // Conditional/unavailable rows must not strand focus in an empty intermediate group.
@@ -264,7 +270,7 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
       if (theme.platform !== 'phone' && accountPages[0]) {pageState.current = {...pageState.current, selected: accountPages[0].id}; setSelected(accountPages[0].id);}
       return true;
     }
-    if (searching) {settling.current = true; setSearching(false); setQuery(''); setRestoreRevision(value => value + 1); return true;}
+    if (searching) {settling.current = true; settleAim.current = undefined; setSearching(false); setQuery(''); setRestoreRevision(value => value + 1); return true;}
     // W-14: Back from anywhere in the page's content (its rows, or a custom page's own panels)
     // returns to that page in the column, never out of Settings.
     const focused = registry.capture()?.regionId;
@@ -344,7 +350,14 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const customPage = dashboardPage || remoteSourcesPage;
   const accountGroups = compact ? [orderedPages] : grouped(orderedPages, theme.isTV ? tvPageGroups : tabletAccountClusters);
   const serverGroups = grouped(serverGroupPages, compact ? [] : tabletServerClusters);
-  const focusSearch = () => {if (theme.isTV && !searching && !settling.current) {setSearching(true); setSearchRevision(value => value + 1);}};
+  const focusSearch = () => {
+    if (theme.isTV && !searching && settling.current) {
+      const aim = settleAim.current;
+      if (aim) requestAnimationFrame(() => {if (settling.current && settleAim.current === aim) registry.focus(aim);});
+      return;
+    }
+    if (theme.isTV && !searching) {setSearching(true); setSearchRevision(value => value + 1);}
+  };
   const openDashboard = () => {if (viewCurrent()) navigation.open({kind: 'server-dashboard'}, ports.context.authority());};
   // connect-24: a TV's More group lists Notifications and Watch Together under Switch server. They open their own routes, so
   // focusing one leaves the page shown as it is.
