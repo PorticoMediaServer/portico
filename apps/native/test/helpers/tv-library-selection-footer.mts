@@ -21,13 +21,14 @@ export function registerLibrarySelectionFooterTests({bindings, overlayBindings, 
       '../../../../packages/client-core/src/catalogue-query-selection': await import('../../../../packages/client-core/src/catalogue-query-selection'),
       '../../../../packages/client-core/src/selection-model': selection, '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection': await import('../../../../packages/client-core/src/media-selection'),
       './selection-display': display, '../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'PhoneBar', BulkEditor: 'Bulk', DeleteMediaDialog: 'Delete'},
-      '../kit/theme': {useTheme: () => b.theme}, '../kit/overlays': o.surface, '../kit/controls': {Button: o.Button},
+      '../kit/theme': {useTheme: () => b.theme}, '../kit/overlays/OverlayHost': {OverlayPortal: ({children}: {children: unknown}) => children}, '../kit/overlays': o.surface, '../kit/controls': {Button: o.Button},
       '../screens/destinations/lifetime': scope, '../screens/native-screen-services': {nativeScreenServices: () => ({})}, '../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'Picker'},
       '../screens/search/loaded-destinations': {NativeLoadedDestinations: class {}}, '../screens/destinations/bulk-media': {NativeBulkMedia: class {}}, '../screens/library/model': {},
       '../screens/library/selection-unavailable-actions': selectionUnavailableActions,
       '../screens/library/play-selection': {createNativeLibraryPlaySelection() {throw new Error('footer vector must not create a producer');}}});
     const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'original', viewerFence: 'viewer'};
-    const context = {session: () => ({viewer: {...authority, authority: 'local'}}), authority: () => authority, current: () => true, subscribeAuthority: () => () => {}};
+    const context = {session: () => ({viewer: {...authority, authority: 'local'}}), authority: () => authority, current: () => true, subscribeAuthority: () => () => {},
+      playback: {subscribe: () => () => {}, getSnapshot: () => ({dock: {}})}};
     const libraryListeners = new Set<() => void>(), librarySnapshot = {phase: 'loading'};
     const librarySource = {getSnapshot: () => librarySnapshot, subscribe: (listener: () => void) => {libraryListeners.add(listener); return () => libraryListeners.delete(listener);}};
     const port = module.createNativeLibrarySelection(context, librarySource, {subscribe: () => () => {}, getSnapshot: (() => {const snapshot = {visible: true}; return () => snapshot;})()});
@@ -35,7 +36,7 @@ export function registerLibrarySelectionFooterTests({bindings, overlayBindings, 
     let busy = false, token = 1, active = true, clears = 0, retries = 0, tree: any, panel: any;
     const view = {active: true, selectedKeys: ['original'], target: {mode: 'explicit'}, summary: {count: 1, types: [{kind: 'movie', count: 1}], every: {}}};
     // The selection operation port is controlled; all presenter guards and kit bindings are real.
-    const store = {queryDeleteOffered: () => false, subscribe: () => () => {}, getSnapshot: () => 1, snapshot: () => view, active: () => active, personal: () => ({results: [{key: 'original', title: 'Original', status: failed ? 'failed' : 'saved'}]}),
+    const store = {queryDeleteOffered: () => false, subscribe: () => () => {}, getSnapshot: () => 1, subscribePlayback: () => () => {}, mediaExpanded: () => false, snapshot: () => view, active: () => active, personal: () => ({results: [{key: 'original', title: 'Original', status: failed ? 'failed' : 'saved'}]}),
       personalBusy: () => busy, busy: () => busy, resultsToken: () => token, whole: () => undefined, wholeUnavailable: () => undefined, destination: () => undefined, destinationKind: () => undefined, bulk: () => undefined,
       queueControl: () => false, loadedCount: () => 1, entries: () => [], clear() {clears++; active = false;}, async retryPersonal() {retries++;}};
     const source = createFabricHookHost(() => {tree = element.type({...element.props, store});});

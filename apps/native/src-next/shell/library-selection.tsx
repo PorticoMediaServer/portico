@@ -21,6 +21,7 @@ import {BulkEditor, DeleteMediaDialog, SelectionBar, SelectionPhoneActionBar, ty
 import type {LayoutSelection} from '../kit/layout';
 import {useTheme} from '../kit/theme';
 import {Dialog, SidePanel} from '../kit/overlays';
+import {OverlayPortal} from '../kit/overlays/OverlayHost';
 import {Button} from '../kit/controls';
 import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
 import type {NativeDestinationActivationPort} from '../screens/destinations/focus';
@@ -333,6 +334,8 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   const store = {subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};},
     getSnapshot: () => revision, snapshot, loadedCount: () => loaded().length, personal: () => personal?.service.getSnapshot(),
     personalBusy: () => !!personal?.service.getSnapshot().busy, resultsToken: () => personalToken,
+    // The phone bar sits on the shell's root layer, above the player: it steps aside while the player or listening cover is open.
+    subscribePlayback: context.playback.subscribe, mediaExpanded: () => context.playback.getSnapshot().dock.local?.expanded === true,
     // An open bulk dialog owns the current operation: the bar must not offer another.
     busy: () => !!pending || !!personal?.service.getSnapshot().busy || !!destinations?.snapshot().busy || !!bulkController, active: () => entering || !!snapshot()?.active, queueControl, clear, execute, applyPersonal, retryPersonal,
     destination: () => destinations, destinationKind: () => destinationKind, openDestination, closeDestinations,
@@ -365,10 +368,22 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     // Both callbacks belong to the producer and query token this snapshot was
     // drawn from; a successor view never receives a stale key press.
     const owner = producer, ownerToken = token, live = () => owner === producer && ownerToken === token && !!owner;
+    // A card menu opened on one view never starts a selection on the next (a library or tab switch since).
+    const viewToken = sourceToken();
     layoutSnapshot = Object.freeze({active: entering || !!snapshot()?.active,
       isSelected: (key: string) => live() && !!entryForKey(key) && selectedKeys().includes(keyOf(entryForKey(key)!) ?? ''),
-      onToggle: (key: string) => {if (live()) toggle(key);}, onEnter: (key: string) => {if (live()) toggle(key);}});
+      onToggle: (key: string) => {if (live()) toggle(key);}, onEnter: (key: string) => {if (live()) toggle(key); else if (!owner && sourceToken() === viewToken) enter(key);}});
     return layoutSnapshot;
+  };
+  // Select from a card's menu before anything is selected: no producer exists yet, so the card's enter starts one (as the
+  // toolbar's Select does). Without this, Select from a card's menu did nothing in a library opened fresh (22 Nov).
+  // The pick reads only the card's own window and is applied when that read lands (toggle). Before the first selection
+  // no window is registered yet: the pick waits as `queued`, and registration reads only the window that holds it
+  // (register), never every window.
+  const enter = (key: string) => {
+    if (!ensure()) return;
+    if (entryForKey(key)) {toggle(key); return;}
+    entering = true; queued = key; emit();
   };
   const port: NativeLibrarySelectionPort = {
     start: () => {ensure(); entering = true; emit(); prepareAll();},
@@ -380,7 +395,8 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
       const id = `library-window-${first}-${entries.length}`;
       const entry = {first, entries, gone: false, reading: false} as {first: number; entries: readonly ContentEntry[]; gone: boolean; reading: boolean; window?: RegisteredWindow};
       pendingWindows.set(id, entry);
-      if (entering || current.model.getSnapshot().active) prepare(id);
+      // A card's Select reads only the window that holds its card; Select in the toolbar reads every window.
+      if (current.model.getSnapshot().active || entering && (!queued || entries.some(value => nativeLibraryEntryKey(value) === queued))) prepare(id);
       return () => {
         entry.gone = true;
         // Only the exact record and window this registration created may be
@@ -391,10 +407,10 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
       };
     },
     item: entry => {
-      const owner = producer, ownerToken = token, key = nativeLibraryEntryKey(entry), live = () => owner === producer && ownerToken === token && !!owner;
+      const owner = producer, ownerToken = token, key = nativeLibraryEntryKey(entry), live = () => owner === producer && ownerToken === token && !!owner, viewToken = sourceToken();
       return {active: entering || !!snapshot()?.active,
         selected: live() && !!keyOf(entry) && selectedKeys().includes(keyOf(entry)!),
-        onToggle: () => {if (live()) toggle(key);}, onEnter: () => {if (live()) toggle(key);}};
+        onToggle: () => {if (live()) toggle(key);}, onEnter: () => {if (live()) toggle(key); else if (!owner && sourceToken() === viewToken) enter(key);}};
     },
     render: (artwork?: (path?: string) => React.ReactNode) => <LibrarySelectionBars store={store} artwork={artwork ?? (() => null)}/>,
   };
@@ -402,7 +418,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   return Object.freeze({...port, dispose: () => {if (disposed) return; disposed = true; off.forEach(stop => stop()); reset(); syncHold(); listeners.clear();}});
 }
 
-type Store = {subscribe(listener: () => void): () => void; getSnapshot(): number; snapshot(): SelectionSnapshot<BrowseSelectionContext> | undefined;
+type Store = {subscribe(listener: () => void): () => void; getSnapshot(): number; subscribePlayback(listener: () => void): () => void; mediaExpanded(): boolean; snapshot(): SelectionSnapshot<BrowseSelectionContext> | undefined;
   personal(): ReturnType<ReturnType<typeof createCataloguePersonalSelection>['service']['getSnapshot']> | undefined;
   personalBusy(): boolean; resultsToken(): number;
   applyPersonal(action: 'myList' | 'removeMyList' | 'favorite' | 'watched' | 'unwatched', view: SelectionSnapshot<BrowseSelectionContext>): Promise<void>; retryPersonal(): Promise<void>;
@@ -421,6 +437,7 @@ type Store = {subscribe(listener: () => void): () => void; getSnapshot(): number
 
 function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: string) => React.ReactNode}) {
   useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const mediaExpanded = useSyncExternalStore(store.subscribePlayback, store.mediaExpanded);
   const theme = useTheme(), insets = useSafeAreaInsets(), [menu, setMenu] = useState<SelectionBarProps['menu']>(null);
   // Hooks stay above the inactive return so a bar that leaves the tree cannot change hook order.
   const doneRef = useRef<View>(null), retryRef = useRef<View>(null);
@@ -492,9 +509,12 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
   const footer = personal && <><Button ref={doneRef} focusId="done" disabled={store.personalBusy()} onPress={done}>{defaultI18n.t('next.selection.done')}</Button>
     {failed && <Button ref={retryRef} focusId="retry" disabled={store.personalBusy()} onPress={retry}>{defaultI18n.t('next.selection.retry')}</Button>}</>;
   return <>
-    <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.navigation + 1}}>
-      {!theme.isTV && <View style={{position: 'absolute', left: 0, right: 0, bottom: 0}}><SelectionPhoneActionBar {...props} bottomInset={Math.max(34, insets.bottom)}/></View>}
-    </View>
+    {/* The library draws these bars in its toolbar's place, so the phone's action bar goes to the shell's root overlay
+        layer: inside the toolbar it sat at the toolbar's foot and covered Cancel and the count. That layer is above the
+        player, so the bar is not drawn while the player or listening cover is open. */}
+    {!theme.isTV && !mediaExpanded && <OverlayPortal><View pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>
+      <View style={{position: 'absolute', left: 0, right: 0, bottom: 0}}><SelectionPhoneActionBar {...props} bottomInset={Math.max(34, insets.bottom)}/></View>
+    </View></OverlayPortal>}
     {theme.isTV ? <View style={{marginLeft: 200, marginRight: 96}}><SelectionBar {...props}/></View> : <SelectionBar {...props}/>}
     {personal && summary && (theme.isTV
       ? <SidePanel testID="library-selection-results" open onOpenChange={closeResults} showClose={false} dismissOnBack={!store.personalBusy()}

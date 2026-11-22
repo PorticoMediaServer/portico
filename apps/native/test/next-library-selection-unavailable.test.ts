@@ -31,13 +31,13 @@ test('actual native Library selection composes the refusal without an executor a
   '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection':{},
   './selection-display':{selectedItemsLabel:()=> '1 movie'},
   '../kit/selection':{SelectionBar:'SelectionBar',SelectionPhoneActionBar:'SelectionPhoneActionBar'},
-  '../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../kit/overlays':{},'../kit/controls':{},
+  '../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../kit/overlays/OverlayHost': {OverlayPortal: ({children}: any) => children}, '../kit/overlays':{},'../kit/controls':{},
   '../screens/destinations/lifetime':{nativeDestinationLifetime:()=>({current:()=>true})},
   '../screens/native-screen-services':{nativeScreenServices:()=>({})},'../kit/selection/LoadedDestinationPicker':{},'../screens/search/loaded-destinations':{},'../screens/destinations/bulk-media':{},
   '../screens/library/model':{nativeLibraryEntryKey:()=>''},'../screens/library/play-selection':{createNativeLibraryPlaySelection:()=>producer},
   '../screens/library/selection-unavailable-actions':selectionUnavailableActions,
  });
- const port=createNativeLibrarySelection({subscribeAuthority:()=>()=>{}} as any,source as any,{getSnapshot:()=>({visible:true}),subscribe:()=>()=>{}} as any);
+ const port=createNativeLibrarySelection({subscribeAuthority:()=>()=>{},playback:{subscribe:()=>()=>{},getSnapshot:()=>({dock:{}})}} as any,source as any,{getSnapshot:()=>({visible:true}),subscribe:()=>()=>{}} as any);
  const off=port.subscribe(()=>{notifications++;});
  const nodes=(value:any):any[]=>Array.isArray(value)?value.flatMap(nodes):value?.props?[value,...nodes(value.props.children)]:[];
  const bar=()=>{const element=port.render() as any;return nodes(host.render(()=>element.type(element.props))).find(n=>n.type==='SelectionBar');};

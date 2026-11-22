@@ -1,6 +1,5 @@
 import {BrowseSelectionModel, browseSelectionKey, playCatalogueSelection, readCatalogueSelectionItem, type BrowseSelectionContext, type SelectionItem, type SelectionOperation} from '../../../../../packages/client-core/src/selection-model';
 import {playCatalogueQuerySelection} from '../../../../../packages/client-core/src/catalogue-query-selection';
-import {browseWholeSelectionQuery} from '../../../../../packages/client-core/src/browse-whole-selection';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativeDestinationActivation} from '../../shell/routes';
@@ -13,9 +12,11 @@ const cancelled = () => Object.assign(new Error('native_library_selection_retire
 const unavailable = () => Object.assign(new Error('native_library_selection_unavailable'), {code: 'unavailable'});
 
 /** One captured applied Browse query, not a Home context. Recreate after a
- * query/token change. Leaves carry the grants the library really executes, and a
- * whole-view selection is bound to the server's own aggregate on this same
- * captured ticket; only Play and Queue have query executors. */
+ * query/token change. Leaves carry the grants the library really executes. Windows
+ * are registered without a whole-view query: the client cannot know the server's
+ * whole-view capability counts, so `whole` (and Select all) is only ever set from a
+ * summary the server sends; until then it stays unset. Only Play and Queue have
+ * query executors. */
 export function createNativeLibraryPlaySelection(context: NativeShellBootstrapContext, source: NativeLibraryDestination) {
   const lifetime = nativeDestinationLifetime(context), opening = source.getSnapshot(), viewer = context.session()!.viewer;
   if (opening.phase !== 'ready' || !opening.revision || !opening.collection || !opening.sort) throw unavailable();
@@ -30,7 +31,7 @@ export function createNativeLibraryPlaySelection(context: NativeShellBootstrapCo
   const model = new BrowseSelectionModel(captured), player = context.playback.runtime.cataloguePlayback();
   const common = nativeScreenServices(context), activation = nativeDestinationActivation(context.navigation, {kind: 'library', libraryId: opening.library.id});
   const collection = opening.collection, cleanups: (() => void)[] = [];
-  // One registered whole-view descriptor per producer and captured ticket; it is
+  // A whole-view descriptor the server sends would bind here (none today; see the window registration below). It is
   // released with this producer and never carried to another view.
   let whole: Readonly<{id: string; total: number}> | undefined, releaseWhole: (() => void) | undefined;
   const windows = new Map<string, () => void>();
@@ -85,20 +86,17 @@ export function createNativeLibraryPlaySelection(context: NativeShellBootstrapCo
           while (cursor < entries.length) {
             const index = cursor++;
             items[index] = await readCatalogueSelectionItem({queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope, requestId: common.requestId,
-              signal: controller.signal, isCurrent: live}, entries[index], {play: true, queue, myList: true, favorite: true, watched: true, playlist: true, collection: true, edit: true, delete: true});
+              signal: controller.signal, isCurrent: live}, entries[index], {play: true, queue, myList: true, favorite: true, watched: true, playlist: true, collection: true,
+              // Edit opens the owner's bulk editor; only the owner is offered it (as Delete's whole-view check already is).
+              edit: context.session()?.viewer.role === 'owner', delete: true});
           }
         }));
         if (!live()) throw cancelled();
-        // Only the server's exact aggregate can describe the whole view; it is
-        // registered on this same ticket so the windows below bind to real membership.
-        const snapshot = source.getSnapshot(), descriptor = snapshot.wholeSelection;
-        if (!whole && descriptor && descriptor.libraryId === snapshot.library.id) {
-          const query = browseWholeSelectionQuery(descriptor);
-          if (query) {
-            const registration = model.registerQuery(ticket, query);
-            if (registration.ok) {releaseWhole = registration.unregister; whole = Object.freeze({id: query.id, total: query.total});}
-          }
-        }
+        // Windows are not bound to a whole-view summary. The rebuilt server sends none, and the one the browse session builds
+        // on this client guesses exact counts per action (every title playable, every one editable…); the model checks each
+        // window against it, and one title that differs (a container, a missing file, a port this device lacks, a profile that
+        // isn't the owner) refused every window, so nothing could be picked on a phone (22 Nov). Titles are picked one by one;
+        // Select all waits for a summary the server sends (asked, REQUESTS.md 22 Nov).
         const result = model.registerWindow(ticket, {id, sectionId: 'library-browse', sectionOrder: 0, start, items, ...(whole ? {queryId: whole.id} : {})});
         if (!result.ok) throw cancelled();
         unregister = result.unregister; registered = true;
