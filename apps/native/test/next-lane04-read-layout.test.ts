@@ -53,7 +53,7 @@ test('reading shelf keeps a bounded native window, starts ten cards early and dr
 
 test('phone card long press opens its anchored menu and selection tap does not open the book', async () => {
   const r = renderer(), {PhoneReadingBookCard} = await screenModule(new URL('../src-next/kit/reading/PhoneReadingBookCard.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},'../cards/model': cardModel,
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},'../cards/model': cardModel,
     react: r.react, 'react-native': {Text: 'Text', View: 'View'}, '@portico/design': {generatedCoverTint: () => ({})},
     '../artwork': {StandardBackdrop: 'StandardBackdrop', GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../controls': {Focusable: 'Focusable'},
     '../selection': {SelectionCircle: 'SelectionCircle'}, '../browse/presentation': {browseType: typography}, '../theme': {useTheme: () => createTheme({isTV: false, width: 390})},
@@ -93,7 +93,7 @@ async function periodical(tablet: boolean, magazine: boolean, phase = 'ready') {
     '../theme': {useTheme, textLine}, '../../screens/read/periodical-presentation': presentation,
     '../../pages/shared/read/usePeriodicalActions': {usePeriodicalActions: () => ({})},
     './ReadingShelf': {ReadingShelf: 'ReadingShelf'}, './ReadingActions': {ReadingSelectionToolbar: 'ReadingSelectionToolbar'},
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
   });
   const frame = await screenModule(new URL('../src-next/kit/frames/ReadingPeriodicalFrame.tsx', import.meta.url), {
     react: r.react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 44, bottom: 0})},
@@ -219,7 +219,7 @@ test('N5-4: a series volume the server can\'t serve takes no open, menu or selec
     '../selection': {SelectionCircle: 'SelectionCircle'}, '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
     '../states': {StateView: 'StateView', SkeletonBlock: 'SkeletonBlock', LoadingPaint: 'LoadingPaint'},
     '../browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../theme': {textLine: () => 20, useTheme: () => theme(false)},
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     '../layout/page-inset': {usePageWidth: () => 390},
   });
   const opens: string[] = [], menus: string[] = [], toggles: string[] = [];

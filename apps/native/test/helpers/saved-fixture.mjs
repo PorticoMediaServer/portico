@@ -62,7 +62,7 @@ export async function tvSavedDirectoryFixture(bindings) {
     '../theme': bindings['../../kit/theme'], '../focus': bindings['../../kit/focus'], '../Icon': bindings['../../kit/Icon'],
     '../artwork': bindings['../../kit/artwork'], '../cards/primitives': bindings['../../kit/cards/primitives'], '../controls': {Button: 'Button'},
     '../states': bindings['../../kit/states'], '../browse/presentation': bindings['../../kit/browse/presentation'],
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     './SavedTVLoading': bindings['./SavedTVLoading'], './PlaylistToolbar': bindings['./PlaylistToolbar'],
   });
   const page = await load('pages/tv/saved/SavedDirectoryPage.tsx', {

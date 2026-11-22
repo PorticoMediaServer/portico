@@ -225,7 +225,7 @@ test('Phone playlist directory exposes the producer pin and the shared field/dir
     react: f.modules.react, 'react-native': f.modules['react-native'], 'react-native-safe-area-context': f.modules['react-native-safe-area-context'],
     '../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../screens/saved/paging': {savedNearEnd},
     '../artwork': f.modules['../../kit/artwork'], '../controls': f.modules['../../kit/controls'], '../Icon': f.modules['../../kit/Icon'],
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     '../theme': f.modules['../../kit/theme'], '../browse/presentation': f.modules['../../kit/browse/presentation'],
     './SavedLoading': f.modules['../../kit/saved/SavedLoading'],
   });

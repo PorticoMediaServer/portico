@@ -37,13 +37,13 @@ test('the real sparse CardFrame keeps one native host from waiting through two l
       handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {touchMenuHaptic() {}},
     '../../platform/menu-key': {registerFocusedMenu: (_owner: unknown, callback: () => void) => {menus.push(callback); return () => {}; }},
-    '../Icon': {Icon: 'RCTIcon'}, '../selection/index': {SelectionHoldFeedback: 'RCTSelection'}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'RCTGuideTitle'},
+    '../Icon': {Icon: 'RCTIcon'}, '../selection/index': {SelectionHoldFeedback: 'RCTSelection'}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'RCTGuideTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     '../theme': {nativeType, useTheme: () => theme}, '../useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})},
     '../focus': {...focus, useCovered: () => false, useLayerCovered: () => false}, './model': cardModel,
   });
   const sparse = await screenModule(new URL('../src-next/kit/cards/TVSparseCardFrame.tsx', import.meta.url), {react, './primitives': primitives});
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     react, 'react-native': nativeModule, 'react-native-svg': {default: 'RCTSvg', Text: 'RCTSvgText'},
     '../../../../../packages/i18n/src/index': {defaultI18n}, '../theme': {useTheme: () => theme},
     '../artwork/index': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), MediaArt: 'RCTMediaArt', CircleArt: 'RCTCircleArt', PersonCircle: 'RCTPersonArt', GeneratedCoverClearance: {Provider: 'Provider'}, missingArt: () => undefined},

@@ -1,5 +1,6 @@
 import React, {useState, type ReactNode} from 'react';
 import {GuideProgrammeTitle} from '../live/GuideProgrammeTitle';
+import {PreviewText} from '../layout/PreviewText';
 import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Text as SvgText} from 'react-native-svg';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
@@ -245,7 +246,10 @@ export function EpisodeTile(props: EpisodeTileProps) {
   </View> : <Overlays props={props} hovered={s.hovered} holding={s.holding} height={height} playSize={48} persistentPlay={!t.isTV} episode />}>
     {s => <><View style={[{flexDirection: row ? 'row' : 'column', gap: row ? wide ? 18 : 14 : 0, alignItems: wide ? 'flex-start' : row ? 'center' : undefined},
       /* A tablet row that is playing is raised (tablet-play 2a). */ wide && props.playing && {padding: t.space.xs, margin: -t.space.xs, borderRadius: t.spec.card.badge.radius[t.column] * 2, backgroundColor: t.colors.raisedHigh}]}>{art(s.focused, s.hovered, s.holding)}{text}</View>
-      {props.synopsis && !wide && !phoneRow && <Text numberOfLines={row ? 2 : 3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8}]}>{props.synopsis}</Text>}
+      {/* A tile's synopsis: two lines on a tablet (tablet.html `.ep p`), cut on a whole word; TV keeps three (tv-detail, kit.css). */}
+      {props.synopsis && !wide && !phoneRow && (!t.isTV && !row
+        ? <View style={{marginTop: 8}}><PreviewText text={props.synopsis} lines={2} style={[t.type.episodeBody, {color: t.colors.textSecondary}]}/></View>
+        : <Text numberOfLines={row ? 2 : 3} style={[t.type.episodeBody, {color: t.colors.textSecondary, marginTop: row ? 9 : 8}]}>{props.synopsis}</Text>)}
     </>}
   </CardFrame>;
 }
