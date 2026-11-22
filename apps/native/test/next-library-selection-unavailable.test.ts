@@ -21,21 +21,21 @@ test('actual native Library selection composes the refusal without an executor a
  const selectionState={active:true,summary,selectedKeys:[],target:{mode:'explicit',items:[]}};
  const producer={model:{getSnapshot:()=>selectionState,subscribe:()=>()=>{},clear(){}},whole:()=>undefined,dispose(){disposed++;}};
  const source={getSnapshot:()=>sourceState,subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn);},hold:()=>()=>{}};
- const {createNativeLibrarySelection}=await screenModule(new URL('../src-next/screens/library/selection.tsx',import.meta.url),{
-  '../../platform/offline-downloads': {},
+ const {createNativeLibrarySelection}=await screenModule(new URL('../src-next/shell/library-selection.tsx',import.meta.url),{
+  '../platform/offline-downloads': {},
   react:host.react,'react-native':{Text:'Text',View:'View'},'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0})},
-  '../../../../../packages/i18n/src':{defaultI18n:{t:(key:string)=>key}},
-  '../../../../../packages/client-core/src/presentation/errors':{},
-  '../../../../../packages/client-core/src/catalogue-query-selection':{},
-  '../../../../../packages/client-core/src/selection-model':{selectionFourthAction:()=>undefined},
-  '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection':{},
-  '../../shell/selection-display':{selectedItemsLabel:()=> '1 movie'},
-  '../../kit/selection':{SelectionBar:'SelectionBar',SelectionPhoneActionBar:'SelectionPhoneActionBar'},
-  '../../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../../kit/overlays':{},'../../kit/controls':{},
-  '../destinations/lifetime':{nativeDestinationLifetime:()=>({current:()=>true})},
-  '../native-screen-services':{nativeScreenServices:()=>({})},'../../kit/selection/LoadedDestinationPicker':{},'../search/loaded-destinations':{},'../destinations/bulk-media':{},
-  './model':{nativeLibraryEntryKey:()=>''},'./play-selection':{createNativeLibraryPlaySelection:()=>producer},
-  './selection-unavailable-actions':selectionUnavailableActions,
+  '../../../../packages/i18n/src':{defaultI18n:{t:(key:string)=>key}},
+  '../../../../packages/client-core/src/presentation/errors':{},
+  '../../../../packages/client-core/src/catalogue-query-selection':{},
+  '../../../../packages/client-core/src/selection-model':{selectionFourthAction:()=>undefined},
+  '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection':{},
+  './selection-display':{selectedItemsLabel:()=> '1 movie'},
+  '../kit/selection':{SelectionBar:'SelectionBar',SelectionPhoneActionBar:'SelectionPhoneActionBar'},
+  '../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../kit/overlays':{},'../kit/controls':{},
+  '../screens/destinations/lifetime':{nativeDestinationLifetime:()=>({current:()=>true})},
+  '../screens/native-screen-services':{nativeScreenServices:()=>({})},'../kit/selection/LoadedDestinationPicker':{},'../screens/search/loaded-destinations':{},'../screens/destinations/bulk-media':{},
+  '../screens/library/model':{nativeLibraryEntryKey:()=>''},'../screens/library/play-selection':{createNativeLibraryPlaySelection:()=>producer},
+  '../screens/library/selection-unavailable-actions':selectionUnavailableActions,
  });
  const port=createNativeLibrarySelection({subscribeAuthority:()=>()=>{}} as any,source as any,{getSnapshot:()=>({visible:true}),subscribe:()=>()=>{}} as any);
  const off=port.subscribe(()=>{notifications++;});

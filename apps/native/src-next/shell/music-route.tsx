@@ -15,7 +15,7 @@ import {createMusicPlaylistPicker, type MusicPlaylistPickerHandle} from './music
 import {nativeDownloadRequest} from '../screens/watch/download-request';
 import {askNativeDownload} from '../screens/downloads/request';
 import {nativeScreenServices} from '../screens/native-screen-services';
-import {catalogueSelectionSource, createNativeSelection, type NativeCatalogueSelectionSnapshot, type NativeSelection} from '../screens/selection/native-selection';
+import {catalogueSelectionSource, createNativeSelection, type NativeCatalogueSelectionSnapshot, type NativeSelection} from './native-selection';
 
 
 type Page = Readonly<{current:()=>boolean;key: string; route: {kind: 'music'; entry: ContentEntry}; entry: ContentEntry; controller: NativeTVMusicController; actions: ReturnType<typeof createNativeEntryActions>; picker: MusicPlaylistPickerHandle; tvSelection?: NativeSelection; touchSelection?: NativeSelection; abort: AbortController}>;

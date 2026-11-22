@@ -7,7 +7,7 @@ import {type NativeShellRoute} from './routes';
 import type {NativeShellRuntime} from './runtime';
 import {authorityKey, sameAuthority} from './model';
 import {createNativeEntryActions} from '../screens/destinations/entry-actions';
-import {catalogueSelectionSource, createNativeSelection} from '../screens/selection/native-selection';
+import {catalogueSelectionSource, createNativeSelection} from './native-selection';
 import type {NativeDestinationActivationPort} from '../screens/destinations/focus';
 import {NativeCollectionController} from '../screens/collections/controller';
 import {CollectionPage} from '../pages/touch/collection/CollectionPage';

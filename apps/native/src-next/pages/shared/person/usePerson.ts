@@ -3,7 +3,7 @@ import type {PersonCredit, PersonPage, PersonRole} from '../../../../../../packa
 import type {WindowedCollection} from '../../../../../../packages/client-core/src/collections/windowed';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {createNativeEntryActions} from '../../../screens/destinations/entry-actions';
-import type {NativeSelection} from '../../../screens/selection/native-selection';
+import type {NativeSelection} from '../../../shell/native-selection';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {FactPart} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';

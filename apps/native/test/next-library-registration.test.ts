@@ -31,18 +31,18 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../../../../../packages/client-core/src/browse-whole-selection': browseWholeSelection, '../../shell/routes': {nativeDestinationActivation},
     '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
   });
-  const {createNativeLibrarySelection} = await screenModule(new URL('../src-next/screens/library/selection.tsx', import.meta.url), {
-    '../../platform/offline-downloads': {},
+  const {createNativeLibrarySelection} = await screenModule(new URL('../src-next/shell/library-selection.tsx', import.meta.url), {
+    '../platform/offline-downloads': {},
     react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
-    '../../../../../packages/client-core/src/catalogue-query-selection': catalogueQuerySelection, '../../../../../packages/client-core/src/selection-model': selectionModel,
-    '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': mediaSelection, '../../shell/selection-display': nativeSelectionDisplay,
-    '../../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
-    '../../kit/theme': {useTheme: () => theme}, '../../kit/overlays': {Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/controls': {Button: 'Button'},
-    '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
-    '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'}, '../search/loaded-destinations': {NativeLoadedDestinations: 'NativeLoadedDestinations'},
-    '../destinations/bulk-media': {NativeBulkMedia: 'NativeBulkMedia'}, './model': {nativeLibraryEntryKey}, './play-selection': playSelection,
-    './selection-unavailable-actions': selectionUnavailableActions,
+    '../../../../packages/i18n/src': {defaultI18n}, '../../../../packages/client-core/src/presentation/errors': {presentError},
+    '../../../../packages/client-core/src/catalogue-query-selection': catalogueQuerySelection, '../../../../packages/client-core/src/selection-model': selectionModel,
+    '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection': mediaSelection, './selection-display': nativeSelectionDisplay,
+    '../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
+    '../kit/theme': {useTheme: () => theme}, '../kit/overlays': {Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../kit/controls': {Button: 'Button'},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime}, '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
+    '../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'}, '../screens/search/loaded-destinations': {NativeLoadedDestinations: 'NativeLoadedDestinations'},
+    '../screens/destinations/bulk-media': {NativeBulkMedia: 'NativeBulkMedia'}, '../screens/library/model': {nativeLibraryEntryKey}, '../screens/library/play-selection': playSelection,
+    '../screens/library/selection-unavailable-actions': selectionUnavailableActions,
   });
   const {NativeLibraryMarkAllDialog} = await screenModule(new URL('../src-next/kit/library/LibraryDialogs.tsx', import.meta.url), {
     react, 'react-native': {Text: 'Text', TextInput: 'TextInput', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
@@ -57,7 +57,7 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({open() {}, play() {}, menu() {}, dispose() {}})},
     './library-renderer': {createNativeLibraryRenderer: (_context: unknown, actual: unknown) => {ports = actual; return {render: () => null, dispose: () => {disposed++;}};}},
     '../screens/library/model': {nativeLibraryCanSave}, '../screens/library/save-view': {NativeLibrarySaveView}, 
-    '../screens/library/selection': {createNativeLibrarySelection}, '../screens/library/mark-all': {NativeLibraryMarkAll: nativeMarkAll.NativeLibraryMarkAll}, '../kit/library/LibraryDialogs': {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet: 'SaveViewSheet'},
+    './library-selection': {createNativeLibrarySelection}, '../screens/library/mark-all': {NativeLibraryMarkAll: nativeMarkAll.NativeLibraryMarkAll}, '../kit/library/LibraryDialogs': {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet: 'SaveViewSheet'},
   });
   assert.equal(kind, 'library'); assert.equal(create, createNativeHandheldLibraryModule);
   const context = {current: () => true, navigation, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}),
