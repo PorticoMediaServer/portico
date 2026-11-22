@@ -74,6 +74,9 @@ const leavingModals = new Set<object>(), leavingListeners = new Set<() => void>(
 const leavingChanged = () => {for (const listener of [...leavingListeners]) listener();};
 const subscribeLeaving = (listener: () => void) => {leavingListeners.add(listener); return () => {leavingListeners.delete(listener);};};
 const leavingCount = () => leavingModals.size;
+/** How long a Modal unmounted while shown is treated as still leaving: React Native reports no dismissal after unmount,
+ * and a Menu's non-animated dismissal is done well within this. */
+export const UNMOUNTED_DISMISS_MS = 500;
 
 export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS, closing = false): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void; key: number}> {
   const ios = Platform.OS === 'ios';
@@ -100,6 +103,17 @@ export function useNativeModalPresence(present: boolean, shown = present, wait =
     : current.shown && !current.gone ? {...current, gone: true} : current), []);
   const token = now.token, onDismiss = useMemo(() => () => report(token), [report, token]);
   const holding = ios && (state.leaving || closing && state.shown);
+  // A Modal whose owner unmounts it while it is shown (a menu drawn only while its entry exists, closed by its own item)
+  // never reports a dismissal, yet UIKit is still taking it down: it counts as leaving for a short while, so a picker the
+  // item opens waits (iPhone, Search › ⋯ › Add to playlist…: #5012's wait alone was not enough).
+  const showing = useRef(false);
+  showing.current = ios && now.shown && present;
+  useEffect(() => () => {
+    if (!showing.current) return;
+    const entry = {};
+    leavingModals.add(entry); leavingChanged();
+    setTimeout(() => {if (leavingModals.delete(entry)) leavingChanged();}, UNMOUNTED_DISMISS_MS);
+  }, []);
   useEffect(() => {
     if (!holding) return;
     const entry = {}; own.current = entry; leavingModals.add(entry); leavingChanged();

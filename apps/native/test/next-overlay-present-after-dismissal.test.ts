@@ -83,3 +83,49 @@ test('on iOS a picker mounted in the same commit as the menu that opened it clos
   await menu.set(false);
   assert.equal(sheet.view.now.visible, true, 'presented once the menu has gone');
 });
+
+test('on iOS a picker opened as its menu is unmounted while shown waits until the menu has had time to leave (iPhone, #5012 look)', async () => {
+  const {useNativeModalPresence, UNMOUNTED_DISMISS_MS} = await screenModule(new URL('../src-next/kit/overlays/native-dismissal.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Platform: {OS: 'ios'}}, '../focus/layer-stack': {LAYER_FOCUS_WAIT_MS: 60_000},
+  });
+  // The title menu is drawn only while its entry exists: its item closes it by unmounting it, with no onDismiss to come.
+  const view = {menu: true, sheet: false, picker: undefined as any};
+  const Menu = () => {useNativeModalPresence(true, true); return null;};
+  const host = createFabricHookHost(() => {view.picker = useNativeModalPresence(view.sheet, view.sheet);});
+  const menuHost = createFabricHookHost(() => {Menu();});
+  await menuHost.mount(); await host.mount();
+  try {
+    await act(async () => {await menuHost.unmount(); view.sheet = true; host.rerender();});
+    await act(() => host.rerender());
+    assert.equal(view.picker.visible, false, 'not presented while UIKit may still be dismissing the unmounted menu');
+    await act(() => new Promise(resolve => setTimeout(resolve, UNMOUNTED_DISMISS_MS + 50)));
+    await act(() => host.rerender());
+    assert.equal(view.picker.visible, true, 'presented once the menu has had time to go');
+  } finally {await host.unmount();}
+});
+
+test('on iOS, in one tree and one update, a picker opened as its menu closes waits for the menu to leave (reviewer, #5012)', async () => {
+  const {useNativeModalPresence} = await screenModule(new URL('../src-next/kit/overlays/native-dismissal.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Platform: {OS: 'ios'}}, '../focus/layer-stack': {LAYER_FOCUS_WAIT_MS: 60_000},
+  });
+  const view = {menuShown: true, sheet: false, menu: undefined as any, picker: undefined as any};
+  // Both overlays' presences in one component: the item's single state update closes one and opens the other.
+  const host = createFabricHookHost(() => {view.menu = useNativeModalPresence(true, view.menuShown); view.picker = useNativeModalPresence(view.sheet, view.sheet);});
+  await host.mount();
+  try {
+    assert.equal(view.menu.visible, true);
+    view.menuShown = false; view.sheet = true; await act(() => host.rerender());
+    assert.equal(view.menu.visible, false);
+    assert.equal(view.picker.visible, false, 'not presented while the menu in the same tree is being dismissed');
+    await act(() => view.menu.onDismiss()); await act(() => host.rerender());
+    assert.equal(view.picker.visible, true, 'presented once the menu has gone');
+  } finally {await host.unmount();}
+});
+
+test('on iOS an overlay opened with nothing leaving is shown one commit later', async () => {
+  const {menu} = await presence('ios');
+  await menu.host.mount();
+  await menu.set(true);
+  if (!menu.view.now.visible) await act(() => menu.host.rerender());
+  assert.equal(menu.view.now.visible, true);
+});
