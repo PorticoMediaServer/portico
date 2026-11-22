@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AppLog, APP_LOG_BYTES, APP_LOG_AGE_MS, appLog, appLogFetch} from '../src/app-log.ts';
+import {AppLog, APP_LOG_BYTES, APP_LOG_AGE_MS, appLog, appLogFetch, appLogShownError} from '../src/app-log.ts';
 
 test('write-time allowlist drops every forbidden class from memory and restored records', () => {
  const log = new AppLog(()=>100);
@@ -39,4 +39,78 @@ test('network capture records status and request id while preserving the respons
  assert.equal(await fetcher('https://private.example/v1/media/secret-path',{headers:{Authorization:'Bearer private-token'},body:'typed words'}),response);
  const line=JSON.parse(appLog.snapshot());assert.equal(line.facts.status,503);assert.equal(line.facts.requestId,'req_0123456789abcdef');
  assert.equal(line.facts.code,'http_error');assert.ok(!appLog.snapshot().includes('private'));assert.equal(await response.text(),'private response body');appLog.clear();
+});
+
+test('a failure request is logged with its method, and a shown error with where it came from, its code and status', async () => {
+ const {presentError} = await import('../src/presentation/errors.ts');
+ appLog.clear();
+ const fetcher = appLogFetch(async()=>new Response('',{status:503,headers:{'X-Request-ID':'req_0123456789abcdef'}}));
+ await fetcher('https://private.example/v1/sessions/ses_0123456789abcdef/progress',{method:'post'});
+ assert.equal(JSON.parse(appLog.snapshot()).facts.method,'POST');
+ appLog.clear();
+ // "Your server is busy right now" after the player (finisher, 21 Nov): the line names the page and the code.
+ const busy = Object.assign(new Error('Server busy at https://private.example/v1/x'),{code:'server_busy',status:503});
+ presentError(busy,'detail',{operation:'action'}); presentError(busy,'detail',{operation:'action'});
+ const lines = appLog.snapshot().split('\n');
+ assert.equal(lines.length,1,'a re-rendered error is written once');
+ assert.deepEqual(JSON.parse(lines[0]).facts,{context:'detail',operation:'action',category:'busy',errorCode:'server_busy',status:503});
+ assert.ok(!appLog.snapshot().includes('private.example'));
+});
+
+test('only code-shaped error codes and known contexts enter a shown-error line', () => {
+ const log = new AppLog(()=>100);
+ for (const bad of ['what somebody typed','Bearer sample-token','server.example','/v1/media/path-grant','Other Person','password=sample','a'.repeat(60),'sample@example.com'])
+  log.write('warn','app','error',{errorCode:bad,context:bad,operation:bad,category:bad,method:bad});
+ for (const line of log.snapshot().split('\n')) assert.deepEqual(JSON.parse(line).facts,{});
+});
+
+test('two errors alternating on one page write one line each, not one per render', async () => {
+ const {presentError} = await import('../src/presentation/errors.ts');
+ appLog.clear();
+ const busy = Object.assign(new Error('x'), {code: 'server_busy', status: 503}), gone = Object.assign(new Error('y'), {code: 'not_found', status: 404});
+ for (let n = 0; n < 6; n++) {presentError(busy, 'search', {operation: 'save'}); presentError(gone, 'saved');}
+ assert.equal(appLog.snapshot().split('\n').length, 2);
+});
+
+test('a code the client does not know is logged as other: a name, a PIN or an invitation code never enters the log', async () => {
+ const {presentError} = await import('../src/presentation/errors.ts');
+ appLog.clear();
+ for (const code of ['mary-smith', 'pin-1234', 'wxyz-k3m9-p2qr-st45']) presentError(code, 'account');
+ presentError(Object.assign(new Error('z'), {code: 'some_server_thing', status: 500}), 'home');
+ const lines = appLog.snapshot().split('\n').map(line => JSON.parse(line).facts);
+ assert.ok(lines.every(facts => facts.errorCode === 'other'), JSON.stringify(lines));
+ for (const secret of ['mary-smith', 'pin-1234', 'wxyz', 'some_server_thing']) assert.ok(!appLog.snapshot().includes(secret), secret);
+});
+
+test('the playback copy writes its line too, with the category playback', async () => {
+ const {presentError} = await import('../src/presentation/errors.ts');
+ appLog.clear();
+ presentError(Object.assign(new Error('p'), {code: 'timeout', status: 504}), 'playback');
+ assert.deepEqual(JSON.parse(appLog.snapshot()).facts, {context: 'playback', operation: 'load', category: 'playback', errorCode: 'timeout', status: 504});
+});
+
+test('the write-time allowlist itself keeps only known error codes: any writer and an old restored line alike', async () => {
+ await import('../src/presentation/errors.ts');
+ const log = new AppLog(()=>100);
+ for (const code of ['mary-smith', 'pin-1234', 'constructor', 'some_server_thing']) {
+  log.write('warn','app','error',{errorCode: code});
+  log.restore(JSON.stringify({time:100,level:'warn',area:'app',message:'error',facts:{errorCode: code}}));
+ }
+ for (const line of log.snapshot().split('\n')) assert.equal(JSON.parse(line).facts.errorCode, undefined);
+ log.write('warn','app','error',{errorCode: 'server_busy'}); log.write('warn','app','error',{errorCode: 'other'});
+ assert.deepEqual(log.snapshot().split('\n').slice(-2).map(line => JSON.parse(line).facts.errorCode), ['server_busy', 'other']);
+});
+
+test('a failure kept on screen writes one line however it is re-rendered, and writes again after five quiet seconds', () => {
+ appLog.clear();
+ const facts = {context: 'person', operation: 'load', category: 'not-found', errorCode: 'not_found', status: 404} as const;
+ // A page that builds a fresh error every render, every second for a minute: still one line.
+ for (let second = 0; second <= 60; second++) appLogShownError({...facts}, 1_000_000 + second * 1000);
+ assert.equal(appLog.snapshot().split('\n').length, 1, 'one line while it stays on screen');
+ // Five quiet seconds, then the same failure again: a new line (it is a new occurrence, not forgotten for the session).
+ appLogShownError({...facts}, 1_000_000 + 66_000);
+ assert.equal(appLog.snapshot().split('\n').length, 2);
+ // A different failure is its own line at once.
+ appLogShownError({...facts, category: 'changed', errorCode: 'other', status: 412}, 1_000_000 + 66_500);
+ assert.equal(appLog.snapshot().split('\n').length, 3);
 });
