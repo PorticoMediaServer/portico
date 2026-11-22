@@ -1,12 +1,12 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, Text, View} from 'react-native';
-import {clampToLength, positionClock, sessionViewer} from '../../../../../../packages/client-core/src/server-admin/now-playing';
-import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
-import {Button} from '../../../kit/controls';
-import {BottomSheet} from '../../../kit/overlays';
-import {useTheme} from '../../../kit/theme';
-import {alpha, shellType} from '../../../kit/shell/visual';
-import type {Translate} from './model';
+import {clampToLength, positionClock, sessionViewer} from '../../../../../packages/client-core/src/server-admin/now-playing';
+import type {AdminSession} from '../../../../../packages/client-core/src/playback-v1/types';
+import {Button} from '../controls';
+import {BottomSheet} from '../overlays';
+import {useTheme} from '../theme';
+import {alpha, shellType} from '../shell/visual';
+import type {Translate} from '../../screens/settings-live/owner-dashboard/model';
 
 /**
  * Move to…: the real bar that jumps someone else's playback (owner-dashboard frame 6a). The bar

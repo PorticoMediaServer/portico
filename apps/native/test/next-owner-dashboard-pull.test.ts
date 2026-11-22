@@ -23,7 +23,7 @@ async function fixture(inline = false) {
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>, onError: unknown, offset: number) => {const control = {type: 'Pull', props: {run, onError, offset}}; pulls.push(control); return control;}},
     './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
     '../../../../../../packages/client-core/src/server-admin/updates-source': {SettingsUpdatesSource: class {subscribe = () => () => {}; getSnapshot = () => ({phase: 'idle', busy: false}); load = async () => {}; check = async () => {}; dispose() {}}},
-    './update-card': {ownerUpdateView: () => undefined},
+    '../../../kit/dashboard/OwnerUpdateCard': {ownerUpdateView: () => undefined},
   });
   const runtime = {text: {t: (id: string) => id}, artwork: () => undefined};
   const ports = {serverName: () => 'Portico demo', context: {navigation: {back() {}}}, requestId: () => 'request'};
@@ -50,10 +50,10 @@ test('the Dashboard page draws its scroll view with the pull control and no Refr
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../platform/native-blur': {BlurView: 'BlurView'},
     '../../../kit/shell': {ServerBand: 'ServerBand'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})}, '../../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
-    './model': model, './parts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
-    './health': {OwnerHealthSection: 'OwnerHealthSection'}, './statistics': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
-    './streams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
-    '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, './update-card': {OwnerUpdateCard: 'OwnerUpdateCard'},
+    './model': model, '../../../kit/dashboard/OwnerParts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
+    '../../../kit/dashboard/OwnerHealthSection': {OwnerHealthSection: 'OwnerHealthSection'}, '../../../kit/dashboard/OwnerStatisticsSection': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
+    '../../../kit/dashboard/OwnerStreams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
+    '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../../kit/dashboard/OwnerUpdateCard': {OwnerUpdateCard: 'OwnerUpdateCard'},
   });
   const pull = {type: 'Pull', props: {}};
   const props = {t: (id: string) => id, role: 'owner', serverName: 'Portico demo', topInset: 47, health: {degraded: false, status: 'Healthy', line: ''}, updated: 'Updated just now', loading: false,

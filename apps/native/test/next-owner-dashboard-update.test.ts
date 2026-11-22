@@ -12,10 +12,10 @@ const build = (version: string, url = '') => ({version, ...(url ? {url} : {})});
 // The rebuilt server's answer (contract State): the build it runs, and the newer one when there is one.
 const report = (latest?: ReturnType<typeof build>) => ({version: '0.1.0', newer: !!latest, install: 'docker', ...(latest ? {newest: latest} : {})});
 
-const cardModule = async (react: any) => screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/update-card.tsx', import.meta.url), {
+const cardModule = async (react: any) => screenModule(new URL('../src-next/kit/dashboard/OwnerUpdateCard.tsx', import.meta.url), {
   react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
-  '../../../kit/controls': {Button: 'Button'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: new Proxy({}, {get: (_t, key) => String(key)})})},
-  '../../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
+  '../controls': {Button: 'Button'}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => ({isTV: false, colors: new Proxy({}, {get: (_t, key) => String(key)})})},
+  '../shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
 });
 
 test('the card is drawn only while the release check reports a newer build, and release notes open only an https page', async () => {
@@ -51,10 +51,10 @@ const pageModule = (react: any) => screenModule(new URL('../src-next/screens/set
   react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
   '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../platform/native-blur': {BlurView: 'BlurView'},
   '../../../kit/shell': {ServerBand: 'ServerBand'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})}, '../../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
-  './model': model, './parts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
-  './health': {OwnerHealthSection: 'OwnerHealthSection'}, './statistics': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
-  './streams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
-  '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, './update-card': {OwnerUpdateCard: 'OwnerUpdateCard'},
+  './model': model, '../../../kit/dashboard/OwnerParts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
+  '../../../kit/dashboard/OwnerHealthSection': {OwnerHealthSection: 'OwnerHealthSection'}, '../../../kit/dashboard/OwnerStatisticsSection': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
+  '../../../kit/dashboard/OwnerStreams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
+  '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../../kit/dashboard/OwnerUpdateCard': {OwnerUpdateCard: 'OwnerUpdateCard'},
 });
 
 test('the owner\'s Alerts section ends with the update card, after the alerts or the calm line; administrators never see it', async () => {
@@ -96,7 +96,7 @@ async function phone(admission: 'owner' | 'administrator') {
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})},
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>) => ({type: 'Pull', props: {run}})},
     './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
-    './update-card': card,
+    '../../../kit/dashboard/OwnerUpdateCard': card,
   });
   const runtime = {text: {t: (id: string) => id}, artwork: () => undefined, reportError() {}};
   const ports = {serverName: () => 'Portico demo', context: {navigation: {back() {}}}, requestId: () => 'request'};

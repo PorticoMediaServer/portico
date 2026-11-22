@@ -1,12 +1,12 @@
 import React from 'react';
 import {Text, View} from 'react-native';
-import {ProfileFace} from '../../../kit/artwork';
-import {Segmented} from '../../../kit/controls';
-import {BarList} from '../../../kit/shell';
-import {useTheme} from '../../../kit/theme';
-import {shellType} from '../../../kit/shell/visual';
-import {OwnerCalm, OwnerSection, OwnerStatisticTiles} from './parts';
-import {OWNER_VIEWING_PERIODS, ownerBarRows, ownerStatistics, ownerViewingPeriodLabel, type OwnerViewing, type OwnerViewingPeriod, type Translate} from './model';
+import {ProfileFace} from '../artwork';
+import {Segmented} from '../controls';
+import {BarList} from '../shell';
+import {useTheme} from '../theme';
+import {shellType} from '../shell/visual';
+import {OwnerCalm, OwnerSection, OwnerStatisticTiles} from './OwnerParts';
+import {OWNER_VIEWING_PERIODS, ownerBarRows, ownerStatistics, ownerViewingPeriodLabel, type OwnerViewing, type OwnerViewingPeriod, type Translate} from '../../screens/settings-live/owner-dashboard/model';
 
 const faceColors = ['mint', 'violet', 'gold', 'blue', 'slate', 'rose', 'sky'] as const;
 

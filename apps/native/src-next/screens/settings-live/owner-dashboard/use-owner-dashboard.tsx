@@ -23,8 +23,8 @@ import {
   type OwnerAlertView, type OwnerHealthWindow, type OwnerJobView, type OwnerStreamView, type OwnerViewing, type OwnerViewingPeriod,
 } from './model';
 import {OwnerDashboardPage} from './page';
-import {ownerUpdateView} from './update-card';
-import type {OwnerStreamEntry} from './streams';
+import {ownerUpdateView} from '../../../kit/dashboard/OwnerUpdateCard';
+import type {OwnerStreamEntry} from '../../../kit/dashboard/OwnerStreams';
 
 const noUpdates: UpdatesSnapshot = Object.freeze({phase: 'idle', busy: false}), noUpdatesSubscription = () => () => {};
 const noUpdatesSnapshot = () => noUpdates;
