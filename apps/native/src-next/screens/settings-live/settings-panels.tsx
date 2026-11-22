@@ -3,7 +3,7 @@ import {AccountSecurityPanel} from '../../pages/shared/settings/AccountSecurityP
 import {AccessTokensPanel} from '../../pages/touch/settings/AccessTokensPanel';
 import {DeviceAboutRows} from '../../pages/touch/settings/DeviceAboutRows';
 import {AllowedDevicesRows} from '../../pages/tv/settings/AllowedDevicesRows';
-import {NativeConnectionAddressRow, NativeConnectionStatusRow, NativeInsecureConnectionsRow, NativeTestConnectionRow} from './NativeConnectionRows';
+import {NativeConnectionAddressRow, NativeConnectionStatusRow, NativeInsecureConnectionsRow, NativeTestConnectionRow} from '../../pages/shared/settings/ConnectionRows';
 import React, {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Text, View} from 'react-native';
 import {repeat} from '../../../../../packages/client-core/src/timer';

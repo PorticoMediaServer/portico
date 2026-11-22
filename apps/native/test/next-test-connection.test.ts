@@ -10,12 +10,13 @@ const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes)
 
 test('Test connection reads GET /v1/system over the route in use and says the server answered', async () => {
   const sent: {path: string; method?: string}[] = [];
-  const {NativeTestConnectionRow} = await screenModule(new URL('../src-next/screens/settings-live/NativeConnectionRows.tsx', import.meta.url), {
+  const {NativeTestConnectionRow} = await screenModule(new URL('../src-next/pages/shared/settings/ConnectionRows.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {View: 'View'},
-    '../../../../../packages/client-core/src/connection-policy': {}, '../../../../../packages/client-core/src/route-connection': {},
-    '../../../../../packages/client-core/src/query/server-api': await import('../../../packages/client-core/src/query/server-api.ts'),
-    '../../kit/controls': {Button: 'Button', Select: 'Select'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/states': {StateView: 'StateView'},
-    '../../platform/connection-preference': {}, '../../platform/device-settings': {}, '../../shell/runtime': {}, './settings-panels': {},
+    '../../../../../../packages/client-core/src/connection-policy': {}, '../../../../../../packages/client-core/src/route-connection': {},
+    '../../../../../../packages/client-core/src/query/server-api': await import('../../../packages/client-core/src/query/server-api.ts'),
+    '../../../kit/controls': {Button: 'Button', Select: 'Select'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    '../../../kit/settings/DeviceRows': {DeviceRowBlock: 'DeviceRowBlock'},
+    '../../../platform/connection-preference': {}, '../../../platform/device-settings': {}, '../../../shell/runtime': {}, '../../../screens/settings-live/settings-panels': {},
   });
   const context = {serverName: 'Home', api: {request: async (path: string, method?: string) => {sent.push({path, method}); return {id: 'srv'};}}};
   const lifetime = {request: <T,>(work: (signal: AbortSignal) => Promise<T>) => work(new AbortController().signal)};
@@ -26,6 +27,7 @@ test('Test connection reads GET /v1/system over the route in use and says the se
     await act(() => nodes(tree).find(node => node.props.testID === 'settings-test-connection-button').props.onPress());
     assert.deepEqual(sent, [{path: '/v1/system', method: 'GET'}]);
     assert.equal(nodes(tree).find(node => node.props.testID === 'settings-test-connection').props.description, 'next.settingsSpec.account.device.advanced.groups.4.rows.2.control.result');
-    assert.equal(nodes(tree).some(node => node.type === 'StateView'), false, 'no error');
+    const block = nodes(tree).find(node => node.type === 'DeviceRowBlock');
+    assert.equal(block.props.error, undefined, 'no error'); assert.equal(block.props.errorContext, 'settings');
   } finally {await host.unmount();}
 });
