@@ -2,7 +2,7 @@ import type {NativeShellBootstrapContext} from './bootstrap';
 import type {PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
 import {nativeShellRoutes} from './route-registry';
 import {nativeReadingSettingsPreferences, openNativeReadingSettings} from './reading-settings-route';
-import {createNativeReadRenderer} from '../screens/read/ReadRoute';
+import {createNativeReadRenderer} from './read-renderer';
 import '../screens/read/read-destinations';
 
 /** Read and Settings borrow the authority's ONE confirmed preference source.

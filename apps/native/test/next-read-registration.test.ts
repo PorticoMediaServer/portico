@@ -57,13 +57,13 @@ function authorityContext() {
 test('Read registration retains the original occurrence across Reading Settings history', async () => {
   const f = authorityContext(); let registered: string | undefined, factory: any;
   const readingDestinations: string[] = [];
-  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/screens/read/ReadRoute.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './host-component': {nativeReadHost: () => 'TrustedReadHost'},
-    './read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
+  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, '../screens/read/host-component': {nativeReadHost: () => 'TrustedReadHost'},
+    '../screens/read/read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
   });
   await screenModule(new URL('../src-next/shell/read-route.tsx', import.meta.url), {
     react: {...React, default: React}, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string, create: any) => {registered = kind; factory = create;}}},
-    './reading-settings-route': {nativeReadingSettingsPreferences, openNativeReadingSettings}, '../screens/read/ReadRoute': {createNativeReadRenderer}, '../screens/read/read-destinations': await screenModule(new URL('../src-next/screens/read/read-destinations.tsx', import.meta.url), {
+    './reading-settings-route': {nativeReadingSettingsPreferences, openNativeReadingSettings}, './read-renderer': {createNativeReadRenderer}, '../screens/read/read-destinations': await screenModule(new URL('../src-next/screens/read/read-destinations.tsx', import.meta.url), {
       react: {...React, default: React}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (kind: string) => readingDestinations.push(kind)}},
       '../destinations/lifetime': await import('../src-next/screens/destinations/lifetime'),
       '../../shell/reading-settings-route': {openNativeReadingSettings}, './platform': await import('../src-next/screens/read/platform'),
@@ -93,8 +93,8 @@ test('Read registration retains the original occurrence across Reading Settings 
 
 test('the actual Read renderer refuses creation on TV before mounting a WebView', async () => {
   const host = hooks();
-  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/screens/read/ReadRoute.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Platform: {isTV: true}}, './host-component': {nativeReadHost: () => {throw new Error('TV must not resolve a WebView host');}}, './read-route-back': {readRouteBack: () => () => {}},
+  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
+    react: host.react, 'react-native': {Platform: {isTV: true}}, '../screens/read/host-component': {nativeReadHost: () => {throw new Error('TV must not resolve a WebView host');}}, '../screens/read/read-route-back': {readRouteBack: () => () => {}},
   });
   assert.throws(() => createNativeReadRenderer({}, {}, () => {}), /native_read_unavailable/);
 });
@@ -109,9 +109,9 @@ test('the actual lazy host module is safe to evaluate on TV without evaluating a
 
 test('twenty visited Reading occurrences project at most two guest slots while preserving original routes', async () => {
   const f = authorityContext();
-  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/screens/read/ReadRoute.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './host-component': {nativeReadHost: () => 'TrustedReadHost'},
-    './read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
+  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, '../screens/read/host-component': {nativeReadHost: () => 'TrustedReadHost'},
+    '../screens/read/read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
   });
   const renderer = createNativeReadRenderer(f.context, {getSnapshot: () => f.snapshot, subscribe: () => () => {}}, () => {});
   const original: NativeShellRoute[] = [];
@@ -137,9 +137,9 @@ test('twenty visited Reading occurrences project at most two guest slots while p
 
 test('a third guest waits for the exact evicted incarnation teardown', async () => {
   const f = authorityContext();
-  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/screens/read/ReadRoute.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './host-component': {nativeReadHost: () => 'TrustedReadHost'},
-    './read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
+  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, '../screens/read/host-component': {nativeReadHost: () => 'TrustedReadHost'},
+    '../screens/read/read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
   });
   const renderer = createNativeReadRenderer(f.context, {getSnapshot: () => f.snapshot, subscribe: () => () => {}}, () => {});
   const routes = [0, 1, 2].map(index => ({kind: 'read', itemId: `item-${index}`, sourceId: `source-${index}`} as const));
@@ -162,9 +162,9 @@ test('a third guest waits for the exact evicted incarnation teardown', async () 
 
 test('repeated openings of the same route object retain distinct presentation owners', async () => {
   const f = authorityContext();
-  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/screens/read/ReadRoute.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './host-component': {nativeReadHost: () => 'TrustedReadHost'},
-    './read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
+  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, '../screens/read/host-component': {nativeReadHost: () => 'TrustedReadHost'},
+    '../screens/read/read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
   });
   const renderer = createNativeReadRenderer(f.context, {getSnapshot: () => f.snapshot, subscribe: () => () => {}}, () => {});
   const route: NativeShellRoute = {kind: 'read', itemId: 'same-item', sourceId: 'same-source'};

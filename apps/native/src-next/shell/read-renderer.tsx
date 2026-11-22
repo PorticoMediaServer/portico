@@ -1,11 +1,11 @@
 import React, {useLayoutEffect, useRef, useState} from 'react';
 import {Platform} from 'react-native';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeRouteRenderer} from '../../shell/route-registry';
-import type {NativePresentationBinding, NativeRouteSnapshot, NativeShellRoute} from '../../shell/routes';
-import type {ReaderPage} from '../../pages/touch/reading/ReaderPage';
-import {nativeReadHost} from './host-component';
-import {readRouteBack} from './read-route-back';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeRouteRenderer} from './route-registry';
+import type {NativePresentationBinding, NativeRouteSnapshot, NativeShellRoute} from './routes';
+import type {ReaderPage} from '../pages/touch/reading/ReaderPage';
+import {nativeReadHost} from '../screens/read/host-component';
+import {readRouteBack} from '../screens/read/read-route-back';
 
 type ReadTarget = Extract<NativeShellRoute, {kind: 'read'}>;
 type Preferences = React.ComponentProps<typeof ReaderPage>['preferences'];
