@@ -2,7 +2,7 @@ import React, {useEffect, useMemo, type ComponentProps} from 'react';
 import {tvAccountSpec} from '@portico/design';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useMotion} from '../useMotion';
-import {Image, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewProps} from 'react-native';
+import {Image, ScrollView, StyleSheet, Text, TVFocusGuideView, View, useWindowDimensions, type ViewProps} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {ProfileFace, type ProfileOption} from '../artwork';
 import {useTheme} from '../theme';
@@ -69,9 +69,12 @@ export function TVAuthLayout({title, eyebrow, body, children, portico, aside, te
       <Text {...heading.textProps} accessibilityRole="header" style={titleStyle}>{title}</Text>
       {body != null && <Text style={[theme.type.accountLede, {color: theme.colors.textSecondary, maxWidth: 760, marginBottom: tvAccountSpec.ledeGap}]}>{body}</Text>}
       {beforeActions}
-      {actions.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: tvAccountSpec.actionGap}}>
+      {/* The actions sit under the start of the wide fields, so Down from a field would land on the button nearest the
+          field's middle (Back, not Continue). The row is one autoFocus guide: focus coming in lands on its first action,
+          or on the one last focused there. */}
+      {actions.length > 0 && <TVFocusGuideView autoFocus style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: tvAccountSpec.actionGap}}>
         {actions.map(item => <StateActionButton key={item.id} testID={testID} action={item} size="hero" variant={item === primaryAction ? 'primary' : 'glass'}/>)}
-      </View>}
+      </TVFocusGuideView>}
       {children}
     </ScrollView>
     {portico && <View style={{position: 'absolute', left: theme.layout.gutter.tvAuth, bottom: tvAccountSpec.footerBottom}}>
