@@ -371,7 +371,8 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     // A card menu opened on one view never starts a selection on the next (a library or tab switch since).
     const viewToken = sourceToken();
     layoutSnapshot = Object.freeze({active: entering || !!snapshot()?.active,
-      isSelected: (key: string) => live() && !!entryForKey(key) && selectedKeys().includes(keyOf(entryForKey(key)!) ?? ''),
+      // The model answers membership: an explicit pick, or (after Select all) a bound title the whole view holds.
+      isSelected: (key: string) => {const entry = live() ? entryForKey(key) : undefined, picked = entry && keyOf(entry); return !!picked && !!model()?.isSelected(picked);},
       onToggle: (key: string) => {if (live()) toggle(key);}, onEnter: (key: string) => {if (live()) toggle(key); else if (!owner && sourceToken() === viewToken) enter(key);}});
     return layoutSnapshot;
   };
@@ -409,7 +410,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     item: entry => {
       const owner = producer, ownerToken = token, key = nativeLibraryEntryKey(entry), live = () => owner === producer && ownerToken === token && !!owner, viewToken = sourceToken();
       return {active: entering || !!snapshot()?.active,
-        selected: live() && !!keyOf(entry) && selectedKeys().includes(keyOf(entry)!),
+        selected: live() && !!keyOf(entry) && !!model()?.isSelected(keyOf(entry)!),
         onToggle: () => {if (live()) toggle(key);}, onEnter: () => {if (live()) toggle(key); else if (!owner && sourceToken() === viewToken) enter(key);}};
     },
     render: (artwork?: (path?: string) => React.ReactNode) => <LibrarySelectionBars store={store} artwork={artwork ?? (() => null)}/>,
@@ -485,7 +486,7 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
   }) : [];
   const props: SelectionBarProps = {count: summary?.count ?? 0, selectionLabel: summary ? selectedItemsLabel(summary) : undefined,
     onCancel: () => {setMenu(null); store.cancel(state!);}, actions, menu, onMenuChange: setMenu,
-    ...(wholeUnavailable ? {selectAllUnavailable: {label: defaultI18n.t('next.selection.selectAllUnavailableLabel'), reason: defaultI18n.t(wholeUnavailable.reason === 'source_changed' ? 'next.selection.selectAllSourceChanged' : 'next.selection.selectAllSearchNotBounded')}} : whole ? {selectAllLabel: defaultI18n.t('next.selection.selectAll', {count: whole.total}), onSelectAll: () => store.selectWhole(state!, whole.id)} : {}),
+    ...(wholeUnavailable ? {selectAllUnavailable: {label: defaultI18n.t('next.selection.selectAllUnavailableLabel'), reason: defaultI18n.t(wholeUnavailable.reason === 'source_changed' ? 'next.selection.selectAllSourceChanged' : 'next.selection.selectAllSearchNotBounded')}} : whole && state?.target?.mode !== 'query' ? {selectAllLabel: defaultI18n.t('next.selection.selectAll', {count: whole.total}), onSelectAll: () => store.selectWhole(state!, whole.id)} : {}),
     fourthSlot: summary && selectionFourthAction(summary) === 'mark-watched' ? 'watched' : 'myList',
     onAction: action => {
       if (action === 'play' || action === 'playNext' || action === 'playLater' || action === 'download') {setMenu(null); void store.execute(action, state!);}

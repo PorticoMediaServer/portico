@@ -1,5 +1,8 @@
 import {BrowseSelectionModel, browseSelectionKey, playCatalogueSelection, readCatalogueSelectionItem, type BrowseSelectionContext, type SelectionItem, type SelectionOperation} from '../../../../../packages/client-core/src/selection-model';
 import {playCatalogueQuerySelection} from '../../../../../packages/client-core/src/catalogue-query-selection';
+import {browseWholeSelectionQuery} from '../../../../../packages/client-core/src/browse-whole-selection';
+import type {BrowseWholeSelection} from '../../../../../packages/client-core/src/browse';
+import type {CatalogueSelectionPorts} from '../../../../../packages/client-core/src/selection-model';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativeDestinationActivation} from '../../shell/routes';
@@ -8,15 +11,21 @@ import {nativeScreenServices} from '../native-screen-services';
 import type {NativeLibraryDestination} from './model';
 import {viewerQueriesFor} from '../../shell/freshness';
 
+/** The real ports a library title may be offered: leaf Play, Add to queue only with a catalogue player, the personal
+ * actions, and Edit for the owner alone. One title's selection read and the whole-view summary use the same ports, so
+ * Select all counts each action exactly as picking every title alone would. */
+export function nativeLibrarySelectionPorts(context: NativeShellBootstrapContext): CatalogueSelectionPorts {
+  return {play: true, queue: !!context.playback.cataloguePlayback?.(), myList: true, favorite: true, watched: true, playlist: true, collection: true,
+    edit: context.session()?.viewer.role === 'owner', delete: true};
+}
+
 const cancelled = () => Object.assign(new Error('native_library_selection_retired'), {name: 'AbortError', code: 'cancelled'});
 const unavailable = () => Object.assign(new Error('native_library_selection_unavailable'), {code: 'unavailable'});
 
 /** One captured applied Browse query, not a Home context. Recreate after a
- * query/token change. Leaves carry the grants the library really executes. Windows
- * are registered without a whole-view query: the client cannot know the server's
- * whole-view capability counts, so `whole` (and Select all) is only ever set from a
- * summary the server sends; until then it stays unset. Only Play and Queue have
- * query executors. */
+ * query/token change. Leaves carry the grants the library really executes. The
+ * whole view (Select all) is bound only to the server's exact summary, read when
+ * someone selects; only Play and Queue have query executors. */
 export function createNativeLibraryPlaySelection(context: NativeShellBootstrapContext, source: NativeLibraryDestination) {
   const lifetime = nativeDestinationLifetime(context), opening = source.getSnapshot(), viewer = context.session()!.viewer;
   if (opening.phase !== 'ready' || !opening.revision || !opening.collection || !opening.sort) throw unavailable();
@@ -31,9 +40,19 @@ export function createNativeLibraryPlaySelection(context: NativeShellBootstrapCo
   const model = new BrowseSelectionModel(captured), player = context.playback.runtime.cataloguePlayback();
   const common = nativeScreenServices(context), activation = nativeDestinationActivation(context.navigation, {kind: 'library', libraryId: opening.library.id});
   const collection = opening.collection, cleanups: (() => void)[] = [];
-  // A whole-view descriptor the server sends would bind here (none today; see the window registration below). It is
-  // released with this producer and never carried to another view.
+  // The server's exact whole-view summary, asked for once when the first window is read (so only once someone selects,
+  // never when the list opens). Every window waits for that one answer and binds to it, so no window registers without
+  // the query another one carries. It is released with this producer and never carried to another view.
   let whole: Readonly<{id: string; total: number}> | undefined, releaseWhole: (() => void) | undefined;
+  let wholeRequest: Promise<BrowseWholeSelection | undefined> | undefined;
+  const bindWhole = (ticket: ReturnType<typeof model.captureContext>, descriptor: BrowseWholeSelection | undefined) => {
+    const snapshot = source.getSnapshot();
+    if (whole || !descriptor || snapshot.phase !== 'ready' || descriptor.libraryId !== snapshot.library.id) return;
+    const query = browseWholeSelectionQuery(descriptor);
+    if (!query) return;
+    const registration = model.registerQuery(ticket, query);
+    if (registration.ok) {releaseWhole = registration.unregister; whole = Object.freeze({id: query.id, total: query.total});}
+  };
   const windows = new Map<string, () => void>();
   const operations = new Map<AbortController, SelectionOperation<BrowseSelectionContext>>();
   let disposed = false, reading: AbortController | undefined;
@@ -81,24 +100,25 @@ export function createNativeLibraryPlaySelection(context: NativeShellBootstrapCo
         // The same real ports the selection bar may offer: leaf Play plus the
         // Detail actions an item actually enables. Absent executors (queue when
         // there is no catalogue player) leave that capability false and hidden.
-        const queue = !!context.playback.cataloguePlayback?.();
+        const ports = nativeLibrarySelectionPorts(context);
+        wholeRequest ??= source.requestWholeSelection().catch(() => undefined);
         await Promise.all(Array.from({length: Math.min(4, entries.length)}, async () => {
           while (cursor < entries.length) {
             const index = cursor++;
             items[index] = await readCatalogueSelectionItem({queries: viewerQueriesFor(context.api, lifetime.scope), api: context.api, scope: lifetime.scope, requestId: common.requestId,
-              signal: controller.signal, isCurrent: live}, entries[index], {play: true, queue, myList: true, favorite: true, watched: true, playlist: true, collection: true,
-              // Edit opens the owner's bulk editor; only the owner is offered it (as Delete's whole-view check already is).
-              edit: context.session()?.viewer.role === 'owner', delete: true});
+              signal: controller.signal, isCurrent: live}, entries[index], ports);
           }
         }));
         if (!live()) throw cancelled();
-        // Windows are not bound to a whole-view summary. The rebuilt server sends none, and the one the browse session builds
-        // on this client guesses exact counts per action (every title playable, every one editable…); the model checks each
-        // window against it, and one title that differs (a container, a missing file, a port this device lacks, a profile that
-        // isn't the owner) refused every window, so nothing could be picked on a phone (22 Nov). Titles are picked one by one;
-        // Select all waits for a summary the server sends (asked, REQUESTS.md 22 Nov).
+        // Only the server's exact summary (counted with these same ports) describes the whole view; a client guess refused
+        // every window once one title differed (22 Nov). Where there is none (series, books, an empty list, a failed read)
+        // titles are picked one by one.
+        const descriptor = await wholeRequest;
+        if (!live()) throw cancelled();
+        bindWhole(ticket, descriptor);
         const result = model.registerWindow(ticket, {id, sectionId: 'library-browse', sectionOrder: 0, start, items, ...(whole ? {queryId: whole.id} : {})});
-        if (!result.ok) throw cancelled();
+        // A window the bound summary refuses means a title changed since it was read: the next selection reads fresh counts.
+        if (!result.ok) {if (whole) source.forgetWholeSelection(); throw cancelled();}
         unregister = result.unregister; registered = true;
         // Once registered, native page eviction unregisters its window while
         // the shared model preserves explicit picks at this same source token.
