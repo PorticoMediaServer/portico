@@ -17,6 +17,11 @@ import {ListEdgeFade, useListEdges, useWholeItems} from '../kit/layout/ListEdgeF
 import {libraryIcon, visibleLibraries, type ShellAuthority, type ShellDestination} from './model';
 
 type RailEntry = {key: string; label: string; icon: IconName; destination: ShellDestination};
+/** The profile menu's pending return (TVRail: "The profile menu was opened from Profile and server"), shared by every rail drawn. */
+const pendingProfileReturn = {current: false, destination: ''};
+/** How long focus must stay in the rail before a return counts as used (a menu choice leaving for a page takes less). */
+const profileReturnSettleMs = 600;
+
 export function TVRail({libraries, hasLiveTV, destination, profile, unread = false, onNavigate, onProfile, profileRef, onExpandedChange, authority, returnTo, dimmed}: {
   authority: ShellAuthority; returnTo?: FocusAddress; libraries: readonly Library[]; hasLiveTV: boolean; destination: ShellDestination; profile: ProfileOption;
   /** The authorised Inbox unread flag already used by the phone and desktop rails. */
@@ -68,15 +73,22 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
   // The profile menu was opened from Profile and server: focus coming back to that item (the menu closed, or the page it
   // opened went Back) is a return, not an entry, and stays there (tv-focus "Choices made": Back returns to the rail's
   // profile item). Used once.
-  const profileReturn = useRef(false);
-  const openProfile = () => {profileReturn.current = true; onProfile();};
-  // A page the menu opened that leads elsewhere (Notifications opening a library) ends the pending return: the next Left
-  // into the rail is an entry again.
+  // It is kept outside the rail: a full-screen page the menu opened (Switch server) covers the shell, and the rail drawn
+  // again on Back started with no pending return, so Apple TV sent focus to the current page's item (#5060).
   const destinationKey = JSON.stringify(destination);
-  React.useEffect(() => {profileReturn.current = false;}, [destinationKey]);
+  const openProfile = () => {pendingProfileReturn.current = true; pendingProfileReturn.destination = destinationKey; onProfile();};
+  // A page the menu opened that leads elsewhere (Notifications opening a library) ends the pending return: the next Left
+  // into the rail is an entry again. Drawing the rail again on the same destination does not.
+  React.useEffect(() => {
+    if (pendingProfileReturn.destination !== destinationKey) pendingProfileReturn.current = false;
+    pendingProfileReturn.destination = destinationKey;
+  }, [destinationKey]);
   const focusChanged = useCallback((owns: boolean) => {
-    const returning = owns && profileReturn.current;
-    if (owns) profileReturn.current = false;
+    const returning = owns && pendingProfileReturn.current;
+    // A return is used once focus stays in the rail. Choosing Switch server in the menu passes focus through the rail for a
+    // moment on its way to the page; that page's Back is still the return (#5060).
+    if (owns && !returning) pendingProfileReturn.current = false;
+    if (returning) setTimeout(() => {if (opened.current) pendingProfileReturn.current = false;}, profileReturnSettleMs);
     const landed = registry.capture();
     const toProfile = returning && landed?.regionId === ids.rail && landed.childId === ids.profile;
     // A frame later and only if focus is still in the rail: focus that only passed through it (dropped there while a page
