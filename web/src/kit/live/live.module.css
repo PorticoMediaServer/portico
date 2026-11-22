@@ -26,7 +26,7 @@
    title is left out, so a clipped start shows its chevron alone. */
 .guideTitle b[data-one-line] { display: block; white-space: nowrap; text-overflow: ellipsis; }
 .guideCell { container-type: inline-size; }
-@container (max-width: 3.75rem) { .guideTitle b { display: none; } }
+@container (max-width: 3.75rem) { .guideTitle b, .guideTitle b[data-one-line] { display: none; } }
 .guideDetail { font-size: var(--type-card-subtitle-size); color: var(--color-text-tertiary); white-space: nowrap; }
 .guideDetail > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .guideDetail em { font-style: normal; color: var(--color-record); }

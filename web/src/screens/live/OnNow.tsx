@@ -6,6 +6,7 @@ import {Button} from '../../kit/controls';
 import {LiveCard} from '../../kit/cards';
 import {Skeleton, StateView} from '../../kit/states';
 import type {ShellArtwork} from '../../shell/artwork';
+import {nameInitials} from '../../kit/artwork';
 import type {LiveBindings} from './bindings';
 import {onNowProgramme} from './on-now-programme';
 import type {RowWitness} from './row-witness';
@@ -62,7 +63,8 @@ function CommittedOnNow({owner, now, timezone, artwork, reducedMotion, onOpen, o
     const witness: RowWitness = {row: channel, current: () => owner.life.current() && current.store.channelAt(index) === channel};
     return <div className={styles.nowSlot} style={{left: index * step}} key={index} data-on-now-channel-id={channel.id}>
       <LiveCard large channel={{id: channel.id, sourceId, name: channel.name, number: channel.number, favorite: channel.favorite,
-        ...(channel.mark ? {mark: {...channel.mark, sourceId, id: channel.id}} : {})}}
+        // A channel with no mark of its own draws the guide row's initials ("MC"), never an empty box.
+        mark: {...(channel.mark ?? {text: nameInitials(channel.name) || channel.number, seed: `${sourceId}:${channel.id}`}), sourceId, id: channel.id}}}
         logo={artwork.foreground(channel.logoUrl, 68, 1)} programme={onNowProgramme(page.programs, now, defaultI18n, timezone)}
         onNavigate={() => {if (!witness.current()) return;if (channel.tuneAvailable && onPlay) onPlay(channel, witness);else onOpen(channel, page.programs.find(programme => programme.start <= now && now < programme.end), witness);}} onPlay={channel.tuneAvailable && onPlay ? () => onPlay(channel, witness) : undefined}/>
     </div>;
