@@ -10,6 +10,7 @@ import {NativeWatchOutlet} from '../src-next/shell/watch-outlet.ts';
 import {NativeWatchControls} from '../src-next/screens/watch/controls.ts';
 import {resolvePlayerPresentation, playerControlsRevealDeadline} from '../src-next/platform/layout/player-presentation.ts';
 import {nativeWatchTVPresentation} from '../src-next/screens/watch/tv-presentation.ts';
+import {showsOwnEnd} from '../src-next/screens/watch/post-play-gate.ts';
 const authority = {serverId: 's', accountId: 'a', profileId: 'p', epoch: 'e', viewerFence: 'v'};
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 's', accountId: 'a', profileId: 'p', controllerId: 'c', controllerEpoch: 'e', commandLaneId: 'l', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'source', entryId: 'entry', generation: 1});
 let window = {width: 890, height: 626}, safeTop = 0;
@@ -18,6 +19,7 @@ const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/
   '../../kit/theme': {useTheme: () => ({colors: {ink: '#08121b'}})},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined},
   '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: () => () => {}},
+  './post-play-gate': {showsOwnEnd},
   '../../kit/focus': {useOptionalFocusRegistry: () => undefined},
   '../../kit/useScreenReader': {useScreenReader: () => false},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: safeTop, bottom: 0, left: 0, right: 0})},

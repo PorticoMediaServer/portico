@@ -19,6 +19,7 @@ import {NativeWatchOutlet, type NativeExpandedVideoSlot, type NativeWatchReader}
 import {resolvePlayerPresentation, playerControlsRevealDeadline} from '../src-next/platform/layout/player-presentation.ts';
 import {NativeWatchControls} from '../src-next/screens/watch/controls.ts';
 import {nativeWatchTVPresentation} from '../src-next/screens/watch/tv-presentation.ts';
+import {showsOwnEnd} from '../src-next/screens/watch/post-play-gate.ts';
 import {focusTestID} from '../src-next/kit/focus/registry.ts';
 import {tvFocusIds} from '../src-next/shell/tv-focus.ts';
 import type {NativeWatchPictureSlot} from '../src-next/shell/watch-picture.tsx';
@@ -265,6 +266,7 @@ test('actual WatchHost panel/control geometry reaches the persistent layer throu
     '../../kit/player/HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
     './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {open: false, rows: []}; return () => snapshot;})()},
     './tv-presentation': {nativeWatchTVPresentation},
+    './post-play-gate': {showsOwnEnd},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useSharedValue: (value: any) => React.useRef({value}).current, useAnimatedStyle: (run: any) => run(),
       withTiming: (value: any) => value, cancelAnimation: () => {}},
     '../../kit/useMotion': {useMotion: () => ({reduce: false, timing: () => ({duration: 0})})},

@@ -16,6 +16,7 @@ import {TVPanelTransition, TVPanelSlide, TVPanelScrim, useTVPanelPresence} from 
 import type {NativePlaybackAdapter, NativePlaybackReadLifetime, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
 import type {NativeWatchNotice} from './playback-info';
 import type {NativePlaybackFailure} from './PlaybackFailed';
+import {showsOwnEnd} from './post-play-gate';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeWatchOutletPort} from '../../shell/watch-outlet';
@@ -210,8 +211,8 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
   const chromePane = layout.mode === 'tabletop' ? layout.controls : layout.surface;
   // A title with nothing queued ends on its own card, on the TV and in the phone's
   // full-window player (phone-player 6); the upright watch page keeps its own page.
-  const postPlay = bindings.postPlay && !panelOpen && (isTV || layout.mode === 'full-window') && source.playback.phase === 'ended'
-    && !(source.queue.view?.next.available === true) ? bindings.postPlay(context) : undefined;
+  const postPlay = bindings.postPlay && !panelOpen && (isTV || layout.mode === 'full-window')
+    && showsOwnEnd(source.playback.phase, source.playback.itemId, source.queue.view) ? bindings.postPlay(context) : undefined;
   // Capture only when a valid fence names this failure; a render without one leaves
   // the last capture alone rather than inventing a fence or changing hook count.
   const failureKey = fence && source.playback.phase === 'error'
