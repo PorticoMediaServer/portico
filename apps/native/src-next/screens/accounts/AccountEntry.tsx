@@ -46,7 +46,7 @@ import {NativeSetup} from './NativeSetup';
 import {PhoneFindServer} from '../../kit/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../pages/touch/accounts/ServerSignInPage';
 import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
-import {PhoneNoServers} from './PhoneNoServers';
+import {NoServersPage as PhoneNoServersPage} from '../../pages/touch/accounts/NoServersPage';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 import type {AccountDownloadsEntry} from './downloads-entry-model';
 import type {NativeInvitationLink} from '../../platform/invitation-links';
@@ -1671,7 +1671,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         || capturedDownload.source !== downloads || !capturedDownload.source.current() || !capturedDownload.source.getSnapshot().available) return;
       capturedDownload.source.open();
     };
-    const EmptyDirectory = Platform.isTV ? TVNoServersPage : PhoneNoServers;
+    const EmptyDirectory = Platform.isTV ? TVNoServersPage : PhoneNoServersPage;
     return <EmptyDirectory {...(!Platform.isTV ? {onDownloads: !!capturedDownload && capturedDownload.source === downloads && capturedDownload.active && downloadValue?.available && downloads?.current() ? openDownloads : undefined,
       username: nativeAccounts.accountCredentials().getSnapshot().session?.account.username,
       onSettings: () => openAccountWorkspace(scope, current)} : {})} isCurrent={current} notice={notice} busy={busy} error={notice ? undefined : status} onBack={() => {if (current()) back();}}
