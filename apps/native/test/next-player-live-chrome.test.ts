@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {loadWatchChrome} from './helpers/load-watch-chrome.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/identity.ts';
 import {followedByScene} from '../../../packages/player-core/src/segment-skip.ts';
 import * as landingStoreModule from '../src-next/screens/watch/landing-store.ts';
@@ -39,7 +40,7 @@ async function fixture(input: {compact?: boolean; bar?: boolean; tabletop?: 'col
     tune: async (row: unknown, state: unknown) => {calls.push(['tune', row, state]);}, close: () => {}, fullGuide: () => {}};
   const actions = {subscribe: noopSubscription, getSnapshot: () => actionState, restoreProof: () => () => true,
     record: async (state: unknown) => {calls.push(['record', state]);}, openMore: (state: unknown) => {calls.push(['more', state]);}, close: () => {}};
-  const {NativeWatchChrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), {'../../platform/tv-keys': {useTVKeyEvent: () => {}}, 
+  const {NativeWatchChrome} = await loadWatchChrome({'../../platform/tv-keys': {useTVKeyEvent: () => {}}, 
     react: {...h.react, useLayoutEffect: () => {}}, 'react-native': {View: 'View', Text: 'Text', useTVEventHandler: () => {}},
     'react-native-reanimated': {default: {View: 'Animated'}, Easing: {linear: (x: number) => x}, cancelAnimation() {}, useAnimatedStyle: (run: () => unknown) => run(), useSharedValue: (value: unknown) => h.react.useRef({value}).current, withTiming: (value: unknown) => value},
     'react-native-gesture-handler': {Gesture: {Pan: () => ({enabled: () => ({})})}, GestureDetector: 'GestureDetector'},

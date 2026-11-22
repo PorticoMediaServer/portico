@@ -1,6 +1,7 @@
 import {nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../src-next/platform/playback/subtitle-style-choices.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {loadWatchChrome} from './helpers/load-watch-chrome.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {stubsFrom} from './helpers/stubs-from.mjs';
 import {watchHooks, descendants, flattenStyle} from './helpers/watch-hooks.mjs';
@@ -325,7 +326,7 @@ async function chromeFixture(live = false) {
   const liveState = {fence: localFence, offer: {channel: {kind: 'live', number: '1', recordAvailable: true}, programme: {}}};
   const liveActions = {subscribe: () => () => {}, getSnapshot: () => liveState, restoreProof: () => () => true};
   const identity = {title: 'Title', subtitle: [{id: 'episode', role: 'context', text: 'S1 E2'}, {id: 'episode-title', role: 'identity', text: 'Episode name'}]};
-  const {NativeWatchChrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), {'../../kit/useScreenReader': {useScreenReader: () => false}, './landing-store': landingStoreModule, 
+  const {NativeWatchChrome} = await loadWatchChrome({'../../kit/useScreenReader': {useScreenReader: () => false}, './landing-store': landingStoreModule, 
     react: h.react, 'react-native': nativeAtoms, 'react-native-svg': svg, 'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'Gesture'}, 'react-native-reanimated': animation(h),
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/up-next': {upNextCountdown: () => undefined, upNextOffer: () => undefined},
     '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds: (microseconds: string) => Number(microseconds) / 1000000},

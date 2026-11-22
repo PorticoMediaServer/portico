@@ -18,7 +18,7 @@ import {showsOwnEnd} from '../../../screens/watch/post-play-gate';
 import {sameAuthority, type ShellAuthority} from '../../../shell/model';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeWatchOutletPort} from '../../../shell/watch-outlet';
-import type {NativeWatchChromeProps} from '../../../screens/watch/WatchChrome';
+import type {NativeWatchChromeProps} from '../../../pages/shared/player/useWatchChrome';
 import {playbackWaiting} from '../../../../../../packages/client-core/src/presentation/playback-waiting';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from '../../../screens/watch/live-guide';
 import {nativeWatchTVPresentation} from '../../../screens/watch/tv-presentation';

@@ -6,6 +6,7 @@ import {channelTint, playbackIdentity} from '../../../packages/client-core/src/p
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
+import {loadWatchChrome} from './helpers/load-watch-chrome.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {playbackFence} from '../../../packages/player-core/src/index.ts';
@@ -49,7 +50,7 @@ const chromeModules = {
   '../../kit/useScreenReader': {useScreenReader: () => false},
   '../../platform/tv-play-pause': tvPlayPause,
 };
-const {NativeWatchChrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), chromeModules);
+const {NativeWatchChrome} = await loadWatchChrome(chromeModules);
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation: 1});
 
 test('TV first Select event plus its genuine picture press only reveals; second press toggles playback', async () => {
@@ -271,7 +272,7 @@ test('a slow first frame never bypasses ordinary timer and toggle hiding after t
     set: (callback, delay) => {const id = ++nextTimer; timers.set(id, {callback, at: now + delay}); return id;},
     clear: handle => {timers.delete(handle as number);}});
   const paint = {key: {}, fence, title: {value: 0}, page: {value: 1}, controls: {value: 1}, landed: true, entering: false, controlsAdmitted: true};
-  const {NativeWatchChrome: Chrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), {
+  const {NativeWatchChrome: Chrome} = await loadWatchChrome({
     ...chromeModules, '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => paint, usePublishedPlayerMorph: () => undefined},
     'react-native-reanimated': {...chromeModules['react-native-reanimated'], useAnimatedStyle: (read: () => any) => new Proxy({}, {get: (_target, key) => read()[key]})},
   });
@@ -299,7 +300,7 @@ test('a slow first frame never bypasses ordinary timer and toggle hiding after t
 for (const screenReader of [false, true]) test(`auto-skip Undo ${screenReader ? 'persists and announces for AT' : 'follows the policy\'s six-second window'}`, async () => {
   const previousTV = isTV; isTV = false;
   const spoken: string[] = [], seeks: unknown[] = [], undos: unknown[] = [];
-  const {NativeWatchChrome: Chrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), {
+  const {NativeWatchChrome: Chrome} = await loadWatchChrome({
     ...chromeModules,
     '../../kit/useScreenReader': {useScreenReader: () => screenReader},
     'react-native': {...chromeModules['react-native'], AccessibilityInfo: {announceForAccessibility: (text: string) => spoken.push(text)}},
@@ -340,7 +341,7 @@ for (const screenReader of [false, true]) test(`auto-skip Undo ${screenReader ? 
 test('auto-skip Undo inside the policy window uses the policy, with or without a screen reader', async () => {
   const previousTV = isTV; isTV = false;
   const seeks: unknown[] = [], undos: unknown[] = [];
-  const {NativeWatchChrome: Chrome} = await screenModule(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), {
+  const {NativeWatchChrome: Chrome} = await loadWatchChrome({
     ...chromeModules, '../../kit/useScreenReader': {useScreenReader: () => true},
     'react-native': {...chromeModules['react-native'], AccessibilityInfo: {announceForAccessibility: () => {}}},
   });

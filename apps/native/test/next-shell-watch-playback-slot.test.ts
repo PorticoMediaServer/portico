@@ -263,7 +263,7 @@ test('actual WatchHost panel/control geometry reaches the persistent layer throu
     '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
     '../../platform/layout/player-presentation': {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs: 250},
     '../../platform/platformPosture': {usePlatformPosture: () => posture},
-    './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
+    '../../pages/shared/player/WatchChromePage': {WatchChromePage: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
     '../../kit/player/HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
     './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {open: false, rows: []}; return () => snapshot;})()},
     './tv-presentation': {nativeWatchTVPresentation},

@@ -3,7 +3,7 @@ import {cancelAnimation, useAnimatedStyle, useSharedValue, withSpring, withTimin
 import {useMotion} from '../../kit/useMotion';
 import {usePresence} from '../../kit/overlays/surface';
 
-/** One current prompt, one inert exit; command admission stays with WatchChrome. */
+/** One current prompt, one inert exit; command admission stays with the watch chrome (useWatchChrome). */
 export function useSkipPromptMotion<T extends {id: string}>(wanted: T | undefined, scope: unknown, lifted: boolean, liftDistance: number) {
   const motion = useMotion(), open = !!wanted && scope !== undefined;
   const last = useRef<{value: T; scope: unknown} | undefined>(undefined);
