@@ -13,6 +13,8 @@ import {t, environment as env} from './text';
 import {titlePageFacts} from './model';
 import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
 import {ScreenProblem} from './ScreenProblem';
+import {TitleRow} from './Detail';
+import {entriesFromItems, readRelatedItems} from '@core/items.ts';
 import styles from './collection-owner.module.css';
 
 export type CollectionScreenProps = Readonly<{context: ScreenContext; libraryId: string; collectionId: string;
@@ -38,6 +40,16 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
     void service.select({libraryId, view: 'collection', entityId: collectionId}).catch(error => {if (life.current()) context.effects.reportError(error);});
     return () => {life.dispose(); off(); service.dispose();};
   }, [context, libraryId, collectionId, retry]);
+  // desktop-detail f8: "More like The Lord of the Rings" under the page, the server's own ranking for this collection.
+  const [related, setRelated] = useState<Readonly<{collectionId: string; entries: readonly ContentEntry[]}>>();
+  useEffect(() => {
+    const life = screenLifetime(context);
+    void readRelatedItems(life.api, collectionId, life.signal(), {relation: 'more_like_this', limit: 15}).then(answer => {
+      const group = answer.groups.find(group => group.relation === 'more_like_this');
+      if (life.current()) setRelated({collectionId, entries: entriesFromItems(group?.items ?? []).filter(entry => entry.id !== collectionId)});
+    }, () => {/* the row is a supplement: a failed read leaves it out */});
+    return () => life.dispose();
+  }, [context, collectionId, retry]);
   const active = page?.context === context && page.libraryId === libraryId && page.collectionId === collectionId && page.life.current() ? page : undefined;
   const snapshot = active?.snapshot, projection = snapshot?.projection, collection = projection?.entity;
   const back = onBack ? {label: t('next.states.back'), onPress: () => runScreenCommand(context, onBack)} : undefined;
@@ -130,6 +142,8 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
       {snapshot.appended.filter(section => section.nextCursor).map(section => <Button key={section.id} variant="glass" disabled={snapshot.phase !== 'ready'}
         onClick={() => runScreenCommand(context, () => {if (current()) return service.next(section.id);})}>{t('next.settings.loadMore')}</Button>)}
     </PanelBlock>
+    {related?.collectionId === collectionId && related.entries.length > 0 && !orderIds
+      && <TitleRow heading={t('home.row.moreLike', {title: collection.title})} entries={related.entries} binding={{context}} guard={() => {if (!current()) throw new DOMException('Collection page changed', 'AbortError');}} />}
   </TitleFrame>
     {owner && <RenameCollection open={editing === 'rename'} name={collection.title} onOpenChange={open => setEditing(open ? 'rename' : undefined)}
       onSave={name => edit({title: name}).then(() => {if (life.current()) setEditing(undefined);}, report)} />}
