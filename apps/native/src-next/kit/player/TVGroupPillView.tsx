@@ -22,7 +22,8 @@ export function TVGroupPillView({group, joined, pill, pillState, statusColor, me
     <Focusable ref={pill} testID="player-group-pill" focusId="player-group-pill" accessibilityRole="button"
       accessibilityLabel={t('web.together.pill.label', {name: group.name, count: joined.length, status: pillState})} onPress={openSheet} focusRadius={32}
       style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 64, maxWidth: 380, paddingLeft: 10, paddingRight: 26,
-        borderRadius: 32, backgroundColor: 'rgba(7,16,24,.5)', boxShadow: 'inset 0 0 0 1px rgba(237,245,250,.12)'}}>
+        // Fully round at any height: Large text grows the pill past its 64 minimum.
+        borderRadius: 9999, backgroundColor: 'rgba(7,16,24,.5)', boxShadow: 'inset 0 0 0 1px rgba(237,245,250,.12)'}}>
       <View accessible={false} style={{flexDirection: 'row'}}>{joined.slice(0, 3).map((member, index) => <View key={member.id} style={{marginLeft: index ? -11 : 0, borderRadius: 21, boxShadow: '0 0 0 2.5px #0b1720'}}>{face(member, 42)}</View>)}</View>
       <View style={{minWidth: 0, flexShrink: 1}}>
         <Text {...textLines(1)} style={[browseType(theme, 22, 700, 0, 26), {color: theme.colors.text}]}>{group.name}</Text>

@@ -1401,7 +1401,7 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
   // The owner's Disk usage reads storage through its own source; this test is about Now playing and tasks.
   const tvPage = await screenModule(new URL('../src-next/pages/tv/dashboard/DashboardPage.tsx', import.meta.url), {...pageModules,
     '../../../kit/dashboard/TVDashboardParts': parts, '../../shared/dashboard/useServerDashboard': serverDashboard, '../../shared/dashboard/useDiskUsage': {useDiskUsage: () => undefined}});
-  const dashboard = {NativeDashboardScreen: (props: any) => tvPage.DashboardPage({...props, column: 'pages', rows: 'rows'})};
+  const dashboard = {DashboardPage: (props: any) => tvPage.DashboardPage({...props, column: 'pages', rows: 'rows'})};
   const authority = {serverId: 'server', accountId: 'account', profileId: 'primary', epoch: 'one', viewerFence: 'fence'};
   const owner = {authority: () => authority, current: () => true, subscribeAuthority: () => () => {}, navigation: {open() {}}};
   const lifetime = new NativeScreenLifetime(owner), feedback = new NativeScreenServices(owner as any, async () => 'id');
@@ -1418,7 +1418,7 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
   const runtime = {text: {t: defaultI18n.t, locale: 'en-US'}, error: feedback.error, artwork: () => undefined};
   let sessionEvent: (() => void) | undefined, resyncEvent: (() => void) | undefined;
   const ports = {serverName: () => 'Server', context: {events: {on: (name: string, listener: () => void) => {if (name === 'admin.sessions') sessionEvent = listener; return () => {sessionEvent = undefined;};}, onResync: (listener: () => void) => {resyncEvent = listener; return () => {resyncEvent = undefined;};}}, navigation: {open() {}, back() {}}}};
-  const panel = await mount(dashboard.NativeDashboardScreen, {controller, ports, runtime, deniedFallback: null});
+  const panel = await mount(dashboard.DashboardPage, {controller, ports, runtime, deniedFallback: null});
   try {
     await act(() => {});
     // The page draws kit parts; each is found by its test id, and its own Focusable by mounting it.
