@@ -10,8 +10,10 @@ import {act as driverAct, createHookHost} from './hook-driver.ts';
 const act = async (work: () => void | Promise<void>) => {await driverAct(work); await fabricAct(() => {});};
 import {screenModule} from './helpers/screen-harness.mjs';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
-const words = (node: any): string => Array.isArray(node) ? node.map(words).join(' ') : node?.props ? words(node.props.children) : typeof node === 'string' ? node : '';
+// The code step's resend block is the kit's AccountEntryResend, drawn here so its button and help line are in the tree.
+const drawn = (node: any) => node?.type?.name === 'AccountEntryResend' ? node.type(node.props) : undefined;
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : drawn(node) ? [node, ...nodes(drawn(node))] : node?.props ? [node, ...nodes(node.props.children)] : [];
+const words = (node: any): string => Array.isArray(node) ? node.map(words).join(' ') : drawn(node) ? words(drawn(node)) : node?.props ? words(node.props.children) : typeof node === 'string' ? node : '';
 const copy = {t: (key: string, values?: Record<string, string>) => key === 'services.signup.agreement' ? `By continuing, you agree to the ${values!.terms} and ${values!.privacy}.` : key};
 const theme = {platform: 'phone', isTV: false, textScale: 1, type: {body: {}, bodyStrong: {}, caption: {}, captionStrong: {}},
   colors: {text: '#edf5fa', textSecondary: '#afc4d2', textTertiary: '#7995a6', danger: '#f38b88', accent: '#2f86bb', accentStrong: '#409fd4', line: '#29414f'}};
