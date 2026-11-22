@@ -115,7 +115,7 @@ test('a failure kept on screen writes one line however it is re-rendered, and wr
  assert.equal(appLog.snapshot().split('\n').length, 3);
 });
 
-test('a fact-less line repeated within a minute is kept once, so a warning flood cannot push useful lines out', () => {
+test('a fact-less warning repeated back to back within a minute is kept once, so a warning flood cannot push useful lines out', () => {
  let now = 1_000_000; const log = new AppLog(()=>now);
  log.write('info','playback','playback',{state:'playing',engine:'native'});
  for (let i = 0; i < 5000; i++) { now += 500; log.write('warn','app','warning'); }
@@ -126,7 +126,7 @@ test('a fact-less line repeated within a minute is kept once, so a warning flood
  assert.ok(warnings.length >= 41 && warnings.length <= 43, `kept ${warnings.length} warning lines`);
 });
 
-test('lines that carry facts are never folded, and a fact-less line returns after a quiet minute', () => {
+test('lines that carry facts are never folded, and a fact-less warning returns after a minute', () => {
  let now = 1_000_000; const log = new AppLog(()=>now);
  log.write('warn','network','network-failure',{method:'GET',status:503,code:'http_error'});
  log.write('warn','network','network-failure',{method:'GET',status:503,code:'http_error'});
@@ -136,4 +136,29 @@ test('lines that carry facts are never folded, and a fact-less line returns afte
  assert.equal(lines.filter(line=>line.message==='network-failure').length, 2);
  assert.equal(lines.filter(line=>line.message==='warning').length, 2);
  assert.equal(lines.filter(line=>line.level==='error').length, 1, 'a different level is its own key');
+});
+
+test('crashes and errors are never folded: a crash loop shows every crash', () => {
+ let now = 1_000_000; const log = new AppLog(()=>now);
+ log.restore(JSON.stringify({time: now - 20_000, level:'error', area:'app', message:'crash', facts:{}}));
+ log.write('error','app','crash'); now += 5_000; log.write('error','app','error'); now += 5_000; log.write('error','app','error');
+ const lines = log.snapshot().split('\n').map(line=>JSON.parse(line));
+ assert.equal(lines.filter(line=>line.message==='crash').length, 2, 'the restored crash and this run’s crash');
+ assert.equal(lines.filter(line=>line.message==='error').length, 2);
+});
+
+test('only back-to-back repeats fold: a warning after another line is kept, so its timing survives', () => {
+ let now = 1_000_000; const log = new AppLog(()=>now);
+ log.write('warn','app','warning'); now += 30_000;
+ log.write('info','playback','playback',{state:'stopped'}); now += 1_000;
+ log.write('warn','app','warning');
+ const lines = log.snapshot().split('\n').map(line=>JSON.parse(line));
+ assert.deepEqual(lines.map(line=>line.message), ['warning','playback','warning']);
+});
+
+test('restored lines are kept as they are and do not fold this run’s first warning', () => {
+ let now = 1_000_000; const log = new AppLog(()=>now);
+ log.restore([0,1,2].map(i => JSON.stringify({time: now - 3_000 + i * 1_000, level:'warn', area:'app', message:'warning', facts:{}})).join('\n'));
+ log.write('warn','app','warning');
+ assert.equal(log.snapshot().split('\n').length, 4);
 });
