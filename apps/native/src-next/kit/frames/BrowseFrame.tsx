@@ -1,6 +1,6 @@
 import type {RowReasonPart} from '../../../../../packages/client-core/src/presentation/home-row-reason';
-import React, {useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {Platform, RefreshControl, ScrollView, TVFocusGuideView, Text, View, useWindowDimensions, type FocusGuideMethods, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle} from 'react-native';
+import React, {useCallback, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {Platform, RefreshControl, ScrollView, TVFocusGuideView, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle} from 'react-native';
 import Animated, {type AnimatedRef} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
@@ -161,7 +161,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
  * own nextFocus guide was not used). A one-point guide across the top of the rows, live only while the first row holds
  * focus, sends Up to the selected tab itself. Android TV follows the cards' nextFocusUp to the tab and needs none. */
 function TVTabsUpGuide({region, value}: {region: FocusRegionProps; value: string}) {
-  const registry = useOptionalFocusRegistry(), guide = useRef<View & FocusGuideMethods>(null), below = region.edges?.down;
+  const registry = useOptionalFocusRegistry(), below = region.edges?.down;
   // Only the first row's and the tabs' own changes (focus moving in or out, a tab attaching) can change it.
   const subscribe = useCallback((listener: () => void) => {
     if (!registry || !below) return () => {};
@@ -171,12 +171,11 @@ function TVTabsUpGuide({region, value}: {region: FocusRegionProps; value: string
   // Live only with a tab to send Up to: a guide with no destination would swallow the press.
   const live = useSyncExternalStore(subscribe, () => !!below && registry?.capture()?.regionId === below
     && !!registry?.child({regionId: region.id, childId: value}));
-  // Its destination is set in the same commit that makes it focusable, never a frame after.
-  useLayoutEffect(() => {
-    const target = live ? registry?.child({regionId: region.id, childId: value}) : undefined;
-    guide.current?.setDestinations(target ? [target as never] : []);
-  }, [live, registry, region.id, value]);
-  return <TVFocusGuideView ref={guide} focusable={live} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>;
+  const target = live ? registry?.child({regionId: region.id, childId: value}) : undefined;
+  // The tab goes in as the `destinations` prop, never set imperatively: react-native-tvos makes a TVFocusGuideView with
+  // neither that prop nor autoFocus unselectable on tvOS (`isTVSelectable`), so UIKit never saw this guide (lane 13, 22 Nov:
+  // Up from the Continue card still reached the chevron with no guide in the focus log).
+  return <TVFocusGuideView destinations={target ? [target as never] : []} focusable={live} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>;
 }
 
 /** One piece of a pushed list's reason line: a title it names is drawn in the strong ink ("Because you watched Dune"). */
