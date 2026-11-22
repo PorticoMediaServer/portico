@@ -38,6 +38,8 @@ export type TitlePrimary = Omit<RowPrimary, 'focusId'>;
 export type TitleCredit = Readonly<{label: string; names: string | readonly AboutValue[]}>;
 /** The line above the title (desktop-detail f1 "Dune collection · 2 films", f7 "Acting", desktop-listen "Album"). */
 export type TitleKicker = Readonly<{label: string; icon?: IconName; detail?: string; onPress?: () => void;
+  /** Plain words before the label, which is then the link: a magazine's "Magazine" before its library (phone-read 24). */
+  kind?: string;
   /** In the accent though it is not a link: an author's or a series' kind over their name (collections 41b, 41c). */
   accent?: boolean}>;
 /** A person's, an artist's, an album's or a book's own picture, beside the words in place of the art box. The frame
@@ -233,6 +235,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   const centre = stacked ? 'center' as const : 'flex-start' as const;
 
   const kickerWords = kicker && <>
+    {kicker.kind !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>{kicker.kind}</Text>}
     <Text accessibilityRole={kicker.onPress && !tv ? 'link' : undefined} onPress={tv ? undefined : kicker.onPress} style={[theme.type.rowHelp, {color: kicker.onPress || kicker.icon || kicker.accent ? theme.colors.accentStrong : theme.colors.textSecondary, fontFamily: theme.type.rowLabel.fontFamily}]}>
       {kicker.icon ? <><Icon name={kicker.icon} size={tv ? theme.scale.icon.tertiary.size : 16} color={theme.colors.accentStrong}/>{' '}</> : null}{kicker.label}</Text>
     {kicker.detail !== undefined && <Text style={[theme.type.rowHelp, {color: theme.colors.text, fontFamily: theme.type.rowLabel.fontFamily}]}>{kicker.detail}</Text>}
@@ -245,7 +248,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // On TV a kicker that opens something (the collection, tv-detail frame 1) is a focus stop of its own, above the buttons:
   // text alone takes no D-pad focus.
   const kickerLine = kicker && (tv && kicker.onPress
-    ? headLink('kicker', <Focusable focusId="title-kicker" testID="title-kicker" accessibilityRole="link" accessibilityLabel={[kicker.label, kicker.detail].filter(Boolean).join(', ')} onPress={kicker.onPress}
+    ? headLink('kicker', <Focusable focusId="title-kicker" testID="title-kicker" accessibilityRole="link" accessibilityLabel={[kicker.kind, kicker.label, kicker.detail].filter(Boolean).join(', ')} onPress={kicker.onPress}
       // The ring is drawn outside the line: its room comes on top of the gap, so it never touches the title (R1).
       style={[kickerRow, {alignSelf: 'flex-start', marginBottom: theme.space.controlGap + theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv}]}>{kickerWords}</Focusable>)
     : <View style={[kickerRow, {marginBottom: theme.space.controlGap}]}>{kickerWords}</View>);

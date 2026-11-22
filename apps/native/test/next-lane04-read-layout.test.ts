@@ -113,7 +113,8 @@ async function periodical(tablet: boolean, magazine: boolean, phase = 'ready') {
     '../../../kit/layout/page-inset': {usePageWidth: () => width}, '../../../kit/theme': {useTheme},
     '../../shared/read/useMagazineHead': {useMagazineHead: () => ({facts: [], primary: {label: 'Read', onPress() {}}})},
   });
-  const page = r.render(ReadPeriodicalPage, {controller, route: {groupId: 'group', publicationType: state.publicationType}, context: {}, runtime, onBack() {}});
+  const page = r.render(ReadPeriodicalPage, {controller, route: {groupId: 'group', libraryId: 'books', publicationType: state.publicationType},
+    context: {libraries: () => [{id: 'books', name: 'Books'}]}, runtime: {...runtime, onDestination: (value: unknown) => opens.push(value)}, onBack() {}});
   // A magazine's title page is a fragment (the frame and its item menu); the archive frame is a component to render.
   const tree = typeof page.type === 'function' ? r.render(page.type, page.props) : page;
   return {r, tree, state, selected, latest, opens, menus};
@@ -130,6 +131,9 @@ test('magazine uses virtual year rows, the title page poster cover and 44pt year
   assert.equal(list.type, 'FlatList'); assert.equal(list.props.initialNumToRender, 4);
   assert.deepEqual(list.props.data.map((row: any) => [row.year, row.kind]), [['2026', 'heading'], ['2026', 'issues'], ['2025', 'heading'], ['2025', 'issues']]);
   assert.equal(rowNode.props.hero, 'head'); assert.equal(frame.props.cover.shape, 'poster');
+  // phone-read 24: "Magazine · Books", the library a link to it.
+  assert.equal(frame.props.kicker.kind, 'next.reader.magazine'); assert.equal(frame.props.kicker.label, 'Books');
+  frame.props.kicker.onPress(); assert.deepEqual(f.opens.at(-1), {kind: 'library', libraryId: 'books'});
   const cover = frame.props.cover.node(190); assert.equal(cover.props.width, 190); assert.equal(cover.props.issue, f.latest);
   const chips = nodes(list.props.ListHeaderComponent).find(node => node.type === 'FlatList' && node.props.horizontal);
   const chip = chips.props.renderItem({item: f.state.years[0]}); assert.equal(chip.props.style.height, 44);
