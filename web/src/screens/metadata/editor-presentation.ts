@@ -45,7 +45,7 @@ export function wideMetadataField(spec: Pick<RepairFieldSpec, 'field' | 'type'>)
   return spec.type === 'multiline' || spec.field === 'tagline';
 }
 
-const GENERAL_ORDER = ['title', 'sortTitle', 'originalTitle', 'metadataLanguage', 'year', 'releaseDate', 'contentRating', 'edition', 'studio', 'network', 'country'];
+const GENERAL_ORDER = ['title', 'sortTitle', 'originalTitle', 'metadataLanguage', 'year', 'number', 'releaseDate', 'contentRating', 'edition', 'studio', 'network', 'country'];
 /** Frame 6 order: names first, then dates and ratings, then companies; long text last.
  * Fields the frame does not draw keep the server's order, after the drawn ones. */
 export function generalMetadataFields<T extends Pick<RepairFieldSpec, 'field' | 'type' | 'group'>>(schema: readonly T[]): readonly T[] {

@@ -66,6 +66,8 @@ const FIELD_SPECS:Readonly<Record<string,Omit<RepairFieldSpec,'field'|'bulk'>>>=
  metadataLanguage:{label:'web.libraries.metadataLanguage',group:'general',type:'enum'},
  edition:{label:'web.metadata.field.edition',...short},tagline:{label:'web.metadata.field.tagline',...short},contentRating:{label:'web.metadata.field.contentRating',...short},
  summary:{label:'web.metadata.field.description',group:'text',type:'multiline',maxLength:20000},year:{label:'web.metadata.field.year',group:'numbers',type:'integer',min:0,max:9999},
+ // A volume's or issue's number in its series (books, audiobooks, comics and issues); 0 removes it.
+ number:{label:'web.metadata.field.seriesNumber',group:'numbers',type:'integer',min:0,max:99999},
  releaseDate:{label:'web.metadata.field.releaseDate',group:'numbers',type:'date'},publicationType:{label:'web.metadata.field.publicationType',group:'general',type:'enum',allowed:['','book','magazine','newspaper']},
  genres:{label:'web.metadata.genres',...list},studios:{label:'web.metadata.field.studio',...list},networks:{label:'web.metadata.field.network',...list},
  countries:{label:'web.metadata.field.country',...list},labels:{label:'web.metadata.field.tags',...list},
@@ -81,7 +83,7 @@ export function rebuiltRepair(doc:MetadataDocument,pictures:Pictures,history:rea
  for(const [name,field] of Object.entries(doc.fields??{})){const spec=FIELD_SPECS[name];if(!spec)continue;schema.push({field:name,bulk:false,...spec});
   // The provider's value beside an edited, locked or file-given field (rule 23); "Use it" takes it now.
   const provided=field.providerValue;
-  fields[name]={value:field.value===null||field.value===undefined||field.value===0&&name==='year'?'':String(field.value),automaticValue:provided===null||provided===undefined?'':String(provided),locked:field.locked,source:source(field.source)};}
+  fields[name]={value:field.value===null||field.value===undefined||field.value===0&&(name==='year'||name==='number')?'':String(field.value),automaticValue:provided===null||provided===undefined?'':String(provided),locked:field.locked,source:source(field.source)};}
  for(const [name,values] of Object.entries(doc.lists??{})){const spec=FIELD_SPECS[name];if(!spec)continue;schema.push({field:name,bulk:false,...spec});
   fields[name]={value:(values.values??[]).join(', '),automaticValue:'',locked:values.locked,source:source(values.source),values:values.values??[]};}
  const credits=doc.credits,roles=ROLES_BY_KIND[doc.kind]??[];

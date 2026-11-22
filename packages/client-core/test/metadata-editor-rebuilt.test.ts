@@ -187,3 +187,14 @@ test('artwork re-fetch keeps the server choice; making an episode picture waits,
   assert.equal(service.getSnapshot().data!.canMakeEpisodeThumbnail, false);
   service.dispose();
 });
+
+test("a book's number in its series is an editable whole number beside Year; none reads as empty", async () => {
+  const {rebuiltRepair} = await import('../src/metadata-repair.ts');
+  const book = (value: number) => ({itemId: 'itm_b', kind: 'book', revision: '1',
+    fields: {title: {value: 'Dune Messiah', source: 'file', locked: false}, number: {value, source: 'file', locked: false}}}) as never;
+  const data = rebuiltRepair(book(2), {}, [], [], scope, {kind: 'book' as never, id: 'itm_b', libraryId: 'lib'});
+  const spec = data.schema.find(field => field.field === 'number');
+  assert.deepEqual(spec && {type: spec.type, min: spec.min, max: spec.max, group: spec.group}, {type: 'integer', min: 0, max: 99999, group: 'numbers'});
+  assert.equal(data.snapshot.fields.number?.value, '2');
+  assert.equal(rebuiltRepair(book(0), {}, [], [], scope, {kind: 'book' as never, id: 'itm_b', libraryId: 'lib'}).snapshot.fields.number?.value, '');
+});
