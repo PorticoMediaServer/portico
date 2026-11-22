@@ -3366,6 +3366,7 @@ export interface QueueEntry {
   rootId?: string;
   rootTitle?: string;
   images: Record<string, string>;
+  libraryId?: string;
 }
 
 export interface QueueLink {

@@ -11162,6 +11162,9 @@
           "kind": {
             "type": "string"
           },
+          "libraryId": {
+            "type": "string"
+          },
           "parentId": {
             "type": "string"
           },
