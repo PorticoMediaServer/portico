@@ -283,6 +283,13 @@ export class ListeningOwner {
   }
   sleepChoice() {return this.sleep;}
   sleepChoices() {return listeningSleepChoices(this.kind);}
+  /** The choices to show for what is playing now: a book known to have no chapters (neither the whole book's list nor
+   * this part's) offers End of this book without End of this chapter, which could only fail. The owner still accepts
+   * every choice in sleepChoices(), so a timer already set keeps its label. */
+  sleepChoicesShown(snapshot: WebPlaybackRuntimeSnapshot) {
+    const choices = this.sleepChoices();
+    return snapshot.bookChapters?.phase !== 'ready' && this.state.chapters?.data?.status === 'none' ? choices.filter(choice => choice !== 'chapter') : choices;
+  }
   sleepOffered() {return this.state.current && this.fence.kind === 'queue' && !!this.port;}
   setSleep(shown: ListeningState, snapshot: WebPlaybackRuntimeSnapshot, choice: ListeningSleepChoice, panel=false) {
     if (!this.admit(shown,panel) || !this.matches(snapshot) || !this.sleepOffered() || !this.sleepChoices().includes(choice) || !this.admit(shown,panel)) stale();return this.writeSleep(this.fence, choice);
