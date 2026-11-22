@@ -61,10 +61,10 @@ test('a book: its series and place, the author with initials, its facts, Continu
   assert.deepEqual([view.readMore.label, view.readMore.expanded], [t('web.person.readMore'), false]);
 });
 
-test('where the reader is: an EPUB names its chapter, a page book its page, then the time left; one version shows no pill', async () => {
+test('where the reader is: an EPUB its chapter number of the contents, never the section name; a page book its page, then the time left; one version shows no pill', async () => {
   const {view} = await page();
   assert.equal(view.place.version, undefined);
-  assert.deepEqual(view.place.facts, ['Muad\'Dib', t('next.reader.aboutLeft', {duration: kitText.durationText(23_400, t)})]);
+  assert.deepEqual(view.place.facts, [t('next.kit.chapterOf', {number: 2, total: 3}), t('next.reader.aboutLeft', {duration: kitText.durationText(23_400, t)})]);
   const paged = await page({}, {manifest: pdf});
   assert.deepEqual(paged.view.place.facts, [t('next.reader.pageOf', {page: 248, count: 535}), t('next.reader.aboutLeft', {duration: kitText.durationText(23_400, t)})]);
   // A stale place names nothing.

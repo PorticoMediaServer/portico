@@ -113,11 +113,12 @@ export function useReadBook({controller, route, comic, owner, context, runtime, 
     ...(pages !== undefined ? [{id: 'pages', text: t('next.reader.pageCount', {count: pages}), role: 'context' as const}] : []),
     ...(contents.length ? [{id: 'chapters', text: t('next.kit.chapters', {count: contents.length}), role: 'context' as const}] : []),
   ] : [];
-  // Where the reader is (phone-read 7 "Page 248 of 535  About 7 h left"): a page book's page, an EPUB's chapter by its
-  // title, then the time left from the book's own estimate. Nothing is shown for a place the server did not save.
+  // Where the reader is (phone-read 7 "Page 248 of 535  About 7 h left", "Chapter 4 of 17 · 1 h 36 min left"): a page
+  // book's page, an EPUB's place in its contents (never the section's own name, which can be front matter such as
+  // "Imprint"), then the time left from the book's own estimate. Nothing is shown for a place the server did not save.
   const page = place ? readingResumePage(place) : undefined;
   const placeFacts = place && saved !== undefined ? [
-    ...(page !== undefined && pages !== undefined ? [t('next.reader.pageOf', {page, count: pages})] : currentIndex >= 0 ? [contents[currentIndex]!.title] : []),
+    ...(page !== undefined && pages !== undefined ? [t('next.reader.pageOf', {page, count: pages})] : currentIndex >= 0 ? [t('next.kit.chapterOf', {number: currentIndex + 1, total: contents.length})] : []),
     ...(estimated !== undefined ? [t('next.reader.aboutLeft', {duration: duration(Math.max(60, estimated * (1 - saved)))})] : []),
   ] : [];
   const selected = state.sourceId ? state.versions.find(version => version.sourceId === state.sourceId) : undefined;
