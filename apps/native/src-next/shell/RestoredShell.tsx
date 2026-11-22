@@ -19,7 +19,7 @@ import {defaultI18n} from '../../../../packages/i18n/src';
 import {NativeSignInEnded} from '../platform/sign-in-ended';
 import {NativeIdentityFailure} from '../platform/identity-failure';
 import {PhoneFirstLibrary} from './first-library';
-import {ServerIdentityFailure} from '../screens/accounts/ServerIdentityFailure';
+import {ServerIdentityFailurePage} from '../pages/shared/accounts/ServerIdentityFailurePage';
 import {nativeInvitationLinks, type NativeInvitationLink} from '../platform/invitation-links';
 import {nativeShareLinks} from '../platform/share-links';
 import {NativeShareLinks} from './NativeShareLinks';
@@ -364,7 +364,7 @@ export function RestoredShell() {
   if (refusal) return withDownloads(<ServerNeedsUpdate refusal={refusal} onBack={chooseAccounts} backLabel={defaultI18n.t('next.states.switchServer')} testID="native-recovery-server-update"/>);
   if (restoreError instanceof NativeIdentityFailure) {
     const failure = restoreError;
-    return withDownloads(<ServerIdentityFailure failure={failure} onRetry={retry} onChoose={chooseAccounts}
+    return withDownloads(<ServerIdentityFailurePage failure={failure} onRetry={retry} onChoose={chooseAccounts}
       onForget={async () => {if (renderedCurrent()) await nativeAccounts.forgetServer(failure.server);}} onError={error => {if (renderedCurrent()) setState(previous => renderedCurrent() ? {phase: 'ended', error} : previous);}}/>);
   }
   if (restoreError instanceof NativeSignInEnded) return withDownloads(<AccountEntry downloads={remembered?.entry} key={restoreError.hint.serverId + ':' + restoreError.hint.familyId} endedSignIn={restoreError.hint} onSetupComplete={setupComplete} onComplete={complete} onBack={chooseAccounts}/>);

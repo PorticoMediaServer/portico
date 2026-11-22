@@ -44,7 +44,7 @@ test(`compact ${category} recovery admits only original usable downloads: ${cond
     '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
     '../../../../packages/i18n/src': {defaultI18n}, '../platform/sign-in-ended': {NativeSignInEnded: class extends Error {}},
     '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}}, './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
-    '../screens/accounts/ServerIdentityFailure': {ServerIdentityFailure: 'ServerIdentityFailure'},
+    '../pages/shared/accounts/ServerIdentityFailurePage': {ServerIdentityFailurePage: 'ServerIdentityFailure'},
     '../platform/invitation-links': {nativeInvitationLinks: {subscribe: () => () => {}, getSnapshot: () => undefined, acquire: () => () => {}}},
     '../platform/installation': {beginNativeInstallation: () => ({current: () => live, dispose() {}})},
     './remembered-downloads-opening': {createRememberedDownloadsOpening: async (_installation: unknown, options: unknown) => {callback = options; expectedSource = source; return source;}},
