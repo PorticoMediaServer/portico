@@ -4164,6 +4164,30 @@
         ],
         "type": "object"
       },
+      "HomeTitleContext": {
+        "properties": {
+          "genres": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "seasonCount": {
+            "type": "integer"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "genres"
+        ],
+        "type": "object"
+      },
       "HostedNotice": {
         "properties": {
           "note": {}
@@ -4474,6 +4498,9 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "homeTitleContext": {
+            "$ref": "#/components/schemas/HomeTitleContext"
           },
           "id": {
             "type": "string"
