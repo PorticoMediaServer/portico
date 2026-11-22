@@ -8,6 +8,7 @@ import {BottomSheet} from '../overlays/BottomSheet';
 import type {BottomSheetProps} from '../overlays/types';
 import {Icon, type IconName} from '../Icon';
 import {useTheme} from '../theme';
+import {useFrameMetrics} from '../frames/metrics';
 import {focusTestID} from '../focus/registry';
 import {HighlightedText} from './HighlightedText';
 import {alpha, shellType} from './visual';
@@ -115,14 +116,17 @@ export type SettingsSearchResultsProps = {
   onNavigate: (address: string, rowId: string) => void;
 };
 export function SettingsSearchResults({matches, query, selectedRowId, values = {}, onNavigate, testID}: SettingsSearchResultsProps) {
-  const theme = useTheme();
+  const theme = useTheme(), frame = useFrameMetrics();
+  // Touch: group titles and the no-match line start at the page gutter, under the search field's edge (they sat at the
+  // sheet's edge). The titles keep their own 12 of padding, so the column is inset by the rest.
+  const inset = theme.isTV ? 0 : Math.max(0, frame.gutter - 12);
   const groups = new Map<string, typeof matches[number][]>();
   for (const match of matches) {
     const group = groups.get(match.address);
     if (group) group.push(match); else groups.set(match.address, [match]);
   }
-  return <View style={{marginTop: 18}}>
-    {!matches.length && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{defaultI18n.t('settings.search.none', {query})}</Text>}
+  return <View style={{marginTop: 18, paddingHorizontal: inset}}>
+    {!matches.length && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, paddingHorizontal: 12}]}>{defaultI18n.t('settings.search.none', {query})}</Text>}
     {Array.from(groups.entries()).map(([address, group]) => <View key={address} style={{marginTop: 12}}><View style={{flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4}}><Text style={[shellType(theme.isTV ? 20 : 13, 700), {color: theme.colors.textSecondary, flex: 1}]}>{group[0].pageTitle}</Text><Text style={[shellType(12, 700), {color: theme.colors.textTertiary, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, backgroundColor: alpha(theme.colors.text, .08)}]}>{defaultI18n.number(group.length)}</Text></View>
       {group.map(match => <Focusable key={match.rowId} testID={controlID(testID, 'match', match.address, match.rowId)} accessibilityRole="button" accessibilityLabel={match.label} accessibilityState={{selected: match.rowId === selectedRowId}} onPress={() => onNavigate(match.address, match.rowId)} focusKind="row" focusRadius={9} style={{paddingVertical: 8, paddingLeft: 40, paddingRight: 12, borderRadius: 9, backgroundColor: match.rowId === selectedRowId ? alpha(theme.colors.text, .1) : 'transparent'}}><HighlightedText text={match.label} query={query} style={[shellType(theme.isTV ? 22 : 14.5), {color: theme.colors.text}]}/>{values[match.rowId] !== undefined && <Text style={[shellType(theme.isTV ? 20 : 12.5), {color: theme.colors.textTertiary, marginTop: 1}]}>{values[match.rowId]}</Text>}</Focusable>)}
     </View>)}
