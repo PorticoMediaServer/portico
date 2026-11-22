@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {HttpLocalApi} from '../../../packages/client-core/src/index.ts';
 import {PlaybackOptionsClient} from '../../../packages/client-core/src/playback-v1/options.ts';
 import {localV1Http} from '../../../packages/client-core/src/playback-v1/local-http.ts';
@@ -47,7 +48,7 @@ const episodes = await screenModule(new URL('../src-next/pages/shared/player/Wat
   '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText}, '../../kit/layout/ShowSeasonsSheet': seasons,
   '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'}}), ...episodePageStubs});
-const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []},
+const {createNativeWatchScreens} = await screenModule(new URL('../src-next/shell/watch-factory.tsx', import.meta.url), stubsFrom('screens/watch', 'shell', {'../share/share-actions': {shareLinkActions: () => []},
   react, '../../../../../packages/client-core/src/cleanup': cleanup, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient},
   '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http},
   '../../../../../packages/client-core/src/detail': detailStub,
@@ -68,7 +69,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
   '../../pages/tv/title/routes': {tvTitlePages: {movie: 'Title'}},
   './version-destination': {NativeVersionChooserController}, './version-options': {nativeVersionChoices, nativeVersionNames},
   '../../pages/shared/player/WatchHostPage': {WatchHostPage: 'WatchHost'}, './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
-});
+}));
 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 // What the stub title page holds in its More like this rows (every page read so far), and its episodes.

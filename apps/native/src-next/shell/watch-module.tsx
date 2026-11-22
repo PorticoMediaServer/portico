@@ -11,7 +11,7 @@ import {qualityOptionSelected} from '../../../../packages/client-core/src/playba
 import type {NativeShellBootstrapContext} from './bootstrap';
 import type {NativeShellRuntime} from './runtime';
 import type {NativePlaybackRuntimeSnapshot} from '../platform/playback/types';
-import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from '../screens/watch/factory';
+import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from './watch-factory';
 import type {MusicPlaylistPickerHandle} from './music-playlist-picker';
 import type {NativeTitleActionsHandle} from './title-actions';
 import {NativePlaybackInfoPanel, playbackInfoWords} from '../kit/player/PlaybackInfoPanel';

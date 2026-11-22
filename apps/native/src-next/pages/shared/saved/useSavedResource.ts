@@ -12,7 +12,7 @@ import type {NativeEntryMenuState} from '../../../screens/destinations/entry-act
 import type {NativeDestinationActivationPort} from '../../../screens/destinations/focus';
 import type {NativeSavedViewDestination} from '../../../screens/saved/view-model';
 import type {NativeSavedSelectionPort} from './useSavedPage';
-import type {NativeWatchMenuExtra} from '../../../screens/watch/factory';
+import type {NativeWatchMenuExtra} from '../../../shell/watch-factory';
 import {isReadingLibraryKind} from '../../../screens/read/platform';
 import {exactDurationSeconds, personalMosaic, playlistEntryMosaic, savedItemCount, savedPlaylistEyebrow,
   savedResourceEyebrow, savedTitleCount, savedVisibility} from '../../../screens/saved/presentation';

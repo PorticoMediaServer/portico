@@ -1,7 +1,7 @@
-export {createNativeWatchScreens} from './factory';
+export {createNativeWatchScreens} from '../../shell/watch-factory';
 export {readNativePlaybackInfo} from './playback-info';
 export type {NativePlaybackInfo} from './playback-info';
-export type {NativeWatchFactoryPorts, NativeWatchCapture, NativeVersionStartSelection, NativeWatchMenuActions, NativeVersionDestination} from './factory';
+export type {NativeWatchFactoryPorts, NativeWatchCapture, NativeVersionStartSelection, NativeWatchMenuActions, NativeVersionDestination} from '../../shell/watch-factory';
 export {NativeTitleController} from './title-controller';
 export {NativeTitleScreen} from './TitleScreen';
 export type {NativeTitleScreenProps} from './TitleScreen';

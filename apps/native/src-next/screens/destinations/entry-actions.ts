@@ -6,7 +6,7 @@ import {nativeScreenServices} from '../native-screen-services';
 import {nativeWatchEntryMenu, type NativeWatchEntryMenu} from '../watch';
 import {openNativeReadingBookEntry} from '../read/reading-books-open';
 import {nativeDestinationLifetime} from './lifetime';
-import type {NativeWatchMenuExtra} from '../watch/factory';
+import type {NativeWatchMenuExtra} from '../../shell/watch-factory';
 
 export type NativeEntryMembership = Readonly<{
   /** Actual visible destination and its currently mounted/loaded entry owner. */
