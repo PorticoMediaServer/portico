@@ -15,6 +15,7 @@ export const webMessages = {
   'web.metadata.field.title': 'Title',
   'web.metadata.field.description': 'Summary',
   'web.metadata.field.year': 'Year',
+  'web.metadata.field.seriesNumber': 'Number in series',
   'web.metadata.field.author': 'Author',
   'web.metadata.field.narrator': 'Narrator',
   'web.metadata.field.number': 'Season number',
