@@ -507,7 +507,10 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
       // The rebuilt title pages, by kind: each lane keeps its own table (pages/tv/title/routes.ts, pages/touch/title/routes.ts);
       // a kind with no rebuilt page yet stays on the old screen.
       const Screen = (ports.isTV ? tvTitlePages : touchTitlePages)[route.entry.kind] ?? NativeTitleScreen;
-      return <Screen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
+      // This visit's route occurrence: the TV page names its season and episode regions by it (stable under the player,
+      // fresh on a new visit).
+      const visit = runtime.navigation?.presentationStack?.().at(-1)?.occurrence;
+      return <Screen authority={ports.authority} {...ports.title} visit={visit} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
         selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
         back={() => {ports.navigation.back(ports.authority);}} more={(entry, anchorRef) => {
           const owner = controller!;

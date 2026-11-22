@@ -41,6 +41,8 @@ import type {NativePlayOn} from '../../platform/play-on/controller';
 
 export type NativeTitleScreenProps = Readonly<{
   controller: NativeTitleController;
+  /** The route occurrence this page is drawn for (TV names its season and episode focus regions by it). */
+  visit?: string;
   authority?: ShellAuthority;
   text: TextEnvironment;
   artwork: (path: string | undefined) => ArtworkSource | undefined;

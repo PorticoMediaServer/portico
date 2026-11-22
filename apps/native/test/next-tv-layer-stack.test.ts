@@ -581,19 +581,46 @@ test('a restore the registry already names is not done until focus actually arri
 });
 
 test('the player takes focus as it draws: the page keeps the tile it was played from, so Back returns there', () => {
-  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
-  const stack = createTVLayerStack(registry, time);
+  const registry = createFocusRegistry(), log: string[] = [];
+  const stack = createTVLayerStack(registry, clock());
   const tile = {regionId: 'title.episodes.row', childId: 'bloodbath'}, toggle = {regionId: 'watch-transport', childId: 'watch-toggle'};
   registry.configure({id: 'title.episodes.row', order: ['bloodbath']}); registry.attach(tile, host(log, 'tile'));
-  registry.didFocus(tile);
   const page = {key: 'page', host: () => host(log, 'page-layer')};
   stack.sync([page]);
+  registry.didFocus(tile);
   // The player draws and its preferred control takes focus before the stack hears the player is up.
   registry.configure({id: 'watch-transport', order: ['watch-toggle']}); registry.attach(toggle, host(log, 'toggle'));
   registry.didFocus(toggle);
   stack.sync(tvLayerSpecs([], true, false, () => host(log, 'page-layer'), () => host(log, 'route-layer')).map((layer, index) => index === 0 ? page : layer));
   assert.equal(stack.opener('page')?.childId, 'bloodbath', 'the page is owed the tile, not the player\'s control');
-  // Without an owner the old behaviour stands: the focus at push time is the opener.
-  const plain = createTVLayerStack(createFocusRegistry(), clock());
-  assert.equal(plain.opener('page'), undefined);
+});
+
+test('focus nowhere as the player covers the page (Android TV): the page is still owed the tile', async () => {
+  const registry = createFocusRegistry(), log: string[] = [];
+  const stack = createTVLayerStack(registry, clock());
+  const tile = {regionId: 'title.episodes.row', childId: 'bloodbath'};
+  registry.configure({id: 'title.episodes.row', order: ['bloodbath']}); registry.attach(tile, host(log, 'tile'));
+  const page = {key: 'page', host: () => host(log, 'page-layer')};
+  stack.sync([page]);
+  registry.didFocus(tile);
+  registry.didBlur(tile);
+  await Promise.resolve();
+  assert.equal(registry.capture(), undefined, 'nothing holds focus as the player is pushed');
+  stack.sync(tvLayerSpecs([], true, false, () => host(log, 'page-layer'), () => host(log, 'route-layer')).map((layer, index) => index === 0 ? page : layer));
+  assert.equal(stack.opener('page')?.childId, 'bloodbath');
+});
+
+test('a focus from a page that is gone is never owed: the covered layer gets no opener and claims as before', async () => {
+  const registry = createFocusRegistry(), log: string[] = [];
+  const stack = createTVLayerStack(registry, clock());
+  const card = {regionId: 'home.row', childId: 'dune'};
+  registry.configure({id: 'home.row', order: ['dune']}); registry.attach(card, host(log, 'card'));
+  const page = {key: 'page', host: () => host(log, 'page-layer')};
+  stack.sync([page]);
+  registry.didFocus(card);
+  // Another destination replaces Home: its card goes, and nothing on the new page has focus yet.
+  registry.didBlur(card); registry.attach(card, null);
+  await Promise.resolve();
+  stack.sync([page, {key: 'route:1', host: () => host(log, 'route-layer')}]);
+  assert.equal(stack.opener('page'), undefined, 'the dead Home card is not the opener');
 });
