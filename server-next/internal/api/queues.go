@@ -47,6 +47,45 @@ type Queue struct {
 	// profile has it on (playback.passoutProtection) and automaticAdvances has reached the
 	// episodes it names (playback.passoutAfterEpisodes).
 	PassoutCheckDue bool `json:"passoutCheckDue,omitempty"`
+	// Segments are what the queue plays from: one, what it was started with, absent for a queue
+	// started from nothing nameable. Entries that came with it name it in segmentId; what a
+	// person added by hand names none. Now Playing says "Playing from" with its label.
+	Segments []QueueSegment `json:"segments,omitempty"`
+}
+
+// QueueSegment is what a queue plays from. Kind is radio for a radio, items for titles named
+// one by one, and selector for anything else; Source says what it is (container, list, mix,
+// radio, items or view) and its id. Label is its name as this profile may see it now: a title's
+// title or a list's name, absent while the profile may not see it, and for a mix, named titles
+// or a view, which have no name of their own here.
+type QueueSegment struct {
+	ID     string             `json:"id"`
+	Kind   string             `json:"kind"`
+	Label  string             `json:"label,omitempty"`
+	Source QueueSegmentSource `json:"source"`
+}
+
+// QueueSegmentSource is what a segment was made from.
+type QueueSegmentSource struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id,omitempty"`
+}
+
+// sourceSegment is the id of a queue's one segment.
+const sourceSegment = "source"
+
+func queueSegments(q db.Queue) []QueueSegment {
+	if q.Source.Kind == "" {
+		return nil
+	}
+	kind := "selector"
+	switch q.Source.Kind {
+	case db.QueueFromRadio:
+		kind = "radio"
+	case db.QueueFromItems:
+		kind = "items"
+	}
+	return []QueueSegment{{ID: sourceSegment, Kind: kind, Label: q.SourceLabel, Source: QueueSegmentSource{Kind: q.Source.Kind, ID: q.Source.ID}}}
 }
 
 func etag(h http.Header, revision string) { h.Set("ETag", `"`+revision+`"`) }
@@ -76,6 +115,8 @@ type QueueEntry struct {
 	Images      map[string]string `json:"images"`
 	// LibraryID is the library the title is in, so a player can open it and act on it.
 	LibraryID string `json:"libraryId,omitempty"`
+	// SegmentID names the queue's segment the entry came with; absent for one added by hand.
+	SegmentID string `json:"segmentId,omitempty"`
 }
 
 // QueueEntries is a run of a queue's entries. Start is the position of the first.
@@ -225,7 +266,7 @@ func queueError(err error) error {
 func (s *Server) queueOut(r *http.Request, q db.Queue) Queue {
 	out := Queue{ID: q.PublicID, Revision: strconv.FormatInt(q.Revision, 10), Medium: q.Medium, Total: q.Total,
 		RemainingCount: q.Remaining, RemainingMs: q.RemainingMS, Repeat: q.Repeat, Shuffle: q.Shuffled, Refills: q.Selection != "",
-		AutomaticAdvances: s.queues.Advances(q.PublicID)}
+		AutomaticAdvances: s.queues.Advances(q.PublicID), Segments: queueSegments(q)}
 	if q.Medium == "video" {
 		out.PassoutCheckDue = s.passoutDue(r, out.AutomaticAdvances)
 	}
@@ -238,8 +279,12 @@ func (s *Server) queueOut(r *http.Request, q db.Queue) Queue {
 	return out
 }
 
-func entriesOut(entries []db.QueueEntry) []QueueEntry {
+func entriesOut(q db.Queue, entries []db.QueueEntry) []QueueEntry {
 	out := make([]QueueEntry, 0, len(entries))
+	segment := ""
+	if q.Source.Kind != "" {
+		segment = sourceSegment
+	}
 	for _, e := range entries {
 		images := map[string]string{}
 		for _, image := range e.Item.Images {
@@ -252,6 +297,9 @@ func entriesOut(entries []db.QueueEntry) []QueueEntry {
 			Year: e.Item.Year, Index: e.Item.IndexNumber, ParentIndex: e.Item.ParentIndex, ParentID: e.Item.ParentPublicID,
 			ParentTitle: e.ParentTitle, RootID: e.Item.RootPublicID, RootTitle: e.Item.RootTitle, Images: images,
 			LibraryID: e.Item.LibraryID})
+		if !e.Added {
+			out[len(out)-1].SegmentID = segment
+		}
 	}
 	return out
 }
@@ -282,7 +330,7 @@ const (
 func (s *Server) window(r *http.Request, q db.Queue, before, after int) ([]QueueEntry, int, error) {
 	from := max(q.CurrentIndex-before, 0)
 	entries, _, err := s.db.QueueEntries(r.Context(), s.playbackCaller(r).Viewer, q.PublicID, from, before+after+1)
-	return entriesOut(entries), from, err
+	return entriesOut(q, entries), from, err
 }
 
 func (s *Server) createQueue(r *http.Request, req QueueCreate) (QueueCreated, error) {
@@ -350,7 +398,7 @@ func (s *Server) queueEntries(r *http.Request, _ None) (QueueEntries, error) {
 	}
 	out.Start = number("from", 0)
 	entries, _, err := s.db.QueueEntries(r.Context(), viewer, q.PublicID, out.Start, max(number("limit", 50), 1))
-	out.Items = entriesOut(entries)
+	out.Items = entriesOut(q, entries)
 	return out, err
 }
 

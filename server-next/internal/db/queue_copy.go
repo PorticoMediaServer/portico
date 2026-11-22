@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 )
 
@@ -16,6 +17,10 @@ type QueueToCopy struct {
 	ShuffleSeed *int64
 	Selection   string
 	Repeat      string
+	// Source is what the copied queue was started from: the copy plays from the same.
+	Source string
+	// Added says, for each of Items, that a person added it by hand: it stays so in the copy.
+	Added []bool
 }
 
 // CopyableQueue reads a queue of any profile of the viewer's account for the viewer to take
@@ -32,12 +37,12 @@ func (d *DB) CopyableQueue(ctx context.Context, v Viewer, publicID string) (Queu
 	if err != nil {
 		return out, err
 	}
-	var queueID, current int64
+	var queueID, current, owner int64
 	var seed sql.NullInt64
 	var selection sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT q.id, ifnull(q.current_entry_id, 0), q.shuffle_seed, q.selection, q.repeat FROM play_queues q
-		JOIN profiles p ON p.id = q.profile_id WHERE q.public_id = ? AND p.user_id = ?`, publicID, v.UserID).
-		Scan(&queueID, &current, &seed, &selection, &out.Repeat)
+	err = tx.QueryRowContext(ctx, `SELECT q.id, ifnull(q.current_entry_id, 0), q.shuffle_seed, q.selection, q.repeat, ifnull(q.source, ''), q.profile_id
+		FROM play_queues q JOIN profiles p ON p.id = q.profile_id WHERE q.public_id = ? AND p.user_id = ?`, publicID, v.UserID).
+		Scan(&queueID, &current, &seed, &selection, &out.Repeat, &out.Source, &owner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
@@ -48,7 +53,14 @@ func (d *DB) CopyableQueue(ctx context.Context, v Viewer, publicID string) (Queu
 		out.ShuffleSeed = &seed.Int64
 	}
 	out.Selection = selection.String
-	rows, err := tx.QueryContext(ctx, `SELECT e.id, e.item_id FROM queue_entries e JOIN items i ON i.id = e.item_id
+	if owner != v.ProfileID {
+		// A Mix is one profile's own: another profile's mix id names nothing for this one.
+		var ref QueueSourceRef
+		if json.Unmarshal([]byte(out.Source), &ref) == nil && ref.Kind == QueueFromMix {
+			out.Source = QueueSourceRef{Kind: QueueFromMix}.Text()
+		}
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT e.id, e.item_id, e.added FROM queue_entries e JOIN items i ON i.id = e.item_id
 		WHERE e.queue_id = @queue AND `+acc.visible("i")+` ORDER BY e.position LIMIT @limit`,
 		append(v.args(), sql.Named("queue", queueID), sql.Named("limit", QueueMax))...)
 	if err != nil {
@@ -57,13 +69,14 @@ func (d *DB) CopyableQueue(ctx context.Context, v Viewer, publicID string) (Queu
 	defer rows.Close()
 	for rows.Next() {
 		var entry, item int64
-		if err := rows.Scan(&entry, &item); err != nil {
+		var added bool
+		if err := rows.Scan(&entry, &item, &added); err != nil {
 			return out, err
 		}
 		if entry == current {
 			out.Start = len(out.Items)
 		}
-		out.Items = append(out.Items, item)
+		out.Items, out.Added = append(out.Items, item), append(out.Added, added)
 	}
 	return out, rows.Err()
 }

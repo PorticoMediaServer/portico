@@ -3334,6 +3334,7 @@ export interface Queue {
   refills?: boolean;
   automaticAdvances: number;
   passoutCheckDue?: boolean;
+  segments?: QueueSegment[];
 }
 
 export interface QueueAdd {
@@ -3411,6 +3412,7 @@ export interface QueueEntry {
   rootTitle?: string;
   images: Record<string, string>;
   libraryId?: string;
+  segmentId?: string;
 }
 
 export interface QueueLink {
@@ -3434,6 +3436,18 @@ export interface QueuePrepare {
 
 export interface QueueSave {
   name: string;
+}
+
+export interface QueueSegment {
+  id: string;
+  kind: string;
+  label?: string;
+  source: QueueSegmentSource;
+}
+
+export interface QueueSegmentSource {
+  kind: string;
+  id?: string;
 }
 
 export interface QueueSource {
