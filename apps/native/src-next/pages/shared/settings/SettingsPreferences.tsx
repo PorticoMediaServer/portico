@@ -15,7 +15,7 @@ import {OverlayFootRow} from '../../../kit/overlays/surface';
 import {nativeSettingsActionTarget} from '../../../screens/settings-live/settings-actions';
 import {DeviceCapabilityRows} from '../../../kit/settings/DeviceCapabilityRows';
 import {NativeApplePassthroughRow, NativeDynamicRangeRow, NativeFrameRateRow, NativeLossNoticesRow, NativePassthroughRow, NativeSafeModeRow} from './DevicePlaybackRows';
-import {NativeServerOfflineNoticeRow} from '../../../screens/settings-live/NativeServerOfflineNoticeRow';
+import {NativeServerOfflineNoticeRow} from './ServerOfflineNoticeRow';
 import {passthroughFormats} from '../../../platform/playback/passthrough-formats';
 import {captionPaint} from '../../../platform/playback/caption-style';
 import {playerEngineHints, useSettingsPreferences, type SettingsPreferencesProps} from './useSettingsPreferences';

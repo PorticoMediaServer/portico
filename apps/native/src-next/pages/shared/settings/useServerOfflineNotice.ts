@@ -1,19 +1,13 @@
-import {createHostedNotificationClient} from '../../../../../packages/client-core/src/query/hosted-account-transport';
-import React, {useLayoutEffect, useRef, useState} from 'react';
-import {View} from 'react-native';
-import {AccountNotificationsClient, type NotificationPreferences} from '../../../../../packages/client-core/src/account-notifications';
-import {Switch} from '../../kit/controls';
-import {SettingsRow} from '../../kit/shell';
-import {StateView} from '../../kit/states';
-import {useTheme} from '../../kit/theme';
-import {nativeAccounts} from '../../platform/accounts';
-import {accountExpectation, nativeAccountRead, nativeAccountWork} from '../../platform/account-work';
-import {nativeNetworkFetch} from '../../platform/server-connections';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativeScreenLifetime} from './lifetime';
-export const nativeServerOfflineNoticeId = 'settings-notice-server-offline';
-const label = 'next.settingsSpec.account.profile.groups.7.rows.1.label';
+import {createHostedNotificationClient} from '../../../../../../packages/client-core/src/query/hosted-account-transport';
+import {useLayoutEffect, useRef, useState} from 'react';
+import {AccountNotificationsClient, type NotificationPreferences} from '../../../../../../packages/client-core/src/account-notifications';
+import {useTheme} from '../../../kit/theme';
+import {nativeAccounts} from '../../../platform/accounts';
+import {accountExpectation, nativeAccountRead, nativeAccountWork} from '../../../platform/account-work';
+import {nativeNetworkFetch} from '../../../platform/server-connections';
+import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
+import type {NativeShellRuntime} from '../../../shell/runtime';
+import type {NativeScreenLifetime} from '../../../screens/settings-live/lifetime';
 
 type Opening = Readonly<{current: () => boolean; save: (next: boolean) => Promise<NotificationPreferences>}>;
 
@@ -22,9 +16,10 @@ type Opening = Readonly<{current: () => boolean; save: (next: boolean) => Promis
  * Account's own notice switch, under the Notification dot on a phone or tablet. Portico Account
  * sign-ins only, and only while the app holds that account's session: the row appears once the
  * account has answered, and a local account never consults the Portico credential owner.
+ * Moved from NativeServerOfflineNoticeRow as it was; `shown` is the old early return.
  */
-export function NativeServerOfflineNoticeRow({context, runtime, lifetime}: {context: NativeShellBootstrapContext; runtime: NativeShellRuntime; lifetime: NativeScreenLifetime}) {
-  const theme = useTheme(), t = runtime.text.t, retirement = runtime.retirementSignal;
+export function useServerOfflineNotice({context, runtime, lifetime}: {context: NativeShellBootstrapContext; runtime: NativeShellRuntime; lifetime: NativeScreenLifetime}) {
+  const theme = useTheme(), retirement = runtime.retirementSignal;
   const hostedAccountId = context.account.account.hostedAccountId;
   const [value, setValue] = useState<boolean>(), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
   const openingRef = useRef<Opening | undefined>(undefined), [opening, setOpening] = useState<Opening>();
@@ -70,18 +65,14 @@ export function NativeServerOfflineNoticeRow({context, runtime, lifetime}: {cont
     void run(false, (client, signal) => client.preferences(signal)).then(preferences => {if (current()) setValue(preferences.serverOffline);}, () => {});
     return () => dispose();
   }, [context, hostedAccountId, lifetime, retirement, theme.isTV]);
-  if (theme.isTV || value === undefined || !opening?.current()) return null;
+  const shown = !(theme.isTV || value === undefined || !opening?.current());
   const apply = async (next: boolean) => {
     const held = opening;
-    if (busy || !held.current()) return;
+    if (!held || busy || !held.current()) return;
     setBusy(true); setError(undefined);
     try {const saved = await held.save(next); if (held.current()) setValue(saved.serverOffline);}
     catch (failure) {if (held.current()) setError(failure);}
     finally {if (held.current()) setBusy(false);}
   };
-  return <View>
-    <SettingsRow testID={nativeServerOfflineNoticeId} label={t(label)}
-      control={<Switch testID={nativeServerOfflineNoticeId} checked={value} disabled={busy} accessibilityLabel={t(label)} onCheckedChange={next => {void apply(next);}}/>}/>
-    {error !== undefined && <StateView variant="inline" {...runtime.error(error, () => setError(undefined))}/>}
-  </View>;
+  return {shown, value: value === true, busy, error, choose: (next: boolean) => {void apply(next);}, clearError: () => setError(undefined)};
 }

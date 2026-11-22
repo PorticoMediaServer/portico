@@ -4,7 +4,9 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as notifications from '../../../packages/client-core/src/account-notifications.ts';
 import * as accountWork from '../src-next/platform/account-work.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree?.props ? [tree, ...nodes(tree.props.children), ...nodes(tree.props.control)] : [];
+// The row's block is the kit's DeviceRowBlock, drawn here so its failure line is in the tree.
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree?.type?.name === 'DeviceRowBlock' ? [tree, ...nodes(tree.type(tree.props))]
+  : tree?.props ? [tree, ...nodes(tree.props.children), ...nodes(tree.props.control)] : [];
 
 async function fixture({hosted = true, matching = true, tv = false}: {hosted?: boolean; matching?: boolean; tv?: boolean} = {}) {
   const host = hooks(), effects: (() => void)[] = [];
@@ -24,14 +26,14 @@ async function fixture({hosted = true, matching = true, tv = false}: {hosted?: b
   let stored = false, failSave = false, failRead = false, saveGate: Promise<void> | undefined;
   const credentials = {authorityOrigin: () => 'https://accounts.example.invalid', getSnapshot: () => ({session}), subscribe: (listener: () => void) => {listeners.add(listener); return () => listeners.delete(listener);},
     synchronize: async () => {}, accessSession: async () => session};
-  const {NativeServerOfflineNoticeRow} = await screenModule(new URL('../src-next/screens/settings-live/NativeServerOfflineNoticeRow.tsx', import.meta.url), {
+  const {NativeServerOfflineNoticeRow} = await screenModule(new URL('../src-next/pages/shared/settings/ServerOfflineNoticeRow.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'},
-    '../../../../../packages/client-core/src/account-notifications': notifications,
-    '../../kit/controls': {Switch: 'Switch'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/theme': {useTheme: () => ({isTV: tv})},
-    '../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
-    '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'},
-    '../../platform/account-work': accountWork, '../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
+    '../../../../../../packages/client-core/src/account-notifications': notifications,
+    '../../../kit/controls': {Switch: 'Switch'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/states': {StateView: 'StateView'},
+    '../../../kit/theme': {useTheme: () => ({isTV: tv})},
+    '../../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
+    '../../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'},
+    '../../../platform/account-work': accountWork, '../../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
       const url = new URL(input), token = new Headers(init.headers).get('Authorization')?.replace(/^Bearer /, '');
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined, signal = init.signal;
       calls.push([url.origin, token, url.pathname + url.search, init.method, body]); if (signal) signals.push(signal);

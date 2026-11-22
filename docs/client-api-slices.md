@@ -376,7 +376,7 @@ This is a historical migration inventory. Current calls are counted by `python3 
 
 | Exact file:line | Kind / callee | Operation IDs / dynamic disposition |
 |---|---|---|
-| `apps/native/src-next/screens/settings-live/NativeServerOfflineNoticeRow.tsx:54` | request `new HttpLocalApi(hostedUrl, live.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing run |
+| `apps/native/src-next/pages/shared/settings/useServerOfflineNotice.ts:46` | request `new HttpLocalApi(hostedUrl, live.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing run |
 | `apps/native/src-next/screens/settings-live/NativeAccountSecurityPanels.tsx:250` | request `scope.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsRoute.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsRoute.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
