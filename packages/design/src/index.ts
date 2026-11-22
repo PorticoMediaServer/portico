@@ -199,6 +199,10 @@ const handheldType = {
   liveChromeTitle: type(34, 36.72, 800, -.035), liveChromeTabletTitle: type(24, 25.92, 800, -.035),
   liveChromePhoneTitle: type(18, 19.44, 800, -.035), liveChromeNumber: type(11, 'normal', 800, -.01),
   liveMiniTitle: type(15.5, 'normal', 700),
+  // TV-only chrome (no other form draws them; each column keeps the TV value): the player's control label and its detail,
+  // the mini guide's note under its rows, and a title chrome's hero line.
+  tvControlLabel: type(21, 'normal', 700), tvControlDetail: type(20, 'normal', 600), tvMiniGuideNote: type(19, 'normal', 600),
+  tvTitleChrome: type(62, 74, 800, -.035),
   libraryKindTitle: type(20, 'normal', 800, -.02),
   liveOwnerSourceTitle: type(16.5, 'normal', 700),
   // Existing mobile-web audiobook detail metrics; consumers lift these without redesign.

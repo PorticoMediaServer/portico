@@ -3,7 +3,7 @@ import {Text, View, type StyleProp, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withDelay, withTiming} from 'react-native-reanimated';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {AmbientArt, type AmbientArtSource, type ArtworkSource} from '../../kit/artwork';
-import {nativeType, useTheme} from '../../kit/theme';
+import {textLines, useTheme} from '../../kit/theme';
 import {useMotion} from '../../kit/useMotion';
 
 function useBrowseOpacity(browsing: boolean, inverted = false, slow = false) {
@@ -42,7 +42,7 @@ export function TVTitleCompactHeader({title, browsing, top, children}: {title: s
     </Svg>
     <View pointerEvents="box-none" style={{position: 'absolute', left: 200, right: 96, top: 60}}>
       {/* A line taller than the type, so descenders are not cut off; the tabs keep their place. */}
-      <Text numberOfLines={1} accessibilityRole="header" style={[nativeType({size: 62, weight: 800, lineHeight: 74, tracking: -.035}, theme.textScale),
+      <Text {...textLines(1)} accessibilityRole="header" style={[theme.type.tvTitleChrome,
         {color: theme.colors.text, textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30, textShadowColor: '#07101899'}]}>{title}</Text>
       <View style={{marginTop: 36}}>{children}</View>
     </View>

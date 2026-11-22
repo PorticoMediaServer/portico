@@ -9,7 +9,7 @@ import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
 import {MiniGuideAll, MiniGuideHead, MiniGuideRow} from '../../kit/live/MiniGuide';
 import type {ArtworkSource} from '../../kit/artwork/types';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
-import {nativeType, useTheme} from '../../kit/theme';
+import {useTheme} from '../../kit/theme';
 import {useMotion} from '../../kit/useMotion';
 import {useTVPanelPresence, useTVPresentationCompletion} from '../../kit/overlays/TVPanelMotion';
 import {useNativeModalPresence} from '../../kit/overlays/native-dismissal';
@@ -108,7 +108,7 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
           <FocusBoundary modal testID="tv-mini-guide" style={{padding: 18}}>
             <MiniGuideHead/>
             {!!props.error && <View style={{paddingHorizontal: 12, paddingBottom: 12}}>{props.error}</View>}
-            {props.loading && <Text style={[nativeType({size: 19, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary, paddingHorizontal: 12, paddingBottom: 12}]}>{t('next.browse.native.markAllPreparing')}</Text>}
+            {props.loading && <Text style={[theme.type.tvMiniGuideNote, {color: theme.colors.textTertiary, paddingHorizontal: 12, paddingBottom: 12}]}>{t('next.browse.native.markAllPreparing')}</Text>}
             {rows.map((row, index) => <MiniGuideRow key={rowKey(row)} ref={index === entry ? first : undefined} id={rowKey(row)} channel={row.channel} title={row.now?.title} progress={progress(row)}
               logo={row.channel.logoUrl ? props.artwork?.(row.channel.logoUrl) : undefined} next={row.next && {title: row.next.title, at: clock(row.next.start, locale, props.timezone)}}
               watching={row.watching} preferredFocus={props.open && index === entry} disabled={!props.open || !!props.busy || !tuneable(row)} onPress={() => props.onSelect(row.channel)}/>)}

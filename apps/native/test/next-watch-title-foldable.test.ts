@@ -15,7 +15,7 @@ let width = 890, height = 626;
 let posture: any = {status: 'available', window: {width: 890, height: 626}, folds: [{bounds: {left: 445, top: 0, right: 445, bottom: 626}, orientation: 'vertical', state: 'flat', isSeparating: false, occlusion: 'none'}]};
 const theme = {isTV: false, platform: 'tablet', textScale: 1, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111', raisedHigh: '#151515', line: '#222', lineStrong: '#333', accent: '#3af', accentStrong: '#4bf'}, type: {bodyStrong: {}, body: {}, heading: {}, caption: {}, captionStrong: {}, meta: {}}};
 const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
-  './TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
+  '../../kit/frames/TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
   '../../kit/useMotion': {useMotion: () => ({reduce: false})},
   // N2-3: the shell draws a tablet's pushed page beside the 84 pt rail and tells it so.
   '../../kit/layout/page-inset': {usePageInset: () => 84},
