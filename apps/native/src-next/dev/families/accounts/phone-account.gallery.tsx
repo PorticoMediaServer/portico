@@ -9,6 +9,7 @@ import {useTheme} from '../../../kit/theme';
 import {SignInPage} from '../../../pages/touch/accounts/SignInPage';
 import {PhoneFindServer, type FoundServer} from '../../../kit/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../../pages/touch/accounts/ServerSignInPage';
+import {NoServersPage} from '../../../pages/touch/accounts/NoServersPage';
 import {MovePasswordPage} from '../../../pages/touch/accounts/MovePasswordPage';
 import {PhoneAccountMoveNotice, type PhoneAccountMoveNoticeState} from '../../../kit/accounts/PhoneAccountMoveNotice';
 import {MoveCodePage} from '../../../pages/touch/accounts/MoveCodePage';
@@ -86,6 +87,8 @@ const galleries: readonly Gallery[] = [
   {id: 'phone-account-welcome-long', title: T, platforms: P, screen: true, render: () => <Welcome username={fixture['next.controls.native.fixture.longUsername']} password={secret}/>},
   {id: 'phone-account-welcome-busy', title: T, platforms: P, screen: true, render: () => <Welcome busy username={user} password={secret}/>},
   {id: 'phone-account-welcome-error', title: T, platforms: P, screen: true, render: () => <Welcome notice/>},
+  {id: 'phone-account-no-servers', title: T, platforms: P, screen: true, render: () => <Whole><NoServersPage busy={false} username={user} onSettings={noop} onDownloads={noop}
+    onFind={noop} onRefresh={noop} onShare={noop} onSignOut={noop} onJoin={noop}/></Whole>},
   {id: 'phone-account-move-code', title: T, platforms: P, screen: true, render: () => <MoveCode phase="code"/>},
   {id: 'phone-account-move-code-error', title: T, platforms: P, screen: true, render: () => <MoveCode phase="code" error/>},
   {id: 'phone-account-move-local', title: T, platforms: P, screen: true, render: () => <MoveCode phase="local"/>},
