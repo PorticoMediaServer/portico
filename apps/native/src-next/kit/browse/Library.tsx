@@ -1,5 +1,5 @@
 import React, {createContext, useContext, useRef, useState, type ReactNode} from 'react';
-import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
+import {ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable} from '../controls';
@@ -99,11 +99,15 @@ export function LibrarySwitcher({libraries, value, onValueChange, open: supplied
   focusRegion?: Pick<FocusRegionProps, 'id' | 'edges' | 'enabled'>;
 }) {
   const theme = useTheme(), anchorRef = useRef<View>(null), [localOpen, setLocalOpen] = useState(false);
+  // A server with more libraries than fit scrolls the list: the popover's own height stops at the screen, and the rows
+  // past it could not be reached (Pixel, 17 libraries, 21 Nov). 220 leaves the bar it opens from and the menu's title.
+  const window = useWindowDimensions(), insets = useSafeAreaInsets(), listHeight = Math.max(200, window.height - insets.top - insets.bottom - 220);
   // The header's slot decides; a switcher outside a header (a chooser) draws what it is given.
   const trigger = useContext(SwitcherSlot) ?? suppliedTrigger ?? 'name';
   const open = suppliedOpen ?? localOpen, current = libraries.find(library => library.id === value);
   const setOpen = (next: boolean) => {if (suppliedOpen === undefined) setLocalOpen(next); onOpenChange?.(next);};
   const wrapSwitcher = (button: ReactNode) => focusRegion ? <FocusRegion {...focusRegion} entry="switcher" order={['switcher']} orientation="horizontal">{button}</FocusRegion> : button;
+  const rows = libraries.filter(library => !theme.isTV || library.tv !== false).map(library => <MenuRow focusId={library.id} testID={testID ? `${testID}-library-${encodeURIComponent(library.id)}` : undefined} key={library.id} label={library.name} trailing={theme.isTV ? library.count : undefined} description={theme.isTV ? undefined : library.count} selected={library.id === value} preferredFocus={library.id === value} accessibilityRole="radio" accessibilityState={{checked: library.id === value}} variant={theme.isTV ? 'tv' : 'compact'} onPress={() => {onValueChange(library.id); setOpen(false);}}/>);
   return <>
     {wrapSwitcher(
     <Focusable ref={anchorRef} testID={testID} focusId={focusRegion ? 'switcher' : undefined} accessibilityRole="button" focusKind="row" onPress={() => setOpen(!open)} accessibilityLabel={current ? t('next.browse.native.switchLibraryNamed', {name: current.name}) : t('next.browse.native.switchLibrary')} accessibilityState={{expanded: open}}
@@ -114,7 +118,7 @@ export function LibrarySwitcher({libraries, value, onValueChange, open: supplied
       </View>
     </Focusable>)}
     <Popover testID={testID ? `${testID}-surface` : undefined} open={open} onOpenChange={setOpen} anchorRef={anchorRef} returnFocusRef={returnFocusRef ?? anchorRef} title={t('next.browse.native.switchLibrary')} accessibilityLabel={t('next.browse.native.switchLibrary')} placement="bottom-center" width={theme.isTV ? 520 : 252} offset={4} modal backdropOpacity={.62}>
-      {libraries.filter(library => !theme.isTV || library.tv !== false).map(library => <MenuRow focusId={library.id} testID={testID ? `${testID}-library-${encodeURIComponent(library.id)}` : undefined} key={library.id} label={library.name} trailing={theme.isTV ? library.count : undefined} description={theme.isTV ? undefined : library.count} selected={library.id === value} preferredFocus={library.id === value} accessibilityRole="radio" accessibilityState={{checked: library.id === value}} variant={theme.isTV ? 'tv' : 'compact'} onPress={() => {onValueChange(library.id); setOpen(false);}}/>)}
+      {theme.isTV ? rows : <ScrollView style={{maxHeight: listHeight}} showsVerticalScrollIndicator>{rows}</ScrollView>}
     </Popover>
   </>;
 }
