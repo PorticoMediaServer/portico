@@ -247,9 +247,10 @@ func entriesOut(entries []db.QueueEntry) []QueueEntry {
 				images[image.Role.String()] = "/v1/images/" + image.FileHash
 			}
 		}
-		out = append(out, QueueEntry{EntryID: playqueue.EntryID(e.EntryID), Position: e.Index, ItemID: e.Item.PublicID,
+		index, parentIndex := episodeNumbers(e.Item)
+		out = append(out, QueueEntry{Index: index, ParentIndex: parentIndex, EntryID: playqueue.EntryID(e.EntryID), Position: e.Index, ItemID: e.Item.PublicID,
 			Kind: e.Item.Kind.String(), Title: e.Item.Title, Added: e.Added, Available: e.Available, DurationMs: e.Item.DurationMS,
-			Year: e.Item.Year, Index: e.Item.IndexNumber, ParentIndex: e.Item.ParentIndex, ParentID: e.Item.ParentPublicID,
+			Year: e.Item.Year, ParentID: e.Item.ParentPublicID,
 			ParentTitle: e.ParentTitle, RootID: e.Item.RootPublicID, RootTitle: e.Item.RootTitle, Images: images,
 			LibraryID: e.Item.LibraryID})
 	}

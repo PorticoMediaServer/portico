@@ -578,9 +578,10 @@ func stateShape(s db.State) ItemState {
 
 func itemShape(it db.Item) Item {
 	out := Item{ID: it.PublicID, Kind: it.Kind.String(), Title: it.Title, Year: it.Year, ReleaseDate: it.ReleaseDate,
-		ParentID: it.ParentPublicID, RootID: it.RootPublicID, RootTitle: it.RootTitle, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
+		ParentID: it.ParentPublicID, RootID: it.RootPublicID, RootTitle: it.RootTitle,
 		DurationMs: it.DurationMS, ContentRating: it.ContentRating, AddedAt: timeString(it.AddedAt), Images: imageMap(it.Images),
 		State: stateShape(it.State), LibraryID: it.LibraryID}
+	out.Index, out.ParentIndex = episodeNumbers(it)
 	if c := it.Chapter; c != nil {
 		out.Chapter = &ItemChapter{Number: c.Number, Title: c.Title, StartMs: c.StartMS, EndMs: c.EndMS}
 	}
