@@ -80,7 +80,8 @@ export function HomeHeroArtwork({slide, context, platform, artwork, appearance, 
   const treatment = heroArtworkTreatment(slide.artwork, appearance?.showBackdrops !== false, variant);
   // No artwork: the hero is transparent over the window's standard backdrop.
   if (treatment === 'colour') return null;
-  if (treatment === 'generated') return <GeneratedArt glyph={Array.from(slide.title.trim())[0] ?? ''}/>;
+  // No backdrop: the generated art fades into the page at its foot, as every art edge does (no hard band above the rows).
+  if (treatment === 'generated') return <GeneratedArt className={styles.heroGenerated} glyph={Array.from(slide.title.trim())[0] ?? ''}/>;
   if (treatment === 'poster') return <div className={styles.heroPoster}>
     <span className={styles.heroPosterWash}><Artwork source={artwork.foreground(poster, heroPixels, 2 / 3, {group: 'home-hero-poster', order: context.index, priority: 'high'})} alt="" visible={context.visible} onReady={context.onReady} onError={context.onError}/></span>
     <span className={styles.heroPosterShade}/>
