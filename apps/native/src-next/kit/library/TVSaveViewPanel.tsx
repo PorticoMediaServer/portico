@@ -1,16 +1,16 @@
 import React, {useMemo, useSyncExternalStore} from 'react';
 import type {ReactNode} from 'react';
 import {Text, View} from 'react-native';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
-import {Button} from '../../../kit/controls';
-import {useFocusRegistry} from '../../../kit/focus';
-import {Banner, SidePanel} from '../../../kit/overlays';
-import {alpha, browseType} from '../../../kit/browse/presentation';
-import {useTheme} from '../../../kit/theme';
-import {NativeTVKeyboard} from '../../search/TVKeyboard';
-import {nativeTVNameEdit, nativeTVNamingFirstKey} from './naming';
-import type {NativeTVLibraryNaming, NativeTVLibraryNamingStore} from './naming';
+import {defaultI18n} from '../../../../../packages/i18n/src';
+import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
+import {Button} from '../controls';
+import {useFocusRegistry} from '../focus';
+import {Banner, SidePanel} from '../overlays';
+import {alpha, browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
+import {NativeTVKeyboard} from '../../screens/search/TVKeyboard';
+import {nativeTVNameEdit, nativeTVNamingFirstKey} from '../../screens/library/tv-library/naming';
+import type {NativeTVLibraryNaming, NativeTVLibraryNamingStore} from '../../screens/library/tv-library/naming';
 
 /** The drawn ten-foot name field (tv.html frame 5 `.sfield`) with its own caret
  * (ruling 27.2): 500x80, radius 16, 8% ink wash, 34/700 value, 3x40 accent caret. */
