@@ -1240,6 +1240,13 @@ export interface HomeSpotlightText {
   fallback: string;
 }
 
+export interface HomeTitleContext {
+  kind: string;
+  year?: number;
+  genres: string[];
+  seasonCount?: number;
+}
+
 export interface HostedNotice {
   note: unknown;
 }
@@ -1345,6 +1352,7 @@ export interface Item {
   libraryId: string;
   chapter?: ItemChapter;
   entryId?: string;
+  homeTitleContext?: HomeTitleContext;
   episodeDisplay?: EpisodeDisplay;
   nextEpisode?: Item;
   originalTitle?: string;
