@@ -710,22 +710,24 @@ for (const kind of ['trusted', 'identity'] as const) for (const closeBy of ['can
   const errors_ = {presentError: () => ({body: 'Refused'})};
   const connections = {savedCertificates: async () => [certificate], forgetCapturedCertificate: async (value: any) => {operations++; forgotten.push(value); await failure;}};
   // The trusted certificates page loads its own hook and kit part for real; their relative imports get the same doubles.
-  const mod = await screenModule(new URL(kind === 'trusted' ? '../src-next/pages/shared/accounts/TrustedCertificatesPage.tsx' : '../src-next/screens/accounts/ServerIdentityFailure.tsx', import.meta.url), {
+  const mod = await screenModule(new URL(kind === 'trusted' ? '../src-next/pages/shared/accounts/TrustedCertificatesPage.tsx' : '../src-next/pages/shared/accounts/ServerIdentityFailurePage.tsx', import.meta.url), {
     ...common, '../../../../../packages/client-core/src/presentation/errors': errors_, '../../platform/server-connections': connections,
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/errors': errors_,
     '../../../platform/server-connections': connections, '../../../kit/controls': {Button: o.Button, FormError: 'FormError'},
     '../../../kit/overlays': {...o.surface, OverlaysProvider: o.host.OverlaysProvider}, '../../../kit/theme': {useTheme: () => b.theme, nativeType},
     '../../../kit/controls/TVAccountRow': {TVAccountRow: 'TVAccountRow'},
     './useTrustedCertificates': kind === 'trusted' ? await screenModule(new URL('../src-next/pages/shared/accounts/useTrustedCertificates.ts', import.meta.url),
-      {react: b.react, '../../../platform/server-connections': connections}) : {}});
+      {react: b.react, '../../../platform/server-connections': connections}) : {},
+    './useServerIdentityFailure': kind === 'trusted' ? {} : await screenModule(new URL('../src-next/pages/shared/accounts/useServerIdentityFailure.ts', import.meta.url), {react: b.react}),
+    '../../../kit/Icon': {Icon: 'Icon'}, '../../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})}});
   // The page draws through its own kit parts; they are expanded in place (they hold no hooks of their own beyond the
   // theme) so the real Buttons and Dialog stay where the focus bindings look for them.
-  const kitParts = new Set(['TrustedCertificatesGroup', 'TrustedCertificateRow', 'ForgetCertificateDialog']);
+  const kitParts = new Set(['TrustedCertificatesGroup', 'TrustedCertificateRow', 'ForgetCertificateDialog', 'ServerIdentityFailureView']);
   const expandParts = (node: any): any => Array.isArray(node) ? node.map(expandParts)
     : typeof node?.type === 'function' && kitParts.has(node.type.name) ? expandParts(node.type(node.props))
     : node?.props ? {...node, props: {...node.props, children: expandParts(node.props.children), footer: expandParts(node.props.footer)}} : node;
-  const source = createFabricHookHost(() => {tree = kind === 'trusted' ? expandParts(mod.TrustedCertificatesPage({})) : mod.ServerIdentityFailure({
-    failure: {changed: true, server: {name: 'Original server'}}, onRetry() {}, onChoose() {}, onForget: async () => {operations++; await failure;}, onError: () => {errors++;}});});
+  const source = createFabricHookHost(() => {tree = kind === 'trusted' ? expandParts(mod.TrustedCertificatesPage({})) : expandParts(mod.ServerIdentityFailurePage({
+    failure: {changed: true, server: {name: 'Original server'}}, onRetry() {}, onChoose() {}, onForget: async () => {operations++; await failure;}, onError: () => {errors++;}}));});
   let renderer: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
   try {
     await source.mount(); await flush();
@@ -740,6 +742,8 @@ for (const kind of ['trusted', 'identity'] as const) for (const closeBy of ['can
     opener.props.onPress(); await flush();
     const dialog = () => nodes(tree).find(node => node.type === o.surface.Dialog).props;
     const expected = kind === 'trusted' ? 'tv-trusted-certificate-forget' : 'identity-forget';
+    // The TV confirmation's title keeps its own 48/800 line, now from the design scale.
+    if (kind !== 'trusted') assert.deepEqual(dialog().titleType, {size: 48, lineHeight: 'normal', weight: 800, tracking: -.035});
     assert.equal(dialog().testID, expected);
     let overlay: any;
     renderer = createFabricHookHost(() => {const node = o.surface.Dialog(dialog()); overlay = node.type(node.props);}); await renderer.mount();

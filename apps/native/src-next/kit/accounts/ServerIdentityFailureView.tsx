@@ -1,32 +1,28 @@
-import React, {useRef, useState} from 'react';
+import React from 'react';
 import {Image, Text, View, useWindowDimensions} from 'react-native';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {Dialog, OverlaysProvider} from '../../kit/overlays';
-import {nativeType, useTheme} from '../../kit/theme';
+import {Button} from '../controls';
+import {Icon} from '../Icon';
+import {Dialog, OverlaysProvider} from '../overlays';
+import {useTheme} from '../theme';
+import {typeScale} from '@portico/design';
 import type {NativeIdentityFailure} from '../../platform/identity-failure';
 import {shellLayout} from '../../shell/model';
 
 const t = defaultI18n.t;
 
-/** Final69 frames1/3/4. This page receives a captured public name/family only;
- * it cannot construct an API or send a token to the address that answered. */
-export function ServerIdentityFailure({failure, onRetry, onChoose, onForget, onError}: {
-  failure: NativeIdentityFailure; onRetry: () => void; onChoose: () => void;
-  onForget: () => Promise<void>; onError: (error: unknown) => void;
+/** Final69 frames 1/3/4: the server at this address isn't the one this device knew. It receives a captured public
+ * name/family only, and draws Try again, Choose another server and (when it changed) Forget, with its confirmation. */
+export function ServerIdentityFailureView({failure, busy, confirm, onConfirmChange, cancelRef, openerRef, onRetry, onChoose, onForget}: {
+  failure: NativeIdentityFailure; busy: boolean; confirm: boolean; onConfirmChange: (open: boolean) => void;
+  cancelRef: React.RefObject<View | null>; openerRef: React.RefObject<View | null>; onRetry: () => void; onChoose: () => void; onForget: () => void;
 }) {
   const theme = useTheme(), dimensions = useWindowDimensions();
   const layout = shellLayout(dimensions.width, dimensions.height, theme.isTV);
-  const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false);
-  const cancel = useRef<View>(null), opener = useRef<View>(null);
+  const cancel = cancelRef, opener = openerRef, setConfirm = onConfirmChange;
   const name = failure.server.name, tv = theme.isTV;
   const color = failure.changed ? theme.colors.record : theme.colors.amber;
-  const forget = async () => {
-    if (busy) return; setBusy(true);
-    try {await onForget(); onChoose();} catch (error) {onError(error);} finally {setBusy(false);}
-  };
   const page = <View style={{flex: 1}}>
     {tv ? <View pointerEvents="none" accessible={false} style={{position: 'absolute', left: 72, top: 58, bottom: 56, width: 64}}>
       <View style={{width: 28, height: 40, marginLeft: 16, overflow: 'hidden'}}><Image source={require('../../../assets/wordmark.png')} style={{height: 40, width: 173}} resizeMode="contain"/></View>
@@ -39,10 +35,10 @@ export function ServerIdentityFailure({failure, onRetry, onChoose, onForget, onE
           marginBottom: tv ? 34 : 22, backgroundColor: tv ? `${theme.colors.text}1A` : `${color}1F`,
           ...(tv ? {borderWidth: 1, borderColor: `${theme.colors.text}1F`} : undefined)}}>{failure.changed ? <Icon name="i-shieldx" size={tv ? 40 : 34} color={color}/> :
             <Svg width={tv ? 40 : 34} height={tv ? 40 : 34} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Circle cx={12} cy={12} r={9}/><Path d="M9.6 9.4a2.6 2.6 0 1 1 3.6 2.4c-.8.4-1.2.9-1.2 1.8M12 16.8v.1"/></Svg>}</View>
-        <Text accessibilityRole="header" style={[nativeType({size: tv ? 80 : 25, lineHeight: tv ? 80 : 28, weight: 800, tracking: tv ? -.045 : -.03}, theme.textScale),
+        <Text accessibilityRole="header" style={[theme.type.identityTitle,
           {color: theme.colors.text, textAlign: tv ? 'left' : 'center', marginBottom: tv ? 24 : 10,
             ...(tv ? {textShadowColor: 'rgba(7, 16, 24, 0.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30} : undefined)}]}>{t('portico.failure.identity.title', {server: name})}</Text>
-        <Text style={[nativeType({size: tv ? 28 : 15, lineHeight: tv ? 40.6 : 22.5, weight: 400, tracking: 0}, theme.textScale),
+        <Text style={[theme.type.identityBody,
           {color: theme.colors.textSecondary, maxWidth: tv ? 900 : undefined, textAlign: tv ? 'left' : 'center', marginBottom: tv ? 40 : 24}]}>{t(failure.changed ? 'connection.identity.changedBody' : 'portico.failure.identity.body')}</Text>
         <View style={{alignSelf: 'stretch', flexDirection: tv ? 'row' : 'column', gap: tv ? 28 : 10}}>
           <Button disabled={busy} icon="i-retry" iconSize={tv ? 28 : undefined} preferredFocus onPress={onRetry} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('action.tryAgain')}</Button>
@@ -58,12 +54,12 @@ export function ServerIdentityFailure({failure, onRetry, onChoose, onForget, onE
       style={tv ? {borderRadius: 30, paddingTop: 56, paddingHorizontal: 60, paddingBottom: 52, borderWidth: 1.5, borderColor: `${theme.colors.text}1F`,
         // Frame 4's .tdlg shadow 0 80px 160px -40px #000; RN boxShadow carries the negative spread.
         boxShadow: [{offsetX: 0, offsetY: 80, blurRadius: 160, spreadDistance: -40, color: '#000'}]} : undefined}
-      titleType={tv ? {size: 48, weight: 800, tracking: -.035, lineHeight: 'normal'} : undefined}
-      descriptionTextStyle={tv ? {fontSize: 28 * theme.textScale, lineHeight: 40.6 * theme.textScale, marginTop: 16} : undefined}
+      titleType={tv ? typeScale.tenFoot.identityDialogTitle : undefined}
+      descriptionTextStyle={tv ? {...theme.type.identityBody, marginTop: 16} : undefined}
       footer={<View style={{flexDirection: tv ? 'row' : 'column', gap: tv ? 18 : 10}}>
         <Button focusId="forget" variant="text" loading={busy} disabled={busy}
           style={tv ? {backgroundColor: `${theme.colors.danger}29`} : {backgroundColor: theme.colors.record}}
-          textStyle={tv ? {color: theme.colors.danger} : {color: '#2a0808'}} onPress={() => {void forget();}}>{t('connection.identity.forgetAction')}</Button>
+          textStyle={tv ? {color: theme.colors.danger} : {color: '#2a0808'}} onPress={onForget}>{t('connection.identity.forgetAction')}</Button>
         {/* Frame 4 draws Forget first and Cancel as the starting focus. The red verb
             leads the footer, so the confirmation's safe focus is declared here too,
             not only by the delayed native request. */}

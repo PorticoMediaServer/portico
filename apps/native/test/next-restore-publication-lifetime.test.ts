@@ -62,7 +62,7 @@ function modules(state: {
     '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
     '../../../../packages/i18n/src': {defaultI18n},
     '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}},
-    '../screens/accounts/ServerIdentityFailure': {ServerIdentityFailure: 'ServerIdentityFailure'},
+    '../pages/shared/accounts/ServerIdentityFailurePage': {ServerIdentityFailurePage: 'ServerIdentityFailure'},
     './settings-appearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
   };
 }
