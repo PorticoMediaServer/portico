@@ -37,7 +37,7 @@ import {offlineDownloads, offlineOwnerKey} from '../../../platform/offline-downl
 import {useTheme} from '../../kit/theme';
 import {AccountEntry} from './AccountEntry';
 import {createAccountDownloadsEntry, type AccountDownloadsEntry} from './downloads-entry';
-import {PhonePINEntry} from './PhonePINEntry';
+import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
 import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
 import {ProfileSwitchPage, ProfileSwitchStatus} from '../../pages/touch/accounts/ProfileSwitchPage';
 import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
