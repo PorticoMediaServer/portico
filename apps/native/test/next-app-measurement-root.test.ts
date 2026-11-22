@@ -38,7 +38,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
   };
   const registrations = new Set(['./screens/accounts/AccountRoutes', './screens/downloads/register', './screens/collections/register', './screens/library/register', './screens/library/OverviewRoute',
     './screens/destinations/PinsRoute', './screens/destinations/music/register', './screens/destinations/audiobooks/register', './screens/read/register', './screens/people/register', './screens/notifications/register', './screens/search/register', './screens/home/CustomizeRoute', './screens/home/SeeAllRoute',
-    './screens/settings-live/LicencesRoute', './screens/settings-live/LiveRoute', './screens/settings-live/TogetherRoute', './screens/saved/register']);
+    './shell/licences-route', './shell/live-route', './shell/together-route', './screens/saved/register']);
   const module = {exports: {} as {default?: (props: object) => Element}};
   compileFunction(code, ['require', 'exports', 'module', '__DEV__'], {filename: file.pathname})((name: string) => {
     if (name.startsWith('@babel/runtime/')) return require(name);

@@ -17,7 +17,7 @@ test('the one settings mount registers the Settings destination and owner Dashbo
       createNativeSettingsRenderer: (context: unknown) => {built.push(['settings', context]); return {render: (route: unknown) => ({screen: 'settings', route})};},
       createNativeServerDashboardRenderer: (context: unknown) => {built.push(['dashboard', context]); return {render: (route: unknown) => ({screen: 'dashboard', route})};},
     },
-    '../screens/settings-live/owner-libraries/LibrarySettingsRoute': {createNativeLibrarySettingsRenderer: (context: unknown) => {built.push(['library', context]); return {}; }},
+    './library-settings-route': {createNativeLibrarySettingsRenderer: (context: unknown) => {built.push(['library', context]); return {}; }},
     './route-registry': {nativeShellRoutes: {
       registerDestination: (kind: string, factory: never) => registrations.push({kind: 'destination', route: kind, factory}),
       registerRoute: (kind: string, factory: never) => registrations.push({kind: 'route', route: kind, factory}),

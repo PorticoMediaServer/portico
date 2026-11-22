@@ -31,11 +31,11 @@ if (!Platform.isTV) {
   registerNativeWatch(createNativeWatchBindings);
 }
 require('./shell/settings-mount');
-require('./screens/settings-live/LicencesRoute');
+require('./shell/licences-route');
 require('./screens/home/CustomizeRoute');
 require('./screens/home/SeeAllRoute');
-require('./screens/settings-live/LiveRoute');
-require('./screens/settings-live/TogetherRoute');
+require('./shell/live-route');
+require('./shell/together-route');
 require('./screens/saved/register');
 const TVRoot: ComponentType | undefined = Platform.isTV ? require('./tv/register').TVRoot : undefined;
 

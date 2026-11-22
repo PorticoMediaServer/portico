@@ -1,14 +1,14 @@
 import React from 'react';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
-import {NativeScreenLifetime} from './lifetime';
-import {NativeTogetherController} from './together-controller';
-import {NativeTogetherMedia} from './together-media';
-import {nativeTogetherSession} from './together-session';
-import {TogetherPage} from '../../pages/touch/together/TogetherPage';
-import {TogetherPage as TVTogetherPage} from '../../pages/tv/together/TogetherPage';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
+import {NativeTogetherController} from '../screens/settings-live/together-controller';
+import {NativeTogetherMedia} from '../screens/settings-live/together-media';
+import {nativeTogetherSession} from '../screens/settings-live/together-session';
+import {TogetherPage} from '../pages/touch/together/TogetherPage';
+import {TogetherPage as TVTogetherPage} from '../pages/tv/together/TogetherPage';
 import {Platform} from 'react-native';
-import {nativeTogetherPages} from './together-page';
+import {nativeTogetherPages} from '../screens/settings-live/together-page';
 
 export function createNativeTogetherRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
   const lifetime = new NativeScreenLifetime(context);
