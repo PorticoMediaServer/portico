@@ -3,6 +3,8 @@ import type {ReactNode} from 'react';
 import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {attentionInProgress} from '@core/server-admin/attention-words.ts';
+// The field label and pre-Save check are client-core's, shared with native's reader owner sheet.
+import {metadataFieldError as fieldError, metadataFieldLabel as fieldLabel} from '@core/presentation/metadata-field.ts';
 import {MetadataRepairService, type RepairCaller, type RepairCommand, type RepairData, type RepairFieldSpec, type RepairTarget} from '@core/metadata-repair.ts';
 import {EditorHeader} from '../../kit/shell';
 import {Icon} from '../../kit/Icon';
@@ -164,34 +166,6 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
 }
 
 
-/** The server's own bounds, checked beside the field as the frame draws them. */
-export function fieldError(spec: RepairFieldSpec, value: string, values: readonly string[] = [], requiredTitle = false): string {
-  // The server sends a plain label; a catalogue key only where one exists (as the field's own label reads).
-  const label = fieldLabel(spec);
-  if (requiredTitle && spec.field === 'title' && value.trim() === '') return t('web.metadata.titleRequired');
-  if (spec.type === 'list') {
-    if (spec.max !== undefined && values.length > spec.max) return t('web.metadata.tooManyEntries', {label, max: spec.max});
-    if (spec.maxLength !== undefined && values.some(entry => Array.from(entry).length > spec.maxLength!)) return t('web.metadata.listEntryTooLong', {label, max: spec.maxLength});
-    return '';
-  }
-  if (spec.type === 'integer' || spec.type === 'number') {
-    // OW-3: an episode's season and number can't be cleared; say so beside the field, before Save, with its bounds.
-    if (value.trim() === '') return spec.required ? spec.min !== undefined && spec.max !== undefined ? t('web.metadata.numberRange', {label, min: spec.min, max: spec.max}) : t('web.metadata.wholeNumber', {label}) : '';
-    const number = Number(value);
-    if (!Number.isSafeInteger(number) || number < 0 || String(number) !== value) return t('web.metadata.wholeNumber', {label});
-    if (spec.min !== undefined || spec.max !== undefined) {
-      if ((spec.min !== undefined && number < spec.min) || (spec.max !== undefined && number > spec.max)) return t('web.metadata.numberRange', {label, min: spec.min ?? '', max: spec.max ?? ''});
-    }
-    return '';
-  }
-  if (spec.type === 'date' && value) {
-    const parsed = new Date(value + 'T00:00:00Z');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) return t('web.metadata.dateError', {label});
-  }
-  if (spec.type === 'enum' && value && spec.allowed && !spec.allowed.includes(value)) return t('web.metadata.enumError', {label});
-  if (spec.maxLength !== undefined && Array.from(value).length > spec.maxLength) return t('web.metadata.textTooLong', {label, max: spec.maxLength});
-  return '';
-}
 
 function enumChoiceLabel(spec: RepairFieldSpec, value: string): string {
   if (spec.field !== 'publicationType') return value;
@@ -216,10 +190,6 @@ function input(spec: RepairFieldSpec, value: string, set: (value: string) => voi
   return <input {...accessibility} type={spec.type === 'date' ? 'date' : 'text'} inputMode={spec.type === 'integer' || spec.type === 'number' ? 'numeric' : undefined} value={value} placeholder={t('web.metadata.notSet')} onChange={event => set(event.currentTarget.value)} />;
 }
 
-/** The server names most fields in words; a few still name a catalogue entry. */
-function fieldLabel(spec: RepairFieldSpec): string {
-  return defaultI18n.has(spec.label) ? t(spec.label) : spec.label;
-}
 
 function sourceWords(source: string | undefined): string {
   const origin = metadataFieldSource(source);
