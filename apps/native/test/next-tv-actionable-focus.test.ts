@@ -255,11 +255,11 @@ test('season caller supplies its actual section root to the real Menu and Back r
   const words = await import('../../../packages/client-core/src/presentation/kit-model/text');
   const regionMap = await import('../src-next/screens/watch/tv-title-focus');
   const presentation = await import('../src-next/kit/browse/presentation');
-  const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
+  const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/kit/frames/TVEpisodeBrowser.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
     '../../../../../packages/client-core/src/presentation/kit-model': labels, '../../../../../packages/client-core/src/presentation/kit-model/text': words,
-    '../../../../../packages/i18n/src': {defaultI18n}, './tv-title-focus': regionMap, '../../kit/focus': b.focus,
+    '../../../../../packages/i18n/src': {defaultI18n}, '../../screens/watch/tv-title-focus': regionMap, '../../kit/focus': b.focus,
     '../../tv/layout/TVShelf': {TVShelf: 'Shelf', tvItemKey: (entry: any) => entry.id}, '../../kit/controls': {Focusable: b.Focusable, KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'},
-    '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, '../../kit/overlays': o.menu, '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme}});
+    '../../kit/cards': {EpisodeTile: 'EpisodeTile'}, '../../kit/overlays': o.menu, '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => b.theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}});
   let tree: any, section = {id: 'original-show.episodes'}, commands = 0;
   const props: any = {seasons: [{id: 'season', showId: 'show', number: 1, episodeCount: 3, watchedCount: 1}], selectedSeasonId: 'season', episodes: [], show: {title: 'Show'},
     open: {phase: 'idle'}, text: {t: defaultI18n.t}, artwork: () => undefined, more() {}, onSeasonFocus() {}, onEpisodeFocus() {}, onSelectSeason() {},

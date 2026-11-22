@@ -30,13 +30,13 @@ test('Jump mounts separate held-panel and letter regions and restores its actual
 
 test('season focus and accessibility activation agree, current seasons avoid reload, and focus prefetches the real tail', async () => {
   const h = hooks(), selected: string[] = []; let tails = 0;
-  const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {
+  const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/kit/frames/TVEpisodeBrowser.tsx', import.meta.url), {
     react: h.react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({}), episodeLabel: () => undefined},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText: String},
-    '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/focus': {FocusRegion: 'FocusRegion'}, './tv-title-focus': {tvEpisodeRegionMap},
+    '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../screens/watch/tv-title-focus': {tvEpisodeRegionMap},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: any) => entry.id}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
-    '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': type, '../../kit/theme': {useTheme: () => theme},
+    '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': type, '../../kit/theme': {useTheme: () => theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
   });
   const props: any = {seasons: Array.from({length: 6}, (_, index) => ({id: `s${index + 1}`, title: `Season ${index + 1}`})), selectedSeasonId: 's1', episodes: [],
     focus: {id: 'title.episodes', edges: {up: 'title.actions', left: 'rail'}}, show: {title: 'Show'}, open: {}, text: {}, artwork() {},

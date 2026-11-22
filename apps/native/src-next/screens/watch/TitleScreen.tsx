@@ -26,7 +26,7 @@ import type {NativeTitleTab} from './title-memory';
 import {TitlePeople} from './TitlePeople';
 import {NativeTitleEpisodePlate} from './TitleEpisodePlate';
 import {NativeSeasonsSheet} from '../../kit/layout/ShowSeasonsSheet';
-import {TVEpisodeBrowser} from './TVEpisodeBrowser';
+import {TVEpisodeBrowser} from '../../kit/frames/TVEpisodeBrowser';
 import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
 import type {NativeStartArtworkOffer} from '../../platform/playback/start-presentation';
 import {sameFence} from '../../../../../packages/player-core/src';
