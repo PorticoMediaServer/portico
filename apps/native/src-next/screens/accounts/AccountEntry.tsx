@@ -57,7 +57,7 @@ import {NoServersPage as TVNoServersPage} from '../../pages/tv/accounts/NoServer
 import {OfflineServersPage as TVOfflineServersPage} from '../../pages/tv/accounts/OfflineServersPage';
 import {PhoneAccountMoveNotice} from './PhoneAccountMoveNotice';
 import {PhoneMovePassword} from './PhoneMovePassword';
-import {PhoneMoveCode} from './PhoneMoveCode';
+import {MoveCodePage} from '../../pages/touch/accounts/MoveCodePage';
 import {EndedMoveCodeAction} from '../../kit/accounts/EndedMoveCodeAction';
 import {DirectoryAccessRefused} from '../../kit/accounts/DirectoryAccessRefused';
 import {directoryAccessRefused, directoryClockSkew, directoryIdentityUnconfirmed} from './directory-refusal';
@@ -1144,7 +1144,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       const captured = memberMove, source = memberOperation.current;
       const current = () => !!source && lifetime.current && stageRef.current === 'member-move' && memberMoveRef.current === captured
         && memberOperation.current === source && operation.current === source;
-      return <PhoneMoveCode controller={captured} isCurrent={current} onBack={back}/>;
+      return <MoveCodePage controller={captured} isCurrent={current} onBack={back}/>;
     }
     if (moveSnapshot.phase === 'password') return <PhoneMovePassword controller={memberMove} serverName={server!.name} onBack={back}/>;
     if (moveSnapshot.phase === 'portico') return <PhoneAccountMoveNotice busy={busy || moveSnapshot.busy} state={{kind: 'to-portico', serverName: server!.name,
