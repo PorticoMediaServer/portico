@@ -86,7 +86,7 @@ export type ReaderBookState = Readonly<{publication: ReadingPublication; control
  * through as it was instead (10-reading rule 14). */
 export const readerNear = (saved: ReadingProgress): number | undefined => saved.progress?.stale ? saved.progress.location.progression : undefined;
 
-export function ReaderBook({book, active, reportError, onBack, onOpenSettings, onSearchAll, environment = 'web', crease, saveHighlights}: {saveHighlights?: (revision: number, signal: AbortSignal) => Promise<'saved' | 'cancelled'>; environment?: ReaderEnvironment; book: ReaderBookState; active: boolean; reportError: (error: unknown) => void; onBack: () => void; onOpenSettings: () => void; onSearchAll?: (query: string) => void; /** Actual vertical book fold for this window, or absent. */ crease?: Readonly<{left: number; right: number}>}) {
+export function ReaderBook({book, active, reportError, onBack, onOpenSettings, onSearchAll, environment = 'web', crease, saveHighlights, hintSeen, onHintSeen}: {/** The app's own memory of the first-run hint, where this page's storage is off. */ hintSeen?: boolean; onHintSeen?: () => void; saveHighlights?: (revision: number, signal: AbortSignal) => Promise<'saved' | 'cancelled'>; environment?: ReaderEnvironment; book: ReaderBookState; active: boolean; reportError: (error: unknown) => void; onBack: () => void; onOpenSettings: () => void; onSearchAll?: (query: string) => void; /** Actual vertical book fold for this window, or absent. */ crease?: Readonly<{left: number; right: number}>}) {
   const {controller, publication, authority, title} = book;
   const mark = useReaderTitleMark(title, () => authority.isCurrent(), reportError), [versions, setVersions] = useState(false);
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot), width = useShellWidth(), height = useWindowHeight();
@@ -121,8 +121,12 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const [hits, setHits] = useState<readonly ReaderSearchResult[]>([]), [searching, setSearching] = useState(false), [currentHit, setCurrentHit] = useState<string>();
   // phone-read 14: taught once per browser, never re-shown after Got it.
   const hintKey = 'portico.reader.tapZonesHint.v1';
-  const [hint, setHint] = useState(() => {try {return !globalThis.localStorage?.getItem(hintKey);} catch {return true;}});
-  const dismissHint = useCallback(() => {setHint(false); try {globalThis.localStorage?.setItem(hintKey, '1');} catch { /* Disabled storage simply keeps the hint dismissed for this mount. */ }}, []);
+  const [hint, setHint] = useState(() => {if (hintSeen !== undefined) return !hintSeen; try {return !globalThis.localStorage?.getItem(hintKey);} catch {return true;}});
+  const hintDone = useRef(onHintSeen); hintDone.current = onHintSeen;
+  const dismissHint = useCallback(() => {
+    setHint(false); hintDone.current?.();
+    try {globalThis.localStorage?.setItem(hintKey, '1');} catch { /* Disabled storage simply keeps the hint dismissed for this mount. */ }
+  }, []);
   const [hitsQuery, setHitsQuery] = useState('');
   const queryRef = useRef(query); queryRef.current = query;
   const searchMove = useRef<object | undefined>(undefined);

@@ -5,14 +5,14 @@ import type {NativeQueueStore} from './queue-storage';
 import {insecureChoicesFor, parseInsecureConnections} from '../../../../packages/client-core/src/connection-policy';
 import {acceptConnectionPreference, nativeConnectionPolicy} from './connection-preference';
 
-export type NativePlaybackDeviceSetting = 'playerEngine' | 'forceStereo' | 'disablePassthrough' | 'disableHdr' | 'tvHdr' | 'tvSurround' | 'music.sampleRateMatching' | 'lossNotices' | 'autoPictureInPicture' | 'receiveFromDevices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure';
+export type NativePlaybackDeviceSetting = 'playerEngine' | 'forceStereo' | 'disablePassthrough' | 'disableHdr' | 'tvHdr' | 'tvSurround' | 'music.sampleRateMatching' | 'lossNotices' | 'autoPictureInPicture' | 'receiveFromDevices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure' | 'readerHintSeen';
 type Owner = Readonly<{current: () => boolean; subscribePreferences: (listener: () => void) => () => void}>;
 type Ports = Readonly<{storage: Pick<NativeQueueStore, 'change'>; readRecord: () => unknown; acceptRecord: (raw: unknown) => void}>;
 const sources = new WeakMap<Owner, NativeDeviceSettings>();
 const object = (raw: unknown): raw is Record<string, unknown> => !!raw && typeof raw === 'object' && !Array.isArray(raw);
 const ended = () => Object.assign(new Error('native_device_settings_retired'), {name: 'AbortError'});
 export function nativeDeviceSettingSupported(id: string): id is NativePlaybackDeviceSetting {
-  return id === 'playerEngine' || id === 'forceStereo' || id === 'disablePassthrough' || id === 'disableHdr' || id === 'tvHdr' || id === 'tvSurround' || id === 'music.sampleRateMatching' || id === 'lossNotices' || id === 'autoPictureInPicture' || id === 'receiveFromDevices' || id === 'matchFrameRate' || id === 'matchDynamicRange' || id === 'allowInsecure';
+  return id === 'playerEngine' || id === 'forceStereo' || id === 'disablePassthrough' || id === 'disableHdr' || id === 'tvHdr' || id === 'tvSurround' || id === 'music.sampleRateMatching' || id === 'lossNotices' || id === 'autoPictureInPicture' || id === 'receiveFromDevices' || id === 'matchFrameRate' || id === 'matchDynamicRange' || id === 'allowInsecure' || id === 'readerHintSeen';
 }
 
 /** The installation fields consumed by the actual playback runtime. The
@@ -23,7 +23,7 @@ export class NativeDeviceSettings {
   constructor(owner: Owner, ports: Ports) {this.owner = owner; this.ports = ports;}
   private assert() {if (!this.owner.current()) throw ended();}
   supports = nativeDeviceSettingSupported;
-  read = (id: CompositeId | 'lossNotices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure'): string | boolean | undefined => {
+  read = (id: CompositeId | 'lossNotices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure' | 'readerHintSeen'): string | boolean | undefined => {
     this.assert(); if (!nativeDeviceSettingSupported(id)) return;
     const raw = this.ports.readRecord(), record = object(raw) ? raw : {};
     if (id === 'matchFrameRate' || id === 'matchDynamicRange') return record[id] === 'off' ? 'off' : 'auto';
@@ -58,7 +58,7 @@ export class NativeDeviceSettings {
   subscribe = (listener: () => void): (() => void) => {
     this.assert(); return this.owner.subscribePreferences(() => {if (this.owner.current()) listener();});
   };
-  write = async (id: CompositeId | 'lossNotices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure', value: string | boolean): Promise<void> => {
+  write = async (id: CompositeId | 'lossNotices' | 'matchFrameRate' | 'matchDynamicRange' | 'allowInsecure' | 'readerHintSeen', value: string | boolean): Promise<void> => {
     this.assert();
     if (!nativeDeviceSettingSupported(id)) throw Object.assign(new Error('native_device_setting_unsupported'), {code: 'unsupported'});
     if (id === 'playerEngine' ? !engineSettings.some(setting => setting === value)

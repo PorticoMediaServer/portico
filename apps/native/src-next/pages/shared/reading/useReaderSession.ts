@@ -11,6 +11,7 @@ import {NativeAnnotationJournal, nativeAnnotationIdentity, nativeAnnotationLease
 import {nativeAnnotationBridge} from '../../../screens/read/annotation-session';
 import {NativeAnnotationSync, type NativeAnnotationLivePort} from '../../../screens/read/annotation-sync';
 import {NATIVE_OFFLINE_ANNOTATION_AUTHORING} from '../../../screens/read/annotation-authoring';
+import {nativeReaderHintMemory} from '../../../platform/reader-hint-memory';
 
 type Target = Readonly<{itemId: string; sourceId: string; downloadId?: string; expectedSourceRevision?: string; contentsTarget?: Readonly<{sourceId: string; sourceRevision: string; index: number}>}>;
 type Session = ReadingHostSession & Pick<ReadingSession, 'close'>;
@@ -141,5 +142,6 @@ export function useReaderSession({context, target, active, preferences, onBack, 
   // RD-5: the server refuses a book too large to read (422, retry never): say so plainly, no Try again.
   const tooLarge = failed && (snapshot as {error?: {code?: unknown}}).error?.code === 'reading_publication_too_large';
   const back = () => {if (callbacks.current.active) onBack();};
-  return {owner, snapshot, failed, busy, ended, tooLarge, retryOriginal, reopenEnded, back};
+  const hint = useMemo(() => nativeReaderHintMemory(context), [context]);
+  return {owner, snapshot, failed, busy, ended, tooLarge, retryOriginal, reopenEnded, back, hint};
 }
