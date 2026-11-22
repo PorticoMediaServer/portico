@@ -70,6 +70,10 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
   // profile item). Used once.
   const profileReturn = useRef(false);
   const openProfile = () => {profileReturn.current = true; onProfile();};
+  // A page the menu opened that leads elsewhere (Notifications opening a library) ends the pending return: the next Left
+  // into the rail is an entry again.
+  const destinationKey = JSON.stringify(destination);
+  React.useEffect(() => {profileReturn.current = false;}, [destinationKey]);
   const focusChanged = useCallback((owns: boolean) => {
     const returning = owns && profileReturn.current;
     if (owns) profileReturn.current = false;
@@ -77,8 +81,21 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     const toProfile = returning && landed?.regionId === ids.rail && landed.childId === ids.profile;
     // A frame later and only if focus is still in the rail: focus that only passed through it (dropped there while a page
     // opened, then asked onto that page's start) must not be pulled back to the rail.
+    // On Apple TV the profile item can't take focus while the page the menu opened still covers it, so Back lands the rail
+    // elsewhere (its current page's item): a return then asks for the profile item once the rail has focus.
+    // The item may still be covered for a few frames while the page leaves, so the return asks again (at most about a
+    // third of a second) while focus stays in the rail elsewhere.
     if (owns && !opened.current && Platform.OS === 'ios' && !toProfile) {
-      requestAnimationFrame(() => {if (registry.capture()?.regionId === ids.rail) registry.focusRegion(ids.rail);});
+      let frames = 0;
+      const ask = () => {
+        const at = registry.capture();
+        if (at?.regionId !== ids.rail) return;
+        if (!returning) {registry.focusRegion(ids.rail); return;}
+        if (at.childId === ids.profile) return;
+        registry.focus({regionId: ids.rail, childId: ids.profile});
+        if (++frames < 20) requestAnimationFrame(ask);
+      };
+      requestAnimationFrame(ask);
     }
     opened.current = owns; changeRef.current(owns);
   }, [registry, ids.rail, ids.profile]);

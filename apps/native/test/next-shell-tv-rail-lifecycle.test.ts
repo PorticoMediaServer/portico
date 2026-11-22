@@ -487,5 +487,18 @@ test('Apple TV: focus coming back to Profile and server after its menu stays the
     region.props.onFocusChange(false);
     region.props.onFocusChange(true);
     assert.equal(frames.length, 1, 'a later entry onto the same item by position still asks for the current page item');
+    // Apple TV: Back from the page the menu opened can land the rail on another item first (the profile item is still
+    // covered); the return then asks for Profile and server.
+    const settingsAddress = {regionId: ids.rail, childId: 'settings'};
+    registry.attach(settingsAddress, {});
+    profile.props.onPress();
+    region.props.onFocusChange(false);
+    registry.didFocus(settingsAddress);
+    const asked: unknown[] = [], focus = registry.focus;
+    registry.focus = (address: any) => {asked.push(address); return true;};
+    region.props.onFocusChange(true);
+    frames.at(-1)!();
+    registry.focus = focus;
+    assert.deepEqual(asked, [address], 'the return asks for Profile and server');
   } finally {(globalThis as any).requestAnimationFrame = requestFrame;}
 });
