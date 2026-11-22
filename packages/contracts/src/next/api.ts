@@ -3997,6 +3997,7 @@ export interface SegmentTitleSummary {
   kind: string;
   files: SegmentFileCounts;
   markers: SegmentReviewCounts;
+  poster?: string;
 }
 
 export interface SelectionDelete {

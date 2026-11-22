@@ -51,6 +51,8 @@ type SegmentTitleSummary struct {
 	Kind    string              `json:"kind"`
 	Files   SegmentFileCounts   `json:"files"`
 	Markers SegmentReviewCounts `json:"markers"`
+	// Poster is the title's poster (/v1/images/{hash}), so a long list can be scanned by eye.
+	Poster string `json:"poster,omitempty"`
 }
 type SegmentTitlePage struct {
 	LibraryID  string                `json:"libraryId"`
