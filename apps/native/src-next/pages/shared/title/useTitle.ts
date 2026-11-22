@@ -13,7 +13,7 @@ import type {EpisodeListProps, EpisodePlateProps, PageStateProps, PeopleSheetPro
 import type {PosterRowProps} from '../../../kit/layout';
 import type {SeasonSheetProps, SeasonSheetRow} from '../../../kit/layout/SeasonSheet';
 import type {NativeTitlePageLease} from '../../../screens/watch/title-controller';
-import type {NativeTitleScreenProps} from '../../../screens/watch/TitleScreen';
+import type {NativeTitleScreenProps} from '../../../pages/shared/player/useTitleScreen';
 import type {NativeTitleTab} from '../../../screens/watch/title-memory';
 
 export type TitleTab = Readonly<{value: NativeTitleTab; label: string}>;

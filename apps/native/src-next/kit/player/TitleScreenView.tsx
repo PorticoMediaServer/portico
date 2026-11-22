@@ -1,213 +1,44 @@
-import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {SeasonBar as TitleSeasonBar} from '../../kit/layout/SeasonBar';
-import {Lockup} from '../../kit/layout/Lockup';
-import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import React, {useRef, type ReactNode} from 'react';
+import {SeasonBar as TitleSeasonBar} from '../layout/SeasonBar';
+import {Lockup} from '../layout/Lockup';
+import {ScrollView, Text, View} from 'react-native';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {cardText, episodeLabel, playbackIdentity, titleFactParts, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {cardText, episodeLabel, playbackIdentity, titleFactParts} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {AmbientArt, Artwork, type AmbientArtSource, type ArtworkSource} from '../../kit/artwork';
-import {EpisodeTile, PosterCard, type EpisodeTileProps, type PosterCardProps} from '../../kit/cards';
-import {Button, Focusable, ResumeButton, Tabs} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
+import {AmbientArt, Artwork} from '../artwork';
+import {EpisodeTile, PosterCard, type EpisodeTileProps, type PosterCardProps} from '../cards';
+import {Button, Focusable, ResumeButton, Tabs} from '../controls';
+import {Icon} from '../Icon';
 import {TVShelf, tvItemKey} from '../../tv/layout/TVShelf';
-import {FocusRegion, useOptionalFocusRegistry, type FocusRegionProps} from '../../kit/focus';
-import {tvFocusIds} from '../../shell/tv-focus';
-import type {ShellAuthority} from '../../shell/model';
-import {tvTitleRegionMap, tvTitleFocusSection} from './tv-title-focus';
-import {TVTitleBackdrop, TVTitleCompactHeader, TVTitleHeroCopy} from '../../kit/frames/TVTitleChrome';
-import {useMotion} from '../../kit/useMotion';
-import {HeroMetadata} from '../../kit/layout/Hero';
-import {SkeletonBlock, StateLayout, TitleSkeleton} from '../../kit/states';
+import {FocusRegion, type FocusRegionProps} from '../focus';
+import {TVTitleBackdrop, TVTitleCompactHeader, TVTitleHeroCopy} from '../frames/TVTitleChrome';
+import {HeroMetadata} from '../layout/Hero';
+import {SkeletonBlock, StateLayout, TitleSkeleton} from '../states';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {nativeType, useTheme} from '../../kit/theme';
-import type {NativeTitleController, NativeTitlePageLease} from './title-controller';
-import type {NativeTitleTab} from './title-memory';
-import {TitlePeople} from '../../kit/title/TitlePeople';
-import {NativeTitleEpisodePlate} from '../../kit/title/TitleEpisodePlate';
-import {NativeSeasonsSheet} from '../../kit/layout/ShowSeasonsSheet';
-import {TVEpisodeBrowser} from '../../kit/frames/TVEpisodeBrowser';
-import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
+import {textLines, useTheme} from '../theme';
+import {shellType} from '../shell/visual';
+import type {NativeTitleTab} from '../../screens/watch/title-memory';
+import {TitlePeople} from '../title/TitlePeople';
+import {NativeTitleEpisodePlate} from '../title/TitleEpisodePlate';
+import {NativeSeasonsSheet} from '../layout/ShowSeasonsSheet';
+import {TVEpisodeBrowser} from '../frames/TVEpisodeBrowser';
 import type {NativeStartArtworkOffer} from '../../platform/playback/start-presentation';
 import {sameFence} from '../../../../../packages/player-core/src';
 import {durationText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
-import {usePlatformPosture} from '../../platform/platformPosture';
-import {mediumRailMetrics} from '../../shell/model';
-import {usePageInset} from '../../kit/layout/page-inset';
-import {TVRow} from '../../kit/layout/TVRow';
-import {BarSurface, TopBar} from '../../kit/layout/TopBar';
+import {TVRow} from '../layout/TVRow';
+import {BarSurface, TopBar} from '../layout/TopBar';
 import {PlayOnButton} from '../../shell/PlayOnButton';
-import type {NativePlayOn} from '../../platform/play-on/controller';
+import {tvBrowseTop, type NativeTitleScreenProps, type useTitleScreen} from '../../pages/shared/player/useTitleScreen';
 
-export type NativeTitleScreenProps = Readonly<{
-  controller: NativeTitleController;
-  /** The route occurrence this page is drawn for (TV names its season and episode focus regions by it). */
-  visit?: string;
-  authority?: ShellAuthority;
-  text: TextEnvironment;
-  artwork: (path: string | undefined) => ArtworkSource | undefined;
-  ambient: (path: string | undefined) => AmbientArtSource | undefined;
-  back: () => void;
-  navigate: (entry: ContentEntry) => void;
-  more: (entry: ContentEntry, anchorRef?: React.RefObject<View | null>) => void;
-  reportError: (error: unknown) => void;
-  renderError: (error: unknown, retry: () => void) => ReactNode;
-  /** The title's whole-page load failure (W-2): backdrop, clear of the status bar and Back. Falls back to renderError. */
-  renderPageError?: (error: unknown, retry: () => void) => ReactNode;
-  /** Exact approved About label from the canonical catalogue owner. */
-  aboutLabel: string;
-  /** The saved server display for a named gone-title state; never a synthesized name. */
-  serverName?: string;
-  /** One ordinary Search route seeded with the captured title; absent when no producer exists. */
-  search?: (query: string) => void;
-  /** The Home entry's captured Remove from Continue Watching command, when it offered one. */
-  removeContinue?: (signal: AbortSignal) => Promise<boolean>;
-  /** A real native download action, absent on a server/device where it is not offered. */
-  download?: (entry: ContentEntry) => void;
-  /** tablet6/8: the real Play on control. Present only while this device has a
-   * local playback the shell can hand off; the screen never invents one. */
-  onPlayOn?: (anchorRef?: React.RefObject<View | null>) => void;
-  /** The one Play on controller, for the top bar's shared button and its chosen-device state. */
-  playOn?: NativePlayOn;
-  /** A registered person route, where the shell has one. */
-  person?: (personId: string) => void;
-  /** The Search genre page for one of the title's genres (its tag id is the genre's id). */
-  genre?: (genre: Readonly<{id: string; name: string}>) => void;
-  /** The signed-in viewer owns this server; Show settings is drawn for owners. */
-  owner?: boolean;
-  /** A real catalogue collection named by the title's detail projection. */
-  openCollection?: (collection: Readonly<{id: string; name: string; libraryId: string; memberCount: number; posterUrls: readonly string[]}>) => void;
-  /** Current producer state and command, never a fabricated default grant. */
-  myList?: Readonly<{selected: boolean; change: (selected: boolean) => Promise<void>}>;
-  /** Live captured entry from the actual menu owner, not local open state. */
-  menu?: Readonly<{subscribe: (listener: () => void) => () => void; getSnapshot: () => ContentEntry | undefined}>;
-  /** Keep the actual selection port even while inactive for accessibility. */
-  selection?: (entry: ContentEntry) => EpisodeTileProps['selection'];
-  /** The page's own selection bar while a card is selected (DESIGN: Select in every card's hold-OK menu). */
-  selectionBar?: ReactNode;
-  /** The upright Watch page reuses the retained real title body. Its Play/Pause
-   * controls the exact existing session; it never starts another queue. */
-  watch?: Readonly<{source: NativePlaybackRuntimeSnapshot; width: number; playback: Pick<NativePlaybackAdapter, 'getSnapshot' | 'toggle'>;
-    /** foldable3g: the book posture's left page draws the title block alone and its
-     * right page the tabs and episodes; the ordinary watch page keeps drawing both. */
-    sections?: 'all' | 'title' | 'episodes'}>;
-}>;
-const noMenuSubscribe = () => () => {};
-const noMenuSnapshot = () => undefined;
-const noFocusSnapshot = () => 0;
+export type TitleScreenViewProps = ReturnType<typeof useTitleScreen>;
+
 /** An episode's own numbering, the same shape the episode rows and the player label use. */
 const episodeNumbering = (entry: ContentEntry) => entry.absoluteNumber !== undefined ? {mode: 'absolute' as const, number: entry.absoluteNumber}
   : entry.dateBased && entry.airDate ? {mode: 'date' as const, day: entry.airDate}
     : entry.seasonNumber === 0 ? {mode: 'special' as const} : {mode: 'seasonal' as const, season: entry.seasonNumber, episode: entry.episodeNumber};
 
-/** The retained title route. Technical facts exist only in its separate File info surface. */
-export function NativeTitleScreen(props: NativeTitleScreenProps) {
-  const {controller, text} = props, snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const menuEntry = useSyncExternalStore(props.menu?.subscribe ?? noMenuSubscribe, props.menu?.getSnapshot ?? noMenuSnapshot);
-  const openEpisode = useSyncExternalStore(controller.episode.subscribe, controller.episode.getSnapshot);
-  const menuIsOpen = (entry: ContentEntry) => !!menuEntry && menuEntry.id === entry.id && menuEntry.kind === entry.kind && menuEntry.libraryId === entry.libraryId;
-  const theme = useTheme(), viewport = useWindowDimensions(), insets = useSafeAreaInsets(), t = defaultI18n.t, motion = useMotion();
-  const titleArt = useRef<View>(null), readyArt = useRef<ArtworkSource | undefined>(undefined), artScrollRevision = useRef(0);
-  const drawnArt = useRef<{controller: NativeTitleController; key: string} | undefined>(undefined);
-  const artListeners = useRef(new Set<() => void>()), artMounted = useRef(false);
-  useLayoutEffect(() => {for (const listener of [...artListeners.current]) listener();});
-  useLayoutEffect(() => {
-    const ownedArtListeners = artListeners.current;
-    artMounted.current = true;
-    return () => {artMounted.current = false;for (const listener of [...ownedArtListeners]) listener();};
-  }, [controller]);
-  const posture = usePlatformPosture(), registry = useOptionalFocusRegistry();
-  useSyncExternalStore(registry?.subscribe ?? noMenuSubscribe, registry?.getSnapshot ?? noFocusSnapshot, registry?.getSnapshot ?? noFocusSnapshot);
-  const activeFocus = registry?.capture();
-  const fold = posture.status === 'available' && posture.window?.width === viewport.width && posture.window.height === viewport.height
-    ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.left < viewport.width) : undefined;
-  // N2-3: the page is drawn beside the rail on a tablet; its panes are measured from where it starts.
-  const inset = usePageInset(), rail = inset || mediumRailMetrics.width, pageWidth = Math.max(0, viewport.width - inset);
-  const divider = fold ? Math.min(viewport.width - 280, Math.max(rail + 280, fold.bounds.left)) : viewport.width;
-  const twoPane = !props.watch && theme.platform === 'tablet' && viewport.width > viewport.height && !!fold;
-  // tablet-play3: an upright tablet draws the phone's watch page with larger
-  // targets, the title block and its buttons on one row, and 224 pt episode stills.
-  const tabletWatch = !!props.watch && props.watch.width >= 600;
-  // tablet6: the expanded film page is the desktop one at touch size, with every
-  // hover-only explanation written out beside its control.
-  const wide = !theme.isTV && theme.platform !== 'phone' && viewport.width >= 1024;
-  // tablet8: upright, the show page keeps the phone's arrangement centred in the
-  // width beside the rail.
-  const centered = !theme.isTV && theme.platform === 'tablet' && !props.watch;
-  const phoneTitle = !theme.isTV && !wide && !centered && !props.watch;
-  const headerHeight = 44 + insets.top;
-  // foldable3g splits the watch page's own sections across the two book pages.
-  const titleOnly = props.watch?.sections === 'title', episodesOnly = props.watch?.sections === 'episodes';
-  const leftWidth = twoPane ? divider - inset : pageWidth, rightWidth = twoPane ? viewport.width - divider : pageWidth;
-  const bodyWidth = props.watch?.width ?? (twoPane ? rightWidth : pageWidth);
-  const scroll = useRef<ScrollView>(null), titleMore = useRef<View>(null), titlePlay = useRef<View>(null), bodyTop = useRef(0), cells = useRef(new Map<string, {y: number; height: number}>());
-  const [tvBrowsing, setTVBrowsing] = useState(false), [tvTab, setTVTab] = useState<NativeTitleTab>(snapshot.place.tab);
-  const tvAnchor = useRef<Readonly<{browsing: boolean; anchor?: string}> | undefined>(undefined), tvAligned = useRef('');
-  const [collapsed, setCollapsed] = useState(false), [elapsed, setElapsed] = useState(0), [pinnedWidth, setPinnedWidth] = useState(0);
-  // Each sheet owns the exact page and host it opened on, and the settings sheet
-  // also owns its ticket. A callback only ever acts for the sheet it was rendered
-  // with, so a superseded save can never close or borrow a successor's sheet.
-  const [seasonsSheet, setSeasonsSheet] = useState<NativeTitlePageLease>();
-  const continueController = useRef<AbortController | undefined>(undefined);
-  const [continueBusy, setContinueBusy] = useState(false), [continueRemoved, setContinueRemoved] = useState(false);
-  useEffect(() => () => continueController.current?.abort(), []);
-  const pendingAnchor = useRef<ReturnType<NativeTitleController['memory']['getSnapshot']>['anchor'] | undefined>(controller.memory.getSnapshot().anchor);
-  const detail = snapshot.detail?.data, workspace = snapshot.workspace?.data;
-  const focusScope = JSON.stringify([props.authority, snapshot.entry.kind, snapshot.entry.libraryId, snapshot.entry.id]);
-  // A title's related rows; a show or season page's are the show's recommendations (N4-8).
-  const relatedRows = [...(detail?.related?.rows ?? []), ...(snapshot.recommendationRows ?? [])].filter(row => row.entries.length > 0);
-  const hasPeople = !!props.person && ((snapshot.credits?.credits ?? detail?.metadata.credits ?? []).some(credit => !!credit.personId) || !!snapshot.credits?.hasMore);
-  const regions = tvTitleRegionMap(focusScope, props.authority ? tvFocusIds(props.authority).rail : undefined,
-    ['show', 'season', 'episode'].includes(snapshot.entry.kind) && !!workspace, relatedRows.map(row => row.id), !!detail?.collections?.[0], hasPeople);
-  const tvSection = theme.isTV ? tvTitleFocusSection(regions, activeFocus?.regionId) : undefined;
-  const alignTV = () => {
-    if (!theme.isTV) return;
-    const target = tvAnchor.current;
-    if (!target) return;
-    const cell = target.anchor ? cells.current.get(target.anchor) : undefined;
-    if (target.browsing && (!bodyTop.current || !cell)) return;
-    const y = target.browsing ? Math.max(0, bodyTop.current + cell!.y - tvBrowseTop) : 0;
-    const key = `${target.anchor ?? 'hero'}:${y}`;
-    if (tvAligned.current === key) return;
-    tvAligned.current = key; scroll.current?.scrollTo({y, animated: !motion.reduce});
-  };
-  useEffect(() => {
-    if (!tvSection) return;
-    tvAnchor.current = tvSection; setTVBrowsing(tvSection.browsing); if (tvSection.tab) setTVTab(tvSection.tab); alignTV();
-    // A row's focus identity, not each card or season in it, aligns the title body.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controller, tvSection?.browsing, tvSection?.anchor, motion.reduce]);
-  const show = ['show', 'season', 'episode'].includes(snapshot.entry.kind);
-  // W-8: a show, season or episode page wears the show's hero, so its My List is the show's own
-  // (phone-detail frames 4-5, as on web); a movie keeps its own item action.
-  const myList = props.myList ?? (show
-    ? snapshot.showState ? {selected: snapshot.showState.watchlisted, change: (value: boolean) => controller.setShowMyList(value)} : undefined
-    : detail?.actions.some(action => action.id === 'watchlist' && action.enabled)
-      ? {selected: detail.personal.watchlisted, change: (value: boolean) => controller.personal({action: 'watchlist', value})} : undefined);
-  const loading = show ? snapshot.workspace?.phase === 'loading' : snapshot.detail?.phase === 'loading';
-  useEffect(() => {void controller.open().catch(props.reportError);}, [controller, props.reportError]);
-  useEffect(() => {
-    if (!loading) {setElapsed(0); return;}
-    const begin = Date.now(), timers = [setTimeout(() => setElapsed(Math.max(300, Date.now() - begin)), 300), setTimeout(() => setElapsed(Date.now() - begin), 8000)];
-    return () => {for (const timer of timers) clearTimeout(timer);};
-  }, [loading]);
-  useEffect(() => {
-    if (openEpisode.phase !== 'idle') controller.episode.close();
-    // An open episode belongs to its own season page; leaving it closes the plate.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controller, snapshot.place.tab, snapshot.place.seasonId, snapshot.place.group]);
-  const restore = () => {
-    const anchor = pendingAnchor.current;
-    if (!anchor) return;
-    const cell = anchor.itemId ? cells.current.get(anchor.itemId) : undefined;
-    if (cell || !anchor.itemId) {
-      scroll.current?.scrollTo({y: cell ? Math.max(0, bodyTop.current + cell.y + anchor.offset) : anchor.offset, animated: false});
-      pendingAnchor.current = undefined;
-    }
-  };
-  const restoreTab = theme.isTV ? undefined : snapshot.place.tab;
-  // A new season (or tab, group, size) lays the body out again: the TV alignment is redone too, or a restore under it leaves the browsed row low.
-  useLayoutEffect(() => {pendingAnchor.current = controller.memory.getSnapshot().anchor; cells.current.clear(); tvAligned.current = '';}, [controller, restoreTab, snapshot.place.seasonId, snapshot.place.group, viewport.width, viewport.height, bodyWidth]);
+/** The retained title route, from what `useTitleScreen` returns. Technical facts exist only in its separate File info surface. */
+export function TitleScreenView({props, controller, text, snapshot, openEpisode, menuIsOpen, theme, viewport, insets, t, titleArt, readyArt, artScrollRevision, drawnArt, artListeners, artMounted, registry, twoPane, tabletWatch, wide, centered, phoneTitle, headerHeight, titleOnly, episodesOnly, leftWidth, rightWidth, bodyWidth, scroll, titleMore, titlePlay, bodyTop, cells, tvBrowsing, tvTab, collapsed, setCollapsed, elapsed, pinnedWidth, setPinnedWidth, seasonsSheet, setSeasonsSheet, continueController, continueBusy, setContinueBusy, continueRemoved, setContinueRemoved, detail, workspace, relatedRows, regions, tvSection, alignTV, show, myList, loading, restore}: TitleScreenViewProps) {
   if (snapshot.retired) return null;
   const title = workspace?.show.title ?? snapshot.entry.displayTitle ?? detail?.item.title ?? snapshot.entry.title;
   const backdrop = workspace?.show.backdropUrl ?? detail?.item.backdropUrl ?? snapshot.entry.backdropUrl;
@@ -328,7 +159,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     {/* tablet.html 7: the shared translucent bar surface (blur under ink, one hairline), not flat navy. */}
     <BarSurface/>
     <Button testID="watch-title-back" variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={props.back}/>
-    <Text numberOfLines={1} style={[theme.type.bodyStrong, {fontSize: 18, fontWeight: '800', color: theme.colors.text, minWidth: 0, flexShrink: 1,
+    <Text {...textLines(1)} style={[theme.type.bodyStrong, shellType(18, 600, 'normal', 0, 1), {fontWeight: '800', color: theme.colors.text, minWidth: 0, flexShrink: 1,
       maxWidth: pinnedWidth ? Math.max(96, Math.min(260, Math.round(pinnedWidth * 0.24))) : 180}]}>{title}</Text>
     <View style={{width: 1, height: 24, backgroundColor: theme.colors.line}}/>
     <View style={{flexShrink: 1, flexGrow: 1, minWidth: 0}}><Tabs testID="watch-title-bar-tabs" value={selectedTab} onValueChange={value => controller.tab(value as NativeTitleTab)} items={tabItems}
@@ -410,7 +241,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const castNames = [...new Set(credits.filter(credit => ['acting', 'cast'].includes(credit.department.toLowerCase())).map(credit => credit.name))];
   // The drawn synopsis is 24/1.45 in 800 and ends in 30; the credits line follows it and ends in 30.
   const copyBlock = props.watch && !titleOnly ? null : <>
-    {overview ? <Text numberOfLines={2} style={[theme.isTV ? theme.type.synopsis : phoneTitle ? nativeType({size: 14, weight: 400, tracking: 0, lineHeight: 21}, theme.textScale) : theme.type.body, {color: theme.colors.textSecondary,
+    {overview ? <Text {...textLines(2)} style={[theme.isTV ? theme.type.synopsis : phoneTitle ? shellType(14, 400, 21, 0, theme.textScale) : theme.type.body, {color: theme.colors.textSecondary,
       maxWidth: theme.isTV ? 800 : centered ? 560 : undefined, alignSelf: centered ? 'center' : undefined, textAlign: centered ? 'center' : undefined,
       marginTop: theme.isTV ? 0 : phoneTitle ? 16 : 18, marginBottom: theme.isTV ? 30 : 0}]}>{overview}</Text> : null}
     {(theme.isTV || wide) && (directors.length > 0 || castNames.length > 0) ? <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: theme.isTV ? 24 : 16, rowGap: 6, marginTop: theme.isTV ? -10 : 8, marginBottom: theme.isTV ? 30 : 0}}>
@@ -457,27 +288,27 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
             onPress={() => props.openCollection?.({...detail.collections![0]!, libraryId: detail.scope.libraryId})}
             style={{alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: theme.isTV ? 10 : 8, marginBottom: theme.isTV ? 12 : 6}}>
             <Icon name="i-layers" size={theme.isTV ? 24 : 18} color={theme.colors.accentStrong}/>
-            <Text style={[nativeType({size: theme.isTV ? 24 : 14.5, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.accentStrong}]}>{detail.collections[0].name}</Text>
-            <Text style={[nativeType({size: theme.isTV ? 22 : 14, weight: 500, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary}]}>{t('next.browse.filmCount', {count: detail.collections[0].memberCount})}</Text>
+            <Text style={[shellType(theme.isTV ? 24 : 14.5, 700, 'normal', 0, theme.textScale), {color: theme.colors.accentStrong}]}>{detail.collections[0].name}</Text>
+            <Text style={[shellType(theme.isTV ? 22 : 14, 500, 'normal', 0, theme.textScale), {color: theme.colors.textSecondary}]}>{t('next.browse.filmCount', {count: detail.collections[0].memberCount})}</Text>
           </Focusable></TitleRegion> : null}
           <View style={tabletWatch ? {flexDirection: 'row', alignItems: 'flex-end', gap: 24} : undefined}>
           <View style={tabletWatch ? {flex: 1, minWidth: 0} : undefined}>
-          {props.watch || theme.isTV ? <Text accessibilityRole="header" numberOfLines={2} style={[props.watch ? nativeType({size: 28, weight: 800, tracking: -.035, lineHeight: 30.8}, theme.textScale)
+          {props.watch || theme.isTV ? <Text accessibilityRole="header" {...textLines(2)} style={[props.watch ? shellType(28, 800, 30.8, -.035, theme.textScale)
             : theme.type.lockup, {color: theme.colors.text, textAlign: centered ? 'center' : undefined, marginBottom: props.watch ? 5 : 22}]}>{title}</Text>
             // The one page title (T11): a phone starts 46, 42 or 34 by length, a tablet at its frame's size; past three lines it steps down the scale, then wraps, never cut.
             : <Lockup title={title} size={phoneTitle ? undefined : wide ? 64 : 40} lineRatio={phoneTitle ? undefined : wide ? 1 : 43 / 40} tracking={wide ? -.045 : -.04}
               style={{textAlign: centered || phoneTitle ? 'center' : undefined, marginBottom: phoneTitle ? 10 : 12}}/>}
-          {props.watch && watchIdentity?.subtitle.length ? <Text numberOfLines={1} style={[nativeType({size: 15, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, marginBottom: 6}]}>{watchIdentity.subtitle.map(part => part.text).join(' ')}</Text> : null}
+          {props.watch && watchIdentity?.subtitle.length ? <Text {...textLines(1)} style={[shellType(15, 700, 'normal', 0, theme.textScale), {color: theme.colors.text, marginBottom: 6}]}>{watchIdentity.subtitle.map(part => part.text).join(' ')}</Text> : null}
           <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered || phoneTitle ? 'center' : undefined, columnGap: theme.isTV ? 26 : phoneTitle ? 12 : 10, rowGap: theme.isTV ? 10 : phoneTitle ? 6 : 10, marginBottom: theme.isTV ? 18 : 0}}>
-            {phoneTitle ? metadataFacts.map(fact => <Text key={fact.id} style={[nativeType({size: 13, weight: fact.id === 'year' || fact.role === 'identity' ? 700 : 400, tracking: 0, lineHeight: 'normal'}, theme.textScale), {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary}]}>{fact.text}</Text>) : <HeroMetadata facts={metadataFacts}/>}
+            {phoneTitle ? metadataFacts.map(fact => <Text key={fact.id} style={[shellType(13, fact.id === 'year' || fact.role === 'identity' ? 700 : 400, 'normal', 0, theme.textScale), {includeFontPadding: false, color: fact.id === 'year' || fact.role === 'identity' ? theme.colors.text : theme.colors.textSecondary}]}>{fact.text}</Text>) : <HeroMetadata facts={metadataFacts}/>}
             {studio ? <Text style={[theme.type.meta, {color: theme.colors.textSecondary}]}>{studio}</Text> : null}
             {seasonFact ? <View style={{borderWidth: 1.5, borderColor: '#edf5fa47', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 3}}>
               <Text style={[theme.type.tag, {color: theme.colors.text}]}>{seasonFact.text}</Text></View> : null}
             {shownRating ? <View style={theme.isTV ? {borderWidth: 1.5, borderColor: '#edf5fa47', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 3}
               : {borderWidth: 1, borderColor: theme.colors.lineStrong, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 1}}>
-              <Text style={theme.isTV ? [theme.type.tag, {color: theme.colors.text}] : [phoneTitle ? nativeType({size: 13, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale) : theme.type.meta, {color: theme.colors.textSecondary}]}>{shownRating.text}</Text></View> : null}
+              <Text style={theme.isTV ? [theme.type.tag, {color: theme.colors.text}] : [phoneTitle ? shellType(13, 600, 'normal', 0, theme.textScale) : theme.type.meta, {color: theme.colors.textSecondary}]}>{shownRating.text}</Text></View> : null}
           </View>
-          {wide && !props.watch && detail?.facts?.tagline ? <Text numberOfLines={2} style={[theme.type.body, {color: theme.colors.textSecondary, marginTop: 14}]}>{detail.facts.tagline}</Text> : null}
+          {wide && !props.watch && detail?.facts?.tagline ? <Text {...textLines(2)} style={[theme.type.body, {color: theme.colors.textSecondary, marginTop: 14}]}>{detail.facts.tagline}</Text> : null}
           {/* tv.html frame 3 and tv-detail frame 1 draw the synopsis and credits above the buttons. */}
           {theme.isTV || wide ? copyBlock : null}
           </View>
@@ -575,13 +406,13 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
         {(theme.isTV || selectedTab === 'details') && cell('details', <View style={{gap: 16}}>
           {theme.isTV ? <View testID="watch-title-about" style={{flexDirection: 'row', alignItems: 'flex-start', gap: 88}}>
             <View style={{width: 860}}>
-              <Text style={[nativeType({size: 32, weight: 700, tracking: -.019, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, marginBottom: 14}]}>{props.aboutLabel}</Text>
-              {overview ? <Text style={[nativeType({size: 24, weight: 400, tracking: 0, lineHeight: 34.8}, theme.textScale), {color: theme.colors.textSecondary}]}>{overview}</Text> : null}
-              {detail?.facts?.tagline ? <Text style={[nativeType({size: 22, weight: 400, tracking: 0, lineHeight: 31.9}, theme.textScale), {color: theme.colors.textTertiary, marginTop: 16}]}>{detail.facts.tagline}</Text> : null}
+              <Text style={[shellType(32, 700, 'normal', -.019, theme.textScale), {color: theme.colors.text, marginBottom: 14}]}>{props.aboutLabel}</Text>
+              {overview ? <Text style={[shellType(24, 400, 34.8, 0, theme.textScale), {color: theme.colors.textSecondary}]}>{overview}</Text> : null}
+              {detail?.facts?.tagline ? <Text style={[shellType(22, 400, 31.9, 0, theme.textScale), {color: theme.colors.textTertiary, marginTop: 16}]}>{detail.facts.tagline}</Text> : null}
             </View>
             <View style={{flex: 1, minWidth: 0, gap: 12, marginTop: 4}}>{aboutRows.map(row => <View key={row.label} style={{flexDirection: 'row', gap: 24}}>
-              <Text style={[nativeType({size: 22, weight: 400, tracking: 0, lineHeight: 28.6}, theme.textScale), {width: 170, color: theme.colors.textTertiary}]}>{row.label}</Text>
-              <Text style={[nativeType({size: 22, weight: 400, tracking: 0, lineHeight: 28.6}, theme.textScale), {flex: 1, color: theme.colors.text}]}>{row.value}</Text>
+              <Text style={[shellType(22, 400, 28.6, 0, theme.textScale), {width: 170, color: theme.colors.textTertiary}]}>{row.label}</Text>
+              <Text style={[shellType(22, 400, 28.6, 0, theme.textScale), {flex: 1, color: theme.colors.text}]}>{row.value}</Text>
             </View>)}</View>
           </View> : <>
             <Text style={[theme.type.heading, {color: theme.colors.text}]}>{props.aboutLabel}</Text>
@@ -597,7 +428,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
             </View>
             <View style={{flex: 1, minWidth: 0}}>
               <Text style={[theme.type.captionStrong, {color: theme.colors.accentStrong}]}>{t('next.home.collection')}</Text>
-              <Text numberOfLines={1} style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{detail.collections[0].name}</Text>
+              <Text {...textLines(1)} style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{detail.collections[0].name}</Text>
               <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.collection.filmsOnServer', {count: detail.collections[0].memberCount})}</Text>
             </View>
             <Icon name="i-right" size={18} color={theme.colors.textTertiary}/>
@@ -681,9 +512,6 @@ function TitleRegion({children, style, ...config}: Partial<FocusRegionProps>) {
 }
 
 /** The retained touch title keeps its original ancestry; TV animates its hero copy. */
-/** TV: while browsing, the focused row's top sits here, under the compact title and tabs (tv.html frame 6). Rows can always
- * reach it (the body leaves room under the last one), and what scrolls above it is hidden behind the header's ink band. */
-const tvBrowseTop = 252;
 
 function TitleHeroCopy({browsing, style, children}: React.ComponentProps<typeof TVTitleHeroCopy>) {
   const {isTV} = useTheme();

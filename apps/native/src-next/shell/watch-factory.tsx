@@ -24,7 +24,7 @@ import type {NativeShellRuntime} from './runtime';
 import type {NativeWatchOutletPort} from './watch-outlet';
 import {NativeTitleController, type NativeTitlePageHost} from '../screens/watch/title-controller';
 import {NativeTitleStarts} from '../screens/watch/title-starts';
-import {NativeTitleScreen, type NativeTitleScreenProps} from '../screens/watch/TitleScreen';
+import {TitleScreenPage, type NativeTitleScreenProps} from '../pages/shared/player/TitleScreenPage';
 import {touchTitlePages} from '../pages/touch/title/routes';
 import {tvTitlePages} from '../pages/tv/title/routes';
 import {FileInfoSession, fileInfoUsesGroups} from '../../../../packages/client-core/src/file-info-session';
@@ -507,7 +507,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
       const selection = selectionFor(key, controller);
       // The rebuilt title pages, by kind: each lane keeps its own table (pages/tv/title/routes.ts, pages/touch/title/routes.ts);
       // a kind with no rebuilt page yet stays on the old screen.
-      const Screen = (ports.isTV ? tvTitlePages : touchTitlePages)[route.entry.kind] ?? NativeTitleScreen;
+      const Screen = (ports.isTV ? tvTitlePages : touchTitlePages)[route.entry.kind] ?? TitleScreenPage;
       // This visit's route occurrence: the TV page names its season and episode regions by it (stable under the player,
       // fresh on a new visit).
       const visit = [...(runtime.navigation?.presentationStack?.() ?? [])].reverse().find(presentation => presentation.route === route)?.occurrence;
@@ -542,7 +542,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     let controller = controllers.get(key);
     if (!controller) controller = createTitleController(key, entry, true);
     const owner = controller, selection = selectionFor(key, owner);
-    return <NativeTitleScreen authority={ports.authority} {...ports.title} key={`${key}:${sections}`} controller={owner} text={host.runtime.text} artwork={host.runtime.artwork} ambient={host.runtime.ambient}
+    return <TitleScreenPage authority={ports.authority} {...ports.title} key={`${key}:${sections}`} controller={owner} text={host.runtime.text} artwork={host.runtime.artwork} ambient={host.runtime.ambient}
       selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
       watch={{source, playback: ports.playback, width: pane.width, sections}} back={() => {ports.navigation.back(ports.authority);}}
       myList={ports.title.myList?.(entry)} download={ports.title.download} more={(member, anchorRef) => {

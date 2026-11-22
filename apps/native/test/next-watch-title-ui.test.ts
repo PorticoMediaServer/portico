@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
+import {loadTitleScreen} from './helpers/load-title-screen.mjs';
 import {cardText, episodeLabel, playbackIdentity, titleFactParts} from '../../../packages/client-core/src/presentation/kit-model/facts.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {tvTitleRegionMap} from '../src-next/screens/watch/tv-title-focus.ts';
@@ -49,7 +50,7 @@ async function fixture() {
     '../../kit/title/TitlePeople': {TitlePeople: 'TitlePeople'}, '../../kit/layout/SeasonBar': {SeasonBar: 'TitleSeasonBar'}, '../../kit/title/TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, '../../kit/layout/ShowSeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
     '../../kit/frames/TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'Settings'},
   };
-  const {NativeTitleScreen, TitleRelated} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), modules);
+  const {NativeTitleScreen, TitleRelated} = await loadTitleScreen(modules);
   // The plate is a kit part (kit/title): the same stubs, named from its folder.
   const {NativeTitleEpisodePlate} = await screenModule(new URL('../src-next/kit/title/TitleEpisodePlate.tsx', import.meta.url), {...modules,
     '../artwork': modules['../../kit/artwork'], '../controls': modules['../../kit/controls'], '../theme': {...modules['../../kit/theme'], textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
