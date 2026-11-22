@@ -95,14 +95,25 @@ test('the profile flyout names no initial focus, so the shared menu takes the re
   for (const id of ['profiles', 'servers', 'notifications', 'together']) {
     const source = switching.actions.find(action => action.id === id)!;
     const drawn = two.props.items.find((item: any) => item.id === id);
-    let pressed = 0; const press = source.onPress; (source as any).onPress = () => {pressed++;};
+    assert.ok(drawn, `rendered ${id}`);
+    // The choice is recorded before the press: the press may unmount the side menu at once.
+    let pressed = 0, choseFirst = false; const press = source.onPress;
+    (source as any).onPress = () => {pressed++; choseFirst = returns.profileReturn.chose;};
     const redrawn = render(switching).props.items.find((item: any) => item.id === id);
     returns.profileReturn.chose = false;
     redrawn.onSelect();
     (source as any).onPress = press;
     assert.equal(pressed, 1, `rendered ${id} runs the action's own press`);
-    assert.equal(returns.profileReturn.chose, true, `rendered ${id} marks a menu choice`);
-    assert.ok(drawn, `rendered ${id}`);
+    assert.equal(choseFirst, true, `rendered ${id} marks a menu choice before its press`);
+  }
+  {
+    // The owner's server settings opens a page too.
+    let choseFirst = false; const server = switching.serverAction!, press = server.onPress;
+    (server as any).onPress = () => {choseFirst = returns.profileReturn.chose;};
+    returns.profileReturn.chose = false;
+    render(switching).props.items.find((item: any) => item.id === 'server').onSelect();
+    (server as any).onPress = press;
+    assert.equal(choseFirst, true, 'the server action marks a menu choice before its press');
   }
 
   // Member role: the owner-only server action and its divider are not drawn at all.
@@ -143,10 +154,8 @@ test('the TV profile flyout draws Forget remembered profile when the device reme
   const drawn = render(nativeAccountMenu(account, () => {}, true, () => true, forget)).props.items.find((item: any) => item.id === 'forget-remembered');
   assert.ok(drawn, 'offered while the device remembers the profile');
   assert.equal(drawn.label, 'Forget remembered profile');
-  let forgot = 0;
-  const counted = render(nativeAccountMenu(account, () => {}, true, () => true, () => {forgot++;})).props.items.find((item: any) => item.id === 'forget-remembered');
-  counted.onSelect();
-  assert.equal(forgot, 1, 'its press is the Forget itself');
+  // Forget stays on the page: its press is the Forget itself, and it keeps no return for a page (#5060).
+  assert.equal(drawn.onSelect, forget);
 });
 
 /**
