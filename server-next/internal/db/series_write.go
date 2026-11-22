@@ -18,8 +18,9 @@ func (im *importer) rereadSeries(id int64, it *ImportItem) error {
 	if err := im.collectionsRated(series...); err != nil {
 		return err
 	}
+	// A volume and number go together; a number a person set (FieldNumber) stays, with its volume.
 	_, err = im.exec(`UPDATE items SET index_number = ?, parent_index = ? WHERE id = ? AND parent_id IS NULL
-		AND (index_number IS NOT ? OR parent_index IS NOT ?)`, it.IndexNumber, it.ParentIndex, id, it.IndexNumber, it.ParentIndex)
+		AND (index_number IS NOT ? OR parent_index IS NOT ?) AND NOT `+numberLocked, it.IndexNumber, it.ParentIndex, id, it.IndexNumber, it.ParentIndex)
 	return err
 }
 

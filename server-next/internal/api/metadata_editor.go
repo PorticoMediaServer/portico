@@ -109,6 +109,9 @@ type MetadataPatch struct {
 	// MetadataLanguage is a film's or show's own metadata language ("fr", "pt-BR"); "" goes back
 	// to the library's. The title is refreshed in it soon after.
 	MetadataLanguage *string `json:"metadataLanguage,omitempty"`
+	// Number is a book's, audiobook's, comic's or issue's number in its series (reading rule
+	// 42); 0 removes it. Like any field sent, it is locked: no scan changes it afterwards.
+	Number *int `json:"number,omitempty"`
 }
 
 // MetadataHistoryEntry is one change a person made: fields_edited, artwork_chosen,
@@ -204,6 +207,11 @@ func (s *Server) document(r *http.Request, id string) (MetadataDocument, error) 
 	if doc.Kind.Reading() {
 		offer.fields = append(append([]string{}, offer.fields...), db.FieldPublicationType, db.FieldReleaseDate)
 	}
+	// A volume's place in its series is the owner's to set (reading rule 42).
+	switch doc.Kind {
+	case db.KindBook, db.KindAudiobook, db.KindComic, db.KindIssue:
+		offer.fields = append(append([]string{}, offer.fields...), db.FieldNumber)
+	}
 	out := MetadataDocument{ItemID: id, Kind: doc.Kind.String(), Revision: strconv.FormatInt(doc.Revision, 10),
 		Fields: map[string]MetadataField{}, Lists: map[string]MetadataList{},
 		Match: MetadataMatch{State: doc.Match.String(), Locked: locked[db.FieldMatch] || doc.Match == db.MatchChosen, IDs: map[string]string{}}}
@@ -256,7 +264,7 @@ func (s *Server) editMetadata(r *http.Request, req MetadataPatch) (MetadataDocum
 	}
 	revision, _ := strconv.ParseInt(header, 10, 64)
 	edit := db.MetadataEdit{PublicationType: req.PublicationType, Title: req.Title, SortTitle: req.SortTitle, OriginalTitle: req.OriginalTitle, Edition: req.Edition, Tagline: req.Tagline,
-		Summary: req.Summary, Year: req.Year, ReleaseDate: req.ReleaseDate, ContentRating: req.ContentRating, Genres: req.Genres, Studios: req.Studios,
+		Summary: req.Summary, Year: req.Year, Number: req.Number, ReleaseDate: req.ReleaseDate, ContentRating: req.ContentRating, Genres: req.Genres, Studios: req.Studios,
 		Networks: req.Networks, Countries: req.Countries, Labels: req.Labels, Lock: req.Lock, Unlock: req.Unlock, LockAll: req.LockAll, UnlockAll: req.UnlockAll,
 		Language: req.MetadataLanguage}
 	if err := s.useProvider(r, id, req.UseProvider, &edit); err != nil {

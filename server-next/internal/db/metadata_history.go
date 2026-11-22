@@ -74,7 +74,7 @@ type snapUpload struct {
 
 // snapshotColumns are the items columns a person's change can alter.
 var snapshotColumns = []string{"publication", "title", "sort_title", "original_title", "summary", "tagline", "edition", "year", "release_date",
-	"content_rating", "rating_age", "community_rating", "locked_fields", "local_fields", "match_state"}
+	"content_rating", "rating_age", "community_rating", "locked_fields", "local_fields", "match_state", "index_number"}
 
 // snapshotTags are the tag kinds a snapshot keeps: everything but moods, which no person edits.
 var snapshotTags = []string{TagGenre, TagStudio, TagNetwork, TagCountry, TagLabel}
@@ -414,7 +414,9 @@ func restoreChild(b *batchTx, im *importer, library, id int64, s *snapshot, now 
 	}
 	sets, args := "updated_at = ?, revision = revision + 1", []any{now}
 	for _, column := range snapshotColumns {
-		if !skip[column] {
+		// The number was not kept by snapshots made before it could be edited, and a snapshot
+		// leaves out an empty value: without one the episode's or volume's number stays as it is.
+		if _, kept := s.Columns[column]; !skip[column] && (kept || column != "index_number") {
 			sets += ", " + column + " = ?"
 			args = append(args, s.Columns[column])
 		}
@@ -500,7 +502,7 @@ func afterEntry(b *batchTx, entry int64) (snapshot, error) {
 var (
 	fieldColumns = map[string][]string{FieldPublicationType: {"publication"}, FieldTitle: {"title"}, FieldSortTitle: {"sort_title"}, FieldOriginalTitle: {"original_title"},
 		FieldSummary: {"summary"}, FieldTagline: {"tagline"}, FieldYear: {"year"}, FieldReleaseDate: {"release_date"},
-		FieldContentRating: {"content_rating", "rating_age"}, FieldRating: {"community_rating"}, FieldEdition: {"edition"}}
+		FieldContentRating: {"content_rating", "rating_age"}, FieldRating: {"community_rating"}, FieldEdition: {"edition"}, FieldNumber: {"index_number"}}
 	fieldTags = map[string]string{FieldGenres: TagGenre, FieldStudios: TagStudio, FieldNetworks: TagNetwork, FieldCountries: TagCountry}
 )
 

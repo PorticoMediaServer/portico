@@ -34,6 +34,7 @@ type MetadataEdit struct {
 	Summary         *string
 	Tagline         *string
 	Year            *int
+	Number          *int    // a volume's or issue's number in its series; 0 for none
 	ReleaseDate     *string // YYYY-MM-DD, or "" for none
 	ContentRating   *string
 	PublicationType *string
@@ -88,7 +89,7 @@ var editLists = []struct {
 
 // LockableFields are the names a field, list or the match is locked by.
 var LockableFields = []string{FieldPublicationType, FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldYear,
-	FieldReleaseDate, FieldContentRating, FieldRating, FieldGenres, FieldStudios, FieldNetworks, FieldCountries, FieldCredits, FieldMatch}
+	FieldReleaseDate, FieldContentRating, FieldRating, FieldGenres, FieldStudios, FieldNetworks, FieldCountries, FieldCredits, FieldMatch, FieldNumber}
 
 // MetadataLocks says which of a title's fields a person locked, where each value that is not
 // the provider's came from (SourceFile or SourceEdit, by field), and the revision an edit
@@ -183,6 +184,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 	}
 	if edit.Year != nil && (*edit.Year < 0 || *edit.Year > 9999) {
 		return 0, invalid("%s: 0 to 9999", FieldYear)
+	}
+	if edit.Number != nil && (*edit.Number < 0 || *edit.Number > 99999) {
+		return 0, invalid("%s: 0 to 99999", FieldNumber)
 	}
 	if edit.ReleaseDate != nil && strings.TrimSpace(*edit.ReleaseDate) != "" {
 		if _, err := time.Parse("2006-01-02", strings.TrimSpace(*edit.ReleaseDate)); err != nil {
@@ -343,6 +347,18 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			locks[FieldYear], sources[FieldYear] = true, SourceEdit
 			sets += ", year = ?"
 			args = append(args, nz(*edit.Year))
+		}
+		if edit.Number != nil {
+			var kind ItemKind
+			if err := b.queryRow(`SELECT kind FROM items WHERE id = ?`, id).Scan(&kind); err != nil {
+				return err
+			}
+			if kind != KindBook && kind != KindAudiobook && kind != KindComic && kind != KindIssue {
+				return invalid("%s: only a book, audiobook, comic or issue has a number set by hand", FieldNumber)
+			}
+			locks[FieldNumber], sources[FieldNumber] = true, SourceEdit
+			sets += ", index_number = ?"
+			args = append(args, nz(*edit.Number))
 		}
 		var age *int
 		if edit.ContentRating != nil {
