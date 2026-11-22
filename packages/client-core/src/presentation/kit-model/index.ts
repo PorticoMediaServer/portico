@@ -8,7 +8,7 @@ export {cardGeometry, hasUniformGeometry} from './geometry.ts';
 export type {GeometrySubject, GeometryContext, CardGeometry} from './geometry.ts';
 export {appliedFilterParts} from './filters.ts';
 export type {AppliedFilter, AppliedFilterModel, FilterOperator, FilterValue} from './filters.ts';
-export {channelArtMark, channelMonograms, channelTint, programmeTimeRange, programmeFactParts} from './channels.ts';
+export {channelArtMark, channelPreviewLength, channelMonograms, channelTint, programmeTimeRange, programmeFactParts} from './channels.ts';
 export type {ChannelIdentity, ChannelMark, MarkedChannel, LineupChannel, ChannelMarkDomain, ChannelMarkModel, ChannelMarkIndex, TimeEnvironment, ProgrammeRange, ProgrammeFacts} from './channels.ts';
 export {versionModels, audioTrackModels, subtitleTrackModels} from './tracks.ts';
 export type {VersionInput, VersionModel, TrackFacts, TrackModel} from './tracks.ts';

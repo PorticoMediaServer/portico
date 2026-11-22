@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {OwnerChannelSource} from '../src-next/screens/settings-live/server/channels/source.ts';
 import {blockOverlap,copyBlockPreset,validBuilder} from '../../../packages/client-core/src/server-admin/owner-channel-draft.ts';
+import {channelPreviewLength} from '../../../packages/client-core/src/presentation/kit-model/channels.ts';
 const builder={libraries:['library'],kinds:['movie'],quality:{},logoOnScreen:{}};
 const row={id:'channel',revision:'1',number:1,name:'Original',on:true,timeZone:'UTC',summary:'Movies',libraries:['library'],state:'onAir',titles:3,builder};
 function fixture(){
@@ -65,6 +66,7 @@ test('the native channel preview requests the server-projected sample poster', a
   react:host.react,'react-native':{Modal:'Modal',Text:'Text',View:'View'},
   'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0})},
   '../../../../../../packages/client-core/src/server-admin/owner-channel-draft':{validBuilder},
+  '../../../../../../packages/client-core/src/presentation/kit-model/channels':{channelPreviewLength},
   '../../../../../../packages/i18n/src':{defaultI18n:{t:(value:string)=>value}},
   '../../artwork':{Artwork:'Artwork',StandardBackdrop:'Backdrop'},'../../shell/Layer':{Layer:'Layer'},
   '../../controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},
