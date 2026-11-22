@@ -59,10 +59,13 @@ func (d *DB) localSimilarPage(ctx context.Context, v Viewer, itemID, cursor stri
 		return page, err
 	}
 	w := newQuery(v)
-	w.add(`WITH ranked AS (SELECT i.id AS item_id,count(*)+`, localTagScore(seed), ` AS score FROM (`, localMatches(seed), `) matches
+	// Copies of one title in two libraries (copyPartition) are suggested once, the best scored,
+	// over the whole ranking, so paging by (score, id) stays exact.
+	w.add(`WITH scored AS (SELECT i.id AS item_id,count(*)+`, localTagScore(seed), ` AS score,`, copyPartition, ` AS copy FROM (`, localMatches(seed), `) matches
   CROSS JOIN items i ON i.id=matches.item_id WHERE i.id<>`, itoa(seed), ` AND i.kind IN (`, itoa(int64(KindMovie)), `,`, itoa(int64(KindShow)), `)
   AND `, acc.visible("i"), ` AND NOT EXISTS(SELECT 1 FROM user_item_state own WHERE own.profile_id=@viewer_profile
-   AND own.item_id=i.id AND (own.played=1 OR own.hidden=1)) GROUP BY i.id)
+   AND own.item_id=i.id AND (own.played=1 OR own.hidden=1)) GROUP BY i.id),
+  ranked AS (SELECT item_id,score FROM (SELECT item_id,score,row_number() OVER (PARTITION BY copy ORDER BY score DESC,item_id DESC) AS nth FROM scored) WHERE nth=1)
   SELECT `, itemColumns(acc), `,r.score FROM ranked r JOIN items i ON i.id=r.item_id`, stateJoin, `1`)
 	if after != nil {
 		w.add(` AND (r.score,i.id)<(`, w.arg(after.Values[0]), `,`, w.arg(after.ID), `)`)

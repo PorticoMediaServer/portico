@@ -620,6 +620,9 @@ func (d *DB) MoreLikeThis(ctx context.Context, v Viewer, itemID string) ([]Item,
 				seen[it.ID] = true
 				it.sortValues = []any{t.rank}
 				out = append(out, it)
+				// One work is suggested once: another library's copy of it (its other rows
+				// here) is the same suggestion.
+				break
 			}
 		}
 		rows.Close()
