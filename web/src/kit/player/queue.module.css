@@ -32,6 +32,8 @@
 .row[data-hover]:is(:hover, :focus-within) .actions { display: flex; }
 .row[data-hover]:is(:hover, :focus-within) .duration { display: none; }
 .choiceRow { display: grid; grid-template-columns: var(--frame-audio-wide-row-label) minmax(0, 1fr); align-items: center; gap: var(--space-px-14); }
+.choiceRow[data-long] { grid-template-columns: minmax(0, 1fr); gap: var(--space-xs); }
+.choiceRow[data-long] .choices > button { padding: 0 var(--space-px-6); }
 .choiceLabel { font-size: var(--type-row-label-size); font-weight: var(--type-button-weight); }
 .choiceLabel small { display: block; margin-top: var(--space-px-2); font-size: var(--type-row-help-size); font-weight: var(--type-group-label-weight); color: var(--color-text-tertiary); white-space: nowrap; }
 .choices { display: flex; flex-wrap: wrap; gap: var(--space-px-2); padding: var(--space-px-4); border-radius: var(--space-px-12); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
