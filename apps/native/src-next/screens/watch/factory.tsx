@@ -12,7 +12,7 @@ import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/l
 import type {PlaybackOptions} from '../../../../../packages/client-core/src/playback-v1/types';
 import {sameFence, type PlaybackFence} from '../../../../../packages/player-core/src';
 import type {SegmentInput} from '../../../../../packages/client-core/src/playback-v1/queue';
-import type {MusicPlaylistPickerHandle} from '../destinations/music/MusicPlaylistPicker';
+import type {MusicPlaylistPickerHandle} from '../../shell/music-playlist-picker';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativePlaybackAdapter, NativePlaybackReadLifetime, NativePlaybackStart, NativePlaybackVersionSelection} from '../../platform/playback/types';
 import {nativeFullWindowOrientation} from '../../platform/layout/full-window';

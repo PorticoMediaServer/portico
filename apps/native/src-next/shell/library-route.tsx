@@ -7,7 +7,7 @@ import {nativeDestinationActivation} from './routes';
 import {nativeScreenServices} from '../screens/native-screen-services';
 import {createNativeEntryActions} from '../screens/destinations/entry-actions';
 import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
-import {createNativeLibraryRenderer} from '../screens/library/index';
+import {createNativeLibraryRenderer} from './library-renderer';
 import {createNativeLibrarySelection} from '../screens/library/selection';
 import {nativeLibraryCanSave, type NativeLibraryDestination, type NativeLibraryViewDraft} from '../screens/library/model';
 import {NativeLibrarySaveView} from '../screens/library/save-view';

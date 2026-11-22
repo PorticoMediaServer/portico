@@ -1,16 +1,16 @@
 import React from 'react';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
-import type {NativeShellRoute} from '../../shell/routes';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {openNativeReadingSettings} from '../../shell/reading-settings-route';
-import {isReadingLibraryKind, readingRouteId} from './platform';
-import {NativeReadBook} from './read-book-model';
-import {NativeReadPeriodical} from './read-periodical-model';
-import {NativeReadSeries} from './read-series-model';
-import {ReadBookHost} from '../../pages/touch/read/ReadBookHost';
-import {ReadPeriodicalPage} from '../../pages/touch/read/ReadPeriodicalPage';
-import {ReadSeriesPage} from '../../pages/touch/read/ReadSeriesPage';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import type {NativeShellRoute} from './routes';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {openNativeReadingSettings} from './reading-settings-route';
+import {isReadingLibraryKind, readingRouteId} from '../screens/read/platform';
+import {NativeReadBook} from '../screens/read/read-book-model';
+import {NativeReadPeriodical} from '../screens/read/read-periodical-model';
+import {NativeReadSeries} from '../screens/read/read-series-model';
+import {ReadBookHost} from '../pages/touch/read/ReadBookHost';
+import {ReadPeriodicalPage} from '../pages/touch/read/ReadPeriodicalPage';
+import {ReadSeriesPage} from '../pages/touch/read/ReadSeriesPage';
 
 /** phone-read 3/3c and 4/4c: route-owned book and series destinations. The cache
  * holds inert controllers keyed by the exact route object, so reopening an item

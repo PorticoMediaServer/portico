@@ -1,6 +1,6 @@
 import React from 'react';
 import {sameFence, type PlaybackFence} from '../../../../packages/player-core/src';
-import {createMusicPlaylistPicker} from '../screens/destinations/music/MusicPlaylistPicker';
+import {createMusicPlaylistPicker} from './music-playlist-picker';
 import type {NativeShellBootstrapContext} from './bootstrap';
 import type {NativeShellRuntime} from './runtime';
 

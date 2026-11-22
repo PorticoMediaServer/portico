@@ -55,7 +55,7 @@ test('the handheld Library module self-registers real actions and a captured rec
     './routes': {nativeDestinationActivation}, '../screens/destinations/lifetime': {nativeDestinationLifetime},
     '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
     '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({open() {}, play() {}, menu() {}, dispose() {}})},
-    '../screens/library/index': {createNativeLibraryRenderer: (_context: unknown, actual: unknown) => {ports = actual; return {render: () => null, dispose: () => {disposed++;}};}},
+    './library-renderer': {createNativeLibraryRenderer: (_context: unknown, actual: unknown) => {ports = actual; return {render: () => null, dispose: () => {disposed++;}};}},
     '../screens/library/model': {nativeLibraryCanSave}, '../screens/library/save-view': {NativeLibrarySaveView}, 
     '../screens/library/selection': {createNativeLibrarySelection}, '../screens/library/mark-all': {NativeLibraryMarkAll: nativeMarkAll.NativeLibraryMarkAll}, '../kit/library/LibraryDialogs': {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet: 'SaveViewSheet'},
   });

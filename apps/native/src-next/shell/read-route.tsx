@@ -3,7 +3,7 @@ import type {PreferenceSnapshot} from '../../../../packages/client-core/src/pref
 import {nativeShellRoutes} from './route-registry';
 import {nativeReadingSettingsPreferences, openNativeReadingSettings} from './reading-settings-route';
 import {createNativeReadRenderer} from './read-renderer';
-import '../screens/read/read-destinations';
+import './read-destinations';
 
 /** Read and Settings borrow the authority's ONE confirmed preference source.
  * Importing this handheld-only module registers factories and starts no I/O. */

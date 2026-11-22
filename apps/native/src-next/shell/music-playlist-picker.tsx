@@ -1,14 +1,14 @@
 import React, {useEffect, useState, useSyncExternalStore} from 'react';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import type {PlaylistCard} from '../../../../../../packages/client-core/src/saved';
-import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import type {NativeShellRuntime} from '../../../shell/runtime';
-import {Menu, type MenuEntry} from '../../../kit/overlays';
-import {SavedNameSheet} from '../../../kit/saved/SavedForms';
-import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
-import {nativeDestinationLifetime} from '../lifetime';
-import {nativeScreenServices} from '../../native-screen-services';
-import {MusicPlaylistPort, type MusicAlbumResult, type MusicPlaylistSnapshot} from './playlist-port';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import type {PlaylistCard} from '../../../../packages/client-core/src/saved';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeShellRuntime} from './runtime';
+import {Menu, type MenuEntry} from '../kit/overlays';
+import {SavedNameSheet} from '../kit/saved/SavedForms';
+import {presentError} from '../../../../packages/client-core/src/presentation/errors';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {nativeScreenServices} from '../screens/native-screen-services';
+import {MusicPlaylistPort, type MusicAlbumResult, type MusicPlaylistSnapshot} from '../screens/destinations/music/playlist-port';
 
 const t = defaultI18n.t;
 const emptyPlaylists: MusicPlaylistSnapshot = Object.freeze({phase: 'idle', playlists: [], busy: false});

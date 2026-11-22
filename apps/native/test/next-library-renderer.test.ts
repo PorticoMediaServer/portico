@@ -24,28 +24,28 @@ test('the Library descriptor requires the actual authorized ID and never supplie
     '../../shell/routes': {nativeDestinationActivation}, '../destinations/lifetime': {nativeDestinationLifetime},
     '../native-screen-services': {nativeScreenServices: () => {throw new Error('a renderer must not construct an uninjected selection binding');}},
   });
-  const {createNativeLibraryRenderer, createNativeLibraryPlaySelection: exportedPlay} = await screenModule(new URL('../src-next/screens/library/index.tsx', import.meta.url), {
-    '@portico/design': {}, '../../kit/focus': {}, '../../shell/routes': {},
-    '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
-    '../../pages/touch/library/LibraryPage': {}, '../../pages/tv/library/LibraryPage': {}, '../../kit/browse/LibraryCard': {}, '../destinations/music/MusicMixesRow': {},
-    './first-scan': {observeFirstScan: () => () => {}},
-    react: {default: React}, 'react-native': {Platform: platform}, './types': {}, './model': {NativeLibraryDestination}, './directory': {NativeLibraryDirectory},
-    '../../shell/model': {sameAuthority},
-    '../read/platform': readPlatform,
-    '../../pages/touch/reading/BooksPage': {BooksPage: 'BooksPage'},
-    '../../../../../packages/client-core/src/presentation/library-tabs': libraryTabs,
-    './opening': libraryOpening, './saved-view-intent': librarySavedViewIntent,
-    '../destinations/lifetime': {nativeDestinationLifetime},
-    './play-selection': {createNativeLibraryPlaySelection},
-    './discover-selection': {createNativeDiscoverSelection: () => ({dispose() {}}) as never},
+  const {createNativeLibraryRenderer, createNativeLibraryPlaySelection: exportedPlay} = await screenModule(new URL('../src-next/shell/library-renderer.tsx', import.meta.url), {
+    '@portico/design': {}, '../kit/focus': {}, './routes': {},
+    '../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})},
+    '../pages/touch/library/LibraryPage': {}, '../pages/tv/library/LibraryPage': {}, '../kit/browse/LibraryCard': {}, '../screens/destinations/music/MusicMixesRow': {},
+    '../screens/library/first-scan': {observeFirstScan: () => () => {}},
+    react: {default: React}, 'react-native': {Platform: platform}, '../screens/library/types': {}, '../screens/library/model': {NativeLibraryDestination}, '../screens/library/directory': {NativeLibraryDirectory},
+    './model': {sameAuthority},
+    '../screens/read/platform': readPlatform,
+    '../pages/touch/reading/BooksPage': {BooksPage: 'BooksPage'},
+    '../../../../packages/client-core/src/presentation/library-tabs': libraryTabs,
+    '../screens/library/opening': libraryOpening, '../screens/library/saved-view-intent': librarySavedViewIntent,
+    '../screens/destinations/lifetime': {nativeDestinationLifetime},
+    '../screens/library/play-selection': {createNativeLibraryPlaySelection},
+    '../screens/library/discover-selection': {createNativeDiscoverSelection: () => ({dispose() {}}) as never},
     // The TV Library module owns only the F-LIB-52 Save view surface; the page
     // and every action stay the real Library destination beneath it.
-    './tv-library': {
+    '../screens/library/tv-library': {
       createNativeTVLibraryNamingStore: () => ({subscribe: () => () => {}, getSnapshot: () => undefined, open: () => false, close: () => false, dispose: () => {}}),
       nativeTVLibraryActions: (actions: unknown) => actions,
       nativeTVNamingPanelId: (_authority: unknown, libraryId: string) => `tv.${JSON.stringify(libraryId)}.naming`,
     },
-    '../../kit/library/TVSaveViewPanel': {NativeTVLibrarySurface: 'NativeTVLibrarySurface'},
+    '../kit/library/TVSaveViewPanel': {NativeTVLibrarySurface: 'NativeTVLibrarySurface'},
   });
   assert.equal(exportedPlay, createNativeLibraryPlaySelection, 'the barrel exposes the actual headless producer');
   const viewer = {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', role: 'owner'};
