@@ -158,12 +158,15 @@ function FilmTitle({binding, data, artworkClaim, showBackdrops, tabs, tab, child
   const collection = data.collections?.[0], episode = item.kind === 'episode' ? item.episode : undefined;
   // An episode on a page of its own (frames-title episode): its show and season are the kicker and open the show; the facts
   // lead with its number and when it aired.
-  const code = episode ? episodeCode({seasonNumber: episode.seasonNumber ?? undefined, episodeNumber: episode.number}, t) : undefined;
+  // A date-numbered episode (a recording, a daily show) is named by its air date, never by the year and day the
+  // server keeps as its numbers ("S2026 E326"): no code, and no season in the kicker.
+  const dated = episode?.numbering === 'date';
+  const code = episode && !dated ? episodeCode({seasonNumber: episode.seasonNumber ?? undefined, episodeNumber: episode.number}, t) : undefined;
   const aired = episode?.airDate ? calendarDate(episode.airDate, locale()) : undefined;
   const all = episode ? [...(code ? [{id: 'episode-code', text: code, role: 'identity' as const}] : []), ...(aired ? [{id: 'aired', text: t('title.airedOn', {date: aired}), role: 'context' as const}] : []),
     ...titleFactParts({durationSeconds: item.duration, contentRating: data.episodeDetails?.contentRating ?? facts?.contentRating}, env)]
     : titlePageFacts({year: item.year, durationSeconds: item.duration, genres: metadata.genres.map(genre => genre.name), contentRating: facts?.contentRating}, env);
-  const kicker = episode ? {icon: 'i-tv' as const, label: episode.showTitle, ...(episode.seasonNumber != null ? {detail: episode.seasonNumber === 0 ? t('next.kit.special') : t('next.kit.season', {number: episode.seasonNumber})} : {}),
+  const kicker = episode ? {icon: 'i-tv' as const, label: episode.showTitle, ...(episode.seasonNumber != null && !dated ? {detail: episode.seasonNumber === 0 ? t('next.kit.special') : t('next.kit.season', {number: episode.seasonNumber})} : {}),
       onPress: command(() => binding.context.effects.openEntry({id: episode.showId, libraryId: data.scope.libraryId, kind: 'show', title: episode.showTitle, navigation: {view: 'show', entityId: episode.showId}}))}
     : collection && {icon: 'i-layers' as const, label: collection.name, detail: t('lib.count', {count: collection.memberCount, pivot: 'other'}),
       onPress: command(() => binding.context.effects.openEntry({id: collection.id, libraryId: data.scope.libraryId, kind: 'collection', title: collection.name, navigation: {view: 'collection', entityId: collection.id}}))};
