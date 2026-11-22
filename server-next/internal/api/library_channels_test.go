@@ -244,6 +244,22 @@ func TestThePreviewIsTheScheduleSavingMakes(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, LibraryChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &preview); w.Code != 200 {
 		t.Fatalf("preview answered %d: %s", w.Code, w.Body)
 	}
+	// Its length is the films' own, to the minute, and about that many hours.
+	var ms int64
+	for cursor := ""; ; {
+		page := get[ItemPage](t, s, owner, "/v1/items?library="+films+"&kind=movie&limit=200&cursor="+cursor)
+		for _, it := range page.Items {
+			if it.DurationMs >= 60_000 && it.DurationMs <= 24*3_600_000 {
+				ms += it.DurationMs
+			}
+		}
+		if cursor = page.NextCursor; cursor == "" {
+			break
+		}
+	}
+	if want := int((ms + 30_000) / 60_000); preview.Minutes != want || preview.Hours != (want+30)/60 || preview.Minutes == 0 {
+		t.Fatalf("the preview says %d minutes, %d hours; the films last %d minutes", preview.Minutes, preview.Hours, want)
+	}
 	ch := makeChannel(t, s, owner, "Same", b)
 	rows := programmes(t, s, ch.ID, s.now().Add(-time.Minute), s.now().Add(24*time.Hour))
 	for n := 0; n < 5 && n < len(preview.Today) && n < len(rows); n++ {

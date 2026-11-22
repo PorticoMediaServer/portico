@@ -108,6 +108,9 @@ type LibraryChannelPreview struct {
 	Hours       int                              `json:"hours"`
 	Sample      []LibraryChannelPreviewTitle     `json:"sample"`
 	Today       []LibraryChannelPreviewProgramme `json:"today"`
+	// Minutes is the programming's length to the nearest minute; hours is it rounded to hours.
+	// Titles too short to schedule (unplaceable) count in neither.
+	Minutes int `json:"minutes"`
 }
 
 // LibraryChannelPreviewTitle is a title in a preview.
@@ -573,7 +576,7 @@ func (s *Server) previewLibraryChannel(r *http.Request, req LibraryChannelPrevie
 	if err != nil {
 		return LibraryChannelPreview{}, err
 	}
-	out := LibraryChannelPreview{Titles: p.Titles, Unplaceable: p.Unplaceable, Hours: p.Hours, Sample: []LibraryChannelPreviewTitle{}, Today: []LibraryChannelPreviewProgramme{}}
+	out := LibraryChannelPreview{Titles: p.Titles, Unplaceable: p.Unplaceable, Hours: p.Hours, Minutes: p.Minutes, Sample: []LibraryChannelPreviewTitle{}, Today: []LibraryChannelPreviewProgramme{}}
 	// An episode's sample shows its show, as the sample counts it.
 	shown := func(t db.ProgrammeTitle) int64 {
 		if t.ShowID != 0 {

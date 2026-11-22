@@ -17,6 +17,8 @@ type Preview struct {
 	Hours       int
 	Sample      []db.ProgrammeTitle
 	Today       []PreviewProgramme
+	// Minutes is the same length to the nearest minute, for a channel of less than an hour.
+	Minutes int
 }
 
 // PreviewProgramme is one programme of today's schedule; Title is nil for the slate.
@@ -64,9 +66,10 @@ func (s *Service) Preview(ctx context.Context, b *LibraryChannelBuilder, loc *ti
 	}
 	rows := append(kept, built...)
 	out := Preview{Titles: report.Titles, Unplaceable: report.Unplaceable}
-	if out.Hours, err = s.hours(ctx, b, st); err != nil {
+	if out.Minutes, err = s.minutes(ctx, b, st); err != nil {
 		return Preview{}, err
 	}
+	out.Hours = (out.Minutes + 30) / 60
 	var ids []int64
 	for _, r := range rows {
 		if r.ItemID != 0 {
@@ -96,8 +99,8 @@ func (s *Service) Preview(ctx context.Context, b *LibraryChannelBuilder, loc *ti
 	return out, nil
 }
 
-// hours is about how long everything the channel's own selection matches would take to play.
-func (s *Service) hours(ctx context.Context, b *LibraryChannelBuilder, st *State) (int, error) {
+// minutes is how long everything the channel's own selection can place would take to play.
+func (s *Service) minutes(ctx context.Context, b *LibraryChannelBuilder, st *State) (int, error) {
 	bd := &build{ctx: ctx, src: s.db, b: b, st: st, now: s.now(), pools: map[string]*pool{}}
 	p, err := bd.pool("", &b.LibraryChannelSelection)
 	if err != nil {
@@ -113,7 +116,7 @@ func (s *Service) hours(ctx context.Context, b *LibraryChannelBuilder, st *State
 		}
 	}
 	episodes, err := s.db.ShowsRuntime(ctx, shows)
-	return int((ms + episodes + 30*60_000) / 3_600_000), err
+	return int((ms + episodes + 30_000) / 60_000), err
 }
 
 // CountUpTo counts the titles a selection matches, stopping at limit, so a template is

@@ -5567,6 +5567,9 @@
           "hours": {
             "type": "integer"
           },
+          "minutes": {
+            "type": "integer"
+          },
           "sample": {
             "items": {
               "$ref": "#/components/schemas/LibraryChannelPreviewTitle"
@@ -5591,7 +5594,8 @@
           "unplaceable",
           "hours",
           "sample",
-          "today"
+          "today",
+          "minutes"
         ],
         "type": "object"
       },
