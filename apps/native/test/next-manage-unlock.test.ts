@@ -44,7 +44,7 @@ test('only the shell\'s own sign-in counts, and the phone and tablet shell mount
   assert.match(source, /local\.subscribeManageGate\(\(\{accessToken\}\) => \{if \(accessToken && ownTokens\.has\(accessToken\)\)/);
   assert.match(source, /const refused = \(cause\?: unknown\) => \{if \(nativeManageRefused\(cause\)\) return;/);
   const root = readFileSync(new URL('../src-next/shell/RestoredShell.tsx', import.meta.url), 'utf8');
-  assert.match(root, /\{!theme\.isTV && <ManageUnlockHost\/>\}/);
+  assert.match(root, /\{!theme\.isTV && <ManageUnlockPage\/>\}/);
 });
 
 test('the lifecycle takes the lock from the server and the unlock chooses the open profile again', () => {
@@ -52,6 +52,6 @@ test('the lifecycle takes the lock from the server and the unlock chooses the op
   assert.match(ports, /manageLocked: snapshot\.managePinRequired === true/);
   const lifecycle = readFileSync(new URL('../src-next/platform/native-session-lifecycle.ts', import.meta.url), 'utf8');
   assert.match(lifecycle, /await settle\(lifecycle\.actions\.unlockManagement, pin\);/);
-  const host = readFileSync(new URL('../src-next/screens/accounts/ManageUnlockHost.tsx', import.meta.url), 'utf8');
+  const host = readFileSync(new URL('../src-next/pages/shared/accounts/useManageUnlock.ts', import.meta.url), 'utf8');
   assert.match(host, /lifecycle\.report\(\{type: 'manageRefused'\}\);/);
 });

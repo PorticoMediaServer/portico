@@ -2,10 +2,10 @@ import {releaseQuietly} from '../../../../packages/client-core/src/cleanup';
 import {managementPinRefused} from '../../../../packages/client-core/src/profile-management';
 
 /** PR-1: a remembered main profile past its management hour. Not a sign-out, a role change or a re-entry: the
- *  profile keeps watching and the app asks for its PIN (ManageUnlockHost). */
+ *  profile keeps watching and the app asks for its PIN (ManageUnlockPage). */
 export const nativeManageRefused = managementPinRefused;
 
-/** PR-1: management refusals heard on the mounted shell's own sign-in. Each one asks for the PIN (ManageUnlockHost,
+/** PR-1: management refusals heard on the mounted shell's own sign-in. Each one asks for the PIN (ManageUnlockPage,
  *  which also locks management in the session lifecycle), whichever screen made the request. */
 let manageRefusals = 0;
 const manageListeners = new Set<() => void>();
