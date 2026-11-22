@@ -45,7 +45,7 @@ test('phone Portico Forgot password hands off directly without a native reset fo
     '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './NativeSetup': {NativeSetup: 'NativeSetup'},
+    '../../pages/touch/accounts/SetupPage': {SetupPage: 'NativeSetup'},
     './directory-chooser': directoryChooser,
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => account}},

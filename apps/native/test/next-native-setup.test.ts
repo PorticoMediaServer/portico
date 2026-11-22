@@ -68,29 +68,36 @@ async function fixture(options: FixtureOptions) {
   const credentials = {getSnapshot: () => ({session: options.session}), subscribe: () => () => {}};
   const theme = {platform: 'phone', isTV: false, colors: {accentStrong: '#d00', line: '#ccc', text: '#111', textSecondary: '#666'},
     type: {bodyStrong: {}, caption: {}}};
-  const {NativeSetup} = await screenModule(new URL('../src-next/screens/accounts/NativeSetup.tsx', import.meta.url), {
-    react: {...React, default: React},
-    'react-native': {AppState: {currentState: 'active', addEventListener: (_: string, handler: (state: string) => void) => {
+  const reactNative = {AppState: {currentState: 'active', addEventListener: (_: string, handler: (state: string) => void) => {
       appStateListeners.add(handler); return {remove: () => appStateListeners.delete(handler)};}},
-      Linking: {openURL: async (url: string) => {opened.push(url);}}, Text: 'Text', View: 'View'},
-    '../../../../../packages/client-core/src/setup-controller': {createSetupController: () => {
+    Linking: {openURL: async (url: string) => {opened.push(url);}}, Text: 'Text', View: 'View'};
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useNativeSetup.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': reactNative,
+    '../../../../../../packages/client-core/src/setup-controller': {createSetupController: () => {
       const fake = fakeController(options.view);
       made.push(fake);
       return fake.controller;
     }},
-    '../../../../../packages/client-core/src/presentation/setup-messages': {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupLockoutReason, setupNewerMessage, setupStartOverOffer},
-    '../../../../../packages/client-core/src/password-strength': {passwordStrength},
-    '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/states': {StateLayout: 'StateLayout'},
-    '../../kit/theme': {useTheme: () => theme},
-    '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}},
-    '../../platform/setup-adapter': {createNativeSetupAdapter: (_target: any, _live: any) => ({ports: {}, dispose() {adapterDisposals++;}})},
-    '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
+    '../../../../../../packages/client-core/src/presentation/setup-messages': {setupStartOverOffer},
+    '../../../../../../packages/client-core/src/password-strength': {passwordStrength},
+    '../../../kit/theme': {useTheme: () => theme},
+    '../../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}},
+    '../../../platform/setup-adapter': {createNativeSetupAdapter: (_target: any, _live: any) => ({ports: {}, dispose() {adapterDisposals++;}})},
+  });
+  // The page's kit parts (fields, captions, choices, the start-over sheet) load for real; every leaf they draw is a string stub.
+  const {SetupPage: NativeSetup} = await screenModule(new URL('../src-next/pages/touch/accounts/SetupPage.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': reactNative,
+    '../../../../../../packages/client-core/src/presentation/setup-messages': {setupBusyMessage, setupEndedMessage, setupErrorMessage, setupLockoutReason, setupNewerMessage, setupStartOverOffer},
+    '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/Icon': {Icon: 'Icon'},
+    '../../../kit/states': {StateLayout: 'StateLayout'},
+    '../../../kit/theme': {useTheme: () => theme},
+    '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
     // The layout and the approval sheet are real components here so their props stay inspectable and the form's
     // beforeActions children actually mount; every leaf they draw is still a string stub.
-    '../../kit/accounts/AccountForm': {AccountForm: (props: any) => React.createElement('PhoneAccountForm', props, props.beforeActions)},
-    '../../kit/accounts/PhoneSetupApproval': {PhoneSetupApproval: (props: any) => React.createElement('PhoneSetupApproval', props)},
+    '../../../kit/accounts/AccountForm': {AccountForm: (props: any) => React.createElement('PhoneAccountForm', props, props.beforeActions)},
+    '../../../kit/accounts/PhoneSetupApproval': {PhoneSetupApproval: (props: any) => React.createElement('PhoneSetupApproval', props)},
+    '../../shared/accounts/useNativeSetup': hook,
   });
   const admitted: string[] = [], left: string[] = [];
   const element = React.createElement(NativeSetup, {target,

@@ -89,7 +89,7 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
     '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './NativeSetup': {NativeSetup: 'NativeSetup'},
+    '../../pages/touch/accounts/SetupPage': {SetupPage: 'NativeSetup'},
     './directory-chooser': {directoryRows: () => [], directoryFailure: () => 'other', directoryOfflineBody: () => ({key: 'web.chooser.unreachableBodyNever'})},
   });
   let tree: any;
