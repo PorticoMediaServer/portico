@@ -12,6 +12,14 @@ export async function settingsFixture(previous) {
     modules[revised] = value;
   }
   modules['react-native'] = {Keyboard: {dismiss() {}}, ...modules['react-native']};
+  // This device's playback rows now come from pages/shared/settings/DevicePlaybackRows (components) and useDeviceRows
+  // (focus ids, Safe mode availability); the tests' per-row stubs are merged into those two modules.
+  const rowStubs = Object.entries(modules).filter(([path]) => /screens\/settings-live\/Native(SafeMode|ApplePassthrough|FrameRate|Passthrough|DynamicRange|LossNotices)Row$/.test(path)).map(([, value]) => value);
+  if (rowStubs.length) {
+    const merged = Object.assign({}, ...rowStubs);
+    modules['./DevicePlaybackRows'] ??= merged;
+    modules['./useDeviceRows'] ??= merged;
+  }
   const react = modules.react;
   const e = react.createElement ?? react.default.createElement;
   const FocusRegion = modules['../../../kit/focus'].FocusRegion;
