@@ -4,7 +4,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {validBuilder} from '../../../../../../packages/client-core/src/server-admin/owner-channel-draft';
 import {channelPreviewLength} from '../../../../../../packages/client-core/src/presentation/kit-model/channels';
 import {defaultI18n,type MessageId} from '../../../../../../packages/i18n/src';
-import {Artwork} from '../../artwork';
+import {Artwork, missingArt} from '../../artwork';
+import {TopBar} from '../../layout/TopBar';
 import {Layer} from '../../shell/Layer';
 import {Button,Select,Switch,TextField} from '../../controls';
 import {useTheme} from '../../theme';
@@ -50,8 +51,29 @@ export function NativeChannelEditor({group,runtime,editor}:{group:NativeChannels
    {editor.document&&<Button disabled={state.busy} onPress={view.reload}>{t('action.refresh')}</Button>}
   </FormScrollView>
   <View testID="channel-preview-bar" style={{paddingHorizontal:20,paddingVertical:12,borderTopWidth:1,borderColor:theme.colors.lineSoft,backgroundColor:theme.colors.raised,flexDirection:'row',alignItems:'center',gap:12}}><View style={{flex:1}}><Text style={{color:theme.colors.text}}>{state.previewLoading?t('builder.previewing'):preview?t('builder.matches',{count:preview.titles}):t('builder.preview')}</Text>{preview&&<Text style={{color:theme.colors.textSecondary}}>{(length=>t(length.id,length.values))(channelPreviewLength(preview))}</Text>}</View><Button size="compact" disabled={!preview||state.previewLoading} onPress={view.showPreview}>{t('builder.preview')}</Button></View>
-  {previewWindow.mounted&&<Modal key={previewWindow.key} visible={previewWindow.visible} onShow={previewWindow.onShow} onDismiss={previewWindow.onDismiss} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={()=>setPreviewOpen(undefined)}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}><Button variant="text" onPress={()=>setPreviewOpen(undefined)}>{t('action.back')}</Button><FormScrollView contentContainerStyle={{padding:20,gap:18}}>
-   {preview&&<><Text style={{color:theme.colors.text}}>{t('builder.matches',{count:preview.titles})}</Text><Text style={{color:theme.colors.textSecondary}}>{(length=>t(length.id,length.values))(channelPreviewLength(preview))}</Text>{preview.unplaceable>0&&<Text style={{color:theme.colors.textSecondary}}>{t('builder.unresolved',{count:preview.unplaceable})}</Text>}{preview.sample.map(sample=><View key={sample.id} style={{flexDirection:'row',gap:12,alignItems:'center'}}><Artwork source={runtime.artwork(sample.images?.poster)} alt={sample.title} width={60} height={90}/><Text style={{flex:1,color:theme.colors.text}}>{[sample.title,sample.episodeTitle,sample.year].filter(Boolean).join(' · ')}</Text></View>)}<Text style={{color:theme.colors.text}}>{t('builder.firstDay')}</Text>{preview.today.map((row,index)=><Text key={index} style={{color:theme.colors.textSecondary}}>{new Intl.DateTimeFormat(runtime.text.locale,{timeZone:draft.timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(row.startsAt))} · {row.title?.title??t('builder.nothingScheduled')}</Text>)}</>}
+  {previewWindow.mounted&&<Modal key={previewWindow.key} visible={previewWindow.visible} onShow={previewWindow.onShow} onDismiss={previewWindow.onDismiss} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={()=>setPreviewOpen(undefined)}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}>
+   {/* The preview is a page of its own: the kit bar with Back and its title, then what the channel would hold and play. */}
+   <TopBar safeArea={false} back={{label:t('action.back'),onPress:()=>setPreviewOpen(undefined),testID:'channel-preview-back'}} title={t('builder.preview')}/>
+   <FormScrollView contentContainerStyle={{paddingHorizontal:20,paddingBottom:20,gap:18}}>
+   {preview&&<><View style={{gap:4}}>
+     <Text style={[theme.type.rowHeading,{color:theme.colors.text}]}>{t('builder.matches',{count:preview.titles})}</Text>
+     <Text style={[theme.type.rowHelp,{color:theme.colors.textSecondary}]}>{(length=>t(length.id,length.values))(channelPreviewLength(preview))}</Text>
+     {preview.unplaceable>0&&<Text style={[theme.type.rowHelp,{color:theme.colors.textTertiary}]}>{t('builder.unresolved',{count:preview.unplaceable})}</Text>}
+    </View>
+    {preview.sample.length>0&&<View style={{gap:12}}>
+     <Text accessibilityRole="header" style={theme.type.sectionLabel}>{t('builder.samples')}</Text>
+     {preview.sample.map(sample=>{const title=[sample.title,sample.episodeTitle,sample.year].filter(Boolean).join(' · ');
+      // A title with no poster keeps its place in the column, on the generated cover.
+      return <View key={sample.id} style={{flexDirection:'row',gap:12,alignItems:'center'}}><Artwork source={runtime.artwork(sample.images?.poster)} alt={sample.title} width={60} height={90}
+       fallback={missingArt({title:sample.title,shape:'poster',width:60,height:90})}/><Text style={[theme.type.rowLabel,{flex:1,color:theme.colors.text}]}>{title}</Text></View>;})}
+    </View>}
+    <View style={{gap:8}}>
+     <Text accessibilityRole="header" style={theme.type.sectionLabel}>{t('builder.firstDay')}</Text>
+     {preview.today.map((row,index)=><View key={index} style={{flexDirection:'row',gap:12,alignItems:'baseline'}}>
+      <Text style={[theme.type.rowHelp,{color:theme.colors.textTertiary,minWidth:72}]}>{new Intl.DateTimeFormat(runtime.text.locale,{timeZone:draft.timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(row.startsAt))}</Text>
+      <Text style={[theme.type.rowLabel,{flex:1,color:row.title?theme.colors.text:theme.colors.textSecondary}]}>{row.title?.title??t('builder.nothingScheduled')}</Text>
+     </View>)}
+    </View></>}
   </FormScrollView></Layer></Modal>}
  </Layer></Modal>;
 }
