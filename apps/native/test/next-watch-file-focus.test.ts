@@ -18,14 +18,14 @@ import * as hostRefs from '../src-next/kit/focus/useHostRef.ts';
 const react = {...React, default: React}, theme = {isTV: true, colors: {}, type: {body: {}, caption: {}, captionStrong: {}, bodyStrong: {}}};
 const controls = {Button: 'Button', TextField: 'TextField'};
 const themed = {useTheme: () => theme, nativeType: () => ({})};
-const {NativeFileInfoContent} = await screenModule(new URL('../src-next/screens/watch/FileInfoContent.tsx', import.meta.url), {
+const {NativeFileInfoContent} = await screenModule(new URL('../src-next/kit/title/FileInfoContent.tsx', import.meta.url), {
   react, 'react-native': {Platform: {select: (options: Record<string, unknown>) => options.ios ?? options.default}, ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View'},
   'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'RadialGradient', Rect: 'Rect', Stop: 'Stop'},
   '../../../../../packages/i18n/src': {defaultI18n},
-  '../../kit/controls': controls, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
+  '../controls': controls, '../Icon': {Icon: 'Icon'}, '../theme': themed, '../shell/visual': {shellType: () => ({})},
 });
 const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
-  '../../kit/overlays/SurfacePaintHost': surfacePaintFixture, './FileInfoContent': {NativeFileInfoContent},
+  '../../kit/overlays/SurfacePaintHost': surfacePaintFixture, '../../kit/title/FileInfoContent': {NativeFileInfoContent},
   react, 'react-native': {Modal: 'Modal', Platform: {isTV: true}, ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
   '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/title-identity': {mergeExplanation},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
