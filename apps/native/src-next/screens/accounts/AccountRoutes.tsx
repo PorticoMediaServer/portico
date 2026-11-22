@@ -50,6 +50,8 @@ import {ProfilesPage as TVProfilesPage} from '../../pages/tv/accounts/ProfilesPa
 import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage} from '../../tv/auth';
 import {registerBack} from '../../kit/navigation/back';
 import {useProfiles, type ProfileLease, type ProfilesProps} from '../../pages/shared/accounts/useProfiles';
+import {ProfileActionRow} from '../../kit/accounts/ProfileActionRow';
+import {ProfileLimitsSheet} from '../../pages/shared/accounts/ProfileLimitsSheet';
 
 const t = defaultI18n.t;
 type Panel = 'servers' | 'add' | 'sign-out-server' | 'forget-server' | 'sign-out-account' | 'consent-kind' | 'consent-code' | 'consent-review' | 'consent-done';
@@ -194,98 +196,6 @@ export function ProfileRoute({context, route, onBack, embedded = false}: Profile
     </BottomSheet>
     {limitsProfile && limitsLease && editorCurrent() ? <ProfileLimitsSheet profile={limitsProfile} lease={limitsLease} serverOwner={context.account.account.role === 'owner'} identityFor={identityForLimits} onClose={closeEdit} onSaved={() => {if (editorCurrent()) {setNotice(t('limits.saved', {name: limitsProfile.name})); closeEdit();}}}/> : null}
   </>;
-}
-
-function ProfileActionRow({label, description, onPress, testID}: {label: string; description?: string; onPress: () => void; testID?: string}) {
-  const theme = useTheme();
-  return <Focusable testID={testID} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={description} onPress={onPress} focusKind="row" focusRadius={0}
-    style={{minHeight: 48, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft}}>
-    <View style={{flex: 1}}><Text style={[theme.type.body, {color: theme.colors.text}]}>{label}</Text>{description ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 2}]}>{description}</Text> : null}</View>
-    <Icon name="i-right" size={18} color={theme.colors.lineStrong}/>
-  </Focusable>;
-}
-
-type ProfileLimitsOwner = {
-  /** Private witness: the opening names only the profile it was drawn for. The sheet's
-   * copy and its own save guard keep reading the original profile prop. */
-  readonly profile: Readonly<Pick<ManagedProfile, 'id'>>;
-  readonly lease: ProfileLease;
-  controller?: AbortController;
-  retired: boolean;
-};
-
-/** `serverOwner`: only the server owner may switch Recordings on (Who can record); anyone who
- * manages the profile may switch it off. */
-function ProfileLimitsSheet({profile, lease, serverOwner, identityFor, onClose, onSaved}: {profile: ManagedProfile; lease: ProfileLease; serverOwner: boolean; identityFor: (controller: AbortController) => IdentityClient; onClose: () => void; onSaved: () => void}) {
-  const [owner, setOwner] = useState<ProfileLimitsOwner>();
-  const ownerRef = useRef<ProfileLimitsOwner | undefined>(undefined);
-  const [restrictions, setRestrictions] = useState<ProfileRestrictions>(), [systems, setSystems] = useState<readonly RatingSystem[]>();
-  const [draft, setDraft] = useState<ProfileRestrictions>(), [error, setError] = useState<unknown>(), [busy, setBusy] = useState(false), [attempt, setAttempt] = useState(0);
-  const draftRef = useRef<ProfileRestrictions | undefined>(undefined), busyRef = useRef(false);
-  const profileId = profile.id;
-  const current = (candidate: ProfileLimitsOwner) => candidate === ownerRef.current && !candidate.retired && candidate.profile.id === profileId
-    && candidate.lease.current();
-
-  useLayoutEffect(() => {
-    const next: ProfileLimitsOwner = {profile: {id: profileId}, lease, retired: false};
-    const controller = new AbortController();
-    next.controller = controller;
-    ownerRef.current = next;
-    setOwner(next);
-    draftRef.current = undefined; busyRef.current = false;
-    setRestrictions(undefined); setSystems(undefined); setDraft(undefined); setError(undefined); setBusy(false);
-    const live = () => next === ownerRef.current && !next.retired && next.profile.id === profileId
-      && next.lease.current();
-    const identity = identityFor(controller);
-    Promise.all([identity.restrictions(profileId, controller.signal), identity.ratingSystems(controller.signal)]).then(([currentRestrictions, list]) => {
-      if (!live() || currentRestrictions.profileId !== next.profile.id) return;
-      draftRef.current = currentRestrictions;
-      setRestrictions(currentRestrictions); setSystems(list); setDraft(currentRestrictions);
-    }, failure => {if (live() && !controller.signal.aborted) setError(failure);});
-    return () => {
-      next.retired = true;
-      next.controller?.abort();
-      if (ownerRef.current === next) ownerRef.current = undefined;
-      setOwner(value => value === next ? undefined : value);
-    };
-  }, [identityFor, lease, profileId, attempt]);
-
-  const updateDraft = (change: Partial<ProfileRestrictions>) => {
-    if (!owner || !current(owner) || busyRef.current || !draft || draftRef.current !== draft) return;
-    const next = {...draft, ...change}; draftRef.current = next; setDraft(next);
-  };
-  const close = () => {if (owner && current(owner) && !busyRef.current) onClose();};
-  const save = () => {
-    const sheet = owner, currentRestrictions = restrictions, chosen = draft;
-    if (!sheet || !current(sheet) || !currentRestrictions || !chosen || currentRestrictions.profileId !== sheet.profile.id
-      || sheet.profile.id !== profile.id || draftRef.current !== chosen || busyRef.current) return;
-    const controller = new AbortController();
-    sheet.controller?.abort();
-    sheet.controller = controller;
-    busyRef.current = true; setBusy(true); setError(undefined);
-    const identity = identityFor(controller);
-    void identity.saveRestrictions(currentRestrictions, {
-      ratingSystem: chosen.ratingSystem, maximumAgeRating: chosen.maximumAgeRating, allowUnrated: chosen.allowUnrated, blockedLabels: chosen.blockedLabels,
-      allowDownloads: chosen.allowDownloads, allowLiveTv: chosen.allowLiveTv, allowDvr: chosen.allowDvr, allowWatchTogether: chosen.allowWatchTogether,
-    }).then(next => {
-      if (!current(sheet) || controller.signal.aborted || next.profileId !== sheet.profile.id) return;
-      draftRef.current = next; busyRef.current = false;
-      setRestrictions(next); setDraft(next); setBusy(false); onSaved();
-    }, failure => {
-      if (!current(sheet) || controller.signal.aborted) return;
-      busyRef.current = false;
-      setError(failure); setBusy(false);
-    }).finally(() => {
-      if (sheet.controller === controller) sheet.controller = undefined;
-    });
-  };
-  return <BottomSheet open onOpenChange={open => {if (!open) close();}} title={t('limits.title', {name: profile.name})} description={t('limits.subtitle')}
-    testID="profile-limits" footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={busy} onPress={close}>{t('action.cancel')}</Button><Button focusId="save" loading={busy} disabled={!draft || !owner || !current(owner)} onPress={save}>{t('limits.save')}</Button></View>}>
-    {error ? <StateView title={presentError(error, 'profiles').title} body={presentError(error, 'profiles').body} primaryAction={{id: 'retry', label: t('action.tryAgain'), onPress: () => setAttempt(value => value + 1)}}/> : !draft ? <StateView title={t('status.loading')}/> : <View style={{gap: 14}}>
-      <ProfileRestrictionsFields draft={draft} systems={systems ?? []} disabled={busy} recordingLocked={!serverOwner && !restrictions?.allowDvr} current={() => !!owner && current(owner)} onChange={updateDraft}/>
-    </View>}
-
-  </BottomSheet>;
 }
 
 /** Also usable when no selected server can restore: retained servers remain reachable. */
