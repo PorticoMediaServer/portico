@@ -1,6 +1,6 @@
 import React from 'react';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {StateLayout} from '../../kit/states';
+import {StateLayout} from '../states';
 
 /** connect#4c / TV equivalent: refusal has no connection retry or sign-in offer. */
 export function DirectoryAccessRefused({serverName, busy, onOther, onRefresh}: Readonly<{

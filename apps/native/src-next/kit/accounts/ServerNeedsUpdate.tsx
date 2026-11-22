@@ -1,7 +1,7 @@
 import React from 'react';
 import {Platform} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {StateLayout} from '../../kit/states/StateLayout';
+import {StateLayout} from '../states/StateLayout';
 import type {NegotiationRefusal} from '../../platform/negotiation';
 
 /** O-159's named refusal, shown before sign-in: the server needs an update (pre-release, or no

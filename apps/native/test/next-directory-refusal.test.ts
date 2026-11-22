@@ -17,8 +17,8 @@ test('refused presentation names the selected server and only offers another ser
   const {screenModule} = await import('./helpers/screen-harness.mjs');
   const {defaultI18n} = await import('../../../packages/i18n/src');
   const react = {createElement: (type: unknown, props: unknown) => ({type, props})};
-  const {DirectoryAccessRefused} = await screenModule(new URL('../src-next/screens/accounts/DirectoryAccessRefused.tsx', import.meta.url), {
-    react: {default: react}, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/states': {StateLayout: 'State'},
+  const {DirectoryAccessRefused} = await screenModule(new URL('../src-next/kit/accounts/DirectoryAccessRefused.tsx', import.meta.url), {
+    react: {default: react}, '../../../../../packages/i18n/src': {defaultI18n}, '../states': {StateLayout: 'State'},
   });
   const events: string[] = [];
   const tree = DirectoryAccessRefused({serverName: 'Selected server', busy: false, onOther: () => events.push('other'), onRefresh: () => events.push('refresh')});

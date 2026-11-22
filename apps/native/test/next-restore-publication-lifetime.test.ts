@@ -19,7 +19,7 @@ function modules(state: {
   failure?: unknown; onFallback?: () => void;
 }) {
   return {...restoredShellLifecycleStub(),
-    './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, './boot-timing': {logBootMilestone: () => {}}, '../platform/negotiation': {negotiationRefusal: () => undefined}, '../screens/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
+    './restore-trace': {restoreTrace: () => ({waiting: 'start', elapsedMs: 0, marks: []})}, './boot-timing': {logBootMilestone: () => {}}, '../platform/negotiation': {negotiationRefusal: () => undefined}, '../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
     react: {...React, default: React},
     '../platform/share-links': {nativeShareLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}},
     './NativeShareLinks': {NativeShareLinks: () => null}, './NativeContentLinks': {NativeContentLinks: () => null}, '../platform/content-links': {nativeContentLinks: {acquire: () => () => {}, subscribe: () => () => {}, getSnapshot: () => undefined, take: () => false}},
