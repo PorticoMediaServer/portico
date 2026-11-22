@@ -13420,6 +13420,24 @@
         ],
         "type": "object"
       },
+      "SelectionCounts": {
+        "properties": {
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/SelectionKindCount"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "kinds"
+        ],
+        "type": "object"
+      },
       "SelectionDelete": {
         "properties": {
           "ids": {
@@ -13502,6 +13520,25 @@
           "listEntries",
           "otherPeople",
           "alsoRemoves"
+        ],
+        "type": "object"
+      },
+      "SelectionKindCount": {
+        "properties": {
+          "available": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "count",
+          "available"
         ],
         "type": "object"
       },
@@ -26296,6 +26333,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ItemPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
+      }
+    },
+    "/v1/items/selection": {
+      "get": {
+        "operationId": "get_v1_items_selection",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectionCounts"
                 }
               }
             },

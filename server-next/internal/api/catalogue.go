@@ -49,6 +49,7 @@ func (s *Server) catalogueRoutes() {
 	s.homeRowRoutes()
 	s.episodeDisplayRoutes()
 	s.searchRoutes()
+	s.selectionCountRoutes()
 	Handle(s, "GET /v1/libraries", WithProfile, func(r *http.Request, _ None) (Libraries, error) {
 		ctx, profile := r.Context(), viewer(r)
 		libraries, err := s.db.LibrarySummaries(ctx, profile)
