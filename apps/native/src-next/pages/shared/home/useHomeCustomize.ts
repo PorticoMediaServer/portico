@@ -10,7 +10,14 @@ import type {NativeHomeCustomizeController, NativeHomeResetOpening} from '../../
 import {createTVKeyAdapter} from '../../../platform/tv-key-adapter';
 import {tvKeySource} from '../../../platform/tv-key-source';
 import type {HomeDragRow} from '../../../screens/home/customize-drag';
-import type {NativeHomeCustomizeCopy} from '../../../screens/home/HomeCustomize';
+
+/** Exact catalogue values supplied by the canonical copy owner. No screen copy
+ * or server row label is manufactured by this presentation. */
+export type NativeHomeCustomizeCopy = Readonly<{
+  title: string; instruction: string; alwaysOn: string; addView: string; reset: string; save: string;
+  conflictTitle: string; conflictBody: string; reload: string; keepEditing: string;
+  move: string; drop: string; putBack: string;
+}>;
 
 export type HomeCustomizeProps = {
   controller: NativeHomeCustomizeController; copy: NativeHomeCustomizeCopy; i18n: Pick<I18n, 't' | 'has'>;

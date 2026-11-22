@@ -14,7 +14,7 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 // The route module, with its React views stubbed and its controller, lifetime and authority checks real.
 const loadRoute = () => screenModule(new URL('../src-next/shell/customize-route.tsx', import.meta.url), {
   react, 'react-native': reactNative, '../../../../packages/i18n/src': {defaultI18n}, '../../../../packages/client-core/src/personal-saved': personalSaved,
-  '../kit/states': {StateView: 'StateView'}, '../screens/home/HomeCustomize': {HomeCustomize: 'HomeCustomize'}, '../pages/touch/home/HomeCustomizePage': {HomeCustomizePage: 'HomeCustomize'}, '../screens/home/customize-controller': {NativeHomeCustomizeController},
+  '../kit/states': {StateView: 'StateView'}, '../pages/tv/home/HomeCustomizePage': {HomeCustomizePage: 'HomeCustomize'}, '../pages/touch/home/HomeCustomizePage': {HomeCustomizePage: 'HomeCustomize'}, '../screens/home/customize-controller': {NativeHomeCustomizeController},
   '../screens/home/saved-view-summaries': {NativeHomeSavedViewSummaries: class {subscribe() {return () => {};} getSnapshot() {return undefined;} dispose() {} load() {} line() {return '';}}},
   '../screens/home/customize-intent': {takeHomeCustomizeView: () => undefined}, './model': shellModel, '../screens/destinations/lifetime': lifetime,
   './route-registry': {nativeShellRoutes: {registerRoute() {}}},
@@ -147,25 +147,28 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
   const registry = {capture: () => capture, attachedFocus: () => attached};
   const theme = {isTV: true, platform: 'tv', colors: {text: '#fff', textSecondary: '#aaa', textTertiary: '#777', raisedHigh: '#222', accentStrong: '#0af', shadow: '#000', line: '#333'},
     textScale: 1, type: {title: {}, body: {}, bodyStrong: {}, caption: {}, captionStrong: {}}};
-  const {HomeCustomize} = await screenModule(new URL('../src-next/screens/home/HomeCustomize.tsx', import.meta.url), {
+  const tvParts = ['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel',
+    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeViewMark'];
+  const pageModules = {
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', TVEventHandler: {addListener: () => ({remove() {}})}, findNodeHandle: () => 1},
-    'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback},
-    '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/focus': {useCovered: () => covered, useFocusRegistry: () => registry},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: (value: string) => value},
-    '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/overlays/OverlayHost': {focusTarget: (node: unknown) => {focused.push(node);}},
-    '../../kit/theme': {nativeType: () => ({}), useTheme: () => theme}, './customize-controller': {}, './customize-drag': {},
-    '../../platform/tv-key-source': {tvKeySource: 'native'}, '../../platform/tv-key-adapter': {createTVKeyAdapter: () => ({read: () => undefined})},
-  });
+    'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback},
+    '../../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../../kit/focus': {useCovered: () => covered, useFocusRegistry: () => registry},
+    '../../../kit/home/HomeLayout': {HomeSavedViewChoices: 'HomeSavedViewChoices'}, '../../../kit/home/HomeTVLayout': Object.fromEntries(tvParts.map(name => [name, name])),
+    '../../../kit/overlays': {Dialog: 'Dialog'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'}, '../../../kit/overlays/OverlayHost': {focusTarget: (node: unknown) => {focused.push(node);}},
+    '../../../kit/theme': {useTheme: () => theme},
+    '../../../platform/tv-key-source': {tvKeySource: 'native'}, '../../../platform/tv-key-adapter': {createTVKeyAdapter: () => ({read: () => undefined})},
+  };
+  const homeHook = await screenModule(new URL('../src-next/pages/shared/home/useHomeCustomize.ts', import.meta.url), pageModules);
+  const {HomeCustomizePage: HomeCustomize} = await screenModule(new URL('../src-next/pages/tv/home/HomeCustomizePage.tsx', import.meta.url), {...pageModules, '../../shared/home/useHomeCustomize': homeHook});
   const recent = {id: 'recent', title: 'Recently added', kind: 'recent', reorderable: true, hideable: true, required: false, hidden: false};
   const added = {id: 'view:added', title: 'View added', kind: 'saved_view', savedView: view('added', 'gone'), reorderable: true, hideable: true, required: false, hidden: false};
   let state: any = {phase: 'ready', pending: false, dirty: true, conflict: false, showConflict: false, rows: [recent, added]};
   const controller = {subscribe: () => () => {}, getSnapshot: () => state, isCurrent: () => true};
   const props = {controller, copy: {save: 'Save', addView: 'Add view', title: 'Customize'}, i18n: {t: (key: string) => key}, onClose() {}, onAddView() {}, summary: () => '', testID: 'customize'};
-  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.footer)] : [];
+  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.footer), ...all(node.props.trailing)] : [];
   const draw = () => {effects.length = 0;const tree = owner.render(() => HomeCustomize(props));
-    for (const node of all(tree)) if (typeof node.props.ref === 'function') node.props.ref({id: node.props.focusId});
+    for (const node of all(tree)) for (const ref of [node.props.ref, node.props.rowRef]) if (typeof ref === 'function') ref({id: node.props.focusId});
     const add = all(tree).find(node => node.props.focusId === 'add-view');if (add) add.props.ref.current = {id: 'add-view'};
     for (const effect of effects) effect();return tree;};
   /** Puts the added view back, then drops it under the given focus; returns where focus was asked to go. */
@@ -178,10 +181,10 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
     return {tree, focused: [...focused]};
   };
   try {
-    assert.equal(all(draw()).some(node => node.type === 'SidePanel'), true);
+    assert.equal(all(draw()).some(node => node.type === 'TVHomeLayoutPanel'), true);
     const moved = drop({capture: {regionId: 'customize', childId: 'view:added'}});
     assert.deepEqual(moved.focused, [{id: 'recent'}], 'focus on the dropped view moves to the row above, inside the panel');
-    assert.equal(all(moved.tree).some(node => node.type === 'SidePanel' && node.props.open === true), true, 'the panel stays open');
+    assert.equal(all(moved.tree).some(node => node.type === 'TVHomeLayoutPanel'), true, 'the panel stays open');
     assert.deepEqual(drop({capture: {regionId: 'customize', childId: 'view:added:remove'}}).focused, [{id: 'recent'}], 'its remove button counts as the row');
     assert.deepEqual(drop({capture: {regionId: 'customize', childId: 'recent'}}).focused, [], 'review probe: detached focus last captured on "recent" moves nothing');
     assert.deepEqual(drop({capture: {regionId: 'shell', childId: 'view:added'}}).focused, [], 'a last capture in another region moves nothing');

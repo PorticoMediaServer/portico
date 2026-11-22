@@ -192,31 +192,36 @@ test('shared menu Play requires the exact live opening and an enabled detail gra
 test('touch Customize exposes saved-view removal and keeps its normal footer during conflicts', async () => {
   const h = host(), calls: string[] = [], state: any = {phase: 'ready', pending: false, dirty: true, conflict: false,
     rows: [{id: 'view:v', title: 'A view', savedView: {id: 'v'}, reorderable: true, hideable: true, required: false}]};
-  const {HomeCustomize} = await screenModule(new URL('../src-next/screens/home/HomeCustomize.tsx', import.meta.url), {'../../platform/tv-key-source': {tvKeySource: 'native'}, '../../platform/tv-key-adapter': tvKeyAdapter, 
+  const pageModules = {'../../../platform/tv-key-source': {tvKeySource: 'native'}, '../../../platform/tv-key-adapter': tvKeyAdapter,
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback}, '../../../../../packages/client-core/src/presentation/home-row-reason': {homeRowReasonParts: () => undefined},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch'}, '../../kit/focus': {useCovered: () => false, useFocusRegistry: () => ({})},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/browse/presentation': {alpha: (value: string) => value},
-    '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../../kit/overlays/OverlayHost': {},
-    '../../kit/theme': {nativeType: type, useTheme: () => theme}, './customize-controller': {}, './customize-drag': {},
-  });
+    'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../../packages/i18n/src': {defaultI18n: {t}},
+    '../../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback},
+    '../../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../../kit/focus': {useCovered: () => false, useFocusRegistry: () => ({})},
+    '../../../kit/home/HomeLayout': {HomeAlwaysOn: 'HomeAlwaysOn', HomeDragHandle: 'HomeDragHandle', HomeLayoutCard: 'HomeLayoutCard', HomeLayoutRow: 'HomeLayoutRow',
+      HomeLayoutScroll: 'HomeLayoutScroll', HomeSavedViewChoices: 'HomeSavedViewChoices', HomeViewMark: 'HomeViewMark'},
+    '../../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    '../../../kit/states': {StateView: 'StateView'}, '../../../kit/overlays/OverlayHost': {}, '../../../kit/theme': {useTheme: () => theme},
+  };
+  const homeHook = await screenModule(new URL('../src-next/pages/shared/home/useHomeCustomize.ts', import.meta.url), pageModules);
+  const {HomeCustomizePage: HomeCustomize} = await screenModule(new URL('../src-next/pages/touch/home/HomeCustomizePage.tsx', import.meta.url), {...pageModules, '../../shared/home/useHomeCustomize': homeHook});
   const controller = {subscribe: () => () => {}, getSnapshot: () => state, isCurrent: () => false,
     removeSavedView: (id: string) => {calls.push(id); return false;}, keepEditing: () => calls.push('keep'),
     pick: () => false, move: () => calls.push('move'), drop: () => calls.push('drop')};
   const props = {controller, copy: {save: 'Save', conflictTitle: 'Changed', conflictBody: 'Review', reload: 'Reload', keepEditing: 'Keep editing'},
     i18n: {t}, onClose() {}, onAddView() {}, summary: () => 'Real view definition', testID: 'customize'};
+  const all = (node: any): any[] => [...nodes(node), ...nodes(node).flatMap(item => [...nodes(item.props.trailing), ...nodes(item.props.leading)])];
   const draw = () => nodes(h.render(() => HomeCustomize(props))).find(node => node.type === 'BottomSheet');
-  const ready = draw(), row = nodes(ready).find(node => node.props.testID === 'customize-row-view:v');
+  const ready = draw(), row = all(ready).find(node => node.props.testID === 'customize-row-view:v');
   assert.equal(row.props.onPress, undefined, 'a normal touch on the row does not start the old stuck pickup');
-  assert.ok(nodes(ready).some(node => node.type === 'Icon' && node.props.name === 'i-filter'));
-  const remove = nodes(ready).find(node => node.props.testID === 'customize-remove-view:v'); assert.equal(remove.props.style.width, 44);
+  assert.ok(all(ready).some(node => node.type === 'HomeViewMark'), 'a saved view carries its mark');
+  const remove = all(ready).find(node => node.props.testID === 'customize-remove-view:v'); assert.equal(remove.props.variant, 'icon');
   remove.props.onPress(); assert.deepEqual(calls, ['view:v']);
   state.pickedId = 'other'; row.props.onAccessibilityAction({nativeEvent: {actionName: 'increment'}});
   assert.deepEqual(calls, ['view:v'], 'a stale accessibility action cannot move another row after pickup is refused');
   state.pickedId = undefined; state.conflict = true; state.showConflict = true;
   const conflicted = draw(), footer = nodes(conflicted.props.footer).filter(node => node.type === 'Button');
   assert.deepEqual(footer.map(node => [node.props.focusId, node.props.disabled]), [['reset', true], ['save', true]]);
-  assert.ok(nodes(conflicted).some(node => node.props.focusId === 'reload'));
-  nodes(conflicted).find(node => node.props.focusId === 'keep-editing').props.onPress(); assert.equal(calls.at(-1), 'keep');
+  const conflict = all(conflicted).find(node => node.type === 'StateView');
+  assert.equal(conflict.props.primaryAction.id, 'reload');
+  conflict.props.secondaryAction.onPress(); assert.equal(calls.at(-1), 'keep');
 });
