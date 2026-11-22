@@ -9,14 +9,14 @@ import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 import {cardText, episodeLabel} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 
-const themed = {useTheme: () => ({isTV: true, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111', line: '#222', accent: '#3af', accentStrong: '#4bf'}, type: {}})};
-const {TVEpisodeBrowser, TVTile, FocusBand, seasonListEdges, seasonListHeight} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {
+const themed = {useTheme: () => ({isTV: true, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111', line: '#222', accent: '#3af', accentStrong: '#4bf'}, type: {}}), textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail' as const})};
+const {TVEpisodeBrowser, TVTile, FocusBand, seasonListEdges, seasonListHeight} = await screenModule(new URL('../src-next/kit/frames/TVEpisodeBrowser.tsx', import.meta.url), {
   react: {...React, default: React},
   'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
   '../../../../../packages/client-core/src/presentation/kit-model': {cardText, episodeLabel},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
   '../../../../../packages/i18n/src': {defaultI18n},
-  './tv-title-focus': {tvEpisodeRegionMap}, '../../kit/focus': {FocusRegion: 'FocusRegion'},
+  '../../screens/watch/tv-title-focus': {tvEpisodeRegionMap}, '../../kit/focus': {FocusRegion: 'FocusRegion'},
   '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: {id: string}) => entry.id},
   '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
   '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})},

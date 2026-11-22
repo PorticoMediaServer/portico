@@ -11,14 +11,14 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {KeyHints} from '../../kit/controls';
 import {SeasonListRow} from '../../kit/frames/title-parts';
 import {FocusRegion, type FocusRegionConfig} from '../../kit/focus';
-import {tvEpisodeGroupKey, tvEpisodeRegionMap} from './tv-title-focus';
+import {tvEpisodeGroupKey, tvEpisodeRegionMap} from '../../screens/watch/tv-title-focus';
 import {EpisodeTile} from '../../kit/cards';
 import type {ArtworkSource} from '../../kit/artwork';
 import {Menu, type MenuEntry} from '../../kit/overlays';
 import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {textLines, useTheme} from '../../kit/theme';
 import type {CardSelection} from '../../kit/cards';
-import type {NativeTitleEpisodeSnapshot} from './title-episode';
+import type {NativeTitleEpisodeSnapshot} from '../../screens/watch/title-episode';
 
 export type TVEpisodeBrowserProps = Readonly<{
   seasons: readonly WorkspaceSeason[];
@@ -183,7 +183,7 @@ export function FocusBand({focus, open, text, onRetry, renderError}: {
         {season.firstAired ? <Text style={[browseType(theme, 22, 400), {color: theme.colors.textTertiary}]}>{season.firstAired.slice(0, 4)}</Text> : null}
         {season.episodeCount !== undefined ? <Text style={[browseType(theme, 22, 400), {color: theme.colors.textTertiary}]}>{t('count.episodes', {count: season.episodeCount})}</Text> : null}
       </View>
-      {season.overview ? <Text numberOfLines={2} style={[browseType(theme, 22, 400, 0, 31.9), {color: theme.colors.textSecondary}]}>{season.overview}</Text> : null}
+      {season.overview ? <Text {...textLines(2)} style={[browseType(theme, 22, 400, 0, 31.9), {color: theme.colors.textSecondary}]}>{season.overview}</Text> : null}
     </View>;
   }
   if (focus.kind === 'group') return <View testID="tv-episode-band" style={{marginTop: 30}}>
@@ -206,7 +206,7 @@ export function FocusBand({focus, open, text, onRetry, renderError}: {
   const airDate = entry.airDate ?? episode?.airDate;
   return <View testID="tv-episode-band" style={{marginTop: 30, flexDirection: 'row', gap: 24}}>
     <View style={{flex: 640, minWidth: 0}}>
-      <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 42, 800, -.03, 45.36), {color: theme.colors.text, marginBottom: 10}]}>{entry.displayTitle ?? entry.title}</Text>
+      <Text accessibilityRole="header" {...textLines(2)} style={[browseType(theme, 42, 800, -.03, 45.36), {color: theme.colors.text, marginBottom: 10}]}>{entry.displayTitle ?? entry.title}</Text>
       <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 24, rowGap: 8, marginBottom: 14}}>
         {code ? <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{code.text}</Text> : null}
         {airDate ? <Text style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{defaultI18n.date(airDate, 'long')}</Text> : null}
@@ -214,7 +214,7 @@ export function FocusBand({focus, open, text, onRetry, renderError}: {
         {rating ? <View style={{borderWidth: 1.5, borderColor: '#edf5fa47', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 3}}>
           <Text style={[browseType(theme, 20, 600), {color: theme.colors.text}]}>{rating}</Text></View> : null}
       </View>
-      {(data?.item.overview ?? entry.overview) ? <Text numberOfLines={3} style={[browseType(theme, 22, 400, 0, 31.9), {color: theme.colors.textSecondary}]}>{data?.item.overview ?? entry.overview}</Text> : null}
+      {(data?.item.overview ?? entry.overview) ? <Text {...textLines(3)} style={[browseType(theme, 22, 400, 0, 31.9), {color: theme.colors.textSecondary}]}>{data?.item.overview ?? entry.overview}</Text> : null}
       {resuming && remaining ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 18}}>
         <View style={{width: 220, height: 6, borderRadius: 6, backgroundColor: '#edf5fa29'}}><View style={{height: 6, width: `${duration ? Math.min(1, progress / duration) * 100 : 0}%`, borderRadius: 6, backgroundColor: theme.colors.accentStrong}}/></View>
         <Text style={[browseType(theme, 22, 700), {color: theme.colors.text}]}>{t('entry.resume')}<Text style={{fontWeight: '500', color: theme.colors.textSecondary}}>, {t('next.kit.remaining', {time: remaining})}</Text></Text>

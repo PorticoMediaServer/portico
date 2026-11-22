@@ -73,17 +73,17 @@ test('phone/tablet: the season sheet offers every episode group, marks the open 
 // ---- TV: the season side list lists the groups after the seasons; focusing one shows its episodes.
 test('TV: the side list offers every episode group; focusing one asks for it once and the row waits for its episodes', async () => {
   const tvTheme = {...theme, isTV: true, platform: 'tv'};
-  const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {
+  const {TVEpisodeBrowser} = await screenModule(new URL('../src-next/kit/frames/TVEpisodeBrowser.tsx', import.meta.url), {
     react: {...React, default: React},
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText, episodeLabel},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
     '../../../../../packages/i18n/src': {defaultI18n},
-    './tv-title-focus': {tvEpisodeGroupKey, tvEpisodeRegionMap}, '../../kit/focus': {FocusRegion: 'FocusRegion'},
+    '../../screens/watch/tv-title-focus': {tvEpisodeGroupKey, tvEpisodeRegionMap}, '../../kit/focus': {FocusRegion: 'FocusRegion'},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: {id: string}) => entry.id},
     '../../kit/controls': {Focusable: 'Focusable', KeyHints: 'KeyHints'}, '../../kit/frames/title-parts': {SeasonListRow: 'SeasonListRow'}, '../../kit/cards': {EpisodeTile: 'EpisodeTile'},
     '../../kit/overlays': {Menu: 'Menu'}, '../../kit/browse/presentation': {browseType: (_theme: unknown, size: number) => ({fontSize: size})},
-    '../../kit/theme': {useTheme: () => tvTheme},
+    '../../kit/theme': {useTheme: () => tvTheme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
   });
   const entry = (id: string, number: number) => ({id, kind: 'episode', title: id, libraryId: 'library', absoluteNumber: number, duration: 1440});
   const calls: string[] = [];
