@@ -21,7 +21,7 @@ async function modules(measured?: unknown) {
   // `measured` stands in for the art's measured size once it has loaded (the card's only undefined-initial state).
   const cardReact = measured ? {...react, useState: (value: unknown) => [value === undefined ? measured : value, () => {}]} : react;
   const cards = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     react: {...cardReact, default: cardReact}, 'react-native': {StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Text: 'SvgText'},
     '../../../../../packages/i18n/src/index': {defaultI18n: {t: (key: string) => key}}, '../theme': {useTheme: () => theme},
     '../artwork/index': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), MediaArt: 'MediaArt', CircleArt: 'CircleArt', PersonCircle: 'PersonCircle', GeneratedCoverClearance: {Provider: 'Provider'}, missingArt: art.missingArt},

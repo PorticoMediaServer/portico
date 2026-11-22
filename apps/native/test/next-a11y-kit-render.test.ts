@@ -78,7 +78,7 @@ test('reading-card long press opens the item menu (which offers Download) and it
   // reading menu, so no unnamed long-press side effect remains (NM-08).
   const f = fixture(), menus: unknown[] = [];
   const {PhoneReadingBookCard} = await screenModule(new URL('../src-next/kit/reading/PhoneReadingBookCard.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     react: f.common.react, 'react-native': f.native, '@portico/design': {}, '../../../../../packages/i18n/src': {defaultI18n},
     '../artwork': {GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../controls': {FormError, Focusable: 'Focusable'},
     '../selection': {SelectionCircle: 'SelectionCircle'},
@@ -210,7 +210,7 @@ test('CardFrame announces presentation context and state while preserving named 
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
     '../overlays/OverlayHost': {useInTopLayer: () => true}, '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
-    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
   });
   const props = {title: 'Title', caption: [{id: 'year', text: '1982'}], detail: [{id: 'duration', text: '109 min'}], watched: true, isNew: true, progress: .42,
     onNavigate() {}, onPlay: () => calls.push('play'), onMore: () => calls.push('more'),
@@ -233,7 +233,7 @@ test('CardFrame announces presentation context and state while preserving named 
 test('specialized cards forward episode context and the same viewer/session facts as their visible face', async () => {
   const f = fixture();
   const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
     '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}}, '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
     './primitives': {CardFrame: 'CardFrame', Parts: 'Parts', titleStyle: () => ({})},
@@ -242,7 +242,7 @@ test('specialized cards forward episode context and the same viewer/session fact
     length: '43 min', status: 'New episode', layout: 'row', onNavigate() {}}));
   assert.deepEqual(episode.props.accessibilityDetails, ['S1 E2', 'Show', 'New episode', '43 min']);
   const listening = await screenModule(new URL('../src-next/kit/cards/ListeningCards.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
     ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}}, '../controls/index': {Button: 'Button'},
     './MediaCards': {CardOverlays: 'CardOverlays'}, './primitives': {CardFrame: 'CardFrame'}, './session-identity': {sessionViewerParts},
   });
@@ -279,7 +279,7 @@ test('wide card and episode row titles take two lines on phone and one on TV', a
   for (const isTV of [false, true]) {
     const f = fixture(), theme = isTV ? createTheme({isTV: true, width: 1920, fontScale: 1}) : f.theme;
     const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
       ...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
       '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}, MediaArt: 'MediaArt', missingArt: () => undefined}, '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
       './primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame', Badge: 'Badge', Caption: 'Caption', CardAction: 'CardAction', Progress: 'Progress', Scrim: 'Scrim', Parts: 'Parts', titleStyle: () => ({})},
@@ -315,7 +315,7 @@ test('card facts: drop is one fixed line of whole facts, wrap moves whole facts 
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
     '../overlays/OverlayHost': {useInTopLayer: () => true}, '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
     '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
-    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../focus': {...f.common['../focus'], useFocusWaiting: () => false}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../focus': {...f.common['../focus'], useFocusWaiting: () => false}, '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
   });
   const parts = [{id: 'range', text: '12 Nov 2026 to 4 Jan 2027', role: 'context'}, {id: 'new', text: 'New', role: 'status'}, {id: 'year', text: '2026'}];
   const box = f.host.render(() => Parts({parts, fit: 'drop'})), style = flatten(box.props.style), facts = nodes(box).filter(node => node.type === 'Text');
@@ -389,7 +389,7 @@ test('a square card draws a 2:3 cover whole in its own shape once the picture\'s
     const common = {...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}};
     const whole = await screenModule(new URL('../src-next/kit/artwork/WholeCover.tsx', import.meta.url), {...common, './Artwork': {Artwork: 'Artwork'}, './Surfaces': {AmbientArt: 'AmbientArt'}});
     const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
-    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
+    '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},
       ...common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
       '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}, MediaArt: 'MediaArt', missingArt: () => undefined, useWholeBox: whole.useWholeBox},
       '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
