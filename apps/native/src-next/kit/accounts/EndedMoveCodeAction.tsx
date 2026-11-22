@@ -1,6 +1,6 @@
 import React, {useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button} from '../../kit/controls';
+import {Button} from '../controls';
 
 type Ticket = {live: boolean; scope: object};
 /** An explicit code intent from an ended sign-in. Its exact committed opening

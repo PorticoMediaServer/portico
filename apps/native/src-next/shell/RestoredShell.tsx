@@ -9,7 +9,7 @@ import {restoreNativeShellRuntime, type RestoredNativeShellRuntime} from './boot
 import {restoreTrace} from './restore-trace';
 import {logBootMilestone} from './boot-timing';
 import {negotiationRefusal} from '../platform/negotiation';
-import {ServerNeedsUpdate} from '../screens/accounts/ServerNeedsUpdate';
+import {ServerNeedsUpdate} from '../kit/accounts/ServerNeedsUpdate';
 import {NativeShell} from './NativeShell';
 import {nativeAccounts} from '../platform/accounts';
 import {readNativeSelectedViewer, subscribeNativeAppSessions} from '../platform/app-session-storage';
