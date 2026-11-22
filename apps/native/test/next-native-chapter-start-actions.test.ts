@@ -66,7 +66,8 @@ test('See all entry Play preserves a chapter seek and retains the original row l
   } finally {rows.dispose();}
 });
 
-test('Home distinguishes a direct chapter play from a container Resume with a chapter target', async () => {
+/** Home's real bindings over one spotlight document; a book or comic opens through the reading opener it records. */
+async function homeBindings(spotlight: readonly unknown[], libraries: () => readonly unknown[] = () => []) {
   const react = hooks().react, model = await shellModel;
   const {homeSpotlightModels} = await screenModule(new URL('../../../packages/client-core/src/presentation/home-spotlight.ts', import.meta.url), {
     react, './kit-model/index.ts': {},
@@ -77,11 +78,11 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
     '../../../../../packages/client-core/src/presentation/content-entry-subject': {},
     '../../../../../packages/client-core/src/presentation/home-card': await import('../../../packages/client-core/src/presentation/home-card.ts'),
   });
-  const chapter = entry('chapter'), movie = entry('movie'), book = {...entry('book'), playback: undefined};
-  const resumedChapter = {...chapter, playback: {...chapter.playback, startSeconds: 450}};
-  const document = {serverId: 'server', viewerFence: 'viewer', revision: 1, rows: [], spotlight: [{entry: chapter}, {entry: movie}, {entry: book, resumeTarget: resumedChapter}]};
+  const document = {serverId: 'server', viewerFence: 'viewer', revision: 1, rows: [], spotlight};
+  const opened: unknown[] = [];
   const selectionContext = (scope: unknown, value: any) => ({scope, revision: value.revision});
-  const selection = (value: any) => ({kind: value.kind, id: value.id, libraryId: value.libraryId});
+  // As client-core's homeEntrySelection: a book or comic to read has no selection identity.
+  const selection = (value: any) => value.kind === 'ebook' || value.kind === 'comic' ? undefined : {kind: value.kind, id: value.id, libraryId: value.libraryId};
   const inactiveOverlay = () => ({dispose() {}});
   const {createNativeShellBindings} = await screenModule(new URL('../src-next/shell/assembly.tsx', import.meta.url), {
     '../platform/offline-downloads': {}, './selection-display': {},
@@ -102,17 +103,26 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
     './selection-scope': {nativeHomeSelectionScope: (viewer: any) => viewer}, './routes': {},
     './route-registry': {nativeShellRoutes: {subscribe, bind: () => ({dispose() {}})}}, './model': model,
     './music-discover-navigation': {createNativeMusicDiscoverNavigation: inactiveOverlay}, '../screens/home/model': homeModel,
-    './home-windows': {}, '../screens/read/platform': {}, '../screens/read/reading-books-open': {},
+    './home-windows': {}, '../screens/read/platform': {isReadingLibraryKind: (kind: string) => kind === 'book' || kind === 'comic'},
+    '../screens/read/reading-books-open': {openNativeReadingBookEntry: async (_context: unknown, target: unknown) => {opened.push(target); return true;}},
     '../screens/home/entry-lifetime': {nativeDispatchedPlayLifetime, nativeHomeEntryLifetime, reportDispatchedPlayFailure}, '../screens/destinations/music/mixes': {createNativeMusicMixes: inactiveOverlay},
     './tv-receiver': {useTVReceiver: () => ({})}, '../kit/player/ReceiverApproval': {}, '../kit/home/HomeEmpty': {},
     './listening-playlist': {createNativeListeningPlaylist: inactiveOverlay}, './listening-queue-policy': {createNativeListeningQueuePolicy: inactiveOverlay},
     './listening-song-detail': {createNativeListeningSongDetail: inactiveOverlay},
   });
-  const starts: any[] = [], navigation = {authority, revision: 1, route: {kind: 'shell'}, destination: {kind: 'home'}};
+  const starts: any[] = [], errors: unknown[] = [], navigation = {authority, revision: 1, route: {kind: 'shell'}, destination: {kind: 'home'}};
   const bindings = createNativeShellBindings({current: () => true, authority: () => authority, subscribeAuthority: subscribe,
     home: {getSnapshot: () => ({document}), subscribe}, session: () => ({viewer: {...authority, authority: 'local'}}),
-    navigation: {getSnapshot: () => navigation, subscribe}, api: {baseUrl: 'https://portico.test', getOutbox: () => undefined, onOutboxDropped: () => () => {}}, account: {account: {role: 'member'}},
+    navigation: {getSnapshot: () => navigation, subscribe}, api: {baseUrl: 'https://portico.test', getOutbox: () => undefined, onOutboxDropped: () => () => {}}, account: {account: {role: 'member'}}, libraries,
+    reportError: (error: unknown) => {errors.push(error);},
     playback: {selectionPlayback: () => ({}), start: async (input: any) => {starts.push(input);}}});
+  return {bindings, starts, opened, errors};
+}
+
+test('Home distinguishes a direct chapter play from a container Resume with a chapter target', async () => {
+  const chapter = entry('chapter'), movie = entry('movie'), book = {...entry('book'), playback: undefined};
+  const resumedChapter = {...chapter, playback: {...chapter.playback, startSeconds: 450}};
+  const {bindings, starts} = await homeBindings([{entry: chapter}, {entry: movie}, {entry: book, resumeTarget: resumedChapter}]);
   try {
     bindings.actions.play(chapter, chapter.playback);
     bindings.actions.play(movie, movie.playback);
@@ -122,5 +132,28 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
     assert.equal(nativeStartSeconds(starts[1]), undefined);
     assert.equal(nativeStartSeconds(starts[2]), undefined, 'container Resume never turns cached chapter progress into an explicit seek');
     assert.equal(starts[2].target, resumedChapter.playback);
+  } finally {bindings.dispose();}
+});
+
+test('a book or comic in Continue your books opens, though Home gives it no selection identity', async () => {
+  // The demo's PDF in Continue your books did nothing when tapped (22 Nov): Home's lookup of its selection identity
+  // threw for an entry that has none, and the open was refused as unavailable.
+  for (const kind of ['ebook', 'comic']) {
+    const item = {...entry(kind), playback: undefined};
+    const {bindings, opened, errors} = await homeBindings([{entry: item}], () => [{id: 'library', name: 'Reading', kind: kind === 'ebook' ? 'book' : 'comic'}]);
+    try {
+      bindings.actions.navigate(item);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.equal(opened.length, 1, `the ${kind} opens`);
+      assert.equal((opened[0] as {libraryId: string}).libraryId, 'library');
+      assert.deepEqual(errors, []);
+    } finally {bindings.dispose();}
+  }
+  // A library that is not its reading library still refuses, as before.
+  const book = {...entry('ebook'), playback: undefined};
+  const {bindings, opened} = await homeBindings([{entry: book}], () => [{id: 'library', name: 'Films', kind: 'movie'}]);
+  try {
+    assert.throws(() => bindings.actions.navigate(book));
+    assert.equal(opened.length, 0);
   } finally {bindings.dispose();}
 });

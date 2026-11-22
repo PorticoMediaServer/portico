@@ -391,11 +391,15 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
           const libraryId = entry.libraryId, kind = entry.kind === 'ebook' ? 'book' : 'comic';
           const navigation = context.navigation.getSnapshot(), document = context.home.getSnapshot().document;
           const selected = (() => {try {return find(entry);} catch {return undefined;}})();
-          if (!libraryId || !selected || !document || !context.libraries().some(library => library.id === libraryId && library.kind === kind)) {reportError(failure('unavailable')); return;}
+          // A book, comic or magazine to read has no Home selection identity (homeEntrySelection gives it no menu), so
+          // `find` has nothing for it: it opens on the route, the document and its library alone. An entry Home did
+          // register keeps its member check below.
+          if (!libraryId || !document || !context.libraries().some(library => library.id === libraryId && library.kind === kind)) {reportError(failure('unavailable')); return;}
           const signal = new AbortController(); operations.add(signal);
           const operation = nativeHomeEntryLifetime(() => {
             if (!currentHome() || context.navigation.getSnapshot() !== navigation || context.home.getSnapshot().document !== document
               || !context.libraries().some(library => library.id === libraryId && library.kind === kind)) return false;
+            if (!selected) return true;
             try {const member = find(entry); return member.id === selected.id && member.key === selected.key && member.owner === selected.owner;} catch {return false;}
           }, [context.navigation.subscribe, context.home.subscribe, controller.subscribe, context.subscribeAuthority], signal.signal);
           void openNativeReadingBookEntry(context, {libraryId, entry, origin: {route: navigation.route, revision: navigation.revision}, resident: operation.lifetime.isCurrent, signal: operation.lifetime.signal})
