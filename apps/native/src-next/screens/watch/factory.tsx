@@ -38,7 +38,8 @@ import {prepareDiscTitle, readDiscTitles, type DiscTitles} from './disc-titles';
 import {NativeWatchControls, type NativeWatchControlContext} from './controls';
 import {NativeWatchChrome, type NativeWatchChromeProps} from './WatchChrome';
 import {NativeWatchPicture, type NativeWatchPictureProps} from '../../shell/watch-picture';
-import {NativeWatchHost, type NativeWatchHostBindings, type NativeWatchHostContext} from './WatchHost';
+import {WatchHostPage} from '../../pages/shared/player/WatchHostPage';
+import type {NativeWatchHostBindings, NativeWatchHostContext} from '../../pages/shared/player/useWatchHost';
 import {WatchEpisodesPage} from '../../pages/shared/player/WatchEpisodesPage';
 import type {MenuAction} from '../../kit/overlays/types';
 import type {NativeTitleActionsHandle} from '../../shell/title-actions';
@@ -574,7 +575,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
   return Object.freeze({
     title,
     watch: Object.freeze({render: (runtime: NativeShellRuntime) => alive() && ports.player
-      ? <NativeWatchHost authority={ports.authority} current={ports.current} playback={ports.playback} outlet={ports.watch} runtime={runtime}
+      ? <WatchHostPage authority={ports.authority} current={ports.current} playback={ports.playback} outlet={ports.watch} runtime={runtime}
           controls={controls} bindings={ports.player} setPresentation={setPresentation} isTV={ports.isTV}/> : null,
       /** Phone-player4 reuses a real retained title body; foldable3g draws that
        * same real show page, episodes and all, on the right page beside the

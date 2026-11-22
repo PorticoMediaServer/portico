@@ -9,7 +9,7 @@ import type {NativePlaybackReadLifetime} from '../../platform/playback/types';
 import {Button} from '../controls';
 import {PlaybackInfoComparison} from './PlaybackInfo';
 import {useTheme} from '../theme';
-import type {NativeWatchHostContext} from '../../screens/watch/WatchHost';
+import type {NativeWatchHostContext} from '../../pages/shared/player/useWatchHost';
 import {lossSentence, type NativePlaybackInfo} from '../../screens/watch/playback-info';
 import {Quiet} from '../states';
 

@@ -64,7 +64,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
   './title-controller': {NativeTitleController}, './title-starts': {NativeTitleStarts}, './TitleScreen': {NativeTitleScreen: 'Title'}, '../../pages/touch/title/routes': {touchTitlePages: {movie: 'Title', show: 'Title'}},
   '../../pages/tv/title/routes': {tvTitlePages: {movie: 'Title'}},
   './version-destination': {NativeVersionChooserController}, './version-options': {nativeVersionChoices, nativeVersionNames},
-  './WatchHost': {NativeWatchHost: 'WatchHost'}, './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
+  '../../pages/shared/player/WatchHostPage': {WatchHostPage: 'WatchHost'}, './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
 });
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const entry = {id: 'episode', kind: 'episode', title: 'Actual episode', libraryId: 'library', playback: {itemId: 'episode', startSeconds: 17}};

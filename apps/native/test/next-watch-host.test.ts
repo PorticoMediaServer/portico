@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/index.ts';
 import {sameAuthority} from '../src-next/shell/model.ts';
@@ -15,7 +16,7 @@ const authority = {serverId: 's', accountId: 'a', profileId: 'p', epoch: 'e', vi
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 's', accountId: 'a', profileId: 'p', controllerId: 'c', controllerEpoch: 'e', commandLaneId: 'l', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'source', entryId: 'entry', generation: 1});
 let window = {width: 890, height: 626}, safeTop = 0;
 let posture: any = {status: 'unavailable', window: null, folds: []};
-const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/WatchHost.tsx', import.meta.url), { '../../platform/layout/full-window': {nativePlayerOpen: () => {}},
+const {WatchHostPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchHostPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', { '../../platform/layout/full-window': {nativePlayerOpen: () => {}},
   '../../kit/theme': {useTheme: () => ({colors: {ink: '#08121b'}})},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined},
   '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: () => () => {}},
@@ -35,7 +36,9 @@ const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/
   'react-native-reanimated': {default: {View: 'AnimatedView'}, useSharedValue: (value: any) => React.useRef({value}).current, useAnimatedStyle: (run: any) => run(),
     withTiming: (value: any) => value, cancelAnimation: () => {}},
   '../../kit/useMotion': {useMotion: () => ({reduce: false, timing: () => ({duration: 0})})},
-});
+}));
+// The page hands its drawing to the kit's WatchHostView; draw it here so the checks below see the host's tree.
+const NativeWatchHost = (props: any) => {const tree: any = WatchHostPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;};
 const {NativeWatchPicture} = await screenModule(new URL('../src-next/shell/watch-picture.tsx', import.meta.url), {
   react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => window},
   '../../../../packages/player-core/src': {sameFence}, './model': {sameAuthority},

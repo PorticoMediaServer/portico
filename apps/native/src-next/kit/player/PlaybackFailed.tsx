@@ -10,7 +10,7 @@ import {textLines, useTheme} from '../theme';
 import {shellType} from '../shell/visual';
 import {FocusRegion} from '../focus';
 import {SidePanel} from '../overlays';
-import type {NativeWatchHostContext} from '../../screens/watch/WatchHost';
+import type {NativeWatchHostContext} from '../../pages/shared/player/useWatchHost';
 import type {NativePlaybackFailureReason} from '../../platform/playback/playback-failure';
 import {failureBody, failureTitle, type NativePlaybackEnd} from '../../screens/watch/failure-words';
 
