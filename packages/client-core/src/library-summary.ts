@@ -31,7 +31,10 @@ export function parseLibrarySummary(raw:unknown):LibrarySummary{
  const counts=raw.counts.map(value=>{if(!object(value)||!text(value.kind)||!value.kind||typeof value.count!=='number'||!Number.isSafeInteger(value.count)||value.count<0||value.count>20000||typeof value.atLeast!=='boolean')invalid();return Object.freeze({kind:value.kind,count:value.count,atLeast:value.atLeast});});
  if(new Set(counts.map(row=>row.kind)).size!==counts.length||!raw.coverUrls.every(artwork))invalid();
  const classified=publicationCounts(raw.publicationCounts);
- return Object.freeze({counts:Object.freeze(counts),...(classified?{publicationCounts:classified}:{}),coverUrls:Object.freeze([...raw.coverUrls] as string[]),latestArtwork:raw.latestArtwork,firstScan:raw.firstScan,empty:raw.empty,emptyKnown:raw.emptyKnown});
+ // A kind the library holds none of (an anime library's "0 movies") is not part of its line; a library
+ // with nothing at all keeps its zero counts so the line still says so.
+ const held=counts.some(row=>row.count>0)?counts.filter(row=>row.count>0):counts;
+ return Object.freeze({counts:Object.freeze(held),...(classified?{publicationCounts:classified}:{}),coverUrls:Object.freeze([...raw.coverUrls] as string[]),latestArtwork:raw.latestArtwork,firstScan:raw.firstScan,empty:raw.empty,emptyKnown:raw.emptyKnown});
 }
 /** A library whose server sends no summary has no known counts, covers or empty state. */
 const unknownSummary:LibrarySummary=Object.freeze({counts:Object.freeze([]),coverUrls:Object.freeze([]),latestArtwork:'',firstScan:false,empty:false,emptyKnown:false});
