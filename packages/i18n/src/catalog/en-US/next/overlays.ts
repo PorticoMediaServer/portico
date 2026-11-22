@@ -9,7 +9,7 @@ export const overlaysMessages = {
   'next.overlays.fileInfoMoreTitles': 'Show more titles',
   'next.overlays.ownerAndAdministratorsOnly': 'Owner and administrators · Members never see this.',
   'next.overlays.fileInfoDesktopNote': 'Portico picks the version to play from your device, the connection and the settings. This list is for information. To watch another one, use Play a different version… in the ⋯ menu.',
-  'next.overlays.deleteVersionNote': "Deleting a version removes that one file from disk. The title, its other version and everyone's watch history stay.",
+  'next.overlays.deleteVersionNote': "Deleting a version removes that one file from disk. The title, its other versions and everyone's watch history stay.",
   'next.overlays.forYou': 'For you',
   'next.overlays.dateAdded': 'Date added',
   'next.overlays.duration': 'Duration',
