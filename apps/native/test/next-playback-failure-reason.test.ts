@@ -39,5 +39,5 @@ test('the TV and handheld failed states and their capture carry the server\'s en
     assert.match(read(name), /failureTitle\(failure\.ended\)/, name);
     assert.match(read(name), /failureBody\(failure\.reason, .*, failure\.ended\)/, name);
   }
-  assert.match(read('../../screens/watch/WatchHost.tsx'), /\.\.\.\(source\.playback\.ended \? \{ended: source\.playback\.ended\} : \{\}\)/);
+  assert.match(read('../../pages/shared/player/useWatchHost.ts'), /\.\.\.\(source\.playback\.ended \? \{ended: source\.playback\.ended\} : \{\}\)/);
 });
