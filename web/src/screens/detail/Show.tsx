@@ -146,10 +146,15 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const playPrimary = () => runScreenCommand(binding.context, () => { binding.current(data); if (offer) return binding.primary.play(offer.detail, offer.action.id); });
   // J-23: the next-up episode exists but its file can't be reached: a disabled Play with the reason, never nothing.
   const nextUnplayable = !!data.nextUp && (data.nextUp.available === false || !!data.nextUp.missing || !data.nextUp.playback);
+  // Nothing next because everything is watched: Watch again plays the selected season from its start (second audit: a fully
+  // watched show offered no Play). Only where the season can be played and has episodes.
+  const watchAgain = !offer && !data.nextUp && !!binding.context.effects.playSeason && !!data.selected.seasonId && episodes.some(entry => !!entry.playback);
+  const playAgain = () => runScreenCommand(binding.context, () => binding.playSeason(data));
   const actions = <div className={`${detail.actions} ${styles.heroActions}`}>
     {watch ? <Button variant="primary" icon={watch.playing ? 'i-pause' : 'i-play'} disabled={!watch.enabled} onClick={watch.toggle}>{t(watch.playing ? 'next.dock.pause' : 'next.dock.play')}</Button>
       : offer && (offer.resume ? <ResumeButton progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>)}
     {!offer && nextUnplayable && <Button variant="primary" icon="i-play" disabled aria-describedby={`${show.id}-unplayable`}>{t('next.controls.play')}</Button>}
+    {!watch && watchAgain && <Button variant="primary" icon="i-play" onClick={playAgain}>{t('title.watchAgain')}</Button>}
     {personal && <Button disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} aria-pressed={personal.watchlisted} onClick={() => { void binding.setMyList(data, !personal.watchlisted).catch(binding.context.effects.reportError); }}>{t('next.controls.myList')}</Button>}
     {personal && !threeControls && <Button disabled={busy} icon="i-check" iconOnly aria-label={t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')} aria-pressed={personal.watched} onClick={() => { void binding.setWatched(data, !personal.watched).catch(binding.context.effects.reportError); }} />}
     <ShowMore binding={binding} data={data} personal={personal} busy={busy} watchedInMenu={threeControls} />
@@ -225,7 +230,8 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     const showBackdrops = preferenceValue<boolean>(preferences, 'appearance.showBackdrops');
     const run = (task: Promise<unknown>) => { void task.catch(binding.context.effects.reportError); };
     const framePrimary: TitlePrimary | undefined = offer ? {icon: 'i-play', label: primaryLabel!, onPress: playPrimary, ...(offer.resume ? {progress: offer.progress} : {})}
-      : nextUnplayable ? {icon: 'i-play', label: t('next.controls.play'), disabled: true, onPress: () => {}, note: t('title.fileUnavailable')} : undefined;
+      : nextUnplayable ? {icon: 'i-play', label: t('next.controls.play'), disabled: true, onPress: () => {}, note: t('title.fileUnavailable')}
+      : watchAgain ? {icon: 'i-play', label: t('title.watchAgain'), onPress: playAgain} : undefined;
     const frameActions: TitleAction[] = [
       ...(personal ? [{icon: personal.watchlisted ? 'i-check' as const : 'i-plus' as const, label: t('next.controls.myList'), labelled: true, pinned: true, active: personal.watchlisted, disabled: busy,
         onPress: () => run(binding.setMyList(data, !personal.watchlisted))},
