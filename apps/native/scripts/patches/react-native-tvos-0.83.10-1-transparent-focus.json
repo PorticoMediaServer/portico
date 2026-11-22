@@ -7,7 +7,7 @@
     {
       "path": "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm",
       "beforeSHA256": "7e8c2e72ce6e4f71b93c5c2f6d453e2c43ddd6257a8540f1ed73117d5c4e8638",
-      "afterSHA256": "ecf7647ac5006339545ed2acd372c29cb93a61905e11891ff0ff9b7755552dce",
+      "afterSHA256": "8dfeb091e642d344c0f9c3efaf45426d4cbac8d40cb3c6c3918cdc375c49b7b2",
       "replacements": [
         {
           "before": "- (BOOL)canBecomeFocused\n{\n  if ([self isTVFocusGuide]) {\n    return NO;\n  }\n  return _props->isTVSelectable;\n}\n",
@@ -32,6 +32,10 @@
         {
           "before": "[self.focusGuideRight.leftAnchor constraintEqualToAnchor:self.rightAnchor].active = YES;",
           "after": "[self.focusGuideRight.leftAnchor constraintEqualToAnchor:self.rightAnchor constant:kPorticoFocusGuideGap].active = YES;"
+        },
+        {
+          "before": "    if (context.nextFocusedView == self) {\n      [self becomeFirstResponder];",
+          "after": "    if (context.nextFocusedView == self) {\n      // Portico: the root's preferred view becomes the view that holds focus now. `focusSelf` set it to the page's entry view\n      // and nothing cleared it, so when tvOS dropped focus (a large result set mounting under the Search keyboard) its\n      // preferred-focus search went back to that entry key and the next press typed the wrong letter.\n      RCTSurfaceHostingProxyRootView *porticoRoot = [self containingRootView];\n      if (porticoRoot != nil && porticoRoot.reactPreferredFocusedView != nil) porticoRoot.reactPreferredFocusedView = self;\n      [self becomeFirstResponder];"
         }
       ]
     }
