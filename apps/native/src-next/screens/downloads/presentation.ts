@@ -113,3 +113,10 @@ export function downloadRowText(entry: OfflineEntry, facts: OfflineEntryFacts | 
         : entry.state === 'paused' ? defaultI18n.t('downloads.paused') : undefined;
   return {metadata, reason, warning: !!entry.waiting || !!blocked, stopped};
 }
+
+/** "Whole shows and seasons" follows a request for several titles (a show, a season, an album: collections 31). A request
+ * known to hold one title (a single book) is that one download, already listed with the others, so it is not repeated
+ * under that heading. A request whose size is not known yet stays, as it may be a whole show still being counted. */
+export function groupDownloadRequests<T extends Readonly<{request: Readonly<{totalKnown: boolean; total: number}>}>>(requests: readonly T[]): readonly T[] {
+  return requests.filter(tracked => !tracked.request.totalKnown || tracked.request.total > 1);
+}

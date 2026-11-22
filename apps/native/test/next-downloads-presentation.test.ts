@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {defaultI18n} from '../../../packages/i18n/src';
-import {downloadEntryIdentity, downloadGroups, downloadRequestLines, downloadRowText, downloadStorageSegments, downloadTransferProgress, type NativeDownloadsCopy} from '../src-next/screens/downloads/presentation';
+import {downloadEntryIdentity, downloadGroups, downloadRequestLines, downloadRowText, downloadStorageSegments, downloadTransferProgress, groupDownloadRequests, type NativeDownloadsCopy} from '../src-next/screens/downloads/presentation';
 import type {OfflineEntry} from '../src-next/platform/offline-downloads';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
@@ -123,7 +123,7 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType: () => ({}), alpha: () => ''}, '../../kit/theme': {useTheme: () => theme},
     './inventory': downloadInventory,
-    './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
+    './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress, groupDownloadRequests}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
     './useReadingFacts': await screenModule(new URL('../src-next/screens/downloads/useReadingFacts.ts', import.meta.url), {react: {...React, default: React}}),
     '../../kit/saved/SavedForms': await screenModule(new URL('../src-next/kit/saved/SavedForms.tsx', import.meta.url), {
       '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
@@ -179,7 +179,7 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
     '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType: () => ({}), alpha: () => ''}, '../../kit/theme': {useTheme: () => theme},
     './inventory': downloadInventory,
-    './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
+    './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress, groupDownloadRequests}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
     './useReadingFacts': await screenModule(new URL('../src-next/screens/downloads/useReadingFacts.ts', import.meta.url), {react: {...React, default: React}}),
     '../../kit/saved/SavedForms': await screenModule(new URL('../src-next/kit/saved/SavedForms.tsx', import.meta.url), {
       '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
@@ -229,4 +229,10 @@ test('a whole-container request reports capturing, ready-of-total and failed mem
   ]);
   assert.equal(defaultI18n.t('downloads.requestProgress', {ready: 3, total: 9}), '3 of 9 ready');
   assert.equal(defaultI18n.t('downloads.requestPreparing'), 'Finding everything to download…');
+});
+
+test('"Whole shows and seasons" lists requests for several titles, not a single book already listed', () => {
+  const tracked = (requestId: string, total: number, totalKnown = true) => ({title: requestId, request: {requestId, total, totalKnown}});
+  const requests = [tracked('book', 1), tracked('season', 9), tracked('counting', 0, false)];
+  assert.deepEqual(groupDownloadRequests(requests).map(value => value.title), ['season', 'counting']);
 });
