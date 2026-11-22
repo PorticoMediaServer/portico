@@ -1391,7 +1391,7 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
     '../../kit/shell/visual': await import('../src-next/kit/shell/visual.ts'), '../../kit/theme': {useTheme: () => state.theme},
     '../../kit/cards/model': cardModel, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, './server/TVServerPageMenu': {TVServerPageMenu: 'TVServerPageMenu'},
     './server/TVDiskUsage': {TVDiskUsage: 'TVDiskUsage'}, '../../shell/tv-focus': await import('../src-next/shell/tv-focus.ts'),
-    './Screen': {...await import('../src-next/screens/settings-live/Screen.tsx'), useScreenEntry: () => () => {}},
+    '../../kit/layout/Screen': {...await import('../src-next/kit/layout/Screen.tsx'), useScreenEntry: () => () => {}},
     './dashboard-presentation': await import('../src-next/screens/settings-live/dashboard-presentation.ts'),
     '../../pages/touch/dashboard/OwnerDashboardPage': {OwnerDashboardPage: 'NativeOwnerDashboardPhone'},
     '../../platform/event-resync': await import('../src-next/platform/event-resync.ts'),

@@ -112,7 +112,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../kit/live/NativeGuideRow': {LiveRow: 'LiveRow', GuideChannelArt: 'GuideChannelArt'}, '../../kit/live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../../kit/live/GuideRuler': {GuideRuler: 'GuideRuler'}, '../../kit/live/Guide': {guideSpec: {ruler: 36, nowPill: 120}}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell/visual': visual, '../../kit/theme': {useTheme: () => viewTheme, fontFamilies: {700: 'Manrope-Bold'}},
     '../../kit/useScreenReader': {useScreenReader: () => screenReader}, '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../../platform/tv-keys': {useTVRemoteActivity() {}},
     '../../shell/model': {sameAuthority: () => true, shellLayout: () => ({kind: width < 600 ? 'phone' : 'expanded'})}, '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})},
-    './Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack() {}, useScreenEntry() {}}, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'},
+    '../../kit/layout/Screen': {Screen: 'Screen', ScreenText: 'ScreenText', useScreenBack() {}, useScreenEntry() {}}, './RecordingsScreen': {NativeRecordingsScreen: 'Recordings'},
     '../../tv/layout/guide-focus': {}, '../destinations/useTVPageBack': {useTVPageBack() {}}, '../destinations/useEntryFocus': {useDestinationEntryFocus() {}},
     './guide-presentation': {...guidePresentation, nativeGuideClock: () => () => '12:00', nativeGuideDate: () => () => 'Today', nativeGuideRegion: () => ({locale: 'en-US', hour12: false}), nativeGuideNext: () => undefined},
     './useGuideTimePan': {useGuideTimePan: (options: any) => {panOptions = options; return {active: true, position: {value: 0}, adjust: (delta: number) => adjustments.push(delta)};}},
@@ -123,7 +123,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     ...modules, '../artwork': modules['../../kit/artwork'], '../controls': modules['../../kit/controls'],
     '../focus': modules['../../kit/focus'], '../Icon': modules['../../kit/Icon'], '../shell/visual': visual, '../theme': modules['../../kit/theme'],
     './GuideLoadingMarker': {GuideLoadingMarker: 'GuideLoadingMarker'}, './GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'},
-    './ProgrammeDetails': {ProgrammeFlags: 'ProgrammeFlags'}, '../../screens/settings-live/Screen': modules['./Screen'],
+    './ProgrammeDetails': {ProgrammeFlags: 'ProgrammeFlags'}, '../layout/Screen': modules['../../kit/layout/Screen'],
     '../../screens/settings-live/guide-pan-model': modules['./guide-pan-model'], '../../screens/settings-live/guide-presentation': modules['./guide-presentation'],
     '../../screens/settings-live/tv-settings-focus': tvSettingsFocus, '../../tv/layout/guide-focus': {},
   });

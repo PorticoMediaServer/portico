@@ -4,7 +4,7 @@ import {useFocusRegistry} from '../../../kit/focus';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {tvFocusIds} from '../../../shell/tv-focus';
 import {publicTVHandoffAddress} from '../../../tv/auth/TVHandoff';
-import {useScreenEntry} from '../../../screens/settings-live/Screen';
+import {useScreenEntry} from '../../../kit/layout/Screen';
 import {NativeScreenLifetime} from '../../../screens/settings-live/lifetime';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {TVServerPage} from '../../../screens/settings-live/server/TVServerPageMenu';

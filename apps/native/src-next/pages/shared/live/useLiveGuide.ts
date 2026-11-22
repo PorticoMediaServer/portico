@@ -31,7 +31,7 @@ import type { NativeLiveOwnerController } from '../../../screens/settings-live/l
 import type { NativeSettingsLivePorts } from '../../../screens/settings-live/ports';
 import {seriesFormDefaults, type SeriesForm} from '../../../screens/settings-live/recording-rule-presentation';
 import type { NativeRecordingsController } from '../../../screens/settings-live/recordings-controller';
-import {useScreenBack} from '../../../screens/settings-live/Screen';
+import {useScreenBack} from '../../../kit/layout/Screen';
 import {nativeServerAdmission} from '../../../screens/settings-live/server/tv-server-reader';
 import {GUIDE_RECOVERY_SETTLE_MS, guideReentryNext, type GuideReentry, type GuideReentryEvent} from '../../../screens/settings-live/tv-settings-focus';
 import {useGuideTimePan} from '../../../screens/settings-live/useGuideTimePan';

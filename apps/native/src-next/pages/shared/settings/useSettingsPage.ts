@@ -16,7 +16,7 @@ import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports
 import type {NativeSettingsController} from '../../../screens/settings-live/settings-controller';
 import type {NativeDevicePreferences} from '../../../screens/settings-live/device-preference-consumer';
 import {setNativeScreenChromeHidden} from '../../../shell/chrome';
-import {useScreenBack, useScreenEntry} from '../../../screens/settings-live/Screen';
+import {useScreenBack, useScreenEntry} from '../../../kit/layout/Screen';
 import {registerBack} from '../../../kit/navigation/back';
 import type {NativeShellRoute} from '../../../shell/routes';
 import {nativeMenuRouteAvailable} from '../../../shell/account';

@@ -9,7 +9,7 @@ import {repeat} from '../../../../../../packages/client-core/src/timer';
 import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {tvFocusIds} from '../../../shell/tv-focus';
-import {useScreenEntry} from '../../../screens/settings-live/Screen';
+import {useScreenEntry} from '../../../kit/layout/Screen';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeTogetherController} from '../../../screens/settings-live/together-controller';
 

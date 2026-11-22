@@ -4,7 +4,7 @@ import type {NativeRouteRenderer} from './route-registry';
 import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
 import {createNativeSettingsPorts} from '../screens/settings-live/settings-ports';
 import {createNativeSettingsRenderer} from '../screens/settings-live/SettingsRoute';
-import {Screen} from '../screens/settings-live/Screen';
+import {Screen} from '../kit/layout/Screen';
 import {ServerLibrariesPage} from '../pages/touch/settings/ServerLibrariesPage';
 
 /** Reuse the actual owner library editor; no alternate page or administration API. */
