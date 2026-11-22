@@ -25,7 +25,7 @@ import {nativeWatchTracks} from './track-identity';
 import {NativeWatchChannelRoute} from './ChannelRoute';
 import {NativeTVLiveGuide} from './live-guide';
 import {NativeTVLiveActions} from './live-actions';
-import {NativeLiveActionPanels} from './LiveActionPanels';
+import {NativeLiveActionPanels} from '../../kit/player/LiveActionPanels';
 import {NativePlaybackFailed} from './PlaybackFailed';
 import {failureWhatHappened} from './failure-words';
 import {NativeHandheldPlaybackFailed} from '../../kit/player/HandheldPlaybackFailed';

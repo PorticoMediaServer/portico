@@ -1,8 +1,8 @@
 import React, {useCallback, useEffect, useRef} from 'react';
 import {View, useWindowDimensions, type StyleProp, type ViewStyle} from 'react-native';
-import {sameFence, type PlaybackFence} from '../../../../../packages/player-core/src';
-import {sameAuthority, type ShellAuthority} from '../../shell/model';
-import type {NativeExpandedVideoSlot, NativeWatchCurrent, NativeWatchLease, NativeWatchOutletPort} from '../../shell/watch-outlet';
+import {sameFence, type PlaybackFence} from '../../../../packages/player-core/src';
+import {sameAuthority, type ShellAuthority} from './model';
+import type {NativeExpandedVideoSlot, NativeWatchCurrent, NativeWatchLease, NativeWatchOutletPort} from './watch-outlet';
 
 /** Consumer port for Accounts' one watch outlet. No second outlet/store or native bridge. */
 export type NativeWatchPictureSlot = NativeExpandedVideoSlot;

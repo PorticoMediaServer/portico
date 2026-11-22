@@ -2,14 +2,14 @@ import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import React, {useSyncExternalStore} from 'react';
 import {Text} from 'react-native';
 import {legacyChannel, legacyProgramme} from '../../../../../packages/client-core/src/guide/legacy-source';
-import {Dialog, Menu, type MenuEntry} from '../../kit/overlays';
-import {StateView} from '../../kit/states';
-import {useTheme} from '../../kit/theme';
+import {Dialog, Menu, type MenuEntry} from '../overlays';
+import {StateView} from '../states';
+import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {ProgrammeDetails} from '../../kit/live/ProgrammeDetails';
-import {NativeSeriesRuleSheet} from '../settings-live/LiveSeriesRule';
-import type {NativeTVLiveActions} from './live-actions';
+import {ProgrammeDetails} from '../live/ProgrammeDetails';
+import {NativeSeriesRuleSheet} from '../../screens/settings-live/LiveSeriesRule';
+import type {NativeTVLiveActions} from '../../screens/watch/live-actions';
 
 /** Composition over the existing More menu, programme details and DVR rule sheet.
  * Their services and every callback belong to the supplied original opening. */

@@ -68,7 +68,7 @@ async function fixture() {
     './title-controller': {}, './title-starts': {NativeTitleStarts}, './TitleScreen': {}, '../../pages/touch/title/routes': {touchTitlePages: {}}, '../../pages/tv/title/routes': {tvTitlePages: {}}, './FileInfoContent': {}, '../../pages/shared/title/FileInfoPanel': {}, './file-info': {}, '../../../../../packages/client-core/src/file-info-session': {}, './playback-info': {}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {},
     './version-options': versionsModel, './version-destination': {NativeVersionChooserController}, './disc-titles-controller': {}, './disc-titles': {},
     './controls': {NativeWatchControls: class {route() {} source() {} dispose() {} back() {return false;}}},
-    './WatchChrome': {}, './picture-slot': {}, './WatchHost': {NativeWatchHost: 'WatchHost'}, './EpisodePanel': {},
+    './WatchChrome': {}, '../../shell/watch-picture': {}, './WatchHost': {NativeWatchHost: 'WatchHost'}, './EpisodePanel': {},
   });
   let ports: any, screens: any;
   const {createNativeWatchModule} = await screenModule(new URL('../src-next/screens/watch/module.tsx', import.meta.url), {'./system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText}, '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'}, 
@@ -86,7 +86,7 @@ async function fixture() {
     './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks: () => ({})}, './ChannelRoute': {},
     './live-guide': {NativeTVLiveGuide: class {constructor(...args: any[]) {liveGuideArguments.push(args); guides.push(this);} guideAction() {return () => {guideCalls++;};} close() {return false;} dispose() {}}},
     './live-actions': {NativeTVLiveActions: class {constructor(...args: any[]) {actions.push(args);} close() {return false;} dispose() {}}},
-    './LiveActionPanels': {NativeLiveActionPanels: 'LiveActions'}, './PlaybackFailed': {NativePlaybackFailed: 'TVFailure'},
+    '../../kit/player/LiveActionPanels': {NativeLiveActionPanels: 'LiveActions'}, './PlaybackFailed': {NativePlaybackFailed: 'TVFailure'},
     '../../kit/player/HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, '../../kit/player/WatchPostPlay': {}, './panel-names': {},
   });
   const bindings: any = {title: {reportError: assert.fail, renderError: assert.fail, navigate() {}}, names: {}, requestId: async () => 'request',

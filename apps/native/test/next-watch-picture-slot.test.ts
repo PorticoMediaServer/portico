@@ -10,9 +10,9 @@ import {sameAuthority} from '../src-next/shell/model.ts';
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const fence = (generation: number) => playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version', entryId: 'entry', generation});
 let window = {width: 800, height: 1000};
-const {NativeWatchPicture} = await screenModule(new URL('../src-next/screens/watch/picture-slot.tsx', import.meta.url), {
+const {NativeWatchPicture} = await screenModule(new URL('../src-next/shell/watch-picture.tsx', import.meta.url), {
   react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => window},
-  '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
+  '../../../../packages/player-core/src': {sameFence}, './model': {sameAuthority},
 });
 
 test('picture measurement retains registration through posture/window change and rejects delayed old source/window results', async () => {
