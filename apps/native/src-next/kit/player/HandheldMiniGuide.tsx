@@ -25,6 +25,8 @@ export function NativeHandheldMiniGuide({context, guide, snapshot}: {
   const close = () => {guide.close(snapshot);};
   useOverlayLifecycle(snapshot.open, true, close, first, undefined, 0, 'watch-mini-guide');
   const current = () => snapshot.open && guide.getSnapshot() === snapshot;
+  // While the open guide's programmes are read, the note says so and a row without one says nothing (as on TV), never "No information".
+  const loading = snapshot.phase === 'loading' || !!snapshot.programmesLoading && snapshot.rows.every(row => !row.programmes.length);
   const upright = context.layout.mode === 'watch', paged = context.layout.panelPaged === true;
   const docked = context.layout.mode === 'full-window' && !!context.layout.surface && context.layout.surface.width < context.renderer.width;
   const tablet = docked && !paged;
@@ -46,7 +48,7 @@ export function NativeHandheldMiniGuide({context, guide, snapshot}: {
     <FocusRegion id="watch-mini-guide" hold orientation="vertical" style={{flex: 1}}>
       <MiniGuideHead docked={tablet} upright={upright} close={{label: t('action.close'), onPress: close, ref: first}}/>
       {!!snapshot.error && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.textSecondary, paddingHorizontal: 18, paddingBottom: 10}]}>{playbackUserMessage(snapshot.error)}</Text>}
-      {snapshot.phase === 'loading' && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, paddingHorizontal: 18, paddingBottom: 10}]}>{t('next.browse.native.markAllPreparing')}</Text>}
+      {loading && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, paddingHorizontal: 18, paddingBottom: 10}]}>{t('next.browse.native.markAllPreparing')}</Text>}
       <ScrollView contentContainerStyle={{paddingTop: 4, paddingHorizontal: tablet ? 0 : 8, paddingBottom: tablet ? 24 : 8}}>
         {snapshot.rows.map(row => {
           const {channel} = row, programme = nowNext(row.programmes, now), next = programme.next;
@@ -55,7 +57,7 @@ export function NativeHandheldMiniGuide({context, guide, snapshot}: {
             ? Math.max(0, Math.min(1, (now - start) / (end - start))) : undefined;
           const id = `${channel.kind}/${channel.sourceId ?? ''}/${channel.id}`;
           return <MiniGuideRow key={id} id={id} channel={channel} logo={channel.logoUrl ? context.runtime.artwork(channel.logoUrl) : undefined} docked={tablet}
-            title={programme.now?.title} progress={progress} next={next && {title: next.title, at: time(next.start)}} watching={row.step === 0}
+            title={programme.now?.title ?? (loading ? '' : undefined)} progress={progress} next={next && {title: next.title, at: time(next.start)}} watching={row.step === 0}
             disabled={!current() || snapshot.busy || !channel.tuneAvailable} busy={snapshot.busy}
             onPress={() => {if (current()) void guide.tune(row, snapshot, context.runtime.reportError);}}/>;
         })}
