@@ -424,6 +424,8 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       personal: {myList: true, favorite: true, watched: true},
       queue: runtime?.catalogueQueue(),
       playback: runtime?.cataloguePlayback()});
+    // Select all reads the server's exact summary for these same actions (every title's own grants), not an estimate.
+    controller.setSelectionPorts(playSelection.ports);
     const selection = createLibrarySelection({
       playSelection,
       pickers: {api: withRequestRaw(api, raw, () => {if (!current()) throw new DOMException('Browse selection retired', 'AbortError');}), queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId, requestId: async () => randomId(),
@@ -433,6 +435,8 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
       ...(runtime ? {enqueue: playSelection.enqueue, enqueueQuery: playSelection.enqueueQuery} : {}),
       owner: context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local',
       descriptor: () => controller.wholeSelection(),
+      wholeSelection: {subscribe: controller.subscribe, getSnapshot: () => controller.wholeSelection()},
+      requestWholeSelection: () => controller.requestWholeSelection(),
       wholeSelectionUnavailable: {subscribe: controller.subscribe, getSnapshot: () => controller.wholeSelectionUnavailable()},
       ...(context.identity?.viewer.role === 'owner' && context.identity.viewer.authority === 'local' ? {deletion: {api, queries: context.queries, serverId: context.scope.serverId, viewerId: context.scope.viewerId,
         requestId: async () => randomId(), signal, isCurrent: current}, editor: {

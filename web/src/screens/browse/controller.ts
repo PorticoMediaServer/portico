@@ -4,6 +4,7 @@ import {browseMembershipId, parseBrowseCapabilities, parseBrowseFacets, parseBro
 import {BrowseSession, browseSessionBuilder, browseSessionClosed, type BrowseSessionQuery} from '@core/browse-session.ts';
 import {createWindowedCollection, type WindowedCollection} from '@core/collections/windowed.ts';
 import type {ContentEntry, LibraryContentApi} from '@core/library-content.ts';
+import type {CatalogueSelectionPorts} from '@core/catalogue-offers.ts';
 import {isStaleAnswer} from '@core/freshness-actions.ts';
 import {listedTitlesWithPersonalState, readsPersonalState, titleIdsOf, type FreshDocument} from '@core/freshness-hub.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
@@ -91,6 +92,24 @@ export class BrowseController {
   }
   wholeSelectionUnavailable(): BrowseWholeSelectionUnavailable | undefined {
     return this.current() && this.state.phase === 'ready' && !!this.state.revision ? this.session?.wholeSelectionUnavailable() : undefined;
+  }
+  /** The actions this screen can run on a selection. Given, Select all is offered on the server's exact summary of the
+   * whole list (every title's own grants and availability), read when someone selects, instead of an estimate that
+   * granted every action to every title. Changing them drops a summary already held. */
+  private selectionPorts?: CatalogueSelectionPorts;
+  setSelectionPorts(ports: CatalogueSelectionPorts | undefined): void {
+    if (JSON.stringify(ports ?? null) === JSON.stringify(this.selectionPorts ?? null)) return;
+    this.selectionPorts = ports;
+    this.session?.forgetWholeSelection();
+    this.publish({});
+  }
+  /** Someone is selecting: read the exact whole-list summary (once per list; again after a forget). */
+  requestWholeSelection(): void {
+    if (this.current() && this.selectionPorts) void this.session?.requestWholeSelection();
+  }
+  /** The selection model refused a window (a title changed since the summary): drop it and read it again. */
+  forgetWholeSelection(): void {
+    if (this.current()) this.session?.forgetWholeSelection();
   }
   private publish(patch: Partial<BrowseState>) {
     if (!this.current()) return;
@@ -244,6 +263,7 @@ export class BrowseController {
     this.collection.ensureRange(0, 0);
   }
   private openSession(caps: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection, epoch: number): BrowseSession<BrowseMember> {
+    const ports = () => this.selectionPorts;
     const session: BrowseSession<BrowseMember> = new BrowseSession<BrowseMember>({query: this.sessionQuery(caps, predicates, sort),
       request: (path, method, body, signal) => this.api.request(path, method, body, signal),
       current: () => this.current() && epoch === this.epoch && (this.session === session || this.replacing === session),
@@ -251,6 +271,8 @@ export class BrowseController {
       onRevision: revision => this.publish({revision}),
       onFacts: facts => this.collection.learn?.(session.fetchPage, facts),
       onWhole: () => this.publish({}),
+      // Read when the session asks, so ports given after it opened still apply.
+      get selectionPorts() {return ports();},
       onWholeUnavailable: () => this.publish({}),
       onStale: error => {
         if (!this.staleRetried && this.state.revision === undefined && this.current() && epoch === this.epoch) {this.staleRetried = true; this.reset({}, true); return;}

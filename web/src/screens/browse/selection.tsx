@@ -60,6 +60,10 @@ export type LibrarySelectionOptions = Readonly<{
   /** The server's optional descriptor for this exact page, when the controller holds one. */
   descriptor?: () => BrowseWholeSelection | undefined;
   wholeSelectionUnavailable?: Readonly<{getSnapshot: () => BrowseWholeSelectionUnavailable | undefined; subscribe: (listener: () => void) => () => void}>;
+  /** The exact whole-list summary as it arrives (the toolbar redraws with it), and the call that asks for it when someone
+   *  starts selecting. Without them the descriptor is read once per draw. */
+  wholeSelection?: Readonly<{getSnapshot: () => BrowseWholeSelection | undefined; subscribe: (listener: () => void) => () => void}>;
+  requestWholeSelection?: () => void;
   /** The real job ports. Absent means the bar offers no personal action at all. */
   actions?: SelectionActionsOptions;
   editor?: SelectionEditorOptions;
@@ -148,6 +152,7 @@ type VisibleStore = Readonly<{subscribe: (listener: () => void) => () => void; g
 type ProgressStore = Readonly<{subscribe: (listener: () => void) => () => void; getSnapshot: () => PersonalProgress | undefined}>;
 
 const noUnavailable = () => undefined;
+const noWhole = (): BrowseWholeSelection | undefined => undefined;
 const noUnavailableSubscription = (_listener: () => void) => () => {};
 
 function LibrarySelectionToolbar(props: LibrarySelectionOptions & {visible: VisibleStore; openDelete: () => void; openEditor: (anchor: HTMLElement) => void; progress: ProgressStore; personal: (action: PersonalSelectionAction | 'refresh') => Promise<void>; queue: (placement: 'next' | 'end') => Promise<void>; addToPlaylist: (anchor: HTMLElement) => Promise<void>; addToCollection: (anchor: HTMLElement) => Promise<void>}) {
@@ -177,8 +182,12 @@ function LibrarySelectionToolbar(props: LibrarySelectionOptions & {visible: Visi
   }, [playSelection, reportError]);
   const unavailable = useSyncExternalStore(props.wholeSelectionUnavailable?.subscribe ?? noUnavailableSubscription,
     props.wholeSelectionUnavailable?.getSnapshot ?? noUnavailable, props.wholeSelectionUnavailable?.getSnapshot ?? noUnavailable);
+  const exactWhole = useSyncExternalStore(props.wholeSelection?.subscribe ?? noUnavailableSubscription,
+    props.wholeSelection?.getSnapshot ?? noWhole, props.wholeSelection?.getSnapshot ?? noWhole);
+  const selecting = current.phase === 'ready' && !!current.selection?.active, requestWhole = props.requestWholeSelection;
+  useEffect(() => {if (selecting) requestWhole?.();}, [selecting, requestWhole]);
   if (current.phase !== 'ready' || !current.selection?.active) return null;
-  const summary = current.selection.summary, whole = descriptor?.(), selectWhole = playSelection.selectWhole;
+  const summary = current.selection.summary, whole = props.wholeSelection ? exactWhole : descriptor?.(), selectWhole = playSelection.selectWhole;
   const target = current.selection.target;
   const queryCan = (capability: 'play' | 'queue') => {
     if (target?.mode !== 'query') return false;
@@ -226,7 +235,7 @@ function LibrarySelectionToolbar(props: LibrarySelectionOptions & {visible: Visi
     sticky />;
 }
 
-export function createLibrarySelection({playSelection, owner, descriptor, wholeSelectionUnavailable, actions, editor, deletion, pickers, enqueue, enqueueQuery, destinations, reportError}: LibrarySelectionOptions): LibrarySelection {
+export function createLibrarySelection({playSelection, owner, descriptor, wholeSelectionUnavailable, wholeSelection, requestWholeSelection, actions, editor, deletion, pickers, enqueue, enqueueQuery, destinations, reportError}: LibrarySelectionOptions): LibrarySelection {
   const visibleListeners = new Set<() => void>();
   let visibleValue: VisibleRange | undefined;
   const visible: VisibleStore = {subscribe: listener => {visibleListeners.add(listener); return () => {visibleListeners.delete(listener);};}, getSnapshot: () => visibleValue};
@@ -358,7 +367,7 @@ export function createLibrarySelection({playSelection, owner, descriptor, wholeS
     }
   };
   return {
-    toolbar: <><LibrarySelectionToolbar visible={visible} pickers={pickers} deletion={deletion} openDelete={openDelete} editor={editor} openEditor={openEditor} progress={progress} owner={owner} playSelection={playSelection} descriptor={descriptor} wholeSelectionUnavailable={wholeSelectionUnavailable} actions={actions} enqueue={enqueue} enqueueQuery={enqueueQuery} destinations={destinations} reportError={reportError} personal={personal} queue={queue} addToPlaylist={addToPlaylist} addToCollection={addToCollection} />{editor && <LibraryEditorHost playSelection={playSelection} store={editorStore} options={editor} close={closeEditor}/>}{deletion && <LibraryDeleteHost playSelection={playSelection} store={deleteStore} options={deletion} close={closeDelete}/>}{pickers && <LibraryPickerHost playSelection={playSelection} store={pickerStore} options={pickers} close={closePicker}/>}</>,
+    toolbar: <><LibrarySelectionToolbar visible={visible} pickers={pickers} deletion={deletion} openDelete={openDelete} editor={editor} openEditor={openEditor} progress={progress} owner={owner} playSelection={playSelection} descriptor={descriptor} wholeSelectionUnavailable={wholeSelectionUnavailable} wholeSelection={wholeSelection} requestWholeSelection={requestWholeSelection} actions={actions} enqueue={enqueue} enqueueQuery={enqueueQuery} destinations={destinations} reportError={reportError} personal={personal} queue={queue} addToPlaylist={addToPlaylist} addToCollection={addToCollection} />{editor && <LibraryEditorHost playSelection={playSelection} store={editorStore} options={editor} close={closeEditor}/>}{deletion && <LibraryDeleteHost playSelection={playSelection} store={deleteStore} options={deletion} close={closeDelete}/>}{pickers && <LibraryPickerHost playSelection={playSelection} store={pickerStore} options={pickers} close={closePicker}/>}</>,
     entry: (member, index) => {
       // A radio station has no item to select: its own screen plays its seed.
       if (member.entry.kind === 'radio') return undefined;
