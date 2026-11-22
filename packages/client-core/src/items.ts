@@ -133,6 +133,12 @@ export function readItems(api: ServerRequester, query: ItemListQuery, page: Read
   return callServer(api, 'GET /v1/items', {query: {...query, cursor: page.cursor, at: page.cursor ? undefined : page.at || undefined, limit: page.limit, total: page.total || undefined}, signal});
 }
 /** How many titles the list holds. Its own request, because a count takes longer than a page as a list grows. */
+/** The app's card kind for a server kind ('track' is a song, 'audiobook' a book), or undefined. */
+export const entryKindOf = (kind: string): ContentEntryKind | undefined => entryKinds[kind];
+/** What "select all" over a list stands for: per kind, how many titles the viewer sees and how many are available,
+ * counted by the server under the list's own condition. It reads the whole list, so ask when someone selects. */
+export const readSelectionCounts = (api: ServerRequester, query: ItemListQuery, signal?: AbortSignal) =>
+  callServer(api, 'GET /v1/items/selection', {query, signal});
 export async function countItems(api: ServerRequester, query: ItemListQuery, signal?: AbortSignal): Promise<number | undefined> {
   return (await readItems(api, query, {limit: 1, total: true}, signal)).total ?? undefined;
 }

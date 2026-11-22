@@ -4032,6 +4032,11 @@ export interface SegmentTitleSummary {
   poster?: string;
 }
 
+export interface SelectionCounts {
+  total: number;
+  kinds: SelectionKindCount[];
+}
+
 export interface SelectionDelete {
   ids: string[];
 }
@@ -4052,6 +4057,12 @@ export interface SelectionDeletion {
   listEntries: number;
   otherPeople: number;
   alsoRemoves: TitleRef[];
+}
+
+export interface SelectionKindCount {
+  kind: string;
+  count: number;
+  available: number;
 }
 
 export interface ServerCapabilities {
@@ -4826,6 +4837,7 @@ export interface Routes {
   'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};
   'GET /v1/search/history': {access: 'withProfile'; request: undefined; response: SearchHistory};
   'DELETE /v1/search/history': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/items/selection': {access: 'withProfile'; request: undefined; response: SelectionCounts};
   'GET /v1/libraries': {access: 'withProfile'; request: undefined; response: Libraries};
   'GET /v1/libraries/{id}': {access: 'withProfile'; request: undefined; response: Library};
   'GET /v1/libraries/{id}/landing': {access: 'withProfile'; request: undefined; response: Home};

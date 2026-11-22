@@ -6,17 +6,17 @@ import type {ContentEntry} from './library-content.ts';
 import type {SegmentInput} from './playback-v1/queue.ts';
 import type {QueueHeader} from './playback-v1/types.ts';
 import type {V1QueuePlayer} from './playback-v1/v1-queue-player.ts';
-import type {SelectionCapabilities, SelectionItem} from './selection-model/types.ts';
+import type {SelectionItem} from './selection-model/types.ts';
 import {checkedItem} from './selection-model/validation.ts';
 import {selectionCapabilities} from './selection-model/capabilities.ts';
+import {catalogueContainerKinds, containerOffered, grantedCapabilities, type CatalogueSelectionPorts} from './catalogue-offers.ts';
 
 /** The caller captures its own source continuity and principal/route authority.
  * Search/Saved fences and opaque Browse revisions remain in their own domains. */
 export type CatalogueSelectionLifetime = Readonly<{signal: AbortSignal; isCurrent(): boolean}>;
 /** `fresh`: read each title's grants from the server, for a check right before a write (delete). Offering actions on visible cards reads through the cache. */
 export type CatalogueSelectionOptions = Readonly<{queries: ViewerQueries; api: DetailApi; scope: DetailScope; requestId(): Promise<string>; fresh?: boolean}> & CatalogueSelectionLifetime;
-/** Actual caller execution ports, never role-derived grants. Missing means unavailable. */
-export type CatalogueSelectionPorts = Readonly<Partial<Pick<SelectionCapabilities, 'play' | 'queue' | 'myList' | 'favorite' | 'watched' | 'edit' | 'delete' | 'playlist' | 'collection'>>>;
+export type {CatalogueSelectionPorts} from './catalogue-offers.ts';
 const unavailable = () => Object.assign(new Error('catalogue-selection-unavailable'), {code: 'catalogue-selection-unavailable'});
 function requireCurrent(lifetime: CatalogueSelectionLifetime): void {
   if (lifetime.signal.aborted || !lifetime.isCurrent()) throw Object.assign(new Error('cancelled'), {name: 'AbortError', code: 'cancelled'});
@@ -38,23 +38,12 @@ export async function readCatalogueSelectionItem(options: CatalogueSelectionOpti
   const availablePorts = Object.freeze({...ports});
   requireCurrent(lifetime);
   const entry = validateHomeEntry(input), target = selectionItem(entry);
-  if (!target && entry.libraryId && ['show', 'season', 'album', 'artist', 'book', 'collection'].includes(entry.kind)) {
-    // The rebuilt server sends no per-card grants: a container offers what any profile may do with it (its own state
-    // and lists, and playing it); edit and delete are the owner's, from the title's page. Watched where the kind has it.
-    const offered = entry.homeActions?.selection ?? {play: true, queue: true, myList: true, favorite: true, watched: true, playlist: true, collection: true, edit: false, delete: false};
-    // Canonical displayed-container selection offers describe server-expanded
+  if (!target && entry.libraryId && catalogueContainerKinds.includes(entry.kind as never)) {
+    // The rebuilt server sends no per-card grants: a container offers containerOffered (catalogue-offers.ts), unless
+    // its card carries its own. Canonical displayed-container selection offers describe server-expanded
     // membership. They never borrow an entry.playback/resume child identity.
-    return checkedItem({kind: entry.kind, id: entry.id, libraryId: entry.libraryId, capabilities: selectionCapabilities(entry.kind, {
-      play: availablePorts.play === true && offered?.play === true,
-      queue: availablePorts.queue === true && offered?.queue === true,
-      myList: availablePorts.myList === true && offered?.myList === true,
-      favorite: availablePorts.favorite === true && offered?.favorite === true,
-      watched: availablePorts.watched === true && offered?.watched === true,
-      edit: availablePorts.edit === true && offered?.edit === true,
-      delete: availablePorts.delete === true && offered?.delete === true,
-      playlist: availablePorts.playlist === true && offered?.playlist === true,
-      collection: availablePorts.collection === true && offered?.collection === true,
-    })});
+    const offered = entry.homeActions?.selection ?? containerOffered;
+    return checkedItem({kind: entry.kind, id: entry.id, libraryId: entry.libraryId, capabilities: grantedCapabilities(entry.kind as never, offered, availablePorts)});
   }
   if (!target || target.itemId !== entry.id) throw unavailable();
   const service = new DetailService({queries: options.queries, api: capturedApi(api, lifetime), scope: Object.freeze({...scope}), requestId});
