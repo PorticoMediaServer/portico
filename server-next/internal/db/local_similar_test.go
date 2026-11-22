@@ -113,7 +113,9 @@ func TestLocalSimilarUsesNarrowSignalsAndNeverPadsEnhancedData(t *testing.T) {
 	if err := d.write(ctx, User, func(tx *sql.Tx) error {
 		for _, stmt := range []string{
 			`INSERT INTO libraries(id,public_id,name,kind,created_at,updated_at) VALUES(2,'lib4k','Movies 4K','movies',0,0)`,
-			`UPDATE items SET year=2001 WHERE id IN (2,5)`,
+			`UPDATE items SET year=2001 WHERE id IN (1,2,5)`,
+			`INSERT INTO items(id,public_id,library_id,kind,title,sort_title,year,rating_age,added_at,updated_at) VALUES(904,'copy1',2,1,'Title 1','Title 1',2001,0,0,0)`,
+			`INSERT INTO credits(item_id,position,person_id,role) VALUES(904,0,1,1)`,
 			`INSERT INTO items(id,public_id,library_id,kind,title,sort_title,year,rating_age,added_at,updated_at) VALUES
 				(900,'copy2',2,1,'Title 2','Title 2',2001,0,0,0),(901,'copy5',2,1,'Title 5','Title 5',2001,0,0,0),
 				(902,'copy4',2,1,'Title 4','Title 4',NULL,0,0,0),(903,'other3',2,1,'Title 3','Title 3',NULL,0,0,0)`,
@@ -140,6 +142,10 @@ func TestLocalSimilarUsesNarrowSignalsAndNeverPadsEnhancedData(t *testing.T) {
 		if cursor = page.NextCursor; cursor == "" {
 			break
 		}
+	}
+	// A title's own copy in another library is not a suggestion for it.
+	if titles["Title 1"] != 0 {
+		t.Fatalf("Title 1 suggests its own 4K copy")
 	}
 	if titles["Title 2"] != 1 || titles["Title 3"] != 2 {
 		t.Fatalf("copies across pages: Title 2 ×%d (want 1), Title 3 with no year ×%d (want 2)", titles["Title 2"], titles["Title 3"])
