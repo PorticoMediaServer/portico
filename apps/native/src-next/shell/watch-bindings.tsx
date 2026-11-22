@@ -9,7 +9,7 @@ import {NativeWatchExternalRequests} from '../screens/watch/external-requests';
 import {askNativeDownload} from '../screens/downloads/request';
 import {createMusicPlaylistPicker} from '../screens/destinations/music/MusicPlaylistPicker';
 import {nativeDownloadRequest} from '../screens/watch/download-request';
-import {createNativeTitleActions} from '../screens/watch/title-actions';
+import {createNativeTitleActions} from './title-actions';
 import {createNativeTitleSelection} from '../pages/shared/title/title-selection';
 
 /** One real authority-local composition, borrowed by handheld and TV entry.

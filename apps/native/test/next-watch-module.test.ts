@@ -43,7 +43,7 @@ const {createNativeWatchModule, nativeWatchChromeFacts} = await screenModule(new
   '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue},
   '../../../../../packages/client-core/src/playback-v1/quality': {qualityOptionSelected}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks},
   '../../../../../packages/i18n/src': {defaultI18n}, './panel-names': {createNativeWatchPanelNames},
-  './ChannelRoute': {NativeWatchChannelRoute: 'Channel'},
+  '../../shell/channel-route': {NativeWatchChannelRoute: 'Channel'},
   '../../kit/player/PlaybackInfoPanel': {NativePlaybackInfoPanel: 'PlaybackInfo', playbackInfoWords: infoPanel.playbackInfoWords},
   './WatchPanels': {NativeWatchPanels: 'Panels'}, './panel-options': {NativeWatchPanelOptions: class {dispose() {optionsDisposed++;}}},
   './live-guide': {NativeTVLiveGuide: class {guideAction() {return () => {};} close() {return false;} dispose() {}}},

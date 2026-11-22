@@ -41,7 +41,7 @@ import {NativeWatchPicture, type NativeWatchPictureProps} from '../../shell/watc
 import {NativeWatchHost, type NativeWatchHostBindings, type NativeWatchHostContext} from './WatchHost';
 import {NativeWatchEpisodes} from './EpisodePanel';
 import type {MenuAction} from '../../kit/overlays/types';
-import type {NativeTitleActionsHandle} from './title-actions';
+import type {NativeTitleActionsHandle} from '../../shell/title-actions';
 import type {NativeSelection} from '../selection/native-selection';
 import {viewerQueriesFor} from '../../shell/freshness';
 

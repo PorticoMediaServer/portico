@@ -6,10 +6,10 @@ import {screenModule} from './helpers/screen-harness.mjs';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {NativeShellNavigation} from '../src-next/shell/routes.ts';
 const platform={isTV:false};
-const {NativeWatchChannelRoute}=await screenModule(new URL('../src-next/screens/watch/ChannelRoute.tsx',import.meta.url),{
+const {NativeWatchChannelRoute}=await screenModule(new URL('../src-next/shell/channel-route.tsx',import.meta.url),{
  react:{...React,default:React},'react-native':{Platform:platform,View:'View'},'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:20})},
- '../../../../../packages/i18n/src':{defaultI18n:{t:(key:string)=>key}},'../../../../../packages/player-core/src':await import('../../../packages/player-core/src/index.ts'),
- '../../kit/controls':{Button:'Button'},
+ '../../../../packages/i18n/src':{defaultI18n:{t:(key:string)=>key}},'../../../../packages/player-core/src':await import('../../../packages/player-core/src/index.ts'),
+ '../kit/controls':{Button:'Button'},
 });
 const nodes=(value:any):any[]=>Array.isArray(value)?value.flatMap(nodes):value?.props?[value,...nodes(value.props.children)]:[];
 const authority={serverId:'server',accountId:'account',profileId:'profile',epoch:'family',viewerFence:'viewer'};
