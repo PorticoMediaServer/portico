@@ -34,9 +34,17 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
   if (io) react.useEffect = (effect: () => unknown) => {io.effects.push(effect);};
   react.default = react;
   const theme = createTheme({width: isTV ? 1920 : 800, isTV});
-  const safeMode = await screenModule(new URL('../src-next/screens/settings-live/NativeSafeModeRow.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View'}, '../../kit/controls': {Select: 'Select'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/shell': {SettingsRow: 'SettingsRow'},
+  const deviceRows = await screenModule(new URL('../src-next/pages/shared/settings/useDeviceRows.ts', import.meta.url), {
+    react, 'react-native': {AppState: {addEventListener: () => ({remove() {}})}, NativeModules: {}, Platform: {Version: 17}},
+    '../../../platform/playback/passthrough-formats': {passthroughFormats}, '../../../platform/device-settings': {}, '../../../screens/settings/device-preference-bindings': {},
+    '../../../../../../packages/client-core/src/client-profile': {appleProfile: () => ({engines: {native: {}}})}, '../../../../../../packages/client-core/src/installation': {installationIdentity: () => undefined},
   });
+  const playbackRows = await screenModule(new URL('../src-next/pages/shared/settings/DevicePlaybackRows.tsx', import.meta.url), {
+    react, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../../kit/controls': {Select: 'Select', Switch: 'Switch'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    '../../../kit/settings/DeviceRows': {DeviceRowBlock: ({children}: {children: unknown}) => children, RowValueSelect: 'Select'},
+    '../../../platform/playback/passthrough-formats': {passthroughFormats}, './useDeviceRows': deviceRows,
+  });
+  const safeMode = {NativeSafeModeRow: playbackRows.NativeSafeModeRow, nativeSafeModeAvailable: deviceRows.nativeSafeModeAvailable, nativeSafeModeFocusId: deviceRows.nativeSafeModeFocusId};
   const module = await settingsFixture({'../../../../../packages/client-core/src/home-selection/list-destinations': {withGuardedRaw: (api: unknown) => api}, '../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true},
     './use-tv-voice-search': {useTVVoiceSearch: () => ({start: undefined, busy: false})},
     './tv-settings-focus': tvSettingsFocus,

@@ -13,11 +13,7 @@ import type {NativeDevicePreferences} from '../../../screens/settings-live/devic
 import {passthroughFormats} from '../../../platform/playback/passthrough-formats';
 import {nativeDynamicRangeMatchingAvailable} from '../../../platform/playback/dynamic-range-matching';
 import {nativeEqualizer} from '../../../platform/playback/equalizer';
-import {nativeDynamicRangeFocusId} from '../../../screens/settings-live/NativeDynamicRangeRow';
-import {nativeFrameRateFocusId} from '../../../screens/settings-live/NativeFrameRateRow';
-import {nativePassthroughFocusId} from '../../../screens/settings-live/NativePassthroughRow';
-import {nativeLossNoticesFocusId} from '../../../screens/settings-live/NativeLossNoticesRow';
-import {nativeSafeModeAvailable, nativeSafeModeFocusId} from '../../../screens/settings-live/NativeSafeModeRow';
+import {nativeDynamicRangeFocusId, nativeFrameRateFocusId, nativeLossNoticesFocusId, nativePassthroughFocusId, nativeSafeModeAvailable, nativeSafeModeFocusId} from './useDeviceRows';
 import type {MutableRefObject} from 'react';
 
 /** playback-info frame 13b draws one hint under each Player choice; the runtime settings
