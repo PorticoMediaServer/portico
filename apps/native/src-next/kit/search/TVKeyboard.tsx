@@ -1,14 +1,14 @@
 import React from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Focusable} from '../../kit/controls';
-import {FocusItem, FocusRegion} from '../../kit/focus';
-import {Icon} from '../../kit/Icon';
-import {alpha, browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
-import type {NativeDestinationActivation} from '../destinations/focus';
-import {useDestinationEntryFocus} from '../destinations/useEntryFocus';
-import {applyNativeTVKeyboardKey, nativeTVKeyboardRows} from './keyboard';
+import {Focusable} from '../controls';
+import {FocusItem, FocusRegion} from '../focus';
+import {Icon} from '../Icon';
+import {alpha, browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
+import type {NativeDestinationActivation} from '../focus/destination-entry';
+import {useDestinationEntryFocus} from '../focus/useDestinationEntryFocus';
+import {applyNativeTVKeyboardKey, nativeTVKeyboardRows} from '../../screens/search/keyboard';
 
 export type NativeTVKeyboardProps = Readonly<{
   /** Authority- and route-bound caller identity; Search and a retained sheet are distinct. */

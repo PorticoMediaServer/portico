@@ -86,7 +86,7 @@ async function screen(react: unknown) {
   });
   const {TVSearchPage} = await screenModule(new URL('../src-next/pages/tv/search/SearchPage.tsx', import.meta.url), {
     react, '../../../kit/frames': {SearchFrame: 'SearchFrame'}, '../../../kit/search/TVSearchContent': content,
-    '../../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
+    '../../../kit/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
   });
   return {...content, TVSearchPage, renderResults: resultHost.render};
 }
@@ -197,12 +197,12 @@ test('the drawn empty page is states.html#f18 and its genre tiles keep the drawn
 
 test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and exact key geometry', async () => {
   const host = hooks();
-  const {NativeTVKeyboard} = await screenModule(new URL('../src-next/screens/search/TVKeyboard.tsx', import.meta.url), {
+  const {NativeTVKeyboard} = await screenModule(new URL('../src-next/kit/search/TVKeyboard.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/browse/presentation': presentation, '../../kit/theme': {useTheme: () => theme},
-    '../destinations/useEntryFocus': {useDestinationEntryFocus: (_activation: unknown, address: unknown) => {entryRequests.push(address);}},
-    '../destinations/focus': {}, './keyboard': {applyNativeTVKeyboardKey, nativeTVKeyboardRows},
+    '../controls': {Focusable: 'Focusable'}, '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useFocusRegistry: () => createFocusRegistry()}, '../Icon': {Icon: 'Icon'},
+    '../browse/presentation': presentation, '../theme': {useTheme: () => theme},
+    '../focus/useDestinationEntryFocus': {useDestinationEntryFocus: (_activation: unknown, address: unknown) => {entryRequests.push(address);}},
+    '../focus/destination-entry': {}, '../../screens/search/keyboard': {applyNativeTVKeyboardKey, nativeTVKeyboardRows},
   });
   const typed: string[] = [], rows: string[] = [], activation = {visible: true, intent: 'enter' as const, revision: 7};
   const tree = host.render(() => NativeTVKeyboard({id: ids.searchKeyboard, value: 'the l', onChangeText: (value: string) => typed.push(value),

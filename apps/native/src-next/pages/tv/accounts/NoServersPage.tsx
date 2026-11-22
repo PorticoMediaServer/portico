@@ -4,7 +4,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {TVAccountLinks, TVAccountNotice, TVAccountWidePage, TVDoor, TVDoors, TVInvitationForm} from '../../../kit/accounts/TVNoServerParts';
 import {Button, TextField} from '../../../kit/controls';
 import {FocusProvider} from '../../../kit/focus';
-import {NativeTVKeyboard} from '../../../screens/search/TVKeyboard';
+import {NativeTVKeyboard} from '../../../kit/search/TVKeyboard';
 import {useTVNoServers, type TVNoServersProps} from '../../shared/accounts/useTVNoServers';
 
 const t = defaultI18n.t, download = 'https://getportico.tv/download/';

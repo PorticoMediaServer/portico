@@ -8,7 +8,7 @@ import {useFocusRegistry} from '../focus';
 import {Banner, SidePanel} from '../overlays';
 import {alpha, browseType} from '../browse/presentation';
 import {useTheme} from '../theme';
-import {NativeTVKeyboard} from '../../screens/search/TVKeyboard';
+import {NativeTVKeyboard} from '../search/TVKeyboard';
 import {nativeTVNameEdit, nativeTVNamingFirstKey} from '../../screens/library/tv-library/naming';
 import type {NativeTVLibraryNaming, NativeTVLibraryNamingStore} from '../../screens/library/tv-library/naming';
 

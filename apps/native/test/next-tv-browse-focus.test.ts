@@ -80,7 +80,7 @@ test('TV saved-name form uses the remote keyboard, authored panel size, trim/bou
     react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
     '../controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'},
     '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({focus: (address: any) => focused.push(address)})},
-    '../browse/presentation': type, '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
+    '../browse/presentation': type, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
     '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../theme': {useTheme: () => theme},
   });
   const props: any = {open: true, title: 'Name', action: 'Save', initialName: '', withSummary: true, withVisibility: true, busy: false, testID: 'create', onClose() {}, onSave: (input: any) => saved.push(input)};

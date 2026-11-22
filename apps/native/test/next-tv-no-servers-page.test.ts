@@ -21,7 +21,7 @@ async function page() {
     '../../../../../../packages/i18n/src': {defaultI18n},
     '../../../kit/accounts/TVNoServerParts': {TVAccountLinks: 'Links', TVAccountNotice: 'Notice', TVAccountWidePage: 'Page', TVDoor: 'Door', TVDoors: 'Doors', TVInvitationForm: 'Form'},
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/focus': {FocusProvider: 'FocusProvider'},
-    '../../../screens/search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../shared/accounts/useTVNoServers': hook});
+    '../../../kit/search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../shared/accounts/useTVNoServers': hook});
   return {module, entries, backs};
 }
 

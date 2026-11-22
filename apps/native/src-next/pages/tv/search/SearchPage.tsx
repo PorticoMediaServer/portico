@@ -1,7 +1,7 @@
 import React from 'react';
 import {SearchFrame} from '../../../kit/frames';
 import {TVSearchQuery, TVSearchResults, TVSearchSelectionArtwork, TVSearchVoice} from '../../../kit/search/TVSearchContent';
-import {NativeTVKeyboard} from '../../../screens/search/TVKeyboard';
+import {NativeTVKeyboard} from '../../../kit/search/TVKeyboard';
 import {useTVSearch, type NativeTVSearchPageProps} from '../../shared/search/useTVSearch';
 
 export function TVSearchPage(props: NativeTVSearchPageProps) {

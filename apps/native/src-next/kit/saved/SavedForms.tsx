@@ -4,7 +4,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable, Switch, TextField} from '../controls';
 import {FocusRegion, useFocusRegistry} from '../focus';
 import {browseType} from '../browse/presentation';
-import {NativeTVKeyboard} from '../../screens/search/TVKeyboard';
+import {NativeTVKeyboard} from '../search/TVKeyboard';
 import {Banner, BottomSheet, Dialog, SidePanel, type FocusRef} from '../overlays';
 import {useTheme} from '../theme';
 import type {PersonalVisibility} from '../../../../../packages/client-core/src/personal-saved';

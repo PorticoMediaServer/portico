@@ -104,20 +104,20 @@ const screenStubs = (host: any, naming: any) => ({
   '../focus': {useFocusRegistry: () => ({focus: () => true})}, '../overlays': {Banner: 'Banner', SidePanel: 'SidePanel'},
   '../browse/presentation': {alpha: () => '#000', browseType: () => ({})},
   '../theme': {useTheme: () => ({colors: {text: '#fff', textTertiary: '#aaa', accentStrong: '#5cb3e2'}})},
-  '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../screens/library/tv-library/naming': naming,
+  '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../screens/library/tv-library/naming': naming,
 });
 
 test('F-LIB-52 opens the naming keyboard on the shared keyboard own first key', async () => {
   const naming = await namingModule();
   assert.deepEqual(naming.nativeTVNamingFirstKey('panel.keyboard'), {regionId: 'panel.keyboard.row.0', childId: 'a'});
   const entered: any[] = [], host = hooks();
-  const {NativeTVKeyboard} = await screenModule(new URL('TVKeyboard.tsx', searchOrigin), {
+  const {NativeTVKeyboard} = await screenModule(new URL('../src-next/kit/search/TVKeyboard.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/browse/presentation': {alpha: () => '#000', browseType: () => ({})},
-    '../../kit/theme': {useTheme: () => ({colors: {}, isTV: true})},
-    '../destinations/focus': {}, '../destinations/useEntryFocus': {useDestinationEntryFocus: (activation: any, address: any) => entered.push({activation, address})},
-    './keyboard': {applyNativeTVKeyboardKey, nativeTVKeyboardRows},
+    '../controls': {Focusable: 'Focusable'}, '../focus': {FocusRegion: 'FocusRegion'}, '../Icon': {Icon: 'Icon'},
+    '../browse/presentation': {alpha: () => '#000', browseType: () => ({})},
+    '../theme': {useTheme: () => ({colors: {}, isTV: true})},
+    '../focus/destination-entry': {}, '../focus/useDestinationEntryFocus': {useDestinationEntryFocus: (activation: any, address: any) => entered.push({activation, address})},
+    '../../screens/search/keyboard': {applyNativeTVKeyboardKey, nativeTVKeyboardRows},
   });
   const props = {id: 'panel.keyboard', value: '', onChangeText: () => {}, activation: {visible: true, intent: 'enter' as const, revision: 1}, leftRegionId: 'panel.keyboard', width: 500};
   host.render(() => NativeTVKeyboard(props));
