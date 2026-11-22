@@ -9,6 +9,7 @@ import {Layer} from '../../shell/Layer';
 import {Button,Select,Switch,TextField} from '../../controls';
 import {useTheme} from '../../theme';
 import {useMotion} from '../../useMotion';
+import {useNativeModalPresence} from '../../overlays/native-dismissal';
 import {FormScrollView} from '../../../platform/keyboard';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
@@ -22,7 +23,13 @@ const t=defaultI18n.t;
 export function NativeChannelEditor({group,runtime,editor}:{group:NativeChannelsGroup;runtime:NativeShellRuntime;editor:Editor}){
  const theme=useTheme(),insets=useSafeAreaInsets(),motion=useMotion(),view=useChannelEditor({group,editor});
  const {state,advanced,setAdvanced,tried,previewOpen,setPreviewOpen,draft,builder,locked,current,change,zoneValid,preview,close}=view;
- return <Modal visible={current()} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={close}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}>
+ // Both windows take the shared presence: on iOS a Modal asked for while another is still leaving (the channel's menu,
+ // inside the Settings sheet) is dropped without a word, and the net asks again (finisher, iPhone, 22 Nov: 2 of 3 Edits
+ // left a dimmed list and no editor).
+ const editorShown=current(),previewShown=editorShown&&!!preview&&previewOpen===preview;
+ const editorWindow=useNativeModalPresence(editorShown),previewWindow=useNativeModalPresence(previewShown);
+ if(!editorWindow.mounted)return null;
+ return <Modal key={editorWindow.key} visible={editorWindow.visible} onShow={editorWindow.onShow} onDismiss={editorWindow.onDismiss} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={close}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}>
   <View style={{minHeight:56,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:10}}><Button variant="text" size="compact" disabled={state.busy} onPress={close}>{t('builder.cancel')}</Button><Text style={[theme.type.barTitle,{flex:1,textAlign:'center',color:theme.colors.text}]}>{editor.templateName?t('builder.reviewTemplate',{name:editor.templateName}):t(editor.document?'builder.editTitle':'builder.newTitle')}</Text><Button size="compact" disabled={state.busy||state.uncertain||editor.conflict} loading={state.busy} onPress={view.save}>{t(state.pendingCreate?'action.tryAgain':editor.document?'builder.save':'builder.create')}</Button></View>
   <FormScrollView contentContainerStyle={{padding:20,gap:14,paddingBottom:40}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
    <TextField label={t('builder.name')} value={draft.name} maxLength={120} editable={!locked} error={tried&&!draft.name.trim()?t('builder.error.name'):undefined} onChangeText={name=>change({name})}/><TextField label={t('builder.description')} value={draft.description} maxLength={2048} editable={!locked} onChangeText={description=>change({description})}/>
@@ -43,8 +50,8 @@ export function NativeChannelEditor({group,runtime,editor}:{group:NativeChannels
    {editor.document&&<Button disabled={state.busy} onPress={view.reload}>{t('action.refresh')}</Button>}
   </FormScrollView>
   <View testID="channel-preview-bar" style={{paddingHorizontal:20,paddingVertical:12,borderTopWidth:1,borderColor:theme.colors.lineSoft,backgroundColor:theme.colors.raised,flexDirection:'row',alignItems:'center',gap:12}}><View style={{flex:1}}><Text style={{color:theme.colors.text}}>{state.previewLoading?t('builder.previewing'):preview?t('builder.matches',{count:preview.titles}):t('builder.preview')}</Text>{preview&&<Text style={{color:theme.colors.textSecondary}}>{(length=>t(length.id,length.values))(channelPreviewLength(preview))}</Text>}</View><Button size="compact" disabled={!preview||state.previewLoading} onPress={view.showPreview}>{t('builder.preview')}</Button></View>
-  <Modal visible={current()&&!!preview&&previewOpen===preview} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={()=>setPreviewOpen(undefined)}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}><Button variant="text" onPress={()=>setPreviewOpen(undefined)}>{t('action.back')}</Button><FormScrollView contentContainerStyle={{padding:20,gap:18}}>
+  {previewWindow.mounted&&<Modal key={previewWindow.key} visible={previewWindow.visible} onShow={previewWindow.onShow} onDismiss={previewWindow.onDismiss} animationType={motion.reduce?'fade':'slide'} presentationStyle="fullScreen" onRequestClose={()=>setPreviewOpen(undefined)}><Layer style={{paddingTop:insets.top,paddingBottom:insets.bottom}}><Button variant="text" onPress={()=>setPreviewOpen(undefined)}>{t('action.back')}</Button><FormScrollView contentContainerStyle={{padding:20,gap:18}}>
    {preview&&<><Text style={{color:theme.colors.text}}>{t('builder.matches',{count:preview.titles})}</Text><Text style={{color:theme.colors.textSecondary}}>{(length=>t(length.id,length.values))(channelPreviewLength(preview))}</Text>{preview.unplaceable>0&&<Text style={{color:theme.colors.textSecondary}}>{t('builder.unresolved',{count:preview.unplaceable})}</Text>}{preview.sample.map(sample=><View key={sample.id} style={{flexDirection:'row',gap:12,alignItems:'center'}}><Artwork source={runtime.artwork(sample.images?.poster)} alt={sample.title} width={60} height={90}/><Text style={{flex:1,color:theme.colors.text}}>{[sample.title,sample.episodeTitle,sample.year].filter(Boolean).join(' · ')}</Text></View>)}<Text style={{color:theme.colors.text}}>{t('builder.firstDay')}</Text>{preview.today.map((row,index)=><Text key={index} style={{color:theme.colors.textSecondary}}>{new Intl.DateTimeFormat(runtime.text.locale,{timeZone:draft.timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(row.startsAt))} · {row.title?.title??t('builder.nothingScheduled')}</Text>)}</>}
-  </FormScrollView></Layer></Modal>
+  </FormScrollView></Layer></Modal>}
  </Layer></Modal>;
 }
