@@ -1,20 +1,21 @@
 import React, {useEffect, useMemo, useSyncExternalStore} from 'react';
-import {LibraryFilterFields} from '../../kit/browse/LibraryFilterFields';
+import {LibraryFilterFields} from './LibraryFilterFields';
 import {Text, View} from 'react-native';
 import {browseToolbarModel} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {FiltersPane, type BrowseLabels, type FiltersPaneGeometry} from '../../kit/browse';
+import {FiltersPane, type FiltersPaneGeometry} from './FiltersPane';
+import type {BrowseLabels} from './types';
 import {frameSpec} from '@portico/design';
-import {Button} from '../../kit/controls';
-import {useFocusRegistry} from '../../kit/focus';
-import {BottomSheet, SidePanel} from '../../kit/overlays';
-import {StateView} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {Button} from '../controls';
+import {useFocusRegistry} from '../focus';
+import {BottomSheet, SidePanel} from '../overlays';
+import {StateView} from '../states';
+import {browseType} from './presentation';
+import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {libraryFilterField} from './filter-controls';
-import {NativeLibraryFilterDraft} from './filters';
-import {nativeLibraryCanSave, type NativeLibrarySnapshot, type NativeLibraryViewDraft} from './model';
+import {libraryFilterField} from '../../screens/library/filter-controls';
+import {NativeLibraryFilterDraft} from '../../screens/library/filters';
+import {nativeLibraryCanSave, type NativeLibrarySnapshot, type NativeLibraryViewDraft} from '../../screens/library/model';
 
 /** tablet.html #4 docks the panel beside the grid (`frameSpec.browse.filtersWidth`). */
 export const libraryFiltersDockWidth = frameSpec.browse.filtersWidth.expanded;
@@ -59,7 +60,7 @@ export function LibraryFilters({draft, source, runtime, labels, owner, onClose, 
     return <FiltersPane testID={panelId} geometry={geometry} summary={showing || undefined} onClose={onClose} onClear={clear} onDone={() => {draft.dispose(); onClose();}}>{content}</FiltersPane>;
   }
   return theme.isTV ? <SidePanel testID={panelId} open={state.open} onOpenChange={open => {if (!open) close();}} title={defaultI18n.t('next.browse.native.filters')}
-    description={results && defaultI18n.t('next.browse.native.resultsMatch', {results})} width={frameSpec.browse.filtersWidth.tv} topInset={0} initialFocusRef={initialFocusRef} showClose={false} titleType={{size: 44, weight: 800, tracking: -.03, lineHeight: 52.8}}
+    description={results && defaultI18n.t('next.browse.native.resultsMatch', {results})} width={frameSpec.browse.filtersWidth.tv} topInset={0} initialFocusRef={initialFocusRef} showClose={false} titleTextStyle={theme.type.title}
     style={{paddingTop: 42, paddingLeft: 56, paddingRight: 96, paddingBottom: 56}} footer={footer}>{content}</SidePanel>
     : <BottomSheet testID={panelId} open={state.open} onOpenChange={open => {if (!open) close();}} onExited={onExited} title={defaultI18n.t('next.browse.native.filters')}
       headerAction={<Button focusId="clear" variant="text" textStyle={theme.platform === 'phone' ? {color: theme.colors.textSecondary} : undefined} onPress={draft.clear}>{defaultI18n.t('next.browse.native.clearAll')}</Button>}
