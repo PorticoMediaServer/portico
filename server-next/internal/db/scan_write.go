@@ -295,8 +295,9 @@ func (im *importer) rename(id int64, it *ImportItem, parent *importedItem) (*imp
 		if newRoot == 0 {
 			newRoot = parent.id
 		}
+		// A volume's number a person set stays, and its volume with it (as on a re-read).
 		if _, err := im.exec(`UPDATE items SET parent_id = ?, root_id = ?, index_number = CASE WHEN `+numberLocked+` THEN index_number ELSE ? END,
-			parent_index = ?, updated_at = ? WHERE id = ?`,
+			parent_index = CASE WHEN `+numberLocked+` THEN parent_index ELSE ? END, updated_at = ? WHERE id = ?`,
 			parent.id, newRoot, it.IndexNumber, it.ParentIndex, im.now, id); err != nil {
 			return nil, err
 		}
