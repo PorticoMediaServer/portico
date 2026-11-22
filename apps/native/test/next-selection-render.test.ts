@@ -1324,7 +1324,7 @@ test('drawn list-field prompts use singular catalogue copy and retain real valid
 // through the same element/hook harness used by the other TV focus regressions.
 test('TV People keeps the accounts it drew when invitations fail, and the invitations\' own retry reads only them again', async () => {
   // TV People reads the accounts and the waiting invitations, each in one read (no continuation to page on).
-  const {TVPeoplePanel} = await import('../src-next/screens/settings-live/server/TVPeoplePanel.tsx');
+  const {PeoplePage: TVPeoplePanel} = await import('../src-next/pages/tv/settings/PeoplePage.tsx');
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
   const {NativeScreenServices} = await import('../src-next/screens/screen-services.ts');
   const {act} = await import('./helpers/fabric-hooks.mjs');
@@ -1347,13 +1347,17 @@ test('TV People keeps the accounts it drew when invitations fail, and the invita
   }}}};
   const runtime = {text: {t: (id: string) => id, locale: 'en-US'}, error: feedback.error};
   const panel = await mount(TVPeoplePanel, {ports, runtime, lifetime});
-  const shown = (focusId: string) => ofType(panel.tree, Focusable).some(element => element.props.focusId === focusId);
+  // The page hands the kit list its groups: each row is drawn as the focus stop `tv-people:<row id>`.
+  const groups = () => (panel.tree as any).props.groups as readonly any[];
+  const shown = (focusId: string) => groups().some(group => group.rows.some((row: any) => `tv-people:${row.id}` === focusId));
   try {
     await act(() => {}); await act(() => {});
     assert.ok(shown('tv-people:account:amy'), 'the accounts are drawn');
-    const error = ofType(panel.tree, StateView).find(element => element.props.testID === 'tv-people-invitations-error')!;
-    assert.ok(error?.props.primaryAction, 'the failed group shows its own retry');
-    assert.equal(ofType(panel.tree, StateView).some(element => element.props.testID === 'tv-people-members-error'), false);
+    const failed = groups().find(group => group.id === 'invitations');
+    assert.ok(failed.error !== undefined, 'the invitations group carries its failure');
+    assert.equal(groups().find(group => group.id === 'members').error, undefined);
+    const error = {props: {...(panel.tree as any).props.failure(failed.error, failed.retry), testID: 'tv-people-invitations-error'}};
+    assert.ok(error.props.primaryAction, 'the failed group shows its own retry');
     const errorView = await mount(StateView, error.props);
     try {
       const action = elements(errorView.tree).find(element => element.props.action?.id === 'retry')!;

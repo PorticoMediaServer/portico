@@ -71,7 +71,7 @@ const {StateActionButton} = await import('../src-next/kit/states/StateActionButt
 const {StateView} = await import('../src-next/kit/states/StateView.tsx');
 const {ThemeProvider} = await import('../src-next/kit/theme.ts');
 const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
-const {TVPeoplePanel} = await import('../src-next/screens/settings-live/server/TVPeoplePanel.tsx');
+const {PeoplePage: TVPeoplePanel} = await import('../src-next/pages/tv/settings/PeoplePage.tsx');
 const {routePath} = await import('../../../packages/contracts/src/routes.ts');
 const {defaultI18n} = await import('../../../packages/i18n/src/index.ts');
 
