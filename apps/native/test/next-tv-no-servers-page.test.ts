@@ -17,10 +17,9 @@ async function page() {
     '../../../kit/navigation/back': {registerBack: (fn: () => boolean) => {backs.add(fn); return () => backs.delete(fn);}},
     '../../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: (...args: any[]) => entries.push(args)}});
   const module = await screenModule(new URL('../src-next/pages/tv/accounts/NoServersPage.tsx', import.meta.url), {react,
-    'react-native-qrcode-svg': {default: 'QR'}, '@portico/design': {tvAccountSpec: {wide: {door: {code: 220, codePad: 16}, form: {keyColumns: 9, width: 860}}}},
+    '@portico/design': {tvAccountSpec: {wide: {form: {keyColumns: 9, width: 860}}}},
     '../../../../../../packages/i18n/src': {defaultI18n},
-    '../../../kit/accounts/TVNoServerParts': {TVAccountLinks: 'Links', TVAccountNotice: 'Notice', TVAccountWidePage: 'Page', TVDoor: 'Door', TVDoors: 'Doors', TVInvitationForm: 'Form',
-      tvDoorCode: () => 220},
+    '../../../kit/accounts/TVNoServerParts': {TVAccountLinks: 'Links', TVAccountNotice: 'Notice', TVAccountWidePage: 'Page', TVDoor: 'Door', TVDoors: 'Doors', TVInvitationForm: 'Form'},
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/focus': {FocusProvider: 'FocusProvider'},
     '../../../screens/search/TVKeyboard': {NativeTVKeyboard: 'Keyboard'}, '../../shared/accounts/useTVNoServers': hook});
   return {module, entries, backs};
@@ -81,3 +80,28 @@ test('Join sends the typed code and address; busy and stale callers send nothing
   } finally {await host.unmount();}
 });
 void defaultI18n;
+
+/** connect 37: Refresh servers reads the account's list again (a server added or removed on the account shows up). */
+test('the offline page keeps Refresh servers under the list: Down from the last row reaches it, and it refreshes once', async () => {
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useTVOfflineServers.ts', import.meta.url), {react,
+    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/server-clock': {serverNow: () => Date.now()},
+    '../../../tv/auth/entry-revision': {useTVBusyEntryRevision: () => 0},
+    '../../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: () => {}}});
+  const {OfflineServersPage} = await screenModule(new URL('../src-next/pages/tv/accounts/OfflineServersPage.tsx', import.meta.url), {react,
+    '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/accounts/TVNoServerParts': {TVAccountLinks: 'Links', TVAccountWidePage: 'Page', TVRetryNote: 'Note', TVServerList: 'List'},
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/controls/TVAccountRow': {TVAccountRow: 'Row'},
+    '../../../kit/focus': {FocusProvider: 'FocusProvider'}, '../../shared/accounts/useTVOfflineServers': hook});
+  let tree: any, refreshes = 0;
+  const rows = [{id: 'cottage', name: 'The cottage'}], scope = {};
+  const host = createFabricHookHost(() => {tree = OfflineServersPage({rows, scope, revision: 1, isCurrent: () => true, busy: false,
+    onRetry() {}, onBack() {}, onRefresh: () => {refreshes++;}} as any);});
+  await host.mount();
+  try {
+    const all = nodes(tree), list = all.find(node => node.type === 'List'), links = all.find(node => node.type === 'Links');
+    assert.deepEqual(list.props.region.edges, {down: links.props.region.id});
+    assert.deepEqual(links.props.region.edges, {up: list.props.region.id});
+    nodes(links).find(node => node.props.focusId === 'refresh').props.onPress();
+    assert.equal(refreshes, 1);
+  } finally {await host.unmount();}
+});
