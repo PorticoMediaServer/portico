@@ -1,14 +1,14 @@
 import React from 'react';
 import {Platform, useWindowDimensions} from 'react-native';
 import {frameForm} from '@portico/design';
-import {CoveredLayer} from '../../kit/focus';
-import {LibrariesPage} from '../../pages/touch/library/LibrariesPage';
-import type {LibraryOverviewProps} from '../../pages/shared/library/useLibrary';
-import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
-import {nativeDestinationActivation} from '../../shell/routes';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {NativeLibraryDirectory} from './directory';
-import {NativeLibraryOverview} from './LibraryOverview';
+import {CoveredLayer} from '../kit/focus';
+import {LibrariesPage} from '../pages/touch/library/LibrariesPage';
+import type {LibraryOverviewProps} from '../pages/shared/library/useLibrary';
+import {nativeShellRoutes, type NativeRouteFactory} from './route-registry';
+import {nativeDestinationActivation} from './routes';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {NativeLibraryDirectory} from '../screens/library/directory';
+import {NativeLibraryOverview} from '../screens/library/LibraryOverview';
 
 export const createNativeLibraryOverviewModule: NativeRouteFactory = context => {
   const lifetime = nativeDestinationLifetime(context);

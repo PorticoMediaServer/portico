@@ -1,14 +1,14 @@
 import React from 'react';
-import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import type {SavedRoute} from '../../../../../../packages/client-core/src/saved';
-import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
-import {type NativeShellRoute} from '../../../shell/routes';
-import {createNativeEntryActions} from '../entry-actions';
-import {createNativeSavedSelection} from '../../saved/selection';
-import {createNativeTVSavedDestination} from './model';
-import {nativeTVSavedSelectionSource} from './tv-source';
-import {TVSavedPage} from '../../../pages/tv/saved/SavedPage';
+import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
+import type {SavedRoute} from '../../../../packages/client-core/src/saved';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import {type NativeShellRoute} from './routes';
+import {createNativeEntryActions} from '../screens/destinations/entry-actions';
+import {createNativeSavedSelection} from '../screens/saved/selection';
+import {createNativeTVSavedDestination} from '../screens/destinations/saved/model';
+import {nativeTVSavedSelectionSource} from '../screens/destinations/saved/tv-source';
+import {TVSavedPage} from '../pages/tv/saved/SavedPage';
 
 /** tv-more1–5: TV owns the Saved destination and its landing. Pushed playlist,
  * collection and saved-view pages stay with Saved's own route registration. */

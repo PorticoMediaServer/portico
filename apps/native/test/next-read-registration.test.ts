@@ -61,12 +61,12 @@ test('Read registration retains the original occurrence across Reading Settings 
     react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './host-component': {nativeReadHost: () => 'TrustedReadHost'},
     './read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
   });
-  await screenModule(new URL('../src-next/screens/read/register.tsx', import.meta.url), {
-    react: {...React, default: React}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (kind: string, create: any) => {registered = kind; factory = create;}}},
-    '../settings/ReadingSettingsRoute': {nativeReadingSettingsPreferences, openNativeReadingSettings}, './ReadRoute': {createNativeReadRenderer}, './read-destinations': await screenModule(new URL('../src-next/screens/read/read-destinations.tsx', import.meta.url), {
+  await screenModule(new URL('../src-next/shell/read-route.tsx', import.meta.url), {
+    react: {...React, default: React}, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string, create: any) => {registered = kind; factory = create;}}},
+    './reading-settings-route': {nativeReadingSettingsPreferences, openNativeReadingSettings}, '../screens/read/ReadRoute': {createNativeReadRenderer}, '../screens/read/read-destinations': await screenModule(new URL('../src-next/screens/read/read-destinations.tsx', import.meta.url), {
       react: {...React, default: React}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (kind: string) => readingDestinations.push(kind)}},
       '../destinations/lifetime': await import('../src-next/screens/destinations/lifetime'),
-      '../settings/ReadingSettingsRoute': {openNativeReadingSettings}, './platform': await import('../src-next/screens/read/platform'),
+      '../../shell/reading-settings-route': {openNativeReadingSettings}, './platform': await import('../src-next/screens/read/platform'),
       './read-book-model': await import('../src-next/screens/read/read-book-model'), './read-periodical-model': await import('../src-next/screens/read/read-periodical-model'),
       './read-series-model': await import('../src-next/screens/read/read-series-model'), './ReadBookHost': {ReadBookHost: 'ReadBookHost'},
       '../../pages/touch/read/ReadPeriodicalPage': {ReadPeriodicalPage: 'ReadPeriodicalPage'}, '../../pages/touch/read/ReadSeriesPage': {ReadSeriesPage: 'ReadSeriesScreen'}}),

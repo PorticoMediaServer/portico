@@ -16,14 +16,14 @@ if (!Platform.isTV) {
   // requires defer RestoredShell's import until its error branch, so the ready
   // shell would have no profiles/servers renderer. Require the module eagerly.
   require('./screens/accounts/AccountRoutes');
-  require('./screens/downloads/register');
+  require('./shell/downloads-route');
   require('./screens/collections/register');
   require('./screens/library/register');
-  require('./screens/library/OverviewRoute');
-  require('./screens/destinations/PinsRoute');
+  require('./shell/library-overview-route');
+  require('./shell/pins-route');
   require('./screens/destinations/music/register');
   require('./screens/destinations/audiobooks/register');
-  require('./screens/read/register');
+  require('./shell/read-route');
   require('./screens/people/register');
   require('./screens/notifications/register');
   require('./screens/search/register');

@@ -1,9 +1,9 @@
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {PreferenceSnapshot} from '../../../../../packages/client-core/src/preferences';
-import {nativeShellRoutes} from '../../shell/route-registry';
-import {nativeReadingSettingsPreferences, openNativeReadingSettings} from '../settings/ReadingSettingsRoute';
-import {createNativeReadRenderer} from './ReadRoute';
-import './read-destinations';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
+import {nativeShellRoutes} from './route-registry';
+import {nativeReadingSettingsPreferences, openNativeReadingSettings} from './reading-settings-route';
+import {createNativeReadRenderer} from '../screens/read/ReadRoute';
+import '../screens/read/read-destinations';
 
 /** Read and Settings borrow the authority's ONE confirmed preference source.
  * Importing this handheld-only module registers factories and starts no I/O. */
