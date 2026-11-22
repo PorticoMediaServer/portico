@@ -4,7 +4,7 @@ import {TVAuthLayout} from '../../../kit/frames/TVAuthLayout';
 import {StateLayout} from '../../../kit/states';
 import {Button, TextField, FormError} from '../../../kit/controls';
 import {BottomSheet} from '../../../kit/overlays';
-import {ServerRemoveDownloads, ServerSignOutFooter, ServerSignOutText, ServersConsentChoices, ServersConsentCodeBox, ServersConsentReview,
+import {ServerRemoveDownloads, ServerSignOutBody, ServerSignOutFooter, ServerSignOutText, ServersConsentChoices, ServersConsentCodeBox, ServersConsentReview,
   ServersFooter} from '../../../kit/accounts/ServersRouteParts';
 import {AccountEntry} from '../../../screens/accounts/AccountEntry';
 import {ServerChooserPage} from '../../touch/accounts/ServerChooserPage';
@@ -41,8 +41,10 @@ export function ServersRoutePage(props: ServersRouteProps) {
   const sheet = view.sheet;
   const signOutSheet = sheet ? <BottomSheet open={sheet.open} onOpenChange={open => {if (!open) sheet.dismiss();}} testID="accounts-sign-out-sheet" title={sheet.title}
     footer={<ServerSignOutFooter label={sheet.confirmLabel} busy={busy} onConfirm={sheet.confirm} cancelLabel={t('action.cancel')} onCancel={sheet.dismiss}/>}>
-    <ServerSignOutText forgetBody={sheet.forgetBody} body={t('settings.signOutConfirm.bodyDownloads')}/>
-    {sheet.selectedServer && <ServerRemoveDownloads checked={sheet.removeDownloads} label={t('settings.signOutConfirm.removeDownloads')} onToggle={sheet.toggleRemove}/>}
+    <ServerSignOutBody>
+      <ServerSignOutText forgetBody={sheet.forgetBody} body={t('settings.signOutConfirm.bodyDownloads')}/>
+      {sheet.selectedServer && <ServerRemoveDownloads checked={sheet.removeDownloads} label={t('settings.signOutConfirm.removeDownloads')} onToggle={sheet.toggleRemove}/>}
+    </ServerSignOutBody>
   </BottomSheet> : null;
   if (!view.tv) return <><ServerChooserPage certificates={<TrustedCertificatesPage context={props.context}/>} snapshot={view.servers} busy={busy} error={errorView} onBack={view.back}
     onSelect={view.select} onSignOut={view.signOut} onForget={view.forget} onRefresh={view.refresh} onAdd={view.add}

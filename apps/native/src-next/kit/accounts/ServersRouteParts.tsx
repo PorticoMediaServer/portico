@@ -61,3 +61,10 @@ export function ServerRemoveDownloads({checked, label, onToggle}: {checked: bool
     <Text style={[theme.type.body, {color: theme.colors.text, flex: 1}]}>{label}</Text>
   </Focusable>;
 }
+
+/** Sign out and Forget's lines and choice, inset like the sheet's title (other sheets pass the same 20 as contentStyle); a TV's
+ * side sheet already pads its body. */
+export function ServerSignOutBody({children}: {children: ReactNode}) {
+  const theme = useTheme();
+  return <View style={{paddingHorizontal: theme.isTV ? 0 : 20}}>{children}</View>;
+}
