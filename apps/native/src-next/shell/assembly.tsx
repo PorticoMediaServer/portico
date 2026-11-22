@@ -4,7 +4,7 @@ import {Layer} from '../kit/shell/Layer';
 import {createNativeListeningPlaylist} from './listening-playlist';
 import {createNativeListeningQueuePolicy} from './listening-queue-policy';
 import {createNativeListeningSongDetail} from './listening-song-detail';
-import {NativeHomeEmpty} from '../screens/home/HomeEmpty';
+import {NativeHomeEmpty} from '../kit/home/HomeEmpty';
 import React, {type RefObject} from 'react';
 import {Platform, View} from 'react-native';
 import {defaultI18n} from '../../../../packages/i18n/src';

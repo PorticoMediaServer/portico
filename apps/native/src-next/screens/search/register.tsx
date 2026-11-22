@@ -12,7 +12,7 @@ import {createNativeSearchActions} from './actions';
 import {createNativeSearchGenreController, openNativeSearchGenre, openNativeSearchGenres} from './navigation';
 import {NativeSearchExplore, NativeSearchGenreList} from './explore';
 import {NativeSearchOnNow} from './on-now';
-import {SearchPageFor} from './search-page';
+import {SearchPageFor} from '../../shell/search-page';
 import {GenreBrowsePage} from '../../pages/touch/search/GenreBrowsePage';
 import {GenreBrowsePage as TVGenreBrowsePage} from '../../pages/tv/search/GenreBrowsePage';
 import type {GenreBrowseProps} from '../../pages/shared/search/useGenreBrowse';

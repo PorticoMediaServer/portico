@@ -132,7 +132,7 @@ async function setup() {
     './selection': {createNativeSearchSelection},
     './controller': {createNativeSearchController}, './actions': {createNativeSearchActions: () => ({dispose() {}})},
     './navigation': navigationPorts, './explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
-    './search-page': {SearchPageFor: 'SearchPageFor'}, '../../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'},
+    '../../shell/search-page': {SearchPageFor: 'SearchPageFor'}, '../../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'},
     '../../pages/touch/search/AllGenresPage': {AllGenresPage: 'AllGenresPage'}, '../../pages/tv/search/AllGenresPage': {AllGenresPage: 'TVAllGenresPage'},
     './reading-register': readingRegister,
   });

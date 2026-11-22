@@ -1,7 +1,7 @@
 import React from 'react';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {StateLayout, StateView} from '../../kit/states';
-import {useTheme} from '../../kit/theme';
+import {StateLayout, StateView} from '../states';
+import {useTheme} from '../theme';
 
 /** states16: an admitted member with no shared libraries waits on the server,
  * with an actual server switch available rather than an invented retry. */

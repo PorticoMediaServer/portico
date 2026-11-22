@@ -3,7 +3,7 @@ import type {MessageId} from '../../../../../packages/i18n/src';
 import type {NativeOfflineDownloadsDevice} from '../../platform/offline-downloads';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeRouteRenderer} from '../../shell/route-registry';
-import {SearchPageFor} from '../search/search-page';
+import {SearchPageFor} from '../../shell/search-page';
 import {NativeSearchDestination} from '../search/model';
 import type {NativeSearchActions, NativeSearchExplorePort, NativeSearchSelectionPort, NativeSearchTVCopy} from '../search/types';
 import type {NativeSavedActions, NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
