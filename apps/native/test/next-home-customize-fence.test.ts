@@ -12,12 +12,12 @@ import * as lifetime from '../src-next/screens/destinations/lifetime';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 // The route module, with its React views stubbed and its controller, lifetime and authority checks real.
-const loadRoute = () => screenModule(new URL('../src-next/screens/home/CustomizeRoute.tsx', import.meta.url), {
-  react, 'react-native': reactNative, '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/personal-saved': personalSaved,
-  '../../kit/states': {StateView: 'StateView'}, './HomeCustomize': {HomeCustomize: 'HomeCustomize'}, '../../pages/touch/home/HomeCustomizePage': {HomeCustomizePage: 'HomeCustomize'}, './customize-controller': {NativeHomeCustomizeController},
-  './saved-view-summaries': {NativeHomeSavedViewSummaries: class {subscribe() {return () => {};} getSnapshot() {return undefined;} dispose() {} load() {} line() {return '';}}},
-  './customize-intent': {takeHomeCustomizeView: () => undefined}, '../../shell/model': shellModel, '../destinations/lifetime': lifetime,
-  '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
+const loadRoute = () => screenModule(new URL('../src-next/shell/customize-route.tsx', import.meta.url), {
+  react, 'react-native': reactNative, '../../../../packages/i18n/src': {defaultI18n}, '../../../../packages/client-core/src/personal-saved': personalSaved,
+  '../kit/states': {StateView: 'StateView'}, '../screens/home/HomeCustomize': {HomeCustomize: 'HomeCustomize'}, '../pages/touch/home/HomeCustomizePage': {HomeCustomizePage: 'HomeCustomize'}, '../screens/home/customize-controller': {NativeHomeCustomizeController},
+  '../screens/home/saved-view-summaries': {NativeHomeSavedViewSummaries: class {subscribe() {return () => {};} getSnapshot() {return undefined;} dispose() {} load() {} line() {return '';}}},
+  '../screens/home/customize-intent': {takeHomeCustomizeView: () => undefined}, './model': shellModel, '../screens/destinations/lifetime': lifetime,
+  './route-registry': {nativeShellRoutes: {registerRoute() {}}},
 });
 
 // Step 7 item 4, ruling C (lead, 5 Nov): a moved viewer fence (the viewer's access decided again) no longer closes

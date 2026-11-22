@@ -10,7 +10,7 @@ const source = (path: string) => readFile(new URL(path, import.meta.url), 'utf8'
 // must therefore require the module eagerly.
 test('the phone entry eagerly requires the accounts route registrations', async () => {
   const text = await source('../src-next/App.tsx');
-  const start = text.indexOf('if (!Platform.isTV) {'), end = text.indexOf("require('./screens/home/CustomizeRoute')");
+  const start = text.indexOf('if (!Platform.isTV) {'), end = text.indexOf("require('./shell/customize-route')");
   assert.ok(start >= 0 && end > start, 'the phone registration block is present');
   assert.match(text.slice(start, end), /require\('\.\/screens\/accounts\/AccountRoutes'\)/);
 });

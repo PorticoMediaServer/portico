@@ -37,7 +37,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     './dev/measurement-install': {installNativePublicMeasurement: () => {throw new Error('root-prop read must not install measurement');}},
   };
   const registrations = new Set(['./screens/accounts/AccountRoutes', './shell/downloads-route', './shell/collections-route', './shell/library-route', './shell/library-overview-route',
-    './shell/pins-route', './shell/music-route', './shell/audiobooks-route', './shell/read-route', './shell/people-route', './shell/notifications-route', './shell/search-route', './screens/home/CustomizeRoute', './screens/home/SeeAllRoute',
+    './shell/pins-route', './shell/music-route', './shell/audiobooks-route', './shell/read-route', './shell/people-route', './shell/notifications-route', './shell/search-route', './shell/customize-route', './shell/see-all-route',
     './shell/licences-route', './shell/live-route', './shell/together-route', './shell/saved-route']);
   const module = {exports: {} as {default?: (props: object) => Element}};
   compileFunction(code, ['require', 'exports', 'module', '__DEV__'], {filename: file.pathname})((name: string) => {

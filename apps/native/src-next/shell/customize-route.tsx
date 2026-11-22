@@ -1,20 +1,20 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Platform} from 'react-native';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {PersonalSavedService, readPersonalResource} from '../../../../../packages/client-core/src/personal-saved';
-import {StateView} from '../../kit/states';
-import {HomeCustomize, type NativeHomeCustomizeCopy} from './HomeCustomize';
-import {HomeCustomizePage} from '../../pages/touch/home/HomeCustomizePage';
-import {NativeHomeCustomizeController} from './customize-controller';
-import {NativeHomeSavedViewSummaries} from './saved-view-summaries';
-import {takeHomeCustomizeView, type HomeCustomizeViewIntent} from './customize-intent';
-import type {PersonalResource} from '../../../../../packages/client-core/src/personal-saved';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativeShellRoute} from '../../shell/routes';
-import {sameAuthority} from '../../shell/model';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import {PersonalSavedService, readPersonalResource} from '../../../../packages/client-core/src/personal-saved';
+import {StateView} from '../kit/states';
+import {HomeCustomize, type NativeHomeCustomizeCopy} from '../screens/home/HomeCustomize';
+import {HomeCustomizePage} from '../pages/touch/home/HomeCustomizePage';
+import {NativeHomeCustomizeController} from '../screens/home/customize-controller';
+import {NativeHomeSavedViewSummaries} from '../screens/home/saved-view-summaries';
+import {takeHomeCustomizeView, type HomeCustomizeViewIntent} from '../screens/home/customize-intent';
+import type {PersonalResource} from '../../../../packages/client-core/src/personal-saved';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeShellRuntime} from './runtime';
+import type {NativeShellRoute} from './routes';
+import {sameAuthority} from './model';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
 
 type Source = Readonly<{route: NativeShellRoute; key: number; controller: NativeHomeCustomizeController; views: PersonalSavedService; summaries: NativeHomeSavedViewSummaries; current: () => boolean; initialIntent?: HomeCustomizeViewIntent; remember: (views: readonly PersonalResource[]) => void; revalidate: () => void; readView: (id: string) => Promise<PersonalResource | undefined>}>;
 

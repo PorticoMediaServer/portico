@@ -126,19 +126,19 @@ test('a superseded or dismissed See all Undo callback is revoked before the next
     load = async () => {};
     dispose() {}
   }
-  const {createNativeHomeRows} = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, 
+  const {createNativeHomeRows} = await screenModule(new URL('../src-next/shell/see-all-route.tsx', import.meta.url), {...stackSlotFixture, 
     react, 'react-native': {AccessibilityInfo: {}, Platform: {isTV: false}, View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     '@portico/design': {frameForm: () => 'phone'},
-    '../../pages/touch/library/SeeAllPage': {SeeAllPage: 'SeeAllPage'}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'TVSeeAllPage'},
-    '../../kit/focus': {useFocusRegistry: () => ({})}, '../../kit/dock/DockClearance': {useDockClearance: () => 84},
-    '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
-    '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: any) => entry.id,
+    '../pages/touch/library/SeeAllPage': {SeeAllPage: 'SeeAllPage'}, '../pages/tv/library/SeeAllPage': {SeeAllPage: 'TVSeeAllPage'},
+    '../kit/focus': {useFocusRegistry: () => ({})}, '../kit/dock/DockClearance': {useDockClearance: () => 84},
+    '../kit/overlays': {ToastHost: 'ToastHost'}, '../../../../packages/i18n/src': {defaultI18n: {t}},
+    '../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: any) => entry.id,
       setNotInterested: (_api: unknown, input: any) => new Promise<void>(resolve => requests.push({entry: input.itemId, value: input.notInterested, resolve}))},
-    '../../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'HomeRowFilters'}, './row-controller': {NativeHomeRowController: Controller},
-    '../../platform/server-connections': {nativeRouteCrypto: {random: (length: number) => new Uint8Array(length)}},
-    '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {}, '../../kit/theme': {},
-    '../read/platform': {}, '../read/reading-books-open': {}, './entry-lifetime': {},
-    '../destinations/entry-actions': {createNativeEntryActions: () => ({menu: (_entry: unknown, _anchor: unknown, _select: unknown, extras: any[]) => {extra = extras[0];}, dispose() {}})},
+    '../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'HomeRowFilters'}, '../screens/home/row-controller': {NativeHomeRowController: Controller},
+    '../platform/server-connections': {nativeRouteCrypto: {random: (length: number) => new Uint8Array(length)}},
+    './routes': {}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, './model': {}, '../kit/theme': {},
+    '../screens/read/platform': {}, '../screens/read/reading-books-open': {}, '../screens/home/entry-lifetime': {},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({menu: (_entry: unknown, _anchor: unknown, _select: unknown, extras: any[]) => {extra = extras[0];}, dispose() {}})},
   });
   const context = {current: () => true, authority: () => ({serverId: 'server', viewerFence: 'viewer'}), libraries: () => [], api: {},
     navigation: {retainedRoutes: () => [], getSnapshot: () => navigation, subscribe: () => () => {}}};
