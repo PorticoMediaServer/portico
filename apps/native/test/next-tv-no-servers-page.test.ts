@@ -83,7 +83,10 @@ void defaultI18n;
 
 /** connect 37: Refresh servers reads the account's list again (a server added or removed on the account shows up). */
 test('the offline page keeps Refresh servers under the list: Down from the last row reaches it, and it refreshes once', async () => {
+  // The shared opening guard runs for real: it is what decides whether a retry still applies.
+  const guard = await screenModule(new URL('../src-next/pages/shared/accounts/useOfflineServersGuard.ts', import.meta.url), {react});
   const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useTVOfflineServers.ts', import.meta.url), {react,
+    './useOfflineServersGuard': guard,
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/server-clock': {serverNow: () => Date.now()},
     '../../../tv/auth/entry-revision': {useTVBusyEntryRevision: () => 0},
     '../../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: () => {}}});
