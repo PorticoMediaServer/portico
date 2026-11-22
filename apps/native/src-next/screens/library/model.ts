@@ -11,6 +11,7 @@ import {libraryTabs, type LibraryTab, type LibraryTabId} from '../../../../../pa
 import {NativeLibraryFilterDraft} from './filters';
 import type {NativeLibraryOpening} from './opening';
 import {viewerQueriesFor} from '../../shell/freshness';
+import type {CatalogueSelectionPorts} from '../../../../../packages/client-core/src/selection-model';
 
 export const nativeLibraryEntryKey = (entry: ContentEntry): string => JSON.stringify([entry.kind, entry.libraryId, entry.id]);
 const cancelled = () => Object.assign(new Error('native_library_retired'), {name: 'AbortError'});
@@ -65,7 +66,10 @@ export function nativeLibraryCanSave(source: NativeLibrarySnapshot, draft: Nativ
 /** One authorized library in one actual session. This holds sparse native pages,
  * never an array sized by the library's count or a client-filtered catalogue. */
 export class NativeLibraryDestination {
-  private readonly options: Readonly<{api: LibraryContentApi; scope: ContentScope; library: Library; current: () => boolean; /** An explicit opening tab, for a surface whose pivot came from the server's own reading pivots. */ tab?: LibraryTab; /** One exact saved definition offered by the Saved page, applied once. */ initial?: NativeLibraryOpening}>;
+  private readonly options: Readonly<{api: LibraryContentApi; scope: ContentScope; library: Library; current: () => boolean;
+    /** The ports a selected title may be offered, as one title's own selection read uses them: with these, Select all
+     * reads the server's exact whole-view summary when someone selects (never when the list opens). */
+    selectionPorts?: () => CatalogueSelectionPorts; /** An explicit opening tab, for a surface whose pivot came from the server's own reading pivots. */ tab?: LibraryTab; /** One exact saved definition offered by the Saved page, applied once. */ initial?: NativeLibraryOpening}>;
   private readonly discover: LibraryContentService;
   private readonly unsubscribe: () => void;
   private state: NativeLibrarySnapshot;
@@ -218,6 +222,7 @@ export class NativeLibraryDestination {
       current: () => this.current() && (this.session === session || this.replacing === session) && this.state.phase === 'ready',
       onFacts: facts => {if (this.state.phase === 'ready') this.state.collection?.learn?.(session.fetchPage, facts);},
       item: entry => entry,
+      ...(this.options.selectionPorts ? {selectionPorts: this.options.selectionPorts()} : {}),
       onRevision: revision => this.publish({revision}),
       // Only the first page of a replayable view carries the aggregate; later pages never
       // clear or restate it, and another query's descriptor is not adopted here.
@@ -329,6 +334,12 @@ export class NativeLibraryDestination {
     this.memory = Object.freeze({firstVisibleIndex, offset, ...(firstVisibleId ? {firstVisibleId} : {})});
     if (before.firstVisibleIndex !== firstVisibleIndex || before.firstVisibleId !== firstVisibleId) this.publish({});
   };
+  /** The applied view's exact whole selection, read from the server once someone selects; undefined where Select all is
+   * not offered or the read failed (ask again). The same session that serves the list answers it, so it is this view's. */
+  requestWholeSelection = (): Promise<BrowseWholeSelection | undefined> =>
+    this.session && this.state.phase === 'ready' ? this.session.requestWholeSelection() : Promise.resolve(undefined);
+  /** A summary the selection model refused (a title changed since): the next request reads fresh counts. */
+  forgetWholeSelection = (): void => {this.session?.forgetWholeSelection();};
   retry = (): void => {
     if (this.state.phase === 'error') void this.load();
     else if (this.state.tab.shows === 'rows') void this.discover.retry();
