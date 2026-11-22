@@ -7,7 +7,9 @@ import * as tvSettingsFocus from '../src-next/screens/settings-live/tv-settings-
 const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(settingsFixtureChildren(tree)), ...nodes(tree.props?.headerContent)] : [];
 const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.testID === id);
 // Settings search seams: the matches, the Covered flag, TV, and every destination entry ask the screen makes.
-const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[]};
+const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[],
+  /** Where TV focus is, and who listens: Settings opens search only on a move onto the field once focus has settled in it. */
+  capture: undefined as {regionId: string; childId: string} | undefined, listeners: new Set<() => void>()};
 async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: 'settings'}}, initialWidth = 390, role = 'owner', initialPage?: 'live' | 'profile') {
   const host = hooks(), pending: (() => void)[] = [], effects = new Set<{cleanup?: () => void}>();
   const useLayoutEffect = (fn: () => void | (() => void), deps: any[]) => {
@@ -36,7 +38,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     '../../../../../packages/client-core/src/presentation/settings-structure': {settingsStructure: () => structure, searchSettings: () => search.matches, findSettingsPage: (searchable: any, address: string) => {for (const heading of searchable.headings) {const found = heading.pages.find((value: any) => value.id === address); if (found) return {heading, page: found};} return undefined;}},
     '../../../../../packages/client-core/src/presentation/language-list': {}, '../../../../../packages/client-core/src/presentation/region-choices': {},
     '../../../../../packages/i18n/src': {defaultI18n: {number: String}}, '../../../../../packages/client-core/src/recommendation-feedback': {}, './settings-icon': await import('../src-next/screens/settings-live/settings-icon.ts'), '../../../../../packages/design/src/next-icons': {nextIcons: {}},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => undefined, focus: () => true, entryAddress: () => undefined, subscribe: () => () => {}, getSnapshot: () => 0}), useCovered: () => search.covered},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => search.capture, focus: () => true, entryAddress: () => undefined, subscribe: (listener: () => void) => {search.listeners.add(listener); return () => {search.listeners.delete(listener);};}, getSnapshot: () => 0}), useCovered: () => search.covered},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/shell': {SettingsRowTargetContext: {Provider: 'TargetProvider'}, SettingsRow: 'SettingsRow', SettingsSheet: 'SettingsSheet', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles', SettingsSectionLabel: 'SettingsSectionLabel'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'}, '../../kit/shell/visual': {shellType: () => ({}), alpha: (value: string) => value}, '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateView: 'StateView'}, '../../kit/states/sentence-parts': {}, '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'},
     '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})}, '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../destinations/useEntryFocus': {useDestinationEntryFocus: (activation: any, address: any) => {search.entries.push({activation, address});}},
@@ -266,9 +268,10 @@ test('A stale card press after the route moved on opens nothing', async () => {
 });
 
 const searchFixture = async (options: {tv?: boolean; width?: number} = {}) => {
-  Object.assign(search, {matches: [{address: 'playback', rowId: 'subtitles', label: 'Subtitles', pageTitle: 'playback'}], covered: false, tv: !!options.tv, entries: []});
+  Object.assign(search, {matches: [{address: 'playback', rowId: 'subtitles', label: 'Subtitles', pageTitle: 'playback'}], covered: false, tv: !!options.tv, entries: [], capture: undefined});
   const f = await fixture(undefined, options.width ?? (options.tv ? 1920 : 390));
-  if (options.tv) {f.find('settings-search').props.onFocus(); f.render();}
+  // TV: focus settles on the page list, then the user moves up onto the field.
+  if (options.tv) {search.capture = {regionId: 'settings.pages', childId: 'profile'}; for (const listener of [...search.listeners]) listener(); f.find('settings-search').props.onFocus(); f.render();}
   f.find('settings-search').props.onChangeText('sub'); f.render();
   return f;
 };
@@ -294,6 +297,19 @@ test('a tablet page opened from the column afterwards is not aimed at the old ro
     f.find('settings-page-region').props.onPress(); f.render(); f.find('settings-page-playback').props.onPress(); f.render();
     assert.deepEqual(providers(f)[0], {});
   } finally {f.unmount();}
+});
+
+test('TV: focus the platform drops on the search field before Settings settles does not open search; a move onto it afterwards does', async () => {
+  Object.assign(search, {matches: [], covered: false, tv: true, entries: [], capture: {regionId: 'rail', childId: 'settings'}});
+  const f = await fixture(undefined, 1920);
+  try {
+    for (const listener of [...search.listeners]) listener();
+    f.find('settings-search').props.onFocus(); f.render();
+    assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'focus left on the field as Settings opens (still from the side menu) keeps search shut');
+    search.capture = {regionId: 'settings.pages', childId: 'profile'}; for (const listener of [...search.listeners]) listener();
+    f.find('settings-search').props.onFocus(); f.render();
+    assert.ok(f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'once focus has landed in Settings, moving onto the field opens search');
+  } finally {f.unmount(); search.tv = false; search.capture = undefined;}
 });
 
 test('tv-more 34: OK on a TV match closes search and opens its page with that row highlighted and asked for focus once', async () => {
