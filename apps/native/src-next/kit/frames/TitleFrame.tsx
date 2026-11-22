@@ -1,7 +1,7 @@
 import {PreviewText} from '../layout/PreviewText';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import React, {Children, isValidElement, useEffect, useRef, useState, type ReactNode} from 'react';
-import {ScrollView, StyleSheet, TVFocusGuideView, Text, View, useWindowDimensions, type FocusGuideMethods, type ViewStyle} from 'react-native';
+import {ScrollView, StyleSheet, TVFocusGuideView, Text, View, useWindowDimensions, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
@@ -175,11 +175,10 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   const fold = useSharedValue(0);
   // tvOS moves focus only to what is on screen, and folded, the buttons are scrolled away above: a guide over the first
   // section sends Up to Play (or, with no Play, into the head). It is live only while folded, so Down from Play is untouched.
-  const primaryView = useRef<View>(null), headView = useRef<View>(null), upGuide = useRef<View & FocusGuideMethods>(null);
-  useEffect(() => {
-    const target = primaryView.current ?? headView.current;
-    upGuide.current?.setDestinations(folded && target ? [target] : []);
-  }, [folded]);
+  // The target goes to the guide as its `destinations` prop (with autoFocus while live): react-native-tvos makes a guide with
+  // neither unselectable on tvOS, so set imperatively this guide was never used (as #5209 found for Discover).
+  const primaryView = useRef<View>(null), headView = useRef<View>(null), [upTarget, setUpTarget] = useState<View | null>(null);
+  useEffect(() => {setUpTarget(folded ? primaryView.current ?? headView.current : null);}, [folded]);
   useEffect(() => {fold.value = withTiming(folded ? 1 : 0, motion.timing('standard'));}, [fold, folded, motion]);
   // The words fade as the page folds, so they never show through the band; never to nothing, since tvOS will not move
   // focus to a fully transparent view and Up must still reach Play.
@@ -397,7 +396,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   const content = <View onLayout={event => {ys.current.content = event.nativeEvent.layout.y;}} style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
     <View onLayout={event => {ys.current.column = event.nativeEvent.layout.y;}} style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
       {selectionBar}
-      {tv && !scroller && !loading && <TVFocusGuideView ref={upGuide} focusable={folded} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
+      {tv && !scroller && !loading && <TVFocusGuideView destinations={upTarget ? [upTarget] : []} autoFocus={!!upTarget} focusable={!!upTarget} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
       {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={(focused, host) => {
         if (!focused) return;
         // A move within the section keeps the control on screen; entering a section aligns the section itself. A cover page
