@@ -1,10 +1,10 @@
 import React from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {serverTextLabel} from '../../../../../../packages/client-core/src/presentation/server-text';
-import {Button, Switch} from '../../../kit/controls';
+import {Button} from '../../../kit/controls';
 import {HomeSavedViewChoices} from '../../../kit/home/HomeLayout';
 import {TVHomeAlwaysOn, TVHomeLayoutConflict, TVHomeLayoutFoot, TVHomeLayoutHandle, TVHomeLayoutList, TVHomeLayoutNotice, TVHomeLayoutPanel,
-  TVHomeLayoutRemove, TVHomeLayoutRow, TVHomeMoveHints, TVHomeResetButton, TVHomeViewMark} from '../../../kit/home/HomeTVLayout';
+  TVHomeLayoutRemove, TVHomeLayoutRow, TVHomeMoveHints, TVHomeResetButton, TVHomeRowSwitch, TVHomeViewMark} from '../../../kit/home/HomeTVLayout';
 import {Dialog} from '../../../kit/overlays';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
 import {useHomeCustomize, type HomeCustomizeProps} from '../../shared/home/useHomeCustomize';
@@ -47,7 +47,7 @@ export function HomeCustomizePage(props: HomeCustomizeProps) {
         trailing={<>
           {row.savedView && <TVHomeLayoutRemove focusId={`${row.id}:remove`} testID={`${testID}-remove-${row.id}`} label={t('home.customize.removeRow', {title})}
             disabled={blocked || !!state.pickedId} onPress={() => view.removeRow(row.id, index)}/>}
-          {row.required ? <TVHomeAlwaysOn label={copy.alwaysOn}/> : row.hideable && <Switch focusId={`${row.id}:visibility`} checked={!row.hidden}
+          {row.required ? <TVHomeAlwaysOn label={copy.alwaysOn}/> : row.hideable && <TVHomeRowSwitch focusId={`${row.id}:visibility`} checked={!row.hidden}
             disabled={blocked || !!state.pickedId} accessibilityLabel={t('home.customize.showRow', {title})} onCheckedChange={() => controller.toggle(row.id)}/>}
         </>}/>;
     })}

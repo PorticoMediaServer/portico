@@ -1,7 +1,9 @@
 import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View, type AccessibilityActionEvent, type AccessibilityActionInfo} from 'react-native';
 import {typeScale} from '@portico/design';
-import {Button, Focusable} from '../controls';
+import {focusSpec} from '@portico/design';
+import {Button, Focusable, Switch} from '../controls';
+import {tvFocusGlow} from '../controls/Focusable';
 import {Icon} from '../Icon';
 import {alpha} from '../browse/presentation';
 import {SidePanel} from '../overlays';
@@ -19,12 +21,15 @@ export function TVHomeLayoutPanel({title, description, onBack, initialFocusRef, 
     initialFocusRef={initialFocusRef} footer={footer} style={{paddingTop: 46, paddingLeft: 60, paddingRight: 96}}>{children}</SidePanel>;
 }
 
+const LIFT_ROOM = 24;
+
 /** The rows' own scroller; while a row is lifted, the line where it would land is drawn across it. */
 export function TVHomeLayoutList({scrollRef, dropAt, children}: {scrollRef?: React.Ref<ScrollView>; /** From the list's top. */ dropAt?: number; children: ReactNode}) {
   const theme = useTheme();
-  return <ScrollView ref={scrollRef} removeClippedSubviews={false} contentContainerStyle={{paddingTop: 16, paddingBottom: 20}}>
+  // Room at both sides for a lifted row's ring and its 1.03 scale (the scroller clips); the rows themselves do not move.
+  return <ScrollView ref={scrollRef} removeClippedSubviews={false} style={{marginHorizontal: -LIFT_ROOM}} contentContainerStyle={{paddingTop: 16, paddingBottom: 20, paddingHorizontal: LIFT_ROOM}}>
     {children}
-    {dropAt !== undefined && <View pointerEvents="none" style={{position: 'absolute', left: 12, right: 12, top: dropAt - 3, height: 6, backgroundColor: theme.colors.accentStrong, borderRadius: 3}}/>}
+    {dropAt !== undefined && <View pointerEvents="none" style={{position: 'absolute', left: LIFT_ROOM + 12, right: LIFT_ROOM + 12, top: dropAt - 3, height: 6, backgroundColor: theme.colors.accentStrong, borderRadius: 3}}/>}
   </ScrollView>;
 }
 
@@ -40,12 +45,15 @@ export function TVHomeLayoutRow({lifted, shift, height, minHeight, onMeasure, ha
 }) {
   const theme = useTheme();
   return <View onLayout={event => {const {y, height: measured} = event.nativeEvent.layout; onMeasure(y, measured);}}
-    style={{minHeight, height: lifted ? height ?? minHeight : undefined, zIndex: lifted ? 8 : undefined, ...(lifted ? {borderWidth: 2, borderStyle: 'dashed', borderRadius: 0, borderColor: theme.colors.line} : {})}}>
-    <View style={{flexDirection: 'row', alignItems: 'center', minHeight, paddingVertical: 6, gap: 18, borderRadius: 14,
-      ...(lifted ? {position: 'absolute', left: 0, right: 0, backgroundColor: theme.colors.raisedHigh, transform: [{translateY: shift}, {scale: 1.03}]} : {})}}>
+    style={{minHeight, height: lifted ? height ?? minHeight : undefined, zIndex: lifted ? 8 : undefined,
+      // collections-28: the place it was lifted from stays, dashed.
+      ...(lifted ? {borderWidth: 2, borderStyle: 'dashed', borderRadius: 14, borderColor: alpha(theme.colors.lineStrong, .6)} : {})}}>
+    <View style={{flexDirection: 'row', alignItems: 'center', minHeight, paddingVertical: 6, paddingLeft: 12, paddingRight: 18, gap: 18, borderRadius: 14,
+      ...(lifted ? {position: 'absolute', left: 0, right: 0, backgroundColor: theme.colors.raisedBright, transform: [{translateY: shift}, {scale: 1.03}]} : {})}}>
       {handle}
       {leading}
-      <Focusable ref={rowRef} focusId={focusId} testID={testID} disabled={disabled} focusKind="row" focusRadius={16} preferredFocus={preferredFocus}
+      {/* Lifted, the whole row carries the ring (collections-28), so the name draws none of its own. */}
+      <Focusable ref={rowRef} focusId={focusId} testID={testID} disabled={disabled} focusKind="row" focusRadius={16} preferredFocus={preferredFocus} focusTreatment={lifted ? 'none' : 'default'}
         accessibilityLabel={accessibilityLabel} accessibilityState={{selected: lifted}} onPress={onPress}
         accessibilityActions={[...accessibilityActions]} onAccessibilityAction={onAccessibilityAction}
         style={{flex: 1, minHeight, flexDirection: 'row', alignItems: 'center', gap: 18, paddingLeft: 12}}>
@@ -55,8 +63,17 @@ export function TVHomeLayoutRow({lifted, shift, height, minHeight, onMeasure, ha
         </View>
       </Focusable>
       {trailing}
+      {lifted && <View pointerEvents="none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 14}}>
+        <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 14, borderWidth: focusSpec.ringWidth.tv + focusSpec.offsetOuter.tv, borderColor: theme.colors.ink}}/>
+        <View style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 14, borderWidth: focusSpec.ringWidth.tv, borderColor: theme.colors.focus, boxShadow: tvFocusGlow(theme.colors.accentStrong)}}/>
+      </View>}
     </View>
   </View>;
+}
+
+/** A row's switch, held to the middle of the row (the kit switch sits at the top of a row on its own). */
+export function TVHomeRowSwitch(props: React.ComponentProps<typeof Switch>) {
+  return <Switch {...props} style={{alignSelf: 'center'}}/>;
 }
 
 /** The grip before a row that moves: OK picks the row up (focus then moves onto the row itself). */
