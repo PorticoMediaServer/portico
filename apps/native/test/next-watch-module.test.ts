@@ -46,7 +46,7 @@ const {createNativeWatchModule, nativeWatchChromeFacts} = await screenModule(new
   '../../../../../packages/i18n/src': {defaultI18n}, './panel-names': {createNativeWatchPanelNames},
   '../../shell/channel-route': {NativeWatchChannelRoute: 'Channel'},
   '../../kit/player/PlaybackInfoPanel': {NativePlaybackInfoPanel: 'PlaybackInfo', playbackInfoWords: infoPanel.playbackInfoWords},
-  './WatchPanels': {NativeWatchPanels: 'Panels'}, './panel-options': {NativeWatchPanelOptions: class {dispose() {optionsDisposed++;}}},
+  '../../pages/shared/player/WatchPanelsPage': {WatchPanelsPage: 'Panels'}, './panel-options': {NativeWatchPanelOptions: class {dispose() {optionsDisposed++;}}},
   './live-guide': {NativeTVLiveGuide: class {guideAction() {return () => {};} close() {return false;} dispose() {}}},
   './live-actions': {NativeTVLiveActions: class {close() {return false;} dispose() {}}},
   '../../kit/player/LiveActionPanels': {NativeLiveActionPanels: 'LiveActionPanels'}, '../../kit/player/PlaybackFailed': {NativePlaybackFailed: 'PlaybackFailed'},
