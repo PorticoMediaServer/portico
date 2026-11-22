@@ -53,6 +53,8 @@ export async function liveGuideModule(previous, shallow = false) {
   const inputs = {
     ...bindings, '../../shared/live/useLiveGuide': hook, '../../../kit/live/GuideContent': content,
     './RecordingsPage': {RecordingsPage: previous['./RecordingsScreen']?.NativeRecordingsScreen},
+    // The owner editor the tests stub as './LiveOwnerScreen' is the touch LiveOwnerPage now.
+    './LiveOwnerPage': {LiveOwnerPage: previous['./LiveOwnerScreen']?.NativeLiveOwnerScreen ?? 'LiveOwnerPage'},
     '../../../kit/frames': {LiveFrame: frame},
   };
   const [touch, tv] = await Promise.all(['touch', 'tv'].map(form => load(`pages/${form}/live/GuidePage.tsx`, inputs)));
@@ -118,6 +120,8 @@ export async function recordingsPageModule(previous) {
   const content = await load('kit/live/RecordingsContent.tsx', {
     ...liveContentBindings(bindings), '../../pages/shared/live/useRecordings': state,
     './RecordingDialogs': sheets, './Recordings': parts,
+    // The tests stub the new-rule sheet as './LiveRecordingOwner'; it is kit/live/NewRuleSheet now.
+    ...(previous['./LiveRecordingOwner'] ? {'./NewRuleSheet': previous['./LiveRecordingOwner']} : {}),
   });
   const form = previous['../../kit/theme'].useTheme().isTV ? 'tv' : 'touch';
   const page = await load(`pages/${form}/live/RecordingsPage.tsx`, {

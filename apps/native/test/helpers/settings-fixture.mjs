@@ -40,6 +40,7 @@ export async function settingsFixture(previous) {
   const History = previous['../../touch/settings/ServerHistoryPage']?.ServerHistoryPage;
   const page = await load('pages/shared/settings/SettingsPage.tsx', {...bindings, './useSettingsPage': model, './SettingsPreferences': body,
     './ServerGeneralPage': previous['./ServerGeneralPage'] ?? {ServerGeneralPage: 'ServerGeneralPage'},
+    '../../touch/live/LiveOwnerPage': previous['../../touch/live/LiveOwnerPage'] ?? {LiveOwnerPage: 'LiveOwnerPage'},
     './ServerRemoteAccessPage': previous['./ServerRemoteAccessPage'] ?? {ServerRemoteAccessPage: 'ServerRemoteAccessPage'},
     '../../touch/settings/ServerTroubleshootingPage': previous['../../touch/settings/ServerTroubleshootingPage'] ?? {ServerTroubleshootingPage: 'ServerTroubleshootingPage'},
     '../../touch/settings/ServerStreamingPage': previous['../../touch/settings/ServerStreamingPage'] ?? {ServerStreamingPage: 'ServerStreamingPage'},
