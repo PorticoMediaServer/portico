@@ -157,7 +157,8 @@ type Item struct {
 	// EntryID names a list entry for moves and removals. In a sorted view it is omitted when the item occurs twice or more.
 	EntryID string `json:"entryId,omitempty"`
 
-	// On GET /v1/items/{id} only.
+	// On GET /v1/items/{id} only, but for Summary, which an episode also carries in a list of
+	// its season's or show's children.
 	// NextEpisode is a show's play target for this profile; its parentId names the season to open.
 	EpisodeDisplay *EpisodeDisplay    `json:"episodeDisplay,omitempty"`
 	NextEpisode    *Item              `json:"nextEpisode,omitempty"`
@@ -586,6 +587,7 @@ func itemShape(it db.Item) Item {
 	if len(it.Credits) > 0 {
 		out.Credits = creditShapes(it.Credits)
 	}
+	out.Summary = it.Summary
 	if !it.Kind.Playable() {
 		out.Counts = &ItemCounts{Children: it.ChildCount, Leaves: it.Leaves, UnwatchedLeaves: it.Leaves - it.WatchedLeaves}
 	}

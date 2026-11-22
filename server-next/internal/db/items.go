@@ -45,8 +45,7 @@ type Item struct {
 	State             State
 	// For an item that holds others: how many playable items under it the viewer may see, and
 	// how many of those are watched. A show is watched when the two are equal and not zero.
-	Leaves        int
-	WatchedLeaves int
+	Leaves, WatchedLeaves int
 	// EntryID is the entry's id when the item is listed as an entry of a list.
 	EntryID int64
 	// Credits, on a list of one person's titles, are that person's credits on the item, in
@@ -54,6 +53,7 @@ type Item struct {
 	Credits []Credit
 	// Chapter is, for an audiobook in Continue your books, the chapter the viewer's place is in.
 	Chapter *Chapter
+	Summary string // an episode's, on a list of its season's or show's children (episode_summaries.go)
 
 	sortTitle string
 	// imageParentID is a track's album only when this viewer may see that album.
@@ -420,7 +420,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if err := loadImages(ctx, tx, page.Items); err != nil {
 		return page, err
 	}
-	if err := loadPersonCredits(ctx, tx, where.person, page.Items); err != nil {
+	if err := loadListExtras(ctx, tx, where.person, q.Parent != "", page.Items); err != nil {
 		return page, err
 	}
 	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
