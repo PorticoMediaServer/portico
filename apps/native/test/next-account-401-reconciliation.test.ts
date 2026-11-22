@@ -330,7 +330,7 @@ test('when the account ends while a server is opening, welcome is not left busy'
   class SignIn {static parseInvitationEntry() {return undefined;} connectPortico() {return held.promise;} dispose() {} serverDescriptor() {return undefined;}}
   const app = await entry(t, f, {'../../platform/server-sign-in': {NativeServerSignIn: SignIn}, './directory-refusal': await import('../src-next/screens/accounts/directory-refusal')}); await app.settle();
   const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.beforeActions)] : [];
-  await act(() => all(app.tree()).find(node => node.type === 'Focusable' && node.props.onPress).props.onPress()); await app.settle();
+  await act(() => all(app.tree()).find(node => (node.type === 'Focusable' || typeof node.props.name === 'string') && node.props.onPress).props.onPress()); await app.settle();
   f.renewal(async () => {throw new core.ApiError(401, 'session_ended', 'Ended', false);});
   await act(async () => {await f.owner.accessSession(true, accountWork.accountExpectation(f.owner.getSnapshot().session!)).catch(() => {});}); await app.settle();
   held.resolve(undefined as never); await app.settle();

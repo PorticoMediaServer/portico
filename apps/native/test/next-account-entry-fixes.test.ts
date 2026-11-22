@@ -70,7 +70,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
   });
   // The account entry's own kit parts, drawn for real so the legal line inside them can be pressed.
   const entryParts = await screenModule(new URL('../src-next/kit/accounts/AccountEntryParts.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-qrcode-svg': {default: 'QRCode'}, '../controls': {Button: 'Button'},
+    react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-qrcode-svg': {default: 'QRCode'}, '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'},
     '../frames/TVAuthLayout': {TVAccountFields: 'TVAccountFields'}, './LegalAgreement': legal,
     '../theme': {useTheme: () => ({isTV: false, colors: {}, type: {}})},
   });
