@@ -24,7 +24,7 @@ import {nativeType, useTheme} from '../../kit/theme';
 import {useMotion, useReducedMotion} from '../../kit/useMotion';
 import {useScreenReader} from '../../kit/useScreenReader';
 import {NativeWatchControls, type NativeWatchPanel} from './controls';
-import {NativeWatchTimeline} from './WatchTimeline';
+import {NativeWatchTimeline} from '../../kit/player/WatchTimeline';
 import {createLandingStore, type LandingStore} from './landing-store';
 import {useSkipPromptMotion} from './useSkipPromptMotion';
 import {useInitialPlayerPaint, usePublishedPlayerMorph} from '../../kit/dock/PlayerMorphBridge';

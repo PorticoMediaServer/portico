@@ -36,12 +36,12 @@ async function timelineFixture(vega = false) {
   const playback = {getSnapshot: () => source, seek: async (_fence: any, seconds: number) => {seeks.push(seconds);}, toggle: async () => {seeks.push('toggle');}};
   const props: any = {source, controls, playback, compact: false, enabled: true, focused: true, tv: true, skipBackSeconds: 5, skipForwardSeconds: 30, reportError: assert.fail, onPreview: (value: number | undefined) => previews.push(value)};
   controls.source(fence, {expanded: true, autoHide: false, hiddenByPanel: false, paused: true, scrubbing: false, focusHeld: false});
-  const {NativeWatchTimeline} = await screenModule(new URL('../src-next/screens/watch/WatchTimeline.tsx', import.meta.url), {
+  const {NativeWatchTimeline} = await screenModule(new URL('../src-next/kit/player/WatchTimeline.tsx', import.meta.url), {
     react: h.react, 'react-native': nativeAtoms, 'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'Gesture'}, 'react-native-reanimated': animation(h),
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': i18n,
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay', NativeScrubPreview: 'ScrubPreview', scrubCardCentre: (await import('../src-next/screens/watch/trickplay-frame.ts')).scrubCardCentre}, './landing-store': landingStoreModule, '../../kit/useMotion': {useMotion: () => ({timing: () => ({})})},
+    '../controls': controlsAtoms, '../theme': themed, '../../screens/watch/TrickplayStrip': {NativeTrickplayStrip: 'Trickplay', NativeScrubPreview: 'ScrubPreview', scrubCardCentre: (await import('../src-next/screens/watch/trickplay-frame.ts')).scrubCardCentre}, '../../screens/watch/landing-store': landingStoreModule, '../useMotion': {useMotion: () => ({timing: () => ({})})},
     '../../platform/tv-keys': {useTVKeyEvent: (handler: typeof key) => {key = handler;}},
-    '../../kit/navigation/back': {registerBack: (handler: () => boolean) => {back = handler; return () => {back = undefined;};}},
+    '../navigation/back': {registerBack: (handler: () => boolean) => {back = handler; return () => {back = undefined;};}},
     '../../platform/siri-remote': {touchScrub, useSiriRemoteTouch: (enabled: boolean, handler: typeof touch) => {touchListening = enabled; touch = handler;}}, '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: any) => createTVSeekRepeat(step, clock)},
   });
   const draw = () => {props.source = source; h.render(() => NativeWatchTimeline(props)); return h.flush();};
@@ -330,7 +330,7 @@ async function chromeFixture(live = false) {
     '../../../../../packages/i18n/src': i18n, '../../kit/controls': controlsAtoms, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry},
     '../../kit/Icon': {Icon: 'Icon'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'}, '../../kit/theme': themed,
     '../../kit/useMotion': {useMotion: () => ({duration: () => 0, timing: () => ({duration: 0})}), useReducedMotion: () => true}, './controls': {NativeWatchControls},
-    './WatchTimeline': {NativeWatchTimeline: 'Timeline'}, './useSkipPromptMotion': {useSkipPromptMotion: () => ({value: undefined, interactive: false, bodyStyle: {}, positionStyle: {}})},
+    '../../kit/player/WatchTimeline': {NativeWatchTimeline: 'Timeline'}, './useSkipPromptMotion': {useSkipPromptMotion: () => ({value: undefined, interactive: false, bodyStyle: {}, positionStyle: {}})},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined, usePublishedPlayerMorph: () => undefined}, '../../kit/player/PlayerUpNext': {PlayerUpNext: 'UpNextCard'}, '../../kit/player/StillWatchingCard': {NativeStillWatchingCard: 'StillWatchingCard'}, '../../kit/artwork': {Artwork: 'Artwork'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: () => () => {}}, './live-actions': {emptyLiveActions: () => ({}), noLiveActionsSubscription: () => () => {}},
     '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => ''},
