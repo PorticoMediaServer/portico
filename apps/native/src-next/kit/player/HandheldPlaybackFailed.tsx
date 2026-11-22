@@ -5,7 +5,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button} from '../controls';
 import {textLines, useTheme} from '../theme';
 import {shellType} from '../shell/visual';
-import type {NativePlaybackFailure} from '../../screens/watch/PlaybackFailed';
+import type {NativePlaybackFailure} from './PlaybackFailed';
 import {failureBody, failureTitle} from '../../screens/watch/failure-words';
 
 /** A compact state inside the picture, leaving the player's own exit controls usable. */

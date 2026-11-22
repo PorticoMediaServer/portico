@@ -39,7 +39,7 @@ async function timelineFixture(vega = false) {
   const {NativeWatchTimeline} = await screenModule(new URL('../src-next/kit/player/WatchTimeline.tsx', import.meta.url), {
     react: h.react, 'react-native': nativeAtoms, 'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'Gesture'}, 'react-native-reanimated': animation(h),
     '../../../../../packages/player-core/src': playerCore, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': i18n,
-    '../controls': controlsAtoms, '../theme': themed, '../../screens/watch/TrickplayStrip': {NativeTrickplayStrip: 'Trickplay', NativeScrubPreview: 'ScrubPreview', scrubCardCentre: (await import('../src-next/screens/watch/trickplay-frame.ts')).scrubCardCentre}, '../../screens/watch/landing-store': landingStoreModule, '../useMotion': {useMotion: () => ({timing: () => ({})})},
+    '../controls': controlsAtoms, '../theme': themed, './TrickplayStrip': {NativeTrickplayStrip: 'Trickplay', NativeScrubPreview: 'ScrubPreview', scrubCardCentre: (await import('../src-next/screens/watch/trickplay-frame.ts')).scrubCardCentre}, '../../screens/watch/landing-store': landingStoreModule, '../useMotion': {useMotion: () => ({timing: () => ({})})},
     '../../platform/tv-keys': {useTVKeyEvent: (handler: typeof key) => {key = handler;}},
     '../navigation/back': {registerBack: (handler: () => boolean) => {back = handler; return () => {back = undefined;};}},
     '../../platform/siri-remote': {touchScrub, useSiriRemoteTouch: (enabled: boolean, handler: typeof touch) => {touchListening = enabled; touch = handler;}}, '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: any) => createTVSeekRepeat(step, clock)},
@@ -238,10 +238,10 @@ test('post-play rows stay horizontal, preserve card widths, connect both directi
 
 test('TV failure keeps Retry as entry, exposes its real secondary actions and restores Details focus', async () => {
   const h = watchHooks(), calls: string[] = [];
-  const {NativePlaybackFailed} = await screenModule(new URL('../src-next/screens/watch/PlaybackFailed.tsx', import.meta.url), {
+  const {NativePlaybackFailed} = await screenModule(new URL('../src-next/kit/player/PlaybackFailed.tsx', import.meta.url), {
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`},
-    '../../../../../packages/client-core/src/presentation/kit-model': {playbackIdentity: () => undefined}, '../../kit/controls': controlsAtoms, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
-    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays': {SidePanel: 'SidePanel'},
+    '../../../../../packages/client-core/src/presentation/kit-model': {playbackIdentity: () => undefined}, '../controls': controlsAtoms, '../Icon': {Icon: 'Icon'}, '../theme': themed, '../shell/visual': {shellType: () => ({})},
+    '../focus': {FocusRegion: 'FocusRegion'}, '../overlays': {SidePanel: 'SidePanel'},
   });
   const failure = {fence, positionSeconds: 12}, props: any = {context: {source: {}}, failure, chromeVisible: true, retry: () => calls.push('retry'), differentVersion: () => calls.push('version'), details: () => h.react.createElement('Facts', {})};
   try {
@@ -383,7 +383,7 @@ async function failureModuleFixture(owner = true) {
     './factory': {createNativeWatchScreens: (ports: any) => {player = ports.player; return {watch: {}, dispose() {}, capture: (entry: any, current: () => boolean) => {const value = {entry, current}; captures.push(value); return value;}, versions: async (...args: unknown[]) => {versions.push(args);}};}},
     '../../kit/player/PlaybackInfoPanel': {playbackInfoWords: () => ({network: (value: string) => value})}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
     './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {}, '../../shell/channel-route': {}, './live-guide': {NativeTVLiveGuide: class {dispose() {}}}, './live-actions': {NativeTVLiveActions: class {dispose() {}}}, '../../kit/player/LiveActionPanels': {},
-    './PlaybackFailed': {NativePlaybackFailed: 'Failure'}, '../../kit/player/HandheldPlaybackFailed': {}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {}, '../../platform/server-preferences': {},
+    '../../kit/player/PlaybackFailed': {NativePlaybackFailed: 'Failure'}, '../../kit/player/HandheldPlaybackFailed': {}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {}, '../../platform/server-preferences': {},
     '../../../../../packages/client-core/src/presentation/browse-toolbar': {}, './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},
     '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => 'Public playback message'}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`},
     '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'}, '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue},
@@ -427,10 +427,10 @@ test('failure bar edges follow real recovery actions and no invented alternate i
 
 test('WEBFIX-A1: while a phone or tablet drags, the card above the knob shows the picture there and its time; with no picture the time bubble stays', async () => {
   const h = watchHooks();
-  const {NativeScrubPreview} = await screenModule(new URL('../src-next/screens/watch/TrickplayStrip.tsx', import.meta.url), {
+  const {NativeScrubPreview} = await screenModule(new URL('../src-next/kit/player/TrickplayStrip.tsx', import.meta.url), {
     react: h.react, 'react-native': {...nativeAtoms, Image: 'Image', StyleSheet: {absoluteFill: {}, create: (value: unknown) => value}}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop'},
-    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../../kit/theme': themed, '../../kit/player/parts': {PlayerFilmstrip: 'Filmstrip'}, '@portico/design': {frameSpec: {player: {filmstrip: {small: {width: 256, height: 144}, large: {width: 480, height: 270}}}}},
-    './trickplay-frame': await import('../src-next/screens/watch/trickplay-frame.ts'),
+    '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => `t${seconds}`}, '../theme': themed, '../shell/visual': {shellType: () => ({})}, './parts': {PlayerFilmstrip: 'Filmstrip'}, '@portico/design': {frameSpec: {player: {filmstrip: {small: {width: 256, height: 144}, large: {width: 480, height: 270}}}}},
+    '../../screens/watch/trickplay-frame': await import('../src-next/screens/watch/trickplay-frame.ts'),
   });
   const set = {id: 's', sourceId: 'src', sourceRevision: 'r', width: 3200, height: 1800, tileWidth: 320, tileHeight: 180, columns: 10, rows: 10, intervalSeconds: 10, durationSeconds: 1000,
     sourceOffsetSeconds: 0, tileCount: 1, frameCount: 100, stale: false, revision: 'r', tilesUrl: '/v1/items/i/trickplay/s/tiles', thumbnailsUrl: ''};

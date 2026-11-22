@@ -19,14 +19,14 @@ import {NativeWatchPanels, type NativeWatchPanelsProps, type NativeWatchStylePor
 import {NativeWatchPanelOptions} from './panel-options';
 import type {NativeWatchHostBindings} from './WatchHost';
 import {sameAuthority} from '../../shell/model';
-import type {NativePlaybackFailure} from './PlaybackFailed';
+import type {NativePlaybackFailure} from '../../kit/player/PlaybackFailed';
 import type {NativeWatchPanelNames} from './panel-model';
 import {nativeWatchTracks} from './track-identity';
 import {NativeWatchChannelRoute} from '../../shell/channel-route';
 import {NativeTVLiveGuide} from './live-guide';
 import {NativeTVLiveActions} from './live-actions';
 import {NativeLiveActionPanels} from '../../kit/player/LiveActionPanels';
-import {NativePlaybackFailed} from './PlaybackFailed';
+import {NativePlaybackFailed} from '../../kit/player/PlaybackFailed';
 import {failureWhatHappened} from './failure-words';
 import {NativeHandheldPlaybackFailed} from '../../kit/player/HandheldPlaybackFailed';
 import {NativeWatchPostPlay} from '../../kit/player/WatchPostPlay';

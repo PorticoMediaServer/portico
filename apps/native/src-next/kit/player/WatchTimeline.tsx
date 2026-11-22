@@ -15,7 +15,7 @@ import {Focusable} from '../controls';
 import {registerBack} from '../navigation/back';
 import {useTheme} from '../theme';
 import type {NativeWatchControls} from '../../screens/watch/controls';
-import {NativeScrubPreview, NativeTrickplayStrip, scrubCardCentre} from '../../screens/watch/TrickplayStrip';
+import {NativeScrubPreview, NativeTrickplayStrip, scrubCardCentre} from './TrickplayStrip';
 import type {NativePlaybackAdapter} from '../../platform/playback/types';
 import type {ArtworkSource} from '../artwork';
 import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';

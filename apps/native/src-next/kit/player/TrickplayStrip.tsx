@@ -2,12 +2,13 @@ import React from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
 import {clockText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
-import type {ArtworkSource} from '../../kit/artwork';
-import {nativeType, useTheme} from '../../kit/theme';
+import type {ArtworkSource} from '../artwork';
+import {useTheme} from '../theme';
+import {shellType} from '../shell/visual';
 import {frameSpec} from '@portico/design';
-import {PlayerFilmstrip} from '../../kit/player/parts';
+import {PlayerFilmstrip} from './parts';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
-import {SCRUB_CARD, nativeTrickplayWindow, scrubCardCentre as cardCentre} from './trickplay-frame';
+import {SCRUB_CARD, nativeTrickplayWindow, scrubCardCentre as cardCentre} from '../../screens/watch/trickplay-frame';
 
 /** Where the scrub card's centre sits on the timeline (trickplay-frame's rule, for the timeline). */
 export const scrubCardCentre = cardCentre;
@@ -64,7 +65,7 @@ export function NativeScrubPreview({set, artwork, seconds, left, fallback}: Read
     <View style={{position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 14, paddingBottom: 5, alignItems: 'center'}}>
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%"><Defs><LinearGradient id="scrub-scrim" x1="0" y1="1" x2="0" y2="0">
         <Stop offset="0" stopColor="#03080c" stopOpacity=".85"/><Stop offset="1" stopColor="#03080c" stopOpacity="0"/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#scrub-scrim)"/></Svg>
-      <Text style={[nativeType({size: 14, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: '#edf5fa', fontVariant: ['tabular-nums']}]}>{clockText(seconds)}</Text>
+      <Text style={[shellType(14, 800, 'normal', 0, theme.textScale), {color: '#edf5fa', fontVariant: ['tabular-nums']}]}>{clockText(seconds)}</Text>
     </View>
   </View>;
 }
