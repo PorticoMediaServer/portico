@@ -60,3 +60,7 @@
 }
 .advanced { margin-top: 34px; }
 .stats { margin-top: 18px; }
+/* A title row: its poster (or a kind glyph while there is none) beside its name and counts. */
+.show:has(> .showPoster) { display: flex; align-items: center; gap: 12px; }
+.showPoster { flex: none; width: 40px; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; display: grid; place-items: center; background: var(--color-raised-high); color: var(--color-text-tertiary); }
+.showText { flex: 1; min-width: 0; }
