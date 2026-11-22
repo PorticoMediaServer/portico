@@ -1,4 +1,5 @@
 import type {ReadingPeriodicalIssue} from '../../../../../packages/client-core/src';
+import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {NativeReadPeriodicalState} from './read-periodical-model';
 
 /** Newspapers follow the selected date; a pending/missing date must never
@@ -27,4 +28,21 @@ export function periodicalDayRead(state: NativeReadPeriodicalState, date: string
   const count = state.days.find(day => day.value === date)?.count;
   const items = state.selectedDate === date && state.selectedDateItems ? state.selectedDateItems : state.items.filter(issue => issue.issueDate === date);
   return count !== undefined && count > 0 && items.length === count && items.every(issue => readingItemIsRead(issue.item));
+}
+
+/** An issue's month and year ("December 1929"), or its full date for a dated issue; undefined when the date is not one. */
+export function issueMonth(date: string | undefined, withYear = true): string | undefined {
+  const match = date ? /^(\d{4})-(\d{2})/.exec(date) : null;
+  if (!match) return undefined;
+  return new Intl.DateTimeFormat(defaultI18n.locale, {month: 'long', ...(withYear ? {year: 'numeric'} : {}), timeZone: 'UTC'})
+    .format(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+}
+
+/** An issue card's title under its year's heading (phone-read 24): its month ("December"), or its month and day for a
+ * dated issue ("August 27"); undefined when the date is not one. */
+export function issueCardTitle(date: string): string | undefined {
+  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(date);
+  if (!match) return undefined;
+  return new Intl.DateTimeFormat(defaultI18n.locale, {month: 'long', ...(match[3] ? {day: 'numeric'} : {}), timeZone: 'UTC'})
+    .format(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3] ?? 1)));
 }

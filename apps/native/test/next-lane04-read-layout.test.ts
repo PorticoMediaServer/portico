@@ -109,18 +109,28 @@ async function periodical(tablet: boolean, magazine: boolean, phase = 'ready') {
     react: r.react, '../../../../../../packages/i18n/src': i18n, '../../../kit/frames/ReadingPeriodicalFrame': frame,
     '../../../kit/reading/PeriodicalParts': parts, '../../../kit/reading/ReadingActions': {ReadingItemMenu: 'ReadingItemMenu'},
     '../../../kit/states': states, '../../shared/read/useReadPeriodical': model,
+    '../../../kit/artwork': art, '../../../kit/frames': {TitleFrame: 'TitleFrame'}, '../../../kit/layout': {HeroMetadata: 'HeroMetadata'},
+    '../../../kit/layout/page-inset': {usePageWidth: () => width}, '../../../kit/theme': {useTheme},
+    '../../shared/read/useMagazineHead': {useMagazineHead: () => ({facts: [], primary: {label: 'Read', onPress() {}}})},
   });
   const page = r.render(ReadPeriodicalPage, {controller, route: {groupId: 'group', publicationType: state.publicationType}, context: {}, runtime, onBack() {}});
-  const tree = r.render(page.type, page.props);
+  // A magazine's title page is a fragment (the frame and its item menu); the archive frame is a component to render.
+  const tree = typeof page.type === 'function' ? r.render(page.type, page.props) : page;
   return {r, tree, state, selected, latest, opens, menus};
 }
 
-test('magazine uses virtual year rows, a 190pt tablet hero and 44pt year chips', async () => {
-  const f = await periodical(true, true), rowNode = named(f.tree, 'MagazineIssues'), list = f.r.render(rowNode.type, rowNode.props);
+/** A magazine on a phone or tablet is a title page (phone-read 24): its issues are the TitleFrame's scroller. */
+function magazineIssues(f: Awaited<ReturnType<typeof periodical>>) {
+  const frame = named(f.tree, 'TitleFrame'), rowNode = frame.props.scroller('head', {paddingBottom: 1}, {at: 100, onChange() {}});
+  return {frame, rowNode, list: f.r.render(rowNode.type, rowNode.props)};
+}
+
+test('magazine uses virtual year rows, the title page poster cover and 44pt year chips', async () => {
+  const f = await periodical(true, true), {frame, rowNode, list} = magazineIssues(f);
   assert.equal(list.type, 'FlatList'); assert.equal(list.props.initialNumToRender, 4);
   assert.deepEqual(list.props.data.map((row: any) => [row.year, row.kind]), [['2026', 'heading'], ['2026', 'issues'], ['2025', 'heading'], ['2025', 'issues']]);
-  const heroNode = named(rowNode.props.hero, 'PeriodicalHero'), hero = f.r.render(heroNode.type, heroNode.props);
-  assert.equal(named(hero, 'IssueArtwork').props.width, 190);
+  assert.equal(rowNode.props.hero, 'head'); assert.equal(frame.props.cover.shape, 'poster');
+  const cover = frame.props.cover.node(190); assert.equal(cover.props.width, 190); assert.equal(cover.props.issue, f.latest);
   const chips = nodes(list.props.ListHeaderComponent).find(node => node.type === 'FlatList' && node.props.horizontal);
   const chip = chips.props.renderItem({item: f.state.years[0]}); assert.equal(chip.props.style.height, 44);
   assert.equal(chip.props.style.backgroundColor, '#409fd4/0.2');
@@ -142,10 +152,12 @@ test('newspaper phone renders real day choices and its 446pt front page opens th
 });
 
 test('read issue artwork uses the approved dimming while preserving the selected ring independently', async () => {
-  const f = await periodical(true, true), rowNode = named(f.tree, 'MagazineIssues'), list = f.r.render(rowNode.type, rowNode.props);
+  const f = await periodical(true, true), {list} = magazineIssues(f);
   const shelf = list.props.renderItem({item: list.props.data[1]}), cardNode = shelf.props.renderItem(f.selected), card = f.r.render(cardNode.type, cardNode.props);
   const artworkNode = named(card, 'IssueArtwork'), artwork = f.r.render(artworkNode.type, artworkNode.props), image = named(artwork, 'Artwork');
   assert.equal(image.props.saturation, .6); assert.equal(image.props.brightness, .66);
+  // phone-read 24: under its year an issue is titled by its date alone, not the magazine's name again.
+  assert.equal(named(card, 'GuideProgrammeTitle').props.title, 'October 1');
   assert.ok(nodes(card).some(node => node.type === 'Icon' && node.props.name === 'i-check'));
 });
 
@@ -190,7 +202,7 @@ test('reading loading delegates the quiet skeleton and adds a notice only after 
 const gone = (id: string, issueDate: string) => ({issueDate, item: {...issue(id, issueDate).item, inventoryAvailable: false}});
 
 test('N5-4: an issue the server can\'t serve is drawn but opens nothing, and offers no menu or selection', async () => {
-  const f = await periodical(true, true), rowNode = named(f.tree, 'MagazineIssues'), list = f.r.render(rowNode.type, rowNode.props);
+  const f = await periodical(true, true), {list} = magazineIssues(f);
   const shelf = list.props.renderItem({item: list.props.data[1]});
   const card = (value: any) => {const element = shelf.props.renderItem(value); return f.r.render(element.type, element.props);};
   const available = card(issue('here', '2026-10-02')), missing = card(gone('missing', '2026-10-03'));
