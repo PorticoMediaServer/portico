@@ -7,7 +7,7 @@ import type {Gallery} from '../../gallery-registry';
 import {Button, FormError} from '../../../kit/controls';
 import {useTheme} from '../../../kit/theme';
 import {SignInPage} from '../../../pages/touch/accounts/SignInPage';
-import {PhoneFindServer, type FoundServer} from '../../../screens/accounts/PhoneFindServer';
+import {PhoneFindServer, type FoundServer} from '../../../kit/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../../pages/touch/accounts/ServerSignInPage';
 
 // The phone and tablet sign-in screens (auth.html frames 4, 5 and 6) in the states the review desk signs against:

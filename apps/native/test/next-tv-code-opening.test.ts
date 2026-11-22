@@ -182,7 +182,7 @@ async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () 
     '../../platform/tv-sign-in': {createNativePorticoTVSignIn: () => f.newService('portico')},
     './directory-chooser': directoryChooser, '../../platform/tv-menu': {useTVMenuCapture() {}}, './tv-code-opening': tvCodeOpening, './tv-approval-finalization': tvApproval, './tv-approval-credentials': tvApprovalCredentials,
     '../../../../../packages/client-core/src': {HttpHostedApi: class {async servers() {return {items: []};}}},
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
+    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
   };
   // Unvisited native/credential branches may import names, but an unexpected
   // invocation fails loudly; no omitted guard/service is silently a no-op.

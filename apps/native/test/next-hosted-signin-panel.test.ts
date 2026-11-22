@@ -44,7 +44,7 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'presented'})},
     '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
-    '../../kit/theme': {useTheme: () => theme}, '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
+    '../../kit/theme': {useTheme: () => theme}, '../../platform/clipboard': {copyText: async () => {}}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
   });
   class Controller {
     disposed = false; readonly security: any; readonly current: () => boolean; opened: string[] = [];

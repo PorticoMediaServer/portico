@@ -1,10 +1,10 @@
 import React from 'react';
 import {Text} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button, TextField} from '../../kit/controls';
-import {SettingsGroup, SettingsRow, SettingsSectionLabel} from '../../kit/shell';
-import {nativeType, useTheme} from '../../kit/theme';
-import {AccountForm} from '../../kit/accounts/AccountForm';
+import {Button, TextField} from '../controls';
+import {SettingsGroup, SettingsRow, SettingsSectionLabel} from '../shell';
+import {useTheme} from '../theme';
+import {AccountForm} from './AccountForm';
 
 export type FoundServer = Readonly<{origin: string; name: string; host: string; setupRequired: boolean}>;
 
@@ -20,7 +20,7 @@ export function PhoneFindServer({busy, error, address, found, searching, failed,
 }) {
   const theme = useTheme(), t = defaultI18n.t;
   const section = (label: string, busy = false) => <SettingsSectionLabel label={label} busy={busy} inset={2}/>;
-  const quiet = [nativeType({size: 12.5, lineHeight: 18.75, weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textTertiary}];
+  const quiet = [theme.type.accountQuiet, {color: theme.colors.textTertiary}];
   return <AccountForm testID="accounts-find-server" title={t('accounts.find.title')} body={t('accounts.find.lede')}
     detailsAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: onBack}}
     secondaryAction={{id: 'find-continue', label: t('action.continue'), disabled: busy || !address.trim(), loading: busy, onPress: onContinue}}

@@ -240,7 +240,7 @@ const handheldType = {
   /** The words typed in a search or find field (phone-app's search field, 15.5/500). `searchPageQuery` is the Search page's own
    * field: the same on a phone, tablet.html `.sf .q` (26/700) on a tablet. */
   searchQuery: type(15.5, 'normal', 500), searchPageQuery: type(15.5, 'normal', 500),
-  accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700),
+  accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700), accountQuiet: type(12.5, 18.75, 400), providerButton: type(16, 'normal', 700), passwordStrength: type(13, 18, 600),
   // System rule 6 (design/ui-v1 system-rules.html): the roles a screen on a frame picks from. Row and section headings are `rowHeading`,
   // card text `cardTitle` and `cardSubtitle`, tabs `tab`; these are the roles the scale lacked.
   pageTitle: type(34, 38, 800, -.03), /** A list page stepped into (See all, collections 46-48): the page title, larger on TV. */ listTitle: type(34, 38, 800, -.03), barTitle: type(17, 'normal', 700), groupLabel: type(15, 'normal', 700), listLabel: type(15, 'normal', 700),

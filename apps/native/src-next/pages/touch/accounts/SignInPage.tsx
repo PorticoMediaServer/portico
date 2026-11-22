@@ -3,7 +3,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button, TextField} from '../../../kit/controls';
 import {SignInFrame} from '../../../kit/frames';
 import {AccountDivider, AccountFields, AccountLinks, AccountTerms} from '../../../kit/accounts/AccountParts';
-import {ProviderButton} from '../../../screens/accounts/ProviderButton';
+import {ProviderButton} from '../../../kit/accounts/ProviderButton';
 
 /** auth.html frame 4, the first screen a signed-out phone or tablet shows. Apple and Google are always drawn; the
  * screen that owns it says plainly when one is not available yet. */

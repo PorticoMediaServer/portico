@@ -44,9 +44,9 @@ test('compact auth forms forward their Back action and keep the editor above Con
 });
 
 test('new-password strength uses all four shared-policy segments and the exact label', async context => {
-  const {PasswordStrengthMeter} = await screenModule(new URL('../src-next/screens/accounts/PasswordStrengthMeter.tsx', import.meta.url), {
+  const {PasswordStrengthMeter} = await screenModule(new URL('../src-next/kit/accounts/PasswordStrengthMeter.tsx', import.meta.url), {
     react, 'react-native': {View: 'View', Text: 'Text'}, '../../../../../packages/i18n/src': {defaultI18n: copy},
-    '../../../../../packages/client-core/src/password-strength': passwordPolicy, '../../kit/theme': {useTheme: () => theme},
+    '../../../../../packages/client-core/src/password-strength': passwordPolicy, '../theme': {useTheme: () => theme},
   });
   let value = '', tree: any; const host = createFabricHookHost(() => {tree = PasswordStrengthMeter({password: value});});
   context.after(() => host.unmount()); await act(() => host.mount()); const rendered = () => tree; assert.equal(rendered(), null);
@@ -60,10 +60,10 @@ test('new-password strength uses all four shared-policy segments and the exact l
 });
 
 test('owner reset shows the file name and expands every system’s documented location', async context => {
-  const {PhoneOwnerReset} = await screenModule(new URL('../src-next/screens/accounts/PhoneOwnerReset.tsx', import.meta.url), {
+  const {PhoneOwnerReset} = await screenModule(new URL('../src-next/kit/accounts/PhoneOwnerReset.tsx', import.meta.url), {
     react, 'react-native': {View: 'View', Text: 'Text'}, '../../../../../packages/i18n/src': {defaultI18n: copy},
-    '../../kit/states': {StateLayout: 'State'}, '../../kit/controls': {FormError, TextField: 'Field', Button: 'Button'}, '../../kit/theme': {useTheme: () => theme},
-    '../../kit/accounts/AccountForm': {AccountForm: 'Form'}, './reset-file-paths': resetPaths,
+    '../states': {StateLayout: 'State'}, '../controls': {FormError, TextField: 'Field', Button: 'Button'}, '../theme': {useTheme: () => theme},
+    './AccountForm': {AccountForm: 'Form'}, '../../screens/accounts/reset-file-paths': resetPaths,
   });
   let tree: any; const host = createFabricHookHost(() => {tree = PhoneOwnerReset({phase: 'code', serverName: 'Server', code: '', onCodeChange() {}, busy: false,
     location: {fileName: 'reset-code.txt', retryAfterSeconds: 0}, onBack() {}, onWrite() {}, onVerify() {}, onContinue() {}});});

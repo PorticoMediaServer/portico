@@ -2,11 +2,11 @@ import React, {useState} from 'react';
 import {Text, View} from 'react-native';
 import type {ResetFileLocation} from '../../../../../packages/client-core/src/account-reset';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {StateLayout} from '../../kit/states';
-import {Button, TextField} from '../../kit/controls';
-import {useTheme} from '../../kit/theme';
-import {AccountForm} from '../../kit/accounts/AccountForm';
-import {ownerResetFilePaths} from './reset-file-paths';
+import {StateLayout} from '../states';
+import {Button, TextField} from '../controls';
+import {useTheme} from '../theme';
+import {AccountForm} from './AccountForm';
+import {ownerResetFilePaths} from '../../screens/accounts/reset-file-paths';
 
 export function PhoneOwnerReset({phase, serverName, location, code, onCodeChange, busy, error, onBack, onWrite, onVerify, onContinue}: {
   phase: 'intro' | 'code' | 'done'; serverName: string; location?: ResetFileLocation; code: string; onCodeChange: (value: string) => void;

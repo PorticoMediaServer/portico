@@ -2,7 +2,7 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
-import {useTheme} from '../../kit/theme';
+import {useTheme} from '../theme';
 
 /** Advisory only. The shared password policy, not this meter, decides validity. */
 export function PasswordStrengthMeter({password}: {password: string}) {
@@ -17,6 +17,6 @@ export function PasswordStrengthMeter({password}: {password: string}) {
     <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{flexDirection: 'row', gap: 6}}>
       {[1, 2, 3, 4].map(level => <View key={level} style={{width: 40, height: 4, borderRadius: 2, backgroundColor: level <= strength.level ? color : theme.colors.lineControl}}/>)}
     </View>
-    <Text style={[theme.type.captionStrong, {fontSize: 13 * theme.textScale, color, marginLeft: 6}]}>{label}</Text>
+    <Text style={[theme.type.passwordStrength, {color, marginLeft: 6}]}>{label}</Text>
   </View>;
 }
