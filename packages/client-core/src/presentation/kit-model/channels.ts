@@ -21,6 +21,12 @@ export function channelArtMark(channel: Readonly<{id: string; sourceId?: string;
   const sourceId = channel.sourceId ?? '';
   return Object.freeze({...(channel.mark ?? {text: channel.number || 'TV', seed: `${sourceId}:${channel.id}`}), sourceId, id: channel.id});
 }
+/** A library channel preview's length line: hours once there is an hour or more, minutes under that (the server sends
+ * both; an older server without minutes keeps the hours line). */
+export function channelPreviewLength(preview: Readonly<{hours: number; minutes?: number}>): Readonly<{id: 'builder.hours'; values: {hours: number}} | {id: 'builder.minutes'; values: {minutes: number}}> {
+  if (preview.hours < 1 && typeof preview.minutes === 'number' && preview.minutes >= 0) return Object.freeze({id: 'builder.minutes', values: {minutes: Math.round(preview.minutes)}});
+  return Object.freeze({id: 'builder.hours', values: {hours: Number(preview.hours.toFixed(1))}});
+}
 export type ChannelMarkIndex = ReadonlyMap<string, ReadonlyMap<string, ChannelMarkModel>>;
 const channelTints = ['#28587a', '#985243', '#796120', '#28665d', '#854d73', '#376f8c', '#4a596a', '#685294'] as const;
 /** §33: exact authoritative seed, UTF-16 code units and signed 32-bit wrap.

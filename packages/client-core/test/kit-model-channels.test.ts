@@ -87,3 +87,10 @@ test('a channel with no mark from the server draws its number on its own tint, o
   assert.equal(channelArtMark({id: 'x'}).text, 'TV');
   assert.deepEqual({...channelArtMark({id: 'n24', sourceId: 's', number: '102', mark: {text: 'N24', seed: 's:n24'}})}, {text: 'N24', seed: 's:n24', sourceId: 's', id: 'n24'});
 });
+
+test('a channel preview under an hour gives its minutes; an hour or more, or an older server, gives hours', async () => {
+  const {channelPreviewLength} = await import('../src/presentation/kit-model/index.ts');
+  assert.deepEqual(channelPreviewLength({hours: 0, minutes: 7}), {id: 'builder.minutes', values: {minutes: 7}});
+  assert.deepEqual(channelPreviewLength({hours: 0}), {id: 'builder.hours', values: {hours: 0}});
+  assert.deepEqual(channelPreviewLength({hours: 2.04, minutes: 122}), {id: 'builder.hours', values: {hours: 2}});
+});
