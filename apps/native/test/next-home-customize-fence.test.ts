@@ -198,7 +198,7 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
 // Android TV: dropping a lifted row (OK) or putting it back (Back) draws the list again in its new order, and Android drops
 // focus on the moved row and puts it on the first row or grip, late. For a short settle the dropped row takes focus back
 // whenever focus lands elsewhere in the panel; a new key press ends the settle, so the user's own move is never undone.
-test('TV: a dropped row takes focus back while the list settles, and a key press ends that', async () => {
+for (const os of ['android', 'ios'] as const) test(`TV (${os}): a dropped row takes focus back while the list settles on Android TV only, and a key press ends that`, async () => {
   const owner = hooks(), effects: (() => void | (() => void))[] = [], focused: unknown[] = [];
   const react: any = {...owner.react, useLayoutEffect: () => {}, useId: () => 'customize',
     useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) => {
@@ -217,7 +217,7 @@ test('TV: a dropped row takes focus back while the list settles, and a key press
   const tvParts = ['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel',
     'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeViewMark'];
   const pageModules = {
-    react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', TVEventHandler: {addListener: (listener: (raw: any) => void) => {keys.push(listener); return {remove() {}};}}, findNodeHandle: () => 1},
+    react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', TVEventHandler: {addListener: (listener: (raw: any) => void) => {keys.push(listener); return {remove() {}};}}, findNodeHandle: () => 1, Platform: {OS: os}},
     'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback},
     '../../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../../kit/focus': {useCovered: () => false, useFocusRegistry: () => registry},
@@ -242,6 +242,7 @@ test('TV: a dropped row takes focus back while the list settles, and a key press
     capture = {regionId: 'customize', childId: 'moved'}; draw(); settle(); focused.length = 0;
     state = {...state, rows: [row('first'), row('last'), row('moved')], pickedId: undefined, dirty: true}; draw();
     settle(); assert.deepEqual(focused, [], 'focus still on the dropped row: nothing is asked');
+    if (os === 'ios') {moveFocus('first:handle'); moveFocus('last'); assert.deepEqual(focused, [], 'Apple TV: no settle, so a swipe after the drop is never pulled back'); return;}
     moveFocus('first:handle'); assert.deepEqual(focused, [{id: 'moved'}], 'Android put focus on the first grip: the dropped row takes it back');
     moveFocus('first'); assert.deepEqual(focused, [{id: 'moved'}, {id: 'moved'}], 'and again when it lands on the first row');
     moveFocus('moved'); assert.equal(focused.length, 2, 'on the row already: nothing more');

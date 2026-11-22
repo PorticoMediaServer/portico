@@ -1,5 +1,5 @@
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {findNodeHandle, TVEventHandler, type ScrollView, type View} from 'react-native';
+import {findNodeHandle, Platform, TVEventHandler, type ScrollView, type View} from 'react-native';
 import {Gesture} from 'react-native-gesture-handler';
 import type {I18n} from '../../../../../../packages/i18n/src';
 import type {PersonalResource} from '../../../../../../packages/client-core/src/personal-saved';
@@ -125,7 +125,7 @@ export function useHomeCustomize({controller, copy, i18n, onClose, onAddView, vi
    * then or when the frame runs; and the frame moves nothing if focus has meanwhile attached somewhere else. */
   const covered = useCovered(), coveredNow = useRef(covered);
   coveredNow.current = covered;
-  /** TV: dropping a row (OK) or putting it back (Back) draws the list again in its new order. On Android TV the row loses focus
+  /** Android TV: dropping a row (OK) or putting it back (Back) draws the list again in its new order. The row loses focus
    * as it moves, and focus falls to the first row or grip, late (after the next frame). For a short settle the row that was
    * lifted takes focus back whenever it lands elsewhere in the panel; any key press ends the settle, so a move the user
    * makes is never undone. */
@@ -133,7 +133,8 @@ export function useHomeCustomize({controller, copy, i18n, onClose, onAddView, vi
   useEffect(() => {
     const was = lastPicked.current;
     lastPicked.current = state.pickedId;
-    if (!theme.isTV || state.pickedId || !was || !state.rows.some(row => row.id === was)) return;
+    // Android TV only: Apple TV keeps focus on the dropped row, and its swipes and pans send no key press that could end the settle.
+    if (!theme.isTV || Platform?.OS !== 'android' || state.pickedId || !was || !state.rows.some(row => row.id === was)) return;
     let settling = true, frame: number | undefined;
     const end = () => {settling = false; if (frame !== undefined) cancelAnimationFrame(frame); frame = undefined;};
     const hold = () => {
