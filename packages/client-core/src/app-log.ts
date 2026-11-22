@@ -66,7 +66,7 @@ export class AppLog {
   const kept = facts(raw);
   if (fold) {
    const key = level === 'warn' && Object.keys(kept).length === 0 ? `${area} ${message}` : '';
-   if (key && this.last?.key === key && at - this.last.at < APP_LOG_BARE_QUIET_MS) return;
+   if (key && this.last?.key === key && at >= this.last.at && at - this.last.at < APP_LOG_BARE_QUIET_MS) return;
    this.last = {key, at};
   }
   const text = JSON.stringify({time: at, level, area, message, facts: kept});
