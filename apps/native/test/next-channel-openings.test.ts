@@ -68,9 +68,9 @@ test('the native channel preview requests the server-projected sample poster', a
   '../../../../../../packages/client-core/src/server-admin/owner-channel-draft':{validBuilder},
   '../../../../../../packages/client-core/src/presentation/kit-model/channels':{channelPreviewLength},
   '../../../../../../packages/i18n/src':{defaultI18n:{t:(value:string)=>value}},
-  '../../artwork':{Artwork:'Artwork',StandardBackdrop:'Backdrop'},'../../shell/Layer':{Layer:'Layer'},
+  '../../artwork':{Artwork:'Artwork',StandardBackdrop:'Backdrop',missingArt:()=>'Missing'},'../../layout/TopBar':{TopBar:'TopBar'},'../../shell/Layer':{Layer:'Layer'},
   '../../controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},
-  '../../theme':{useTheme:()=>({colors:{},type:{}})},
+  '../../theme':{useTheme:()=>({colors:{},type:{sectionLabel:{},rowLabel:{},rowHelp:{},rowHeading:{}}})},
   '../../useMotion':{useMotion:()=>({reduce:true})},'../../../platform/keyboard':{FormScrollView:'ScrollView'},
   // Both windows go through the shared presence, so an iOS Modal dropped behind a leaving one is asked for again.
   '../../overlays/native-dismissal':{useNativeModalPresence:(present:boolean)=>{presences.push(present);return {mounted:true,visible:present,key:1,onShow(){},onDismiss(){}};}},
