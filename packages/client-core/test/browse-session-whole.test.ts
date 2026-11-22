@@ -16,7 +16,10 @@ test('a whole selection carries the applied filter and exact count, not only the
   assert.deepEqual(whole.filter, predicate); assert.deepEqual(whole.sort, query.sorts);
   assert.equal(whole.types[0].capabilities.play, 5000);
   assert.equal(whole.types[0].capabilities.delete, 0); assert.equal(whole.types[0].capabilities.download, 0);
-  assert.equal(whole.types[0].capabilities.favorite, 0, 'whole selection offers only the actions assigned to this lane');
+  // The whole view offers exactly what each title's own read offers, or the selection model refuses every window
+  // (a library's Select did nothing on a phone, 22 Nov): favorite is offered per title, refresh is not.
+  assert.equal(whole.types[0].capabilities.favorite, 5000);
+  assert.equal(whole.types[0].capabilities.refresh, 0);
   session.retire(); assert.equal(session.wholeSelection(), undefined);
 });
 

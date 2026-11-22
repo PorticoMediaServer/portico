@@ -135,6 +135,9 @@ export function detailProjection(item: Item, scope: DetailScope): DetailProjecti
   actions.push({id: 'metadata_edit', labelKey: 'entry.editMetadata', enabled: true});
   if (playable && position > 0) actions.push({id: 'resume', labelKey: 'action.resume', enabled: true, playback: {itemId: item.id, startSeconds: position}}, {id: 'start_over', labelKey: 'action.start_over', enabled: true, playback: {itemId: item.id, startSeconds: 0}});
   else if (playable) actions.push({id: 'play', labelKey: 'action.play', enabled: true, playback: {itemId: item.id, startSeconds: 0}});
+  // A playable title can go in the play queue (Play next / Play later); selections read this to offer Queue. Without it every
+  // title read as not queueable while the server's whole-view count said all were, and a library's Select did nothing.
+  if (playable) actions.push({id: 'enqueue', labelKey: 'player.queue', enabled: true, playback: {itemId: item.id, startSeconds: 0}});
   const all = (item.credits ?? []).map(credit), cast = all.filter(each => each.department === 'cast').length;
   const streams = (item.versions ?? []).flatMap(version => version.parts.flatMap(part => part.streams)), languages = (kind: string) => Object.freeze([...new Set(streams.filter(stream => stream.kind === kind && stream.language).map(stream => stream.language!))]);
   const ratings = [...(item.ratings?.community ? [{provider: 'community', value: item.ratings.community, max: 10, sourceUrl: '', observedAt: ''}] : []), ...(item.ratings?.critic ? [{provider: 'critic', value: item.ratings.critic, max: 10, sourceUrl: '', observedAt: ''}] : [])];
