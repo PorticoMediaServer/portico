@@ -9,6 +9,7 @@ import {createMemorySetupStore, isUnreadable, parseSetupRecord, type SetupAttemp
 import type {SetupPortContext} from '../src/setup-controller.ts';
 import {createSetupAdapter, type SetupAdapterDeps} from '../src/setup-adapter.ts';
 import {routePath} from '../../contracts/src/routes.ts';
+import {accountAnswer, systemAnswer} from './next-wire.ts';
 
 // The shared adapter's app half: the app token route, and a Portico Account setup finished here (`finish: here`) once
 // the server reads installed.
@@ -31,6 +32,9 @@ async function fixture(t: TestContext, options: Readonly<{
   approveInApp?: SetupAdapterDeps['approveInApp'];
   /** When set, `remember` writes the session and then waits here, so a test can dispose mid-exchange. */
   rememberGate?: Promise<void>;
+  /** A server already set up, whose owner is this device's selected and restorable session; `libraries` is what its
+   * library list answers. */
+  ownerHeld?: Readonly<{libraries: 'fail' | 'none' | 'one'}>;
 }> = {}) {
   setInstallationIdentity({installationId, name: 'Phone', platform: 'ios', app: 'portico', appVersion: '1'});
   t.after(() => setInstallationIdentity(undefined));
@@ -57,7 +61,13 @@ async function fixture(t: TestContext, options: Readonly<{
     'POST /v1/auth/portico-return/exchange': () => json(grant),
     'GET /v1/direct': () => json(grant),
     'DELETE /v1/sessions/current': () => json({}),
+    'GET /v1/libraries': () => options.ownerHeld?.libraries === 'fail' ? failure(503, 'unavailable')
+      : json({items: options.ownerHeld?.libraries === 'one' ? [{id: 'lib_1', name: 'Films', kind: 'movies'}] : []}),
   };
+  if (options.ownerHeld) {state = {status: 'complete'};
+    answers['GET /v1/system'] = () => json(systemAnswer({id: pin.serverId, name: 'Den'}));
+    const owner = {account: {id: ACCOUNT, username: 'owner', role: 'owner'}, profiles: [{id: PROFILE.id, name: PROFILE.name, primary: true}]};
+    for (const path of ['/v1/me', '/v1/profiles']) answers[`GET ${path}`] = () => json(accountAnswer(path, owner));}
   const fetcher: typeof fetch = async (url, init) => {
     const u = new URL(String(url)), method = init?.method ?? 'GET', headers = new Headers(init?.headers);
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
@@ -67,7 +77,9 @@ async function fixture(t: TestContext, options: Readonly<{
   };
   const route = {logicalOrigin: origin, pin, fetch: fetcher, subscribe: () => () => {}, getSnapshot: () => ({phase: 'ready'}), dispose: () => {}};
   const makeApi = () => {const api = new HttpLocalApi(origin, '', fetcher); api.useRoutes(route as never); return api;};
-  let record: AppSessionRecord = {version: 1, revision: 0, servers: []};
+  let record: AppSessionRecord = options.ownerHeld ? {version: 1, revision: 1, selectedServerId: pin.serverId, servers: [{connection: {version: '1', selectionId: routeBase64(webRouteCrypto.random(24)),
+    logicalOrigin: origin, session: grant.session as unknown as LocalSession, pin: {serverId: pin.serverId, publicKey: pin.publicKey, fingerprint: pin.fingerprint}, routes: {paired: [origin]}}, signIn: 'local'} as never]}
+    : {version: 1, revision: 0, servers: []};
   const sessions = new AppSessionStore({read: async () => record, change: async (update, beforeCommit) => {
     const next = update(record);
     if (!next) throw new Error('The fixture never empties the whole session record.');
@@ -96,7 +108,7 @@ async function fixture(t: TestContext, options: Readonly<{
   const deps: SetupAdapterDeps = {
     hostedOrigin, pageOrigin: () => origin,
     pair: async () => ({server: {id: pin.serverId, name: 'Den'} as never, api: makeApi(), pin, dispose: () => {pairDisposals += 1;}}),
-    sessions: () => sessions, environment: () => ({}) as never, restore: async () => undefined, remember: async () => {},
+    sessions: () => sessions, environment: () => ({}) as never, restore: async session => options.ownerHeld ? {api: makeApi(), session} : undefined, remember: async () => {},
     store: () => store, installationId: () => installationId, navigate: url => {navigated.push(url);},
     ...(options.approveInApp ? {approveInApp: options.approveInApp} : {}),
     now: () => NOW,
@@ -159,4 +171,18 @@ test('the setup code the app shares uses no abort helper the app runtime lacks (
 test('a setup record with an unknown remote choice is unreadable', () => {
   assert.equal(isUnreadable(parseSetupRecord({...hostedRecord, remoteAccess: 'sometimes'})), true);
   assert.deepEqual(parseSetupRecord({...hostedRecord, remoteAccess: 'off', remoteSecurity: 'enhanced'}), {...hostedRecord, remoteAccess: 'off', remoteSecurity: 'enhanced'});
+});
+
+// #4813 read the library list on a set-up server to send its owner past the first-library step. That read is only a choice
+// between Home and the library step: when it fails, setup falls through to the library step instead of failing (second
+// audit: "Something went wrong" at /setup).
+test('a set-up server whose owner is held goes Home when it has a library, and to the library step when it has none or the read fails', async t => {
+  for (const [libraries, exists] of [['one', true], ['none', undefined], ['fail', undefined]] as const) {
+    const f = await fixture(t, {ownerHeld: {libraries}});
+    const read = await f.ports.readState(f.context()).catch(error => {throw new Error(`${libraries}: ${f.calls.map(call => call.method + ' ' + call.path).join(', ')}: ${error}`);});
+    assert.equal(read.server.kind, 'state', libraries);
+    assert.equal((read.server as {ownerSessionHeld?: boolean}).ownerSessionHeld, true, libraries);
+    assert.equal((read.server as {librariesExist?: boolean}).librariesExist, exists, libraries);
+    assert.ok(f.calls.some(call => call.path === '/v1/libraries'), libraries);
+  }
 });
