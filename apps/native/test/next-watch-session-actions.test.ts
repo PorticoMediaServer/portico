@@ -4,6 +4,7 @@ import {nativePostPlayNavigation} from '../src-next/screens/watch/post-play-navi
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/identity.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {NativeSubtitleStyleChoices, nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../src-next/platform/playback/subtitle-style-choices.ts';
@@ -57,7 +58,7 @@ async function fixture() {
         if (accepted) source = {...source, subtitleStyle: styleChoices.read(source.fence, defaults)};
         return accepted;
       }}};
-  const {createNativeWatchScreens} = await screenModule(new URL('../src-next/screens/watch/factory.tsx', import.meta.url), {'../share/share-actions': {shareLinkActions: () => []}, '../../../../../packages/client-core/src/cleanup': cleanup, 
+  const {createNativeWatchScreens} = await screenModule(new URL('../src-next/shell/watch-factory.tsx', import.meta.url), stubsFrom('screens/watch', 'shell', {'../share/share-actions': {shareLinkActions: () => []}, '../../../../../packages/client-core/src/cleanup': cleanup, 
     react, '../../../../../packages/client-core/src/detail': {DetailService: class {
       async select() {} getSnapshot() {return {data: {item: source.entry, actions: [{id: 'play', enabled: true, playback: source.entry.playback}]}};}
       subscribe() {return () => {};} dispose() {}
@@ -69,7 +70,7 @@ async function fixture() {
     './version-options': versionsModel, './version-destination': {NativeVersionChooserController}, './disc-titles-controller': {}, './disc-titles': {},
     './controls': {NativeWatchControls: class {route() {} source() {} dispose() {} back() {return false;}}},
     './WatchChrome': {}, '../../shell/watch-picture': {}, '../../pages/shared/player/WatchHostPage': {WatchHostPage: 'WatchHost'}, '../../pages/shared/player/WatchEpisodesPage': {},
-  });
+  }));
   let ports: any, screens: any;
   const {createNativeWatchModule} = await screenModule(new URL('../src-next/screens/watch/module.tsx', import.meta.url), {'./system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText}, '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'}, 
     react, 'react-native': {Platform: {isTV: false}}, '../settings-live/group-port': {subscribeGroupPort: () => () => {}}, '../../platform/device-settings': {},
@@ -77,7 +78,7 @@ async function fixture() {
     '../../../../../packages/client-core/src/playback-v1/quality': {}, '../../shell/model': {sameAuthority},
     '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {browseValueLabel: (value: string) => value},
     '../../platform/server-preferences': {nativeServerPreferences: () => ({applyPreferences: () => {savedWrites++; throw new Error('Player must not persist preferences');}})},
-    './factory': {createNativeWatchScreens: (value: any) => {
+    '../../shell/watch-factory': {createNativeWatchScreens: (value: any) => {
       ports = value; screens = createNativeWatchScreens(value);
       return {...screens, capture: (...args: any[]) => {const captured = screens.capture(...args); captures.push(captured); return captured;},
         versions: (...args: any[]) => {versionCalls.push(args); return screens.versions(...args);}};

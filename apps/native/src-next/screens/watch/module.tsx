@@ -11,7 +11,7 @@ import {qualityOptionSelected} from '../../../../../packages/client-core/src/pla
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
-import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from './factory';
+import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from '../../shell/watch-factory';
 import type {MusicPlaylistPickerHandle} from '../../shell/music-playlist-picker';
 import type {NativeTitleActionsHandle} from '../../shell/title-actions';
 import {NativePlaybackInfoPanel, playbackInfoWords} from '../../kit/player/PlaybackInfoPanel';
