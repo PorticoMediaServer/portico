@@ -1926,6 +1926,8 @@ export const enUS = {
   'title.playFromStart': 'Play from start',
   'title.resumeRemaining': 'Resume ({remaining} left)',
   'title.playEpisode': 'Play {code}',
+  // A show whose episodes are all watched: the white primary starts the season again (detail-desktop, the mock-ups' one primary).
+  'title.watchAgain': 'Watch again',
   'title.resumeEpisode': 'Resume {code}',
   'title.episodeCode': 'S{season} E{episode}',
   'title.episodeAbsolute': 'Episode {number}',
