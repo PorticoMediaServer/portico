@@ -4,14 +4,15 @@ import {clockText} from '../../../../../packages/client-core/src/presentation/ki
 import {playbackIdentity} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {PlaybackFence} from '../../../../../packages/player-core/src';
-import {Button} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {nativeType, useTheme} from '../../kit/theme';
-import {FocusRegion} from '../../kit/focus';
-import {SidePanel} from '../../kit/overlays';
-import type {NativeWatchHostContext} from './WatchHost';
+import {Button} from '../controls';
+import {Icon} from '../Icon';
+import {textLines, useTheme} from '../theme';
+import {shellType} from '../shell/visual';
+import {FocusRegion} from '../focus';
+import {SidePanel} from '../overlays';
+import type {NativeWatchHostContext} from '../../screens/watch/WatchHost';
 import type {NativePlaybackFailureReason} from '../../platform/playback/playback-failure';
-import {failureBody, failureTitle, type NativePlaybackEnd} from './failure-words';
+import {failureBody, failureTitle, type NativePlaybackEnd} from '../../screens/watch/failure-words';
 
 /** The exact playback that failed: its fence, session and saved place. A callback
  * reads only this, never the live context, so a successor start is never touched. */
@@ -41,10 +42,10 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
   return <View testID="watch-playback-failed" pointerEvents="box-none" style={StyleSheet.absoluteFill}>
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#03080c8c'}]}/>
     {!chromeVisible && identity && <View pointerEvents="none" style={{position: 'absolute', left: 96, right: 96, top: 72}}>
-      <Text numberOfLines={1} style={[nativeType({size: 44, weight: 800, tracking: -.03, lineHeight: 48.4}, theme.textScale), {marginBottom: 6, color: theme.colors.text}]}>{identity.title}</Text>
+      <Text {...textLines(1)} style={[shellType(44, 800, 48.4, -.03, theme.textScale), {marginBottom: 6, color: theme.colors.text}]}>{identity.title}</Text>
       <View style={{flexDirection: 'row', alignItems: 'baseline', marginTop: 4}}>
-        {identity.subtitle.map((part, index) => <Text key={`${part.role}:${index}`} numberOfLines={1} ellipsizeMode="tail"
-          style={[nativeType({size: 24, weight: part.id === 'episode-title' ? 700 : 600, tracking: 0, lineHeight: 32}, theme.textScale),
+        {identity.subtitle.map((part, index) => <Text key={`${part.role}:${index}`} {...textLines(1)}
+          style={[shellType(24, part.id === 'episode-title' ? 700 : 600, 32, 0, theme.textScale),
             {marginRight: 22, color: part.id === 'episode-title' ? theme.colors.text : theme.colors.textSecondary}]}>{part.text}</Text>)}
       </View>
     </View>}
@@ -54,9 +55,9 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
         backgroundColor: 'rgba(237,245,250,.1)', borderWidth: 1, borderColor: 'rgba(237,245,250,.12)'}}>
         <Icon name="i-warn" size={40} color={theme.colors.amber}/>
       </View>
-      <Text accessibilityRole="header" style={[nativeType({size: 72, weight: 800, tracking: -.045, lineHeight: 72}, theme.textScale),
+      <Text accessibilityRole="header" style={[shellType(72, 800, 72, -.045, theme.textScale),
         {marginBottom: 24, color: theme.colors.text, textShadowColor: 'rgba(7,16,24,.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30}]}>{failureTitle(failure.ended)}</Text>
-      <Text style={[nativeType({size: 28, weight: 400, tracking: 0, lineHeight: 40.6}, theme.textScale), {marginBottom: 28, maxWidth: 900, color: theme.colors.textSecondary}]}>{body}</Text>
+      <Text style={[shellType(28, 400, 40.6, 0, theme.textScale), {marginBottom: 28, maxWidth: 900, color: theme.colors.textSecondary}]}>{body}</Text>
       {(retry || facts || differentVersion) && <FocusRegion id="watch-failed" orientation="horizontal" edges={{down: 'watch-controls'}} enabled={!detailsOpen}
         entry={retry ? 'watch-failed-retry' : differentVersion ? 'watch-failed-version' : 'watch-failed-details'} entryPolicy="entry" style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 18}}>
         {retry && <Button focusId="watch-failed-retry" testID="watch-failed-retry" icon="i-restart" preferredFocus disabled={detailsOpen} onPress={() => retry(failure)}>{t('next.states.tryAgain')}</Button>}

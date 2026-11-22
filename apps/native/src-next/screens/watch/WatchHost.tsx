@@ -15,7 +15,7 @@ import {useScreenReader} from '../../kit/useScreenReader';
 import {TVPanelTransition, TVPanelSlide, TVPanelScrim, useTVPanelPresence} from '../../kit/overlays/TVPanelMotion';
 import type {NativePlaybackAdapter, NativePlaybackReadLifetime, NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
 import type {NativeWatchNotice} from './playback-info';
-import type {NativePlaybackFailure} from './PlaybackFailed';
+import type {NativePlaybackFailure} from '../../kit/player/PlaybackFailed';
 import {showsOwnEnd} from './post-play-gate';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
