@@ -31,7 +31,7 @@ test('actual native Library selection composes the refusal without an executor a
   '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection':{},
   './selection-display':{selectedItemsLabel:()=> '1 movie'},
   '../kit/selection':{SelectionBar:'SelectionBar',SelectionPhoneActionBar:'SelectionPhoneActionBar'},
-  '../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../kit/overlays':{},'../kit/controls':{},
+  '../kit/theme':{useTheme:()=>({isTV:true,layers:{navigation:1}})},'../kit/overlays/OverlayHost': {OverlayPortal: ({children}: any) => children}, '../kit/overlays':{},'../kit/controls':{},
   '../screens/destinations/lifetime':{nativeDestinationLifetime:()=>({current:()=>true})},
   '../screens/native-screen-services':{nativeScreenServices:()=>({})},'../kit/selection/LoadedDestinationPicker':{},'../screens/search/loaded-destinations':{},'../screens/destinations/bulk-media':{},
   '../screens/library/model':{nativeLibraryEntryKey:()=>''},'../screens/library/play-selection':{createNativeLibraryPlaySelection:()=>producer},

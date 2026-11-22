@@ -116,8 +116,11 @@ export class BrowseSession<T> {
     const kind = ({track: 'song', audiobook: 'book', series: 'book_series', book: 'ebook'} as Record<string, string>)[String(list.kind)] ?? String(list.kind);
     if (!selectionKinds.includes(kind as SelectionKind)) return;
     const playable = ['movie', 'show', 'season', 'episode', 'album', 'artist', 'song', 'book', 'audiobook_file'].includes(kind);
+    // Exactly what each title's own read will offer (client-core detail.ts gives every title of a kind the same actions),
+    // or the selection model refuses every window and Select does nothing: favorite was missing here, refresh was claimed
+    // though no title's read reports it.
     const capabilities = selectionCapabilities(kind as SelectionKind, {play: playable, queue: playable, playlist: true, collection: true,
-      myList: true, watched: true, edit: selectionKindHasBulkFields(kind as SelectionKind), refresh: true});
+      myList: true, favorite: true, watched: true, edit: selectionKindHasBulkFields(kind as SelectionKind)});
     const total = this.total, filter = this.query.nodes.length === 0 ? null : this.query.nodes.length === 1 ? this.query.nodes[0]! : {variant: 'group' as const, all: this.query.nodes};
     this.whole = Object.freeze({libraryId: this.query.libraryId, pivot: this.query.pivot, filter, sort: this.query.sorts, catalogRevision: this.pinned, total,
       types: Object.freeze([{kind, count: total, capabilities: Object.freeze(Object.fromEntries(Object.entries(capabilities).map(([name, enabled]) => [name, enabled ? total : 0]))) as BrowseWholeSelection['types'][number]['capabilities'],

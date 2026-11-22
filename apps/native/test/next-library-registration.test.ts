@@ -38,7 +38,7 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../../../../packages/client-core/src/catalogue-query-selection': catalogueQuerySelection, '../../../../packages/client-core/src/selection-model': selectionModel,
     '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection': mediaSelection, './selection-display': nativeSelectionDisplay,
     '../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
-    '../kit/theme': {useTheme: () => theme}, '../kit/overlays': {Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../kit/controls': {Button: 'Button'},
+    '../kit/theme': {useTheme: () => theme}, '../kit/overlays/OverlayHost': {OverlayPortal: ({children}: any) => children}, '../kit/overlays': {Dialog: 'Dialog', SidePanel: 'SidePanel'}, '../kit/controls': {Button: 'Button'},
     '../screens/destinations/lifetime': {nativeDestinationLifetime}, '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
     '../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'}, '../screens/search/loaded-destinations': {NativeLoadedDestinations: 'NativeLoadedDestinations'},
     '../screens/destinations/bulk-media': {NativeBulkMedia: 'NativeBulkMedia'}, '../screens/library/model': {nativeLibraryEntryKey}, '../screens/library/play-selection': playSelection,
