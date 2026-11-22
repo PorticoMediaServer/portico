@@ -56,6 +56,9 @@ type PlaybackSoundFacts struct {
 	// undecoded ("passthrough") or decoded to PCM ("decoded"). It is never
 	// stated for the source, which is a file, not an output.
 	Delivery string `json:"delivery,omitempty"`
+	// BitrateKbps is the track's rate, from the file's probe for the source and from the
+	// conversion for a converted track ("AAC 256"); absent when unknown.
+	BitrateKbps int `json:"bitrateKbps,omitempty"`
 }
 
 // Subtitle facts come from the actual selected resource, not a rendition label
@@ -282,6 +285,7 @@ func PlaybackInfoForPlan(p DeliveryPlan, subtitle *PlaybackSubtitleFacts) *Playb
 			SampleRate:  a.SampleRate,
 			BitDepth:    a.BitDepth,
 			Lossless:    copiedBool(a.Lossless),
+			BitrateKbps: kbps(int64(a.BitRate)),
 		}
 		out.Source.Audio = &src
 		dst := src
@@ -304,6 +308,7 @@ func PlaybackInfoForPlan(p DeliveryPlan, subtitle *PlaybackSubtitleFacts) *Playb
 			}
 			dst.Profile, dst.Variant, dst.ObjectAudio = "", "", ""
 			dst.Channels, dst.SampleRate, dst.BitDepth, dst.Layout = p.AudioChannels, p.AudioSampleRate, 0, ""
+			dst.BitrateKbps = kbps(int64(p.AudioBitrateBPS))
 			if target := p.ConversionTarget; target != nil {
 				dst.BitDepth, dst.Layout = target.AudioBitDepth, target.AudioChannelLayout
 			}
@@ -382,4 +387,13 @@ func PlaybackInfoForPlan(p DeliveryPlan, subtitle *PlaybackSubtitleFacts) *Playb
 		out.EstimatedBitrateKbps = int(p.Trace.BitRate / 1000)
 	}
 	return out
+}
+
+// kbps is a rate in whole kilobits per second, to the nearest: a measured 255,600 bps reads as
+// the 256 it was encoded at, not 255.
+func kbps(bps int64) int {
+	if bps <= 0 {
+		return 0
+	}
+	return int((bps + 500) / 1000)
 }

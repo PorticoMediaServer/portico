@@ -384,3 +384,26 @@ func TestHDR10PlusConversionReportsMetadataLossForHDRAndSDR(t *testing.T) {
 		}
 	}
 }
+
+// A lossy track's rate is part of its name ("AAC 256"): the source's from the probe, a
+// converted track's from the conversion, and none when unknown.
+func TestPlaybackInfoGivesTheSoundsRate(t *testing.T) {
+	plan := DeliveryPlan{Strategy: DeliveryOriginal, VideoAction: "original", AudioAction: "original",
+		Trace: &DecisionTrace{Audio: &TraceAudio{Codec: "aac", Channels: 2, BitRate: 256000}}}
+	if info := PlaybackInfoForPlan(plan, nil); info == nil || info.Source.Audio.BitrateKbps != 256 || info.Delivered.Audio.BitrateKbps != 256 {
+		t.Fatalf("a copied AAC 256: %+v", info)
+	}
+	plan.AudioAction, plan.OutputAudioCodec, plan.AudioBitrateBPS = "convert", "opus", 160000
+	if info := PlaybackInfoForPlan(plan, nil); info == nil || info.Source.Audio.BitrateKbps != 256 || info.Delivered.Audio.BitrateKbps != 160 {
+		t.Fatalf("AAC 256 converted to Opus 160: %+v", info)
+	}
+	plan.AudioAction, plan.Trace.Audio.BitRate = "original", 255600
+	if info := PlaybackInfoForPlan(plan, nil); info == nil || info.Source.Audio.BitrateKbps != 256 {
+		t.Fatalf("a measured 255,600 bps should read as 256: %+v", info)
+	}
+	plan.AudioAction = "convert"
+	plan.Trace.Audio.BitRate, plan.AudioBitrateBPS = 0, 0
+	if info := PlaybackInfoForPlan(plan, nil); info == nil || info.Source.Audio.BitrateKbps != 0 || info.Delivered.Audio.BitrateKbps != 0 {
+		t.Fatalf("an unknown rate was made up: %+v", info)
+	}
+}

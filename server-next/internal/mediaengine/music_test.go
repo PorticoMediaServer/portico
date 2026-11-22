@@ -141,14 +141,22 @@ func TestSongsArePlannedForTheAppsOwnMusicEngine(t *testing.T) {
 		Route  string
 		Source struct {
 			Audio *struct {
-				Codec      string
-				SampleRate int `json:"sampleRate"`
+				Codec       string
+				SampleRate  int `json:"sampleRate"`
+				BitrateKbps int `json:"bitrateKbps"`
 			}
 		}
-		Delivered struct{ Audio *struct{ Codec string } }
+		Delivered struct {
+			Audio *struct {
+				Codec       string
+				BitrateKbps int `json:"bitrateKbps"`
+			}
+		}
 	}
+	// With the rates too ("Opus 160"), from the file's measure and the conversion.
 	if err := json.Unmarshal(session.PlaybackInfo, &info); err != nil || info.Route != "converted" || info.Source.Audio == nil ||
-		info.Source.Audio.Codec != "flac" || info.Source.Audio.SampleRate != 44100 || info.Delivered.Audio == nil || info.Delivered.Audio.Codec != "opus" {
+		info.Source.Audio.Codec != "flac" || info.Source.Audio.SampleRate != 44100 || info.Source.Audio.BitrateKbps <= 0 ||
+		info.Delivered.Audio == nil || info.Delivered.Audio.Codec != "opus" || info.Delivered.Audio.BitrateKbps <= 0 {
 		t.Fatalf("the FLAC's playback info: %s (%v)", session.PlaybackInfo, err)
 	}
 	code, header, body := h.media(plan.URL)
