@@ -13,7 +13,7 @@ export function NativeChannelLogo({group,channel}:{group:NativeChannelsGroup;cha
  const theme=useTheme(),logo=useChannelLogo({group,channel}),{state,locked,picking,image}=logo;
  return <><MenuRow variant="grouped" icon="i-image" label={t('web.libraryChannels.uploadLogo')} disabled={locked} onPress={logo.show}/>
   <BottomSheet open={logo.open} onOpenChange={v=>{if(!v)logo.close();}} title={t('web.libraryChannels.uploadLogo')} footer={<View style={{flexDirection:'row',gap:8}}><Button variant="glass" disabled={state.busy} onPress={logo.close}>{t('action.cancel')}</Button><Button disabled={locked||picking||!image} loading={state.busy} onPress={logo.save}>{t('action.save')}</Button></View>}>
-   <View style={{gap:12}}><Text style={{color:theme.colors.text}}>{channel.name}</Text><Button disabled={locked||picking} loading={picking} onPress={logo.pick}>{t('web.libraryChannels.uploadLogo')}</Button>{image&&<Text style={{color:theme.colors.textSecondary}}>{image.name}</Text>}{channel.logo&&<Button disabled={locked} onPress={logo.remove}>{t('builder.remove')}</Button>}{logo.error&&<Text accessibilityRole="alert" style={{color:theme.colors.record}}>{t('error.unavailable')}</Text>}</View>
+   <View style={{paddingHorizontal:theme.isTV?0:20,gap:12}}><Text style={{color:theme.colors.text}}>{channel.name}</Text><Button disabled={locked||picking} loading={picking} onPress={logo.pick}>{t('web.libraryChannels.uploadLogo')}</Button>{image&&<Text style={{color:theme.colors.textSecondary}}>{image.name}</Text>}{channel.logo&&<Button disabled={locked} onPress={logo.remove}>{t('builder.remove')}</Button>}{logo.error&&<Text accessibilityRole="alert" style={{color:theme.colors.record}}>{t('error.unavailable')}</Text>}</View>
   </BottomSheet>
  </>;
 }
