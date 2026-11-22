@@ -1201,6 +1201,7 @@ export interface HomeRow {
   reason?: string;
   shape: string;
   items: Item[];
+  people?: Person[];
   live?: HomeLive;
   hidden?: boolean;
   library?: string;
@@ -1344,6 +1345,7 @@ export interface Item {
   state: ItemState;
   libraryId: string;
   chapter?: ItemChapter;
+  author?: string;
   entryId?: string;
   episodeDisplay?: EpisodeDisplay;
   nextEpisode?: Item;
