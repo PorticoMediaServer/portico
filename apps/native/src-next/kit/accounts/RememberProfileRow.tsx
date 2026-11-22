@@ -1,8 +1,8 @@
 import React from 'react';
 import {Text, View} from 'react-native';
-import {Focusable} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {useTheme} from '../../kit/theme';
+import {Focusable} from '../controls';
+import {Icon} from '../Icon';
+import {useTheme} from '../theme';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 
 /**

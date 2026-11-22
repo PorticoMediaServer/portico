@@ -10,11 +10,11 @@ import {screenModule} from './helpers/screen-harness.mjs';
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 
 test('phone PIN keeps one real numeric input, strips non-digits and submits the fourth digit once', async () => {
-  const {PhonePINEntry} = await screenModule(new URL('../src-next/screens/accounts/PhonePINEntry.tsx', import.meta.url), {
+  const {PhonePINEntry} = await screenModule(new URL('../src-next/kit/accounts/PhonePINEntry.tsx', import.meta.url), {
     react: {...React, default: React},
     'react-native': {View: 'View', TextInput: 'TextInput', StyleSheet: {absoluteFill: {position: 'absolute', left: 0, right: 0, top: 0, bottom: 0}}},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
+    '../theme': {useTheme: () => createTheme({isTV: false, width: 390})},
   });
   const completed: string[] = [];
   let setValue: (value: string) => void = () => {}, tree: any;

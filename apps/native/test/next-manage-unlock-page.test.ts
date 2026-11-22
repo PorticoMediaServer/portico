@@ -25,7 +25,7 @@ test('manage unlock: a new refusal reports the lock and asks for the PIN; only f
     '../../../screens/accounts/profile-pin-failure': {profilePinFailureText: () => 'Wrong PIN'}});
   const {ManageUnlockPage} = await screenModule(new URL('../src-next/pages/touch/accounts/ManageUnlockPage.tsx', import.meta.url), {react,
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/overlays': {Dialog: 'Dialog'}, '../../../kit/controls': {Button: 'Button', FormError: 'FormError'},
-    '../../../screens/accounts/PhonePINEntry': {PhonePINEntry: 'PIN'}, '../../shared/accounts/useManageUnlock': hook});
+    '../../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PIN'}, '../../shared/accounts/useManageUnlock': hook});
   let tree: any;
   const host = createFabricHookHost(() => {tree = ManageUnlockPage();});
   await host.mount(); await host.flush();

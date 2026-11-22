@@ -2,7 +2,7 @@ import React from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Dialog} from '../../../kit/overlays';
 import {Button, FormError} from '../../../kit/controls';
-import {PhonePINEntry} from '../../../screens/accounts/PhonePINEntry';
+import {PhonePINEntry} from '../../../kit/accounts/PhonePINEntry';
 import {useManageUnlock} from '../../shared/accounts/useManageUnlock';
 
 /** The PIN prompt a management refusal opens on phones and tablets (PR-1). TV manages on a phone or computer, so the
