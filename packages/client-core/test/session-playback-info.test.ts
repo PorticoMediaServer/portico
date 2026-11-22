@@ -45,3 +45,9 @@ test('#682: a source picture with null frame observations parses, and they stay 
  assert.equal(parsed.source.video?.dynamicRange, 'hdr10');
  for (const key of ['hdr10Plus', 'dolbyVisionRpu', 'dolbyVisionBaseLayer'] as const) assert.equal(parsed.source.video?.[key], undefined, key);
 });
+
+test('a song played the ordinary way keeps the server comparison too, for the signal line',async()=>{
+ const {client}=wire({...resource(info()),kind:'audio'});const session=await client.get('session');
+ assert.equal(session.playbackInfo?.source.audio?.sampleRate,96000);
+ assert.equal(session.playbackInfo?.source.audio?.codec,'truehd');
+});

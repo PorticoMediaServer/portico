@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -120,6 +121,15 @@ func TestSubtitlesAreBurnedIntoThePicture(t *testing.T) {
 		t.Helper()
 		if session.Presentation.Subtitle == nil || session.Presentation.Subtitle.Delivery != "burn" || session.Presentation.Container != "mpegts_hls" {
 			t.Fatalf("the subtitle should be burned into a converted picture: %+v", session.Presentation)
+		}
+		// The playback info says why the picture is converted: the subtitle, not its format.
+		var info struct {
+			Reason    struct{ Kind string }
+			Delivered struct{ Subtitles *struct{ Rendering string } }
+		}
+		if err := json.Unmarshal(session.PlaybackInfo, &info); err != nil || info.Reason.Kind != "subtitles" ||
+			info.Delivered.Subtitles == nil || info.Delivered.Subtitles.Rendering != "burnedIn" {
+			t.Fatalf("a burned subtitle's playback info: %s (%v)", session.PlaybackInfo, err)
 		}
 		base := session.Presentation.URL[:strings.LastIndex(session.Presentation.URL, "/")+1]
 		code, _, segment := h.media(base + "segment-000000.ts")

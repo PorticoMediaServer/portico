@@ -701,6 +701,14 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			out.Subtitle = &playback.SubtitleInForce{TrackID: id, Kind: "text", Delivery: "sidecar"}
 		}
 	}
+	// What the file holds against what plays here (the player's info sheet, music's signal line
+	// "FLAC 24/96"), from the plan just committed and the subtitle in force, so a picture
+	// converted only to burn subtitles in says so; nothing when the planner traced nothing.
+	if info := streaming.PlaybackInfoForPlan(plan, subtitleFacts(r.Version, out.Subtitle)); info != nil {
+		if raw, err := json.Marshal(info); err == nil {
+			out.PlaybackInfo = raw
+		}
+	}
 	// The viewer's timing nudge. An app that fetches subtitles to draw them itself (it asked
 	// for "sidecar") is told the nudge in force when its stream starts and applies any
 	// change itself, at once, with nothing restarted. For
@@ -909,4 +917,32 @@ func (e *Engine) Ready(ctx context.Context, sessionID string) error {
 	}
 	// The conversion failed before it produced anything: this way of playing does not work here.
 	return fmt.Errorf("%w: %v", playback.ErrUnsupported, err)
+}
+
+// subtitleFacts is the subtitle in force as the playback info names it: its format, language
+// and where it came from, and how it is shown. No title or file name is given. Nil when no
+// subtitle is shown.
+func subtitleFacts(v db.PlaybackVersion, in *playback.SubtitleInForce) *streaming.PlaybackSubtitleFacts {
+	if in == nil {
+		return nil
+	}
+	rendering := map[string]string{"burn": "burnedIn", "device": "drawnByDevice", "sidecar": "externalText"}[in.Delivery]
+	if rendering == "" {
+		return nil
+	}
+	out := &streaming.PlaybackSubtitleFacts{Rendering: rendering}
+	for _, track := range v.Tracks {
+		if track.Kind != db.StreamSubtitle || playback.TrackID(track) != in.TrackID {
+			continue
+		}
+		out.Format, out.Language, out.Origin = subtitleFormat(track), track.Language, "embedded"
+		switch {
+		case track.Downloaded != "":
+			out.Origin = "provider"
+		case track.Sidecar:
+			out.Origin = "sidecar"
+		}
+		break
+	}
+	return out
 }

@@ -254,7 +254,9 @@ export function parseSession(v: unknown): Session {
   let playbackInfo: PlaybackInfo | undefined;
   if (v.state !== 'ended') {
     try { observed = parseObservedPlayback(v.observedPlayback); } catch { /* Invalid optional facts never become output, or end valid playback. */ }
-    if (v.kind === 'vod' || v.kind === 'audio' && playableAudio(presentation.audio)) { try { playbackInfo = parsePlaybackInfo(v.playbackInfo); } catch { /* Invalid comparison never replaces a valid session or renderer observation. */ } }
+    // A song or book played the ordinary way (not measured yet, on remote storage, or a book in
+    // several files) has the same facts as one the app's own engine plays: the signal line reads them.
+    if (v.kind === 'vod' || v.kind === 'audio') { try { playbackInfo = parsePlaybackInfo(v.playbackInfo); } catch { /* Invalid comparison never replaces a valid session or renderer observation. */ } }
   }
   const control = obj(v.control) && typeof v.control.revision === 'string' && /^[1-9]\d{0,15}$/.test(v.control.revision) && (v.control.state === 'playing' || v.control.state === 'paused')
     ? Object.freeze({revision: v.control.revision, state: v.control.state}) : undefined;
