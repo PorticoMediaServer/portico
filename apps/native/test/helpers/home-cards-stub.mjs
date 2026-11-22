@@ -44,7 +44,8 @@ export async function withHomeCards(stubs, actualSpotlight = false) {
     '../../../kit/cards/primitives': {Parts: 'Parts'}};
   const useTVHome = await screenModule(new URL('../../src-next/pages/shared/home/useTVHome.ts', import.meta.url), page);
   const tvHomePage = await screenModule(new URL('../../src-next/pages/tv/home/HomePage.tsx', import.meta.url), {...page,
-    '../../shared/home/useTVHome': useTVHome});
+    '../../shared/home/useTVHome': useTVHome,
+    '../../shared/home/useTVHomeRecoveryView': {useTVHomeRecoveryView: () => ({retry: {}, facts: [], opener: {current: null}})}});
   const useHome = await screenModule(new URL('../../src-next/pages/shared/home/useHome.ts', import.meta.url), page);
   const homePage = await screenModule(new URL('../../src-next/pages/touch/home/HomePage.tsx', import.meta.url), {...page, '../../shared/home/useHome': useHome});
   return {...stubs, '../../kit/home': home, '../../pages/touch/home/HomePage': homePage, '../../pages/tv/home/HomePage': tvHomePage};

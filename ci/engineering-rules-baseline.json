@@ -144,7 +144,6 @@
   "apps/desktop/src/window-native-host.ts": 1,
   "apps/native/src-next/kit/shell/SegmentWindows.tsx": 1,
   "apps/native/src-next/platform/play-on/controller.ts": 1,
-  "apps/native/src-next/screens/home/TvHomeRecovery.tsx": 1,
   "apps/native/src-next/screens/settings-live/LiveScreen.tsx": 1,
   "apps/native/src-next/screens/settings-live/owner-dashboard/use-owner-dashboard.tsx": 1,
   "apps/native/src-next/screens/settings-live/owner-libraries/AddFolderPage.tsx": 1,
