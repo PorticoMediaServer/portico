@@ -15,6 +15,12 @@ export type ChannelMarkDomain =
   | Readonly<{kind: 'authoritative'; channels: readonly MarkedChannel[]}>
   | Readonly<{kind: 'complete-authorized'; channels: readonly LineupChannel[]}>;
 export type ChannelMarkModel = ChannelIdentity & ChannelMark;
+/** The mark a channel's art box draws: the server's, or for a channel without one its number (else "TV") on a tint seeded
+ * by its identity, as Home's On now row draws it. A logo, when there is one, lies over it. */
+export function channelArtMark(channel: Readonly<{id: string; sourceId?: string; number?: string; mark?: ChannelMark}>): ChannelMarkModel {
+  const sourceId = channel.sourceId ?? '';
+  return Object.freeze({...(channel.mark ?? {text: channel.number || 'TV', seed: `${sourceId}:${channel.id}`}), sourceId, id: channel.id});
+}
 export type ChannelMarkIndex = ReadonlyMap<string, ReadonlyMap<string, ChannelMarkModel>>;
 const channelTints = ['#28587a', '#985243', '#796120', '#28665d', '#854d73', '#376f8c', '#4a596a', '#685294'] as const;
 /** §33: exact authoritative seed, UTF-16 code units and signed 32-bit wrap.

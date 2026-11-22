@@ -79,3 +79,11 @@ test('programme flags use true supplied flags, ordered independently of airtime 
   assert.deepEqual(programmeFactParts({}, env), []);
   assert.equal(programmeFactParts(base, env, endMs).some(p => p.id === 'remaining'), false);
 });
+
+test('a channel with no mark from the server draws its number on its own tint, or TV when it has none', async () => {
+  const {channelArtMark} = await import('../src/presentation/kit-model/channels.ts');
+  // The demo's Movie channel: a library channel the server sends with no mark (and now a logo, which lies over it).
+  assert.deepEqual({...channelArtMark({id: 'movies', sourceId: 'library', number: '1'})}, {text: '1', seed: 'library:movies', sourceId: 'library', id: 'movies'});
+  assert.equal(channelArtMark({id: 'x'}).text, 'TV');
+  assert.deepEqual({...channelArtMark({id: 'n24', sourceId: 's', number: '102', mark: {text: 'N24', seed: 's:n24'}})}, {text: 'N24', seed: 's:n24', sourceId: 's', id: 'n24'});
+});
