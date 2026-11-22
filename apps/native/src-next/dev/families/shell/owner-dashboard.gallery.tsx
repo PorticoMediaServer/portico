@@ -8,7 +8,7 @@ import type {DashboardAlert} from '../../../screens/settings-live/dashboard-cont
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {Gallery} from '../../gallery-registry';
 import {useTheme} from '../../../kit/theme';
-import {OwnerDashboardPage} from '../../../screens/settings-live/owner-dashboard/page';
+import {OwnerDashboardView as OwnerDashboardPage} from '../../../kit/dashboard/OwnerDashboardView';
 import {OwnerMoveSheet} from '../../../kit/dashboard/OwnerMoveSheet';
 import {ownerAlertView, ownerHealthLine, ownerJobView, ownerStreamView, type OwnerSessionTotals, type OwnerViewing} from '../../../screens/settings-live/owner-dashboard/model';
 
