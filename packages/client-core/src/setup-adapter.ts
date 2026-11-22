@@ -192,8 +192,14 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         }
         const ownerSessionHeld = state.status === 'complete' ? await heldOwner(p, context.signal) : undefined;
         // A server that already has a library is past its first library: setup has nothing left to offer its owner.
-        const librariesExist = ownerSessionHeld && owner ? ((await callServer(owner.api, 'GET /v1/libraries', {signal: context.signal}))?.items?.length ?? 0) > 0 : undefined;
-        if (librariesExist !== undefined) await assertPaired(p);
+        // That read only chooses between Home and the first-library step. A failed read must
+        // not fail setup: it falls through to the library step (where a library can be added or skipped), as before the read.
+        let librariesExist: boolean | undefined;
+        if (ownerSessionHeld && owner) {
+          try { librariesExist = ((await callServer(owner.api, 'GET /v1/libraries', {signal: context.signal}))?.items?.length ?? 0) > 0; }
+          catch (error) { if (context.signal?.aborted) throw error; librariesExist = undefined; }
+        }
+        if (ownerSessionHeld && owner) await assertPaired(p);
         return {server: {kind: 'state', state, ...(ownerSessionHeld !== undefined ? {ownerSessionHeld} : {}), ...(librariesExist ? {librariesExist} : {})}, local};
       } catch (error) {
         if (record && refused(error, 'unauthorized')) return {server: {kind: 'tokenRefused'}, local};
