@@ -8,7 +8,7 @@ import type {NativeShellRoute} from '../../shell/routes';
 import type {NativeScreenLifetime} from './lifetime';
 import type {NativeSettingsDownloads, NativeSettingsLivePorts} from './ports';
 import {nativeSettingsContext} from './settings-context';
-import {renderNativeSettingsPanel} from './settings-panels';
+import {renderNativeSettingsPanel} from '../../pages/shared/settings/SettingsPanels';
 import {nativeTogetherSession} from './together-session';
 
 /** The real UUID source the native runtime already uses for playback request ids. */

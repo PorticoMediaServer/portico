@@ -1,6 +1,6 @@
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import {receiverAllowedDevices, type NativeAllowedDevices} from '../../../platform/play-on/receiver-allowed-storage';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 
 const none: readonly Readonly<{signInId: string; name: string}>[] = Object.freeze([]);
 const noSubscribe = () => () => {};

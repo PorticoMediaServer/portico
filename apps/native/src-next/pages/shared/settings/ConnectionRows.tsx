@@ -3,7 +3,7 @@ import {Button, Select} from '../../../kit/controls';
 import {SettingsRow} from '../../../kit/shell';
 import {DeviceRowBlock} from '../../../kit/settings/DeviceRows';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 // Named through pages/shared (not `./`) so the screen harness loads the hook for real when a test loads these rows.
 import {useConnectionAddress, useConnectionStatus, useInsecureConnections, useTestConnection} from '../../../pages/shared/settings/useConnectionRows';
 

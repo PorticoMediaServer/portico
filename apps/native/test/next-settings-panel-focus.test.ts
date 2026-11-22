@@ -6,28 +6,28 @@ import {nativeServerHost} from '../src-next/shell/model';
 
 const {react} = hooks();
 let television = true;
-const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/screens/settings-live/settings-panels.tsx', import.meta.url), {
+const {renderNativeSettingsPanel} = await screenModule(new URL('../src-next/pages/shared/settings/SettingsPanels.tsx', import.meta.url), {
   react, 'react-native': {},
-  '../../pages/shared/accounts/ProfilesRoutePage': {ProfilesRoutePage: 'ProfileRoute'}, '../../pages/shared/accounts/ServersRoutePage': {ServersRoutePage: 'ServersRoute'},
-  '../../pages/shared/settings/AccountSecurityPanel': {AccountSecurityPanel: 'AccountSecurityPanel'},
-  '../../pages/touch/settings/AccessTokensPanel': {AccessTokensPanel: 'AccessTokensPanel'},
-  '../../pages/touch/settings/DeviceAboutRows': {DeviceAboutRows: 'DeviceAboutRows'},
-  '../../pages/tv/settings/AllowedDevicesRows': {AllowedDevicesRows: 'AllowedDevicesRows'},
-  '../../pages/shared/settings/ConnectionRows': {NativeConnectionStatusRow: 'NativeConnectionStatusRow', NativeConnectionAddressRow: 'NativeConnectionAddressRow', NativeTestConnectionRow: 'NativeTestConnectionRow', NativeInsecureConnectionsRow: 'NativeInsecureConnectionsRow'},
-  '../../../../../packages/client-core/src/installation': {installationIdentity: () => undefined},
-  '../../../../../packages/client-core/src/presentation/kit-model/text': {},
-  '../../kit/controls': {},
-  '../../../../../packages/client-core/src/freshness-actions': {},
-  '../../../../../packages/client-core/src/timer': {},
-  '../../../../../packages/client-core/src/playback-v1/http': {},
-  '../../../../../packages/client-core/src/playback-v1/local-http': {},
-  '../../../../../packages/client-core/src/playback-v1/sessions': {},
-  '../../../../../packages/client-core/src/playback-controls': {},
-  '../../../../../packages/client-core/src/server-admin/now-playing': {},
-  '../../kit/overlays': {}, '../../kit/shell': {SettingsRow: 'SettingsRow'},
-  '../../kit/shell/visual': {}, '../../kit/theme': {useTheme: () => ({isTV: television})},
-  '../../shell/model': {nativeServerHost},
-  '../../../../../packages/i18n/src': {defaultI18n: {bytes: (value: number) => String(value)}},
+  '../accounts/ProfilesRoutePage': {ProfilesRoutePage: 'ProfileRoute'}, '../accounts/ServersRoutePage': {ServersRoutePage: 'ServersRoute'},
+  './AccountSecurityPanel': {AccountSecurityPanel: 'AccountSecurityPanel'},
+  '../../touch/settings/AccessTokensPanel': {AccessTokensPanel: 'AccessTokensPanel'},
+  '../../touch/settings/DeviceAboutRows': {DeviceAboutRows: 'DeviceAboutRows'},
+  '../../tv/settings/AllowedDevicesRows': {AllowedDevicesRows: 'AllowedDevicesRows'},
+  './ConnectionRows': {NativeConnectionStatusRow: 'NativeConnectionStatusRow', NativeConnectionAddressRow: 'NativeConnectionAddressRow', NativeTestConnectionRow: 'NativeTestConnectionRow', NativeInsecureConnectionsRow: 'NativeInsecureConnectionsRow'},
+  '../../../../../../packages/client-core/src/installation': {installationIdentity: () => undefined},
+  '../../../../../../packages/client-core/src/presentation/kit-model/text': {},
+  '../../../kit/controls': {},
+  '../../../../../../packages/client-core/src/freshness-actions': {},
+  '../../../../../../packages/client-core/src/timer': {},
+  '../../../../../../packages/client-core/src/playback-v1/http': {},
+  '../../../../../../packages/client-core/src/playback-v1/local-http': {},
+  '../../../../../../packages/client-core/src/playback-v1/sessions': {},
+  '../../../../../../packages/client-core/src/playback-controls': {},
+  '../../../../../../packages/client-core/src/server-admin/now-playing': {},
+  '../../../kit/overlays': {}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+  '../../../kit/shell/visual': {}, '../../../kit/theme': {useTheme: () => ({isTV: television})},
+  '../../../shell/model': {nativeServerHost},
+  '../../../../../../packages/i18n/src': {defaultI18n: {bytes: (value: number) => String(value)}},
 });
 
 test('custom Settings navigation rows provide stable distinct focus identities before TV activation', () => {
@@ -130,4 +130,10 @@ test('a retained TV device row cannot forget a device from a previous sign-in', 
   assert.equal(second.devices[0].signInId, 'server:account:second');
   second.forget(second.devices[0].signInId);
   assert.deepEqual(forgotten, ['server:account:second']);
+});
+
+test('Privacy\'s note is drawn by the kit part with the owner-sees-plays words', () => {
+  const element = renderNativeSettingsPanel('privacyNote', {context: {}, t: (id: string) => id, openRoute() {}}, {});
+  assert.equal(element.type.name, 'SettingsPrivacyNote');
+  assert.deepEqual([element.props.children].flat(), ['pref.note.privacy.ownerSeesPlays']);
 });

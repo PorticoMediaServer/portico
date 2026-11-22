@@ -12,7 +12,7 @@ import {nativeNetworkFetch} from '../../../platform/server-connections';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {accountSecurityAvailability} from '../accounts/useAccountSecurity';
 import {createNativeAccountSecurityScope, nativeAccountSecurityAllowed} from '../../../screens/settings-live/native-account-security';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 type Opening = Readonly<{current: () => boolean; refresh: () => Promise<void>}>;
 const noSubscription = () => () => {};
 
