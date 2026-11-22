@@ -45,7 +45,7 @@ const chromeModules = {
   '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/i18n/src': {defaultI18n},
   '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => focusRegistry}, '../../kit/Icon': {Icon: 'Icon'},
   '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV, colors: {}, space: {controlGap: 12}, type: {body: {}, bodyStrong: {}, caption: {}}})},
-  '../../kit/useMotion': {useMotion: () => motion, useReducedMotion: () => true}, './controls': {NativeWatchControls}, './landing-store': landingStoreModule, './WatchTimeline': {NativeWatchTimeline: 'Timeline'},
+  '../../kit/useMotion': {useMotion: () => motion, useReducedMotion: () => true}, './controls': {NativeWatchControls}, './landing-store': landingStoreModule, '../../kit/player/WatchTimeline': {NativeWatchTimeline: 'Timeline'},
   '../../kit/useScreenReader': {useScreenReader: () => false},
   '../../platform/tv-play-pause': tvPlayPause,
 };

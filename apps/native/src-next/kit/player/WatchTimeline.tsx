@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {runOnJS, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
-import {useMotion} from '../../kit/useMotion';
+import {useMotion} from '../useMotion';
 import {sameFence} from '../../../../../packages/player-core/src';
 import {clockText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -11,13 +11,13 @@ import type {NativeShellPlaybackAdapter} from '../../shell/playback';
 import {useTVKeyEvent} from '../../platform/tv-keys';
 import {createTVSeekRepeat} from '../../platform/tv-seek-repeat';
 import {touchScrub, useSiriRemoteTouch} from '../../platform/siri-remote';
-import {Focusable} from '../../kit/controls';
-import {registerBack} from '../../kit/navigation/back';
-import {useTheme} from '../../kit/theme';
-import type {NativeWatchControls} from './controls';
-import {NativeScrubPreview, NativeTrickplayStrip, scrubCardCentre} from './TrickplayStrip';
+import {Focusable} from '../controls';
+import {registerBack} from '../navigation/back';
+import {useTheme} from '../theme';
+import type {NativeWatchControls} from '../../screens/watch/controls';
+import {NativeScrubPreview, NativeTrickplayStrip, scrubCardCentre} from '../../screens/watch/TrickplayStrip';
 import type {NativePlaybackAdapter} from '../../platform/playback/types';
-import type {ArtworkSource} from '../../kit/artwork';
+import type {ArtworkSource} from '../artwork';
 import type {TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 
 type Props = Readonly<{
