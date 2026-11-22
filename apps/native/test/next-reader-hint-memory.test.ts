@@ -14,6 +14,8 @@ test('the reader hint is remembered in this device\'s settings, and a retired or
   memory.markSeen(); await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(writes, [['readerHintSeen', true]]);
   assert.equal(memory.seen(), true, 'and then never again');
+  memory.markSeen(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(writes.length, 1, 'a repeated Got it writes nothing more');
   live = false;
   assert.equal(memory.seen(), false);
   assert.doesNotThrow(() => memory.markSeen());

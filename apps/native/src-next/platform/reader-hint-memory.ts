@@ -9,6 +9,10 @@ type Owner = Parameters<typeof nativeDeviceSettings>[0];
 export function nativeReaderHintMemory(owner: Owner): ReaderHintMemory {
   return Object.freeze({
     seen: () => {try {return nativeDeviceSettings(owner).read('readerHintSeen') === true;} catch {return false;}},
-    markSeen: () => {try {void nativeDeviceSettings(owner).write('readerHintSeen', true).catch(() => {});} catch { /* retired: shows again next time */ }},
+    // Written once: a guest that repeats Got it costs nothing once this device has it.
+    markSeen: () => {try {
+      const settings = nativeDeviceSettings(owner);
+      if (settings.read('readerHintSeen') !== true) void settings.write('readerHintSeen', true).catch(() => {});
+    } catch { /* retired: shows again next time */ }},
   });
 }

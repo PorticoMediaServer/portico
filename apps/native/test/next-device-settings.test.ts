@@ -57,3 +57,13 @@ test('native save refusal and authority retirement never publish optimistic succ
   state.beforeRead = undefined; state.raw = JSON.stringify(['not a preferences record']);
   const next = await fixture(); await assert.rejects(next.source.write('forceStereo', true)); assert.equal(state.raw, JSON.stringify(['not a preferences record']));
 }));
+
+test('the reader hint is a plain device fact: unseen until written, kept as true, and refused as anything but a boolean', () => records(async state => {
+  const f = await fixture();
+  assert.equal(f.source.read('readerHintSeen'), false);
+  await f.source.write('readerHintSeen', true);
+  assert.equal(f.source.read('readerHintSeen'), true); assert.equal(JSON.parse(state.raw!).readerHintSeen, true);
+  const count = state.saves;
+  await assert.rejects(f.source.write('readerHintSeen', 'yes'));
+  assert.equal(state.saves, count); assert.equal(JSON.parse(state.raw!).serverCache.preserved, true);
+}));
