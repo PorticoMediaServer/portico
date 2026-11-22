@@ -12,7 +12,7 @@ import {nativeEqualizer} from '../../../platform/playback/equalizer';
 import {EqualizerPage} from '../../shared/player/EqualizerPage';
 import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/music/MusicSignal';
 import {NowPlayingQueue} from '../../../kit/player/NowPlayingQueue';
-import {TVMusicFocus} from '../../../screens/destinations/music/TVMusicFocus';
+import {TVMusicFocus} from '../../../kit/player/TVMusicFocus';
 import {listeningChapterSeek} from '../../../screens/destinations/music/audiobook-controls';
 import {NowPlayingLyrics, type NowPlayingLyricsProps} from '../../../kit/player/NowPlayingLyrics';
 import {ListeningQueuePaint, ListeningLyricsPaint} from '../../../kit/player/ListeningPanePaint';

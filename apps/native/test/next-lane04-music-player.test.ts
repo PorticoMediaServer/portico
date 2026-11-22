@@ -45,7 +45,7 @@ async function fixture(book = false, width = 390) {
     '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerPage'}, './useNowPlayingQueue': {nowPlayingSource: () => undefined, nowPlayingQueueWindow: (view: any) => view.window,
       nowPlayingQueueEntry: () => ({available: true, segmentId: 'segment'})},
     '../../../kit/player/ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'FavoritePaint', listeningSongFavorite: () => undefined},
-    '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: 'MusicFocusRegion', TVMusicFocus: 'TVMusicFocus'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVScreen'},
+    '../../../kit/player/TVMusicFocus': {MusicFocusRegion: 'MusicFocusRegion', TVMusicFocus: 'TVMusicFocus'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVScreen'},
     '../../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: true})}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
     '../../../screens/destinations/music/use-audiobook-read': {useAudiobookRead: () => ({reader: book ? reader : undefined, snapshot: book ? snapshot : {phase: 'retired'}})},
     '../../../screens/destinations/music/audiobook-controls': chapters, '../../../kit/overlays/SurfacePaintHost': {RetainedOverlay: 'RetainedOverlay'},

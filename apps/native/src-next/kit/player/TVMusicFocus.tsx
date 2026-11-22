@@ -1,17 +1,17 @@
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {findNodeHandle, View} from 'react-native';
-import {useTVKeyEvent} from '../../../platform/tv-keys';
-import {createTVSeekRepeat} from '../../../platform/tv-seek-repeat';
-import {sameFence} from '../../../../../../packages/player-core/src/identity';
-import type {DockCommand, DockOccupant} from '../../../kit/dock/types';
-import {playbackPosition, seekBounds, seekTo} from '../../../kit/dock/model';
-import {Focusable} from '../../../kit/controls';
-import {FocusRegion, type FocusRegionProps} from '../../../kit/focus';
-import {PlayerScrubBar} from '../../../kit/player/parts';
-import {useTheme} from '../../../kit/theme';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {useDestinationEntryFocus} from '../../destinations/useEntryFocus';
-import {registerBack} from '../../../kit/navigation/back';
+import {useTVKeyEvent} from '../../platform/tv-keys';
+import {createTVSeekRepeat} from '../../platform/tv-seek-repeat';
+import {sameFence} from '../../../../../packages/player-core/src/identity';
+import type {DockCommand, DockOccupant} from '../dock/types';
+import {playbackPosition, seekBounds, seekTo} from '../dock/model';
+import {Focusable} from '../controls';
+import {FocusRegion, type FocusRegionProps} from '../focus';
+import {PlayerScrubBar} from './parts';
+import {useTheme} from '../theme';
+import {defaultI18n} from '../../../../../packages/i18n/src';
+import {useDestinationEntryFocus} from '../../screens/destinations/useEntryFocus';
+import {registerBack} from '../navigation/back';
 
 /** These regions only compose the TV screen. Touch keeps its existing views. */
 export function MusicFocusRegion({children, ...props}: FocusRegionProps) {

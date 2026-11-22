@@ -22,13 +22,13 @@ async function fixture() {
     react, '../../../../../packages/client-core/src/cast': {}, '../../../../../packages/player-core/src/index': {sameFence},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {}, '../../../../../packages/i18n/src/index': {},
   });
-  const {TVMusicSeek} = await screenModule(new URL('../src-next/screens/destinations/music/TVMusicFocus.tsx', import.meta.url), {
+  const {TVMusicSeek} = await screenModule(new URL('../src-next/kit/player/TVMusicFocus.tsx', import.meta.url), {
     react, 'react-native': {View: 'View', findNodeHandle: () => 7, BackHandler: {addEventListener(_name: string, callback: () => boolean) {back = callback; return {remove() {back = () => false;}};}}},
-    '../../../platform/tv-keys': {useTVKeyEvent(callback: (event: any) => void) {listener = raw => {const event = keys.read(raw); if (event) callback(event);};}},
-    '../../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: Parameters<typeof createTVSeekRepeat>[0]) => createTVSeekRepeat(step, clock)},
-    '../../../../../../packages/player-core/src/identity': {sameFence}, '../../../kit/dock/model': model,
-    '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/player/parts': {PlayerScrubBar: 'ScrubBar'}, '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff'}, isTV: true})},
-    '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../destinations/useEntryFocus': {},
+    '../../platform/tv-keys': {useTVKeyEvent(callback: (event: any) => void) {listener = raw => {const event = keys.read(raw); if (event) callback(event);};}},
+    '../../platform/tv-seek-repeat': {createTVSeekRepeat: (step: Parameters<typeof createTVSeekRepeat>[0]) => createTVSeekRepeat(step, clock)},
+    '../../../../../packages/player-core/src/identity': {sameFence}, '../dock/model': model,
+    '../controls': {Focusable: 'Focusable'}, '../focus': {FocusRegion: 'FocusRegion'}, './parts': {PlayerScrubBar: 'ScrubBar'}, '../theme': {useTheme: () => ({colors: {text: '#fff'}, isTV: true})},
+    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../screens/destinations/useEntryFocus': {},
   });
   const fence = {kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile'}, run: 1}, sessionId: 'session', itemId: 'song', sourceId: 'queue', entryId: 'entry', generation: 1};
   let occupant = {mode: 'music', playback: {fence, positionSeconds: 20}, presentation: {fence, capabilities: {seek: true}, durationSeconds: 100, skipBackSeconds: 10}};
