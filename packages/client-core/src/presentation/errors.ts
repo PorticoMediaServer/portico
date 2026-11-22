@@ -1,4 +1,5 @@
 import {playbackUserMessage} from '../playback-messages.ts';
+import {appLogShownError} from '../app-log.ts';
 import {defaultI18n, type I18n, type MessageId} from '../../../i18n/src/index.ts';
 
 /**
@@ -257,6 +258,7 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   if (context === 'playback') {
     // Playback keeps its own reviewed mapping (codes → copy, allowlisted safe server strings).
     const body = playbackUserMessage(error);
+    appLogShownError({context, operation, category: 'playback', errorCode: f.code || undefined, status: f.status});
     return Object.freeze({category: 'playback', title, body, action: 'try-again', actionLabel: label('try-again'), messageId: 'error.playback', silent: false, code: f.code || undefined});
   }
   const base = category === 'unknown' || category === 'playback' ? unknownBody : bodies[category];
@@ -276,6 +278,7 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   }
   if (operation !== 'load' && category === 'invalid-response') { messageId = 'error.unconfirmedChange'; action = 'refresh'; }
   if (noActionCodes.has(f.code)) action = 'none';
+  appLogShownError({context, operation, category, errorCode: f.code || undefined, status: f.status});
   return Object.freeze({
     category, title, body: i18n.t(messageId, values), action,
     actionLabel: label(action),

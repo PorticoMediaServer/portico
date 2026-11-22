@@ -40,3 +40,26 @@ test('network capture records status and request id while preserving the respons
  const line=JSON.parse(appLog.snapshot());assert.equal(line.facts.status,503);assert.equal(line.facts.requestId,'req_0123456789abcdef');
  assert.equal(line.facts.code,'http_error');assert.ok(!appLog.snapshot().includes('private'));assert.equal(await response.text(),'private response body');appLog.clear();
 });
+
+test('a failure request is logged with its method, and a shown error with where it came from, its code and status', async () => {
+ const {presentError} = await import('../src/presentation/errors.ts');
+ appLog.clear();
+ const fetcher = appLogFetch(async()=>new Response('',{status:503,headers:{'X-Request-ID':'req_0123456789abcdef'}}));
+ await fetcher('https://private.example/v1/sessions/ses_0123456789abcdef/progress',{method:'post'});
+ assert.equal(JSON.parse(appLog.snapshot()).facts.method,'POST');
+ appLog.clear();
+ // "Your server is busy right now" after the player (finisher, 21 Nov): the line names the page and the code.
+ const busy = Object.assign(new Error('Server busy at https://private.example/v1/x'),{code:'server_busy',status:503});
+ presentError(busy,'detail',{operation:'action'}); presentError(busy,'detail',{operation:'action'});
+ const lines = appLog.snapshot().split('\n');
+ assert.equal(lines.length,1,'a re-rendered error is written once');
+ assert.deepEqual(JSON.parse(lines[0]).facts,{context:'detail',operation:'action',category:'busy',errorCode:'server_busy',status:503});
+ assert.ok(!appLog.snapshot().includes('private.example'));
+});
+
+test('only code-shaped error codes and known contexts enter a shown-error line', () => {
+ const log = new AppLog(()=>100);
+ for (const bad of ['what somebody typed','Bearer sample-token','server.example','/v1/media/path-grant','Other Person','password=sample','a'.repeat(60),'sample@example.com'])
+  log.write('warn','app','error',{errorCode:bad,context:bad,operation:bad,category:bad,method:bad});
+ for (const line of log.snapshot().split('\n')) assert.deepEqual(JSON.parse(line).facts,{});
+});
