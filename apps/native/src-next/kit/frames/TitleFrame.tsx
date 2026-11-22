@@ -1,6 +1,6 @@
 import {PreviewText} from '../layout/PreviewText';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
-import React, {Children, isValidElement, useEffect, useRef, useState, type ReactNode} from 'react';
+import React, {Children, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {ScrollView, StyleSheet, TVFocusGuideView, Text, View, useWindowDimensions, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -177,8 +177,11 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // section sends Up to Play (or, with no Play, into the head). It is live only while folded, so Down from Play is untouched.
   // The target goes to the guide as its `destinations` prop (with autoFocus while live): react-native-tvos makes a guide with
   // neither unselectable on tvOS, so set imperatively this guide was never used (as #5209 found for Discover).
-  const primaryView = useRef<View>(null), headView = useRef<View>(null), [upTarget, setUpTarget] = useState<View | null>(null);
-  useEffect(() => {setUpTarget(folded ? primaryView.current ?? headView.current : null);}, [folded]);
+  // The primary button and the head are held through callback refs, so the guide always names the view now mounted (the
+  // primary button remounts when Play becomes Resume, another component).
+  const [primaryNode, setPrimaryNode] = useState<View | null>(null), [headNode, setHeadNode] = useState<View | null>(null);
+  const upTarget = folded ? primaryNode ?? headNode : null;
+  const upDestinations = useMemo(() => upTarget ? [upTarget] : [], [upTarget]);
   useEffect(() => {fold.value = withTiming(folded ? 1 : 0, motion.timing('standard'));}, [fold, folded, motion]);
   // The words fade as the page folds, so they never show through the band; never to nothing, since tvOS will not move
   // focus to a fully transparent view and Up must still reach Play.
@@ -313,7 +316,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // The played part and the time left are in the button on a tablet on its side and TV; under the row elsewhere, with Start over.
   // A reading book's place line (phone-read 7) carries where the reader is, so its progress stays in the button.
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover) && !place;
-  const actionRow = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primaryRef={primaryView}
+  const actionRow = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primaryRef={setPrimaryNode}
     primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
       progress: lineUnder ? undefined : primary.progress, startOver: stacked ? undefined : primary.startOver}}/>;
   // TV: the buttons are one focus region, so the shell remembers the one in use (Play or Resume at first) and Right from the
@@ -396,7 +399,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   const content = <View onLayout={event => {ys.current.content = event.nativeEvent.layout.y;}} style={{marginTop: tabs ? frame.headerGap + frame.headingGap : frame.sectionGap, flexDirection: besideAside ? 'row' : 'column', alignItems: 'flex-start', gap: besideAside ? theme.space.xl : frame.sectionGap}}>
     <View onLayout={event => {ys.current.column = event.nativeEvent.layout.y;}} style={{flex: besideAside ? 1 : undefined, alignSelf: besideAside ? undefined : 'stretch', minWidth: 0, gap: frame.sectionGap}}>
       {selectionBar}
-      {tv && !scroller && !loading && <TVFocusGuideView destinations={upTarget ? [upTarget] : []} autoFocus={!!upTarget} focusable={!!upTarget} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
+      {tv && !scroller && !loading && <TVFocusGuideView destinations={upDestinations} autoFocus={!!upTarget} focusable={!!upTarget} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>}
       {tv && !scroller && !loading ? sections.map((section, index) => <FocusWithin key={index} onChange={(focused, host) => {
         if (!focused) return;
         // A move within the section keeps the control on screen; entering a section aligns the section itself. A cover page
@@ -466,7 +469,7 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   </View>;
   const strip = tabs && !held && <View onLayout={event => {setTabsY(event.nativeEvent.layout.y); tabsHeight.current = event.nativeEvent.layout.height;}}>{tabBar({marginTop: stacked ? theme.space.sm : tv ? spec.tabsGap.tv : 0})}</View>;
   const page = tv ? <View ref={pageView} collapsable={false}>
-    <FocusWithin onChange={focused => {if (!focused) return; setWhere('head'); if (tv && cover) scroll.current?.scrollTo({y: 0, animated: !motion.reduce});}}><Animated.View ref={headView} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
+    <FocusWithin onChange={focused => {if (!focused) return; setWhere('head'); if (tv && cover) scroll.current?.scrollTo({y: 0, animated: !motion.reduce});}}><Animated.View ref={setHeadNode as never} style={copyStyle}>{head}{strip}</Animated.View></FocusWithin>
     {content}
   </View> : <>
     {!held && (cover && art ? <View>
