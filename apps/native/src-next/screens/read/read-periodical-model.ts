@@ -24,6 +24,9 @@ export type NativeReadPeriodicalState = Readonly<{
   /** Months that actually hold issues in the unfiltered first page, newest first. */
   months: readonly string[];
   groupName?: string;
+  /** The run's publisher and how often it comes out (daily … annual), when the server knows them. */
+  publisher?: string;
+  frequency?: string;
   /** Only a complete bucket sum or the group's own count; otherwise absent. */
   issueCount?: number;
   publicationType?: ReadingPeriodicalType;
@@ -159,7 +162,7 @@ export class NativeReadPeriodical {
           : unfiltered;
       if (flight !== this.flight || !this.current()) return;
       this.publish({phase: 'ready', items: page.items, ...(latest ? {latest} : {}), years: this.orderedYears(page.yearChoices), days: page.dayChoices,
-        months, ...(groupName ? {groupName} : {}), ...(issueCount === undefined ? {} : {issueCount}), publicationType: this.publicationType, ...(this.publicationType === 'magazine' ? {order: this.order} : {}),
+        months, ...(groupName ? {groupName} : {}), ...(unfiltered.publisher ? {publisher: unfiltered.publisher} : {}), ...(unfiltered.frequency ? {frequency: unfiltered.frequency} : {}), ...(issueCount === undefined ? {} : {issueCount}), publicationType: this.publicationType, ...(this.publicationType === 'magazine' ? {order: this.order} : {}),
         ...(selectedYear ? {selectedYear, yearSections: [{year: selectedYear, phase: 'ready' as const, items: page.items, nextCursor: page.nextCursor}]} : {}),
         ...(selectedMonth ? {selectedMonth, selectedDate: latest?.issueDate ?? page.items[0]?.issueDate} : {}),
         ...(page.nextCursor ? {nextCursor: page.nextCursor} : {}),

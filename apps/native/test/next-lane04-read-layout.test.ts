@@ -158,6 +158,9 @@ test('read issue artwork uses the approved dimming while preserving the selected
   assert.equal(image.props.saturation, .6); assert.equal(image.props.brightness, .66);
   // phone-read 24: under its year an issue is titled by its date alone, not the magazine's name again.
   assert.equal(named(card, 'GuideProgrammeTitle').props.title, 'October 1');
+  // With its volume and number from the server, that line sits under the date (the stub catalogue returns the id).
+  const numberedNode = shelf.props.renderItem({...f.selected, volume: 4, number: 9}), numbered = f.r.render(numberedNode.type, numberedNode.props);
+  assert.ok(nodes(numbered).some(node => node.type === 'Text' && [node.props.children].flat().join('') === 'next.reader.volumeIssue'));
   assert.ok(nodes(card).some(node => node.type === 'Icon' && node.props.name === 'i-check'));
 });
 
