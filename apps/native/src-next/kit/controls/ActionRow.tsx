@@ -50,9 +50,9 @@ export function ActionRow({primary, actions = [], loading = false, primaryRef}: 
   const theme = useTheme(), spec = frameSpec.actionRow, {form} = theme;
   const stacked = form === 'phone' || form === 'medium', height = theme.spec.button.hero.height[theme.column];
   const side = (action: RowAction) => (action.split && stacked) || (action.labelled && !stacked && !(form === 'tv' && action.wide))
-    ? <Button key={action.label} ref={action.anchorRef} variant="glass" size="hero" icon={action.icon} style={action.split && stacked ? shared : undefined} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
+    ? <Button key={action.label} ref={action.anchorRef} focusId={action.testID ?? action.label} variant="glass" size="hero" icon={action.icon} style={action.split && stacked ? shared : undefined} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       accessibilityLabel={action.shortLabel ? action.label : undefined}>{action.shortLabel ?? action.label}</Button>
-    : <Button key={action.label} ref={action.anchorRef} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
+    : <Button key={action.label} ref={action.anchorRef} focusId={action.testID ?? action.label} variant="glass" size="hero" iconOnly icon={action.icon} accessibilityLabel={action.label} accessibilityState={{selected: action.active}} iconColor={action.active ? theme.colors.accentStrong : undefined} disabled={action.disabled || loading} onPress={action.onPress} testID={action.testID}
       style={[{width: height, height}, action.active && {backgroundColor: alpha(theme.colors.accentStrong, theme.spec.card.progress.trackAlpha), borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, spec.activeEdge)}]}/>;
   const width = spec.primaryWidth[form];
   // A split row (frames 13, 15b) halves its width between the primary and the split action, whatever their labels say.
@@ -66,7 +66,8 @@ export function ActionRow({primary, actions = [], loading = false, primaryRef}: 
     {lead && (primary.progress !== undefined && !loading
       ? <ResumeButton {...lead} ref={primaryRef} size="hero" progress={primary.progress} remaining={primary.remaining}>{primary.label}</ResumeButton>
       : <Button {...lead} ref={primaryRef} variant="primary" size="hero">{primary.label}</Button>)}
-    {primary?.startOver && !loading && <Button variant="glass" size="hero" icon="i-restart" onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
+    {primary?.startOver && !loading && <Button focusId="start-over" variant="glass" size="hero" icon="i-restart"
+      onPress={primary.startOver.onPress}>{primary.startOver.label}</Button>}
     {actions.filter(action => !action.wide || !stacked).map(side)}
   </View>;
 }

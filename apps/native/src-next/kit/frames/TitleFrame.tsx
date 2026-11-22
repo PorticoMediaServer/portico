@@ -313,8 +313,13 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
   // The played part and the time left are in the button on a tablet on its side and TV; under the row elsewhere, with Start over.
   // A reading book's place line (phone-read 7) carries where the reader is, so its progress stays in the button.
   const resume = primary?.progress !== undefined && !loading, lineUnder = resume && (stacked || !!cover) && !place;
-  const row = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primaryRef={primaryView} primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
-    progress: lineUnder ? undefined : primary.progress, startOver: stacked ? undefined : primary.startOver}}/>;
+  const actionRow = (primary || actions.length > 0) && <ActionRow loading={loading} actions={actions} primaryRef={primaryView}
+    primary={primary && {...primary, focusId: primary.testID ?? titlePrimaryId,
+      progress: lineUnder ? undefined : primary.progress, startOver: stacked ? undefined : primary.startOver}}/>;
+  // TV: the buttons are one focus region, so the shell remembers the one in use (Play or Resume at first) and Right from the
+  // side menu returns to it; without a region nothing on a pushed title page was remembered and Right went nowhere.
+  const row = actionRow && tv ? <FocusRegion id={`title.actions.${testID ?? 'page'}`} orientation="horizontal">{actionRow}</FocusRegion>
+    : actionRow;
   const track = theme.spec.card.progress.height[theme.column];
   const resumeBar = lineUnder ? <View accessibilityRole="progressbar" accessibilityValue={{min: 0, max: 1, now: primary!.progress}} style={{flex: 1, height: track, borderRadius: track, overflow: 'hidden', backgroundColor: alpha(theme.colors.text, theme.spec.card.progress.trackAlpha)}}>
     <View style={{width: `${primary!.progress! * 100}%`, height: track, backgroundColor: theme.colors.accentStrong}}/></View> : null;
