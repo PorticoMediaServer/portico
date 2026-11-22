@@ -115,7 +115,8 @@ func (s *Service) minutes(ctx context.Context, b *LibraryChannelBuilder, st *Sta
 			ms += t.ms
 		}
 	}
-	episodes, err := s.db.ShowsRuntime(ctx, shows)
+	// Only the episodes a channel can place, as for films (playable).
+	episodes, err := s.db.ShowsRuntime(ctx, shows, minProgramme.Milliseconds(), maxProgramme.Milliseconds())
 	return int((ms + episodes + 30_000) / 60_000), err
 }
 

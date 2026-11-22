@@ -256,15 +256,15 @@ func conditionGroup(ctx context.Context, tx *sql.Tx, q *query, match string, con
 	return strings.Join(parts, joiner), nil
 }
 
-// ShowsRuntime adds up the length of the scheduled episodes of the shows named. It reads each
-// show's own index range.
-func (d *DB) ShowsRuntime(ctx context.Context, showIDs []int64) (int64, error) {
+// ShowsRuntime adds up the length of the scheduled episodes of the shows named: those a
+// channel can place, from shortest to longest ms. It reads each show's own index range.
+func (d *DB) ShowsRuntime(ctx context.Context, showIDs []int64, shortest, longest int64) (int64, error) {
 	var total int64
 	for start := 0; start < len(showIDs); start += 200 {
 		part := showIDs[start:min(start+200, len(showIDs))]
 		var ms int64
 		if err := d.read.QueryRowContext(ctx, `SELECT ifnull(sum(duration_ms), 0) FROM items WHERE root_id IN `+intList(part)+`
-			AND kind = ? AND parent_index > 0 AND available = 1`, KindEpisode).Scan(&ms); err != nil {
+			AND kind = ? AND parent_index > 0 AND available = 1 AND duration_ms BETWEEN ? AND ?`, KindEpisode, shortest, longest).Scan(&ms); err != nil {
 			return 0, err
 		}
 		total += ms
