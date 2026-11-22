@@ -1,4 +1,5 @@
 import {playbackUserMessage} from '../playback-messages.ts';
+import {appLogShownError} from '../app-log.ts';
 import {defaultI18n, type I18n, type MessageId} from '../../../i18n/src/index.ts';
 
 /**
@@ -236,6 +237,12 @@ const codeBodies: Record<string, MessageId> = {
 };
 /** Codes whose sentence says what to do instead, so the notice offers no Try again. */
 const noActionCodes = new Set(['too-many-to-add', 'home_views_full', 'sync_pending', 'comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required', 'artwork_cap_unreachable', 'unsupported_artwork']);
+/** The log keeps an error's code only when it is one this client already knows (its own tables, plus the busy code the
+ * server lane names): a code is whatever a server or library sends, and a lower-case name, PIN or invitation code can look
+ * like one. Anything else is logged as `other`, beside its status and category. */
+const loggedCodes = new Set<string>(['server_busy']);
+const loggedCode = (code: string): string | undefined => !code ? undefined
+  : code in exact || code in codeBodies || noActionCodes.has(code) || loggedCodes.has(code) ? code : 'other';
 
 export function presentError(error: unknown, context: ErrorContext = 'generic', options: PresentOptions = {}): PresentedError {
   const i18n = options.i18n ?? defaultI18n;
@@ -257,6 +264,7 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   if (context === 'playback') {
     // Playback keeps its own reviewed mapping (codes → copy, allowlisted safe server strings).
     const body = playbackUserMessage(error);
+    appLogShownError({context, operation, category: 'playback', errorCode: loggedCode(f.code), status: f.status});
     return Object.freeze({category: 'playback', title, body, action: 'try-again', actionLabel: label('try-again'), messageId: 'error.playback', silent: false, code: f.code || undefined});
   }
   const base = category === 'unknown' || category === 'playback' ? unknownBody : bodies[category];
@@ -276,6 +284,7 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   }
   if (operation !== 'load' && category === 'invalid-response') { messageId = 'error.unconfirmedChange'; action = 'refresh'; }
   if (noActionCodes.has(f.code)) action = 'none';
+  appLogShownError({context, operation, category, errorCode: loggedCode(f.code), status: f.status});
   return Object.freeze({
     category, title, body: i18n.t(messageId, values), action,
     actionLabel: label(action),

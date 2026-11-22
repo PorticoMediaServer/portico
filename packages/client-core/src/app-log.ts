@@ -13,6 +13,15 @@ const routes = new Set(['original','repackaged','converted','direct','stream','r
 const codecs = new Set(['aac','mp3','flac','opus','alac','vorbis','h264','hevc','av1','vp9','ac3','eac3','dts','dts_hd','truehd','pcm','mp2','ac4']);
 const engines = new Set(['native','mpv','avplayer','media3','browser','web-audio']);
 const states = new Set(['playing','paused','buffering','stopped','ended']);
+const methods = new Set(['GET','HEAD','POST','PUT','PATCH','DELETE']);
+/** Where a shown error came from: the page's error context and what it was doing (presentation/errors.ts). */
+const contexts = new Set(['home','library','detail','show','person','search','saved','playlist','collection','downloads','live','together','notifications',
+ 'account','profiles','devices','settings','preferences','server-console','sign-in','playback','feedback','generic','portico-account','claim','link']);
+const operations = new Set(['load','save','action']);
+const categories = new Set(['offline','unreachable','timeout','busy','unavailable','authentication','permission','not-found','changed','rate-limited',
+ 'unsupported-version','invalid-response','invalid-input','storage-full','playback','unknown']);
+/** A machine error code (`server_busy`, `rate_limited`): lower-case words joined by `_` or `-`, nothing else. */
+const errorCode = /^[a-z]+(?:[_-][a-z0-9]+){0,7}$/;
 const id = /^(?:(?:itm|med|prf|usr|ses|pbs|ply|req)_[0-9a-hjkmnp-tv-z]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 const version = /^\d+(?:\.\d+){0,2}(?:-(?:dev|alpha|beta|rc)(?:\.\d+)?)?(?:\+\d+)?$/;
 function facts(raw: unknown): Record<string, string | number> {
@@ -23,7 +32,10 @@ function facts(raw: unknown): Record<string, string | number> {
   else if (['appVersion','osVersion'].includes(key) && typeof value === 'string' && value.length <= 60 && version.test(value)) out[key] = value;
   else if (key === 'screen' && typeof value === 'string' && screens.has(value) || key === 'code' && typeof value === 'string' && codes.has(value)
    || key === 'route' && typeof value === 'string' && routes.has(value) || key === 'codec' && typeof value === 'string' && codecs.has(value)
-   || key === 'engine' && typeof value === 'string' && engines.has(value) || key === 'state' && typeof value === 'string' && states.has(value)) out[key] = value as string;
+   || key === 'engine' && typeof value === 'string' && engines.has(value) || key === 'state' && typeof value === 'string' && states.has(value)
+   || key === 'method' && typeof value === 'string' && methods.has(value) || key === 'context' && typeof value === 'string' && contexts.has(value)
+   || key === 'operation' && typeof value === 'string' && operations.has(value) || key === 'category' && typeof value === 'string' && categories.has(value)
+   || key === 'errorCode' && typeof value === 'string' && value.length <= 48 && errorCode.test(value)) out[key] = value as string;
   else if (key === 'status' && typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 599
    || key === 'playerErrorCode' && typeof value === 'number' && Number.isSafeInteger(value)) out[key] = value as number;
  }
@@ -65,16 +77,30 @@ export class AppLog {
 /** Web uses this memory-only ring. Native binds its private last-run file to the same instance. */
 export const appLog = new AppLog();
 
-/** Capture status and request id, never a request's address, body, headers or response body. */
+/** Capture method, status and request id, never a request's address, body, headers or response body. The request id
+ * is how a server log names the route. */
 export function appLogFetch(fetcher: typeof fetch): typeof fetch {
  return async (input,init) => {
+  const method = (init?.method ?? (typeof input === 'object' && input && 'method' in input ? (input as Request).method : 'GET')).toUpperCase();
   try {
    const response = await fetcher(input,init);
-   if (!response.ok) appLog.write('warn','network','network-failure',{status:response.status,code:'http_error',requestId:response.headers.get('X-Request-ID')});
+   if (!response.ok) appLog.write('warn','network','network-failure',{method,status:response.status,code:'http_error',requestId:response.headers.get('X-Request-ID')});
    return response;
   } catch (error) {
-   if (!init?.signal?.aborted) appLog.write('warn','network','network-failure',{status:0,code:'network_error'});
+   if (!init?.signal?.aborted) appLog.write('warn','network','network-failure',{method,status:0,code:'network_error'});
    throw error;
   }
  };
+}
+
+const presented = new Map<string, number>(), presentedKept = 32;
+/** A failure the app presented (worked out the copy for, to show or offer): which page context and operation, its
+ * category, the failure's code (only one the client knows, else `other`) and status. Each distinct line is written once
+ * in five seconds, however often pages re-render it or alternate between several. */
+export function appLogShownError(facts: Readonly<{context: string; operation: string; category: string; errorCode?: string; status?: number}>, now = Date.now()) {
+ const key = JSON.stringify(facts), last = presented.get(key);
+ if (last !== undefined && now - last < 5000) return;
+ presented.delete(key); presented.set(key, now);
+ if (presented.size > presentedKept) presented.delete(presented.keys().next().value!);
+ appLog.write('warn','app','error',facts);
 }
