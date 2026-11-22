@@ -20,7 +20,7 @@ export function NativeChannelHours({group,value,locked,onChange}:{group:NativeCh
   {blocks.map(block=><View key={block.id} style={{gap:8}}><Button variant="glass" size="compact" disabled={locked} onPress={()=>open(block)}>{block.name||`${block.from}–${block.to}`}</Button><Button variant="text" size="compact" disabled={locked} onPress={()=>change(blocks.filter(v=>v!==block))}>{t('builder.remove')}</Button></View>)}
   <Button size="compact" variant="glass" disabled={locked||blocks.length>=500} onPress={()=>open()}>{t('builder.schedule.add')}</Button>
   <BottomSheet open={!!held} onOpenChange={v=>{if(!v)close();}} title={t('builder.schedule.add')} footer={<View style={{flexDirection:'row',gap:8}}><Button variant="glass" onPress={close}>{t('action.cancel')}</Button><Button disabled={locked} onPress={save}>{t('action.save')}</Button></View>}>
-   {draft&&<View style={{gap:14}}><TextField label={t('builder.name')} value={draft.name??''} editable={!locked} onChangeText={name=>edit({name})}/>
+   {draft&&<View style={{paddingHorizontal:theme.isTV?0:20,gap:14}}><TextField label={t('builder.name')} value={draft.name??''} editable={!locked} onChangeText={name=>edit({name})}/>
     <Select label={t('web.ownerChannels.copyPreset')} value="" disabled={locked} options={[{value:'',label:t('builder.preset.title')},...state.presets.map(v=>({value:v.id,label:v.name}))]} onValueChange={view.preset}/>
     <TextField label={t('web.ownerChannels.from')} value={draft.from} editable={!locked} maxLength={5} onChangeText={from=>edit({from})}/><TextField label={t('web.ownerChannels.to')} value={draft.to} editable={!locked} maxLength={5} onChangeText={to=>edit({to})}/>
     <NativeChannelDays days={draft.days} locked={locked} change={days=>edit({days})}/>
