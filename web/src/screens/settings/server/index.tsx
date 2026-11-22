@@ -51,7 +51,7 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
     eligible: row => storageRowState(row, facts())?.present,
     special: (row, state) => {
       const target = linkTarget(row), text = row.control.label && t(row.control.label);
-      if (target && text) return <button type="button" className={styles.sectionLink} onClick={() => {if (options.isCurrent()) options.openTarget(target);}}>{text}<Icon name="i-right" size={16} /></button>;
+      if (target && text) return <button type="button" className={styles.sectionLink} onClick={() => {if (options.isCurrent()) options.openTarget(target);}}><span className={styles.sectionLinkText}>{text}</span><Icon name="i-right" size={16} /></button>;
       // A row's spec label is a message key; the drawn controls are named with its words.
       const label = state.label ?? t(row.label);
       return row.id === 'storage.networkNotice' ? <span className={styles.storageWarning} role="status">{t('next.settings.storage.sharedDrive')}</span>

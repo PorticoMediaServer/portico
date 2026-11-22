@@ -226,7 +226,8 @@
 .phoneRefresh:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .phoneSection { position: relative; z-index: 1; margin-top: 32px; padding: 0 16px; }
 .phoneHeading { display: flex; align-items: baseline; gap: 10px; padding: 0 4px; margin-bottom: 12px; }
-.phoneHeading h2 { margin: 0; font-size: var(--type-report-section-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
+/* owner-dashboard phone frames draw these as the kit row heading (.phone .row-head h2: 19/700). */
+.phoneHeading h2 { margin: 0; font-size: var(--type-row-heading-size); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-fixed-tracking-minus-point-015em); }
 .phoneHeading > span, .phoneHeading small { font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-tertiary); }
 .phoneHeading .filters { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dotSep { width: 3px; height: 3px; flex: none; align-self: center; border-radius: 50%; background: currentColor; }

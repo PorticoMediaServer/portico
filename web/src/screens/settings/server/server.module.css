@@ -24,6 +24,12 @@
 .storageNote { margin: 0; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 .sectionLink { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font: inherit; font-size: var(--type-body-size); font-weight: var(--type-body-strong-weight); color: var(--color-accent-strong); cursor: pointer; }
 .sectionLink:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; border-radius: 4px; }
+/* On a phone the row's own label already names what opens ("Problems people reported"), so the link keeps only its
+   chevron and the label keeps the row's width instead of wrapping beside "Open problem reports". The words stay its name. */
+@media (max-width: 599px) {
+  .sectionLink { min-width: 44px; min-height: 44px; justify-content: flex-end; }
+  .sectionLinkText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 .backupNow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .backupProgress { display: block; flex: 1; min-width: 120px; max-width: 320px; height: 4px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--color-text) 10%, transparent); }
 .backupProgress i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent-strong); }
