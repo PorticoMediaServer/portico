@@ -5,7 +5,7 @@ import {EnrolmentCode, PasswordMeter, SecuritySheet, SecurityText} from '../../.
 import {SettingsGroup, SettingsRow} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
-import {NativeHostedSignInPanel} from '../../../screens/settings-live/NativeHostedSignInPanel';
+import {NativeHostedSignInPanel} from './HostedSignInPanel';
 import {useLocalAccountSecurity, type LocalAccountSecurityProps} from './useLocalAccountSecurity';
 
 export function AccountSecurityPanel(props: LocalAccountSecurityProps) {

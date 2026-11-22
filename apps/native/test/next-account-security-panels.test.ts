@@ -65,7 +65,7 @@ async function fixture(kind: security.NativeAccountSecurityKind, enabled = false
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'},
     '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
     '../../../kit/settings/SecurityParts': kit, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => theme},
-    '../../../screens/settings-live/NativeHostedSignInPanel': {NativeHostedSignInPanel: 'NativeHostedSignInPanel'},
+    './HostedSignInPanel': {NativeHostedSignInPanel: 'NativeHostedSignInPanel'},
     './useLocalAccountSecurity': model,
   });
   let tree: any;

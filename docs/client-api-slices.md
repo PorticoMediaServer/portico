@@ -50,7 +50,7 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/accounts/AccountRoutes.tsx:146` | request `context.api.requestRaw` | dynamic/wrapper: inspect enclosing raw |
 | `apps/native/src-next/screens/accounts/AccountRoutes.tsx:185` | request `context.api.request` | get_direct_account |
 | `apps/native/src-next/screens/settings-live/DeviceAboutPanel.tsx:20` | request `context.api.request` | get_system |
-| `apps/native/src-next/screens/settings-live/NativeHostedSignInPanel.tsx:74` | request `new HttpLocalApi(hostedUrl, value.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing state |
+| `apps/native/src-next/pages/shared/settings/useHostedSignIn.ts:69` | request `new HttpLocalApi(hostedUrl, value.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing state |
 | `apps/native/src-next/shell/bootstrap-services.ts:186` | request `this.request` | get_direct_account |
 | `apps/native/src-next/shell/bootstrap.ts:171` | request `api.request` | get_me |
 | `apps/native/src-next/shell/bootstrap.ts:463` | request `readers.request` | get_me |
