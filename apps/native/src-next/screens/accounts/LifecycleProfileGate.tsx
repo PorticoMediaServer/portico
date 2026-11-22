@@ -18,7 +18,7 @@ import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
 import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
 import {profilePinFailureText} from './profile-pin-failure';
-import {PhoneProfileRecovery} from './PhoneProfileRecovery';
+import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
 import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
 import {useTVMenuCapture} from '../../platform/tv-menu';
 import {registerBack} from '../../kit/navigation/back';
@@ -144,7 +144,7 @@ export function LifecycleProfileGate() {
       }})};
     committed.current = undefined; setRecovery(next);
   };
-  if (recovery && connection) return <PhoneProfileRecovery controller={recovery.controller} profileName={recovery.name} username={connection.account.account.username}
+  if (recovery && connection) return <ProfileRecoveryPage controller={recovery.controller} profileName={recovery.name} username={connection.account.account.username}
     onOpen={value => {
       if (!ready()) return;
       send(value); committed.current = undefined;

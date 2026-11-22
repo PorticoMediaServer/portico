@@ -86,7 +86,7 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, 'react-native-qrcode-svg': {default: 'QR'},
     '../../kit/accounts/DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, '../../pages/tv/accounts/NoServersPage': {NoServersPage: 'TVNoServers'}, '../../kit/accounts/EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, '../../pages/touch/accounts/OfflineServersPage': {OfflineServersPage: 'OfflineServers'}, '../../pages/tv/accounts/OfflineServersPage': {OfflineServersPage: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, '../../pages/touch/accounts/NoServersPage': {NoServersPage: 'PhoneNoServers'}, '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
     './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
-    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
+    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
     './NativeSetup': {NativeSetup: 'NativeSetup'},
@@ -166,7 +166,7 @@ test('TV profile-switch hand-off preserves its current family, selection control
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},
     '../../platform/server-connections': {nativeNetworkFetch: async () => ({})},
-    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
+    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'PhoneProfileRecovery'},
   });
   const authority = {serverId: 'server', accountId: 'account', profileId: 'current', epoch: '1', viewerFence: 'f'.repeat(64)};
   const route = {kind: 'profiles'};
@@ -256,7 +256,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},
     '../../platform/server-connections': {nativeNetworkFetch: async () => ({})},
-    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
+    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'PhoneProfileRecovery'},
   });
   const authority = {serverId: 'server', accountId: 'account', profileId: 'current', epoch: '1', viewerFence: 'f'.repeat(64)};
   const route = {kind: 'profiles'};
