@@ -241,11 +241,14 @@ export async function screenModule(file, modules) {
       || leaf(declaration.source.value, modules.react?.default ?? modules.react, modules['react-native']) !== undefined)) continue;
     const target = await sharedHookFile(new URL(declaration.source.value, file));
     if (!target) continue;
-    const rebased = Object.fromEntries(Object.entries(modules).map(([key, value]) => {
+    const own = Object.fromEntries(Object.entries(modules).map(([key, value]) => {
       if (!key.startsWith('.')) return [key, value];
       const path = relative(dirname(target.pathname), new URL(key, file).pathname);
       return [path.startsWith('.') ? path : `./${path}`, value];
     }));
+    // A path the fixture never named still reaches the fixture's own answer for it (a fixture
+    // Proxy's unvisited port), as it did while the logic lived in the screen.
+    const rebased = new Proxy(own, {get: (all, name) => Object.hasOwn(all, name) ? all[name] : modules[name]});
     modules = withModules(modules, {[declaration.source.value]: await screenModule(target, rebased)});
   }
   let linked = transformed.code;
