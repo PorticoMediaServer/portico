@@ -22,6 +22,9 @@ test('missing origin and stale queue windows omit source copy rather than use tr
 test('favorite detail uses a real current song/library target; missing or successor targets stay absent', () => {
   const original = snapshot(), view = original.queueView!;
   assert.deepEqual(musicQueueItem(original), {libraryId: 'library', itemId: 'track'});
+  // The server's queue names a song a "track"; it is the same song for the heart.
+  assert.deepEqual(musicQueueItem({...original, queueView: {...view, items: view.items.map(item => ({...item, kind: 'track'}))}}), {libraryId: 'library', itemId: 'track'});
+  assert.equal(musicQueueItem({...original, queueView: {...view, items: view.items.map(item => ({...item, kind: 'episode'}))}}), undefined);
   assert.equal(musicQueueItem({...original, queueView: {...view, items: view.items.filter(item => item.entryId !== 'now')}}), undefined);
   for (const replacement of [{libraryId: undefined}, {itemId: 'other'}, {kind: 'audiobook_file'}]) {
     assert.equal(musicQueueItem({...original, queueView: {...view, items: [{...view.items[1], ...replacement}]}}), undefined);
