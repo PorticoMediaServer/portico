@@ -37,7 +37,7 @@ export function ServersRoutePage(props: ServersRouteProps) {
     <ServersConsentCodeBox><TextField label={t('linkTV.enterCode')} value={view.code} onChangeText={view.changeCode}
       autoCapitalize="characters" maxLength={9} autoCorrect={false} editable={!busy}/></ServersConsentCodeBox>,
     view.reviewAction);
-  if (panel === 'consent-review') return layout(t('linkTV.askConfirm'), t('web.device.approveWarn'), <ServersConsentReview lines={view.previewLines}/>,
+  if (panel === 'consent-review') return layout(view.reviewTitle, t('web.device.approveWarn'), <ServersConsentReview facts={view.previewFacts}/>,
     view.approveAction, <Button variant="text" disabled={busy} onPress={view.deny}>{t('web.device.notMine')}</Button>);
   if (panel === 'consent-done') return layout(view.done, undefined, undefined, view.doneAction);
   const sheet = view.sheet;

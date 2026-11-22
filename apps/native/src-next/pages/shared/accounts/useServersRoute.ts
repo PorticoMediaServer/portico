@@ -119,7 +119,17 @@ export function useServersRoute(props: ServersRouteProps) {
   const choosePorticoConsent = () => {void run(async () => {approver.current = await nativeAccounts.porticoTVConsent(); setConsentKind('portico'); setPanel('consent-code');});};
   const changeCode = (value: string) => setCode(formatTVLinkCode(value));
   const reviewAction = action('review-tv', t('web.device.review'), async () => {setPreview(await approver.current!.review(code)); setPanel('consent-review');}, !completeTVLinkCode(code));
-  const previewLines = preview ? [preview.deviceName, preview.platform, preview.appVersion, preview.userCode, t(consentKind === 'portico' ? 'accounts.session.portico' : 'accounts.session.local')] : [];
+  // A platform in the catalogue's own words (device.platform.android → "Android"); one it doesn't name is shown as sent.
+  const platformName = (platform: string) => {const key = `device.platform.${platform.toLowerCase()}`;
+    return defaultI18n.has?.(key) ? defaultI18n.t(key as Parameters<typeof defaultI18n.t>[0]) : platform;};
+  // The device's own facts, labelled as the Services review labels them; the platform in its own words ("Android", not "android").
+  const previewFacts = preview ? [
+    {label: t('services.device.device'), value: preview.deviceName}, {label: t('services.device.platform'), value: platformName(preview.platform)},
+    {label: t('about.appVersion'), value: preview.appVersion}, {label: t('auth.code'), value: preview.userCode},
+    {label: t('accounts.settings.title'), value: t(consentKind === 'portico' ? 'accounts.session.portico' : 'accounts.session.local')},
+  ].filter(fact => fact.value) : [];
+  // Web's words for any device ("Sign Pixel 6a in?"), not "Is this your TV?".
+  const reviewTitle = preview ? t('next.cast.linkTvReview', {device: preview.deviceName}) : t('linkTV.askConfirm');
   const approveAction = action('consent-approve', t('web.device.signItIn'), async () => {await approver.current!.decide(preview!, 'approve'); setDone(t('linkTV.approved', {device: preview!.deviceName})); setPanel('consent-done');});
   const deny = () => {void run(async () => {await approver.current!.decide(preview!, 'deny'); setDone(t('linkTV.declined')); setPanel('consent-done');});};
   const doneAction = action('done', t('action.done'), async () => close());
@@ -192,7 +202,7 @@ export function useServersRoute(props: ServersRouteProps) {
   const tvSignOutPortico = opens ? () => signOutFromSettings(opens) : signOutPortico;
 
   return {tv: theme.isTV, panel, busy, errorBody, secondaryAction, back: onBack ? cancel : undefined, addGeneration, addDownloads, addBack, addComplete,
-    signOutAccountAction, localConsentOffered, consentUnavailable, consentPortico: consentKind === 'portico', chooseLocalConsent, choosePorticoConsent, code, changeCode, reviewAction, previewLines, approveAction, deny,
+    signOutAccountAction, localConsentOffered, consentUnavailable, consentPortico: consentKind === 'portico', chooseLocalConsent, choosePorticoConsent, code, changeCode, reviewAction, previewFacts, reviewTitle, approveAction, deny,
     done, doneAction, sheet, servers, select, signOut: capture('sign-out-server'), forget: capture('forget-server'), refresh, add, linkTV, signOutPortico,
     accountHeld, owner, tvAdd, tvLinkTV, tvSignOutPortico};
 }

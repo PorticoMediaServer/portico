@@ -174,6 +174,11 @@ test('Play on link intent starts at approval choice, normalizes entry and gates 
     assert.equal(tree.props.primaryAction.disabled, false);
     await act(() => tree.props.primaryAction.onPress());
     assert.deepEqual(f.calls.find(call => call[0] === 'review'), ['review', 'ABCD-EFGH']);
+    // The review names the device in web's words for any device, and labels each fact.
+    assert.equal(tree.props.title, 'next.cast.linkTvReview');
+    const review = nodes(tree.props.beforeActions).find(value => Array.isArray(value.props?.facts));
+    assert.deepEqual(review.props.facts.map((fact: {label: string}) => fact.label),
+      ['services.device.device', 'services.device.platform', 'about.appVersion', 'auth.code', 'accounts.settings.title']);
   } finally {await host.unmount(); heldAccount = false;}
 });
 

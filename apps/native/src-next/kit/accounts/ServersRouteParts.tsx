@@ -16,10 +16,13 @@ export function ServersConsentCodeBox({children}: {children: ReactNode}) {
   return theme.isTV ? <TVAccountFields>{children}</TVAccountFields> : <View style={{marginBottom: 20}}>{children}</View>;
 }
 
-/** What the TV asking to be signed in told us about itself, one line each. */
-export function ServersConsentReview({lines}: {lines: readonly string[]}) {
+/** What the device asking to be signed in told us about itself: each fact with its label, the label quiet and the value at the end. */
+export function ServersConsentReview({facts}: {facts: readonly Readonly<{label: string; value: string}>[]}) {
   const theme = useTheme();
-  return <View style={{marginBottom: 20}}>{lines.map((value, index) => <Text key={index} style={[theme.type.body, {color: theme.colors.text}]}>{value}</Text>)}</View>;
+  return <View style={{marginBottom: 20, gap: 8}}>{facts.map(fact => <View key={fact.label} style={{flexDirection: 'row', justifyContent: 'space-between', gap: 16}}>
+    <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{fact.label}</Text>
+    <Text style={[theme.type.body, {color: theme.colors.text, flexShrink: 1, textAlign: 'right'}]}>{fact.value}</Text>
+  </View>)}</View>;
 }
 
 /** The chooser's quieter actions under the saved servers (Link a TV, Sign out of Portico Account). */
