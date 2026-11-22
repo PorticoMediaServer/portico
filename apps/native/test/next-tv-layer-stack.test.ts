@@ -579,3 +579,21 @@ test('a restore the registry already names is not done until focus actually arri
   assert.deepEqual(log, ['author'], 'the recovery onto the first control is not where the person was: asked again');
   assert.equal(registry.capture()?.childId, 'author');
 });
+
+test('the player takes focus as it draws: the page keeps the tile it was played from, so Back returns there', () => {
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time);
+  const tile = {regionId: 'title.episodes.row', childId: 'bloodbath'}, toggle = {regionId: 'watch-transport', childId: 'watch-toggle'};
+  registry.configure({id: 'title.episodes.row', order: ['bloodbath']}); registry.attach(tile, host(log, 'tile'));
+  registry.didFocus(tile);
+  const page = {key: 'page', host: () => host(log, 'page-layer')};
+  stack.sync([page]);
+  // The player draws and its preferred control takes focus before the stack hears the player is up.
+  registry.configure({id: 'watch-transport', order: ['watch-toggle']}); registry.attach(toggle, host(log, 'toggle'));
+  registry.didFocus(toggle);
+  stack.sync(tvLayerSpecs([], true, false, () => host(log, 'page-layer'), () => host(log, 'route-layer')).map((layer, index) => index === 0 ? page : layer));
+  assert.equal(stack.opener('page')?.childId, 'bloodbath', 'the page is owed the tile, not the player\'s control');
+  // Without an owner the old behaviour stands: the focus at push time is the opener.
+  const plain = createTVLayerStack(createFocusRegistry(), clock());
+  assert.equal(plain.opener('page'), undefined);
+});

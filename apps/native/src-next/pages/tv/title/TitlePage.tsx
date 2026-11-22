@@ -33,10 +33,10 @@ export function TitlePage(props: NativeTitleScreenProps) {
       primary={view.primary} actions={view.actions.map(action => action.testID === 'watch-title-my-list' ? {...action, label: t('next.controls.myList')} : action)}
       tagline={view.tagline} synopsis={view.synopsis} credits={view.credits} tabs={view.tabs} state={view.state}
       seasons={tv && {tab: 'episodes',
-        column: <TVSeasonList hint={hold(t('next.watch.seasonOptions'))} onEnd={tv.moreSeasons} items={tv.seasons.map(season => ({id: season.id, label: season.label,
+        column: <TVSeasonList focusKey={view.entry.id} hint={hold(t('next.watch.seasonOptions'))} onEnd={tv.moreSeasons} items={tv.seasons.map(season => ({id: season.id, label: season.label,
           detail: season.progress ?? season.count, progress: season.fraction ?? (season.complete ? 1 : undefined), current: season.current,
           onFocus: () => {setBand({season: season.id}); tv.focusEpisode(undefined); tv.select(season.id);}, onLongPress: season.group ? undefined : () => setMenu(season)}))}/>,
-        episodes: <TVEpisodeShelf entry={landing ?? tv.nextUp} empty={t('title.noEpisodes')} onEnd={view.onEnd} band={bandData(view, band)}
+        episodes: <TVEpisodeShelf focusKey={view.entry.id} entry={landing ?? tv.nextUp} empty={t('title.noEpisodes')} onEnd={view.onEnd} band={bandData(view, band)}
           items={tv.tiles.map(tile => ({...tile, onFocus: () => {setBand({episode: tile.key}); tv.focusEpisode(tile.key);}, onPlay: () => tv.play(tile.key)}))}/>}}>
       {view.related.map(row => <TitleSection key={row.testID ?? row.title} tab="related"><PosterRow {...row}/></TitleSection>)}
       {/* detail-tv-4: About carries the whole synopsis and the tagline beside the facts. */}

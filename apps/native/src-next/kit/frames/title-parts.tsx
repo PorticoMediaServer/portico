@@ -385,12 +385,15 @@ export type TVSeasonItem = Readonly<{id: string; label: string; detail?: string;
 /** detail-tv-5a and 5e: the show's seasons as a side list in its own window of six rows and half the seventh, the next row
  * peeking in when there are more; an edge fades only where the list goes on; the Hold OK hint under it while a season
  * holds focus. `onEnd` reads more seasons as focus nears the end. */
-export function TVSeasonList({items, hint, onEnd}: Readonly<{items: readonly TVSeasonItem[]; hint?: Readonly<{key: string; label: string}>; onEnd?: () => void}>) {
+/** `focusKey` names the list's focus region for its title (stable across the page being drawn again, so Back from the player
+ * can find the season it left); without one the region takes a generated id. */
+export function TVSeasonList({items, hint, onEnd, focusKey}: Readonly<{items: readonly TVSeasonItem[]; hint?: Readonly<{key: string; label: string}>; onEnd?: () => void; focusKey?: string}>) {
   const theme = useTheme(), {edges, scroll} = useListEdges(), [focused, setFocused] = useState(false);
   const current = items.find(item => item.current)?.id ?? items[0]?.id;
   // Free, not vertical: a vertical region holds Up and Down at its ends, and the column has to let Up go back to the
   // buttons (through the frame's guide on tvOS) and Down on to the rows under it.
-  return <FocusWithin onChange={setFocused}><FocusRegion id={`tv-seasons.${useId()}`} orientation="free" order={items.map(item => item.id)} entry={current}>
+  const generated = useId();
+  return <FocusWithin onChange={setFocused}><FocusRegion id={`tv-seasons.${focusKey ?? generated}`} orientation="free" order={items.map(item => item.id)} entry={current}>
     <View style={{maxHeight: seasonColumn.window * (rowHeight + seasonColumn.rowGap)}}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{gap: seasonColumn.rowGap}} {...scroll}>
         {items.map((item, index) => <SeasonListRow key={item.id} focusId={item.id} testID={`tv-season-${item.id}`} label={item.label} detail={item.detail} progress={item.progress} current={item.current}
@@ -416,8 +419,10 @@ export type EpisodeBandData =
       error?: ReactNode}>;
 /** detail-tv-5a and 5b: the season's episodes as one row of tiles (focus enters on the next-up episode), then the band
  * that describes whatever holds focus. `onEnd` reads the season's next page as the row nears its end. */
-export function TVEpisodeShelf({items, entry, band, empty, onEnd}: Readonly<{items: readonly TVEpisodeItem[]; entry?: string; band?: EpisodeBandData; empty?: string; onEnd?: () => void}>) {
-  const theme = useTheme(), width = seasonColumn.tile, region = `tv-episodes.${useId()}`, caption = cardCaptionHeight(theme, 2);
+/** `focusKey` names the row's focus region for its title (stable across the page being drawn again, so Back from the player
+ * returns to the tile it was played from); without one the region takes a generated id. */
+export function TVEpisodeShelf({items, entry, band, empty, onEnd, focusKey}: Readonly<{items: readonly TVEpisodeItem[]; entry?: string; band?: EpisodeBandData; empty?: string; onEnd?: () => void; focusKey?: string}>) {
+  const generated = useId(), theme = useTheme(), width = seasonColumn.tile, region = `tv-episodes.${focusKey ?? generated}`, caption = cardCaptionHeight(theme, 2);
   // R1: a focused tile grows and draws its ring outside itself; the row keeps that room inside its scroller and the shelf
   // gives it back by the same amount, so the tiles stay on the column and the first one's ring and caption are never cut.
   const room = tvFocusRoom(width, width * 9 / 16 + caption, 'card').side;

@@ -9,6 +9,9 @@ export type TVLayerSpec = Readonly<{
   /** A layer that names the control it opens on asks for it itself (asked instead of the host). Returns
    * whether a request was sent; the stack asks again as elements attach, within its wait. */
   claim?: () => boolean;
+  /** Focus that belongs to this layer. A layer that takes focus itself before the stack hears of it (the player) names its
+   * own, so the layer under it keeps the focus it had before, not the new layer's first control. */
+  owns?: (snapshot: FocusSnapshot) => boolean;
 }>;
 type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'> & Partial<Pick<FocusRegistry, 'preferredAsk' | 'preferredCount' | 'focusEpoch'>>;
 type Clock = Readonly<{later: (run: () => void, ms: number) => unknown; cancel: (handle: unknown) => void}>;
@@ -36,6 +39,12 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   const same = (a: FocusSnapshot | undefined, b: FocusSnapshot | undefined) => a?.regionId === b?.regionId && a?.childId === b?.childId;
   const emit = () => {revision++; for (const listener of [...listeners]) listener();};
   const drop = (key: string) => {const saved = openers.get(key); openers.delete(key); saved?.release();};
+  // The last few places focus has been, newest last: a layer that took focus before it was pushed points past its own.
+  const recent: FocusSnapshot[] = [];
+  const offRecent = registry.subscribe(() => {
+    const now = registry.capture();
+    if (now && !same(now, recent.at(-1))) {recent.push(now); if (recent.length > 8) recent.shift();}
+  });
 
   /** Keep asking until focus has moved off where it was when the layer changed (or is already on what the layer is
    * owed), or the wait runs out. A request that cannot land yet (nothing attached) is asked again as each element
@@ -98,7 +107,12 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
       if (after === undefined) {pending?.(); return;}
       if (before !== undefined && present.has(before)) {
         // A layer was pushed over `before`: keep where focus was (an overlay's opener when focus was in one).
-        const captured = registry.capture(), opener = captured?.returnTo ?? captured;
+        const captured = registry.capture(), top = next.at(-1);
+        // The player took focus as it drew, or focus was nowhere as it covered the page (Back from an episode came back to
+        // Play, not its tile): the opener is the newest focus from before it.
+        const mine = (snapshot: FocusSnapshot) => !!top?.owns?.(snapshot);
+        const prior = !captured || mine(captured) ? [...recent].reverse().find(snapshot => !mine(snapshot) && !outside(snapshot)) : captured;
+        const opener = prior?.returnTo ?? prior;
         drop(before);
         if (opener) openers.set(before, {snapshot: opener, release: registry.retain(opener)});
         claim(after);
@@ -122,7 +136,7 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
     opener: (key: string): FocusSnapshot | undefined => openers.get(key)?.snapshot,
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener);};},
     getSnapshot: () => revision,
-    dispose() {disposed = true; pending?.(); for (const key of [...openers.keys()]) drop(key); listeners.clear();},
+    dispose() {disposed = true; pending?.(); offRecent(); for (const key of [...openers.keys()]) drop(key); listeners.clear();},
   };
 }
 export type TVLayerStack = ReturnType<typeof createTVLayerStack>;
@@ -152,5 +166,5 @@ export function tvLayerSpecs(routes: readonly string[], expanded: boolean, liste
   return [{key: 'page', host: page}, ...routes.map(key => ({key, host: route})),
     // The player takes focus itself (its preferred control); the listening screen tells the stack which control it
     // opens on. Either way the stack covers what is under them and gives the layer below its focus back when they go.
-    ...expanded ? [{key: 'player'}] : [], ...listening ? [{key: 'listening', claim: () => layerClaims.get('listening')?.() ?? false}] : []];
+    ...expanded ? [{key: 'player', owns: (snapshot: FocusSnapshot) => snapshot.regionId.startsWith('watch-')}] : [], ...listening ? [{key: 'listening', claim: () => layerClaims.get('listening')?.() ?? false}] : []];
 }
