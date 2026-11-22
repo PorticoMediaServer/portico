@@ -34,19 +34,25 @@ function fixture() {
 
 async function editor(f = fixture(), firstRun = true) {
   const core = '../../../../../../packages/client-core/src/';
-  const app = await screenModule(new URL('../src-next/screens/settings-live/owner-libraries/AddLibraryPage.tsx', import.meta.url), {
-    react: f.h.react, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
-    [core + 'owner-library-requests']: {readOwnerKindMetadataAgents}, [core + 'server-admin/metadata-agent']: {parseKindMetadataAgents, localMetadataChoices},
-    [core + 'presentation/errors']: {presentError},
-    [core + 'presentation/language-list']: {languageName: (code: string) => code},
+  const hook = await screenModule(new URL('../src-next/pages/shared/settings/useLibraryForms.ts', import.meta.url), {
+    react: f.h.react, [core + 'owner-library-requests']: {readOwnerKindMetadataAgents}, [core + 'server-admin/metadata-agent']: {parseKindMetadataAgents, localMetadataChoices},
+    [core + 'admin/library-trash']: {}, '../../../../../../packages/i18n/src/index': {defaultI18n: {t: (key: string) => key}},
+    '../../../screens/settings-live/owner-libraries/presentation': {ownerLibraryKind: (kind: string) => ({label: kind})},
+  });
+  const app = await screenModule(new URL('../src-next/pages/touch/settings/LibraryFormPages.tsx', import.meta.url), {
+    react: f.h.react, [core + 'presentation/errors']: {presentError}, [core + 'presentation/language-list']: {languageName: (code: string) => code},
     '../../../../../../packages/i18n/src/index': {defaultI18n: {t: (key: string) => key}},
-    '../../../kit/theme': {useTheme: () => ({colors: {}})}, '../../../kit/shell/visual': {shellType: () => ({})},
-    '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Focusable': {Focusable: 'Focusable'},
-    '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/controls/Select': {Select: 'Select'},
-    '../../../kit/controls/FormError': {FormError: 'FormError'}, '../../../platform/keyboard': {FormScrollView: 'FormScrollView'},
-    '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'}, './controls': {SectionTitle: 'SectionTitle'},
-    './LibraryKindTiles': {LibraryKindTiles: 'LibraryKindTiles'}, './FolderSourcePicker': {FolderSourcePicker: 'FolderSourcePicker'},
-    './presentation': {ownerLibraryKind: (kind: string) => ({label: kind})},
+    '../../../kit/controls': {Button: 'Button', FormError: 'FormError', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
+    '../../../kit/frames': {PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', SettingsPageFrame: 'SettingsPageFrame'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    // The metadata choices are the kit radio row, drawn here as the Focusable it is so the test reads its label and state.
+    '../../../kit/settings/LibraryParts': {LibraryKindTiles: 'LibraryKindTiles', ShortNumberField: 'ShortNumberField', TrashItemLine: 'TrashItemLine',
+      RadioRow: ({label, description, checked, onPress}: any) => ({type: 'Focusable', props: {accessibilityLabel: label, accessibilityHint: description, accessibilityState: {checked}, onPress}})},
+    '../../../kit/settings/StorageParts': {StorageActions: 'StorageActions', StorageNote: 'StorageNote', StorageSheetBody: 'StorageSheetBody'},
+    '../../../kit/shell': {SettingsRow: 'SettingsRow'},
+    '../../../screens/settings-live/owner-libraries/FolderSourcePicker': {FolderSourcePicker: 'FolderSourcePicker'},
+    '../../../screens/settings-live/owner-libraries/presentation': {ownerLibraryKind: (kind: string) => ({label: kind, description: kind}), ownerLibraryKinds: [], ownerLibraryIntervals: []},
+    '../../shared/settings/useLibraryForms': hook,
   });
   const onCreate = (input: any) => f.service.createLibrary(input), onCancel = () => {};
   const paint = () => tree(f.h.render(() => app.AddLibraryPage({api: f.api, serverName: 'Fixture', onCreate, onCancel, busy: false, firstRun})));
