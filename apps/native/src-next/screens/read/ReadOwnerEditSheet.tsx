@@ -1,6 +1,7 @@
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Image, ScrollView, Text, View} from 'react-native';
 import {MetadataRepairService, type RepairData} from '../../../../../packages/client-core/src/metadata-repair';
+import {metadataFieldError, metadataFieldLabel} from '../../../../../packages/client-core/src/presentation/metadata-field';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable, TextField} from '../../kit/controls';
 import {BottomSheet} from '../../kit/overlays';
@@ -146,8 +147,10 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
     return Object.freeze({data: value, manifest: source, itemId: source.itemId, sourceId: source.sourceId,
       revision: source.revision, pageCount: source.pageNames.length, pageNames: source.pageNames});
   };
+  // A value the server would refuse (a number that is not whole, beyond its bounds) is named beside its field, and Save waits.
+  const invalid = exact(data) && data.schema.some(spec => {const field = data.snapshot.fields[spec.field]; return !!field && !!metadataFieldError(spec, draft[spec.field] ?? field.value);});
   const save = async () => {
-    if (!exact(data) || operation.current) return;
+    if (!exact(data) || operation.current || invalid) return;
     const fields: Record<string, {value: string}> = {};
     for (const spec of data.schema) {
       const current = data.snapshot.fields[spec.field];
@@ -288,25 +291,26 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
     description={t('next.reader.ownerOnly')} testID="native-read-owner-edit" keyboardAvoiding
     footer={<View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: 10}}>
       <Button variant="glass" onPress={() => {if (owned()) close();}} disabled={busy}>{t('action.cancel')}</Button>
-      <Button onPress={() => {void save();}} loading={busy} disabled={!exact(data) || busy || coverBusy}>{t('action.save')}</Button>
+      <Button onPress={() => {void save();}} loading={busy} disabled={!exact(data) || busy || coverBusy || invalid}>{t('action.save')}</Button>
     </View>}>
     {snapshot.phase === 'error' || failed ? <StateView variant="inline" title={t('error.unknown')}/> : null}
     <LoadingBoundary ready={exact(data) || snapshot.phase !== 'idle' && snapshot.phase !== 'loading'} immediate={exact(data)} skeleton={<SkeletonBlock width="100%" height={220}/>}>
-    {exact(data) ? <View style={{gap: 12}}>
+    {exact(data) ? <View style={{gap: 12, paddingHorizontal: theme.isTV ? 0 : 20}}>
       {data.schema.map(spec => {
         const field = data.snapshot.fields[spec.field];
         if (!field) return null;
         const provenance = sourceLabel(field.source);
         return <View key={spec.field} style={{gap: 4}}>
-          <Text style={[browseType(theme, 13, 700), {color: theme.colors.text}]}>{spec.label}</Text>
+          <Text style={[browseType(theme, 13, 700), {color: theme.colors.text}]}>{metadataFieldLabel(spec)}</Text>
           <TextField value={draft[spec.field] ?? field.value} onChangeText={next => {if (owned() && !busy) setDraft(current => ({...current, [spec.field]: next}));}}
-            editable={!busy} maxLength={spec.maxLength} accessibilityLabel={spec.label}/>
+            editable={!busy} maxLength={spec.maxLength} accessibilityLabel={metadataFieldLabel(spec)}
+            keyboardType={spec.type === 'integer' ? 'number-pad' : undefined} error={metadataFieldError(spec, draft[spec.field] ?? field.value) || undefined}/>
           {provenance ? <Text style={[browseType(theme, 11.5, 500), {color: theme.colors.textTertiary}]}>{provenance}</Text> : null}
         </View>;
       })}
     </View> : null}
     </LoadingBoundary>
-    {exact(data) && data.artworkRoles.includes('cover') ? <View style={{marginTop: 16, gap: 8}}>
+    {exact(data) && data.artworkRoles.includes('cover') ? <View style={{marginTop: 16, gap: 8, paddingHorizontal: theme.isTV ? 0 : 20}}>
       <Text style={[browseType(theme, 14, 700), {color: theme.colors.text}]}>{t('web.metadata.tabArtwork')}</Text>
       {data.artwork.candidates.filter(candidate => candidate.role === 'cover').map(candidate => <View key={candidate.id} style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
         <Text numberOfLines={2} style={[browseType(theme, 12.5, 500), {color: theme.colors.textSecondary, flex: 1}]}>{candidate.attribution || candidate.provider}</Text>
