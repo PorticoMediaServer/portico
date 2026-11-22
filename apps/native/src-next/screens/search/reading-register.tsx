@@ -7,7 +7,7 @@ import type {NativeShellRoute} from '../../shell/routes';
 import type {NativeRouteRenderer} from '../../shell/route-registry';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {createNativeReadingSearch, type NativeReadingSearchPort, type ReadingSearchOpening} from './reading-search';
-import {ReadingSearchScreen} from './ReadingSearchScreen';
+import {ReadingSearchPage} from '../../pages/touch/read/ReadingSearchPage';
 
 type SearchRoute = Extract<NativeShellRoute, {kind: 'search-reading'}>;
 type Entry = Readonly<{route: SearchRoute; key: number; port: NativeReadingSearchPort}>;
@@ -69,6 +69,6 @@ function ReadingSearchHost({entry, runtime, navigation, onBack}: Readonly<{
   }, [entry, snapshot, visible]);
   return place(<View pointerEvents={visible ? 'auto' : 'none'} accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
     style={{position: 'absolute', inset: 0, display: visible || stacked ? 'flex' : 'none'}}>
-    <ReadingSearchScreen port={entry.port} opening={opening} runtime={runtime} query={entry.route.query} onBack={onBack}/>
+    <ReadingSearchPage port={entry.port} opening={opening} runtime={runtime} query={entry.route.query} onBack={onBack}/>
   </View>);
 }

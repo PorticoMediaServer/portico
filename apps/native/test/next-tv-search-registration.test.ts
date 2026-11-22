@@ -120,7 +120,7 @@ async function setup() {
   const readingRegister = await screenModule(new URL('../src-next/screens/search/reading-register.tsx', import.meta.url), {...stackSlotFixture, 
     react: hooks().react, 'react-native': {Platform: {isTV: true}, View: 'View'},
     '../destinations/lifetime': {nativeDestinationLifetime},
-    './reading-search': {createNativeReadingSearch}, './ReadingSearchScreen': {ReadingSearchScreen: 'ReadingSearchScreen'},
+    './reading-search': {createNativeReadingSearch}, '../../pages/touch/read/ReadingSearchPage': {ReadingSearchPage: 'ReadingSearchScreen'},
   });
   await screenModule(new URL('../src-next/shell/search-route.tsx', import.meta.url), {
     '@portico/design': {frameForm: () => 'tv'}, '../pages/touch/search/SearchPage': {SearchPage: 'SearchPage'},
