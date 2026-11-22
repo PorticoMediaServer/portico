@@ -56,7 +56,7 @@ import {OfflineServers} from './OfflineServers';
 import {NoServersPage as TVNoServersPage} from '../../pages/tv/accounts/NoServersPage';
 import {OfflineServersPage as TVOfflineServersPage} from '../../pages/tv/accounts/OfflineServersPage';
 import {PhoneAccountMoveNotice} from './PhoneAccountMoveNotice';
-import {PhoneMovePassword} from './PhoneMovePassword';
+import {MovePasswordPage} from '../../pages/touch/accounts/MovePasswordPage';
 import {PhoneMoveCode} from './PhoneMoveCode';
 import {EndedMoveCodeAction} from '../../kit/accounts/EndedMoveCodeAction';
 import {DirectoryAccessRefused} from '../../kit/accounts/DirectoryAccessRefused';
@@ -1146,7 +1146,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         && memberOperation.current === source && operation.current === source;
       return <PhoneMoveCode controller={captured} isCurrent={current} onBack={back}/>;
     }
-    if (moveSnapshot.phase === 'password') return <PhoneMovePassword controller={memberMove} serverName={server!.name} onBack={back}/>;
+    if (moveSnapshot.phase === 'password') return <MovePasswordPage controller={memberMove} serverName={server!.name} onBack={back}/>;
     if (moveSnapshot.phase === 'portico') return <PhoneAccountMoveNotice busy={busy || moveSnapshot.busy} state={{kind: 'to-portico', serverName: server!.name,
       onContinue: () => {void run(portico);}, onCreateAccount: () => {void run(createMoveAccount);}}}/>;
     if (moveSnapshot.phase === 'confirm-portico' && moveSnapshot.username && moveSnapshot.porticoAccount) {
