@@ -1378,24 +1378,30 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
   const {NativeScreenServices} = await import('../src-next/screens/screen-services.ts');
   const {defaultI18n} = await import('../../../packages/i18n/src/index.ts');
-  const dashboard = await screenModule(new URL('../src-next/screens/settings-live/DashboardScreen.tsx', import.meta.url), {
+  const pageModules = {
     react: {...React, default: React}, 'react-native': await import('react-native'),
-    '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/admin/dashboard-alert-words': await import('../../../packages/client-core/src/admin/dashboard-alert-words.ts'),
-    '../../../../../packages/client-core/src/presentation/content': await import('../../../packages/client-core/src/presentation/content.ts'),
-    '../../../../../packages/client-core/src/server-admin/console-catalogue': await import('../../../packages/client-core/src/server-admin/console-catalogue.ts'),
-    '../../../../../packages/client-core/src/server-admin/now-playing': await import('../../../packages/client-core/src/server-admin/now-playing.ts'),
-    '../../../../../packages/client-core/src/presentation/kit-model': await import('../../../packages/client-core/src/presentation/kit-model/index.ts'),
-    '../../kit/controls': {Button, Focusable}, '../../kit/focus': await import('../src-next/kit/focus/index.ts'),
-    '../../kit/shell': await import('../src-next/kit/shell/index.ts'), '../../kit/states': {StateView},
-    '../../kit/shell/visual': await import('../src-next/kit/shell/visual.ts'), '../../kit/theme': {useTheme: () => state.theme},
-    '../../kit/cards/model': cardModel, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, './server/TVServerPageMenu': {TVServerPageMenu: 'TVServerPageMenu'},
-    './server/TVDiskUsage': {TVDiskUsage: 'TVDiskUsage'}, '../../shell/tv-focus': await import('../src-next/shell/tv-focus.ts'),
-    '../../kit/layout/Screen': {...await import('../src-next/kit/layout/Screen.tsx'), useScreenEntry: () => () => {}},
-    './dashboard-presentation': await import('../src-next/screens/settings-live/dashboard-presentation.ts'),
-    '../../pages/touch/dashboard/OwnerDashboardPage': {OwnerDashboardPage: 'NativeOwnerDashboardPhone'},
-    '../../platform/event-resync': await import('../src-next/platform/event-resync.ts'),
+    '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../../packages/client-core/src/admin/dashboard-alert-words': await import('../../../packages/client-core/src/admin/dashboard-alert-words.ts'),
+    '../../../../../../packages/client-core/src/presentation/content': await import('../../../packages/client-core/src/presentation/content.ts'),
+    '../../../../../../packages/client-core/src/server-admin/console-catalogue': await import('../../../packages/client-core/src/server-admin/console-catalogue.ts'),
+    '../../../../../../packages/client-core/src/server-admin/now-playing': await import('../../../packages/client-core/src/server-admin/now-playing.ts'),
+    '../../../../../../packages/client-core/src/presentation/kit-model': await import('../../../packages/client-core/src/presentation/kit-model/index.ts'),
+    '../../../kit/controls': {Button, Focusable}, '../../../kit/focus': await import('../src-next/kit/focus/index.ts'),
+    '../../../kit/states': {StateView}, '../../../kit/cards/model': cardModel,
+    '../../../screens/settings-live/dashboard-presentation': await import('../src-next/screens/settings-live/dashboard-presentation.ts'),
+    '../../../platform/event-resync': await import('../src-next/platform/event-resync.ts'),
+  };
+  // The page's kit parts draw for real (the Focusable rows the assertions read); their own imports are the kit's.
+  const parts = await screenModule(new URL('../src-next/kit/dashboard/TVDashboardParts.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': await import('react-native'), '../controls': {Focusable}, '../artwork': {Artwork: 'Artwork'},
+    '../layout/Screen': await import('../src-next/kit/layout/Screen.tsx'), '../shell': await import('../src-next/kit/shell/index.ts'),
+    '../shell/visual': await import('../src-next/kit/shell/visual.ts'), '../theme': {useTheme: () => state.theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
   });
+  const serverDashboard = await screenModule(new URL('../src-next/pages/shared/dashboard/useServerDashboard.ts', import.meta.url), {...pageModules, react: {...React, default: React}});
+  // The owner's Disk usage reads storage through its own source; this test is about Now playing and tasks.
+  const tvPage = await screenModule(new URL('../src-next/pages/tv/dashboard/DashboardPage.tsx', import.meta.url), {...pageModules,
+    '../../../kit/dashboard/TVDashboardParts': parts, '../../shared/dashboard/useServerDashboard': serverDashboard, '../../shared/dashboard/useDiskUsage': {useDiskUsage: () => undefined}});
+  const dashboard = {NativeDashboardScreen: (props: any) => tvPage.DashboardPage({...props, column: 'pages', rows: 'rows'})};
   const authority = {serverId: 'server', accountId: 'account', profileId: 'primary', epoch: 'one', viewerFence: 'fence'};
   const owner = {authority: () => authority, current: () => true, subscribeAuthority: () => () => {}, navigation: {open() {}}};
   const lifetime = new NativeScreenLifetime(owner), feedback = new NativeScreenServices(owner as any, async () => 'id');
@@ -1415,38 +1421,41 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
   const panel = await mount(dashboard.NativeDashboardScreen, {controller, ports, runtime, deniedFallback: null});
   try {
     await act(() => {});
-    const row = ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-session-first')!;
+    // The page draws kit parts; each is found by its test id, and its own Focusable by mounting it.
+    const byID = (id: string) => elements(panel.tree).find(element => element.props?.testID === id);
+    const drawn = async (element: Element) => (await mount(element.type, element.props)).tree as Element;
+    const row = byID('dashboard-session-first')!;
     assert.ok(row);
-    const identities = ofType(row, 'Text').flatMap(element => React.Children.toArray(element.props.children)).filter(value => ['person', 'profile', 'device'].includes(String(value)));
+    const identities = (row.props.people as string[]).filter(value => ['person', 'profile', 'device'].includes(String(value)));
     assert.deepEqual(identities, ['person', 'profile', 'device'], 'TV identity leads with username, then a differing profile, then device');
     if (role === 'owner') {
-      assert.ok(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-job-first'));
-      assert.equal(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-jobs-more'), undefined, 'no next page of jobs');
+      assert.ok(byID('dashboard-job-first'));
+      assert.equal(byID('dashboard-jobs-more'), undefined, 'no next page of jobs');
       assert.deepEqual(jobCalls, ['status']);
     } else assert.deepEqual(jobCalls, []);
-    const initialMore = ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-sessions-more')!;
+    const initialMore = byID('dashboard-sessions-more')!;
     await withNativeControl(initialMore, host => host.props.onPress()); await act(() => {});
     await withNativeControl(row, host => host.props.onFocus({nativeEvent: {}}));
     assert.ok(controller.sessionFocusToken('first'), 'the original drawn handler can lease its resident row while pending');
-    let more = ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-sessions-more')!;
-    assert.ok(more); assert.equal(more.props.disabled, true); assert.equal(more.props.focusableWhenDisabled, true);
+    let more = byID('dashboard-sessions-more')!;
+    assert.ok(more); const moreControl = await drawn(more); assert.equal(moreControl.props.disabled, true); assert.equal(moreControl.props.focusableWhenDisabled, true);
     await withNativeControl(more, host => {assert.equal(host.props.onPress, undefined); assert.notEqual(host.props.focusable, false);});
     await act(() => reject(new Error('offline')));
-    assert.ok(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-session-first'));
+    assert.ok(byID('dashboard-session-first'));
     const error = ofType(panel.tree, StateView).find(element => element.props.testID === 'dashboard-sessions-page-error')!;
     const errorView = await mount(StateView, error.props);
     try {
       const retry = elements(errorView.tree).find(element => element.props.action?.id === 'retry')!;
       await withNativeControl(retry, host => {assert.ok(host.props.testID?.includes('dashboard-sessions-page-error')); host.props.onPress();});
-      await act(() => {}); more = ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-sessions-more')!;
-      assert.equal(more.props.disabled, true);
+      await act(() => {}); more = byID('dashboard-sessions-more')!;
+      assert.equal(more.props.pending, true);
       await act(() => complete({items: [session('last')], nextCursor: undefined, totals, revision: 'rev-1', scope: {serverId: 'server', viewerFence: 'fence'}}));
-      assert.ok(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-session-last'));
+      assert.ok(byID('dashboard-session-last'));
       assert.equal(controller.getSnapshot().sessions.length, 11);
       assert.ok(sessionEvent); sessionEvent!(); await act(() => {});
       assert.ok(controller.sessionFocusToken('first')); assert.equal(controller.getSnapshot().sessionWindow?.pending, true);
       await act(() => complete({items: [session('last')], nextCursor: undefined, totals, revision: 'rev-1', scope: {serverId: 'server', viewerFence: 'fence'}}));
-      assert.ok(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-session-last'));
+      assert.ok(byID('dashboard-session-last'));
       await withNativeControl(row, host => host.props.onBlur({nativeEvent: {}})); assert.equal(controller.sessionFocusToken('first'), undefined);
       assert.deepEqual(calls, [undefined, 'next', 'next', undefined, 'next']);
       // Missed admin.sessions hints (a resync) are recovered by reading the Dashboard as it is now.

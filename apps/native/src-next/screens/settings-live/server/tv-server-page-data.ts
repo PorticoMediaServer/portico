@@ -25,7 +25,7 @@ import type {HttpLocalApi} from '../../../../../../packages/client-core/src';
 import {sourceStateText} from '../../../../../../packages/client-core/src/server-admin/storage-words';
 import {liveDefaultsView} from '../live-owner-model';
 import {liveStabilityValue} from '../live-defaults-presentation';
-import type {TVServerPage} from './TVServerPageMenu';
+import type {TVServerPage} from '../../../pages/shared/settings/tv-server-pages';
 import {tvServerCredentialCount, tvServerSettingsFacts, type TVServerFact} from './tv-server-values';
 
 export type TVReadOnlyPage = Exclude<TVServerPage, 'dashboard' | 'libraries' | 'people'>;
