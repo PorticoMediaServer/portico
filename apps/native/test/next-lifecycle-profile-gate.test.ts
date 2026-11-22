@@ -48,7 +48,7 @@ async function gate(rememberProfiles: boolean, isTV = false, refuse = false) {
     '../../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({lifecycle, ports})},
     '../../platform/profile-recovery': {NativeProfileRecovery: class {}, temporaryRecoveryApi: () => undefined},
     '../../platform/accounts': {nativeAccounts: {}}, '../../platform/account-authority': {hostedUrl: 'https://hosted.example'},
-    '../../platform/server-connections': {nativeNetworkFetch: fetch}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    '../../platform/server-connections': {nativeNetworkFetch: fetch}, './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
   });
   const host = createFabricHookHost(() => {tree = LifecycleProfileGate();});
   await act(() => host.mount());

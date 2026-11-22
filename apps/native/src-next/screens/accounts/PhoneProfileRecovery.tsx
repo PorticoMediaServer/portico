@@ -7,7 +7,7 @@ import {Button, TextField, FormError} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
 import {nativePorticoRecovery, type NativePorticoRecovery, type NativeProfileRecovery} from '../../platform/profile-recovery';
 import {hostedUrl} from '../../platform/account-authority';
-import {PhonePINEntry} from './PhonePINEntry';
+import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
 import {ProviderButton} from './ProviderButton';
 
 const t = defaultI18n.t;

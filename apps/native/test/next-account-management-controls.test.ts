@@ -52,7 +52,7 @@ async function fixture() {
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../../platform/offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'}, '../../kit/theme': {useTheme: () => theme},
     './AccountEntry': {AccountEntry: 'AccountEntry'}, './downloads-entry': {createAccountDownloadsEntry: () => ({dispose() {}})},
-    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
+    './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
     '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, '../../pages/tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'}, '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'},
     './sign-out-downloads': {removeCapturedServerDownloads: async () => {}}, '../../tv/auth': {TVProfilePINForm: 'TVProfilePINForm', TVForgotPINHandoff: 'TVForgotPINHandoff'},
     './account-form-values': values,
@@ -216,10 +216,10 @@ test('adding a server completes when publication withdraws the borrowed download
 });
 
 test('PIN cell presenter can edit New or Repeat without submitting and keeps the numeric native input', async () => {
-  const {PhonePINEntry} = await screenModule(new URL('../src-next/screens/accounts/PhonePINEntry.tsx', import.meta.url), {
+  const {PhonePINEntry} = await screenModule(new URL('../src-next/kit/accounts/PhonePINEntry.tsx', import.meta.url), {
     react: {...React, default: React},
     'react-native': {View: 'View', TextInput: 'TextInput', StyleSheet: {absoluteFill: {position: 'absolute'}}},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../kit/theme': {useTheme: () => theme},
+    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../theme': {useTheme: () => theme},
   });
   let tree: any;
   const host = createFabricHookHost(() => {const [value, setValue] = React.useState(''); tree = PhonePINEntry({value, onChange: setValue, label: 'Repeat PIN', autoFocus: false, testID: 'repeat'});});

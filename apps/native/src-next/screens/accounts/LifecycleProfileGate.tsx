@@ -19,7 +19,7 @@ import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
 import {profilePinFailureText} from './profile-pin-failure';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
-import {RememberProfileRow} from './RememberProfileRow';
+import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
 import {useTVMenuCapture} from '../../platform/tv-menu';
 import {registerBack} from '../../kit/navigation/back';
 

@@ -17,7 +17,7 @@ async function screen(props: Record<string, unknown> = {}) {
     react: host.react, '../../../../../../packages/i18n/src': {defaultI18n: {t}},
     '../../../kit/artwork': {ProfileFace: 'Face'}, '../../../kit/controls': {Button: 'Button', NumberPad: 'Pad'},
     '../../../kit/frames': {SignInFrame: 'SignInFrame'}, '../../../kit/accounts/AccountParts': {AccountHint: 'Hint', profileFaceSize: {pin: 92}},
-    '../../shared/accounts/useProfilePIN': useProfilePIN, '../../../screens/accounts/PhonePINEntry': {PhonePINEntry: 'PINEntry'},
+    '../../shared/accounts/useProfilePIN': useProfilePIN, '../../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PINEntry'},
   });
   const draw = () => nodes(host.render(() => ProfilePINPage({testID: 'pin', profile: {name: 'Alex', face: {initial: 'A'}}, busy: false, rejected: false,
     onBack: () => {}, onForgot: () => {}, ...props, value, onChange: (next: string) => {value = next;}, onSubmit: (pin: string) => {submitted.push(pin);}})));
@@ -91,9 +91,9 @@ test('the kit number pad: 1 to 9, then a blank, 0 and Delete, as the frame draws
 
 test('with the screen\'s own pad the field asks for no on-screen keyboard (inputMode none, or React Native ignores showSoftInputOnFocus); elsewhere it keeps the number pad', async () => {
   const host = hooks();
-  const {PhonePINEntry} = await screenModule(new URL('../src-next/screens/accounts/PhonePINEntry.tsx', import.meta.url), {
+  const {PhonePINEntry} = await screenModule(new URL('../src-next/kit/accounts/PhonePINEntry.tsx', import.meta.url), {
     react: host.react, 'react-native': {StyleSheet: {absoluteFill: {}}, TextInput: 'TextInput', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/theme': {useTheme: () => theme},
+    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../theme': {useTheme: () => theme},
   });
   const field = (softKeyboard?: boolean) => nodes(host.render(() => PhonePINEntry({value: '', onChange: () => {}, ...(softKeyboard === undefined ? {} : {softKeyboard})}))).find(node => node.type === 'TextInput').props;
   assert.deepEqual([field(false).inputMode, field(false).showSoftInputOnFocus], ['none', false]);
@@ -103,9 +103,9 @@ test('with the screen\'s own pad the field asks for no on-screen keyboard (input
 
 test('the shared four-box field sends a refused PIN again once a digit is retyped, and never twice on its own', async () => {
   const host = hooks(), completed: string[] = [];
-  const {PhonePINEntry} = await screenModule(new URL('../src-next/screens/accounts/PhonePINEntry.tsx', import.meta.url), {
+  const {PhonePINEntry} = await screenModule(new URL('../src-next/kit/accounts/PhonePINEntry.tsx', import.meta.url), {
     react: host.react, 'react-native': {StyleSheet: {absoluteFill: {}}, TextInput: 'TextInput', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/theme': {useTheme: () => theme},
+    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../theme': {useTheme: () => theme},
   });
   const field = () => nodes(host.render(() => PhonePINEntry({value: '', onChange: () => {}, onComplete: (pin: string) => completed.push(pin)}))).find(node => node.type === 'TextInput').props;
   field().onChangeText('9876'); field().onChangeText('9876');
