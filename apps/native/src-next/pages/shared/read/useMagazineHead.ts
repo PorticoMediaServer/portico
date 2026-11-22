@@ -12,8 +12,8 @@ import {usePeriodicalActions} from './usePeriodicalActions';
 
 const t = defaultI18n.t;
 
-/** A magazine archive's head as a title page's (phone-read 24): its facts (the year range and issue count; publisher
- * and frequency once the server sends them), Read with the issue it opens ("Read December 1929"), My List for that issue
+/** A magazine archive's head as a title page's (phone-read 24): its facts (publisher, how often it comes out, the year
+ * range and issue count), Read with the issue it opens ("Read December 1929"), My List for that issue
  * and ⋯ with its menu (Download is there, as on a book's page). */
 export function useMagazineHead({state, issue, offer, actions, runtime, onOpen}: {state: NativeReadPeriodicalState; issue?: ReadingPeriodicalIssue;
   offer: IssueOffer; actions: ReadingActionsPort; runtime: NativeShellRuntime; onOpen: (issue: ReadingPeriodicalIssue) => void}) {
@@ -22,7 +22,10 @@ export function useMagazineHead({state, issue, offer, actions, runtime, onOpen}:
   const {listed, busy, toggleListed} = usePeriodicalActions(issue ?? ({item: {id: ''}} as ReadingPeriodicalIssue), target, actions.actions, runtime.reportError);
   const years = state.years.map(value => value.value).sort();
   const range = years.length > 1 ? t('next.reader.yearRange', {from: years[0], to: years[years.length - 1]}) : years[0];
+  const frequency = state.frequency ? t('next.reader.frequency', {frequency: state.frequency}) : '';
   const facts: FactPart[] = [
+    ...(state.publisher ? [part('publisher', state.publisher, 'context')] : []),
+    ...(frequency ? [part('frequency', frequency, 'identity')] : []),
     ...(range ? [part('years', range)] : []),
     ...(state.issueCount !== undefined ? [part('issues', t('next.reader.issueCount', {count: state.issueCount}))] : []),
   ];
