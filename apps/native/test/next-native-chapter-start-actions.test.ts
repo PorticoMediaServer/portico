@@ -104,7 +104,7 @@ test('Home distinguishes a direct chapter play from a container Resume with a ch
     './music-discover-navigation': {createNativeMusicDiscoverNavigation: inactiveOverlay}, '../screens/home/model': homeModel,
     './home-windows': {}, '../screens/read/platform': {}, '../screens/read/reading-books-open': {},
     '../screens/home/entry-lifetime': {nativeDispatchedPlayLifetime, nativeHomeEntryLifetime, reportDispatchedPlayFailure}, '../screens/destinations/music/mixes': {createNativeMusicMixes: inactiveOverlay},
-    '../screens/settings-live/NativeTVReceiver': {}, '../screens/home/HomeEmpty': {},
+    './tv-receiver': {useTVReceiver: () => ({})}, '../kit/player/ReceiverApproval': {}, '../screens/home/HomeEmpty': {},
     './listening-playlist': {createNativeListeningPlaylist: inactiveOverlay}, './listening-queue-policy': {createNativeListeningQueuePolicy: inactiveOverlay},
     './listening-song-detail': {createNativeListeningSongDetail: inactiveOverlay},
   });

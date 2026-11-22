@@ -1,4 +1,5 @@
-import {NativeTVReceiver} from '../screens/settings-live/NativeTVReceiver';
+import {useTVReceiver} from './tv-receiver';
+import {ReceiverApproval} from '../kit/player/ReceiverApproval';
 import {CoveredLayer} from '../kit/focus/CoveredLayer';
 import {Layer} from '../kit/shell/Layer';
 import {createNativeListeningPlaylist} from './listening-playlist';
@@ -467,7 +468,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
         {active}
       </> : null;
       return runtime && context.current() ? <View pointerEvents="box-none" style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}}>
-        {Platform.isTV && <NativeTVReceiver context={context} runtime={runtime}/>}
+        {Platform.isTV && <TVReceiver context={context} runtime={runtime}/>}
         {/* TV: the shell's layer stack says whether a route is on top. Under the player or the listening
             screen, and with no route open, the route layer is covered: nothing in it takes D-pad focus and the
             empty container never holds focus over the page (W-9, W-12). Overlays and music navigation stay above. */}
@@ -525,4 +526,10 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     onArtworkError: error => reportError(error, 'artwork-error'),
     dispose: () => {if (!alive) return; alive = false; offDropped(); capturedMenu = undefined; listeningPlaylist?.dispose(); listeningQueuePolicy?.dispose(); listeningSongDetail?.dispose(); musicNavigation.dispose(); mixesLife.abort(); mixes.dispose(); routes.dispose(); for (const operation of operations) operation.abort(); operations.clear(); for (const cleanup of cleanups) cleanup(); for (const member of members.values()) member.cleanup(); members.clear(); for (const window of windows.values()) window.cleanup?.(); for (const spotlight of spotlights.values()) spotlight.cleanup(); windows.clear(); spotlights.clear(); controller.dispose(); management?.dispose(); ownerActivity?.dispose(); scroll.clear(); tvPageBack.clear(); runtime = undefined; listeners.clear();},
   };
+}
+
+/** A TV plays what the account's other devices send it, after asking once per device. */
+function TVReceiver(props: Parameters<typeof useTVReceiver>[0]) {
+  const receiver = useTVReceiver(props);
+  return <ReceiverApproval open={receiver.open} device={receiver.device} onAllow={receiver.allow} onDecline={receiver.decline}/>;
 }
