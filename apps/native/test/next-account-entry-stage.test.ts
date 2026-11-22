@@ -63,7 +63,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     '../../../../../packages/client-core/src/join-link': joinLink,
     '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
     '../../platform/qr-scanner': qrScanner,
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
+    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
     './tv-approval-finalization': tvApprovalFinalization, './tv-approval-credentials': tvApprovalCredentials,
     react: {...React, default: React,
       // The harness forwards the component’s dependency array unchanged.

@@ -52,7 +52,7 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     '../../../../../packages/client-core/src/join-link': joinLink,
     '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
     '../../platform/qr-scanner': qrScanner,
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
+    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
     react: {...React, default: React},
     'react-native': {AppState: {currentState: 'active', addEventListener: (_: string, listener: (state: string) => void) => {appState = listener; return {remove() {}};}}, BackHandler: {addEventListener: () => ({remove() {}})}, Platform: {isTV: false}, Dimensions: {get: () => ({width: 390, height: 844})},
       NativeModules: {}, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Linking: {openURL: async () => {}}},

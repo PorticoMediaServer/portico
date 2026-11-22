@@ -15,7 +15,7 @@ import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Banner, MenuRow, Popover} from '../../../kit/overlays';
 import {OverlaysProvider} from '../../../kit/overlays/OverlayHost';
 import {AccountMenu, ChoiceMatrix, DefaultHint, NotificationItem, ProfileAvatar, ServerHeader, SettingsNav, SettingsProfileCard, SettingsRow, ShortcutTiles} from '../../../kit/shell';
-import {LegalAgreement} from '../../../screens/accounts/LegalAgreement';
+import {LegalAgreement} from '../../../kit/accounts/LegalAgreement';
 import {PhonePINEntry} from '../../../screens/accounts/PhonePINEntry';
 import {ProfilePINPage} from '../../../pages/touch/accounts/ProfilePINPage';
 import {ProfilesPage} from '../../../pages/touch/accounts/ProfilesPage';
