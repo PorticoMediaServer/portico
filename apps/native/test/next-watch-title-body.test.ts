@@ -12,7 +12,7 @@ import {cardText, episodeLabel, playbackIdentity, titleFactParts} from '../../..
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 const {NativeTitleScreen, TitleEpisode} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
-  './TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
+  '../../kit/frames/TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
   '../../kit/useMotion': {useMotion: () => ({reduce: false})},
   '../../../../../packages/client-core/src/presentation/errors': {presentError},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})},
