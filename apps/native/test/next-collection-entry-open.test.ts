@@ -23,13 +23,13 @@ test('actual collection presenter sends its current member through the fenced pr
     '../native-screen-services': {nativeScreenServices: () => ({navigate() {assert.fail('song cannot route to title');}, reportError: assert.fail})},
     '../watch': {nativeWatchEntryMenu: () => undefined},
   });
-  const {createNativeCollectionRenderer} = await screenModule(new URL('../src-next/screens/collections/register.tsx', import.meta.url), {...stackSlotFixture, 
-    react: {...React, default: React}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {authorityKey, sameAuthority},
-    'react-native': {View: 'View', Platform: {isTV: false}}, '../../kit/focus': {useFocusRegistry: () => ({capture: () => undefined, subscribe: () => () => {}, retain: () => () => {}, restore() {}})},
-    '../selection/native-selection': {catalogueSelectionSource: (source: unknown) => source, createNativeSelection: () => ({dispose() {}})},
-    '../destinations/entry-actions': {createNativeEntryActions}, './controller': {NativeCollectionController: Controller},
+  const {createNativeCollectionRenderer} = await screenModule(new URL('../src-next/shell/collections-route.tsx', import.meta.url), {...stackSlotFixture, 
+    react: {...React, default: React}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, './model': {authorityKey, sameAuthority},
+    'react-native': {View: 'View', Platform: {isTV: false}}, '../kit/focus': {useFocusRegistry: () => ({capture: () => undefined, subscribe: () => () => {}, retain: () => () => {}, restore() {}})},
+    '../screens/selection/native-selection': {catalogueSelectionSource: (source: unknown) => source, createNativeSelection: () => ({dispose() {}})},
+    '../screens/destinations/entry-actions': {createNativeEntryActions}, '../screens/collections/controller': {NativeCollectionController: Controller},
     // Phones and tablets draw the rebuilt page; the presenter's handlers are the same either way.
-    '../../pages/touch/collection/CollectionPage': {CollectionPage: 'CollectionPage'}, '../../pages/tv/collection/CollectionPage': {CollectionPage: 'TVCollectionPage'},
+    '../pages/touch/collection/CollectionPage': {CollectionPage: 'CollectionPage'}, '../pages/tv/collection/CollectionPage': {CollectionPage: 'TVCollectionPage'},
   });
   const navigation = new NativeShellNavigation(authority, () => authority);
   const route = {kind: 'collection' as const, libraryId: 'library', collectionId: 'collection', title: 'Collection'};

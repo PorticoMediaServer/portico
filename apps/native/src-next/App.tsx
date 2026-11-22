@@ -17,16 +17,16 @@ if (!Platform.isTV) {
   // shell would have no profiles/servers renderer. Require the module eagerly.
   require('./screens/accounts/AccountRoutes');
   require('./shell/downloads-route');
-  require('./screens/collections/register');
-  require('./screens/library/register');
+  require('./shell/collections-route');
+  require('./shell/library-route');
   require('./shell/library-overview-route');
   require('./shell/pins-route');
-  require('./screens/destinations/music/register');
-  require('./screens/destinations/audiobooks/register');
+  require('./shell/music-route');
+  require('./shell/audiobooks-route');
   require('./shell/read-route');
-  require('./screens/people/register');
-  require('./screens/notifications/register');
-  require('./screens/search/register');
+  require('./shell/people-route');
+  require('./shell/notifications-route');
+  require('./shell/search-route');
   const {registerNativeWatch, createNativeWatchBindings} = require('./screens/watch') as typeof import('./screens/watch');
   registerNativeWatch(createNativeWatchBindings);
 }
@@ -36,7 +36,7 @@ require('./screens/home/CustomizeRoute');
 require('./screens/home/SeeAllRoute');
 require('./shell/live-route');
 require('./shell/together-route');
-require('./screens/saved/register');
+require('./shell/saved-route');
 const TVRoot: ComponentType | undefined = Platform.isTV ? require('./tv/register').TVRoot : undefined;
 
 const KitHost: ComponentType<{shell?: ComponentType}> | undefined = __DEV__ ? require('./dev/Kit').KitHost : undefined;

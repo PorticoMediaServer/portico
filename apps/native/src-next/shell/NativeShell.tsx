@@ -118,7 +118,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   /** The page's and the routes' own layers (CoveredLayer hosts): a layer that takes focus asks its host, which
    * lands on the element last focused there or its first focusable. */
   const baseLayer = useRef<View>(null), routeLayer = useRef<View>(null);
-  /** Search keeps its page alive in the route layer (screens/search/register.tsx), so on Search that layer is the page's. */
+  /** Search keeps its page alive in the route layer (shell/search-route.tsx), so on Search that layer is the page's. */
   const pageInRouteLayer = useRef(false);
   pageInRouteLayer.current = theme.isTV && destination.kind === 'search';
   /** TV-FOCUS-REVIEW §5: one layer stack owns which full-screen layer is on top, what is covered, and where focus

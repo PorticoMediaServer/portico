@@ -181,8 +181,8 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/library/model.ts:167` | request `this.request` | dynamic/wrapper: inspect enclosing capabilities |
 | `apps/native/src-next/screens/library/model.ts:215` | request `this.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/library/save-view.ts:20` | request `options.api.request` | dynamic/wrapper: inspect enclosing result |
-| `apps/native/src-next/screens/notifications/register.tsx:82` | request `context.api.request` | dynamic/wrapper: inspect enclosing raw |
-| `apps/native/src-next/screens/notifications/register.tsx:83` | request `context.api.request` | dynamic/wrapper: inspect enclosing raw |
+| `apps/native/src-next/shell/notifications-route.tsx:82` | request `context.api.request` | dynamic/wrapper: inspect enclosing raw |
+| `apps/native/src-next/shell/notifications-route.tsx:83` | request `context.api.request` | dynamic/wrapper: inspect enclosing raw |
 | `apps/native/src-next/screens/read/ReadOwnerEditSheet.tsx:75` | request `context.api.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/read/read-collection-capability.ts:26` | request `options.api.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/read/read-collection-picker.ts:63` | request `this.options.api.request` | dynamic/wrapper: inspect enclosing result |
@@ -192,7 +192,7 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/search/genre-browse.ts:88` | request `this.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/search/loaded-destinations.ts:63` | request `options.api.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/search/loaded-destinations.ts:116` | request `this.api.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/search/register.tsx:60` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
+| `apps/native/src-next/shell/search-route.tsx:60` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/RecordingsScreen.tsx:164` | request `ports.context.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:49` | request `context.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:104` | request `context.api.request` | get_items_id |

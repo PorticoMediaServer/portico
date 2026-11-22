@@ -1,21 +1,21 @@
 import {Platform} from 'react-native';
-import {Artwork} from '../../../kit/artwork';
-import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../../shell/route-registry';
-import {nativeDestinationLifetime} from '../lifetime';
-import {createNativeEntryActions} from '../entry-actions';
-import {createNativeMusicSelection} from './selection';
-import {NativeTVMusicController} from './model';
-import {AlbumPage} from '../../../pages/touch/music/AlbumPage';
-import {ArtistPage} from '../../../pages/touch/music/ArtistPage';
-import {ArtistPage as TVArtistPage} from '../../../pages/tv/music/ArtistPage';
-import {AlbumPage as TVAlbumPage} from '../../../pages/tv/music/AlbumPage';
-import {createMusicPlaylistPicker, type MusicPlaylistPickerHandle} from './MusicPlaylistPicker';
-import {nativeDownloadRequest} from '../../watch/download-request';
-import {askNativeDownload} from '../../downloads/request';
-import {nativeScreenServices} from '../../native-screen-services';
-import {catalogueSelectionSource, createNativeSelection, type NativeCatalogueSelectionSnapshot, type NativeSelection} from '../../selection/native-selection';
+import {Artwork} from '../kit/artwork';
+import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {createNativeEntryActions} from '../screens/destinations/entry-actions';
+import {createNativeMusicSelection} from '../screens/destinations/music/selection';
+import {NativeTVMusicController} from '../screens/destinations/music/model';
+import {AlbumPage} from '../pages/touch/music/AlbumPage';
+import {ArtistPage} from '../pages/touch/music/ArtistPage';
+import {ArtistPage as TVArtistPage} from '../pages/tv/music/ArtistPage';
+import {AlbumPage as TVAlbumPage} from '../pages/tv/music/AlbumPage';
+import {createMusicPlaylistPicker, type MusicPlaylistPickerHandle} from '../screens/destinations/music/MusicPlaylistPicker';
+import {nativeDownloadRequest} from '../screens/watch/download-request';
+import {askNativeDownload} from '../screens/downloads/request';
+import {nativeScreenServices} from '../screens/native-screen-services';
+import {catalogueSelectionSource, createNativeSelection, type NativeCatalogueSelectionSnapshot, type NativeSelection} from '../screens/selection/native-selection';
 
 
 type Page = Readonly<{current:()=>boolean;key: string; route: {kind: 'music'; entry: ContentEntry}; entry: ContentEntry; controller: NativeTVMusicController; actions: ReturnType<typeof createNativeEntryActions>; picker: MusicPlaylistPickerHandle; tvSelection?: NativeSelection; touchSelection?: NativeSelection; abort: AbortController}>;

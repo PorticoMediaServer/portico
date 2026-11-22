@@ -3,16 +3,16 @@
 import '../screens/accounts/AccountRoutes';
 import '../screens/home/CustomizeRoute';
 import '../screens/home/SeeAllRoute';
-import '../screens/library/register';
-import '../screens/collections/register';
+import '../shell/library-route';
+import '../shell/collections-route';
 import '../shell/library-overview-route';
 // App.tsx loads this only for handsets; the TV rail's Search needs it too.
-import '../screens/search/register';
-import '../screens/people/register';
+import '../shell/search-route';
+import '../shell/people-route';
 import '../shell/live-route';
 import '../shell/together-route';
-import '../screens/destinations/music/register';
-import '../screens/destinations/audiobooks/register';
+import '../shell/music-route';
+import '../shell/audiobooks-route';
 import '../shell/saved-destination-route';
 import {createNativeWatchBindings, registerNativeWatch} from '../screens/watch';
 
