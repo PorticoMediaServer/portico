@@ -138,12 +138,12 @@ test('native aggregate Delete dialog accepts 257 real preview totals and rejects
   const action: any = {target: target(), current: () => true, getSnapshot: () => state, subscribe: () => () => {},
     controller: {getSnapshot: () => state, confirm: async () => {confirms++;}, cancel: async () => {}, setConfirmation: () => {}, retry: async () => {}},
     openDelete: async () => {edits++;}};
-  const module = await screenModule(new URL('../src-next/screens/library/SelectionActionSurface.tsx', import.meta.url), {
+  const module = await screenModule(new URL('../src-next/kit/selection/QueryDeleteMediaDialog.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key, bytes: (n: number) => String(n)}},
     '../../../../../packages/client-core/src/selection-actions': actions, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'error'})},
-    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/controls/Switch': {Switch: 'Switch'}, '../../kit/controls/TextField': {TextField: 'TextField'},
-    '../../kit/theme': {useTheme: () => ({isTV: false, colors: {danger: 'red'}})},
-    '../../kit/selection/surface': {SelectionSurface: 'SelectionSurface', SelectionText: 'SelectionText', selectionFooterProps: () => ({})},
+    '../controls/Button': {Button: 'Button'}, '../controls/Switch': {Switch: 'Switch'}, '../controls/TextField': {TextField: 'TextField'},
+    '../theme': {useTheme: () => ({isTV: false, colors: {danger: 'red'}})},
+    './surface': {SelectionSurface: 'SelectionSurface', SelectionText: 'SelectionText', selectionFooterProps: () => ({})},
   });
   const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.footer), ...nodes(value.props.children)] : [];
   const render = () => nodes(host.render(() => module.NativeQueryDeleteMediaDialog({action, onClose: () => {closes++;}})));
@@ -163,14 +163,14 @@ test('native terminal cancellation is explicit and partial Delete shows actual f
     job: partialJob};
   const action: any = {target: target(), current: () => true, getSnapshot: () => state, subscribe: () => () => {},
     controller: {getSnapshot: () => state}};
-  const module = await screenModule(new URL('../src-next/screens/library/SelectionActionSurface.tsx', import.meta.url), {
+  const module = await screenModule(new URL('../src-next/kit/selection/QueryDeleteMediaDialog.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n: {
       t: (key: string, values?: unknown) => `${key}:${JSON.stringify(values ?? {})}`, bytes: (n: number) => `bytes(${n})`}},
     '../../../../../packages/client-core/src/selection-actions': actions,
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: true, body: undefined})},
-    '../../kit/controls/Button': {Button: 'Button'}, '../../kit/controls/Switch': {Switch: 'Switch'}, '../../kit/controls/TextField': {TextField: 'TextField'},
-    '../../kit/theme': {useTheme: () => ({isTV: false, colors: {danger: 'red'}})},
-    '../../kit/selection/surface': {SelectionSurface: 'SelectionSurface', SelectionText: 'SelectionText', selectionFooterProps: () => ({})},
+    '../controls/Button': {Button: 'Button'}, '../controls/Switch': {Switch: 'Switch'}, '../controls/TextField': {TextField: 'TextField'},
+    '../theme': {useTheme: () => ({isTV: false, colors: {danger: 'red'}})},
+    './surface': {SelectionSurface: 'SelectionSurface', SelectionText: 'SelectionText', selectionFooterProps: () => ({})},
   });
   const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.footer), ...nodes(value.props.children)] : [];
   const deletion = nodes(host.render(() => module.NativeQueryDeleteMediaDialog({action, onClose: () => {}}))), text = deletion.filter(node => node.type === 'SelectionText').flatMap(node => node.props.children);

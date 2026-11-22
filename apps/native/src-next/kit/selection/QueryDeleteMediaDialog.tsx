@@ -3,12 +3,12 @@ import {View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {isSelectionActionTerminal} from '../../../../../packages/client-core/src/selection-actions';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {Button} from '../../kit/controls/Button';
-import {Switch} from '../../kit/controls/Switch';
-import {TextField} from '../../kit/controls/TextField';
-import {useTheme} from '../../kit/theme';
-import {SelectionSurface, SelectionText, selectionFooterProps} from '../../kit/selection/surface';
-import type {NativeSelectionActionPresentation} from './selection-actions';
+import {Button} from '../controls/Button';
+import {Switch} from '../controls/Switch';
+import {TextField} from '../controls/TextField';
+import {useTheme} from '../theme';
+import {SelectionSurface, SelectionText, selectionFooterProps} from './surface';
+import type {NativeSelectionActionPresentation} from '../../screens/library/selection-actions';
 
 export type NativeQueryActionSurfaceProps = Readonly<{
   action: NativeSelectionActionPresentation;
