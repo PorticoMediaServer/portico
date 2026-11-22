@@ -168,6 +168,8 @@ type Item struct {
 	Author string `json:"author,omitempty"`
 	// EntryID names a list entry for moves and removals. In a sorted view it is omitted when the item occurs twice or more.
 	EntryID string `json:"entryId,omitempty"`
+	// HomeTitleContext is, for an episode in Home's Continue Watching, its show's facts for the hero.
+	HomeTitleContext *HomeTitleContext `json:"homeTitleContext,omitempty"`
 
 	// On GET /v1/items/{id} only, but for Summary, which an episode also carries in a list of
 	// its season's or show's children.
@@ -696,4 +698,13 @@ func creditShapes(credits []db.Credit) []Credit {
 		}
 	}
 	return out
+}
+
+// HomeTitleContext is what Home's hero says about an episode's show: "2023 · Drama · 1 season".
+// Year and SeasonCount are left out when unknown; Genres holds at most two.
+type HomeTitleContext struct {
+	Kind        string   `json:"kind"`
+	Year        int      `json:"year,omitempty"`
+	Genres      []string `json:"genres"`
+	SeasonCount int      `json:"seasonCount,omitempty"`
 }
