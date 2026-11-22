@@ -5,7 +5,7 @@ import {HostedMoreSignIn, HostedSignInFailure, HostedTwoStepControl} from '../..
 import type {NativeAccountSecurityKind} from '../../../platform/account-security';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {AccountSecuritySheet, PasswordResetSheet} from '../../touch/accounts/AccountSecurityPage';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 // Named through pages/shared so the screen harness loads the hook for real when a test loads this panel.
 import {useHostedSignIn} from '../../../pages/shared/settings/useHostedSignIn';
 

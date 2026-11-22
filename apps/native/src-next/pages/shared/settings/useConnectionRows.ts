@@ -4,7 +4,7 @@ import type {RouteConnection, RouteSnapshot} from '../../../../../../packages/cl
 import {callServer} from '../../../../../../packages/client-core/src/query/server-api';
 import {nativeConnectionPolicy} from '../../../platform/connection-preference';
 import {nativeDeviceSettings} from '../../../platform/device-settings';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 
 /**
  * Settings › This device › Advanced › Connection (account-device.json; P2-69). Status is the

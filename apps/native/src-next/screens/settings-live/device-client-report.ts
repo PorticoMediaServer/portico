@@ -3,7 +3,7 @@ import {callServer} from '../../../../../packages/client-core/src/query/server-a
 import {installationIdentity} from '../../../../../packages/client-core/src/installation';
 import {forgetCrash, journal, lastCrash} from '../../platform/error-capture';
 import {reportBody} from '../../platform/error-journal';
-import type {NativeSettingsPanelDeps} from './settings-panels';
+import type {NativeSettingsPanelDeps} from './settings-panel-deps';
 import {nativeDeviceClass} from '../../platform/device-platform';
 
 /** Explicitly requested, bounded/redacted diagnostics for this captured server only, sent as a report the owner reads in

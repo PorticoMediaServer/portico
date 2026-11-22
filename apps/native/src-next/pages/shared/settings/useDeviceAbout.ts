@@ -3,7 +3,7 @@ import {Linking} from 'react-native';
 import {readServerSystem} from '../../../../../../packages/client-core/src/query/connection-operations.ts';
 import {parseServerSignIn} from '../../../../../../packages/client-core/src/sign-in';
 import {sendNativeDeviceReport} from '../../../screens/settings-live/device-client-report';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 
 type Props = NativeSettingsPanelDeps & {runtime: NativeShellRuntime};

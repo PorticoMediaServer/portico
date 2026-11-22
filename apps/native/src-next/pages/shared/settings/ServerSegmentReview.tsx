@@ -9,7 +9,7 @@ import {SettingsHelp} from '../../../kit/settings/SettingsParts';
 import {SettingsRow} from '../../../kit/shell';
 import {SegmentWindows} from '../../../kit/shell/SegmentWindows';
 import {StateView} from '../../../kit/states';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {useSegmentPoster, type useSegmentReview} from './useSegmentReview';
 

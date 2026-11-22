@@ -6,7 +6,7 @@ import {passwordStrength} from '../../../../../../packages/client-core/src/passw
 import {nativeAccounts} from '../../../platform/accounts';
 import {copyText} from '../../../platform/clipboard';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 import {createNativeAccountSecurityScope, nativeAccountSecurityAllowed, type NativeAccountSecurityKind, type NativeAccountSecurityScope} from '../../../screens/settings-live/native-account-security';
 
 export type LocalAccountSecurityProps = NativeSettingsPanelDeps & {kind: NativeAccountSecurityKind; runtime: NativeShellRuntime};

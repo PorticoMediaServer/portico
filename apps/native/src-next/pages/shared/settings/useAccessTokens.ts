@@ -7,7 +7,7 @@ import {EXPIRY_DAYS, chosenScopes, expiryInstant, type ExpiryDays} from '../../.
 import {createOperationIds} from '../../../../../../packages/client-core/src/server-admin/server-forms';
 import {copyText} from '../../../platform/clipboard';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 import {createNativeAccessTokenScope, nativeAccessTokensAllowed, type NativeAccessTokenScope} from '../../../screens/settings-live/native-account-security';
 
 export type AccessTokensProps = NativeSettingsPanelDeps & {runtime: NativeShellRuntime};
