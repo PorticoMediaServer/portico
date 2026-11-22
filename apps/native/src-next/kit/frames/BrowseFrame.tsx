@@ -1,11 +1,11 @@
 import type {RowReasonPart} from '../../../../../packages/client-core/src/presentation/home-row-reason';
-import React, {useState, type ReactNode} from 'react';
-import {RefreshControl, ScrollView, Text, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle} from 'react-native';
+import React, {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {Platform, RefreshControl, ScrollView, TVFocusGuideView, Text, View, useWindowDimensions, type FocusGuideMethods, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle} from 'react-native';
 import Animated, {type AnimatedRef} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {frameSpec} from '@portico/design';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {FocusRegion, StartFocusScope, type FocusRegionProps} from '../focus';
+import {FocusRegion, StartFocusScope, useOptionalFocusRegistry, type FocusRegionProps} from '../focus';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {FiltersDock, FiltersOver, FiltersPane, LibraryExpandedHeader, LibraryHeader, LibraryMediumHeader, StickyBrowseHeader, libraryFiltersTabletPane} from '../browse';
 import {Button, Tabs, type TabsProps} from '../controls';
@@ -145,13 +145,30 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
     : <ScrollView style={{flex: 1}} scrollEnabled={!loading} contentContainerStyle={{paddingBottom: frame.bottomClear}}>{!pinned && top}{rows}</ScrollView>;
   const page = <View style={{flex: 1}}>
     {header?.ambient && (form === 'phone' || !header.switcher) && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}>{header.ambient}</View>}
-    {pinned && top}{toolbar}{body}</View>;
+    {pinned && top}{toolbar}
+    {form === 'tv' && Platform.OS === 'ios' && !toolbar && !grid && header?.tabs?.region && header.tabs.value !== undefined ? <View style={{flex: 1}}>
+      {body}<TVTabsUpGuide region={header.tabs.region} value={header.tabs.value}/></View> : body}</View>;
   return <View testID={testID} style={{flex: 1}}>
     {/* Docked filters take their width from the page, so the page is told (as a sidebar's width is): otherwise the grid sized
         its cards for the whole room and drew fewer columns, leaving a gap before the letters (iPad, 21 Nov). */}
     <View style={{flex: 1, flexDirection: 'row'}}>{docked ? pageInsetElement(pageInset + frameSpec.browse.filtersWidth.expanded, page) : page}{docked && <FiltersDock testID={testID && `${testID}-filters`}><Pane filters={filters}/></FiltersDock>}</View>
     {filters && <FiltersSurface filters={filters} testID={testID && `${testID}-filters`}/>}
   </View>;
+}
+
+const noSubscribe = () => () => {};
+/** tvOS moves focus by position: Up from the first row of a library's Discover reached the library's ▾ chevron, which sits
+ * nearer above the first card than the tab strip does, never the tab (Films › Discover, Apple TV 21 and 22 Nov; the card's
+ * own nextFocus guide was not used). A one-point guide across the top of the rows, live only while the first row holds
+ * focus, sends Up to the selected tab itself. Android TV follows the cards' nextFocusUp to the tab and needs none. */
+function TVTabsUpGuide({region, value}: {region: FocusRegionProps; value: string}) {
+  const registry = useOptionalFocusRegistry(), guide = useRef<View & FocusGuideMethods>(null), below = region.edges?.down;
+  const live = useSyncExternalStore(registry?.subscribe ?? noSubscribe, () => !!below && registry?.capture()?.regionId === below);
+  useEffect(() => {
+    const target = live ? registry?.child({regionId: region.id, childId: value}) : undefined;
+    guide.current?.setDestinations(target ? [target as never] : []);
+  }, [live, registry, region.id, value]);
+  return <TVFocusGuideView ref={guide} focusable={live} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>;
 }
 
 /** One piece of a pushed list's reason line: a title it names is drawn in the strong ink ("Because you watched Dune"). */
