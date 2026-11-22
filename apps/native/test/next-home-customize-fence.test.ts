@@ -194,3 +194,58 @@ test('C: on TV, focus on a dropped view moves to its neighbour inside the side p
     assert.deepEqual(drop({capture: {regionId: 'customize', childId: 'view:added'}, meanwhile: dialog}).focused, [], 'the frame re-checks: focus that attached elsewhere meanwhile stays');
   } finally {globalThis.requestAnimationFrame = raf;globalThis.cancelAnimationFrame = caf;}
 });
+
+// Android TV: dropping a lifted row (OK) or putting it back (Back) draws the list again in its new order, and Android drops
+// focus on the moved row and puts it on the first row or grip, late. For a short settle the dropped row takes focus back
+// whenever focus lands elsewhere in the panel; a new key press ends the settle, so the user's own move is never undone.
+test('TV: a dropped row takes focus back while the list settles, and a key press ends that', async () => {
+  const owner = hooks(), effects: (() => void | (() => void))[] = [], focused: unknown[] = [];
+  const react: any = {...owner.react, useLayoutEffect: () => {}, useId: () => 'customize',
+    useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) => {
+      const held: {current: readonly unknown[] | undefined} = owner.react.useRef(undefined);
+      if (!held.current || !deps || deps.some((value, index) => value !== held.current![index])) {held.current = deps;effects.push(effect);}
+    }};
+  react.default = react;
+  const frames: (() => void)[] = [], listeners = new Set<() => void>(), keys: ((raw: any) => void)[] = [];
+  const raf = globalThis.requestAnimationFrame, caf = globalThis.cancelAnimationFrame, timeout = globalThis.setTimeout;
+  globalThis.requestAnimationFrame = ((callback: () => void) => {frames.push(callback);return frames.length;}) as never;
+  globalThis.cancelAnimationFrame = (() => {}) as never;
+  globalThis.setTimeout = (() => 0) as never;
+  let capture: {regionId: string; childId: string} | undefined;
+  const registry = {capture: () => capture, attachedFocus: () => capture, subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}};
+  const theme = {isTV: true, platform: 'tv', colors: {}, textScale: 1, type: {}};
+  const tvParts = ['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel',
+    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeViewMark'];
+  const pageModules = {
+    react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', TVEventHandler: {addListener: (listener: (raw: any) => void) => {keys.push(listener); return {remove() {}};}}, findNodeHandle: () => 1},
+    'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, text: unknown, fallback: string) => text ?? fallback},
+    '../../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../../kit/focus': {useCovered: () => false, useFocusRegistry: () => registry},
+    '../../../kit/home/HomeLayout': {HomeSavedViewChoices: 'HomeSavedViewChoices'}, '../../../kit/home/HomeTVLayout': Object.fromEntries(tvParts.map(name => [name, name])),
+    '../../../kit/overlays': {Dialog: 'Dialog'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'}, '../../../kit/overlays/OverlayHost': {focusTarget: (node: unknown) => {focused.push(node);}},
+    '../../../kit/theme': {useTheme: () => theme},
+    '../../../platform/tv-key-source': {tvKeySource: 'native'}, '../../../platform/tv-key-adapter': {createTVKeyAdapter: () => ({read: () => undefined})},
+  };
+  const homeHook = await screenModule(new URL('../src-next/pages/shared/home/useHomeCustomize.ts', import.meta.url), pageModules);
+  const {HomeCustomizePage} = await screenModule(new URL('../src-next/pages/tv/home/HomeCustomizePage.tsx', import.meta.url), {...pageModules, '../../shared/home/useHomeCustomize': homeHook});
+  const row = (id: string) => ({id, title: id, kind: id, reorderable: true, hideable: true, required: false, hidden: false});
+  let state: any = {phase: 'ready', pending: false, dirty: false, conflict: false, showConflict: false, rows: [row('first'), row('moved'), row('last')], pickedId: 'moved'};
+  const controller = {subscribe: () => () => {}, getSnapshot: () => state, isCurrent: () => true};
+  const props = {controller, copy: {save: 'Save', addView: 'Add view', title: 'Customize'}, i18n: {t: (key: string) => key}, onClose() {}, onAddView() {}, summary: () => '', testID: 'customize'};
+  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.footer), ...all(node.props.trailing)] : [];
+  const draw = () => {effects.length = 0; const tree = owner.render(() => HomeCustomizePage(props));
+    for (const node of all(tree)) if (typeof node.props.rowRef === 'function') node.props.rowRef({id: node.props.focusId});
+    for (const effect of effects) effect(); return tree;};
+  const settle = () => {for (const frame of frames.splice(0)) frame();};
+  const moveFocus = (childId: string) => {capture = {regionId: 'customize', childId}; for (const listener of [...listeners]) listener(); settle();};
+  try {
+    capture = {regionId: 'customize', childId: 'moved'}; draw(); settle(); focused.length = 0;
+    state = {...state, rows: [row('first'), row('last'), row('moved')], pickedId: undefined, dirty: true}; draw();
+    settle(); assert.deepEqual(focused, [], 'focus still on the dropped row: nothing is asked');
+    moveFocus('first:handle'); assert.deepEqual(focused, [{id: 'moved'}], 'Android put focus on the first grip: the dropped row takes it back');
+    moveFocus('first'); assert.deepEqual(focused, [{id: 'moved'}, {id: 'moved'}], 'and again when it lands on the first row');
+    moveFocus('moved'); assert.equal(focused.length, 2, 'on the row already: nothing more');
+    for (const key of keys) key({eventType: 'down', eventKeyAction: 1}); moveFocus('first'); assert.equal(focused.length, 3, "the OK's own key-up does not end the settle");
+    for (const key of keys) key({eventType: 'down', eventKeyAction: 0}); moveFocus('last'); assert.equal(focused.length, 3, 'a new key press ends it: the user moved on');
+  } finally {globalThis.requestAnimationFrame = raf; globalThis.cancelAnimationFrame = caf; globalThis.setTimeout = timeout;}
+});

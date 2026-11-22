@@ -52,3 +52,23 @@ test('while a row is lifted the list holds still and the foot steps away', async
   assert.equal(sheet.props.footer, undefined);
   assert.equal(nodes(sheet).find(node => node.type === 'HomeLayoutScroll').props.locked, true);
 });
+
+test('TV: while a row is lifted every grip is off, its own too, so focus stays on the lifted row (Up and Down move only a row that holds focus)', async () => {
+  const tvParts = ['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel',
+    'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeResetButton', 'TVHomeViewMark'];
+  const lifted = {...ready, state: {...ready.state, pickedId: 'trending'}, pickRow() {}, rowHeight: 58};
+  const {HomeCustomizePage} = await screenModule(new URL('../src-next/pages/tv/home/HomeCustomizePage.tsx', import.meta.url), {
+    react: {...React, default: React},
+    '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel: (_i18n: unknown, _text: unknown, fallback: string) => fallback},
+    '../../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../../kit/overlays': {Dialog: 'Dialog'}, '../../../kit/overlays/surface': {OverlayFootRow: 'OverlayFootRow'},
+    '../../../kit/home/HomeLayout': {HomeSavedViewChoices: 'HomeSavedViewChoices'}, '../../../kit/home/HomeTVLayout': Object.fromEntries(tvParts.map(name => [name, name])),
+    '../../shared/home/useHomeCustomize': {useHomeCustomize: () => lifted},
+  });
+  const tree = HomeCustomizePage({controller: {}, copy: {title: 'Customize Home', save: 'Save', alwaysOn: 'Always on Home', addView: 'Add', move: 'Move', drop: 'Drop', putBack: 'Put back'},
+    i18n: {t: (key: string) => key}, onClose() {}, onAddView() {}, testID: 'home-customize', summary: () => undefined});
+  const rowsOf = nodes(tree).filter(node => node.type === 'TVHomeLayoutRow');
+  const grips = rowsOf.map(row => [row.props.lifted, nodes(row.props.handle).find(node => node.type === 'TVHomeLayoutHandle')?.props.disabled]);
+  assert.deepEqual(grips, [[false, true], [true, true]], 'both grips are off while "trending" is lifted');
+  assert.equal(rowsOf.find(row => row.props.lifted).props.disabled, false, 'the lifted row itself stays reachable');
+});
