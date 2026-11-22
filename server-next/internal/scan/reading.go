@@ -72,12 +72,13 @@ func (r *run) bookUnits(f *folder) []unit {
 				keys = append(keys, db.FileKey(r.path.ID, other.rel, 0))
 			}
 		}
-		item := db.ImportItem{Kind: db.KindBook, Title: bookTitle, Year: d.year(), Summary: d["description"], Tags: genreTags(d),
+		item := db.ImportItem{Kind: db.KindBook, Title: bookTitle, Year: d.year(), Summary: d["description"], Tags: readingTags(d),
 			Credits:  credits(db.RoleAuthor, authors),
 			Keys:     append(keys, db.ItemKey{Kind: db.KeyName, Key: "book|" + fold(bookTitle) + "|" + fold(strings.Join(authors, ","))}),
 			Versions: []db.ImportVersion{{Name: strings.TrimPrefix(strings.ToLower(path.Ext(file.rel)), "."), Parts: []db.ImportPart{{File: file.ref()}}}}}
 		given(&item, fieldIf(d["album"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear), fieldIf(d["description"] != "", db.FieldSummary),
-			fieldIf(len(item.Tags) > 0, db.FieldGenres), fieldIf(len(d.names("authors", "author")) > 0, db.FieldCredits))
+			fieldIf(len(genreTags(d)) > 0, db.FieldGenres), fieldIf(d["publisher"] != "", db.FieldStudios),
+			fieldIf(len(d.names("authors", "author")) > 0, db.FieldCredits))
 		if isbn := d["isbn"]; isbn != "" {
 			item.ExternalIDs = []db.ExternalID{{Provider: "isbn", ID: isbn}}
 		}
@@ -90,6 +91,11 @@ func (r *run) bookUnits(f *folder) []unit {
 		item.Images = images
 		item.Reread = r.rereads(file) || publication != db.PublicationBook
 		item.Publication, item.ReleaseDate, item.IndexNumber = publication, date, index
+		if publication != db.PublicationBook {
+			if volume, number := volumeNumber(name); number > 0 {
+				item.ParentIndex, item.IndexNumber = &volume, &number
+			}
+		}
 		given(&item, fieldIf(date != "", db.FieldReleaseDate))
 		u := unit{files: []*found{file}}
 		if series := firstOf(d["series"], group); series != "" {
@@ -175,6 +181,11 @@ func (r *run) comicUnits(f *folder) []unit {
 		} else if m := issueNumber.FindStringSubmatch(name); m != nil && (publication == db.PublicationBook || namedDate == "") {
 			n, _ := strconv.Atoi(m[1])
 			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
+		}
+		// A magazine issue's volume and number, for its card ("Vol. 4, No. 9"). Its key is left
+		// as it was, so an issue already in the library keeps its place and reading state.
+		if volume, n := volumeNumber(name); n > 0 && publication != db.PublicationBook {
+			issue.ParentIndex, issue.IndexNumber = &volume, &n
 		}
 		seriesKeys := []db.ItemKey{{Kind: db.KeyName, Key: "series|" + fold(series)}}
 		if d["series"] == "" {
@@ -380,9 +391,9 @@ func (r *run) rereads(file *found) bool {
 // comicDetails puts what a comic's ComicInfo.xml said on its item, as the file's own.
 func comicDetails(item *db.ImportItem, d details) {
 	writers := d.names("authors", "author")
-	item.Year, item.Summary, item.Tags, item.Credits = d.year(), d["description"], genreTags(d), credits(db.RoleAuthor, writers)
+	item.Year, item.Summary, item.Tags, item.Credits = d.year(), d["description"], readingTags(d), credits(db.RoleAuthor, writers)
 	given(item, fieldIf(d["album"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear), fieldIf(d["description"] != "", db.FieldSummary),
-		fieldIf(len(item.Tags) > 0, db.FieldGenres), fieldIf(len(writers) > 0, db.FieldCredits))
+		fieldIf(len(genreTags(d)) > 0, db.FieldGenres), fieldIf(d["publisher"] != "", db.FieldStudios), fieldIf(len(writers) > 0, db.FieldCredits))
 }
 
 // issue reads the file's own publication and date before names supply missing facts.
@@ -396,4 +407,34 @@ func issue(d details) (int, string) {
 		return publication, date
 	}
 	return publication, ""
+}
+
+// readingTags are a book's or comic's genres and, from its own file, its publisher (a studio,
+// as a film's studio is): a magazine's archive names its publisher from its issues.
+func readingTags(d details) []db.TagName {
+	tags := genreTags(d)
+	if publisher := strings.TrimSpace(d["publisher"]); publisher != "" {
+		tags = append(tags, db.TagName{Kind: db.TagStudio, Name: publisher})
+	}
+	return tags
+}
+
+// volumeNumbers finds a magazine issue's volume and number in its name: "Vol. 4, No. 9",
+// "Volume 4 Number 9", "v04n09". Both are needed; a number alone stays the issue's index.
+var volumeNumbers = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(?:^|[^a-z])vol(?:ume)?\.? ?(\d{1,4})[ ,._-]*(?:no|nr|num(?:ber)?|issue|#)\.? ?(\d{1,4})(?:[^0-9]|$)`),
+	regexp.MustCompile(`(?i)(?:^|[^a-z0-9])v(\d{1,4})[ ._-]?n(\d{1,4})(?:[^0-9]|$)`),
+}
+
+func volumeNumber(name string) (volume, number int) {
+	for _, pattern := range volumeNumbers {
+		if m := pattern.FindStringSubmatch(name); m != nil {
+			volume, _ = strconv.Atoi(m[1])
+			number, _ = strconv.Atoi(m[2])
+			if volume > 0 && number > 0 {
+				return volume, number
+			}
+		}
+	}
+	return 0, 0
 }

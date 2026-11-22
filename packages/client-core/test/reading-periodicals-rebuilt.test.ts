@@ -25,3 +25,15 @@ test('periodical groups, years and calendar days use the rebuilt lists and facet
  calls.length = 0; await client.periodicalIssues('lib_books','itm_run','newspaper',{month:'2024-02'});
  assert.equal(calls.find(url=>url.searchParams.get('facet')==='issueDay')?.searchParams.get('released'),'2024-02-01..2024-02-29');
 });
+test('a magazine archive carries its publisher, how often it comes out, and each issue\'s volume and number', async () => {
+ const wire = {id:'itm_issue', kind:'book', title:'Issue', libraryId:'lib_books', releaseDate:'1929-12', index:9, parentIndex:4, images:{}, state:{watched:false}};
+ const api = new HttpLocalApi('https://server.example', 'token', async input => {
+  const url = new URL(String(input));
+  const answer = url.pathname === '/v1/items/itm_run' ? {id:'itm_run',title:'Amazing Stories',publisher:'Experimenter Publishing',frequency:'monthly'}
+   : url.pathname === '/v1/facets' ? {facet:url.searchParams.get('facet'),values:[]} : {items:[wire],total:1};
+  return new Response(JSON.stringify(answer), {headers:{'Content-Type':'application/json'}});
+ });
+ const issues = await api.reading({viewer,isCurrent:()=>true}).periodicalIssues('lib_books','itm_run','magazine');
+ assert.deepEqual([issues.publisher, issues.frequency], ['Experimenter Publishing', 'monthly']);
+ assert.deepEqual([issues.items[0].volume, issues.items[0].number], [4, 9]);
+});
