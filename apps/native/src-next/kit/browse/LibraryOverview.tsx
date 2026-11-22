@@ -2,15 +2,15 @@ import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {ArtworkSource} from '../../kit/artwork';
-import {LibraryCard} from '../../kit/cards';
-import {Focusable} from '../../kit/controls';
-import {StateView} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import type {ArtworkSource} from '../artwork';
+import {LibraryCard} from '../cards';
+import {Focusable} from '../controls';
+import {StateView} from '../states';
+import {browseType} from './presentation';
+import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativeDestinationActivationPort} from '../destinations/focus';
-import type {NativeLibraryDirectory} from './directory';
+import type {NativeDestinationActivationPort} from '../../screens/destinations/focus';
+import type {NativeLibraryDirectory} from '../../screens/library/directory';
 
 const pivots: Readonly<Record<string, string>> = {movie: 'movies', show: 'shows', episode: 'episodes', artist: 'artists', album: 'albums', song: 'songs', book: 'books', author: 'authors', series: 'series', ebook: 'books', comic: 'titles'};
 /** Phone4d: the single authorized summary read supplies order, names, counts,

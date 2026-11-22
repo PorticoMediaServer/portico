@@ -7,11 +7,11 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 test('the phone Libraries overview keeps real summary order, count facts, art and exact order hint', async () => {
   const host = hooks(), calls: unknown[] = [], theme = createTheme({width: 390, isTV: false});
-  const {NativeLibraryOverview} = await screenModule(new URL('../src-next/screens/library/LibraryOverview.tsx', import.meta.url), {
+  const {NativeLibraryOverview} = await screenModule(new URL('../src-next/kit/browse/LibraryOverview.tsx', import.meta.url), {
     react: host.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 44, bottom: 34})}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../kit/cards': {LibraryCard: 'LibraryCard'}, '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
+    '../artwork': {StandardBackdrop: 'StandardBackdrop'}, '../cards': {LibraryCard: 'LibraryCard'}, '../controls': {Focusable: 'Focusable'}, '../states': {StateView: 'StateView'},
+    './presentation': {browseType: () => ({})}, '../theme': {useTheme: () => theme},
   });
   const libraries = [
     {id: 'actual-tv', name: 'Actual TV', kind: 'tv', summary: {counts: [{kind: 'show', count: 24, atLeast: false}, {kind: 'episode', count: 96, atLeast: true}], coverUrls: ['/real/tv'], latestArtwork: '/real/tv-wash'}},

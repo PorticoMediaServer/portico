@@ -8,7 +8,7 @@ import {nativeShellRoutes, type NativeRouteFactory} from './route-registry';
 import {nativeDestinationActivation} from './routes';
 import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
 import {NativeLibraryDirectory} from '../screens/library/directory';
-import {NativeLibraryOverview} from '../screens/library/LibraryOverview';
+import {NativeLibraryOverview} from '../kit/browse/LibraryOverview';
 
 export const createNativeLibraryOverviewModule: NativeRouteFactory = context => {
   const lifetime = nativeDestinationLifetime(context);
