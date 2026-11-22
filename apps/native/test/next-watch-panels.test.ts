@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {React as fabricReact} from './helpers/fabric-host.mjs';
 import {sceneHost} from './helpers/scene-host.mjs';
@@ -15,8 +16,9 @@ import {nativeWatchPanelRows} from '../src-next/screens/watch/panel-model.ts';
 import {nativeWatchSubtitleTiming} from '../src-next/screens/watch/subtitle-timing.ts';
 let isTV = false;
 /** The actual panel uses the production React instance owned by Fabric. */
-const panelsModule = (react: any) => {
-  return screenModule(new URL('../src-next/screens/watch/WatchPanels.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+// The page draws the kit's WatchPanelsView; draw it so the checks below see the panels' tree.
+const panelsModule = async (react: any) => {
+  const module = await screenModule(new URL('../src-next/pages/shared/player/WatchPanelsPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', {'../../kit/states': {Quiet: ({children}: any) => children}, 
   react: {...react, default: react}, 'react-native': {ActivityIndicator: 'Loading', ScrollView: 'Scroll', Text: 'Text', View: 'View'},
   '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String},
@@ -26,11 +28,11 @@ const panelsModule = (react: any) => {
   '../../kit/artwork': {Artwork: 'Artwork'},
   '../../kit/controls': {Button: 'Button', Focusable: 'Row'}, '../../kit/focus': {FocusRegion: 'Focus', useFocusRegistry: () => ({focus: () => false})},
   '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/overlays/surface': {PanelBackground: 'Background'},
-  '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV, colors: {}, type: {bodyStrong: {}, caption: {}}})},
+  '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'}), nativeType: () => ({}), useTheme: () => ({isTV, colors: {}, type: {bodyStrong: {}, caption: {}}})},
   './track-identity': {nativeWatchTracks}, './panel-model': {nativeWatchPanelRows},
   './subtitle-timing': {nativeWatchSubtitleTiming},
-  '../../../../../packages/client-core/src/subtitles': {subtitleReason},
-  });
+  '../../../../../packages/client-core/src/subtitles': {subtitleReason}, '../../kit/shell/visual': {shellType: () => ({})}}));
+  return {NativeWatchPanels: (props: any) => {const tree: any = module.WatchPanelsPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;}};
 };
 const {NativeWatchPanels} = await panelsModule(React);
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 's', accountId: 'a', profileId: 'p', controllerId: 'c', controllerEpoch: 'e', commandLaneId: 'l', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'v2', entryId: 'entry', generation: 3});

@@ -83,7 +83,7 @@ async function fixture() {
       return {...screens, capture: (...args: any[]) => {const captured = screens.capture(...args); captures.push(captured); return captured;},
         versions: (...args: any[]) => {versionCalls.push(args); return screens.versions(...args);}};
     }},
-    '../../kit/player/PlaybackInfoPanel': {}, './WatchPanels': {NativeWatchPanels: 'Panels'}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}},
+    '../../kit/player/PlaybackInfoPanel': {}, '../../pages/shared/player/WatchPanelsPage': {WatchPanelsPage: 'Panels'}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}},
     './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks: () => ({})}, '../../shell/channel-route': {},
     './live-guide': {NativeTVLiveGuide: class {constructor(...args: any[]) {liveGuideArguments.push(args); guides.push(this);} guideAction() {return () => {guideCalls++;};} close() {return false;} dispose() {}}},
     './live-actions': {NativeTVLiveActions: class {constructor(...args: any[]) {actions.push(args);} close() {return false;} dispose() {}}},

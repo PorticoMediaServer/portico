@@ -18,7 +18,7 @@ const fence = playerCore.playbackFence({kind: 'queue', playback: {scope: {server
 const t = (key: string) => key;
 const i18n = {defaultI18n: {t, number: String, locale: 'en-US'}};
 const theme = {isTV: true, textScale: 1.2, platform: 'tv', colors: {text: 'white', white: 'white', textSecondary: 'grey', textTertiary: 'muted'}, type: {body: {}, bodyStrong: {}, caption: {}, captionStrong: {}, heading: {}, display: {fontSize: 62}, cardTitle: {}, cardSubtitle: {}}, space: {xs: 8, sm: 16, md: 24, lg: 32, tight: 6}};
-const themed = {useTheme: () => theme, nativeType: (value: any, scale: number) => ({fontSize: value.size * scale, ...(typeof value.lineHeight === 'number' ? {lineHeight: value.lineHeight * scale} : {}), fontFamily: `weight-${value.weight}`})};
+const themed = {useTheme: () => theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'}), nativeType: (value: any, scale: number) => ({fontSize: value.size * scale, ...(typeof value.lineHeight === 'number' ? {lineHeight: value.lineHeight * scale} : {}), fontFamily: `weight-${value.weight}`})};
 const controlsAtoms = {Focusable: 'Focusable', Button: 'Button', TextField: 'TextField', Switch: 'Switch'};
 const nativeAtoms = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', ActivityIndicator: 'Spinner', StyleSheet: {absoluteFill: {}}, useWindowDimensions: () => ({width: 1920, height: 1080})};
 const svg = {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop', Path: 'Path', Text: 'SvgText'};
@@ -260,14 +260,14 @@ test('TV failure keeps Retry as entry, exposes its real secondary actions and re
 test('Episodes is contained by the held watch panel and an absent remembered option falls back to a rendered row', async () => {
   for (const panel of ['episodes', 'options']) {
     const h = watchHooks(), registry = createFocusRegistry();
-    const {NativeWatchPanels} = await screenModule(new URL('../src-next/screens/watch/WatchPanels.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+    const {WatchPanelsPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchPanelsPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', {'../../kit/states': {Quiet: ({children}: any) => children}, 
       react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
       '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/client-core/src/playback-v1/v1-queue-player': {queueVideoKind: () => undefined},
       '../../../../../packages/client-core/src/subtitles': {subtitleReason: () => ''}, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': controlsAtoms,
       '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry}, '../../kit/overlays': {Dialog: 'Dialog'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true},
       '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/overlays/surface': {PanelBackground: 'PanelBackground'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
-      '../../shell/model': {sameAuthority}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks: () => ({subtitlesOff: true})}, './panel-model': {nativeWatchPanelRows: () => ({})}, './subtitle-timing': {nativeWatchSubtitleTiming: () => undefined},
-    });
+      '../../shell/model': {sameAuthority}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks: () => ({subtitlesOff: true})}, './panel-model': {nativeWatchPanelRows: () => ({})}, './subtitle-timing': {nativeWatchSubtitleTiming: () => undefined}, '../../kit/shell/visual': {shellType: () => ({})}}));
+    const NativeWatchPanels = (props: any) => {const tree: any = WatchPanelsPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;};
     const source: any = {fence, capabilities: {}, queue: {}, playback: {positionSeconds: 0}, effectiveRate: 1};
     const context: any = {source, fence, panelCurrent: () => true, state: {panel, panelFocus: 'sleep', fence, panelOffset: 0}, renderer: {width: 1920, height: 1080}, layout: {}, runtime: {text: {locale: 'en-US'}, getSnapshot: () => ({})}};
     const options = {subscribe: () => () => {}, getSnapshot: () => ({phase: 'loading'}), load: async () => {}, clear() {}};
@@ -285,14 +285,14 @@ test('Episodes is contained by the held watch panel and an absent remembered opt
 
 test('W-16: an options row keeps its label beside a long value, and Subtitle style reads its size and background', async () => {
   const h = watchHooks(), registry = createFocusRegistry();
-    const {NativeWatchPanels} = await screenModule(new URL('../src-next/screens/watch/WatchPanels.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+    const {WatchPanelsPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchPanelsPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', {'../../kit/states': {Quiet: ({children}: any) => children}, 
       react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
       '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`}, '../../../../../packages/client-core/src/playback-v1/v1-queue-player': {queueVideoKind: () => undefined},
       '../../../../../packages/client-core/src/subtitles': {subtitleReason: () => ''}, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/controls': controlsAtoms,
       '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry}, '../../kit/overlays': {Dialog: 'Dialog'}, '../../kit/overlays/TVPanelMotion': {useTVPanelInteractive: () => true},
       '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/overlays/surface': {PanelBackground: 'PanelBackground'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': themed,
-      '../../shell/model': {sameAuthority}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks: () => ({subtitlesOff: true})}, './panel-model': {nativeWatchPanelRows: () => ({})}, './subtitle-timing': {nativeWatchSubtitleTiming: () => undefined},
-    });
+      '../../shell/model': {sameAuthority}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks: () => ({subtitlesOff: true})}, './panel-model': {nativeWatchPanelRows: () => ({})}, './subtitle-timing': {nativeWatchSubtitleTiming: () => undefined}, '../../kit/shell/visual': {shellType: () => ({})}}));
+    const NativeWatchPanels = (props: any) => {const tree: any = WatchPanelsPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;};
   const field = (key: string, label: string, current: string, valueLabel: string) => ({key, label, current, values: [{value: current, label: valueLabel}]});
   const style = {apply: async () => {}, fields: [field('playback.subtitleSize', 'Size', 'medium', 'Medium'), field('playback.subtitleColor', 'Colour', 'white', 'White'),
     field('playback.subtitleBackground', 'Background', 'translucent', 'Translucent'), field('playback.subtitlePosition', 'Position', 'bottom', 'Bottom'), field('playback.subtitleFont', 'Font', 'default', 'Default')]};
@@ -384,7 +384,7 @@ async function failureModuleFixture(owner = true) {
     react: h.react, 'react-native': {Platform: {isTV: true}}, '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: () => () => {}}, '../../platform/device-settings': {},
     '../../../../../packages/client-core/src/audiobook-preferences': {}, '../../../../../packages/player-core/src': playerCore, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/playback-v1/quality': {},
     './factory': {createNativeWatchScreens: (ports: any) => {player = ports.player; return {watch: {}, dispose() {}, capture: (entry: any, current: () => boolean) => {const value = {entry, current}; captures.push(value); return value;}, versions: async (...args: unknown[]) => {versions.push(args);}};}},
-    '../../kit/player/PlaybackInfoPanel': {playbackInfoWords: () => ({network: (value: string) => value})}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
+    '../../kit/player/PlaybackInfoPanel': {playbackInfoWords: () => ({network: (value: string) => value})}, '../../pages/shared/player/WatchPanelsPage': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
     './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {}, '../../shell/channel-route': {}, './live-guide': {NativeTVLiveGuide: class {dispose() {}}}, './live-actions': {NativeTVLiveActions: class {dispose() {}}}, '../../kit/player/LiveActionPanels': {},
     '../../kit/player/PlaybackFailed': {NativePlaybackFailed: 'Failure'}, '../../kit/player/HandheldPlaybackFailed': {}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {}, '../../platform/server-preferences': {},
     '../../../../../packages/client-core/src/presentation/browse-toolbar': {}, './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},
