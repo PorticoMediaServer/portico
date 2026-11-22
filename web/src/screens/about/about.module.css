@@ -1,6 +1,7 @@
 /* About's own bits inside the settings page frame: a row's value, an address, and the data credits under the cards. */
 .value { color: var(--color-text-secondary); overflow-wrap: anywhere; text-align: right; }
-.link { color: var(--color-accent-strong); text-decoration: none; overflow-wrap: anywhere; }
+/* A touch screen gives a link a 44 px target; its words sit in the middle of it, level with the row's label. */
+.link { display: inline-flex; align-items: center; color: var(--color-accent-strong); text-decoration: none; overflow-wrap: anywhere; }
 .link:hover { text-decoration: underline; }
 .link:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }
 .legal { margin: var(--space-sm) 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-tertiary); }

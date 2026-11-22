@@ -22,7 +22,7 @@ export function useCoverAspect(source: ArtworkSource | null | undefined, bound: 
 export function WholeArtwork({onReady, style, slot = 1, ...props}: ArtworkProps & Readonly<{slot?: number}>) {
   const bound = useRef<HTMLSpanElement>(null);
   const cover = useCoverAspect(props.source, bound), aspect = cover.aspect;
-  return <span ref={bound} className={styles.whole}>
+  return <span ref={bound} className={styles.whole} data-whole-fitted={aspect ? '' : undefined}>
     <Artwork {...props} style={aspect ? {...style, width: `${Math.min(1, aspect / slot) * 100}%`, height: 'auto', aspectRatio: String(aspect)} : style}
       onReady={source => {cover.onReady(source); onReady?.(source);}}/>
   </span>;
