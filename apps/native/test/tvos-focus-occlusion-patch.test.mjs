@@ -35,6 +35,8 @@ test('the reviewed react-native-tvos source gains the tvOS focus fixes, and a re
   assert.equal(hash(patched), file.afterSHA256);
   assert.match(patched, /#if TARGET_OS_TV\n[^]*- \(BOOL\)isTransparentFocusItem[^]*#endif/);
   assert.equal(patched.split('kPorticoFocusGuideGap').length - 1, 5, 'every nextFocus guide sits outside its item');
+  assert.match(patched, /if \(context\.nextFocusedView == self\) \{\n[^]*porticoRoot\.reactPreferredFocusedView = self;/,
+    'a dropped focus returns to the view that last held it, not to the page entry focusSelf once named');
   assert.equal(patchTVOSFocusOcclusion(root), 0);
 });
 
