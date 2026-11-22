@@ -7,7 +7,7 @@ import type {Gallery} from '../../gallery-registry';
 import {Button, FormError} from '../../../kit/controls';
 import {useTheme} from '../../../kit/theme';
 import {SignInPage} from '../../../pages/touch/accounts/SignInPage';
-import {PhoneFindServer, type FoundServer} from '../../../screens/accounts/PhoneFindServer';
+import {PhoneFindServer, type FoundServer} from '../../../kit/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../../pages/touch/accounts/ServerSignInPage';
 import {MovePasswordPage} from '../../../pages/touch/accounts/MovePasswordPage';
 import {PhoneAccountMoveNotice, type PhoneAccountMoveNoticeState} from '../../../kit/accounts/PhoneAccountMoveNotice';

@@ -59,7 +59,7 @@ async function securityFixture(context: import('node:test').TestContext, given?:
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (...args: unknown[]) => {presented.push(args); return {body: 'Security could not be opened.'};}},
     '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => ({type: {body: {}, captionStrong: {}}, colors: {danger: '#f00'}})},
-    '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
+    '../../platform/clipboard': {copyText: async () => {}}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
   });
   const host = createFabricHookHost(() => {
     tree = PhoneAccountSecurity({workspace, security});
@@ -118,7 +118,7 @@ test('the shared sheet keeps provider password input through factor verification
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => {throw new Error('unexpected presentation');}},
     '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => ({type: {body: {}}, colors: {text: '#fff'}})},
-    '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
+    '../../platform/clipboard': {copyText: async () => {}}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
   });
   const security = {hasPassword: false, mfaEnabled: true, providers: [{id: 'google-link', provider: 'google'}]};
   const host = createFabricHookHost(() => {tree = AccountSecuritySheet({security, source, onFinished: () => {finished++;}});});

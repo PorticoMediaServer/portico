@@ -8,7 +8,7 @@ import {useTheme} from '../../kit/theme';
 import {nativePorticoRecovery, type NativePorticoRecovery, type NativeProfileRecovery} from '../../platform/profile-recovery';
 import {hostedUrl} from '../../platform/account-authority';
 import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
-import {ProviderButton} from './ProviderButton';
+import {ProviderButton} from '../../kit/accounts/ProviderButton';
 
 const t = defaultI18n.t;
 
