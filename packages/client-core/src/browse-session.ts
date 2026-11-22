@@ -1,7 +1,8 @@
 import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseNode, type BrowseResult, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from './browse.ts';
 import type {FetchPage} from './collections/windowed.ts';
 import type {ContentEntry} from './library-content.ts';
-import {countItems, entriesFromItems, entryFromPerson, readFacet, readItems} from './items.ts';
+import {countItems, entriesFromItems, entryFromPerson, entryKindOf, readFacet, readItems, readSelectionCounts} from './items.ts';
+import {wholeSelectionFromCounts, type CatalogueSelectionPorts, type SelectionCountRow} from './catalogue-offers.ts';
 import {callServer} from './query/server-api.ts';
 import {selectionCapabilities, selectionKinds, selectionKindHasBulkFields} from './selection-model/capabilities.ts';
 import type {SelectionKind} from './selection-model/types.ts';
@@ -64,6 +65,11 @@ export type BrowseSessionOptions<T> = Readonly<{
   /** The applied filter and its exact count, for selecting everything in this view. */
   onWhole?: (whole: BrowseWholeSelection) => void;
   onWholeUnavailable?: (value: BrowseWholeSelectionUnavailable | undefined) => void;
+  /** The actions this screen can carry out for picked titles: the same ports it passes readCatalogueSelectionItem. With
+   * them, the whole selection is the server's exact count of the list (GET /v1/items/selection), read when the screen
+   * calls requestWholeSelection, with each action counted as every title picked alone would be granted it, so the
+   * selection model accepts every window. Without them, the whole selection is estimated from the list's length. */
+  selectionPorts?: CatalogueSelectionPorts;
   onPage?: (page: BrowseResult) => void;
   /** The list's exact length, or where each letter starts: each comes from its own request, after the first page is already shown. */
   onFacts?: (facts: Readonly<{total?: number; positionIndex?: Readonly<Record<string, number>>}>) => void;
@@ -91,6 +97,9 @@ export class BrowseSession<T> {
   private cursors = new Map<number, string>([[0, '']]);
   private total?: number;
   private whole?: BrowseWholeSelection;
+  private exactWhole?: Promise<void>;
+  private wantWhole = false;
+  private wholeSource?: Readonly<{api: Parameters<typeof readSelectionCounts>[0]; list: Parameters<typeof readSelectionCounts>[1]}>;
   private counting?: Promise<void>;
   private lettering?: Promise<void>;
   private letters?: Readonly<Record<string, number>>;
@@ -109,8 +118,9 @@ export class BrowseSession<T> {
   /** The entry arrived in one of this query's pages, and the query is still current. */
   owns(entry: ContentEntry): boolean {return this.live() && this.entries.has(entry);}
   retire(): void {this.retired = true; this.life.abort(); this.entries = new WeakSet();}
-  forgetWholeSelection(): void {this.whole = undefined;}
+  forgetWholeSelection(): void {this.whole = undefined; this.exactWhole = undefined;}
   private publishWhole(): void {
+    if (this.options.selectionPorts) return; // the exact whole selection is published by readWhole
     if (!this.live() || !this.pinned || this.total === undefined || this.total < 1 || this.query.homeRowId || this.query.libraryId === '*' || ['authors', 'genres'].includes(this.query.pivot) || this.whole?.total === this.total) return;
     const list = libraryItemQuery({id: this.query.libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, this.query.nodes, []);
     const kind = ({track: 'song', audiobook: 'book', series: 'book_series', book: 'ebook'} as Record<string, string>)[String(list.kind)] ?? String(list.kind);
@@ -123,6 +133,31 @@ export class BrowseSession<T> {
       types: Object.freeze([{kind, count: total, capabilities: Object.freeze(Object.fromEntries(Object.entries(capabilities).map(([name, enabled]) => [name, enabled ? total : 0]))) as BrowseWholeSelection['types'][number]['capabilities'],
         libraries: Object.freeze([{libraryId: this.query.libraryId, count: total}])}])});
     this.options.onWhole?.(this.whole);
+  }
+  /** Someone is selecting: read the exact whole selection (once per session) for a screen that gave its ports. It reads
+   * the whole list on the server, so it waits for this, not for the first page. onWhole announces it. */
+  requestWholeSelection(): void {
+    this.wantWhole = true;
+    this.readWhole();
+  }
+  private readWhole(): void {
+    const ports = this.options.selectionPorts, source = this.wholeSource;
+    if (!ports || !source || !this.wantWhole || !this.pinned || this.exactWhole || !this.live() || this.query.homeRowId || this.query.libraryId === '*'
+      || ['authors', 'genres'].includes(this.query.pivot)) return;
+    this.exactWhole = readSelectionCounts(source.api, source.list, this.life.signal).then(answer => {
+      if (!this.live() || !this.pinned) return;
+      const rows: SelectionCountRow[] = [];
+      for (const row of answer.kinds) {
+        const kind = entryKindOf(row.kind);
+        if (!kind) return;
+        rows.push({kind: kind as SelectionCountRow['kind'], count: row.count, available: row.available});
+      }
+      const nodes = this.query.nodes, filter = nodes.length === 0 ? null : nodes.length === 1 ? nodes[0]! : {variant: 'group' as const, all: nodes};
+      const whole = wholeSelectionFromCounts(rows, {libraryId: this.query.libraryId, pivot: this.query.pivot, filter, sort: this.query.sorts, catalogRevision: this.pinned}, ports);
+      if (!whole) return;
+      this.whole = whole;
+      this.options.onWhole?.(whole);
+    }, () => {this.exactWhole = undefined;}); // a failed read leaves Select all to the next request
   }
   private end(error: unknown): void {
     if (this.retired || this.ended) return;
@@ -149,6 +184,7 @@ export class BrowseSession<T> {
       const home = homeRowId ? homeRowSource(homeRowId, libraryId === '*' ? undefined : libraryId, nodes, sorts) : undefined;
       const list = home ? undefined : libraryItemQuery({id: libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, nodes, sorts);
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
+      if (list) this.wholeSource ??= {api, list};
       this.counting ??= (home ? countHomeRow(api, home, this.life.signal) : countItems(api, list!, this.life.signal))
         .then(total => {if (total !== undefined) {this.total = total; if (this.live()) {this.options.onFacts?.({total});this.publishWhole();}}}, () => undefined);
       // The letter rail, for a list in title order: each first letter and how many titles begin with it.
@@ -218,7 +254,7 @@ export class BrowseSession<T> {
     const first = this.pinned === undefined;
     this.pinned ??= 'reading-' + ++readings;
     for (const entry of entries) this.entries.add(entry);
-    if (first) this.options.onRevision?.(this.pinned);
+    if (first) {this.options.onRevision?.(this.pinned); this.readWhole();}
     if (counted !== undefined) {this.total = counted;this.publishWhole();}
     this.options.onPage?.(result);
     if (!this.live() || signal.aborted) throw browseSessionClosed();
