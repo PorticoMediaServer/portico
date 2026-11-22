@@ -13,7 +13,7 @@ async function fixture(inline = false) {
   const snapshot = {admission: 'owner', loading: false, sessions: [], alerts: [], jobs: []};
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, lifetime: {authority: {}}, refresh: async () => {calls.push('refresh');}};
   const reader = {dispose() {}, telemetry: async () => ({}), viewing: async () => ({})};
-  const {NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/use-owner-dashboard.tsx', import.meta.url), {
+  const {OwnerDashboardPage: NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/pages/touch/dashboard/OwnerDashboardPage.tsx', import.meta.url), {
     '../../../../../../packages/client-core/src/admin/data-folder': {dataFolderConfirmText: () => ''},
     '../../../../../../packages/client-core/src/http': {ApiError: class extends Error {}},
     react: h.react, 'react-native': {View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 0})},
@@ -21,7 +21,7 @@ async function fixture(inline = false) {
     '../../../../../../packages/client-core/src/timer': {repeat: () => ({stop() {}})}, '../../../../../../packages/client-core/src/server-admin/now-playing': nowPlaying,
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})},
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>, onError: unknown, offset: number) => {const control = {type: 'Pull', props: {run, onError, offset}}; pulls.push(control); return control;}},
-    './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
+    '../../../screens/settings-live/owner-dashboard/reader': {createNativeOwnerDashboardReader: () => reader}, '../../../screens/settings-live/owner-dashboard/model': model, '../../../kit/dashboard/OwnerDashboardView': {OwnerDashboardView: 'OwnerDashboardPage'}, '../../../kit/dashboard/OwnerParts': {OwnerSheetFooter: 'OwnerSheetFooter'},
     '../../../../../../packages/client-core/src/server-admin/updates-source': {SettingsUpdatesSource: class {subscribe = () => () => {}; getSnapshot = () => ({phase: 'idle', busy: false}); load = async () => {}; check = async () => {}; dispose() {}}},
     '../../../kit/dashboard/OwnerUpdateCard': {ownerUpdateView: () => undefined},
   });
@@ -46,14 +46,14 @@ test('pulling the phone Dashboard down refreshes the Dashboard\'s own read, with
 
 test('the Dashboard page draws its scroll view with the pull control and no Refresh button', async () => {
   const h = hooks();
-  const {OwnerDashboardPage} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/page.tsx', import.meta.url), {
+  const {OwnerDashboardView: OwnerDashboardPage} = await screenModule(new URL('../src-next/kit/dashboard/OwnerDashboardView.tsx', import.meta.url), {
     react: h.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
-    '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../platform/native-blur': {BlurView: 'BlurView'},
-    '../../../kit/shell': {ServerBand: 'ServerBand'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})}, '../../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
-    './model': model, '../../../kit/dashboard/OwnerParts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
-    '../../../kit/dashboard/OwnerHealthSection': {OwnerHealthSection: 'OwnerHealthSection'}, '../../../kit/dashboard/OwnerStatisticsSection': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
-    '../../../kit/dashboard/OwnerStreams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
-    '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../../kit/dashboard/OwnerUpdateCard': {OwnerUpdateCard: 'OwnerUpdateCard'},
+    '../controls': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../../platform/native-blur': {BlurView: 'BlurView'},
+    '../shell': {ServerBand: 'ServerBand'}, '../layout/TopBar': {BarSurface: 'BarSurface'}, '../theme': {useTheme: () => ({isTV: false, colors: {}}), textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
+    '../../screens/settings-live/owner-dashboard/model': model, './OwnerParts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
+    './OwnerHealthSection': {OwnerHealthSection: 'OwnerHealthSection'}, './OwnerStatisticsSection': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
+    './OwnerStreams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
+    '../artwork': {StandardBackdrop: 'StandardBackdrop'}, './OwnerUpdateCard': {OwnerUpdateCard: 'OwnerUpdateCard'},
   });
   const pull = {type: 'Pull', props: {}};
   const props = {t: (id: string) => id, role: 'owner', serverName: 'Portico demo', topInset: 47, health: {degraded: false, status: 'Healthy', line: ''}, updated: 'Updated just now', loading: false,

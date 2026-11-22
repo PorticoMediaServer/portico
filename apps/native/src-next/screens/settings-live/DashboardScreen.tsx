@@ -23,7 +23,7 @@ import {Screen, ScreenText, useScreenEntry} from './Screen';
 import type {NativeSettingsLivePorts} from './ports';
 import type {NativeDashboardController} from './dashboard-controller';
 import {nativeDashboardIdentity} from './dashboard-presentation';
-import {NativeOwnerDashboardPhone} from './owner-dashboard/use-owner-dashboard';
+import {OwnerDashboardPage as NativeOwnerDashboardPhone} from '../../pages/touch/dashboard/OwnerDashboardPage';
 import {TopBar} from '../../kit/layout/TopBar';
 
 /** TV never exposes a mutation, secret, settings document or inferred administrator action. */

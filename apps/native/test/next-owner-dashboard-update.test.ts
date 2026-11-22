@@ -47,19 +47,19 @@ const pageProps = (role: string, update?: unknown) => ({t, role, serverName: 'Po
   streams: [], streamTotals: {streams: 0, converting: 0, bandwidth: 0}, expanded: false, allStreams: [], people: '', alerts: [], jobs: [], healthWindow: 'live', viewingPeriod: '30d', update,
   onShowAll() {}, onShowFewer() {}, onRetryAll() {}, onBack() {}, onRetry() {}, onHealthWindow() {}, onViewingPeriod() {}, onAcknowledge() {}, onFixPermissions() {}, onJobMenu() {}, onStop() {}, onStreamMenu() {}});
 
-const pageModule = (react: any) => screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/page.tsx', import.meta.url), {
+const pageModule = (react: any) => screenModule(new URL('../src-next/kit/dashboard/OwnerDashboardView.tsx', import.meta.url), {
   react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
-  '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../platform/native-blur': {BlurView: 'BlurView'},
-  '../../../kit/shell': {ServerBand: 'ServerBand'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})}, '../../../kit/shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
-  './model': model, '../../../kit/dashboard/OwnerParts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
-  '../../../kit/dashboard/OwnerHealthSection': {OwnerHealthSection: 'OwnerHealthSection'}, '../../../kit/dashboard/OwnerStatisticsSection': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
-  '../../../kit/dashboard/OwnerStreams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
-  '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../../../kit/dashboard/OwnerUpdateCard': {OwnerUpdateCard: 'OwnerUpdateCard'},
+  '../controls': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../../platform/native-blur': {BlurView: 'BlurView'},
+  '../shell': {ServerBand: 'ServerBand'}, '../layout/TopBar': {BarSurface: 'BarSurface'}, '../theme': {useTheme: () => ({isTV: false, colors: {}}), textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../shell/visual': {alpha: (value: string) => value, shellType: () => ({})},
+  '../../screens/settings-live/owner-dashboard/model': model, './OwnerParts': {OwnerAlertCard: 'OwnerAlertCard', OwnerCalm: 'OwnerCalm', OwnerJobGroup: 'OwnerJobGroup', OwnerJobRow: 'OwnerJobRow', OwnerSection: 'OwnerSection', OwnerSubheading: 'OwnerSubheading'},
+  './OwnerHealthSection': {OwnerHealthSection: 'OwnerHealthSection'}, './OwnerStatisticsSection': {OwnerStatisticsSection: 'OwnerStatisticsSection'},
+  './OwnerStreams': {OwnerCompactRows: 'OwnerCompactRows', OwnerNowPlayingHeader: 'OwnerNowPlayingHeader', OwnerShowAll: 'OwnerShowAll', OwnerStreamCards: 'OwnerStreamCards', OwnerStreamTotals: 'OwnerStreamTotals'},
+  '../artwork': {StandardBackdrop: 'StandardBackdrop'}, './OwnerUpdateCard': {OwnerUpdateCard: 'OwnerUpdateCard'},
 });
 
 test('the owner\'s Alerts section ends with the update card, after the alerts or the calm line; administrators never see it', async () => {
   const h = hooks();
-  const {OwnerDashboardPage} = await pageModule(h.react);
+  const {OwnerDashboardView: OwnerDashboardPage} = await pageModule(h.react);
   const update = {latest: '0.2.0', current: '0.1.0', checking: false};
   const alerts = nodes(h.render(() => OwnerDashboardPage(pageProps('owner', update)))).find(node => node.type === 'OwnerSection' && node.props.title === 'next.dashboard.alerts');
   const order = nodes(alerts.props.children).map(node => node.type).filter(type => type === 'OwnerCalm' || type === 'OwnerUpdateCard');
@@ -86,7 +86,7 @@ async function phone(admission: 'owner' | 'administrator') {
     load = async () => {calls.push('load');}; check = async () => {calls.push('check');}; dispose = () => {calls.push('dispose');};
   }
   const card = await cardModule(h.react);
-  const {NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/use-owner-dashboard.tsx', import.meta.url), {
+  const {OwnerDashboardPage: NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/pages/touch/dashboard/OwnerDashboardPage.tsx', import.meta.url), {
     '../../../../../../packages/client-core/src/admin/data-folder': {dataFolderConfirmText: () => ''},
     '../../../../../../packages/client-core/src/http': {ApiError: class extends Error {}},
     react: h.react, 'react-native': {View: 'View', Linking: {openURL: async (url: string) => {opened.push(url);}}}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 0})},
@@ -95,7 +95,7 @@ async function phone(admission: 'owner' | 'administrator') {
     '../../../../../../packages/client-core/src/server-admin/updates-source': {SettingsUpdatesSource},
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})},
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>) => ({type: 'Pull', props: {run}})},
-    './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
+    '../../../screens/settings-live/owner-dashboard/reader': {createNativeOwnerDashboardReader: () => reader}, '../../../screens/settings-live/owner-dashboard/model': model, '../../../kit/dashboard/OwnerDashboardView': {OwnerDashboardView: 'OwnerDashboardPage'}, '../../../kit/dashboard/OwnerParts': {OwnerSheetFooter: 'OwnerSheetFooter'},
     '../../../kit/dashboard/OwnerUpdateCard': card,
   });
   const runtime = {text: {t: (id: string) => id}, artwork: () => undefined, reportError() {}};
@@ -143,7 +143,7 @@ test('Sol 8 on #830: a pressed check that fails keeps the last report and draws 
 
 test('the page draws the failed check as an error card after the update card; Try again checks again', async () => {
   const h = hooks(), calls: string[] = [];
-  const {OwnerDashboardPage} = await pageModule(h.react);
+  const {OwnerDashboardView: OwnerDashboardPage} = await pageModule(h.react);
   const update = {latest: '0.2.0', current: '0.1.0', checking: false, checkFailed: true};
   const alerts = nodes(h.render(() => OwnerDashboardPage({...pageProps('owner', update), onCheckUpdate: () => calls.push('check')}))).find(node => node.type === 'OwnerSection' && node.props.title === 'next.dashboard.alerts');
   const after = nodes(alerts.props.children).filter(node => node.type === 'OwnerCalm' || node.type === 'OwnerUpdateCard');

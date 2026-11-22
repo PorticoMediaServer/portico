@@ -111,3 +111,13 @@ export function OwnerStatisticTiles({figures}: {figures: readonly OwnerStatistic
     </View>)}
   </View>;
 }
+
+/** A Dashboard sheet's two buttons side by side: Cancel, then the action (Stop drawn in the record colour). */
+export function OwnerSheetFooter({cancelLabel, actionLabel, busy, stop = false, onCancel, onAction}: {cancelLabel: string; actionLabel: string; busy: boolean;
+  /** Stop a stream: a glass button in the record colour; otherwise the primary button. */ stop?: boolean; onCancel: () => void; onAction: () => void}) {
+  const theme = useTheme();
+  return <View style={{flexDirection: 'row', gap: 8}}>
+    <Button variant="glass" disabled={busy} onPress={onCancel}>{cancelLabel}</Button>
+    <Button variant={stop ? 'glass' : 'primary'} disabled={busy} loading={busy} textStyle={stop ? {color: theme.colors.record} : undefined} onPress={onAction}>{actionLabel}</Button>
+  </View>;
+}

@@ -1,21 +1,21 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, useWindowDimensions, View, type RefreshControlProps} from 'react-native';
-import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
-import {Focusable} from '../../../kit/controls';
-import {Icon} from '../../../kit/Icon';
-import {ServerBand} from '../../../kit/shell';
-import {useTheme} from '../../../kit/theme';
-import {alpha, shellType} from '../../../kit/shell/visual';
-import type {OwnerAlertView, OwnerHealthWindow, OwnerJobView, OwnerSessionTotals, OwnerStreamView, OwnerViewing, OwnerViewingPeriod, Translate} from './model';
-import {ownerCompactWindow, ownerStreamTotals, ownerUsesCompactRows} from './model';
-import {OwnerAlertCard, OwnerCalm, OwnerJobGroup, OwnerJobRow, OwnerSection, OwnerSubheading} from '../../../kit/dashboard/OwnerParts';
-import {OwnerHealthSection} from '../../../kit/dashboard/OwnerHealthSection';
-import {OwnerStatisticsSection} from '../../../kit/dashboard/OwnerStatisticsSection';
-import {OwnerUpdateCard, type OwnerUpdateView} from '../../../kit/dashboard/OwnerUpdateCard';
-import {OwnerCompactRows, OwnerNowPlayingHeader, OwnerShowAll, OwnerStreamCards, OwnerStreamTotals, type OwnerStreamEntry} from '../../../kit/dashboard/OwnerStreams';
-import {BarSurface} from '../../../kit/layout/TopBar';
+import type {TelemetryReading} from '../../../../../packages/client-core/src/telemetry';
+import {Focusable} from '../controls';
+import {Icon} from '../Icon';
+import {ServerBand} from '../shell';
+import {textLines, useTheme} from '../theme';
+import {alpha, shellType} from '../shell/visual';
+import type {OwnerAlertView, OwnerHealthWindow, OwnerJobView, OwnerSessionTotals, OwnerStreamView, OwnerViewing, OwnerViewingPeriod, Translate} from '../../screens/settings-live/owner-dashboard/model';
+import {ownerCompactWindow, ownerStreamTotals, ownerUsesCompactRows} from '../../screens/settings-live/owner-dashboard/model';
+import {OwnerAlertCard, OwnerCalm, OwnerJobGroup, OwnerJobRow, OwnerSection, OwnerSubheading} from './OwnerParts';
+import {OwnerHealthSection} from './OwnerHealthSection';
+import {OwnerStatisticsSection} from './OwnerStatisticsSection';
+import {OwnerUpdateCard, type OwnerUpdateView} from './OwnerUpdateCard';
+import {OwnerCompactRows, OwnerNowPlayingHeader, OwnerShowAll, OwnerStreamCards, OwnerStreamTotals, type OwnerStreamEntry} from './OwnerStreams';
+import {BarSurface} from '../layout/TopBar';
 
-export type OwnerDashboardPageProps = Readonly<{
+export type OwnerDashboardViewProps = Readonly<{
   t: Translate;
   role: 'owner' | 'administrator';
   serverName: string;
@@ -62,7 +62,7 @@ export type OwnerDashboardPageProps = Readonly<{
 }>;
 
 /** One page for every width of the owner Dashboard's phone layout (owner-dashboard.html frames 2–8). */
-export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
+export function OwnerDashboardView(props: OwnerDashboardViewProps) {
   const {t, role} = props, theme = useTheme(), viewport = useWindowDimensions().height;
   const [scrolled, setScrolled] = useState(false), [stuck, setStuck] = useState(false);
   const [first, setWindow] = useState<{first: number; last: number}>({first: 0, last: 0});
@@ -136,14 +136,14 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
         <Icon name="i-left" size={22} color={theme.colors.text}/>
       </Focusable>
       {scrolled ? <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: props.topInset, height: 48, alignItems: 'center', justifyContent: 'center'}}>
-        <Text numberOfLines={1} style={[shellType(16.5, 800, 'normal', -.015), {color: theme.colors.text}]}>{t('next.dashboard.title')}</Text>
-        <Text numberOfLines={1} style={[shellType(12, 600), {color: theme.colors.accentStrong}]}>{props.serverName}</Text>
+        <Text {...textLines(1)} style={[shellType(16.5, 800, 'normal', -.015), {color: theme.colors.text}]}>{t('next.dashboard.title')}</Text>
+        <Text {...textLines(1)} style={[shellType(12, 600), {color: theme.colors.accentStrong}]}>{props.serverName}</Text>
       </View> : null}
     </View>}
   </View>;
 }
 
-function OwnerHeader({t, role, serverName, health, updated}: OwnerDashboardPageProps) {
+function OwnerHeader({t, role, serverName, health, updated}: OwnerDashboardViewProps) {
   const theme = useTheme();
   const audience = role === 'owner' ? t('next.shell.serverVisibility.ownerShared') : t('next.shell.serverVisibility.administrator');
   return <View style={{paddingHorizontal: 20}}>
@@ -152,7 +152,7 @@ function OwnerHeader({t, role, serverName, health, updated}: OwnerDashboardPageP
         <Icon name="i-server" size={15} color={theme.colors.text}/>
         <Text style={[shellType(12.5, 700), {color: theme.colors.text}]}>{t('next.shell.server')}</Text>
       </View>
-      <Text numberOfLines={1} style={[shellType(12.5, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{audience}</Text>
+      <Text {...textLines(1)} style={[shellType(12.5, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{audience}</Text>
     </View>
     <Text accessibilityRole="header" style={[shellType(40, 800, 'normal', -.04), {color: theme.colors.text, marginTop: 14}]}>{t('next.dashboard.title')}</Text>
     <View style={{flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 14, marginTop: 14}}>
@@ -165,7 +165,7 @@ function OwnerHeader({t, role, serverName, health, updated}: OwnerDashboardPageP
     </View>
     {health.line ? <Text style={[shellType(13.5, 400), {color: theme.colors.textSecondary, marginTop: 6}]}>{health.line}</Text> : null}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10}}>
-      {updated ? <Text numberOfLines={1} style={[shellType(12.5, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{updated}</Text> : null}
+      {updated ? <Text {...textLines(1)} style={[shellType(12.5, 600), {color: theme.colors.textTertiary, flexShrink: 1}]}>{updated}</Text> : null}
     </View>
   </View>;
 }
