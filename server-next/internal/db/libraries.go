@@ -23,6 +23,7 @@ type Library struct {
 	UpdatedAt        int64
 	Options          LibraryOptions
 	Paths            []LibraryPath
+	firstScan        bool
 }
 
 // How much of each file a scan reads.
@@ -204,7 +205,8 @@ func (d *DB) NewLibrary(ctx context.Context, n NewLibrary) (Library, error) {
 	return lib, err
 }
 
-const librarySelect = `SELECT l.id, l.public_id, l.name, l.kind, ifnull(l.language, ''), l.position, l.created_at, l.updated_at
+const librarySelect = `SELECT l.id, l.public_id, l.name, l.kind, ifnull(l.language, ''), l.position, l.created_at, l.updated_at,
+	ifnull(l.last_scan_started_at, 0) > 0 AND ifnull(l.last_scan_finished_at, 0) = 0
 	FROM libraries l WHERE `
 
 // Libraries lists the libraries the viewer may see, in the owner's order.
@@ -234,9 +236,13 @@ func (d *DB) libraries(ctx context.Context, v Viewer, publicID string) ([]Librar
 	if err != nil {
 		return nil, err
 	}
+	return readLibraries(ctx, tx, acc, publicID)
+}
+
+func readLibraries(ctx context.Context, tx *sql.Tx, acc access, publicID string) ([]Library, error) {
 	return queryAll(ctx, tx, librarySelect+acc.libraryVisible("l.id")+` AND (? = '' OR l.public_id = ?) ORDER BY l.position, l.id`,
 		[]any{publicID, publicID}, func(l *Library) []any {
-			return []any{&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt}
+			return []any{&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &l.firstScan}
 		})
 }
 
