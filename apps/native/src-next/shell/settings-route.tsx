@@ -1,23 +1,23 @@
-import {readEventState} from '../../platform/event-resync';
+import {readEventState} from '../platform/event-resync';
 import React from 'react';
 import {Platform} from 'react-native';
-import {readServerNowPlaying} from '../../../../../packages/client-core/src/admin/server-now-playing';
-import {DashboardDataClient} from '../../../../../packages/client-core/src/admin/dashboard';
-import {readServerStorage} from '../../../../../packages/client-core/src/server-admin/server-storage';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeRouteRenderer} from '../../shell/route-registry';
-import {NativeScreenLifetime} from './lifetime';
-import {createBoundNativeSettingsController} from './settings-controller';
-import {nativeDevicePreferences} from './device-preference-consumer';
-import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from './dashboard-controller';
-import {nativeServerAdmission} from './server/tv-server-reader';
-import {ServerSettingsPage} from '../../pages/tv/settings/ServerSettingsPage';
-import {isTVServerPage} from './server/TVServerPageMenu';
-import {EqualizerSettingsPage} from '../../pages/shared/settings/EqualizerSettingsPage';
-import {NativeSettingsPage} from '../../pages/shared/settings/SettingsPage';
-import {NativeDashboardScreen} from './DashboardScreen';
-import {createNativeSettingsPorts, nativeSettingsRequestId} from './settings-ports';
-import {createNativeSettingsDownloads} from './downloads-summary';
+import {readServerNowPlaying} from '../../../../packages/client-core/src/admin/server-now-playing';
+import {DashboardDataClient} from '../../../../packages/client-core/src/admin/dashboard';
+import {readServerStorage} from '../../../../packages/client-core/src/server-admin/server-storage';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeRouteRenderer} from './route-registry';
+import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
+import {createBoundNativeSettingsController} from '../screens/settings-live/settings-controller';
+import {nativeDevicePreferences} from '../screens/settings-live/device-preference-consumer';
+import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from '../screens/settings-live/dashboard-controller';
+import {nativeServerAdmission} from '../screens/settings-live/server/tv-server-reader';
+import {ServerSettingsPage} from '../pages/tv/settings/ServerSettingsPage';
+import {isTVServerPage} from '../screens/settings-live/server/TVServerPageMenu';
+import {EqualizerSettingsPage} from '../pages/shared/settings/EqualizerSettingsPage';
+import {NativeSettingsPage} from '../pages/shared/settings/SettingsPage';
+import {NativeDashboardScreen} from '../screens/settings-live/DashboardScreen';
+import {createNativeSettingsPorts, nativeSettingsRequestId} from '../screens/settings-live/settings-ports';
+import {createNativeSettingsDownloads} from '../screens/settings-live/downloads-summary';
 
 /**
  * The one composition Accounts hands the shell: the Settings destination and the read-only

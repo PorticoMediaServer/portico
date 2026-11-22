@@ -3,7 +3,7 @@ import type {NativeShellBootstrapContext} from './bootstrap';
 import type {NativeRouteRenderer} from './route-registry';
 import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
 import {createNativeSettingsPorts} from '../screens/settings-live/settings-ports';
-import {createNativeSettingsRenderer} from '../screens/settings-live/SettingsRoute';
+import {createNativeSettingsRenderer} from './settings-route';
 import {Screen} from '../kit/layout/Screen';
 import {ServerLibrariesPage} from '../pages/touch/settings/ServerLibrariesPage';
 
