@@ -58,7 +58,7 @@ test('a replaced native channel menu cannot invoke or dismiss its predecessor',a
 });
 
 test('the native channel preview requests the server-projected sample poster', async () => {
- const {hooks,screenModule}=await import('./helpers/screen-harness.mjs'),host=hooks(),paths:unknown[]=[];
+ const {hooks,screenModule}=await import('./helpers/screen-harness.mjs'),host=hooks(),paths:unknown[]=[],presences:boolean[]=[];
  const hook=await screenModule(new URL('../src-next/pages/shared/live/channels/useChannelEditor.ts',import.meta.url),{
   react:host.react,'../../../../../../../packages/client-core/src/server-admin/owner-channel-draft':{validBuilder},
  });
@@ -72,6 +72,8 @@ test('the native channel preview requests the server-projected sample poster', a
   '../../controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},
   '../../theme':{useTheme:()=>({colors:{},type:{}})},
   '../../useMotion':{useMotion:()=>({reduce:true})},'../../../platform/keyboard':{FormScrollView:'ScrollView'},
+  // Both windows go through the shared presence, so an iOS Modal dropped behind a leaving one is asked for again.
+  '../../overlays/native-dismissal':{useNativeModalPresence:(present:boolean)=>{presences.push(present);return {mounted:true,visible:present,key:1,onShow(){},onDismiss(){}};}},
   './ChannelSelection':{NativeChannelSelection:'Selection'},'./ChannelHours':{NativeChannelHours:'Hours'},
   '../../../pages/shared/live/channels/useChannelEditor':hook,
  });
@@ -81,4 +83,5 @@ test('the native channel preview requests the server-projected sample poster', a
  const source={subscribe:()=>()=>{},getSnapshot:()=>state};
  host.render(()=>NativeChannelEditor({group:{source,current:()=>true},editor,runtime:{artwork:(path:unknown)=>{paths.push(path);}}}));
  assert.deepEqual(paths,[poster]);
+ assert.deepEqual(presences.slice(0,2),[true,false],'the editor window and its closed preview window each ask the shared presence');
 });
