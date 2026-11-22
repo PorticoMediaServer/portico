@@ -6,7 +6,7 @@ import {sameFence, type ChannelPlaybackFence} from '../../../../packages/player-
 import {Button} from '../kit/controls';
 import type {NativeShellBootstrapContext} from './bootstrap';
 import type {NativeShellRoute} from './routes';
-import type {NativeWatchModuleBindings} from '../screens/watch/module';
+import type {NativeWatchModuleBindings} from './watch-module';
 import {TopBar} from '../kit/layout/TopBar';
 
 /** The launch page owns its original route, not the adopted player's lifetime. */

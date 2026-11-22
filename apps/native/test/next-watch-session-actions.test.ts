@@ -4,6 +4,7 @@ import {nativePostPlayNavigation} from '../src-next/screens/watch/post-play-navi
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/identity.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {NativeSubtitleStyleChoices, nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../src-next/platform/playback/subtitle-style-choices.ts';
@@ -71,7 +72,7 @@ async function fixture() {
     './WatchChrome': {}, '../../shell/watch-picture': {}, '../../pages/shared/player/WatchHostPage': {WatchHostPage: 'WatchHost'}, '../../pages/shared/player/WatchEpisodesPage': {},
   });
   let ports: any, screens: any;
-  const {createNativeWatchModule} = await screenModule(new URL('../src-next/screens/watch/module.tsx', import.meta.url), {'./system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText}, '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'}, 
+  const {createNativeWatchModule} = await screenModule(new URL('../src-next/shell/watch-module.tsx', import.meta.url), stubsFrom('screens/watch', 'shell', {'./system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation}, '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText}, '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'}, 
     react, 'react-native': {Platform: {isTV: false}}, '../settings-live/group-port': {subscribeGroupPort: () => () => {}}, '../../platform/device-settings': {},
     '../../../../../packages/client-core/src/audiobook-preferences': {}, '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/playback-v1/quality': {}, '../../shell/model': {sameAuthority},
@@ -88,7 +89,7 @@ async function fixture() {
     './live-actions': {NativeTVLiveActions: class {constructor(...args: any[]) {actions.push(args);} close() {return false;} dispose() {}}},
     '../../kit/player/LiveActionPanels': {NativeLiveActionPanels: 'LiveActions'}, '../../kit/player/PlaybackFailed': {NativePlaybackFailed: 'TVFailure'},
     '../../kit/player/HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, '../../kit/player/WatchPostPlay': {}, './panel-names': {},
-  });
+  }));
   const bindings: any = {title: {reportError: assert.fail, renderError: assert.fail, navigate() {}}, names: {}, requestId: async () => 'request',
     openMenu: (_capture: any, menu: any) => {menus.push(menu);},
     openVersions: (capture: any, destination: any) => {presented.push({capture, destination});},

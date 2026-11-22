@@ -4,7 +4,7 @@ import type {NativeShellBootstrapContext} from './bootstrap';
 import {nativeScreenError, nativeScreenErrorPage, nativeScreenServices} from '../screens/native-screen-services';
 import {NativeWatchPresenters} from '../screens/watch/presenters';
 import {WatchOverlaysPage} from '../pages/shared/player/WatchOverlaysPage';
-import type {NativeWatchModuleBindings} from '../screens/watch/module';
+import type {NativeWatchModuleBindings} from './watch-module';
 import {NativeWatchExternalRequests} from '../screens/watch/external-requests';
 import {askNativeDownload} from '../screens/downloads/request';
 import {createMusicPlaylistPicker} from './music-playlist-picker';

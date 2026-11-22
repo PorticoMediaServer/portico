@@ -21,8 +21,8 @@ export type {NativeWatchPanelNames, NativeWatchChoiceName, NativeWatchChoiceRow,
 export {EqualizerPage as NativeWatchEqualizer} from '../../pages/shared/player/EqualizerPage';
 export type {EqualizerPageProps as NativeWatchEqualizerProps} from '../../pages/shared/player/EqualizerPage';
 export type {NativeEqualizerCopy, NativeEqualizerResponse} from '../../kit/frames/EqualizerFrame';
-export {createNativeWatchModule, nativeWatchChromeFacts} from './module';
-export type {NativeWatchModuleBindings, NativeWatchEntryMenu} from './module';
+export {createNativeWatchModule, nativeWatchChromeFacts} from '../../shell/watch-module';
+export type {NativeWatchModuleBindings, NativeWatchEntryMenu} from '../../shell/watch-module';
 export {createNativeWatchPanelNames} from './panel-names';
 export {registerNativeWatch, nativeWatchEntryMenu} from './register';
 export {createNativeWatchBindings} from '../../shell/watch-bindings';

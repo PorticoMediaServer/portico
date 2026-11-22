@@ -2,6 +2,7 @@ import {nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../src-next/pla
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {watchHooks, descendants, flattenStyle} from './helpers/watch-hooks.mjs';
 import * as playerCore from '../../../packages/player-core/src/index.ts';
 import {createTVKeyAdapter} from '../src-next/platform/tv-key-adapter.ts';
@@ -379,7 +380,7 @@ async function failureModuleFixture(owner = true) {
   let player: any; const captures: any[] = [], versions: any[] = [], retries: any[] = [];
   const context: any = {current: () => live, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local', role}}), api: {}, subscribeAuthority: () => () => {},
     navigation: {getSnapshot: () => route, subscribe: () => () => {}}, playback: {getSnapshot: () => source, subscribe: () => () => {}, retry: async (...args: unknown[]) => {retries.push(args);}}};
-  const {createNativeWatchModule} = await screenModule(new URL('../src-next/screens/watch/module.tsx', import.meta.url), {
+  const {createNativeWatchModule} = await screenModule(new URL('../src-next/shell/watch-module.tsx', import.meta.url), stubsFrom('screens/watch', 'shell', {
     react: h.react, 'react-native': {Platform: {isTV: true}}, '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: () => () => {}}, '../../platform/device-settings': {},
     '../../../../../packages/client-core/src/audiobook-preferences': {}, '../../../../../packages/player-core/src': playerCore, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/playback-v1/quality': {},
     './factory': {createNativeWatchScreens: (ports: any) => {player = ports.player; return {watch: {}, dispose() {}, capture: (entry: any, current: () => boolean) => {const value = {entry, current}; captures.push(value); return value;}, versions: async (...args: unknown[]) => {versions.push(args);}};}},
@@ -389,7 +390,7 @@ async function failureModuleFixture(owner = true) {
     '../../../../../packages/client-core/src/presentation/browse-toolbar': {}, './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},
     '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => 'Public playback message'}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`},
     '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'}, '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue},
-  });
+  }));
   const module = createNativeWatchModule(context, {title: {owner, reportError: assert.fail}, openVersions() {}, beginVersions() {}, startVersion: async () => {}});
   const failure = {fence, sessionId: fence.sessionId, positionSeconds: 12};
   return {captures, versions, retries, draw: () => player.failed({runtime: {reportError: assert.fail}}, failure, true), actionable: () => player.failureAction({}, failure),

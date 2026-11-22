@@ -11,6 +11,7 @@ import test from 'node:test';
 import {audiobookPreferences} from '../../../packages/client-core/src/audiobook-preferences';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {sameFence, playbackFence, localPlaybackFence} from '../../../packages/player-core/src/index.ts';
 import {qualityOptionSelected} from '../../../packages/client-core/src/playback-v1/quality.ts';
 import {nativeWatchTracks} from '../src-next/screens/watch/track-identity.ts';
@@ -31,7 +32,7 @@ const infoPanel = await screenModule(new URL('../src-next/kit/player/PlaybackInf
 });
 const menuCalls: any[][] = [];
 let captured: any, optionsDisposed = 0, screensDisposed = 0;
-const {createNativeWatchModule, nativeWatchChromeFacts} = await screenModule(new URL('../src-next/screens/watch/module.tsx', import.meta.url), {
+const {createNativeWatchModule, nativeWatchChromeFacts} = await screenModule(new URL('../src-next/shell/watch-module.tsx', import.meta.url), stubsFrom('screens/watch', 'shell', {
   '../settings-live/group-port': groupPort,
   '../../platform/device-settings': {nativeDeviceSettings},
   './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},
@@ -53,7 +54,7 @@ const {createNativeWatchModule, nativeWatchChromeFacts} = await screenModule(new
   './factory': {createNativeWatchScreens: (ports: any) => {captured = ports; return {title: {render: () => 'title'}, watch: {
     render: (runtime: any) => ports.player.chrome(ports.playback.getSnapshot(), runtime), body: () => 'body', back: () => true,
   }, menu: async (...args: any[]) => {menuCalls.push(args);}, dispose: () => {screensDisposed++;}};}},
-});
+}));
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'v2', entryId: 'entry', generation: 3});
 const names = {audio: (track: any) => ({primary: track.id}), subtitle: (track: any) => ({primary: track.id}), quality: (option: any) => ({primary: option.id ?? option.mode})};
