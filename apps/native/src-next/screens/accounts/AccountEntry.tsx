@@ -65,8 +65,7 @@ import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
 import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
 import {SignInPage} from '../../pages/touch/accounts/SignInPage';
-import {LegalAgreement} from '../../kit/accounts/LegalAgreement';
-import {AccountEntryCode, AccountEntryEndedNotice, AccountEntryFields, AccountEntryLegal, AccountEntryPasswordToggle, AccountEntryStep} from '../../kit/accounts/AccountEntryParts';
+import {AccountEntryChoices, AccountEntryChoicesLegal, AccountEntryCode, AccountEntryEndedNotice, AccountEntryFields, AccountEntryFootNote, AccountEntryLegal, AccountEntryNote, AccountEntryNotes, AccountEntryPasswordToggle, AccountEntryResend, AccountEntrySentNotes, AccountEntryStep} from '../../kit/accounts/AccountEntryParts';
 import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PasswordStrengthMeter} from '../../kit/accounts/PasswordStrengthMeter';
 import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
@@ -1433,31 +1432,27 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   }
   if (stage === 'portico') return layout(t('accounts.signIn.portico'), t('auth.accountLead'), options?.password ? fields(field(t('auth.usernameOrEmail'), username, setUsername, false, 'username'), field(t('auth.password'), password, setPassword, true, 'password')) : undefined,
     options?.password ? action('account-password', t('auth.signIn'), async () => {await account.current!.password(username, password); await directory();}, !username || !password) : undefined,
-    <View style={{alignSelf: 'stretch', gap: 10, marginTop: 10}}>{options?.providers.filter(value => value.enabled && (NativeModules.PorticoAccountAuth.canOpenBrowser || value.id === 'apple' && value.native && value.nativeClientIds.includes(NativeModules.PorticoAccountAuth.bundleId) && NativeModules.PorticoAccountAuth.canSignInApple)).map(value => <Button key={value.id} variant="glass" disabled={busy} onPress={() => {void run(async () => {
+    <AccountEntryChoices>{options?.providers.filter(value => value.enabled && (NativeModules.PorticoAccountAuth.canOpenBrowser || value.id === 'apple' && value.native && value.nativeClientIds.includes(NativeModules.PorticoAccountAuth.bundleId) && NativeModules.PorticoAccountAuth.canSignInApple)).map(value => <Button key={value.id} variant="glass" disabled={busy} onPress={() => {void run(async () => {
       const tx = await account.current!.provider(value.id); setTransaction(tx);
       if (tx.status === 'verified' && !tx.needsUsername && !tx.mfaRequired) {await account.current!.finishProvider(); await directory();} else setStage('provider');
     });}}>{t(value.id === 'google' ? 'auth.signInWithGoogle' : 'auth.signInWithApple')}</Button>)}
     {options?.registration && <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('register');}}>{t('auth.createAccount')}</Button>}
     {options?.recovery !== false && <Button variant="link" disabled={busy} onPress={() => {void run(requestReset);}}>{t('auth.forgotPassword')}</Button>}
     <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('address');}}>{t('accounts.signIn.local')}</Button>
-    <LegalAgreement style={[theme.type.caption, {color: theme.colors.textSecondary, textAlign: 'center', marginTop: 6}]}
-      linkStyle={{color: theme.colors.accent, textDecorationLine: 'underline'}} onOpenLink={openLegalLink}/></View>);
+    <AccountEntryChoicesLegal onOpenLink={openLegalLink}/></AccountEntryChoices>);
   if (stage === 'forgot') return layout(t('auth.forgotPasswordTitle'), t('auth.resetLinkLede'),
     fields(field(t('auth.usernameOrEmail'), username, setUsername, false, 'username')),
     action('request-reset', t('auth.resetLinkAction'), requestReset, !username.trim()),
-    <View style={{alignSelf: 'stretch', gap: 4, marginTop: 4}}>
-      <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('auth.privacySameAnswer')}</Text>
+    <AccountEntryNotes>
+      <AccountEntryNote>{t('auth.privacySameAnswer')}</AccountEntryNote>
       {/* collections 31 draws both privacy sentences on the phone's forgot screen. */}
-      {theme.isTV ? null : <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('auth.noPasswordForSocial')}</Text>}
-    </View>);
+      {theme.isTV ? null : <AccountEntryNote>{t('auth.noPasswordForSocial')}</AccountEntryNote>}
+    </AccountEntryNotes>);
   if (stage === 'forgot-sent') return layout(t('auth.checkEmail'), t('auth.resetLinkSent'),
-    <>
-      {/* account 10 and 31 draw the link's lifetime under the lede, as web shows it. */}
-      <Text style={[theme.type.caption, {color: theme.colors.textSecondary, marginBottom: 8}]}>{t('services.recovery.expiry')}</Text>
-      <Text style={[theme.type.caption, {color: theme.colors.textSecondary, marginBottom: 16}]}>{t('auth.privacySameAnswer')}</Text>
-    </>,
+    // account 10 and 31 draw the link's lifetime under the lede, as web shows it.
+    <AccountEntrySentNotes expiry={t('services.recovery.expiry')} privacy={t('auth.privacySameAnswer')}/>,
     action('back-to-sign-in', t('auth.backToSignIn'), async () => {if (lifetime.current) setStage('portico');}),
-    <Text style={[theme.type.caption, {color: theme.colors.textSecondary, marginTop: 10}]}>{t('auth.noPasswordForSocial')}</Text>);
+    <AccountEntryFootNote>{t('auth.noPasswordForSocial')}</AccountEntryFootNote>);
   if (stage === 'register') {
     // The opening this Submit was drawn for and the draft revision it drew. Both must
     // still be the live ones before the call and again when the answer arrives.
@@ -1512,8 +1507,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           if (fresh) {setVerifyOpening(Object.freeze({source: opening.source, registration: fresh})); setUsernameUnavailable(true); return;}
           throw refusal;
         }
-      }, verified ? username.trim().length < 3 : !code), verified || theme.isTV ? undefined : <View style={{alignSelf: 'stretch', gap: 10, marginTop: 14}}>
-        <Button testID="accounts-registration-resend" variant="link" disabled={busy} style={{alignSelf: 'center'}} onPress={() => {
+      }, verified ? username.trim().length < 3 : !code), verified || theme.isTV ? undefined : <AccountEntryResend help={t('services.signup.codeHelp')} action={
+        <Button testID="accounts-registration-resend" variant="link" disabled={busy} onPress={() => {
           if (!opening || !live() || busyRef.current || acting.current) return;
           void run(async () => {
             if (!live()) return;
@@ -1523,9 +1518,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
               setVerifyOpening(Object.freeze({source: opening.source, registration: fresh})); setCode(''); setMasked(fresh.maskedAddress);
             } catch (failure) {if (live()) throw failure;}
           });
-        }}>{t('auth.sendCodeAgain')}</Button>
-        <Text style={[theme.type.caption, {color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('services.signup.codeHelp')}</Text>
-      </View>);
+        }}>{t('auth.sendCodeAgain')}</Button>}/>);
   }
   if (stage === 'provider') {
     // The transaction this form was drawn for and the draft it shows; both must still
@@ -1543,10 +1536,10 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const heading = phoneStep ? t('auth.chooseUsername') : t('accounts.signIn.portico');
     const lede = phoneStep ? t('services.provider.lastThing') : undefined;
     const continuing = tx?.needsUsername && providerName && !theme.isTV
-      ? <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('services.provider.heading', {provider: providerName})}</Text> : undefined;
+      ? <AccountEntryNote>{t('services.provider.heading', {provider: providerName})}</AccountEntryNote> : undefined;
     // The address the provider chose to share; no relay label is claimed without a producer flag.
     const sharedAddress = !theme.isTV && !!tx?.verifiedEmail && tx.needsUsername
-      ? <Text selectable style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{`${t('auth.email')}: ${tx.verifiedEmail}`}</Text> : undefined;
+      ? <AccountEntryNote selectable>{`${t('auth.email')}: ${tx.verifiedEmail}`}</AccountEntryNote> : undefined;
     return layout(heading, lede, fields(
       continuing,
       sharedAddress,
