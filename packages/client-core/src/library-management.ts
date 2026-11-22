@@ -271,9 +271,12 @@ function fromServerLibrary(v:unknown):ManagedLibrary{
  const scan=(status:LibraryJobStatus,actions:LibraryAdminJob['actions']):LibraryAdminJob=>Object.freeze({id:'scan:'+libraryId,libraryId,status,processed:0,
   createdAt:started??finished??'',updatedAt:null,finishedAt:status==='running'?null:finished??null,actions:Object.freeze(actions)});
  const revision=Number.parseInt(v.revision,10);
+ // The owner's list draws up to three of the library's own covers (server lane #4992: `libraryCoverUrls`), same-site paths only.
+ const covers=(Array.isArray(v.libraryCoverUrls)?v.libraryCoverUrls:[]).filter((path):path is string=>typeof path==='string'&&path.length<=8192&&path.startsWith('/')&&!path.startsWith('//')).slice(0,3);
  return Object.freeze({id:libraryId,name:v.name,kind:pageLibraryKinds[v.kind],revision:Number.isSafeInteger(revision)&&revision>0?revision:1,
   source:Object.freeze({path:first.path as string,availability:folders.every(folder=>folder.available===true)?'available' as const:'unavailable' as const,basis:'probe' as const,
    ...(text(first.lastScanAt,128)?{observedAt:first.lastScanAt}:{}),...(text(first.problem)&&first.problem?{message:first.problem}:{})}),
   lastScan:v.scanning?scan('running',['cancel']):finished?scan('complete',[]):null,
+  ...(covers.length?{summary:Object.freeze({counts:Object.freeze([]),coverUrls:Object.freeze(covers),latestArtwork:'',firstScan:false,empty:false,emptyKnown:false})}:{}),
   actions:Object.freeze(['rename','scan','remove'] as const)});
 }

@@ -28,7 +28,7 @@ const make = (api: ReturnType<typeof server>['api']) => { const s = new LibraryM
 
 test('the list is the rebuilt server\'s libraries in the page\'s shape: kind, folder and whether it was found, last scan', async () => {
   const {api, calls} = server(call => call.path.startsWith('/v1/admin/libraries') && call.method === 'GET' && !call.path.includes('lib_') ? {items: [
-    library('lib_one'),
+    library('lib_one', {libraryCoverUrls: ['/v1/images/a', '//evil.example/b', 'https://x/c', '/v1/images/d', '/v1/images/e', '/v1/images/f']}),
     library('lib_two', {kind: 'shows', scanning: true, folders: [{path: '/media/tv', available: false, problem: 'not mounted', watched: true, scanEveryMinutes: 0}]}),
     library('lib_three', {kind: 'holograms'}),
   ], nextCursor: 'c2'} : undefined);
@@ -43,6 +43,9 @@ test('the list is the rebuilt server\'s libraries in the page\'s shape: kind, fo
   assert.deepEqual([films.kind, films.source.path, films.source.availability, films.lastScan?.status, films.revision], ['movie', '/media/lib_one', 'available', 'complete', 3]);
   assert.deepEqual([shows.kind, shows.source.availability, shows.source.message, shows.lastScan?.status, shows.lastScan?.actions], ['tv', 'unavailable', 'not mounted', 'running', ['cancel']]);
   assert.deepEqual(films.actions, ['rename', 'scan', 'remove']);
+  // The owner's rows draw the library's own covers: same-site paths only, three at most; none sent, no summary.
+  assert.deepEqual(films.summary?.coverUrls, ['/v1/images/a', '/v1/images/d', '/v1/images/e']);
+  assert.equal(shows.summary, undefined);
   await s.nextLibraries();
   assert.equal(new URL(calls.at(-1)!.path, 'https://x').searchParams.get('cursor'), 'c2');
 });
