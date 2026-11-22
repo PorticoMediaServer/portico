@@ -79,6 +79,8 @@ export type MobileChooserProps = Readonly<{
   onDifferentAccount?: () => void;
   onCheckNow: () => void;
   onOther: () => void;
+  /** Back to the server you're on (connect frame 23's sheet closes the same way); absent when none is open. */
+  onCancel?: () => void;
 }>;
 
 const formatSeenDate = (iso: string) => defaultI18n.date(iso, 'dayMonth');
@@ -124,7 +126,7 @@ function ChooserHeader({initial}: {initial?: string}) {
 }
 /** connect.html frame 6 at the authored mobile-web viewport: the list, opening, waiting,
  * can't-reach, loading and list-failed states. It has no browser chrome of its own. */
-export function MobileServerChooser({rows, initial, attempt, busy = false, notice, formatSeen = formatSeenDate, onChoose, onRefresh, onLocal, onDifferentAccount, onCheckNow, onOther}: MobileChooserProps) {
+export function MobileServerChooser({rows, initial, attempt, busy = false, notice, formatSeen = formatSeenDate, onChoose, onRefresh, onLocal, onDifferentAccount, onCheckNow, onOther, onCancel}: MobileChooserProps) {
   const showPortico = rows.some(row => row.signIn === 'portico');
   if (attempt) {
     const state = attempt.kind === 'loading' ? 'loading' : attempt.kind === 'loadFailed' ? 'loadFailed' : attempt.kind === 'opening' ? 'opening' : attempt.kind;
@@ -172,10 +174,12 @@ export function MobileServerChooser({rows, initial, attempt, busy = false, notic
       <div className={styles.group} aria-busy={busy || undefined}>
         {rows.map(row => {
           const status = statusText(row, formatSeen);
+          // connect frame 23: the server you're on is marked. It stays choosable: the saved choice can outlive an ended
+          // sign-in, and choosing it again only reopens Who's watching.
           return <button key={row.id} type="button" className={styles.row} data-row={row.id} data-off={row.status && row.status.kind !== 'online' || undefined}
-            disabled={busy} onClick={() => onChoose(row)}>
+            disabled={busy} aria-current={row.selected || undefined} onClick={() => onChoose(row)}>
             <span className={styles.rowIcon} data-online={status?.online || undefined}><Icon name="i-server" size={18} /></span>
-            <span className={styles.rowText}>{row.label}{status && <small data-online={status.online || undefined}>{status.text}</small>}</span>
+            <span className={styles.rowText}>{row.label}{row.selected ? <small>{t('web.servers.current')}</small> : status && <small data-online={status.online || undefined}>{status.text}</small>}</span>
             {row.owner ? <span className={styles.owner}>{t('web.hostedAccount.serverOwner')}</span>
               : row.administrator ? <span className={styles.owner}>{t('web.access.roleAdmin')}</span> : null}
             <Icon name="i-right" size={18} />
@@ -186,6 +190,7 @@ export function MobileServerChooser({rows, initial, attempt, busy = false, notic
       <div className={styles.links}>
         {showPortico && onDifferentAccount && <button type="button" disabled={busy} onClick={onDifferentAccount}>{t('accounts.move.differentAccount')}</button>}
         <button type="button" disabled={busy} onClick={onLocal}>{t('accounts.signIn.local')}</button>
+        {onCancel && <button type="button" onClick={onCancel}>{t('action.cancel')}</button>}
       </div>
     </div>
   </section>;
@@ -356,7 +361,7 @@ function BoundServers({entry, form}: {entry: BrowserAccountEntry; form: AccountS
     attempt={mobileAttempt} busy={busy || working} notice={notice}
     onChoose={row => {retryDelay.current = 20; void openServer(row);}} onRefresh={() => {setAttempt(undefined); setError(undefined); void refresh();}}
     onLocal={() => {form.clear(); entry.cancel(); setError(undefined); setMode('address');}} onDifferentAccount={rows.some(row => row.signIn === 'portico') ? differentAccount : undefined}
-    onCheckNow={checkNow} onOther={other} />;
+    onCheckNow={checkNow} onOther={other} onCancel={choices.some(choice => choice.selected) ? close : undefined} />;
 }
 export default defineWebScreen({id: 'servers', component: ServersRoute, chrome: 'standalone', validateSearch: raw => ({...(raw.local === true || raw.local === 'true' ? {local: true} : {}),
   // O-161: the server a shared link names; the Hosted chooser opens it when this account can.
