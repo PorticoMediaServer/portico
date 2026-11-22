@@ -46,6 +46,26 @@ test('legal agreement follows translated link order and passes failures to its c
   assert.deepEqual(links, [porticoPublicLinks.privacy]);
 });
 
+/** The page draws through its kit parts (SecurityGroup, SecurityRow, …); they are expanded in place so the rows' words and
+ * the buttons they wrap read as the person sees them. */
+const expandSecurityParts = (node: any): any => Array.isArray(node) ? node.map(expandSecurityParts)
+  : typeof node?.type === 'function' && /^Security[A-Z]/.test(node.type.name) ? expandSecurityParts(node.type(node.props))
+  : node?.props ? {...node, props: {...node.props, children: expandSecurityParts(node.props.children)}} : node;
+
+/** The account security page, its hook (loaded for real) and its kit parts (loaded for real by the harness). */
+async function securityModule(errors: unknown, theme: unknown) {
+  const react = {...React, default: React};
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useAccountSecurity.ts', import.meta.url), {
+    react, 'react-native': {NativeModules: {}}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../../packages/client-core/src/presentation/errors': errors,
+    '../../../platform/clipboard': {copyText: async () => {}}});
+  return screenModule(new URL('../src-next/pages/touch/accounts/AccountSecurityPage.tsx', import.meta.url), {
+    react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'},
+    '../../../kit/theme': {useTheme: () => theme}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
+    '../../shared/accounts/useAccountSecurity': hook});
+}
+
 async function securityFixture(context: import('node:test').TestContext, given?: any) {
   const failure = new Error('controller construction failed'), presented: unknown[][] = [];
   let rejection: Error | undefined = failure, tree: any;
@@ -53,18 +73,12 @@ async function securityFixture(context: import('node:test').TestContext, given?:
   const controller = {current: () => true, subscribe: () => () => {}, getSnapshot: () => state, dispose() {}};
   let workspace = {current: () => true, securityActions: () => {if (rejection) throw rejection; return controller;}};
   const security = given ?? {hasPassword: true, mfaEnabled: false, providers: [], recoveryCodesRemaining: 0};
-  const {PhoneAccountSecurity, AccountSecuritySheet} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSecurity.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View', NativeModules: {}},
-    '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (...args: unknown[]) => {presented.push(args); return {body: 'Security could not be opened.'};}},
-    '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
-    '../../kit/theme': {useTheme: () => ({type: {body: {}, captionStrong: {}}, colors: {danger: '#f00'}})},
-    '../../platform/clipboard': {copyText: async () => {}}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
-  });
+  const {AccountSecurityPage: PhoneAccountSecurity, AccountSecuritySheet} = await securityModule({presentError: (...args: unknown[]) => {presented.push(args); return {body: 'Security could not be opened.'};}},
+    {type: {body: {}, captionStrong: {}}, colors: {danger: '#f00'}});
   const host = createFabricHookHost(() => {
     tree = PhoneAccountSecurity({workspace, security});
     const children = tree.props.children;
-    tree = {...tree, props: {...tree.props, children: children.map((child: any) => child?.type === AccountSecuritySheet ? AccountSecuritySheet(child.props) : child)}};
+    tree = expandSecurityParts({...tree, props: {...tree.props, children: children.map((child: any) => child?.type === AccountSecuritySheet ? AccountSecuritySheet(child.props) : child)}});
   });
   context.after(() => host.unmount()); await act(() => host.mount());
   return {tree: () => tree, failure, presented,
@@ -112,14 +126,7 @@ test('the shared sheet keeps provider password input through factor verification
     confirmWithProvider: async (...input: any[]) => {calls.push(['provider', ...input]); publish({kind: 'password', step: 'factor', busy: false, locked: true});},
     submit: async (input: any) => {calls.push(['submit', input]); publish({kind: 'password', step: 'done', busy: false});},
   };
-  const {AccountSecuritySheet} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSecurity.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View', NativeModules: {}},
-    '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => {throw new Error('unexpected presentation');}},
-    '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
-    '../../kit/theme': {useTheme: () => ({type: {body: {}}, colors: {text: '#fff'}})},
-    '../../platform/clipboard': {copyText: async () => {}}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
-  });
+  const {AccountSecuritySheet} = await securityModule({presentError: () => {throw new Error('unexpected presentation');}}, {type: {body: {}}, colors: {text: '#fff'}});
   const security = {hasPassword: false, mfaEnabled: true, providers: [{id: 'google-link', provider: 'google'}]};
   const host = createFabricHookHost(() => {tree = AccountSecuritySheet({security, source, onFinished: () => {finished++;}});});
   context.after(() => host.unmount()); await act(() => host.mount());

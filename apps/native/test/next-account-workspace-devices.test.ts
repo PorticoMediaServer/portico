@@ -37,7 +37,7 @@ async function mount(state: Record<string, unknown>) {
     '../../kit/artwork': {ColourBackdrop: 'Backdrop'},
     '../../../../../packages/client-core/src/account-sessions': sessions,
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
-    './PhoneAccountSecurity': {PhoneAccountSecurity: 'Security'},
+    '../../pages/touch/accounts/AccountSecurityPage': {AccountSecurityPage: 'Security'},
   });
   let tree: any;
   const createSource = () => source;
