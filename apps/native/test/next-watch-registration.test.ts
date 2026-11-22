@@ -9,7 +9,7 @@ test('a cold registry creates the one Watch module for the shared entry menu bef
   const menus: object[] = [];
   const {registerNativeWatch, nativeWatchEntryMenu} = await screenModule(new URL('../src-next/screens/watch/register.ts', import.meta.url), {
     react, '../../shell/route-registry': {nativeShellRoutes: registry},
-    './module': {createNativeWatchModule: (context: any) => {
+    '../../shell/watch-module': {createNativeWatchModule: (context: any) => {
       const identity = ++created, entryMenu = {identity}; menus.push(entryMenu);
       return {entryMenu, render: (runtime: any) => ({watch: identity, runtime}), renderOverlays: () => ({overlay: identity}), dispose: () => {disposed++;}};
     }},
@@ -48,7 +48,7 @@ test('actual bound registry shares one Watch/title clock, Back and disposal per 
   const menus: object[] = [];
   const {registerNativeWatch, nativeWatchEntryMenu} = await screenModule(new URL('../src-next/screens/watch/register.ts', import.meta.url), {
     react, '../../shell/route-registry': {nativeShellRoutes: registry},
-    './module': {createNativeWatchModule: (context: any, bindings: any) => {
+    '../../shell/watch-module': {createNativeWatchModule: (context: any, bindings: any) => {
       assert.equal(bindings.context, context); const identity = ++created;
       const entryMenu = {identity}; menus.push(entryMenu);
       return {entryMenu, channel: {render: (route: any) => ({channel: identity, route})}, render: (runtime: any) => ({watch: identity, runtime}), title: {render: (route: any, runtime: any) => ({title: identity, route, runtime})},

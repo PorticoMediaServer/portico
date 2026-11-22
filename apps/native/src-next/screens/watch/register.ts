@@ -3,7 +3,7 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeShellRoutes, type NativeShellRouteRegistry} from '../../shell/route-registry';
-import {createNativeWatchModule, type NativeWatchModuleBindings, type NativeWatchEntryMenu} from './module';
+import {createNativeWatchModule, type NativeWatchModuleBindings, type NativeWatchEntryMenu} from '../../shell/watch-module';
 
 const entryMenus = new WeakMap<NativeShellBootstrapContext, NativeWatchEntryMenu>();
 

@@ -4,12 +4,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/index.ts';
 import {sameAuthority} from '../src-next/shell/model.ts';
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'v2', entryId: 'entry', generation: 3});
 let captured: any;
-const {createNativeWatchModule} = await screenModule(new URL('../src-next/screens/watch/module.tsx', import.meta.url), {
+const {createNativeWatchModule} = await screenModule(new URL('../src-next/shell/watch-module.tsx', import.meta.url), stubsFrom('screens/watch', 'shell', {
   react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, '../settings-live/group-port': {}, '../../platform/device-settings': {},
   '../../../../../packages/client-core/src/audiobook-preferences': {}, '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n: {t: (s: string) => s}},
   '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue},
@@ -21,7 +22,7 @@ const {createNativeWatchModule} = await screenModule(new URL('../src-next/screen
   '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: () => ''},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String}, '../../kit/states/DetailsPanel': {DetailsPanel: 'DetailsPanel'},
   '../../platform/server-preferences': {}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {},
-});
+}));
 
 function fixture() {
   let currentAuthority = authority, revision = 1, current = true, source: any = {fence, dock: {local: {fence, expanded: true}}, capabilities: {retry: true}};

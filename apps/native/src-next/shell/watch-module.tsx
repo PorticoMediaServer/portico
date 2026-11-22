@@ -1,43 +1,43 @@
-import {groupPort, subscribeGroupPort} from '../settings-live/group-port';
-import {nativeDeviceSettings} from '../../platform/device-settings';
+import {groupPort, subscribeGroupPort} from '../screens/settings-live/group-port';
+import {nativeDeviceSettings} from '../platform/device-settings';
 import React from 'react';
-import {audiobookPreferences} from '../../../../../packages/client-core/src/audiobook-preferences';
+import {audiobookPreferences} from '../../../../packages/client-core/src/audiobook-preferences';
 import {Platform, type View} from 'react-native';
-import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
-import {sameFence} from '../../../../../packages/player-core/src';
-import {minimizeTarget} from './minimize';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {qualityOptionSelected} from '../../../../../packages/client-core/src/playback-v1/quality';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativePlaybackRuntimeSnapshot} from '../../platform/playback/types';
-import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from './factory';
-import type {MusicPlaylistPickerHandle} from '../../shell/music-playlist-picker';
-import type {NativeTitleActionsHandle} from '../../shell/title-actions';
-import {NativePlaybackInfoPanel, playbackInfoWords} from '../../kit/player/PlaybackInfoPanel';
-import {NativeWatchPanels, type NativeWatchPanelsProps, type NativeWatchStylePort} from './WatchPanels';
-import {NativeWatchPanelOptions} from './panel-options';
-import type {NativeWatchHostBindings} from '../../pages/shared/player/useWatchHost';
-import {sameAuthority} from '../../shell/model';
-import type {NativePlaybackFailure} from '../../kit/player/PlaybackFailed';
-import type {NativeWatchPanelNames} from './panel-model';
-import {nativeWatchTracks} from './track-identity';
-import {NativeWatchChannelRoute} from '../../shell/channel-route';
-import {NativeTVLiveGuide} from './live-guide';
-import {NativeTVLiveActions} from './live-actions';
-import {NativeLiveActionPanels} from '../../kit/player/LiveActionPanels';
-import {NativePlaybackFailed} from '../../kit/player/PlaybackFailed';
-import {failureWhatHappened} from './failure-words';
-import {NativeHandheldPlaybackFailed} from '../../kit/player/HandheldPlaybackFailed';
-import {NativeWatchPostPlay} from '../../kit/player/WatchPostPlay';
-import {createNativeWatchPanelNames} from './panel-names';
-import {nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../../platform/playback/subtitle-style-choices';
-import {browseValueLabel} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
-import {bindNativeVideoSystemMedia} from './system-media';
-import {nativePostPlayNavigation} from './post-play-navigation';
-import {playbackUserMessage} from '../../../../../packages/client-core/src/playback-messages';
-import {clockText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
-import {DetailsPanel, type StateFact} from '../../kit/states/DetailsPanel';
+import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
+import {sameFence} from '../../../../packages/player-core/src';
+import {minimizeTarget} from '../screens/watch/minimize';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import {qualityOptionSelected} from '../../../../packages/client-core/src/playback-v1/quality';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeShellRuntime} from './runtime';
+import type {NativePlaybackRuntimeSnapshot} from '../platform/playback/types';
+import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from '../screens/watch/factory';
+import type {MusicPlaylistPickerHandle} from './music-playlist-picker';
+import type {NativeTitleActionsHandle} from './title-actions';
+import {NativePlaybackInfoPanel, playbackInfoWords} from '../kit/player/PlaybackInfoPanel';
+import {NativeWatchPanels, type NativeWatchPanelsProps, type NativeWatchStylePort} from '../screens/watch/WatchPanels';
+import {NativeWatchPanelOptions} from '../screens/watch/panel-options';
+import type {NativeWatchHostBindings} from '../pages/shared/player/useWatchHost';
+import {sameAuthority} from './model';
+import type {NativePlaybackFailure} from '../kit/player/PlaybackFailed';
+import type {NativeWatchPanelNames} from '../screens/watch/panel-model';
+import {nativeWatchTracks} from '../screens/watch/track-identity';
+import {NativeWatchChannelRoute} from './channel-route';
+import {NativeTVLiveGuide} from '../screens/watch/live-guide';
+import {NativeTVLiveActions} from '../screens/watch/live-actions';
+import {NativeLiveActionPanels} from '../kit/player/LiveActionPanels';
+import {NativePlaybackFailed} from '../kit/player/PlaybackFailed';
+import {failureWhatHappened} from '../screens/watch/failure-words';
+import {NativeHandheldPlaybackFailed} from '../kit/player/HandheldPlaybackFailed';
+import {NativeWatchPostPlay} from '../kit/player/WatchPostPlay';
+import {createNativeWatchPanelNames} from '../screens/watch/panel-names';
+import {nativeSubtitleStyleKeys, nativeSubtitleStyleValue} from '../platform/playback/subtitle-style-choices';
+import {browseValueLabel} from '../../../../packages/client-core/src/presentation/browse-toolbar';
+import {bindNativeVideoSystemMedia} from '../screens/watch/system-media';
+import {nativePostPlayNavigation} from '../screens/watch/post-play-navigation';
+import {playbackUserMessage} from '../../../../packages/client-core/src/playback-messages';
+import {clockText} from '../../../../packages/client-core/src/presentation/kit-model/text';
+import {DetailsPanel, type StateFact} from '../kit/states/DetailsPanel';
 
 export type NativeWatchEntryMenu = Readonly<{
   open: (entry: ContentEntry, entryCurrent: () => boolean, anchorRef?: React.RefObject<View | null>, select?: () => void, extraActions?: readonly NativeWatchMenuExtra[]) => Promise<void>;
@@ -309,7 +309,7 @@ export function createNativeWatchModule(context: NativeShellBootstrapContext, bi
     entryMenu,
     render: (runtime: NativeShellRuntime) => current() ? screens.watch.render(runtime) : null,
     title: screens.title,
-    channel: {render: (route: import('../../shell/routes').NativeShellRoute) => current() && route.kind === 'channel'
+    channel: {render: (route: import('./routes').NativeShellRoute) => current() && route.kind === 'channel'
       ? <NativeWatchChannelRoute key={JSON.stringify([route.sourceId, route.channelId])} context={context} route={route} title={bindings.title}/> : null},
     renderOverlays: (runtime: NativeShellRuntime) => current() ? <>{bindings.renderOverlays?.(runtime)}{liveActions && <NativeLiveActionPanels actions={liveActions} context={context} runtime={runtime}/>}</> : null,
     back: () => {
