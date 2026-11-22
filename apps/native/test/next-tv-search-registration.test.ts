@@ -117,10 +117,10 @@ async function setup() {
   const registry = registryPort;
   // The reader's Search-all-books route is registered too; it is a TV-refused route,
   // so its real factory is registered and never opened here.
-  const readingRegister = await screenModule(new URL('../src-next/screens/search/reading-register.tsx', import.meta.url), {...stackSlotFixture, 
+  const readingRegister = await screenModule(new URL('../src-next/shell/reading-search-route.tsx', import.meta.url), {...stackSlotFixture, 
     react: hooks().react, 'react-native': {Platform: {isTV: true}, View: 'View'},
-    '../destinations/lifetime': {nativeDestinationLifetime},
-    './reading-search': {createNativeReadingSearch}, '../../pages/touch/read/ReadingSearchPage': {ReadingSearchPage: 'ReadingSearchScreen'},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime},
+    '../screens/search/reading-search': {createNativeReadingSearch}, '../pages/touch/read/ReadingSearchPage': {ReadingSearchPage: 'ReadingSearchScreen'},
   });
   await screenModule(new URL('../src-next/shell/search-route.tsx', import.meta.url), {
     '@portico/design': {frameForm: () => 'tv'}, '../pages/touch/search/SearchPage': {SearchPage: 'SearchPage'},
@@ -134,7 +134,7 @@ async function setup() {
     '../screens/search/navigation': navigationPorts, '../screens/search/explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
     './search-page': {SearchPageFor: 'SearchPageFor'}, '../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../kit/focus': {CoveredLayer: 'CoveredLayer'},
     '../pages/touch/search/AllGenresPage': {AllGenresPage: 'AllGenresPage'}, '../pages/tv/search/AllGenresPage': {AllGenresPage: 'TVAllGenresPage'},
-    '../screens/search/reading-register': readingRegister,
+    './reading-search-route': readingRegister,
   });
   return {context, navigation, authority, paths, errors, authorityListeners, preferenceListeners, appStateListeners,
     retire: () => {current = false; for (const listener of [...authorityListeners]) listener();},
