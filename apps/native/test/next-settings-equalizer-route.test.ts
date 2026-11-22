@@ -14,17 +14,17 @@ async function fixture() {
     navigation: {back: (actual: unknown) => {assert.deepEqual(actual, authority); backs++;}},
   };
   const {react} = hooks();
-  const module = await screenModule(new URL('../src-next/screens/settings-live/SettingsRoute.tsx', import.meta.url), {
+  const module = await screenModule(new URL('../src-next/shell/settings-route.tsx', import.meta.url), {
     react, 'react-native': {Platform: {isTV: true, OS: 'android'}},
-    '../../../../../packages/client-core/src/admin/server-now-playing': {},
-    '../../../../../packages/client-core/src/admin/dashboard': {DashboardDataClient: class {}},
-    '../../../../../packages/client-core/src/server-admin/server-storage': {},
-    './lifetime': {NativeScreenLifetime}, './settings-controller': {}, './device-preference-consumer': {},
-    './dashboard-controller': {}, './server/tv-server-reader': {}, '../../pages/tv/settings/ServerSettingsPage': {}, '../../pages/shared/settings/SettingsPage': {}, './DashboardScreen': {}, './settings-ports': {},
-    './server/TVServerPageMenu': {isTVServerPage: () => false},
-    '../../pages/shared/settings/EqualizerSettingsPage': {EqualizerSettingsPage: () => null},
-    './downloads-summary': {createNativeSettingsDownloads},
-    '../../platform/event-resync': {readEventState: (_events: unknown, _signal: AbortSignal, read: () => Promise<unknown>) => read()},
+    '../../../../packages/client-core/src/admin/server-now-playing': {},
+    '../../../../packages/client-core/src/admin/dashboard': {DashboardDataClient: class {}},
+    '../../../../packages/client-core/src/server-admin/server-storage': {},
+    '../screens/settings-live/lifetime': {NativeScreenLifetime}, '../screens/settings-live/settings-controller': {}, '../screens/settings-live/device-preference-consumer': {},
+    '../screens/settings-live/dashboard-controller': {}, '../screens/settings-live/server/tv-server-reader': {}, '../pages/tv/settings/ServerSettingsPage': {}, '../pages/shared/settings/SettingsPage': {}, '../screens/settings-live/DashboardScreen': {}, '../screens/settings-live/settings-ports': {},
+    '../screens/settings-live/server/TVServerPageMenu': {isTVServerPage: () => false},
+    '../pages/shared/settings/EqualizerSettingsPage': {EqualizerSettingsPage: () => null},
+    '../screens/settings-live/downloads-summary': {createNativeSettingsDownloads},
+    '../platform/event-resync': {readEventState: (_events: unknown, _signal: AbortSignal, read: () => Promise<unknown>) => read()},
   });
   const renderer = module.createNativeEqualizerSettingsRenderer(context);
   const rendered = renderer.render({kind: 'settings-equalizer'}, {});

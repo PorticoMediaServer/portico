@@ -1,6 +1,6 @@
 import './notification-destinations';
 import {createNativeLibrarySettingsRenderer} from './library-settings-route';
-import {createNativeEqualizerSettingsRenderer, createNativeTVServerSettingsRenderer, createNativeServerDashboardRenderer, createNativeSettingsRenderer} from '../screens/settings-live/SettingsRoute';
+import {createNativeEqualizerSettingsRenderer, createNativeTVServerSettingsRenderer, createNativeServerDashboardRenderer, createNativeSettingsRenderer} from './settings-route';
 import {nativeShellRoutes, type NativeRouteFactory} from './route-registry';
 
 /** One registration for the phone and TV entries. The Settings family owns the
