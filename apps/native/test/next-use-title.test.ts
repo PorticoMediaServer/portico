@@ -176,3 +176,17 @@ test('on TV the season column chooses a season as focus reaches it, and the band
   tv.playSeason('season-2'); assert.deepEqual(calls.at(-1), ['playSeason', 'season-2']);
   tv.markSeason('season-1', false); assert.deepEqual(calls.at(-1), ['markSeason', 'season-1', false]);
 });
+
+test('a show watched to the end offers Play from its first episode again, not no button', async () => {
+  const show = {id: 's1', kind: 'show', title: 'Breaking Bad', libraryId: 'tv'} as any;
+  const e1 = {id: 'e1', kind: 'episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, duration: 45, watched: true, libraryId: 'tv', playback: {itemId: 'e1'}} as any;
+  const workspace = {show: {id: 's1', title: 'Breaking Bad', libraryId: 'tv'}, episodes: {sections: [{entries: [e1]}]},
+    selected: {seasonId: 'season-1', group: null}, groups: [], seasonTotalCount: 1};
+  episodeSnapshot = {phase: 'idle'};
+  const {view, calls} = await page({entry: show, workspace: {phase: 'ready', data: workspace}, showState: {watchlisted: false}, episodes: [e1],
+    seasons: [{id: 'season-1', number: 1, title: '', episodeCount: 1, watchedCount: 1}], place: {tab: 'episodes', hideWatched: false}});
+  assert.equal(view.primary.label, t('title.playEpisode', {code: 'S1 E1'}));
+  assert.equal(view.primary.progress, undefined);
+  // It names the episode it starts: the controller plays a show only from the server's next episode otherwise.
+  view.primary.onPress(); assert.deepEqual(calls.at(-1)!.slice(0, 3), ['play', e1, false]);
+});
