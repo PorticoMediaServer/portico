@@ -117,7 +117,7 @@ export function detailProjection(item: Item, scope: DetailScope): DetailProjecti
     ...(item.durationMs ? {duration: seconds(item.durationMs)} : {}), ...(item.summary ? {overview: item.summary} : {}), ...(item.year ? {year: item.year} : {}), addedAt: item.addedAt || null,
     ...(card?.posterUrl ? {posterUrl: card.posterUrl} : {}), ...(card?.backdropUrl ? {backdropUrl: card.backdropUrl} : {}), ...(card?.stillUrl ? {stillUrl: card.stillUrl} : {})};
   if (item.kind === 'episode' && item.root) media.episode = Object.freeze({showId: item.root.id, showTitle: item.root.title, ...(item.parent ? {seasonId: item.parent.id} : {}), ...(item.releaseDate ? {airDate: item.releaseDate} : {}),
-    seasonNumber: item.parentIndex ?? null, numbering: '', number: item.index ?? 0, localIdentityStatus: '', providerMatchStatus: '', orderingBasis: '', sourceBoundary: ''});
+    seasonNumber: item.parentIndex ?? null, numbering: item.dateBased ? 'date' : '', number: item.index ?? 0, localIdentityStatus: '', providerMatchStatus: '', orderingBasis: '', sourceBoundary: ''});
   if (item.kind === 'track' && item.parent) media.song = Object.freeze({albumId: item.parent.id, albumTitle: item.parent.title, albumArtist: item.root?.title ?? '', artist: item.root?.title ?? '',
     discNumber: item.parentIndex ?? null, trackNumber: item.index ?? null, providerMatchStatus: ''});
   const tag = (kind: string) => item.tags?.find(each => each.kind === kind)?.name;

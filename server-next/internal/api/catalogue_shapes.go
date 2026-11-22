@@ -160,6 +160,9 @@ type Item struct {
 	Images          map[string]string `json:"images"`
 	Counts          *ItemCounts       `json:"counts,omitempty"`
 	State           ItemState         `json:"state"`
+	// DateBased is an episode placed by its air date (a daily show, a recording): its index and
+	// parentIndex are the day of the year and the year, so apps label it by releaseDate.
+	DateBased bool `json:"dateBased,omitempty"`
 	// LibraryID is the library the item is in, on every card and every page.
 	LibraryID string `json:"libraryId"`
 	// Chapter is, for an audiobook in Home's Continue your books, the chapter the place is in.
@@ -586,6 +589,7 @@ func itemShape(it db.Item) Item {
 		ParentID: it.ParentPublicID, RootID: it.RootPublicID, RootTitle: it.RootTitle, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
 		DurationMs: it.DurationMS, ContentRating: it.ContentRating, AddedAt: timeString(it.AddedAt), Images: imageMap(it.Images),
 		State: stateShape(it.State), LibraryID: it.LibraryID}
+	out.DateBased = datedEpisode(it)
 	if c := it.Chapter; c != nil {
 		out.Chapter = &ItemChapter{Number: c.Number, Title: c.Title, StartMs: c.StartMS, EndMs: c.EndMS}
 	}

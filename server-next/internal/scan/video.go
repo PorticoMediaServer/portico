@@ -3,6 +3,7 @@ package scan
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -424,8 +425,14 @@ func (r *run) episodeItems(f *folder, v *version, ep episode) []db.ImportItem {
 		if titles := lead.reading.EpisodeTitles; len(ep.numbers) == 1 && len(titles) > 0 {
 			name = titles[0].Value
 		}
+		childKey := fmt.Sprintf("e%d", number)
+		if at := airTime(lead.entry.Name); ep.date != "" && at != "" {
+			// Two recordings of one show on one day (the morning and the evening news) are two
+			// titles (live TV rule 47), told apart by the time in their names.
+			childKey += "@" + at
+		}
 		item := db.ImportItem{Kind: db.KindEpisode, Title: name, IndexNumber: &number, ParentIndex: &ep.season,
-			ReleaseDate: ep.date, ParentRow: 2, ChildKey: fmt.Sprintf("e%d", number), Keys: keys, Versions: []db.ImportVersion{stored}}
+			ReleaseDate: ep.date, ParentRow: 2, ChildKey: childKey, Keys: keys, Versions: []db.ImportVersion{stored}}
 		if len(ep.numbers) == 1 {
 			r.episodeLocal(f, lead, &item, false)
 		}
@@ -447,4 +454,15 @@ func (r *run) episodeReread(f *folder, v *version, ep episode) []db.ImportItem {
 	item := db.ImportItem{Kind: db.KindEpisode, Keys: keys, RereadLocal: true}
 	r.episodeLocal(f, v.parts[0], &item, true)
 	return []db.ImportItem{item}
+}
+
+// airedAt finds a time beside a date in a file's name, as a recording is named ("World
+// Tonight - 2026-11-21 23.30 Northwind News 1.ts"): "2330", or "" when there is none.
+var airedAt = regexp.MustCompile(`\d{4}-\d{2}-\d{2}[ _T](\d{2})[.:h](\d{2})(?:[^0-9]|$)`)
+
+func airTime(name string) string {
+	if m := airedAt.FindStringSubmatch(name); m != nil {
+		return m[1] + m[2]
+	}
+	return ""
 }

@@ -387,3 +387,15 @@ test('detail markers come from the first available version', () => {
     {id: 'credits-0', kind: 'credits', startSeconds: 90, endSeconds: 110, automaticSafe: false},
   ]);
 });
+
+test('an episode placed by its air date is labelled by that date, not as season 2026 episode 326', () => {
+  const recording = {id: 'rec', kind: 'episode', title: 'World Tonight 2026-11-21 23.30', libraryId: 'lib_tv', releaseDate: '2026-11-21', index: 325, parentIndex: 2026, dateBased: true,
+    rootId: 'show', rootTitle: 'World Tonight', images: {}, state: {watched: false}} as unknown as Item;
+  const entry = entryFromItem(recording)!;
+  assert.equal(entry.dateBased, true);
+  assert.equal(entry.episodeNumber, undefined);
+  assert.equal(entry.seasonNumber, undefined);
+  assert.equal(entry.airDate, '2026-11-21');
+  const page = detailProjection({...recording, root: {id: 'show', kind: 'show', title: 'World Tonight'}} as unknown as Item, scope);
+  assert.equal(page.item.episode?.numbering, 'date');
+});
