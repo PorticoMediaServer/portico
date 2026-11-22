@@ -1,18 +1,18 @@
 import React, {useSyncExternalStore} from 'react';
-import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
-import {browseNameId} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
-import {nativeDestinationActivation} from '../../shell/routes';
-import {nativeScreenServices} from '../native-screen-services';
-import {createNativeEntryActions} from '../destinations/entry-actions';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {createNativeLibraryRenderer} from './index';
-import {createNativeLibrarySelection} from './selection';
-import {nativeLibraryCanSave, type NativeLibraryDestination, type NativeLibraryViewDraft} from './model';
-import {NativeLibrarySaveView} from './save-view';
-import {NativeLibraryMarkAll, type NativeMarkAllRequest} from './mark-all';
-import {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet} from '../../kit/library/LibraryDialogs';
+import {defaultI18n, type MessageId} from '../../../../packages/i18n/src';
+import {browseNameId} from '../../../../packages/client-core/src/presentation/browse-toolbar';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import {nativeDestinationActivation} from './routes';
+import {nativeScreenServices} from '../screens/native-screen-services';
+import {createNativeEntryActions} from '../screens/destinations/entry-actions';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {createNativeLibraryRenderer} from '../screens/library/index';
+import {createNativeLibrarySelection} from '../screens/library/selection';
+import {nativeLibraryCanSave, type NativeLibraryDestination, type NativeLibraryViewDraft} from '../screens/library/model';
+import {NativeLibrarySaveView} from '../screens/library/save-view';
+import {NativeLibraryMarkAll, type NativeMarkAllRequest} from '../screens/library/mark-all';
+import {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet} from '../kit/library/LibraryDialogs';
 
 const label = (value: {id: string; labelKey?: string}) => {
   const id = browseNameId(value.id, value.labelKey, defaultI18n.has);

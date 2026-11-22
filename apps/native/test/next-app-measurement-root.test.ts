@@ -36,9 +36,9 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     './dev/Kit': {KitHost: leaf}, './dev/public-measurement': {NativePublicMeasurementGate: leaf},
     './dev/measurement-install': {installNativePublicMeasurement: () => {throw new Error('root-prop read must not install measurement');}},
   };
-  const registrations = new Set(['./screens/accounts/AccountRoutes', './shell/downloads-route', './screens/collections/register', './screens/library/register', './shell/library-overview-route',
-    './shell/pins-route', './screens/destinations/music/register', './screens/destinations/audiobooks/register', './shell/read-route', './screens/people/register', './screens/notifications/register', './screens/search/register', './screens/home/CustomizeRoute', './screens/home/SeeAllRoute',
-    './shell/licences-route', './shell/live-route', './shell/together-route', './screens/saved/register']);
+  const registrations = new Set(['./screens/accounts/AccountRoutes', './shell/downloads-route', './shell/collections-route', './shell/library-route', './shell/library-overview-route',
+    './shell/pins-route', './shell/music-route', './shell/audiobooks-route', './shell/read-route', './shell/people-route', './shell/notifications-route', './shell/search-route', './screens/home/CustomizeRoute', './screens/home/SeeAllRoute',
+    './shell/licences-route', './shell/live-route', './shell/together-route', './shell/saved-route']);
   const module = {exports: {} as {default?: (props: object) => Element}};
   compileFunction(code, ['require', 'exports', 'module', '__DEV__'], {filename: file.pathname})((name: string) => {
     if (name.startsWith('@babel/runtime/')) return require(name);

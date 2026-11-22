@@ -1,34 +1,34 @@
-import {useNativeStackPlacement} from '../../kit/navigation/stack-slot';
+import {useNativeStackPlacement} from '../kit/navigation/stack-slot';
 import React, {useEffect, useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
 import {Platform, View, useWindowDimensions} from 'react-native';
-import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
-import type {Library} from '../../../../../packages/client-core/src/index';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {shellLayout} from '../../shell/model';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativeShellRoute} from '../../shell/routes';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
-import {useTheme} from '../../kit/theme';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {SavedPage} from '../../pages/touch/saved/SavedPage';
-import {SavedDirectoryPage} from '../../pages/touch/saved/SavedDirectoryPage';
-import type {NativeSavedDirectoryRoute} from '../../pages/shared/saved/useSavedDirectory';
-import {SavedListPage} from '../../pages/touch/saved/SavedListPage';
-import type {NativeSavedListRoute} from '../../pages/shared/saved/useSavedList';
-import {SavedResourcePage} from '../../pages/touch/saved/SavedResourcePage';
-import {SavedResourcePage as TVSavedResourcePage} from '../../pages/tv/saved/SavedResourcePage';
-import {createNativeSavedState} from './state';
-import {nativeSavedRouteTarget, openNativeSavedView, type NativeSavedRouteTarget} from './navigation';
-import type {NativeSavedDownloadsCopy} from '../../kit/saved/SavedDownloadCard';
-import {nativeScreenServices} from '../native-screen-services';
-import {createNativeSavedSelection, createNativeSavedViewSelection} from './selection';
-import {NativeSavedViewDestination} from './view-model';
-import {createNativeEntryActions} from '../destinations/entry-actions';
-import type {SavedRoute} from '../../../../../packages/client-core/src/saved';
-import {createNativeDownloadsView} from '../downloads/view';
-import {NativeHomeSavedViewSummaries} from '../home/saved-view-summaries';
-import {createNativeSavedDirectoryCommands} from './directory-commands';
-import {createNativeSavedViewSummaryOwner} from './view-summary-owner';
+import {defaultI18n, type MessageId} from '../../../../packages/i18n/src';
+import type {Library} from '../../../../packages/client-core/src/index';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {shellLayout} from './model';
+import type {NativeShellRuntime} from './runtime';
+import type {NativeShellRoute} from './routes';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import {useTheme} from '../kit/theme';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {SavedPage} from '../pages/touch/saved/SavedPage';
+import {SavedDirectoryPage} from '../pages/touch/saved/SavedDirectoryPage';
+import type {NativeSavedDirectoryRoute} from '../pages/shared/saved/useSavedDirectory';
+import {SavedListPage} from '../pages/touch/saved/SavedListPage';
+import type {NativeSavedListRoute} from '../pages/shared/saved/useSavedList';
+import {SavedResourcePage} from '../pages/touch/saved/SavedResourcePage';
+import {SavedResourcePage as TVSavedResourcePage} from '../pages/tv/saved/SavedResourcePage';
+import {createNativeSavedState} from '../screens/saved/state';
+import {nativeSavedRouteTarget, openNativeSavedView, type NativeSavedRouteTarget} from '../screens/saved/navigation';
+import type {NativeSavedDownloadsCopy} from '../kit/saved/SavedDownloadCard';
+import {nativeScreenServices} from '../screens/native-screen-services';
+import {createNativeSavedSelection, createNativeSavedViewSelection} from '../screens/saved/selection';
+import {NativeSavedViewDestination} from '../screens/saved/view-model';
+import {createNativeEntryActions} from '../screens/destinations/entry-actions';
+import type {SavedRoute} from '../../../../packages/client-core/src/saved';
+import {createNativeDownloadsView} from '../screens/downloads/view';
+import {NativeHomeSavedViewSummaries} from '../screens/home/saved-view-summaries';
+import {createNativeSavedDirectoryCommands} from '../screens/saved/directory-commands';
+import {createNativeSavedViewSummaryOwner} from '../screens/saved/view-summary-owner';
 
 const savedDownloadsCopy: NativeSavedDownloadsCopy = Object.freeze({downloading: 'next.saved.phone.downloading'});
 const onThisPhone: MessageId = 'next.saved.phone.onThisPhone';
@@ -101,7 +101,7 @@ export function createNativeSavedModule(context: NativeShellBootstrapContext): N
  * tab retires its command/selection openings before a successor body can act. */
 function SavedInlineHost({tab, context, runtime, activation, open, changed}: {
   tab: 'favorites' | 'playlists' | 'collections' | 'views' | 'history'; context: NativeShellBootstrapContext;
-  runtime: NativeShellRuntime; activation: import('../destinations/focus').NativeDestinationActivationPort;
+  runtime: NativeShellRuntime; activation: import('../screens/destinations/focus').NativeDestinationActivationPort;
   open: (route: SavedRoute) => void; changed: () => void;
 }) {
   const owner = useMemo(() => {
@@ -129,8 +129,8 @@ function SavedInlineHost({tab, context, runtime, activation, open, changed}: {
 function SavedResourceHost({context, entry, route, runtime, libraries, back, changed, showOnHome, openInLibrary}: {
   context: NativeShellBootstrapContext; entry: Entry; route: ReturnType<typeof nativeSavedRouteTarget>; runtime: NativeShellRuntime;
   libraries: readonly Library[]; back: () => void; changed: () => void;
-  showOnHome?: (resource: import('../../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
-  openInLibrary?: (resource: import('../../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
+  showOnHome?: (resource: import('../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
+  openInLibrary?: (resource: import('../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
 }) {
   const active = useSyncExternalStore(entry.view.activation.subscribe, entry.view.activation.getSnapshot);
   const source = useSyncExternalStore(entry.view.source.subscribe, entry.view.source.getSnapshot);
@@ -165,8 +165,8 @@ function SavedRoutesCanvas({children}: {children: React.ReactNode}) {
 function SavedRouteHost({entry, runtime, libraries, open, back, changed, showOnHome, openInLibrary, context}: {
   entry: Entry; runtime: NativeShellRuntime; libraries: readonly Library[];
   open: (route: Parameters<typeof openNativeSavedView>[1]) => void; back: () => void; changed: () => void;
-  showOnHome?: (resource: import('../../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
-  openInLibrary?: (resource: import('../../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
+  showOnHome?: (resource: import('../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
+  openInLibrary?: (resource: import('../../../../packages/client-core/src/personal-saved').PersonalResource) => void;
   context: NativeShellBootstrapContext;
 }) {
   const active = useSyncExternalStore(entry.view.activation.subscribe, entry.view.activation.getSnapshot);

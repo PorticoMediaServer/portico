@@ -22,13 +22,13 @@ test('the native inbox reads plain profile pages and empty write answers, and re
     const cursor = route.searchParams.has('cursor');
     return new Response(JSON.stringify({items: [notice(cursor ? 'n2' : 'n1')], unreadCount: marked ? 1 : 2, ...(!cursor ? {nextCursor: '2'} : {})}));
   });
-  const {createNativeNotificationsRenderer} = await screenModule(new URL('../src-next/screens/notifications/register.tsx', import.meta.url), {
+  const {createNativeNotificationsRenderer} = await screenModule(new URL('../src-next/shell/notifications-route.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Platform: {isTV: false}},
-    '../../../../../packages/client-core/src/inbox': {InboxService},
-    '../../platform/event-resync': eventState, '../../shell/freshness': freshness,
-    '../../platform/server-connections': {nativeRouteCrypto: {random: (size: number) => new Uint8Array(size).fill(1)}},
-    '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
-    '../settings-live/lifetime': {NativeScreenLifetime}, '../../pages/touch/notifications/NotificationsPage': {NotificationsPage: 'Inbox'},
+    '../../../../packages/client-core/src/inbox': {InboxService},
+    '../platform/event-resync': eventState, './freshness': freshness,
+    '../platform/server-connections': {nativeRouteCrypto: {random: (size: number) => new Uint8Array(size).fill(1)}},
+    './route-registry': {nativeShellRoutes: {registerRoute() {}}},
+    '../screens/settings-live/lifetime': {NativeScreenLifetime}, '../pages/touch/notifications/NotificationsPage': {NotificationsPage: 'Inbox'},
   });
   const listeners = new Set<() => void>();
   let authority = {serverId: 'server', accountId: 'account', profileId: 'profile', authority: 'local', epoch: 'epoch', viewerFence: 'fence'};

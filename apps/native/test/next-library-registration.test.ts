@@ -49,15 +49,15 @@ test('the handheld Library module self-registers real actions and a captured rec
     '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
     '../controls': {Button: 'Button', TextField: 'TextField'}, '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../theme': {useTheme: () => theme},
   });
-  const {createNativeHandheldLibraryModule} = await screenModule(new URL('../src-next/screens/library/register.tsx', import.meta.url), {
-    react, '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': {browseNameId},
-    '../../shell/route-registry': {nativeShellRoutes: {registerDestination: (value: string, factory: any) => {kind = value; create = factory;}}},
-    '../../shell/routes': {nativeDestinationActivation}, '../destinations/lifetime': {nativeDestinationLifetime},
-    '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
-    '../destinations/entry-actions': {createNativeEntryActions: () => ({open() {}, play() {}, menu() {}, dispose() {}})},
-    './index': {createNativeLibraryRenderer: (_context: unknown, actual: unknown) => {ports = actual; return {render: () => null, dispose: () => {disposed++;}};}},
-    './model': {nativeLibraryCanSave}, './save-view': {NativeLibrarySaveView}, 
-    './selection': {createNativeLibrarySelection}, './mark-all': {NativeLibraryMarkAll: nativeMarkAll.NativeLibraryMarkAll}, '../../kit/library/LibraryDialogs': {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet: 'SaveViewSheet'},
+  const {createNativeHandheldLibraryModule} = await screenModule(new URL('../src-next/shell/library-route.tsx', import.meta.url), {
+    react, '../../../../packages/i18n/src': {defaultI18n}, '../../../../packages/client-core/src/presentation/browse-toolbar': {browseNameId},
+    './route-registry': {nativeShellRoutes: {registerDestination: (value: string, factory: any) => {kind = value; create = factory;}}},
+    './routes': {nativeDestinationActivation}, '../screens/destinations/lifetime': {nativeDestinationLifetime},
+    '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => operationId})},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({open() {}, play() {}, menu() {}, dispose() {}})},
+    '../screens/library/index': {createNativeLibraryRenderer: (_context: unknown, actual: unknown) => {ports = actual; return {render: () => null, dispose: () => {disposed++;}};}},
+    '../screens/library/model': {nativeLibraryCanSave}, '../screens/library/save-view': {NativeLibrarySaveView}, 
+    '../screens/library/selection': {createNativeLibrarySelection}, '../screens/library/mark-all': {NativeLibraryMarkAll: nativeMarkAll.NativeLibraryMarkAll}, '../kit/library/LibraryDialogs': {NativeLibraryMarkAllDialog, NativeLibrarySaveViewSheet: 'SaveViewSheet'},
   });
   assert.equal(kind, 'library'); assert.equal(create, createNativeHandheldLibraryModule);
   const context = {current: () => true, navigation, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}),

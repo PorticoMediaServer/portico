@@ -639,18 +639,18 @@ test('actual Search registration keeps equal-value retained genre R1/R2 focus ro
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
   const r1 = {kind: 'search-genre', label: 'Drama', value: 'Drama'}, r2 = {...r1}; let showing = r2;
   const commands: {route: unknown; sort: unknown}[] = [], collection = {subscribe: () => () => {}, subscribePage: () => () => {}, getSnapshot: (() => {const snapshot = {status: 'ready', total: 0}; return () => snapshot;})(), pageOf: () => 0, getPageVersion: () => 0};
-  const register = await screenModule(new URL('../src-next/screens/search/register.tsx', import.meta.url), {
-    '@portico/design': {frameForm: () => 'tv'}, '../../pages/touch/search/SearchPage': {SearchPage: 'SearchPage'},
-    './on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, react: b.react, 'react-native': b.native,
-    '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}, registerDestination() {}}}, '../destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true})},
-    '../destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}, menuState: {subscribe: () => () => {}, getSnapshot: () => 0}})},
-    './controller': {}, './actions': {}, './explore': {}, './selection': {}, '../../shell/search-page': {SearchPageFor: 'SearchPageFor'}, '../../pages/touch/search/AllGenresPage': {}, '../../pages/tv/search/AllGenresPage': {}, './reading-register': {},
-    './navigation': {createNativeSearchGenreController: (_: any, route: any) => {
+  const register = await screenModule(new URL('../src-next/shell/search-route.tsx', import.meta.url), {
+    '@portico/design': {frameForm: () => 'tv'}, '../pages/touch/search/SearchPage': {SearchPage: 'SearchPage'},
+    '../screens/search/on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, react: b.react, 'react-native': b.native,
+    './route-registry': {nativeShellRoutes: {registerRoute() {}, registerDestination() {}}}, '../screens/destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true})},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}, menuState: {subscribe: () => () => {}, getSnapshot: () => 0}})},
+    '../screens/search/controller': {}, '../screens/search/actions': {}, '../screens/search/explore': {}, '../screens/search/selection': {}, './search-page': {SearchPageFor: 'SearchPageFor'}, '../pages/touch/search/AllGenresPage': {}, '../pages/tv/search/AllGenresPage': {}, '../screens/search/reading-register': {},
+    '../screens/search/navigation': {createNativeSearchGenreController: (_: any, route: any) => {
       const snapshot = {phase: 'ready', capabilities: {library: {kind: 'movie'}, sorts}, sort, predicates: [], collection, queryRevision: 0};
       return {source: {subscribe: () => () => {}, getSnapshot: () => snapshot, getMemory: () => ({firstVisibleIndex: 0, offset: 0}), contains: () => false,
         setQuery: (_: any, sort: any) => commands.push({route, sort})}, activation: {subscribe: () => () => {}, getSnapshot: (() => {const visible = {visible: true}, hidden = {visible: false}; return () => showing === route ? visible : hidden;})()}, dispose() {}};
-    }}, '../../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'},
-    '../../kit/focus': {CoveredLayer: 'CoveredLayer'}, '../../shell/model': {authorityKey}});
+    }}, '../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'},
+    '../kit/focus': {CoveredLayer: 'CoveredLayer'}, './model': {authorityKey}});
   // The TV page's regions and sort come from its hook over the shared genre read.
   const shared = await screenModule(new URL('../src-next/pages/shared/search/useGenreBrowse.ts', import.meta.url), {react: b.react,
     '../../../../../../packages/client-core/src/presentation/browse-toolbar': direction, '../../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},

@@ -122,19 +122,19 @@ async function setup() {
     '../destinations/lifetime': {nativeDestinationLifetime},
     './reading-search': {createNativeReadingSearch}, './ReadingSearchScreen': {ReadingSearchScreen: 'ReadingSearchScreen'},
   });
-  await screenModule(new URL('../src-next/screens/search/register.tsx', import.meta.url), {
-    '@portico/design': {frameForm: () => 'tv'}, '../../pages/touch/search/SearchPage': {SearchPage: 'SearchPage'},
-    './on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, 
-    react: hooks().react, 'react-native': {AppState, Platform: {isTV: true}, View: 'View'}, '../../shell/route-registry': registry,
-    '../../shell/model': {authorityKey},
-    '../destinations/lifetime': {nativeDestinationLifetime},
-    '../destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}, menuState: {subscribe: () => () => {}, getSnapshot: () => 0}})},
-    './selection': {createNativeSearchSelection},
-    './controller': {createNativeSearchController}, './actions': {createNativeSearchActions: () => ({dispose() {}})},
-    './navigation': navigationPorts, './explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
-    '../../shell/search-page': {SearchPageFor: 'SearchPageFor'}, '../../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../../kit/focus': {CoveredLayer: 'CoveredLayer'},
-    '../../pages/touch/search/AllGenresPage': {AllGenresPage: 'AllGenresPage'}, '../../pages/tv/search/AllGenresPage': {AllGenresPage: 'TVAllGenresPage'},
-    './reading-register': readingRegister,
+  await screenModule(new URL('../src-next/shell/search-route.tsx', import.meta.url), {
+    '@portico/design': {frameForm: () => 'tv'}, '../pages/touch/search/SearchPage': {SearchPage: 'SearchPage'},
+    '../screens/search/on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, 
+    react: hooks().react, 'react-native': {AppState, Platform: {isTV: true}, View: 'View'}, './route-registry': registry,
+    './model': {authorityKey},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}, menuState: {subscribe: () => () => {}, getSnapshot: () => 0}})},
+    '../screens/search/selection': {createNativeSearchSelection},
+    '../screens/search/controller': {createNativeSearchController}, '../screens/search/actions': {createNativeSearchActions: () => ({dispose() {}})},
+    '../screens/search/navigation': navigationPorts, '../screens/search/explore': {NativeSearchExplore: RecordingExplore, NativeSearchGenreList},
+    './search-page': {SearchPageFor: 'SearchPageFor'}, '../pages/tv/search/GenreBrowsePage': {GenreBrowsePage: 'TVGenreBrowsePage'}, '../pages/touch/search/GenreBrowsePage': {GenreBrowsePage: 'GenreBrowsePage'}, '../kit/focus': {CoveredLayer: 'CoveredLayer'},
+    '../pages/touch/search/AllGenresPage': {AllGenresPage: 'AllGenresPage'}, '../pages/tv/search/AllGenresPage': {AllGenresPage: 'TVAllGenresPage'},
+    '../screens/search/reading-register': readingRegister,
   });
   return {context, navigation, authority, paths, errors, authorityListeners, preferenceListeners, appStateListeners,
     retire: () => {current = false; for (const listener of [...authorityListeners]) listener();},
@@ -144,7 +144,7 @@ async function setup() {
 test('the TV entry registers the real Search module against the TV surface, with no private substitute', async () => {
   // The platform entry, not App.tsx's handset-only block, must load this module.
   const entry = await readFile(new URL('../src-next/tv/register.ts', import.meta.url), 'utf8');
-  assert.match(entry, /import '\.\.\/screens\/search\/register';/, 'the TV entry imports the real Search registration');
+  assert.match(entry, /import '\.\.\/shell\/search-route';/, 'the TV entry imports the real Search registration');
   const s = await setup(), states = hooks(), runtime = {} as never;
   let bound: ReturnType<typeof registryPort.nativeShellRoutes.bind> | undefined;
   try {

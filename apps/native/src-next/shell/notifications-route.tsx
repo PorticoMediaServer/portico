@@ -1,14 +1,14 @@
-import {readEventState} from '../../platform/event-resync';
+import {readEventState} from '../platform/event-resync';
 import React from 'react';
 import {Platform} from 'react-native';
-import {InboxService} from '../../../../../packages/client-core/src/inbox';
-import {nativeRouteCrypto} from '../../platform/server-connections';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRoute} from '../../shell/routes';
-import {NativeScreenLifetime} from '../settings-live/lifetime';
-import {NotificationsPage} from '../../pages/touch/notifications/NotificationsPage';
-import {viewerQueriesFor} from '../../shell/freshness';
+import {InboxService} from '../../../../packages/client-core/src/inbox';
+import {nativeRouteCrypto} from '../platform/server-connections';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeShellRoute} from './routes';
+import {NativeScreenLifetime} from '../screens/settings-live/lifetime';
+import {NotificationsPage} from '../pages/touch/notifications/NotificationsPage';
+import {viewerQueriesFor} from './freshness';
 
 export type NotificationsRetirement = Readonly<{
   subscribe: (listener: () => void) => () => void;

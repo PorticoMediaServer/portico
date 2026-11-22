@@ -131,12 +131,12 @@ test('renderer commands retain their original navigation occurrence across cache
     '../../../../../../packages/client-core/src/container-state': {getContainerState: async () => ({revision: 4, watched: false}), setContainerState: async () => ({watched: true})},
   });
   const react = {createElement: (type: any, props: any) => ({type, props})};
-  const {createNativeBookRenderer} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/register.tsx', import.meta.url), {
-    react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
-    '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController},
-    '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
+  const {createNativeBookRenderer} = await screenModule(new URL('../src-next/shell/audiobooks-route.tsx', import.meta.url), {
+    react: {default: react}, './route-registry': {nativeShellRoutes: {registerRoute() {}}},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime: () => lifetime}, '../screens/destinations/audiobooks/model': {NativeAudiobookController},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
+    '../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
   const context = {api: {}, authority: () => ({}), playback: {start: async (input: any) => {starts.push(input);}},
     subscribeAuthority: (fn: () => void) => {callbacks.add(fn); return () => callbacks.delete(fn);},
@@ -538,12 +538,12 @@ test('a scoped loading publication restores the cached book when its opening is 
     }
   }
   const react = {createElement: (type: any, props: any) => ({type, props})};
-  const module = await screenModule(new URL('../src-next/screens/destinations/audiobooks/register.tsx', import.meta.url), {
-    react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
-    '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController: ObservedController},
-    '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
+  const module = await screenModule(new URL('../src-next/shell/audiobooks-route.tsx', import.meta.url), {
+    react: {default: react}, './route-registry': {nativeShellRoutes: {registerRoute() {}}},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime: () => lifetime}, '../screens/destinations/audiobooks/model': {NativeAudiobookController: ObservedController},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
+    '../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
   const api = {request: async (path: string) => {
     const url = new URL(path, 'https://server.test');
@@ -717,12 +717,12 @@ test('renderer stops guarded navigation reads when a predicate disposes it but r
     '../../../../../../packages/client-core/src/container-state': {getContainerState: async () => ({revision: 4, watched: false})},
   });
   const react = {createElement: (type: any, props: any) => ({type, props})};
-  const {createNativeBookRenderer} = await screenModule(new URL('../src-next/screens/destinations/audiobooks/register.tsx', import.meta.url), {
-    react: {default: react}, '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
-    '../lifetime': {nativeDestinationLifetime: () => lifetime}, './model': {NativeAudiobookController},
-    '../entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
+  const {createNativeBookRenderer} = await screenModule(new URL('../src-next/shell/audiobooks-route.tsx', import.meta.url), {
+    react: {default: react}, './route-registry': {nativeShellRoutes: {registerRoute() {}}},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime: () => lifetime}, '../screens/destinations/audiobooks/model': {NativeAudiobookController},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({menu() {}, dispose() {}})},
     // A phone draws the rebuilt book page (pages/touch/book); these hold the route's own reads, whichever page draws it.
-    '../../../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../../../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../../../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../../../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../../../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
+    '../kit/theme': {useTheme: () => ({platform: 'tablet'})}, '../pages/touch/book/BookPage': {BookPage: 'bookPage'}, '../pages/tv/book/BookPage': {BookPage: 'tvBookPage'}, '../pages/touch/book/AuthorSeriesPage': {AuthorSeriesPage: 'authorPage'}, '../pages/tv/book/AuthorSeriesPage': {AuthorSeriesPage: 'tvAuthorPage'},
   });
   let disposed = false, renderer: any, starts = 0;
   const context = {api: {}, authority: () => ({}), playback: {start: async () => {starts++;}}, subscribeAuthority: () => () => {},
