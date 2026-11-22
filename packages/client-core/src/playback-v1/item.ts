@@ -22,9 +22,14 @@ const playable: Readonly<Record<string, Readonly<{subject: PlaybackSubject['kind
 export function playbackItem(item: Item): PlaybackItem {
   const kind = playable[item.kind];
   if (!kind || !item.id || !item.title) throw new Error('invalid_playback_item');
-  const episode = item.kind === 'episode', song = item.kind === 'track';
+  const episode = item.kind === 'episode', song = item.kind === 'track', book = item.kind === 'audiobook';
+  // An audiobook's player names its author and narrator (desktop-listen "Audiobook player": "Andy Weir · Read by R.C. Bray"),
+  // from the title's own credits, in the server's order.
+  const credited = (role: string) => (item.credits ?? []).filter(credit => credit.role === role && credit.name?.trim()).map(credit => credit.name.trim()).join(', ');
+  const author = book ? credited('author') : '', narrator = book ? credited('narrator') : '';
   const card: CardSubject = {id: item.id, kind: kind.card, title: item.title, ...(item.year ? {year: item.year} : {}),
     ...(song && item.parent ? {album: item.parent.title} : {}), ...(song && item.root ? {artist: item.root.title} : {}),
+    ...(author ? {author} : {}), ...(narrator ? {narrator} : {}),
     ...(episode && item.root ? {show: {id: item.root.id, title: item.root.title}} : {}),
     ...(episode && item.index !== undefined ? {episode: item.parentIndex === 0 ? {mode: 'special' as const} : {mode: 'seasonal' as const, season: item.parentIndex, episode: item.index}} : {})};
   const poster = item.images?.poster ?? item.images?.cover ?? item.images?.thumb;
