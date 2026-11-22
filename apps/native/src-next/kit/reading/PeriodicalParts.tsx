@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {FlatList, ScrollView, Text, View} from 'react-native';
+import {FlatList, ScrollView, Text, View, type ViewStyle} from 'react-native';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n, calendarDate, calendarMonth} from '../../../../../packages/i18n/src';
 import type {ReadingPeriodicalIssue, ReadingYearChoice} from '../../../../../packages/client-core/src';
@@ -15,10 +15,11 @@ import {textLine, useTheme, type Theme} from '../theme';
 
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeReadPeriodicalState} from '../../screens/read/read-periodical-model';
-import {periodicalDatePreview, periodicalDayRead, periodicalHeroIssue, readingItemIsRead} from '../../screens/read/periodical-presentation';
+import {issueCardTitle, periodicalDatePreview, periodicalDayRead, periodicalHeroIssue, readingItemIsRead} from '../../screens/read/periodical-presentation';
 import type {IssueOffer, PeriodicalArchiveActions} from '../../pages/shared/read/useReadPeriodical';
 import type {ReadingActionsPort} from '../../pages/shared/read/useReadingActions';
 import {usePeriodicalActions} from '../../pages/shared/read/usePeriodicalActions';
+import type {TitleCollapse} from '../frames/TitleFrame';
 import {ReadingShelf} from './ReadingShelf';
 import {ReadingSelectionToolbar} from './ReadingActions';
 import {GuideProgrammeTitle} from '../live/GuideProgrammeTitle';
@@ -68,9 +69,11 @@ export function PeriodicalActions({issue, showRead = true, onOpen, offer, action
 }
 
 type MagazineRow = Readonly<{key: string; year: string; kind: 'heading' | 'issues'; index: number; items: readonly ReadingPeriodicalIssue[]}>;
-export function MagazineIssues({state, archive, theme, runtime, tablet, width, onOpen, offer, actions, hero, bottom}: {
+export function MagazineIssues({state, archive, theme, runtime, tablet, width, onOpen, offer, actions, hero, bottom, scroll}: {
   state: NativeReadPeriodicalState; archive: PeriodicalArchiveActions; theme: Theme; runtime: NativeShellRuntime; tablet: boolean; width: number;
-  onOpen: (issue: ReadingPeriodicalIssue) => void; offer: IssueOffer; actions: ReadingActionsPort; hero: React.ReactNode; bottom: number;
+  onOpen: (issue: ReadingPeriodicalIssue) => void; offer: IssueOffer; actions: ReadingActionsPort; hero: React.ReactNode; bottom?: number;
+  /** As a title page's scroller (phone and tablet, phone-read 24): the frame's padding, and its compact bar past `collapse.at`. */
+  scroll?: Readonly<{inset: ViewStyle; collapse: TitleCollapse}>;
 }) {
   const list = useRef<FlatList<MagazineRow>>(null), [headerHeight, setHeaderHeight] = useState(0), [visibleRows, setVisibleRows] = useState<readonly MagazineRow[]>([]);
   const shelfOffsets = useRef(new Map<string, {offset: number}>()).current;
@@ -119,8 +122,8 @@ export function MagazineIssues({state, archive, theme, runtime, tablet, width, o
           borderWidth: year.value === state.selectedYear ? 1 : 0, borderColor: tablet ? alpha(theme.colors.accentStrong, .62) : theme.colors.accentStrong}}>
         <Text style={[theme.type.chip, {color: theme.colors.textSecondary}]}>{year.value}</Text>
       </Focusable>}/></TVRow>
-      {/* tablet-read 10: the archive's Order, beside the year chips. */}
-      {tablet && state.order ? <Focusable ref={orderAnchor} accessibilityRole="button" accessibilityLabel={`${t('next.overlays.order')}, ${t('next.reader.issueOrder', {order: state.order})}`}
+      {/* tablet-read 10, phone-read 24: the archive's Order, beside the year chips. */}
+      {(tablet || scroll) && state.order ? <Focusable ref={orderAnchor} accessibilityRole="button" accessibilityLabel={`${t('next.overlays.order')}, ${t('next.reader.issueOrder', {order: state.order})}`}
         onPress={() => setOrderMenu(true)} focusKind="chip" focusRadius={9}
         style={{height: 34, marginRight: 28, paddingLeft: 12, paddingRight: 9, borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: alpha(theme.colors.text, .08)}}>
         <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginRight: 4}]}>{t('next.overlays.order')}</Text>
@@ -132,7 +135,8 @@ export function MagazineIssues({state, archive, theme, runtime, tablet, width, o
     <ReadingSelectionToolbar port={actions} runtime={runtime}/>
   </View>;
   return <FlatList ref={list} testID="native-read-magazine-years" data={rows} keyExtractor={row => row.key} ListHeaderComponent={header}
-    showsVerticalScrollIndicator={false} style={{width: '100%', maxWidth: 1180, alignSelf: 'center'}} contentContainerStyle={{paddingBottom: bottom}}
+    showsVerticalScrollIndicator={false} style={{width: '100%', maxWidth: 1180, alignSelf: 'center'}} contentContainerStyle={scroll ? scroll.inset : {paddingBottom: bottom ?? 0}}
+    scrollEventThrottle={scroll ? 32 : undefined} onScroll={scroll ? event => scroll.collapse.onChange(event.nativeEvent.contentOffset.y > scroll.collapse.at) : undefined}
     initialNumToRender={4} maxToRenderPerBatch={6} windowSize={5} removeClippedSubviews={false} onViewableItemsChanged={onVisible}
     maintainVisibleContentPosition={{minIndexForVisible: 0}}
     getItemLayout={(_data, index) => ({index, length: positions[index]?.length ?? rowHeight, offset: positions[index]?.offset ?? headerHeight})}
@@ -154,10 +158,10 @@ export function MagazineIssues({state, archive, theme, runtime, tablet, width, o
         if (!scrollMemory) {scrollMemory = {offset: 0}; shelfOffsets.set(row.year, scrollMemory);}
         return <ReadingShelf items={section.items} getKey={issue => issue.item.id} width={cardWidth} height={rowHeight} artHeight={artHeight} scrollMemory={scrollMemory}
         gutter={28} pending={section.pending} onNext={section.nextCursor && !section.error && choice ? () => {archive.ensureYear(choice, true);} : undefined}
-        renderItem={issue => <IssueCard issue={issue} width={cardWidth} height={artHeight} theme={theme} runtime={runtime} onOpen={() => onOpen(issue)} offer={offer} actions={actions}/>}/>;
+        renderItem={issue => <IssueCard issue={issue} width={cardWidth} height={artHeight} theme={theme} runtime={runtime} onOpen={() => onOpen(issue)} offer={offer} actions={actions} byMonth={!!scroll}/>}/>;
       }
       return <View style={{height: rowHeight, flexDirection: 'row', gap: 10, paddingHorizontal: tablet ? 28 : 20}}>
-        {row.items.map(issue => <IssueCard key={issue.item.id} issue={issue} width={cardWidth} height={artHeight} theme={theme} runtime={runtime} onOpen={() => onOpen(issue)} offer={offer} actions={actions}/>)}
+        {row.items.map(issue => <IssueCard key={issue.item.id} issue={issue} width={cardWidth} height={artHeight} theme={theme} runtime={runtime} onOpen={() => onOpen(issue)} offer={offer} actions={actions} byMonth={!!scroll}/>)}
         {!row.items.length || section?.pending && row.index + row.items.length === section.items.length && row.items.length < 3 ? <SkeletonBlock width={cardWidth} height={artHeight} radius={10}/> : null}
       </View>;
     }}/>;
@@ -267,6 +271,11 @@ function PeriodicalCalendar({state, runtime, theme, thumbnails = false, onDate}:
   </View>;
 }
 
+/** A magazine's cover for a title page's head (phone-read 24): the selected issue's, or one drawn from its name. */
+export function PeriodicalCover({issue, title, width, height, runtime}: {issue?: ReadingPeriodicalIssue; title: string; width: number; height: number; runtime: NativeShellRuntime}) {
+  return <IssueArtwork issue={issue} title={title} width={width} height={height} runtime={runtime} theme={useTheme()}/>;
+}
+
 function IssueArtwork({issue, title, width, height, runtime, theme, read = false, newspaper = false}: {issue?: ReadingPeriodicalIssue; title: string; width: number; height: number; runtime: NativeShellRuntime; theme: Theme; read?: boolean; newspaper?: boolean}) {
   const art = runtime.artwork(issue?.item.coverUrl);
   return <View style={{width, height, borderRadius: 8, overflow: 'hidden', backgroundColor: theme.colors.raised, opacity: !art && read ? .66 : 1}}>
@@ -275,12 +284,14 @@ function IssueArtwork({issue, title, width, height, runtime, theme, read = false
   </View>;
 }
 
-function IssueCard({issue, width, height, theme, runtime, onOpen, offer, actions}: {issue: ReadingPeriodicalIssue; width: number; height: number; theme: Theme;
-  runtime: NativeShellRuntime; onOpen: () => void; offer: IssueOffer; actions: ReadingActionsPort}) {
+/** One issue: its cover, then its title and date; `byMonth` (a magazine's archive under its year, phone-read 24) titles it
+ * by its date alone ("December", "August 27"), the year being the heading above it. */
+function IssueCard({issue, width, height, theme, runtime, onOpen, offer, actions, byMonth = false}: {issue: ReadingPeriodicalIssue; width: number; height: number; theme: Theme;
+  runtime: NativeShellRuntime; onOpen: () => void; offer: IssueOffer; actions: ReadingActionsPort; byMonth?: boolean}) {
   // N5-4: an issue the server can't serve now is drawn but takes no open, menu or selection (as web).
   const unavailable = issue.item.inventoryAvailable !== true;
   const anchor = useRef<View>(null), target = unavailable ? undefined : offer(issue, anchor), selection = target ? actions.selection(target) : undefined;
-  const date = calendarDate(defaultI18n, issue.issueDate), read = readingItemIsRead(issue.item);
+  const date = calendarDate(defaultI18n, issue.issueDate), read = readingItemIsRead(issue.item), month = byMonth ? issueCardTitle(issue.issueDate) : undefined;
   return <Focusable ref={anchor} accessibilityRole="button" accessibilityLabel={`${issue.item.title}${date ? `. ${date}` : ''}`} focusKind="row" focusRadius={10} disabled={unavailable}
     accessibilityState={selection?.active ? {selected: selection.selected} : unavailable ? {disabled: true} : undefined} onPress={selection?.active ? selection.onToggle : onOpen}
     onLongPressAction={target ? () => actions.actions.show(target) : undefined} style={{width}}>
@@ -290,9 +301,9 @@ function IssueCard({issue, width, height, theme, runtime, onOpen, offer, actions
         : read ? <View style={{position: 'absolute', bottom: 7, right: 7}}><Icon name="i-check" size={18} color={theme.colors.text}/></View> : null}
     </View>
     <View style={{flexDirection: 'row', marginTop: theme.space.xs, minHeight: 2 * textLine(theme.type.cardTitle) * theme.fontScale}}>
-      <GuideProgrammeTitle title={issue.item.title} lines={2} style={[theme.type.cardTitle, {color: theme.colors.text}]}/>
+      <GuideProgrammeTitle title={month ?? issue.item.title} lines={2} style={[theme.type.cardTitle, {color: theme.colors.text}]}/>
     </View>
-    {date ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 2}]}>{date}</Text> : null}
+    {date && !month ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 2}]}>{date}</Text> : null}
   </Focusable>;
 }
 
