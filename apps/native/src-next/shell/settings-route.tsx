@@ -12,7 +12,7 @@ import {nativeDevicePreferences} from '../screens/settings-live/device-preferenc
 import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from '../screens/settings-live/dashboard-controller';
 import {nativeServerAdmission} from '../screens/settings-live/server/tv-server-reader';
 import {ServerSettingsPage} from '../pages/tv/settings/ServerSettingsPage';
-import {isTVServerPage} from '../screens/settings-live/server/TVServerPageMenu';
+import {isTVServerPage} from '../pages/shared/settings/tv-server-pages';
 import {EqualizerSettingsPage} from '../pages/shared/settings/EqualizerSettingsPage';
 import {NativeSettingsPage} from '../pages/shared/settings/SettingsPage';
 import {NativeDashboardScreen} from '../screens/settings-live/DashboardScreen';
@@ -77,9 +77,10 @@ function createComposition(context: NativeShellBootstrapContext) {
       render: (route, runtime) => {
         lifetime.assert();
         if (route.kind !== 'server-dashboard') throw new Error('native_server_dashboard_route_mismatch');
-        if (Platform.isTV && admission() !== 'denied') return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/>;
-        return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime}
-          deniedFallback={<NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>}/>;
+        const fallback = <NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>;
+        // TV: the Dashboard is a page of Server settings; a viewer the server turns away gets Settings at once.
+        if (Platform.isTV) return admission() !== 'denied' ? <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/> : fallback;
+        return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,

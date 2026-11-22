@@ -60,28 +60,12 @@ test('programme record pairs and later actions retain native horizontal movement
   assert.deepEqual(tvProgrammeGroups({watch: false, record: false, remind: true, later: [], recordError: false, preferenceError: false}), ['favorite', 'remind']);
 });
 
-test('server menu exposes the approved owner pages, restricts administrators and changes its pane on focus', async () => {
-  const {react} = hooks(), selected: string[] = [];
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/TVServerPageMenu.tsx', import.meta.url), {
-    react, 'react-native': {View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
-    '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec},
-    '../../../../../../packages/design/src/next-icons': {nextIcons: Object.fromEntries(settingsSpec.map(section => [`i-${section.icon}`, {}]))},
-    '../../../kit/controls': {Focusable: 'Focusable'}, '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/Icon': {Icon: 'Icon'},
-    '../../../kit/shell': {ServerHeader: 'ServerHeader'}, '../../../kit/shell/visual': {shellType: (fontSize: number) => ({fontSize})}, '../../../kit/theme': {useTheme: () => theme},
-  });
-  const props = {role: 'owner', page: 'general', serverName: 'Server', runtime: {text: {t: (id: string) => id}}, column: 'pages', rows: 'rows', rail: 'rail', onSelect: (id: string) => selected.push(id)};
-  const tree = module.TVServerPageMenu(props), rows = nodes(tree).filter(node => node.type === 'Focusable');
-  assert.deepEqual(rows.map(node => node.props.focusId), module.tvServerPageOrder);
-  assert.equal(rows.some(node => node.props.focusId === 'troubleshooting'), false);
-  assert.equal(tree.props.style.width, 480);
-  rows[0].props.onFocus(); assert.deepEqual(selected, []);
-  rows[1].props.onFocus(); assert.deepEqual(selected, ['dashboard']);
-  assert.equal(nodes(rows[0]).find(node => node.type === 'View')!.props.style.width, 4);
-  assert.equal(nodes(rows[1]).find(node => node.type === 'Icon')!.props.color, 'tertiary');
-  assert.equal(nodes(rows[1]).find(node => node.type === 'Text')!.props.style[1].color, 'secondary');
-  const admin = module.TVServerPageMenu({...props, role: 'administrator', page: 'dashboard'});
-  assert.deepEqual(nodes(admin).filter(node => node.type === 'Focusable').map(node => node.props.focusId), ['dashboard', 'people']);
-  assert.equal(module.isTVServerPage('troubleshooting'), false);
+test('the TV Server settings pages: the approved owner pages in order, administrators get Dashboard and People only, never Troubleshooting', async () => {
+  const pages: any = await import('../src-next/pages/shared/settings/tv-server-pages.ts');
+  assert.deepEqual(pages.tvServerPagesFor('owner').map((item: any) => item.id), pages.tvServerPageOrder);
+  assert.equal(pages.tvServerPageOrder.includes('troubleshooting'), false);
+  assert.deepEqual(pages.tvServerPagesFor('administrator').map((item: any) => item.id), ['dashboard', 'people']);
+  assert.equal(pages.isTVServerPage('troubleshooting'), false); assert.equal(pages.isTVServerPage('dashboard'), true);
 });
 
 test('screen-reader query rejection emits one sanitized diagnostic and ends cleanly', async () => {

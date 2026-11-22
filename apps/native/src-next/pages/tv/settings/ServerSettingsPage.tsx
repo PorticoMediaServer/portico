@@ -6,12 +6,12 @@ import {SettingsControlRows, SettingsManagementCard, SettingsNavigationGroup, Se
 import {ServerBand, ServerHeader, SettingsRow} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
+import {DashboardPage} from '../dashboard/DashboardPage';
 import type {NativeDashboardController} from '../../../screens/settings-live/dashboard-controller';
 import {ownerLibraryCounts, ownerLibraryKind, ownerLibraryState} from '../../../screens/settings-live/owner-libraries/presentation';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import {PeoplePage} from './PeoplePage';
-import {tvServerPageDefinition, tvServerPagesFor, type TVServerPage} from '../../../screens/settings-live/server/TVServerPageMenu';
+import {tvServerPageDefinition, tvServerPagesFor, type TVServerPage} from '../../shared/settings/tv-server-pages';
 import type {TVReadOnlyPage} from '../../../screens/settings-live/server/tv-server-page-data';
 import type {NativeScreenLifetime} from '../../../screens/settings-live/lifetime';
 import {TVServerFacts} from '../../../kit/settings/TVServerFacts';
@@ -35,7 +35,7 @@ export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'ge
     </FocusRegion>
   </>;
   const body = page === 'dashboard'
-    ? <NativeDashboardScreen controller={dashboard} ports={ports} runtime={runtime} deniedFallback={null} tvContainer={{column, rows}}/>
+    ? <DashboardPage controller={dashboard} ports={ports} runtime={runtime} column={column} rows={rows}/>
     : <SettingsPageFrame title={t(tvServerPageDefinition(page).label)}
       server={<ServerHeader serverName={serverName} viewerRole={role} audience={audience} viewOnly/>}>
       <SettingsControlRows key={page} id={rows} orientation="vertical" edges={{left: column}}>
