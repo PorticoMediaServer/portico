@@ -9,7 +9,7 @@ const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.tes
 // Settings search seams: the matches, the Covered flag, TV, and every destination entry ask the screen makes.
 const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[],
   /** Where TV focus is, and who listens: Settings opens search only on a move onto the field once focus has settled in it. */
-  capture: undefined as {regionId: string; childId: string} | undefined, listeners: new Set<() => void>()};
+  capture: undefined as {regionId: string; childId: string} | undefined, listeners: new Set<() => void>(), back: undefined as (() => boolean) | undefined};
 async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: 'settings'}}, initialWidth = 390, role = 'owner', initialPage?: 'live' | 'profile') {
   const host = hooks(), pending: (() => void)[] = [], effects = new Set<{cleanup?: () => void}>();
   const useLayoutEffect = (fn: () => void | (() => void), deps: any[]) => {
@@ -42,7 +42,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/shell': {SettingsRowTargetContext: {Provider: 'TargetProvider'}, SettingsRow: 'SettingsRow', SettingsSheet: 'SettingsSheet', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles', SettingsSectionLabel: 'SettingsSectionLabel'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'}, '../../kit/shell/visual': {shellType: () => ({}), alpha: (value: string) => value}, '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateView: 'StateView'}, '../../kit/states/sentence-parts': {}, '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'},
     '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})}, '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../destinations/useEntryFocus': {useDestinationEntryFocus: (activation: any, address: any) => {search.entries.push({activation, address});}},
-    '../../shell/chrome': {setNativeScreenChromeHidden() {}}, './Screen': {Screen: 'Screen', useScreenBack() {}, useScreenEntry() {}}, './settings-actions': {},
+    '../../shell/chrome': {setNativeScreenChromeHidden() {}}, './Screen': {Screen: 'Screen', useScreenBack(_runtime: unknown, handler: () => boolean, isTV: boolean) {if (isTV) search.back = handler;}, useScreenEntry() {}}, './settings-actions': {},
     '../../../../../packages/contracts/src/routes': {}, '../../../../../packages/client-core/src/settings-configuration': {}, '../../../../../packages/client-core/src/presentation/settings-bindings': {}, '../../../../../packages/client-core/src/presentation/settings-spec': {settingsSpec: [{id: 'signin', scope: 'server', title: 'signin', icon: 'settings'}]},
     './owner-libraries/OwnerLibrariesPanel': {NativeOwnerLibrariesPanel: 'Libraries'}, '../../kit/shell/ServerIdentity': {ServerBand: 'ServerBand', ServerHeader: 'ServerHeader'},
     './LiveOwnerScreen': {NativeLiveOwnerScreen: 'LiveOwner'}, './live-owner-controller': {NativeLiveOwnerController: class {}}, './recordings-controller': {createNativeRecordingsController: () => ({})}, '../../platform/server-connections': {nativeRouteCrypto: {}},
@@ -309,6 +309,20 @@ test('TV: focus the platform drops on the search field before Settings settles d
     search.capture = {regionId: 'settings.pages', childId: 'profile'}; for (const listener of [...search.listeners]) listener();
     f.find('settings-search').props.onFocus(); f.render();
     assert.ok(f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'once focus has landed in Settings, moving onto the field opens search');
+  } finally {f.unmount(); search.tv = false; search.capture = undefined;}
+});
+
+test('TV: Back from a search result closes search, and the field focus that follows does not reopen it', async () => {
+  const f = await searchFixture({tv: true});
+  try {
+    assert.ok(f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'search is open');
+    search.capture = {regionId: 'settings.matches.playback', childId: 'subtitles'};
+    const handled = search.back!(); f.render();
+    assert.equal(handled, true, 'Back closes search');
+    assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'search closed');
+    for (const listener of [...search.listeners]) listener();
+    f.find('settings-search').props.onFocus(); f.render();
+    assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'the result that is going does not end settling, so the dropped field focus keeps search shut');
   } finally {f.unmount(); search.tv = false; search.capture = undefined;}
 });
 

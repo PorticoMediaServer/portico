@@ -233,12 +233,12 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   const column = ids.surface('settings.pages'), rows = ids.surface(`settings.rows.${page?.id ?? ''}`), keyboard = ids.surface('settings.keyboard'), searchField = ids.surface('settings.search');
   // TV: focus that the platform drops on the search field while Settings settles (as it opens, or as Back closes search and
   // the keyboard goes) does not open search, or Back could never leave it: only a move the user makes onto the field does.
-  // Settling ends once focus lands in Settings anywhere but the field, the keyboard that is going, or the side menu.
-  const settling = useRef(true);
+  // Settling ends once focus lands in Settings anywhere but the field, the keyboard or results that are going, or the side menu.
+  const settling = useRef(true), matchesPrefix = ids.surface('settings.matches.');
   useLayoutEffect(() => theme.isTV ? registry.subscribe(() => {
     const now = registry.capture();
-    if (settling.current && now && now.regionId !== searchField && now.regionId !== ids.rail && !now.regionId.startsWith(keyboard)) settling.current = false;
-  }) : undefined, [registry, searchField, keyboard, ids, theme.isTV]);
+    if (settling.current && now && now.regionId !== searchField && now.regionId !== ids.rail && !now.regionId.startsWith(keyboard) && !now.regionId.startsWith(matchesPrefix)) settling.current = false;
+  }) : undefined, [registry, searchField, keyboard, matchesPrefix, ids, theme.isTV]);
   // Actual attached controls decide which result groups participate in the focus graph.
   // Conditional/unavailable rows must not strand focus in an empty intermediate group.
   const matchRegions = tvSettingsResultGroups(matchingPages.map(value => ids.surface(`settings.matches.${value.id}`)), registry.entryAddress);
