@@ -240,7 +240,7 @@ const handheldType = {
   /** The words typed in a search or find field (phone-app's search field, 15.5/500). `searchPageQuery` is the Search page's own
    * field: the same on a phone, tablet.html `.sf .q` (26/700) on a tablet. */
   searchQuery: type(15.5, 'normal', 500), searchPageQuery: type(15.5, 'normal', 500),
-  accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700), moveNoticeTitle: type(26, 29.12, 800, -.03), accountQuiet: type(12.5, 18.75, 400), providerButton: type(16, 'normal', 700), passwordStrength: type(13, 18, 600),
+  accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700), identityTitle: type(25, 28, 800, -.03), identityBody: type(15, 22.5, 400), identityDialogTitle: type(48, 'normal', 800, -.035), moveNoticeTitle: type(26, 29.12, 800, -.03), accountQuiet: type(12.5, 18.75, 400), providerButton: type(16, 'normal', 700), passwordStrength: type(13, 18, 600),
   // System rule 6 (design/ui-v1 system-rules.html): the roles a screen on a frame picks from. Row and section headings are `rowHeading`,
   // card text `cardTitle` and `cardSubtitle`, tabs `tab`; these are the roles the scale lacked.
   pageTitle: type(34, 38, 800, -.03), /** A list page stepped into (See all, collections 46-48): the page title, larger on TV. */ listTitle: type(34, 38, 800, -.03), barTitle: type(17, 'normal', 700), groupLabel: type(15, 'normal', 700), listLabel: type(15, 'normal', 700),
@@ -290,6 +290,7 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
   tenFoot: {...handheldType,
     fieldValue: type(32, 'normal', 600), fieldPlaceholder: type(32, 'normal', 500), fieldLabel: type(22, 22, 700),
     accountTitle: type(72, 72, 800, -.045), accountLede: type(26, 37.7, 400), accountHint: type(20, 30, 600), accountEyebrow: type(22, 'normal', 700, .1),
+    identityTitle: type(80, 80, 800, -.045), identityBody: type(28, 40.6, 400),
     display: type(62, 68, 700, -.029), title: type(44, 52, 700, -.027), heading: type(32, 40, 600, -.019), subheading: type(27, 34, 600, -.011),
     body: type(24, 33, 400), bodyStrong: type(24, 33, 600), caption: type(20, 27, 400), captionStrong: type(20, 27, 600), micro: type(17, 22, 500, .018), label: type(18, 24, 600),
     lockup: type(100, 94, 800, -.045), lockupLong: type(100, 94, 800, -.045), rowHeading: type(32, 'normal', 700, -.019),
