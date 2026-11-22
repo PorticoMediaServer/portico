@@ -5,7 +5,7 @@ import {BrowseFrame} from '../../../kit/frames';
 import {Button} from '../../../kit/controls';
 import {Menu} from '../../../kit/overlays';
 import {ReadingLibraryBody, ReadingLibraryLoading, ReadingDiscovery, ReadingFallbackGrid, useReadingLibraryLayout} from '../../../kit/reading/ReadingLibraryParts';
-import {NativeReadingBooks} from '../../../screens/read/ReadingBooks';
+import {NativeReadingBooks} from '../../../kit/reading/ReadingBooks';
 import {ReadingItemMenu, ReadingSelectionToolbar} from '../../../kit/reading/ReadingActions';
 import {useBooksLibrary, type BooksPageProps, type ReadingTabId} from '../../shared/reading/useBooksLibrary';
 import {ReadingPeriodicalShelf} from './ReadingPeriodicalShelf';

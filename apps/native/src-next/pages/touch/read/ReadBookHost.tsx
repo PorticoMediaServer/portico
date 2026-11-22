@@ -1,10 +1,10 @@
 import React, {useRef, useState} from 'react';
 import {ReadBookPage} from './ReadBookPage';
 import type {ReadBookPageProps, ReadBookSheet} from '../../shared/read/useReadBook';
-import {ReadCollectionSheet} from '../../../screens/read/ReadCollectionSheet';
+import {ReadCollectionSheet} from '../../../kit/reading/ReadCollectionSheet';
 import {ReadingItemMenu, ReadingSelectionToolbar} from '../../../kit/reading/ReadingActions';
 import {useReadingActions} from '../../shared/read/useReadingActions';
-import {ReadOwnerEditSheet} from '../../../screens/read/ReadOwnerEditSheet';
+import {ReadOwnerEditSheet} from '../../../kit/reading/ReadOwnerEditSheet';
 
 type HostProps = Omit<ReadBookPageProps, 'readingActions' | 'onSheet'>;
 

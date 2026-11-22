@@ -3,19 +3,19 @@ import {Image, ScrollView, Text, View} from 'react-native';
 import {MetadataRepairService, type RepairData} from '../../../../../packages/client-core/src/metadata-repair';
 import {metadataFieldError, metadataFieldLabel} from '../../../../../packages/client-core/src/presentation/metadata-field';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button, Focusable, TextField} from '../../kit/controls';
-import {BottomSheet} from '../../kit/overlays';
-import {overlayPaintPermit, RetainedOverlay} from '../../kit/overlays/SurfacePaintHost';
-import {LoadingBoundary, SkeletonBlock, StateView} from '../../kit/states';
-import {browseType} from '../../kit/browse/presentation';
-import {useTheme} from '../../kit/theme';
+import {Button, Focusable, TextField} from '../controls';
+import {BottomSheet} from '../overlays';
+import {overlayPaintPermit, RetainedOverlay} from '../overlays/SurfacePaintHost';
+import {LoadingBoundary, SkeletonBlock, StateView} from '../states';
+import {browseType} from '../browse/presentation';
+import {textLines, useTheme} from '../theme';
 import {linkNativeAbortSignals} from '../../platform/abort-signals';
 import {stageCoverImage, type CoverImageMime, type CoverImageTemp} from '../../platform/cover-image';
-import {loadNativeCoverPages, type NativeCoverPage} from './read-cover-pages';
+import {loadNativeCoverPages, type NativeCoverPage} from '../../screens/read/read-cover-pages';
 import type {ReadingManifest, ReadingPage} from '../../../../../packages/client-core/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeReadOwnerEditLease} from './read-book-model';
-import {TVRow} from '../../kit/layout/TVRow';
+import type {NativeReadOwnerEditLease} from '../../screens/read/read-book-model';
+import {TVRow} from '../layout/TVRow';
 
 const {t} = defaultI18n;
 const cancelled = () => Object.assign(new Error('cancelled'), {name: 'AbortError', code: 'cancelled'});
@@ -313,7 +313,7 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
     {exact(data) && data.artworkRoles.includes('cover') ? <View style={{marginTop: 16, gap: 8, paddingHorizontal: theme.isTV ? 0 : 20}}>
       <Text style={[browseType(theme, 14, 700), {color: theme.colors.text}]}>{t('web.metadata.tabArtwork')}</Text>
       {data.artwork.candidates.filter(candidate => candidate.role === 'cover').map(candidate => <View key={candidate.id} style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-        <Text numberOfLines={2} style={[browseType(theme, 12.5, 500), {color: theme.colors.textSecondary, flex: 1}]}>{candidate.attribution || candidate.provider}</Text>
+        <Text {...textLines(2)} style={[browseType(theme, 12.5, 500), {color: theme.colors.textSecondary, flex: 1}]}>{candidate.attribution || candidate.provider}</Text>
         {candidate.current ? <Text style={[browseType(theme, 12, 600), {color: theme.colors.textTertiary}]}>{t('profile.current')}</Text>
           : <Button variant="text" size="small" disabled={coverBusy || busy || !!coverOpening} onPress={() => {void selectCover(candidate.id);}}>{t('web.metadata.useIt')}</Button>}
       </View>)}
