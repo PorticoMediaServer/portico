@@ -4,7 +4,7 @@ import type {RemoteSource} from '../../../../../../packages/client-core/src/remo
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import {NativeRemoteSourcesController} from '../../../screens/settings/remote-sources/controller';
-import type {ChosenSourceFolder} from '../../../screens/settings/remote-sources/RemoteSourceForms';
+import type {ChosenSourceFolder} from '../../../kit/settings/remote-sources/RemoteSourceForms';
 import type {ExplorerFolder} from '../../../kit/settings/FolderExplorer';
 
 export type LibraryFolderChoice = Readonly<{folders: readonly ExplorerFolder[]; source?: RemoteSource; remoteFolders?: readonly ChosenSourceFolder[]}>;
