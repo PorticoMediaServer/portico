@@ -1,10 +1,10 @@
 import React from 'react';
-import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
-import type {NativeShellRoute} from '../../shell/routes';
-import {nativeScreenServices} from '../native-screen-services';
-import {nativeDestinationLifetime} from './lifetime';
-import {NativeDestinationPins} from './pins';
-import {PinEditorSheet} from '../../kit/pins/PinEditor';
+import {nativeShellRoutes, type NativeRouteFactory} from './route-registry';
+import type {NativeShellRoute} from './routes';
+import {nativeScreenServices} from '../screens/native-screen-services';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {NativeDestinationPins} from '../screens/destinations/pins';
+import {PinEditorSheet} from '../kit/pins/PinEditor';
 
 export const createNativeHandheldPinsModule: NativeRouteFactory = context => {
   const lifetime = nativeDestinationLifetime(context), common = nativeScreenServices(context);

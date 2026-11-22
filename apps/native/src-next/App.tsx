@@ -16,14 +16,14 @@ if (!Platform.isTV) {
   // requires defer RestoredShell's import until its error branch, so the ready
   // shell would have no profiles/servers renderer. Require the module eagerly.
   require('./screens/accounts/AccountRoutes');
-  require('./screens/downloads/register');
+  require('./shell/downloads-route');
   require('./screens/collections/register');
   require('./screens/library/register');
-  require('./screens/library/OverviewRoute');
-  require('./screens/destinations/PinsRoute');
+  require('./shell/library-overview-route');
+  require('./shell/pins-route');
   require('./screens/destinations/music/register');
   require('./screens/destinations/audiobooks/register');
-  require('./screens/read/register');
+  require('./shell/read-route');
   require('./screens/people/register');
   require('./screens/notifications/register');
   require('./screens/search/register');
@@ -31,11 +31,11 @@ if (!Platform.isTV) {
   registerNativeWatch(createNativeWatchBindings);
 }
 require('./shell/settings-mount');
-require('./screens/settings-live/LicencesRoute');
+require('./shell/licences-route');
 require('./screens/home/CustomizeRoute');
 require('./screens/home/SeeAllRoute');
-require('./screens/settings-live/LiveRoute');
-require('./screens/settings-live/TogetherRoute');
+require('./shell/live-route');
+require('./shell/together-route');
 require('./screens/saved/register');
 const TVRoot: ComponentType | undefined = Platform.isTV ? require('./tv/register').TVRoot : undefined;
 

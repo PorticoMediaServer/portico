@@ -19,11 +19,11 @@ test('the ordinary Downloads route registers its own real-data renderer and exac
     '../../shell/model': {sameAuthority}, '../../shell/routes': {nativeEntryRoute: (entry: unknown) => ({kind: 'title', entry})},
     '../read/eligibility': readEligibility, '../read/platform': readPlatform, './presentation': {nativeDownloadsCopy},
   });
-  await screenModule(new URL('../src-next/screens/downloads/register.tsx', import.meta.url), {
+  await screenModule(new URL('../src-next/shell/downloads-route.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View', useWindowDimensions: () => ({width: 390, height: 844})}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 34})},
-    '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (key: string, create: any) => {kind = key; factory = create;}}},
-    '../../shell/model': {phoneBarHeight: () => 84, shellLayout: () => ({tabs: true})},
-    './view': view,
+    './route-registry': {nativeShellRoutes: {registerRoute: (key: string, create: any) => {kind = key; factory = create;}}},
+    './model': {phoneBarHeight: () => 84, shellLayout: () => ({tabs: true})},
+    '../screens/downloads/view': view,
   });
   assert.equal(kind, 'downloads');
   assert.equal(Object.keys(nativeDownloadsCopy).length, 11);

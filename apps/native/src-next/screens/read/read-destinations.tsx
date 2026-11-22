@@ -3,7 +3,7 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 import type {NativeShellRoute} from '../../shell/routes';
 import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {openNativeReadingSettings} from '../settings/ReadingSettingsRoute';
+import {openNativeReadingSettings} from '../../shell/reading-settings-route';
 import {isReadingLibraryKind, readingRouteId} from './platform';
 import {NativeReadBook} from './read-book-model';
 import {NativeReadPeriodical} from './read-periodical-model';

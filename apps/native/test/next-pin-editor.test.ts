@@ -64,10 +64,10 @@ test('drag insertion uses measured unequal native rows and never fabricates a po
 test('all pin entries use one real route factory and Back retires its captured controller', async () => {
   const host = hooks(), registrations = new Map<string, any>(), authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'home'};
   const navigation = new NativeShellNavigation(authority, () => authority);
-  const {createNativeHandheldPinsModule} = await screenModule(new URL('../src-next/screens/destinations/PinsRoute.tsx', import.meta.url), {
-    react: host.react, '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (kind: string, factory: any) => registrations.set(kind, factory)}},
-    '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'actual-operation'})}, './lifetime': {nativeDestinationLifetime},
-    './pins': {NativeDestinationPins}, '../../kit/pins/PinEditor': {PinEditorSheet: 'PinEditor'},
+  const {createNativeHandheldPinsModule} = await screenModule(new URL('../src-next/shell/pins-route.tsx', import.meta.url), {
+    react: host.react, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string, factory: any) => registrations.set(kind, factory)}},
+    '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'actual-operation'})}, '../screens/destinations/lifetime': {nativeDestinationLifetime},
+    '../screens/destinations/pins': {NativeDestinationPins}, '../kit/pins/PinEditor': {PinEditorSheet: 'PinEditor'},
   });
   assert.equal(registrations.get('edit-pins'), createNativeHandheldPinsModule);
   assert.equal(registrations.get('library-edit-pins'), createNativeHandheldPinsModule);

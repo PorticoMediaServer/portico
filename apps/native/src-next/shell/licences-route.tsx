@@ -1,7 +1,7 @@
 import React from 'react';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
-import {LicencesPage} from '../../pages/touch/settings/LicencesPage';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import {LicencesPage} from '../pages/touch/settings/LicencesPage';
 
 /** Local generated notices belong to this restored shell's ordinary route lifetime. */
 export function createNativeLicencesRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
