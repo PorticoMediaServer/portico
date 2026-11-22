@@ -41,7 +41,7 @@ import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
 import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
 import {ProfileSwitchPage, ProfileSwitchStatus} from '../../pages/touch/accounts/ProfileSwitchPage';
 import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
-import {PhoneProfileRecovery} from './PhoneProfileRecovery';
+import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
 import {ServerChooserPage} from '../../pages/touch/accounts/ServerChooserPage';
 import {TrustedCertificatesPage} from '../../pages/shared/accounts/TrustedCertificatesPage';
 import {TVServerChooserPage, TVServerSettingsPanel} from '../../pages/tv/accounts/ServerChooserPage';
@@ -66,7 +66,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: Profile
   const {canRefresh, pickPicture, removePicture, actionBusy, active, activeTicket, addArt, addName, addNameRef, additionCurrent, alive, artDraft, avatarSource, avatars, back, backRef, busy, busyRef, cancelWrongPin, choose, closeAddition, closeDeletion, closeEdit, current, deleteName, deleteNameRef, deletion, deletionCurrent, deletionRef, edit, editDraftRef, editorCurrent, error, forgetAction, forgetProfile, forgotPIN, identityForLimits, lease, limitsLease, limitsProfile, localPictures, manage, managedId, management, managementCurrent, moveProfile, nameDraft, notice, openAddition, openEditor, pin, pinAgain, pinDraft, problem, profile, profileActionsCurrent, profileFocus, profiles, recovery, refreshProfiles, removePin, removePinAction, retireEditor, retirement, runAction, setAddArt, setAddName, setArtDraft, setAvatars, setBusy, setDeleteName, setDeletion, setError, setForgotPIN, setManagedId, setNameDraft, setNotice, setPin, setPinAgain, setPinDraft, setProblem, setProfile, setRecovery, setRetirement, startRecovery, submitAdd, submitPin, submitRename, tvLeave} = view;
   const errorRefresh = canRefresh
     ? <Button variant="text" disabled={busy} onPress={() => {void refreshProfiles();}}>{t('action.refresh')}</Button> : null;
-  if (recovery) return <PhoneProfileRecovery controller={recovery.controller} profileName={recovery.name} username={context.account.account.username}
+  if (recovery) return <ProfileRecoveryPage controller={recovery.controller} profileName={recovery.name} username={context.account.account.username}
     onOpen={value => {const id = recovery.id; recovery.controller.dispose(); setRecovery(undefined); setPin(value); void choose(id, value);}}
     onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setPin('');}}/>;
   // TV: the picker, its PIN page and the forgotten-PIN page are one page Modal over the shell (TVProfileSwitchPage).

@@ -69,7 +69,7 @@ import {SignInPage} from '../../pages/touch/accounts/SignInPage';
 import {LegalAgreement} from '../../kit/accounts/LegalAgreement';
 import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PasswordStrengthMeter} from '../../kit/accounts/PasswordStrengthMeter';
-import {PhoneProfileRecovery} from './PhoneProfileRecovery';
+import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
 import {directoryFailure, directoryOfflineBody, directoryRows, nextRetryDelay} from './directory-chooser';
 import {registerBack} from '../../kit/navigation/back';
 
@@ -1723,7 +1723,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const captured = pinRecovery;
     const current = () => lifetime.current && !captured.retired && pinRecoveryRef.current === captured
       && operation.current === captured.operation && profileRef.current === captured.profile && stageRef.current === 'profile-pin';
-    return <PhoneProfileRecovery controller={captured.controller} profileName={captured.profile.name} username={username}
+    return <ProfileRecoveryPage controller={captured.controller} profileName={captured.profile.name} username={username}
       onOpen={value => {
         if (!current() || captured.controller.getSnapshot().phase !== 'done' || !/^\d{4}$/.test(value) || busyRef.current || acting.current) return;
         retireRecovery(captured); setCode(value);

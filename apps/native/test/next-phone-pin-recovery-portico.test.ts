@@ -5,7 +5,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
-import {createTheme} from '../src-next/kit/theme';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
@@ -21,15 +20,18 @@ async function mount(account: {username: string; hasPassword: boolean; twoStep: 
   const pending: Promise<string>[] = [];
   const source = {accountId: 'acct', isCurrent: () => true, identity: async () => ({identity: {}})};
   const portico = async () => {reads++; if (options.failFirst && reads === 1) throw new Error('Portico Services cannot be reached'); return {source, account};};
-  const {PhoneProfileRecovery} = await screenModule(new URL('../src-next/screens/accounts/PhoneProfileRecovery.tsx', import.meta.url), {
-    react: {...React, default: React},
-    'react-native': {Linking: {openURL: async (url: string) => {opened.push(url);}}, Text: 'Text', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string, values?: unknown) => values ? `${key}:${JSON.stringify(values)}` : key}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
-    '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField', FormError: 'FormError'},
-    '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
-    '../../platform/profile-recovery': {nativePorticoRecovery: portico}, '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'},
-    '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PINEntry'}, '../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'},
+  const i18n = {defaultI18n: {t: (key: string, values?: unknown) => values ? `${key}:${JSON.stringify(values)}` : key}};
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useProfileRecovery.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Linking: {openURL: async (url: string) => {opened.push(url);}}},
+    '../../../../../../packages/i18n/src': i18n, '../../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
+    '../../../platform/profile-recovery': {nativePorticoRecovery: portico}, '../../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'},
+  });
+  // The page draws its fields and the quiet line through kit parts; they stand in as the View and Text they draw.
+  const {ProfileRecoveryPage: PhoneProfileRecovery} = await screenModule(new URL('../src-next/pages/touch/accounts/ProfileRecoveryPage.tsx', import.meta.url), {
+    react: {...React, default: React}, '../../../../../../packages/i18n/src': i18n,
+    '../../../kit/states': {StateLayout: 'StateLayout'}, '../../../kit/controls': {Button: 'Button', TextField: 'TextField', FormError: 'FormError'},
+    '../../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PINEntry'}, '../../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'},
+    '../../../kit/accounts/RecoveryParts': {RecoveryFields: 'View', RecoveryNote: 'Text'}, '../../shared/accounts/useProfileRecovery': hook,
   });
   let tree: any;
   const host = createFabricHookHost(() => {tree = PhoneProfileRecovery({controller, profileName: 'Alex', username: 'demo', onOpen() {}, onClose() {}, portico});});
