@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Text, View, type StyleProp, type TextStyle} from 'react-native';
+import {StyleSheet, Text, View, type StyleProp, type TextStyle} from 'react-native';
 
 const ellipsis = '…';
 /** A title's fitted text, by its cell's width and limits: a cell drawn again (the guide under an opened programme sheet, a row
@@ -29,8 +29,12 @@ export function GuideProgrammeTitle(props: GuideTextProps) {
   const cell = JSON.stringify([props.title, props.lines, props.maxHeight, props.whole]);
   const [width, setWidth] = useState(() => fits.get(cell)?.width ?? 0);
   const memo = JSON.stringify([width, props.title, props.lines, props.maxHeight, props.whole]);
+  // A sliver narrower than about one letter and its ellipsis (a 45 s programme in a library channel's row) can only end as
+  // "…": it is not measured. Measuring hundreds of them word by word, then letter by letter, held every other cell's title
+  // at "…" for 10 to 20 s after the guide opened (Pixel 6a, 21 Nov).
+  const sliver = width > 0 && width < 1.5 * (StyleSheet.flatten(props.style)?.fontSize ?? 14);
   return <View style={{flex: 1, minWidth: 0}} onLayout={event => {const value = Math.floor(event.nativeEvent.layout.width); remember(cell, {width: value}); setWidth(value);}}>
-    {width > 0 ? <FittedGuideText key={memo} {...props} width={width} memo={memo}/> : !props.whole && <Text style={props.style}>{ellipsis}</Text>}
+    {width > 0 && !sliver ? <FittedGuideText key={memo} {...props} width={width} memo={memo}/> : !props.whole && <Text style={props.style}>{ellipsis}</Text>}
   </View>;
 }
 

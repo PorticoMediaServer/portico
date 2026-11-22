@@ -209,7 +209,7 @@ test('the native guide says once that it is stale or that the server cannot play
 test('programme text keeps whole words and drops an incomplete time range', async () => {
   let parent = hooks(), child = hooks(), renderer = parent;
   const {GuideProgrammeTitle} = await screenModule(new URL('../src-next/kit/live/GuideProgrammeTitle.tsx', import.meta.url), {
-    react: {...parent.react, useState: (initial: unknown) => renderer.react.useState(initial)}, 'react-native': native,
+    react: {...parent.react, useState: (initial: unknown) => renderer.react.useState(initial)}, 'react-native': {...native, StyleSheet: {flatten: (style: any) => style}},
   });
   const draw = (title: string, whole = false) => {
     const props = {title, lines: 2, maxHeight: whole ? 22 : 44, whole, style: {}};
@@ -233,4 +233,12 @@ test('programme text keeps whole words and drops an incomplete time range', asyn
   parent = hooks(); child = hooks();
   measured(draw('2:30 PM – 3:00 PM', true), ['2:30 PM –', '3:00 PM']);
   assert.equal(visible(draw('2:30 PM – 3:00 PM', true)), undefined);
+  // A sliver (a 45 s programme) is "…" at once, not measured: hundreds of them held every title back (Pixel, 21 Nov).
+  parent = hooks(); renderer = parent;
+  const sliver = {title: 'Night of the Living Dead', lines: 2, maxHeight: 44, whole: false, style: {fontSize: 14}};
+  parent.render(() => GuideProgrammeTitle(sliver)).props.onLayout({nativeEvent: {layout: {width: 12}}});
+  const drawn = parent.render(() => GuideProgrammeTitle(sliver));
+  const texts = nodes(drawn).filter(node => node.type === 'Text');
+  assert.equal(texts.length, 1); assert.equal([texts[0].props.children].flat().join(''), '…');
+  assert.ok(!nodes(drawn).some(node => typeof node.type === 'function'), 'no measuring text for a sliver');
 });
