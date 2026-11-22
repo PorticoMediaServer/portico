@@ -80,7 +80,7 @@ export function parseSegmentTitles(raw: unknown): SegmentTitlePage {
   const titles = keepReadable('segments', 'titles', list(v.titles, 100), t => {
     if (!object(t) || !filled(t.id, 256) || !text(t.title, 1024)) fail();
     // A poster is drawn only from the server's own image route; anything else is left out, not refused.
-    const poster = typeof t.poster === 'string' && t.poster.startsWith('/v1/images/') && t.poster.length <= 1024 ? t.poster : undefined;
+    const poster = typeof t.poster === 'string' && /^\/v1\/images\/[^/?#.]{1,512}$/.test(t.poster) ? t.poster : undefined;
     return Object.freeze({id: t.id, title: t.title, kind: one(t.kind, ['show', 'movie'] as const), files: counts(t.files), markers: markerCounts(t.markers), ...(poster ? {posterUrl: poster} : {})});
   });
   return Object.freeze({libraryId: v.libraryId, titles: Object.freeze(titles), nextCursor: v.nextCursor});
