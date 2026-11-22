@@ -106,6 +106,55 @@ func TestLocalSimilarUsesNarrowSignalsAndNeverPadsEnhancedData(t *testing.T) {
 			t.Fatalf("collection More like this holds its own film or a title twice: %d", it.ID)
 		}
 	}
+	// Copies of a title in another library (a 4K copy) are suggested once: a copy of a
+	// suggested film, far apart in id, across small pages; another library's copy of one of a
+	// collection's own films; and (below) a copy of an enhanced suggestion. A title with no year
+	// is never taken for a copy by its name alone.
+	if err := d.write(ctx, User, func(tx *sql.Tx) error {
+		for _, stmt := range []string{
+			`INSERT INTO libraries(id,public_id,name,kind,created_at,updated_at) VALUES(2,'lib4k','Movies 4K','movies',0,0)`,
+			`UPDATE items SET year=2001 WHERE id IN (2,5)`,
+			`INSERT INTO items(id,public_id,library_id,kind,title,sort_title,year,rating_age,added_at,updated_at) VALUES
+				(900,'copy2',2,1,'Title 2','Title 2',2001,0,0,0),(901,'copy5',2,1,'Title 5','Title 5',2001,0,0,0),
+				(902,'copy4',2,1,'Title 4','Title 4',NULL,0,0,0),(903,'other3',2,1,'Title 3','Title 3',NULL,0,0,0)`,
+			`INSERT INTO credits(item_id,position,person_id,role) VALUES(900,0,1,1),(901,0,1,1),(903,0,5,2)`,
+			`INSERT INTO item_external_ids(item_id,provider,external_id) VALUES(902,'tmdb','1004')`,
+		} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	titles := map[string]int{}
+	for cursor := ""; ; {
+		page, err := d.MoreLikeThisPage(ctx, v, "i1", cursor, 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range page.Items {
+			titles[it.Title]++
+		}
+		if cursor = page.NextCursor; cursor == "" {
+			break
+		}
+	}
+	if titles["Title 2"] != 1 || titles["Title 3"] != 2 {
+		t.Fatalf("copies across pages: Title 2 ×%d (want 1), Title 3 with no year ×%d (want 2)", titles["Title 2"], titles["Title 3"])
+	}
+	collection, err = d.MoreLikeThisPage(ctx, v, "collection", "", 90)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inCollection := map[string]int{}
+	for _, it := range collection.Items {
+		inCollection[it.Title]++
+	}
+	if inCollection["Title 5"] != 0 || inCollection["Title 2"] != 1 {
+		t.Fatalf("collection More like this holds a copy: %v", inCollection)
+	}
 	if page, err := d.MoreLikeThisPage(ctx, v, "i7", "", 15); err != nil || len(page.Items) != 0 {
 		t.Fatal("genre alone qualified a candidate", err)
 	}

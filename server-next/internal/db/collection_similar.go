@@ -44,8 +44,15 @@ func (d *DB) collectionSimilarPage(ctx context.Context, v Viewer, itemID, cursor
 	}
 	seen := map[int64]bool{}
 	var lists [][]Item
+	copies := map[string]bool{}
 	for _, film := range members.Items {
 		seen[film.ID] = true
+	}
+	// Another library's copy of one of the collection's films is not a suggestion either.
+	for _, film := range members.Items {
+		if key, ok := copyKey(film); ok {
+			copies[key] = true
+		}
 	}
 	// A long collection is represented by its first films; each costs one similar-titles read.
 	for _, film := range members.Items[:min(len(members.Items), collectionSimilarFilms)] {
@@ -63,10 +70,16 @@ func (d *DB) collectionSimilarPage(ctx context.Context, v Viewer, itemID, cursor
 				continue
 			}
 			more = true
-			if it := list[n]; !seen[it.ID] && len(page.Items) < limit {
-				seen[it.ID] = true
-				page.Items = append(page.Items, it)
+			it := list[n]
+			key, isCopy := copyKey(it)
+			if seen[it.ID] || isCopy && copies[key] || len(page.Items) == limit {
+				continue
 			}
+			seen[it.ID] = true
+			if isCopy {
+				copies[key] = true
+			}
+			page.Items = append(page.Items, it)
 		}
 		if !more {
 			break
