@@ -103,6 +103,9 @@ type Session struct {
 	Generation      int
 	StartPositionMs int64
 	SeekID          string
+	// OpenedAtMs is where this playing began, which a seek or a new stream does not change:
+	// whether it began from the title's resume point decides what a short stop keeps.
+	OpenedAtMs int64
 
 	// PositionMs is where the device last said it was.
 	PositionMs int64
@@ -164,7 +167,9 @@ type session struct {
 	// The latest progress sample and whether it still has to be saved.
 	sampleAt time.Time
 	playedMs int64
-	dirty    bool
+	// furthestMs is the furthest position the device reported in this playing.
+	furthestMs int64
+	dirty      bool
 	// counted says this play is in the day's totals: once Play history lists it (countLocked).
 	counted bool
 	// awayKbps is what this stream takes of the upload speed, 0 at home. See away.go.
@@ -242,6 +247,19 @@ func (s *Service) Session(id string, userID int64) (Session, error) {
 		return Session{}, db.ErrNotFound
 	}
 	return sess.Session, nil
+}
+
+// Furthest is the furthest position a running or recently ended session of the account
+// reached, when the server still has it: a final position sent with its progress token then
+// knows how far the playing really went.
+func (s *Service) Furthest(id string, userID int64) (int64, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess := s.sessions[id]
+	if sess == nil || sess.UserID != userID {
+		return 0, false
+	}
+	return max(sess.furthestMs, sess.OpenedAtMs+sess.playedMs), true
 }
 
 // SendCommand gives a running session a command from another of the account's devices. Its
@@ -450,6 +468,7 @@ func (s *Service) tell(event string, sess *session) {
 
 func (s *Service) sampleLocked(sess *session, positionMs, playedMs int64, now time.Time) {
 	sess.PositionMs = max(positionMs, 0)
+	sess.furthestMs = max(sess.furthestMs, sess.PositionMs)
 	// Played time only grows, and never faster than the clock.
 	before := sess.playedMs
 	sess.playedMs = min(max(sess.playedMs, playedMs), now.Sub(sess.StartedAt).Milliseconds())
@@ -487,6 +506,8 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 		owners = append(owners, sess)
 		batch = append(batch, db.Progress{Viewer: sess.Viewer(), ItemID: sess.Item.PublicID, DeviceID: sess.Device.ID,
 			PlayID: sess.ID, PositionMS: sess.PositionMs, At: sess.sampleAt, WatchedMS: sess.playedMs,
+			Opening: &db.Opening{FromMS: sess.OpenedAtMs, FurthestMS: max(sess.furthestMs, sess.OpenedAtMs+sess.playedMs),
+				StartedAtMS: sess.StartedAt.UnixMilli(), Exact: true},
 			Away: sess.Network != NetworkLocal, Delivery: db.ParsePlayDelivery(sess.Plan.Route), OwnerOnly: sess.Channel != nil})
 	}
 	if len(only) > 0 {
