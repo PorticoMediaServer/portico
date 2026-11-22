@@ -58,7 +58,10 @@ export function QueueRow({lead, artwork, title, subtitle, duration, progress, on
 /** An audiobook's Speed or Sleep timer from 600 (desktop-listen "book-player"): its name and what it means now beside
  * one row of every choice, the chosen one in the accent. */
 export function AudioChoiceRow({label, help, choices}: {label: string; help?: string; choices: readonly Readonly<{label: string; selected?: boolean; onPress: () => void}>[]}) {
-  return <div className={styles.choiceRow}>
+  // A long row (a book's sleep timer with both End of this chapter and End of this book) takes the full width under its
+  // name instead of wrapping beside it; Speed and the shorter rows stay beside their names, as drawn.
+  const long = choices.reduce((total, choice) => total + Array.from(choice.label).length, 0) > 56;
+  return <div className={styles.choiceRow} data-long={long || undefined}>
     <span className={styles.choiceLabel}>{label}{help !== undefined && <small>{help}</small>}</span>
     <span className={styles.choices} role="group" aria-label={label}>{choices.map(choice => <button key={choice.label} type="button" aria-pressed={!!choice.selected} onClick={choice.onPress}>{choice.label}</button>)}</span>
   </div>;
