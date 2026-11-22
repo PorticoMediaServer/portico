@@ -4,14 +4,15 @@ import {surfacePaintFixture, screenModule, hooks} from './helpers/screen-harness
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 import {shellLayout} from '../src-next/shell/model.ts';
 const {react, render} = hooks(); let isTV = false, width = 390, height = 844;
-const {NativeVersionChooser} = await screenModule(new URL('../src-next/screens/watch/VersionChooser.tsx', import.meta.url), {
-  '../../kit/overlays/SurfacePaintHost': surfacePaintFixture,
+const {NativeVersionChooser} = await screenModule(new URL('../src-next/kit/player/VersionChooser.tsx', import.meta.url), {
+  '../overlays/SurfacePaintHost': surfacePaintFixture,
   react, 'react-native': {Modal: 'Modal', ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width, height})},
   'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
-  '../../../../../packages/i18n/src': {defaultI18n}, '../../shell/model': {shellLayout}, '../../kit/controls': {Focusable: 'Focusable'},
-  '../../kit/overlays/TVPanelMotion': {TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelInteractive: () => true, useTVPanelModal: () => ({visible: true})},
-  '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/overlays/surface': {FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground'},
-  '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/theme': {nativeType: (value: unknown) => value, useTheme: () => ({isTV, colors: {}, type: {caption: {}}})},
+  '../../../../../packages/i18n/src': {defaultI18n}, '../../shell/model': {shellLayout}, '../controls': {Focusable: 'Focusable'},
+  '../overlays/TVPanelMotion': {TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelInteractive: () => true, useTVPanelModal: () => ({visible: true})},
+  '../overlays': {BottomSheet: 'BottomSheet'}, '../overlays/surface': {FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground'},
+  '../overlays/OverlayHost': {useOverlayLifecycle() {}}, '../shell/visual': {shellType: (size: number, weight: number, lineHeight: unknown, tracking: number) => ({size, weight, tracking, lineHeight})},
+  '../theme': {textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'}), useTheme: () => ({isTV, colors: {}, type: {caption: {}}})},
 });
 function descendants(node: any): any[] {
   if (Array.isArray(node)) return node.flatMap(descendants);
