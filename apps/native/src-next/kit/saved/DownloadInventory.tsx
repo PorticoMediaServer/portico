@@ -73,7 +73,8 @@ export const DownloadInventoryWindow = React.memo(function DownloadInventoryWind
         append(group.key, group.entries, rulesBeside ? 1 : 2);
       }
     } else for (const group of membership.groups) {
-      if (group.title) result.push({key: `group:${group.key}`, kind: 'group', label: group.title, count: group.episodeCount, estimate: 46});
+      // A group without a title (books, films) still starts with a gap, so its card never touches the storage card above.
+      result.push({key: `group:${group.key}`, kind: 'group', label: group.title, count: group.episodeCount, estimate: group.title ? 46 : 18});
       append(group.key, group.entries, 1);
     }
     return result;
@@ -100,7 +101,7 @@ export const DownloadInventoryWindow = React.memo(function DownloadInventoryWind
           paddingTop: expanded ? 16 : 20, marginHorizontal: 20, paddingBottom: expanded ? 4 : 8}}>
           <Text accessibilityRole="header" style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{row.label}</Text>
           {row.count !== undefined && <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{t('count.episodes', {count: row.count})}</Text>}
-        </View> : <View style={{height: 8}}/> : <View style={expanded ? row.metric
+        </View> : <View style={{height: expanded ? 8 : 18}}/> : <View style={expanded ? row.metric
           ? {flexDirection: 'row', paddingHorizontal: readingGutter, columnGap: readingGap}
           : {flexDirection: 'row', marginHorizontal: 14}
           : {marginHorizontal: 16, backgroundColor: theme.colors.raised, borderTopLeftRadius: row.first ? 14 : 0, borderTopRightRadius: row.first ? 14 : 0,
@@ -217,7 +218,7 @@ function DownloadRow({entry, device, runtime, copy, separator, menuOpen, onMenu,
           <Artwork source={artwork} width={metric ? 52 : 46} height={metric ? 78 : 69} zoom={backdrop ? 2.2 : 1} saturation={backdrop ? .55 : 1} brightness={backdrop ? .45 : 1} style={{borderRadius: metric ? 5 : 6}}/>
           <View style={{flex: 1, minWidth: 0}}><Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{entry.title}</Text>
             {!!text.metadata.length && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 10, rowGap: 2, marginTop: metric ? 3 : 2}}>
-              {text.metadata.map((value, index) => <Text key={index} style={[theme.type.rowHeading, {maxWidth: '100%', color: theme.colors.textTertiary}]}>{value}</Text>)}
+              {text.metadata.map((value, index) => <Text key={index} style={[theme.type.rowHelp, {maxWidth: '100%', color: theme.colors.textTertiary}]}>{value}</Text>)}
             </View>}
             {!!text.reason && <Text style={[theme.type.rowHelp, {color: text.stopped ? theme.colors.record : text.warning ? theme.colors.amber : theme.colors.textTertiary, marginTop: 2}]}>{text.reason}</Text>}
             {entry.state === 'downloading' && !entry.waiting && progress !== undefined && <><Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginTop: 2}]}>{t(copy.downloading, {percent: Math.round(100 * progress)})}</Text><View style={{height: 3, backgroundColor: theme.colors.raisedBright, marginTop: metric ? 8 : 7, borderRadius: 2, overflow: 'hidden'}}><View style={{height: 3, width: `${100 * progress}%`, backgroundColor: theme.colors.accentStrong}}/></View></>}

@@ -5,7 +5,7 @@ import type {DownloadsService, TrackedDownloadRequest} from '../../../../../../p
 import type {NativeOfflineDownloadsDevice, OfflineEntry, OfflineSettings, OfflineSnapshot} from '../../../platform/offline-downloads';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {MenuAction} from '../../../kit/overlays';
-import {downloadEntryIdentity, downloadGroups, downloadStorageSegments, type NativeDownloadsCopy} from '../../../screens/downloads/presentation';
+import {downloadEntryIdentity, downloadGroups, downloadStorageSegments, groupDownloadRequests, type NativeDownloadsCopy} from '../../../screens/downloads/presentation';
 import {createDownloadInventory, createDownloadViewport} from '../../../screens/downloads/inventory';
 
 const t = defaultI18n.t;
@@ -126,6 +126,7 @@ export function useDownloads({device, runtime, copy, openTitle, service}: Downlo
   const storage = downloadStorageSegments(snapshot);
   const requests = useSyncExternalStore(service ? service.subscribe : noSubscribe, service ? () => service.getSnapshot().requests : noRequests);
   const waiting = snapshot.pendingDownloads ?? [];
+  const groupRequests = useMemo(() => groupDownloadRequests(requests), [requests]);
   const empty = snapshot.ready && snapshot.entries.length === 0 && requests.length === 0 && waiting.length === 0;
   let readingBytes = 0, watchingBytes = 0;
   for (const entry of snapshot.entries) {
@@ -157,7 +158,7 @@ export function useDownloads({device, runtime, copy, openTitle, service}: Downlo
     if (entry) run(() => device.remove(entry));
   };
   return {snapshot, inventory, membership, viewport, scroll, limitRef,
-    empty, storage, requests, waiting, cancelWaiting, heldBytes, readingBytes, watchingBytes,
+    empty, storage, requests: groupRequests, waiting, cancelWaiting, heldBytes, readingBytes, watchingBytes,
     failure, setEntryMenu, entryMenu, menu, menuItems, afterMenu, pickingLimit, setPickingLimit,
     pending, removingOthers, closeRemoveOthers, openRemoveOthers, confirmRemoveOthers,
     removing, setRemoving, removeEntry, openMenu, playEntry, retryEntry, save, retry: () => run(device.open)};
