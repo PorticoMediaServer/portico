@@ -1,8 +1,8 @@
 import React, {useEffect, useSyncExternalStore} from 'react';
-import {fileInfoTrackKey, type FileInfoLane, type FileInfoSession} from '../../../../../packages/client-core/src/file-info-session';
-import type {ManageAction, TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {NativeFileInfoContent, type NativeFileInfoIdentity, type NativeFileInfoMore} from './FileInfoContent';
-import {nativeFileInfoShowFile, nativeFileInfoShowVersion, nativeFileInfoView} from './file-info';
+import {fileInfoTrackKey, type FileInfoLane, type FileInfoSession} from '../../../../../../packages/client-core/src/file-info-session';
+import type {ManageAction, TextEnvironment} from '../../../../../../packages/client-core/src/presentation/kit-model';
+import {NativeFileInfoContent, type NativeFileInfoIdentity, type NativeFileInfoMore} from '../../../screens/watch/FileInfoContent';
+import {nativeFileInfoShowFile, nativeFileInfoShowVersion, nativeFileInfoView} from '../../../screens/watch/file-info';
 
 export type NativeFileInfoPanelProps = Readonly<{
   session: FileInfoSession; kind: string; text: TextEnvironment; isTV: boolean; identity?: NativeFileInfoIdentity;

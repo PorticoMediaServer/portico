@@ -167,7 +167,7 @@ test('shared menu Play requires the exact live opening and an enabled detail gra
     react: {default: {}}, 'react-native': {Platform: {isTV: false}}, '../../../../../packages/player-core/src': {},
     '../../../../../packages/client-core/src/detail': {}, '../../../../../packages/client-core/src/administration': {},
     '../../../../../packages/client-core/src/search': {}, '../../../../../packages/client-core/src/title-identity': {},
-    '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => a === b}, './file-info': {}, './FileInfoPanel': {}, '../../../../../packages/client-core/src/file-info-session': {}, '../settings-live/together-session': {nativeTogetherSession: () => ({subscribe: () => () => {}, getSnapshot: () => ({phase: 'idle'})})},
+    '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => a === b}, './file-info': {}, '../../pages/shared/title/FileInfoPanel': {}, '../../../../../packages/client-core/src/file-info-session': {}, '../settings-live/together-session': {nativeTogetherSession: () => ({subscribe: () => () => {}, getSnapshot: () => ({phase: 'idle'})})},
   });
   const authority = {}, capture = {authority, routeRevision: 1, current: () => true, entry: {id: 'actual'}};
   const subscribe = () => () => {}, calls: string[] = [];

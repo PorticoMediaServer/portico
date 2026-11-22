@@ -56,7 +56,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/scree
   '../../platform/layout/full-window': {nativeFullWindowOrientation: undefined},
   './disc-titles-controller': {NativeDiscTitlesController}, './disc-titles': {prepareDiscTitle, readDiscTitles},
   '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n},
-  '../../shell/model': {sameAuthority}, './controls': {NativeWatchControls}, '../../../../../packages/client-core/src/file-info-session': {FileInfoSession, fileInfoUsesGroups}, './FileInfoPanel': {NativeFileInfoPanel: 'FileInfoPanel'}, './playback-info': {readNativePlaybackInfo},
+  '../../shell/model': {sameAuthority}, './controls': {NativeWatchControls}, '../../../../../packages/client-core/src/file-info-session': {FileInfoSession, fileInfoUsesGroups}, '../../pages/shared/title/FileInfoPanel': {NativeFileInfoPanel: 'FileInfoPanel'}, './playback-info': {readNativePlaybackInfo},
   './track-identity': {nativeWatchTracks}, './EpisodePanel': episodes,
   './title-controller': {NativeTitleController}, './title-starts': {NativeTitleStarts}, './TitleScreen': {NativeTitleScreen: 'Title'}, '../../pages/touch/title/routes': {touchTitlePages: {movie: 'Title', show: 'Title'}},
   '../../pages/tv/title/routes': {tvTitlePages: {movie: 'Title'}},
