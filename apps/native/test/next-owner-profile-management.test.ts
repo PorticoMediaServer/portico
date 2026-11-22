@@ -34,12 +34,12 @@ async function fixture(main = true, pinRequired = false, pictures = false) {
     navigation: {getSnapshot: () => snapshot, subscribe: () => () => {}},
     api: {}, account: {serverId: 'server', canManage: true, capabilities: {manageAccount: true}, account: {id: 'account', primaryProfileId: primary.id, disabled: false}, profiles}};
   const colors = new Proxy({}, {get: () => '#123456'}), type = new Proxy({}, {get: () => ({})});
-  const modules: any = { './account-form-values': accountFormValues, '@portico/design': {profileArtColors: {blue: 'blue', violet: 'violet', mint: 'mint', coral: 'coral', gold: 'gold', slate: 'slate', rose: 'rose', sky: 'sky'}},
+  const modules: any = { '../../../screens/accounts/account-form-values': accountFormValues, '@portico/design': {profileArtColors: {blue: 'blue', violet: 'violet', mint: 'mint', coral: 'coral', gold: 'gold', slate: 'slate', rose: 'rose', sky: 'sky'}},
     react, 'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}, Dimensions: {get: () => ({width: 390, height: 844})}, NativeModules: {}, Platform: {isTV: false}, Text: 'Text', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'fixture failure'})},
-    '../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'),
-    '../../../../../packages/client-core/src/profile-management': {nextProfileArt: (await import('../../../packages/client-core/src/profile-management.ts')).nextProfileArt, ManagedProfilesClient: class {
+    '../../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'fixture failure'})},
+    '../../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'),
+    '../../../../../../packages/client-core/src/profile-management': {nextProfileArt: (await import('../../../packages/client-core/src/profile-management.ts')).nextProfileArt, ManagedProfilesClient: class {
       async list() {return profiles;}
       async create(name: string, art: string) {writes.push({kind: 'create', name, art});}
       async edit(target: any, change: any) {writes.push({kind: 'edit', target, change});}
@@ -53,26 +53,26 @@ async function fixture(main = true, pinRequired = false, pictures = false) {
         profiles = profiles.filter(profile => profile.id !== target.profileId);
         options?.onStatus?.({profileId: target.profileId, lifetime: target.lifetime, state: 'removed'});}
     }},
-    '../../../../../packages/client-core/src/identity-client': {IdentityClient: class {
+    '../../../../../../packages/client-core/src/identity-client': {IdentityClient: class {
       async restrictions(profileId: string) {return {profileId, revision: 3, ratingSystem: 'us', maximumAgeRating: '', allowUnrated: true, allowDownloads: true, allowLiveTv: true, allowDvr: true, allowWatchTogether: true, blockedLabels: []};}
       async ratingSystems() {return [{id: 'us', values: []}];}
       async saveRestrictions(previous: any, change: any) {writes.push({kind: 'limits', previous, change}); return {...previous, ...change, revision: previous.revision + 1};}
     }},
-    '../../../../../packages/client-core/src': {HttpHostedApi: class {constructor() {throw new Error('Unexpected Hosted contact');}}},
-    '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
-    '../../platform/accounts': {}, '../../platform/app-session-storage': {}, '../../platform/native-session-lifecycle': {}, '../../platform/profile-recovery': {}, '../../platform/account-authority': {},
-    '../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => pictures}, '../../platform/server-connections': {},
-    '../../kit/settings/ProfileEditorFields': await profileEditorFields(react, {colors, type, isTV: false}),
-    '../settings-live/lifetime': {NativeScreenLifetime: class {current = () => true; dispose() {}}},
-    '../../shell/model': {sameAuthority: (left: unknown, right: unknown) => left === right},
-    '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
-    '../../kit/states': {StateLayout: 'StateLayout', StateView: 'StateView'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace', ProfilePicker: 'ProfilePicker'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
-    '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../../platform/offline-downloads': {}, '../../kit/theme': {useTheme: () => ({colors, type, isTV: false})},
-    './AccountEntry': {}, './downloads-entry': {}, './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {}, '../../pages/touch/accounts/ProfilePINPage': {}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../pages/touch/accounts/ProfileRecoveryPage': {}, '../../pages/touch/accounts/ServerChooserPage': {}, '../../pages/shared/accounts/TrustedCertificatesPage': {}, '../../pages/tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'}, '../../pages/tv/accounts/ServerChooserPage': {}, './sign-out-downloads': {}, '../../tv/auth': {},
+    '../../../../../../packages/client-core/src': {HttpHostedApi: class {constructor() {throw new Error('Unexpected Hosted contact');}}},
+    '../../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
+    '../../../platform/accounts': {}, '../../../platform/app-session-storage': {}, '../../../platform/native-session-lifecycle': {}, '../../../platform/profile-recovery': {}, '../../../platform/account-authority': {},
+    '../../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => pictures}, '../../../platform/server-connections': {},
+    '../../../kit/settings/ProfileEditorFields': await profileEditorFields(react, {colors, type, isTV: false}),
+    '../../../screens/settings-live/lifetime': {NativeScreenLifetime: class {current = () => true; dispose() {}}},
+    '../../../shell/model': {sameAuthority: (left: unknown, right: unknown) => left === right},
+    '../../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}},
+    '../../../kit/states': {StateLayout: 'StateLayout', StateView: 'StateView'}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace', ProfilePicker: 'ProfilePicker'},
+    '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../../kit/Icon': {Icon: 'Icon'},
+    '../../../../platform/offline-downloads': {}, '../../../kit/theme': {useTheme: () => ({colors, type, isTV: false})},
+    '../../../screens/accounts/AccountEntry': {}, '../../../screens/accounts/downloads-entry': {}, '../../../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../../../kit/accounts/PhonePINEntry': {}, '../../touch/accounts/ProfilePINPage': {}, '../../touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../touch/accounts/ProfilesPage': {}, '../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../touch/accounts/ProfileRecoveryPage': {}, '../../touch/accounts/ServerChooserPage': {}, './TrustedCertificatesPage': {}, '../../tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'}, '../../tv/accounts/ServerChooserPage': {}, '../../../screens/accounts/sign-out-downloads': {}, '../../../tv/auth': {},
   };
-  const {ProfileRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), modules);
+  const {ProfilesRoutePage: ProfileRoute} = await screenModule(new URL('../src-next/pages/shared/accounts/ProfilesRoutePage.tsx', import.meta.url), modules);
   const render = () => {renderingHost = host; return host.render(() => ProfileRoute({context, route, onBack() {}, embedded: true}));};
   const renderLimits = (element: any) => {renderingHost = limitsHost; try {
     return limitsHost.render(() => {

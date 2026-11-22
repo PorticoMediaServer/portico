@@ -1,4 +1,5 @@
-import {ProfileRoute, ServersRoute} from '../accounts/AccountRoutes';
+import {ProfilesRoutePage as ProfileRoute} from '../../pages/shared/accounts/ProfilesRoutePage';
+import {ServersRoutePage as ServersRoute} from '../../pages/shared/accounts/ServersRoutePage';
 import {AccountSecurityPanel} from '../../pages/shared/settings/AccountSecurityPanel';
 import {AccessTokensPanel} from '../../pages/touch/settings/AccessTokensPanel';
 import {DeviceAboutRows} from '../../pages/touch/settings/DeviceAboutRows';

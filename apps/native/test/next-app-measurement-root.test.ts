@@ -36,7 +36,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     './dev/Kit': {KitHost: leaf}, './dev/public-measurement': {NativePublicMeasurementGate: leaf},
     './dev/measurement-install': {installNativePublicMeasurement: () => {throw new Error('root-prop read must not install measurement');}},
   };
-  const registrations = new Set(['./screens/accounts/AccountRoutes', './shell/downloads-route', './shell/collections-route', './shell/library-route', './shell/library-overview-route',
+  const registrations = new Set(['./shell/account-route', './shell/downloads-route', './shell/collections-route', './shell/library-route', './shell/library-overview-route',
     './shell/pins-route', './shell/music-route', './shell/audiobooks-route', './shell/read-route', './shell/people-route', './shell/notifications-route', './shell/search-route', './shell/customize-route', './shell/see-all-route',
     './shell/licences-route', './shell/live-route', './shell/together-route', './shell/saved-route']);
   const module = {exports: {} as {default?: (props: object) => Element}};

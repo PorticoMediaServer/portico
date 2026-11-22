@@ -15,6 +15,7 @@ import * as lifetime from '../src-next/screens/settings-live/lifetime';
 import * as shellModel from '../src-next/shell/model';
 import * as accountFormValues from '../src-next/screens/accounts/account-form-values';
 import {profileArtColors} from '@portico/design';
+import {posix} from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -34,6 +35,12 @@ function backOwner() {
   const listeners = new Set<() => boolean>();
   return {listeners, api: {addEventListener: (_: string, handler: () => boolean) => {listeners.add(handler); return {remove: () => listeners.delete(handler)};}}};
 }
+// Stubs written from screens/accounts, re-pointed for a module loaded from shell/ (the accounts route moved there).
+const fromAccounts = (modules: Record<string, unknown>) => Object.fromEntries(Object.entries(modules).map(([key, value]) => {
+  if (!key.startsWith('.')) return [key, value];
+  const path = posix.relative('src-next/shell', posix.join('src-next/screens/accounts', key));
+  return [path.startsWith('.') ? path : `./${path}`, value];
+}));
 const shared = (back: Awaited<ReturnType<typeof backOwner>>) => ({
   react: {...React, default: React},
   'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: back.api, Platform: {OS: 'ios', isTV: true}, Dimensions: {get: () => ({width: 1920, height: 1080})}, NativeModules: {}, TVEventControl: {enableTVMenuKey: () => menuCalls.push('enable'), disableTVMenuKey: () => menuCalls.push('disable')}, View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
@@ -151,22 +158,22 @@ test('TV profile-switch hand-off preserves its current family, selection control
     react: React, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/artwork': {ProfilePicker: 'Picker'},
     '../../../kit/frames/TVAuthLayout': {TVAccountCanvas: 'TVAccountCanvas'},
   });
-  const {AccountRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), {'../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
-    '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
-    '../../pages/tv/accounts/ProfilesPage': {ProfilesPage},
-    '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, '../../pages/shared/accounts/TrustedCertificatesPage': {TrustedCertificatesPage: 'TVTrustedCertificates'}, '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
-    '../../../../../packages/client-core/src/profile-management': profileManagement, '../../../../../packages/client-core/src/identity-client': identityClient,
-    '../../platform/profile-avatars': profileAvatars, '../../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
-    '../settings-live/lifetime': lifetime, '../../shell/model': shellModel,
-    ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
-    '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
+  const {AccountRoute} = await screenModule(new URL('../src-next/shell/account-route.tsx', import.meta.url), {'../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
+    '@portico/design': {profileArtColors}, '../screens/accounts/account-form-values': accountFormValues,
+    '../pages/tv/accounts/ProfilesPage': {ProfilesPage},
+    '../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, '../pages/shared/accounts/TrustedCertificatesPage': {TrustedCertificatesPage: 'TVTrustedCertificates'}, '../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
+    '../../../../packages/client-core/src/profile-management': profileManagement, '../../../../packages/client-core/src/identity-client': identityClient,
+    '../platform/profile-avatars': profileAvatars, '../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
+    '../screens/settings-live/lifetime': lifetime, './model': shellModel,
+    ...fromAccounts(shared(back)), '../platform/account-work': accountWork, '../platform/accounts': {nativeAccounts: {}}, '../platform/app-session-storage': {},
+    '../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
-    '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
-    '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
-    '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},
-    '../../platform/server-connections': {nativeNetworkFetch: async () => ({})},
-    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'PhoneProfileRecovery'},
+    }}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../screens/accounts/downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, '../screens/accounts/AccountEntry': {AccountEntry: 'Entry'}, '../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
+    '../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
+    '../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
+    '../platform/account-authority': {hostedUrl: 'https://hosted.test'},
+    '../platform/server-connections': {nativeNetworkFetch: async () => ({})},
+    '../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'PhoneProfileRecovery'},
   });
   const authority = {serverId: 'server', accountId: 'account', profileId: 'current', epoch: '1', viewerFence: 'f'.repeat(64)};
   const route = {kind: 'profiles'};
@@ -241,22 +248,22 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
   const back = backOwner(), attempts: unknown[][] = [];
   let live = true, calls = 0, exited = 0;
   const current = {sessionFamilyId: 'current-family', viewer: {serverId: 'server', accountId: 'account', profileId: 'current'}};
-  const {AccountRoute} = await screenModule(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), {'../../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
-    '@portico/design': {profileArtColors}, './account-form-values': accountFormValues,
-    '../../pages/tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'},
-    '../../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, '../../pages/shared/accounts/TrustedCertificatesPage': {TrustedCertificatesPage: 'TVTrustedCertificates'}, '../../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
-    '../../../../../packages/client-core/src/profile-management': profileManagement, '../../../../../packages/client-core/src/identity-client': identityClient,
-    '../../platform/profile-avatars': profileAvatars, '../../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
-    '../settings-live/lifetime': lifetime, '../../shell/model': shellModel,
-    ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
-    '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
+  const {AccountRoute} = await screenModule(new URL('../src-next/shell/account-route.tsx', import.meta.url), {'../../../../packages/contracts/src/routes': await import('../../../packages/contracts/src/routes.ts'), 
+    '@portico/design': {profileArtColors}, '../screens/accounts/account-form-values': accountFormValues,
+    '../pages/tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'},
+    '../pages/tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVServerChooser'}, '../pages/shared/accounts/TrustedCertificatesPage': {TrustedCertificatesPage: 'TVTrustedCertificates'}, '../pages/touch/accounts/ServerChooserPage': {ServerChooserPage: 'PhoneServerChooser'},
+    '../../../../packages/client-core/src/profile-management': profileManagement, '../../../../packages/client-core/src/identity-client': identityClient,
+    '../platform/profile-avatars': profileAvatars, '../kit/settings/ProfileEditorFields': {ProfileColorPicker: 'ProfileColorPicker', ProfileRestrictionsFields: 'ProfileRestrictionsFields'},
+    '../screens/settings-live/lifetime': lifetime, './model': shellModel,
+    ...fromAccounts(shared(back)), '../platform/account-work': accountWork, '../platform/accounts': {nativeAccounts: {}}, '../platform/app-session-storage': {},
+    '../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
-    '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
-    '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
-    '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},
-    '../../platform/server-connections': {nativeNetworkFetch: async () => ({})},
-    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'PhoneProfileRecovery'},
+    }}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../screens/accounts/downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, '../screens/accounts/AccountEntry': {AccountEntry: 'Entry'}, '../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
+    '../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
+    '../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
+    '../platform/account-authority': {hostedUrl: 'https://hosted.test'},
+    '../platform/server-connections': {nativeNetworkFetch: async () => ({})},
+    '../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'PhoneProfileRecovery'},
   });
   const authority = {serverId: 'server', accountId: 'account', profileId: 'current', epoch: '1', viewerFence: 'f'.repeat(64)};
   const route = {kind: 'profiles'};

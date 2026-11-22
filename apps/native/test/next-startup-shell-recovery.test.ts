@@ -43,7 +43,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     '../platform/sign-in-ended': {NativeSignInEnded: SignInEnded}, '../platform/identity-failure': {NativeIdentityFailure: IdentityFailure},
     '../platform/home-action-diagnostics': {homeActionDiagnostics: {error: (_: string, error: unknown) => {errors.push(error);}, lifetime() {}}},
     '../platform/secure-records': {isSecureRecordsLost: (error: {code?: string}) => error?.code === 'secure_records_key_lost', secureRecordsRecoveredNotice: () => undefined, acknowledgeSecureRecordsRecovered() {}},
-    '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
+    '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../pages/shared/accounts/ServersRoutePage': {ServersRoutePage: 'ServersRoute'},
     './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'}, '../pages/shared/accounts/ServerIdentityFailurePage': {ServerIdentityFailurePage: 'ServerIdentityFailure'},
     './settings-appearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
     '../pages/touch/downloads/RememberedDownloadsPage': {RememberedDownloadsPage: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},

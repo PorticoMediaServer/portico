@@ -59,7 +59,7 @@ function modules(state: {
     '../platform/app-session-storage': {readNativeSelectedViewer: state.reads, subscribeNativeAppSessions: state.hints},
     './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
     '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'},
-    '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
+    '../pages/shared/accounts/ServersRoutePage': {ServersRoutePage: 'ServersRoute'},
     '../../../../packages/i18n/src': {defaultI18n},
     '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}},
     '../pages/shared/accounts/ServerIdentityFailurePage': {ServerIdentityFailurePage: 'ServerIdentityFailure'},

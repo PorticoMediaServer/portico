@@ -41,7 +41,7 @@ test(`compact ${category} recovery admits only original usable downloads: ${cond
     './assembly': {createNativeShellBindings: () => ({})}, './bootstrap': {restoreNativeShellRuntime: async () => {throw new Error(category);}},
     './NativeShell': {NativeShell: 'NativeShell'}, '../platform/accounts': {nativeAccounts: {snapshot: async () => ({servers: []}), onSettled: () => () => {}, onFence: () => () => {}}},
     '../platform/app-session-storage': {readNativeSelectedViewer: async () => undefined, subscribeNativeAppSessions: () => () => {}},
-    '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../screens/accounts/AccountRoutes': {ServersRoute: 'ServersRoute'},
+    '../screens/accounts/AccountEntry': {AccountEntry: 'AccountEntry'}, '../pages/shared/accounts/ServersRoutePage': {ServersRoutePage: 'ServersRoute'},
     '../../../../packages/i18n/src': {defaultI18n}, '../platform/sign-in-ended': {NativeSignInEnded: class extends Error {}},
     '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}}, './first-library': {PhoneFirstLibrary: 'PhoneFirstLibrary'},
     '../pages/shared/accounts/ServerIdentityFailurePage': {ServerIdentityFailurePage: 'ServerIdentityFailure'},

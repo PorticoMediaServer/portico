@@ -52,7 +52,7 @@ test('NM-ID-02: the real TV profile picker offers only the faces, with no Add or
     const {createFocusRegistry} = await import('../src-next/kit/focus/registry.ts');
     const {FocusProvider} = await import('../src-next/kit/focus/FocusRegion.tsx');
     const {ThemeProvider} = await import('../src-next/kit/theme.ts');
-    const {AccountRoute} = await import('../src-next/screens/accounts/AccountRoutes.tsx');
+    const {AccountRoute} = await import('../src-next/shell/account-route.tsx');
     const {defaultI18n} = await import('../../../packages/i18n/src/index.ts');
     const {Platform} = await import('react-native');
 
