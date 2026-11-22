@@ -162,3 +162,10 @@ test('restored lines are kept as they are and do not fold this run’s first war
  log.write('warn','app','warning');
  assert.equal(log.snapshot().split('\n').length, 4);
 });
+
+test('a clock set back does not stretch the fold: the next warning is kept', () => {
+ let now = 1_000_000; const log = new AppLog(()=>now);
+ log.write('warn','app','warning'); now -= 600_000;
+ log.write('warn','app','warning');
+ assert.equal(log.snapshot().split('\n').length, 2);
+});
