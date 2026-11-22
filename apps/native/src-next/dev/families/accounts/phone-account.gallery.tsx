@@ -10,6 +10,7 @@ import {SignInPage} from '../../../pages/touch/accounts/SignInPage';
 import {PhoneFindServer, type FoundServer} from '../../../screens/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../../pages/touch/accounts/ServerSignInPage';
 import {MovePasswordPage} from '../../../pages/touch/accounts/MovePasswordPage';
+import {MoveCodePage} from '../../../pages/touch/accounts/MoveCodePage';
 
 // The phone and tablet sign-in screens (auth.html frames 4, 5 and 6) in the states the review desk signs against:
 // at rest, filled, long values, busy and error. Each case is the whole screen, so it cancels the Kit window's gutter.
@@ -52,6 +53,17 @@ function Find({found = nearby(false), address = '', searching = false, failed = 
     localNetworkNote onContinue={noop} onChoose={noop} onSearchAgain={noop} onPortico={noop} onInvitation={noop} onBack={noop}/></Whole>;
 }
 
+/** A move client held at its code or new-sign-in step, for the frame only: it never reads, previews or redeems. */
+function MoveCode({phase, error = false}: {phase: 'code' | 'local'; error?: boolean}) {
+  // One snapshot for the frame's life: the store must hand back the same object until it changes.
+  const [controller] = useState(() => {
+    const snapshot = {phase, busy: false, username: phase === 'local' ? user : undefined, error: error ? Object.assign(new Error('unavailable'), {code: 'unavailable'}) : null};
+    return {subscribe: () => noop, getSnapshot: () => snapshot, isCurrentOpening: () => true, readCodeInput: () => undefined,
+      previewCode: async () => {}, redeemLocal: async () => {}, cancel: noop};
+  });
+  return <Whole><MoveCodePage controller={controller as never} isCurrent={() => true} onBack={noop}/></Whole>;
+}
+
 function Local({serverName = 'Portico demo', address = '192.168.1.20:32500', username = '', password = '', busy = false, error = false}: {
   serverName?: string; address?: string; username?: string; password?: string; busy?: boolean; error?: boolean;
 }) {
@@ -68,6 +80,9 @@ const galleries: readonly Gallery[] = [
   {id: 'phone-account-welcome-long', title: T, platforms: P, screen: true, render: () => <Welcome username={fixture['next.controls.native.fixture.longUsername']} password={secret}/>},
   {id: 'phone-account-welcome-busy', title: T, platforms: P, screen: true, render: () => <Welcome busy username={user} password={secret}/>},
   {id: 'phone-account-welcome-error', title: T, platforms: P, screen: true, render: () => <Welcome notice/>},
+  {id: 'phone-account-move-code', title: T, platforms: P, screen: true, render: () => <MoveCode phase="code"/>},
+  {id: 'phone-account-move-code-error', title: T, platforms: P, screen: true, render: () => <MoveCode phase="code" error/>},
+  {id: 'phone-account-move-local', title: T, platforms: P, screen: true, render: () => <MoveCode phase="local"/>},
   {id: 'phone-account-find', title: T, platforms: P, screen: true, render: () => <Find searching/>},
   {id: 'phone-account-find-filled', title: T, platforms: P, screen: true, render: () => <Find address="192.168.1.20:32500"/>},
   {id: 'phone-account-find-long', title: T, platforms: P, screen: true, render: () => <Find found={nearby(true)} address={fixture['next.controls.native.fixture.longAddress']}/>},
