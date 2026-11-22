@@ -61,3 +61,12 @@ func audioPlanComparison(source *PlaybackSoundFacts, p *AudioPlan, remote, quali
 	}
 	return info
 }
+
+// PlaybackInfo is this audio plan's comparison of the source and what plays (the player's info
+// sheet, music's signal line), or nil when the plan has none.
+func (p *AudioPlan) PlaybackInfo() *PlaybackInfo {
+	if p == nil {
+		return nil
+	}
+	return p.comparison
+}

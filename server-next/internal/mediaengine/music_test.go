@@ -136,6 +136,21 @@ func TestSongsArePlannedForTheAppsOwnMusicEngine(t *testing.T) {
 		session.Presentation.Route != "converted" {
 		t.Fatalf("the FLAC should be converted to Opus: %+v, %+v", plan, session.Presentation)
 	}
+	// The session says what the file holds and what plays (music's signal line, "FLAC 44.1 kHz").
+	var info struct {
+		Route  string
+		Source struct {
+			Audio *struct {
+				Codec      string
+				SampleRate int `json:"sampleRate"`
+			}
+		}
+		Delivered struct{ Audio *struct{ Codec string } }
+	}
+	if err := json.Unmarshal(session.PlaybackInfo, &info); err != nil || info.Route != "converted" || info.Source.Audio == nil ||
+		info.Source.Audio.Codec != "flac" || info.Source.Audio.SampleRate != 44100 || info.Delivered.Audio == nil || info.Delivered.Audio.Codec != "opus" {
+		t.Fatalf("the FLAC's playback info: %s (%v)", session.PlaybackInfo, err)
+	}
 	code, header, body := h.media(plan.URL)
 	if code != 200 || header.Get("Content-Type") != "audio/ogg" || header.Get("X-Audio-Frames") == "" || !bytes.HasPrefix(body, []byte("OggS")) {
 		t.Fatalf("the conversion answered %d %v with %d bytes", code, header, len(body))
