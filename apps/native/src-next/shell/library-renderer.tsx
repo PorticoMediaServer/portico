@@ -19,7 +19,7 @@ import {NativeLibraryDirectory} from '../screens/library/directory';
 import {hiddenReadingLibraryOnTV, isReadingLibraryKind} from '../screens/read/platform';
 import {libraryTab, libraryTabs, type LibraryTabId} from '../../../../packages/client-core/src/presentation/library-tabs';
 import {BooksPage} from '../pages/touch/reading/BooksPage';
-import {createNativeLibraryPlaySelection} from '../screens/library/play-selection';
+import {createNativeLibraryPlaySelection, nativeLibrarySelectionPorts} from '../screens/library/play-selection';
 import {createNativeDiscoverSelection} from '../screens/library/discover-selection';
 import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNamingPanelId} from '../screens/library/tv-library';
 import {NativeTVLibrarySurface} from '../kit/library/TVSaveViewPanel';
@@ -121,6 +121,7 @@ export function createNativeLibraryRenderer(context: NativeShellBootstrapContext
         // saved opening wins, and an unoffered pivot leaves the destination's own default.
         const seed = routeTab ?? (initial ? undefined : rememberedPivot(library));
         const destination = new NativeLibraryDestination({api: context.api, scope: lifetime.scope, library, ...(seed ? {tab: seed} : {}),
+          selectionPorts: () => nativeLibrarySelectionPorts(context),
           ...(initial ? {initial} : {}),
           current: () => current() && context.libraries().some(value => value.id === id && value.kind === library.kind)
             && (!initial || sameAuthority(initial.authority, context.authority()) && context.session()?.sessionFamilyId === initial.sessionFamilyId
