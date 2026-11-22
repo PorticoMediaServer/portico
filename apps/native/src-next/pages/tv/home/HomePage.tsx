@@ -8,12 +8,12 @@ import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroA
 import {TVHomeCustomize, TVHomeRow, TVHomeSpotlight} from '../../../kit/home/HomeTVParts';
 import {Hero, FocusPreviewHero, Row, type ArtworkRenderContext} from '../../../kit/layout';
 import {Banner} from '../../../kit/overlays';
-import {HomeSkeleton, LoadingPaint, StateView} from '../../../kit/states';
+import {HomeSkeleton, LoadingPaint, StateView, TVHomeRecovery} from '../../../kit/states';
 import {MusicMixesRow} from '../../../screens/destinations/music/MusicMixesRow';
 import {homeCardText} from '../../../screens/home/model';
-import {TvHomeRecovery} from '../../../screens/home/TvHomeRecovery';
 import {authorityKey} from '../../../shell/model';
 import {useTVHome, type TVHomeProps} from '../../shared/home/useTVHome';
+import {useTVHomeRecoveryView} from '../../shared/home/useTVHomeRecoveryView';
 
 export function TVHomePage(props: TVHomeProps) {
   const {runtime, authority, active = true} = props, home = useTVHome(props), {t} = home;
@@ -21,7 +21,8 @@ export function TVHomePage(props: TVHomeProps) {
     artwork={runtime.artwork} reportError={runtime.reportError} title={t('music.mixesForYou')} onOpen={runtime.musicDiscover} active={active}
     focus={home.mixesRegion ? {id: home.mixesRegion.id, up: home.mixesRegion.edges.up!, down: home.mixesRegion.edges.down, left: home.ids.rail} : undefined}/>;
   if (!home.document) return home.recovery.visible && home.recovery.session
-    ? <TvHomeRecovery session={home.recovery.session} onRetryNow={home.recovery.retryNow} onSwitchServer={home.recovery.switchServer} connectionFacts={runtime.connectionFacts}/>
+    ? <HomeRecovery session={home.recovery.session} onRetryNow={home.recovery.retryNow} onSwitchServer={home.recovery.switchServer}
+      connectionFacts={runtime.connectionFacts}/>
     : home.snapshot.error ? <StateView {...runtime.error(home.snapshot.error, home.retry, 'home')}/>
     : <LoadingPaint ready={false} quietMs={0} skeleton={<HomeSkeleton elapsedMs={home.loadingElapsed} visible={home.visible}/>}/>;
   const notice = home.librariesUnavailable ? <Banner testID="home-libraries-unavailable" placement="inline" variant="notice" tone="warning" icon="i-alert"
@@ -79,4 +80,12 @@ export function TVHomePage(props: TVHomeProps) {
         onPress={home.customize} disabled={home.holdCustomize}/>
     </BrowseFrame>
   </LoadingPaint>;
+}
+
+/** states.html 5: Home's server failure, drawn by the kit from the recovery's facts. */
+function HomeRecovery(props: Parameters<typeof useTVHomeRecoveryView>[0]) {
+  const view = useTVHomeRecoveryView(props);
+  return <TVHomeRecovery title={view.title} body={view.body} retry={view.retry} facts={view.facts} detailsOpen={view.detailsOpen}
+    opener={view.opener} onRetryNow={view.retryNow} onSwitchServer={view.switchServer} onDetails={view.openDetails}
+    onCloseDetails={view.closeDetails}/>;
 }
