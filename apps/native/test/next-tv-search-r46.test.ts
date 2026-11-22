@@ -109,7 +109,7 @@ test('the TV Search page keeps its full query, keyboard and first result region 
   assert.equal(keyboard.props.rightRegionId, ids.searchResults);
   const results = elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchResults)!;
   assert.equal(results.props.entryRegion, ids.searchSection('movies'));
-  assert.equal(results.props.edges.left, ids.searchKeyboardRow(0));
+  assert.equal(results.props.edges.left, ids.searchKeyboard);
   assert.equal(elements(tree).find(node => node.type === 'TVSearchSection')!.props.group.items[0], movie);
 });
 
@@ -242,17 +242,19 @@ test('the drawn keyboard is f5 six-column grid with Space, Delete and Clear and 
   assert.deepEqual(rows, [`${ids.searchKeyboard}.row.0`]);
 });
 
-test('Left from a result returns to the last keyboard row, and that key returns Right to the same card', async () => {
+test('Left from a result aims at the keyboard, whose last key is its entry; the edge stays put across row moves', async () => {
   const host = hooks(), {TVSearchPage, renderResults} = await screen({...host.react, useId: () => 'gradient'});
   state = {text: 'the l', group: 'all', groups, search: {phase: 'ready', data: {capabilities: {groups: [{id: 'movies', available: true}]}}}, recent: []};
   landing = {phase: 'ready', genres, initialHeading: 'next.search.browseByGenre', emptyHeading: 'next.search.browseInstead'}; modelProgress = undefined;
   let tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
   const results = () => elements(tree).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchResults)!;
-  assert.equal(results().props.edges.left, ids.searchKeyboardRow(0));
-  // F-SEARCH-4/27: the keyboard remembers its key, so the results point Left at the row that held it.
+  // F-SEARCH-4/27: the keyboard region remembers the key that last held focus (its descendant), so Left from the results
+  // aims at the keyboard and lands on that key. A row change is kept without drawing the page again: while results mount,
+  // drawing every row again cost tvOS the presses made meanwhile.
+  assert.equal(results().props.edges.left, ids.searchKeyboard);
   elements(tree).find(node => node.type === 'NativeTVKeyboard')!.props.onRowFocus(`${ids.searchKeyboard}.row.1`);
   tree = renderSearch(host.render, renderResults, () => TVSearchPage(screenProps()));
-  assert.equal(results().props.edges.left, `${ids.searchKeyboard}.row.1`);
+  assert.equal(results().props.edges.left, ids.searchKeyboard);
   // F-SEARCH-28: the results region remembers its own element, so Right from that key returns to it.
   assert.equal(results().props.entryRegion, ids.searchSection('movies'));
   assert.equal(results().props.entryPolicy, undefined);

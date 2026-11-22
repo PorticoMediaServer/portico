@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef} from 'react';
 import type {ScrollView} from 'react-native';
 import {useFocusRegistry} from '../../../kit/focus';
 import {retainRecognizerReturn} from '../../../kit/focus/recognizer-return';
@@ -19,7 +19,11 @@ export type NativeTVSearchPageProps = Readonly<{
 /** The actual Search destination keeps its own service, IDs and navigation intent.
  * Only the shared keyboard requests entry focus; result arrival never moves it. */
 export function useTVSearch({focusScope, destination, runtime, activation, explore, actions, selection}: NativeTVSearchPageProps) {
-  const theme = useTheme(), scroll = useRef<ScrollView>(null), [keyboardRow, setKeyboardRow] = useState<string>();
+  const theme = useTheme(), scroll = useRef<ScrollView>(null);
+  // The keyboard row that last held focus. Kept in a ref, not state: moving between keys must not draw the page again, or
+  // every result row is drawn again with it while results mount, and tvOS loses the presses made meanwhile.
+  const keyboardRow = useRef<string | undefined>(undefined);
+  const setKeyboardRow = useCallback((row: string) => {keyboardRow.current = row;}, []);
   const view = useSearch({destination, runtime, explore, activation, actions});
   const {active, state, t} = view, authority = runtime.getSnapshot().authority;
   const ids = useMemo(() => nativeDestinationFocusIds(authority, focusScope), [authority, focusScope]), registry = useFocusRegistry();
@@ -45,9 +49,9 @@ export function useTVSearch({focusScope, destination, runtime, activation, explo
       if (!current.visible || current.revision !== active.revision || !inResults(captured)) return false;
       // focusRegion uses only current enabled native key hosts and their real row memory.
       scroll.current?.scrollTo({y: 0, animated: false});
-      return registry.focusRegion(keyboardRow ?? ids.searchKeyboardRow(0));
+      return registry.focusRegion(keyboardRow.current ?? ids.searchKeyboardRow(0));
     }, {kind: 'search'});
-  }, [activation, active.visible, active.revision, ids, keyboardRow, registry, runtime]);
+  }, [activation, active.visible, active.revision, ids, registry, runtime]);
   const voiceLifetime = useMemo(() => {
     const signal = runtime.retirementSignal ?? new AbortController().signal;
     return {signal, current: () => {
@@ -58,11 +62,23 @@ export function useTVSearch({focusScope, destination, runtime, activation, explo
   }, [runtime, activation, active.revision, authority]);
   const voice = useTVVoiceSearch(theme.isTV && active.visible && !!runtime.retirementSignal, voiceLifetime,
     text => destination.setText(text), runtime.reportError);
-  const keyboard = keyboardRow ?? ids.searchKeyboardRow(0), keyboardKey = registry.remembered(keyboard);
+  // The key that last held focus, read when it is needed.
+  const lastKey = useCallback(() => {
+    const row = keyboardRow.current ?? ids.searchKeyboardRow(0), childId = registry.remembered(row);
+    return childId ? {regionId: row, childId} : undefined;
+  }, [ids, registry]);
+  // Where a vanished result section sends focus: that key. One object whose fields are read when used, so the sections are
+  // never drawn again for a key move.
+  const screenStart = useMemo(() => ({
+    get regionId() {return lastKey()?.regionId ?? '';},
+    get childId() {return lastKey()?.childId ?? '';},
+  }), [lastKey]);
   useEffect(() => runtime.registerScrollToTop({kind: 'search'}, () => scroll.current?.scrollTo({y: 0, animated: !theme.reduceMotion})), [runtime, theme.reduceMotion]);
   const beginVoice = () => {
-    const finish = retainRecognizerReturn(registry, keyboardKey ? {regionId: keyboard, childId: keyboardKey} : undefined);
+    const finish = retainRecognizerReturn(registry, lastKey());
     if (!voice.begin?.(finish)) finish(false);
   };
-  return {view, active, state, t, ids, scroll, keyboard, keyboardKey, setKeyboardRow, voice, beginVoice};
+  // Left from the results and Up from voice aim at the keyboard itself, which enters on the key that last held focus.
+  const keyboard = ids.searchKeyboard;
+  return {view, active, state, t, ids, scroll, keyboard, screenStart, setKeyboardRow, voice, beginVoice};
 }
