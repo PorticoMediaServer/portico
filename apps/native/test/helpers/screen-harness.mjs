@@ -291,6 +291,9 @@ export function hooks() {
     useState: initial => { const n=cursor++; if (!(n in slots)) slots[n]=typeof initial==='function'?initial():initial; return [slots[n], value=>{slots[n]=typeof value==='function'?value(slots[n]):value;}]; },
     useMemo: (fn, deps) => { const slot=ref(undefined); if (!slot.current || deps.some((v,i)=>v!==slot.current.deps[i])) slot.current={deps,value:fn()}; return slot.current.value; },
     useCallback: fn => fn,
+    // A memoised component is the component itself here, and a deferred value is the value: the harness draws one pass.
+    memo: component => component,
+    useDeferredValue: value => value,
     useEffect: () => {},
     useSyncExternalStore: (_, get) => get(),
     useContext: context => context.value,
