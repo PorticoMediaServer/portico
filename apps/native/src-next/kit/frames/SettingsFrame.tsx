@@ -1,6 +1,6 @@
 import React, {createContext, useContext, type ReactNode, type Ref} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {frameSpec} from '@portico/design';
+import {frameSpec, tvFocusRoom} from '@portico/design';
 import type {TopBarBack} from '../layout/TopBar';
 import {StartFocusScope} from '../focus';
 import {FormScrollView} from '../../platform/keyboard';
@@ -145,6 +145,9 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
   </>;
   // A page shown alone on a tablet or TV is held to the page's column, as it is beside the list.
   const ring = frame.form === 'tv' ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
+  // The column's left edge leaves room for a focused button that grows there, with its ring (Switch server's Refresh
+  // servers and Link a TV were cut on their left, Apple TV 22 Nov). The room sits in the gap beside the list (80 on TV).
+  const room = ring ? tvFocusRoom(400, 72, 'button').side : 0;
   const column = !beside && frame.form !== 'phone' && !inSheet ? {maxWidth: frameSpec.settings.pageMax + 2 * frame.gutter} : undefined;
   return <View testID={testID} style={[{flex: 1}, column]}>
     {beside && strip}
@@ -152,8 +155,8 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     {!beside && strip}
     {panel ?? (state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))}
       onScroll={onScrollY && (event => onScrollY(event.nativeEvent.contentOffset.y))} scrollEventThrottle={onScrollY ? 100 : undefined} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
-      fadingEdgeLength={ring ? frame.bottomClear : undefined} style={{flex: 1, marginLeft: -ring}}
-      contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingLeft: ring, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
+      fadingEdgeLength={ring ? frame.bottomClear : undefined} style={{flex: 1, marginLeft: -room}}
+      contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingLeft: room, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
       {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One
           provider on every form, so a form change restyles the body and never remounts it. */}
       <FrameColumn.Provider value={beside || parentColumn}>{body}</FrameColumn.Provider>
