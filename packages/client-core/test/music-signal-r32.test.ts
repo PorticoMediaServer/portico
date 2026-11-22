@@ -29,7 +29,8 @@ test('812: browser and Apple never claim bit-perfect, unknown output stays unkno
  assert.equal(musicSignal({...base,output:{...desktop,sampleRate:48000}}).pill.key,'player.signal.pill.notBitPerfect');
  assert.equal(musicSignal({...base,server:undefined,output:desktop}).pill.key,'player.signal.pill.notBitPerfect');
  assert.equal(musicSignal({...base,output:{...desktop,volume:.72}}).rule,'desktop-volume');
- assert.equal(musicSignal(base).steps.at(-1)?.value,undefined);
+ // Unknown stays unknown: the output step says the rate wasn't reported, never a rate or a claim.
+ assert.deepEqual(musicSignal(base).steps.at(-1)?.value,{key:'player.signal.output.unreported'});
 });
 test('b4: EQ failure is green/untouched in the step and speaks the exact accessible phrase',()=>{
  const model=musicSignal({...base,source:{...base.source,bitDepth:16,sampleRate:44100},eqOn:true});
@@ -134,7 +135,7 @@ test('MS-MUSIC-08: a raw flag cannot call conversion or a repackage with baked g
 test('MS-MUSIC-08: a raw flag without server proof or observed output facts stays unknown',()=>{
  const model=musicSignal({...base,server:undefined,output:{...base.output,passthrough:true}});
  assert.equal(model.state,undefined);
- assert.equal(model.steps.find(s=>s.id==='output')?.value,undefined);
+ assert.deepEqual(model.steps.find(s=>s.id==='output')?.value,{key:'player.signal.output.unreported'});
  assert.equal((model.steps.find(s=>s.id==='leveling')?.value as {key?:string}).key,'player.signal.off');
  assert.equal((model.steps.find(s=>s.id==='eq')?.value as {key?:string}).key,'player.signal.off');
 });

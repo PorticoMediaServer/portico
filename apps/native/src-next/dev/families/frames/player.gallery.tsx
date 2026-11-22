@@ -352,7 +352,7 @@ function SignalLineCase() {
 }
 function SignalSheetCase({changed}: {changed: boolean}) {
   const theme = useTheme();
-  return <Window>{theme.isTV ? <TVSignalSheet path={signal(changed)} onClose={() => {}}/> : <SignalSheet path={signal(changed)} onClose={() => {}}/>}</Window>;
+  return <Window>{theme.isTV ? <TVSignalSheet path={signal(changed)} onClose={() => {}}/> : <SignalSheet path={signal(changed)} open onClose={() => {}}/>}</Window>;
 }
 
 const whole = {screen: true} as const;

@@ -135,10 +135,10 @@ export function AudioPlayerPage(props: NowPlayingScreenProps) {
     {paintActive && showingLyrics && knownLyrics && React.cloneElement(knownLyrics, {paintOwner: paneOwner, paintScope: fenceKey})}
     <TVMusicFocus id={focus} visible={!panel} entry="toggle" onClose={onClose}><RetainedOverlay permit={panel ? undefined : paintPermit} allowedTypes={retainedListeningParts} omitTypes={omittedPlayerParts}><ListeningSurface fence={playback.fence} testID={testID} blocked={!!panel || !side && !!sheet}>
       {!backgroundHosted && <ListeningPageBackground fence={playback.fence} height={height} ambient={p.ambient}/>}
-      {panel === 'signal' && signal ? <ListeningPanel><SignalSheet path={signal.path} onClose={closePanel}/></ListeningPanel> : null}
       {panel === 'eq' ? <ListeningPanel opaque><EqualizerPage onBack={closePanel} copy={equalizerCopy()} reportError={reportError} store={nativeEqualizer}/></ListeningPanel> : null}
       {column}
     </ListeningSurface></RetainedOverlay></TVMusicFocus>
+    {signal && <SignalSheet path={signal.path} open={paintActive && panel === 'signal'} onClose={closePanel}/>}
     <BottomSheet open={paintActive && !side && !!sheet} onOpenChange={open => {if (!open) setSheet(null);}}
       title={t(sheet === 'chapters' ? 'player.opt.chapters' : sheet === 'lyrics' ? 'player.lyrics' : 'player.queue')} scrollable={false}
       testID={`${testID}-sheet`} detents={[Math.round(height * .5), Math.round(height * .94)]}>

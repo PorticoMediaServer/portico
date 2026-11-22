@@ -1,10 +1,11 @@
 import React, {useId, useRef} from 'react';
 import {Pressable, ScrollView, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Icon} from '../Icon';
 import {Button, Focusable} from '../controls';
-import {SidePanel} from '../overlays';
+import {BottomSheet, SidePanel} from '../overlays';
 import type {FocusRef} from '../overlays/types';
 import {alpha} from '../shell/visual';
 import {useTheme} from '../theme';
@@ -67,20 +68,22 @@ function Step({step, last}: {step: SignalStep; last: boolean}) {
   </View>;
 }
 
-/** music-plus 3b: the signal path on a phone, in the player's panel: "Signal path", the output's pill and Done, then the steps. */
-export function SignalSheet({path, onClose}: {path: SignalPathView; onClose: () => void}) {
-  const theme = useTheme();
-  return <View style={{flex: 1, backgroundColor: theme.colors.ink, paddingTop: 54, paddingHorizontal: theme.space.md - 4}}>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm - 2}}>
+/** music-plus 3b: the signal path on a phone, a bottom sheet over the player with its grabber: "Signal path", the output's pill
+ * and Done, then the steps. Swipe down, tap outside or Done closes it. */
+export function SignalSheet({path, open, onClose}: {path: SignalPathView; open: boolean; onClose: () => void}) {
+  const theme = useTheme(), insets = useSafeAreaInsets();
+  return <BottomSheet open={open} onOpenChange={next => {if (!next) onClose();}} title={t('player.signal.title')} accessibilityLabel={t('player.signal.title')}
+    testID="music-signal-sheet" fitContent scrollable={false}
+    headerContent={<View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm - 2, paddingHorizontal: theme.space.md - 4, paddingBottom: theme.space.sm}}>
       <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{t('player.signal.title')}</Text>
       <SignalPill path={path}/>
       <View style={{flex: 1}}/>
       <Button size="small" testID="music-signal-done" onPress={onClose}>{t('action.done')}</Button>
-    </View>
-    <ScrollView style={{marginTop: theme.space.sm}} showsVerticalScrollIndicator={false}>
+    </View>}>
+    <View style={{paddingHorizontal: theme.space.md - 4, paddingBottom: insets.bottom + theme.space.sm}}>
       {path.steps.map((step, index) => <Step key={step.id} step={step} last={index === path.steps.length - 1}/>)}
-    </ScrollView>
-  </View>;
+    </View>
+  </BottomSheet>;
 }
 
 /** listening-notices8: the TV side sheet. Only Done takes focus; the overlay owns Back, the held boundary and the return to the

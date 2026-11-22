@@ -148,7 +148,7 @@ export function musicSignal(input:MusicSignalInput):MusicSignalModel{
  else if(passthrough){rule=5;state=text('player.signal.line.passthrough');}
  const steps:SignalStep[]=[];
  const channels=layout(source);
- const file=source.atmos&&source.codec&&channels?text('player.signal.file.withAtmos',{codec:codecName(source.codec),layout:channels}):source.lossless===true&&source.codec&&positive(source.bitDepth)&&positive(source.sampleRate)&&channels?text('player.signal.file.lossless',{codec:codecName(source.codec),bits:source.bitDepth,rate:rate(source.sampleRate),channels:text('player.signal.channels',{layout:channels})}):musicSignalSource(source);
+ const file=source.atmos&&source.codec&&channels?text('player.signal.file.withAtmos',{codec:codecName(source.codec),layout:channels}):source.lossless===true&&source.codec&&positive(source.bitDepth)&&positive(source.sampleRate)&&channels?text('player.signal.file.lossless',{codec:codecName(source.codec),bits:source.bitDepth,rate:rate(source.sampleRate),channels:text('player.signal.channels',{layout:channels})}):source.codec&&positive(source.sampleRate)&&!positive(source.dsdMultiple)?(channels?text('player.signal.file.format',{source:musicSignalSource(source)!,rate:rate(source.sampleRate),channels:text('player.signal.channels',{layout:channels})}):text('player.signal.file.formatRate',{source:musicSignalSource(source)!,rate:rate(source.sampleRate)})):musicSignalSource(source);
  steps.push({id:'file',label:text('player.signal.step.file'),value:file,changed:false,...(source.lossless===true?{note:text('player.signal.file.losslessNote')}:{})});
  let serverNote:SignalText|undefined;
  if(server?.reason?.kind==='atmos')serverNote=text('player.signal.server.atmosUnavailable',{device:output.platform==='browser'?'browser':'other'});
@@ -170,6 +170,9 @@ export function musicSignal(input:MusicSignalInput):MusicSignalModel{
  else if(output.decodedLayout)outputValue=text('player.signal.output.decoded',{layout:output.decodedLayout});
  else if(bitPerfect&&positive(output.bitDepth)&&positive(output.sampleRate))outputValue=text('player.signal.output.bitPerfect',{bits:output.bitDepth,rate:rate(output.sampleRate)});
  else if(matched)outputValue=text('player.signal.rateMatched',{rate:rate(output.sampleRate!)});
+ // Every output says what it does: its observed rate, or plainly that the device didn't report one.
+ else if(positive(output.sampleRate))outputValue=text('player.signal.output.rate',{rate:rate(output.sampleRate)});
+ else outputValue=text('player.signal.output.unreported');
  steps.push({id:'output',label:output.name??(output.usbDac?text('player.signal.output.usbDac'):text('player.signal.step.output',{output:output.device})),value:outputValue,changed:output.resampledBy!==undefined||output.atmosLost===true,...(matched?{note:text('player.signal.output.switched')}:output.platform==='browser'?{note:text('player.signal.output.browserNote')}:{})});
  return Object.freeze({source:foldSourceIntoState?undefined:musicSignalSource(source),shortSource:foldSourceIntoState?undefined:musicSignalSource(source,true),state,stateLoss,foldSourceIntoState,rule,healthy:rule===5&&(bitPerfect||passthrough),pill,steps:Object.freeze(steps.map(s=>Object.freeze(s)))});
 }
