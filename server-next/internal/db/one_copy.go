@@ -16,4 +16,10 @@ func copyKey(it Item) (key string, ok bool) {
 }
 
 // copyPartition is copyKey in SQL for the items row aliased i: rows in one partition are copies.
-const copyPartition = `CASE WHEN ifnull(i.year, 0) > 0 THEN i.kind || '|' || lower(trim(i.title)) || '|' || i.year ELSE 'id|' || i.id END`
+var copyPartition = copyPartitionOf("i")
+
+// copyPartitionOf is copyKey in SQL for the items row with this alias.
+func copyPartitionOf(alias string) string {
+	return `CASE WHEN ifnull(` + alias + `.year, 0) > 0 THEN ` + alias + `.kind || '|' || lower(trim(` + alias + `.title)) || '|' || ` + alias +
+		`.year ELSE 'id|' || ` + alias + `.id END`
+}
