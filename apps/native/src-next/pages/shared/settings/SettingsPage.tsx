@@ -12,7 +12,7 @@ import {StateView} from '../../../kit/states';
 import {PhoneDashboardCard, SettingsHelp, SettingsKeyHints, SettingsNavigationGroup, SettingsNotificationCount, SettingsPageLink, SettingsSearchGroup} from '../../../kit/settings/SettingsParts';
 import {NativeTVKeyboard} from '../../../screens/destinations';
 import {nativeSettingsIcon} from '../../../screens/settings-live/settings-icon';
-import {NativeOwnerLibrariesPanel} from '../../../screens/settings-live/owner-libraries/OwnerLibrariesPanel';
+import {ServerLibrariesPage} from '../../touch/settings/ServerLibrariesPage';
 import {NativeLiveOwnerScreen} from '../../../screens/settings-live/LiveOwnerScreen';
 import {ServerTroubleshootingPage} from '../../touch/settings/ServerTroubleshootingPage';
 import {ServerStoragePage} from '../../touch/settings/ServerStoragePage';
@@ -79,7 +79,6 @@ export function NativeSettingsPage(props: SettingsProps) {
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : livePage ? <NativeLiveOwnerScreen controller={liveControllers!.owner} recordings={liveControllers!.recordings} ports={ports} runtime={runtime}
       onClose={leaveServerPage} initialChannelId={initialChannelId}/>
-    : librariesPage ? <NativeOwnerLibrariesPanel ports={ports} runtime={runtime}/>
     : undefined;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
@@ -100,6 +99,8 @@ export function NativeSettingsPage(props: SettingsProps) {
     : storagePage ? <ServerStoragePage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onOpenPage={choose}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : troubleshootingPage ? <ServerTroubleshootingPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+      back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : librariesPage ? <ServerLibrariesPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : peoplePage ? <ServerPeoplePage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
       back={compact ? {label: title, onPress: phoneBack} : undefined}/> : <SettingsPageFrame title={t(page.title)}
