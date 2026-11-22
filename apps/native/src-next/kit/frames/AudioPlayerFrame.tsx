@@ -74,7 +74,7 @@ export type AudioPlayerFrameProps = Readonly<{
   startFocus?: string;
 }>;
 
-type AudioFocus = Pick<FocusRegionProps, 'id' | 'entry' | 'edges' | 'orientation' | 'enabled'>;
+type AudioFocus = Pick<FocusRegionProps, 'id' | 'entry' | 'order' | 'edges' | 'orientation' | 'enabled'>;
 
 const spec = frameSpec.audio, wideSpec = spec.wide, icons = spec.icons, tvSpec = spec.tv;
 
