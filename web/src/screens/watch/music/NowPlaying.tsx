@@ -19,7 +19,7 @@ import {WatchEqualizerPanel, hostAdmit, surfaceAdmit, type WatchHostFacts, type 
 import type {WatchScreenProps} from '../types';
 import type {WatchPlaybackContext} from '../play-on-binding';
 import type {V1QueuePolicyIntent} from '@core/playback-v1/v1-queue-player.ts';
-import {musicQueueNext, musicQueueOrigin} from './queue-facts';
+import {musicQueueNext, musicQueueOrigin, musicQueueSong} from './queue-facts';
 import {useMusicFavorite} from './use-music-favorite';
 import styles from './now-playing.module.css';
 import type {MusicExpansion} from './expansion-owner';
@@ -38,25 +38,26 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
   const settings = useSyncExternalStore(equalizer?.subscribe ?? noSubscribe, equalizer?.getSnapshot ?? noEqualizer, noEqualizer);
   useEffect(() => { if (!equalizer) return; return equalizer.start(); }, [equalizer]);
   const [signalOpen, setSignalOpen] = useState(false);
-  const [eqOpen, setEqOpen] = useState(false), [moreOpen, setMoreOpen] = useState(false);
+  const [eqOpen, setEqOpen] = useState(false), [moreOpen, setMoreOpen] = useState(false), [songOpen, setSongOpen] = useState(false);
+  const songAnchor = useRef<HTMLButtonElement>(null);
   const signalAnchor = useRef<HTMLButtonElement>(null), moreAnchor = useRef<HTMLButtonElement>(null);
   const signal = watchMusicSignal(snapshot, settings, readWatchMusicAudioFacts(binding.runtime, snapshot));
   const identity = presentation ? playbackIdentity(presentation.subject, 'full', environment) : undefined;
   const artworkSource = presentation ? binding.artwork.foreground(presentation.posterUrl ?? presentation.backdropUrl, 560, 1, {group: 'playback', priority: 'high'}) : undefined;
   const open = expanded && presentation?.kind === 'music' && !!identity && (!isCurrent || isCurrent()) && (!motion || !!motion.scope);
   const favorite = useMusicFavorite(context, binding.runtime, snapshot, open, binding.reportError, isCurrent);
-  useLayoutEffect(() => {if (!open) {setSignalOpen(false); setEqOpen(false); setMoreOpen(false);}}, [open]);
+  useLayoutEffect(() => {if (!open) {setSignalOpen(false); setEqOpen(false); setMoreOpen(false); setSongOpen(false);}}, [open]);
   // Esc minimises, as it does for video and audiobooks (shortcuts list); open panels and fields keep their own Esc.
   const collapse = useRef(onCollapse); collapse.current = onCollapse;
   useEffect(() => {
-    if (!open || signalOpen || eqOpen || moreOpen || typeof document === 'undefined') return;
+    if (!open || signalOpen || eqOpen || moreOpen || songOpen || typeof document === 'undefined') return;
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || (event.target as Element | null)?.closest?.('[role="dialog"],[role="menu"],input,textarea,select,[contenteditable="true"]')) return;
       event.preventDefault(); collapse.current?.();
     };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
-  }, [open, signalOpen, eqOpen, moreOpen]);
+  }, [open, signalOpen, eqOpen, moreOpen, songOpen]);
   // Immutable rendered facts. A receipt is minted fresh for each layout setup/replay.
   const [hostReceipt, setHostReceipt] = useState<WatchReceipt | null>(null);
   const publishedHost = useRef<WatchReceipt | null>(null);
@@ -141,6 +142,25 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
     }
     if (hostAdmit(hostReceipt, publishedHost, facts)) setMoreOpen(true);
   };
+  // desktop-listen "now": the ⋯ beside the song's title is the song's own menu: Start radio from it, and its album's and
+  // artist's pages (the dock and the album page offer the same). Each runs only while this same song is still playing.
+  const song = open ? musicQueueSong(snapshot) : undefined, songKey = song ? song.libraryId + ':' + song.itemId : '';
+  const stillPlaying = () => !!song && musicQueueSong(binding.runtime.getSnapshot())?.itemId === song.itemId && (!isCurrent || isCurrent());
+  const goTo = (view: 'album' | 'artist', entityId: string) => {
+    setSongOpen(false);
+    if (!song || !stillPlaying()) return;
+    onCollapse();
+    void router.navigate({to: '/library/$libraryId', params: {libraryId: song.libraryId}, search: {view, entityId}}).catch(binding.reportError);
+  };
+  const songItems = song ? [
+    {id: 'radio', label: t('music.startRadio'), onSelect: () => {
+      setSongOpen(false);
+      if (!stillPlaying()) return;
+      void binding.runtime.playFromQueue({container: {kind: 'radio', id: song.itemId}}, {signal: new AbortController().signal, isCurrent: () => !isCurrent || isCurrent()}).catch(binding.reportError);
+    }},
+    ...(song.albumId && song.album ? [{id: 'album', label: t('music.goToArtist', {name: song.album}), onSelect: () => goTo('album', song.albumId!)}] : []),
+    ...(song.artistId && song.artist ? [{id: 'artist', label: t('music.goToArtist', {name: song.artist}), onSelect: () => goTo('artist', song.artistId!)}] : []),
+  ] : [];
   const playOnHere = playOn && listenOwner && listenState ? (button: HTMLButtonElement) => {if (open) listenOwner.external(listenState, snapshot, () => playOn(button));} : undefined;
   const repeat = queue?.repeat ?? 'off';
   const scrub = bounds ? Math.min(bounds.end, Math.max(bounds.start, at)) : at;
@@ -160,6 +180,7 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
       title={identity.title} byline={identity.subtitle.map(part => part.text)}
       favourite={favorite?.offered ? {icon: favorite.selected ? 'i-heart-f' : 'i-heart', label: t(favorite.selected ? 'entry.removeFromFavorites' : 'entry.addToFavorites'), active: favorite.selected,
         disabled: favorite.busy || favorite.failed, onPress: () => favoriteAction()} : undefined}
+      titleMore={songItems.length ? {icon: 'i-more', label: t('player.more'), active: songOpen, onPress: button => {songAnchor.current = button; setSongOpen(value => !value);}} : undefined}
       signal={favorite?.failed || signal ? <>
         {favorite?.failed && <Banner action={{label: t('next.states.tryAgain'), onAction: () => favoriteAction(true)}}>{t('next.states.pageFailedBody')}</Banner>}
         {signal && <><SignalLine model={signal} translate={t} layout={phone ? 'phone' : 'desktop'} ref={signalAnchor} aria-haspopup="dialog" aria-expanded={signalOpen} onClick={() => setSignalOpen(true)} />
@@ -188,6 +209,7 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
         {!eqOpen && listenOwner && listenState?.panel === 'lyrics' && <Button size="small" onClick={() => listenOwner.closePanel(listenState)}>{t('action.close')}</Button>}</div></AudioPanelSurface>} />
     {/* The notice of what the player did (listening-notices frames 2 and 3): over the top bar from 600, under the player on a phone. */}
     <div className={phone ? styles.notice : styles.topNotice}>{listeningNotice}</div>
+    {songItems.length > 0 && <Menu key={songKey} open={songOpen && open} onOpenChange={setSongOpen} title={identity.title} anchorRef={songAnchor} returnFocusRef={songAnchor} presentation="anchored" width={280} items={songItems}/>}
     {equalizer ? <Menu open={moreOpen && open} onOpenChange={value => {
       if (!surfaceAdmit(moreReceipt, publishedMore, publishedHost, hostReceipt, facts)) return;
       if (!value) retireMore(moreReceipt);

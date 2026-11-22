@@ -36,3 +36,13 @@ export function musicQueueItem(snapshot: WebPlaybackRuntimeSnapshot): Readonly<{
   if ((item?.kind !== 'track' && item?.kind !== 'song') || !item.libraryId) return;
   return {libraryId: item.libraryId, itemId: item.itemId};
 }
+
+/** desktop-listen "now": the playing song's own menu (beside its title) names its album and artist from this accepted
+ *  occurrence's queue entry, with the ids that open their pages in the song's library. */
+export function musicQueueSong(snapshot: WebPlaybackRuntimeSnapshot): Readonly<{libraryId: string; itemId: string; albumId?: string; album?: string; artistId?: string; artist?: string}> | undefined {
+  const found = musicQueueItem(snapshot), occurrence = currentOccurrence(snapshot);
+  if (!found || !occurrence) return;
+  const item = occurrence.view.items.find(row => row.entryId === occurrence.fence.entryId && row.itemId === occurrence.fence.itemId);
+  return {...found, ...(item?.albumId ? {albumId: item.albumId, ...(item.album ? {album: item.album} : {})} : {}),
+    ...(item?.artistId ? {artistId: item.artistId, ...(item.artist ? {artist: item.artist} : {})} : {})};
+}

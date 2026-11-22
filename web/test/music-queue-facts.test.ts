@@ -1,7 +1,7 @@
 import {strict as assert} from 'node:assert';
 import {test} from 'node:test';
 import type {WebPlaybackRuntimeSnapshot} from '../src/platform/playback';
-import {musicQueueNext, musicQueueOrigin, musicQueueItem} from '../src/screens/watch/music/queue-facts.ts';
+import {musicQueueNext, musicQueueOrigin, musicQueueItem, musicQueueSong} from '../src/screens/watch/music/queue-facts.ts';
 
 const snapshot = () => ({fence: {kind: 'queue', entryId: 'now', itemId: 'track'}, queueView: {
   queue: {id: 'queue', revision: '4', currentEntryId: 'now'},
@@ -42,4 +42,11 @@ test('phone-app 14 "Next": the entry the queue says plays next, named from its r
   assert.equal(musicQueueNext(withNext({entryId: 'after', available: true, reason: 'ready'}, view.items)), undefined, 'not in the rows: never invented');
   const stale = withNext({entryId: 'after', available: true, reason: 'ready'});
   assert.equal(musicQueueNext({...stale, queueView: {...stale.queueView!, queue: {...stale.queueView!.queue, currentEntryId: 'before'}}}), undefined, 'another occurrence');
+});
+
+test("the playing song's menu names its album and artist from the same accepted entry, with their ids", () => {
+  const original = snapshot(), view = original.queueView!;
+  const items = view.items.map(item => item.entryId === 'now' ? {...item, albumId: 'alb_1', album: 'An album', artistId: 'art_1'} : item);
+  assert.deepEqual(musicQueueSong({...original, queueView: {...view, items}}), {libraryId: 'library', itemId: 'track', albumId: 'alb_1', album: 'An album', artistId: 'art_1', artist: 'Track artist'});
+  assert.equal(musicQueueSong({...original, queueView: {...view, items: view.items.filter(item => item.entryId !== 'now')}}), undefined);
 });
