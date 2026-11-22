@@ -154,6 +154,8 @@ test('a TV collection page starts on Play all, keeps its own ⋯ beside Shuffle 
   assert.equal(frame.props.primary.label, 'next.cards.playAll');
   assert.deepEqual(frame.props.actions.map((action: any) => action.testID), ['saved-shuffle', 'saved-pin', 'saved-resource-menu']);
   assert.ok(drawn.some(node => node.type === 'TitleRowWindow' && node.props.longPressOnly), 'OK opens a row; holding OK opens its sheet');
+  // collections 18: each row names its library in a column.
+  assert.deepEqual(drawn.find(node => node.type === 'TitleRowWindow').props.rows.map((row: any) => row.library), ['Movies', 'Movies']);
   assert.ok(drawn.some(node => node.type === 'KeyHints'));
 });
 
