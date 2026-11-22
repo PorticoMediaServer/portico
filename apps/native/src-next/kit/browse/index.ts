@@ -2,6 +2,7 @@ export {LibraryHeader, LibraryExpandedHeader, LibraryMediumHeader, StickyBrowseH
 export type {LibraryMenuProps} from './Library';
 export {BrowseToolbar, ChipRail, FiltersButton, QuickToggle, SortButton, SortMenu, ViewToggle, SaveViewButton, AppliedFilterChips} from './Toolbar';
 export {FilterBuilder, FieldTile, FacetChips, MatchMode} from './Filters';
+export {FilterSheet} from './FilterSheet';
 export {FiltersPane, FiltersDock, FiltersOver, libraryFiltersTabletPane, type FiltersPaneGeometry} from './FiltersPane';
 export {FilteredEmpty, RelaxSuggestions} from './FilteredEmpty';
 export type {RelaxSuggestion} from './FilteredEmpty';

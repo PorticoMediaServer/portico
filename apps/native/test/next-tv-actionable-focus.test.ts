@@ -532,7 +532,7 @@ test('retained Home recommendation menu delegates the original entry, anchor and
   const mod = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, react: b.react,
     'react-native': {...b.native, Platform: {isTV: true}, AccessibilityInfo: {isScreenReaderEnabled: async () => false, addEventListener: () => ({remove() {}})}}, '../../kit/focus': b.focus,
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true}, '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
+    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
     '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
     '../destinations/entry-actions': {createNativeEntryActions: (context: any, membership: any) => {
@@ -574,7 +574,7 @@ test('retained Home Undo uses the shared toast with the original entry command',
     'react-native': {...b.native, Platform: {isTV: true}}, '../../kit/focus': b.focus,
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: unknown) => entry, setNotInterested: async () => true},
     '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, './HomeRowFilters': {HomeRowFilters: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
+    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
     '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
     '../destinations/entry-actions': {createNativeEntryActions: () => ({menu: (_entry: unknown, _anchor: unknown, _select: unknown, extras: any[]) => {extra = extras?.[0];}, dispose() {}})},
@@ -607,11 +607,16 @@ test('retained Home Undo uses the shared toast with the original entry command',
 test('Home filters footer has an actual named Button host and preserves apply-then-close', async () => {
   const b = await bindings(), o = await overlayBindings(b), filters = await import('../../../packages/client-core/src/presentation/browse-toolbar');
   const year = {id: 'year', type: 'number', controlHint: 'number-range', operators: ['between']};
-  const {HomeRowFilters} = await screenModule(new URL('../src-next/screens/home/HomeRowFilters.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/browse-toolbar': filters,
-    '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({groups: [{id: 'title', fields: [year]}]})}, '../../kit/browse': {FilterBuilder: 'Builder'},
-    '../../kit/controls': {Button: o.Button}, '../../kit/overlays': {SidePanel: o.surface.SidePanel, BottomSheet: o.sheet.BottomSheet}, '../../kit/theme': {useTheme: () => b.theme},
-    './row-controller': {}, './row-filters': {}, './browse-label': {homeBrowseLabel: () => ''}});
+  const {FilterSheet} = await screenModule(new URL('../src-next/kit/browse/FilterSheet.tsx', import.meta.url), {react: b.react, 'react-native': b.native,
+    '../controls': {Button: o.Button}, '../overlays': {SidePanel: o.surface.SidePanel, BottomSheet: o.sheet.BottomSheet}, '../theme': {useTheme: () => b.theme}});
+  const hook = await screenModule(new URL('../src-next/pages/shared/home/useHomeRowFilters.ts', import.meta.url), {react: b.react,
+    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src/presentation/browse-toolbar': filters,
+    '../../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => ({groups: [{id: 'title', fields: [year]}]})},
+    '../../../kit/theme': {useTheme: () => b.theme}, '../../../screens/home/row-controller': {}, '../../../screens/home/row-filters': {}, '../../../screens/home/browse-label': {homeBrowseLabel: () => ''}});
+  const {HomeRowFiltersSheet} = await screenModule(new URL('../src-next/pages/shared/home/HomeRowFiltersSheet.tsx', import.meta.url), {react: b.react,
+    '../../../kit/browse': {FilterBuilder: 'Builder', FilterSheet}, './useHomeRowFilters': hook});
+  // The page draws the kit sheet; the sheet draws the TV side panel this test reads.
+  const HomeRowFilters = (props: any) => {const page = HomeRowFiltersSheet(props); return page.type(page.props);};
   const state = {filters: [], capabilities: {fields: [year], library: {kind: 'movie'}}, sort: {field: 'title', direction: 'asc'}};
   const calls: string[] = []; let tree: any;
   const controller = {rowId: 'row', subscribe: () => () => {}, getSnapshot: () => state, previewCounts: async () => [{id: 'all', total: 4, totalIsLowerBound: false}],

@@ -9,7 +9,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {SeeAllPage} from '../../pages/touch/library/SeeAllPage';
 import {SeeAllPage as TVSeeAllPage} from '../../pages/tv/library/SeeAllPage';
 import type {SeeAllProps} from '../../pages/shared/library/useSeeAll';
-import {HomeRowFilters} from './HomeRowFilters';
+import {HomeRowFiltersSheet} from '../../pages/shared/home/HomeRowFiltersSheet';
 import {NativeHomeRowController} from './row-controller';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -191,7 +191,7 @@ function RetainedHomeRow({source, runtime, active, onBack, onPlay, onOpen, onPla
       }}] : undefined)}
       onFilters={() => setFilters(true)} kindLabel={kindLabel} onReshuffle={() => {if (active) try {const bytes = nativeRouteCrypto.random(4); const sort = source.controller.getSnapshot().sort;
         if (sort) source.controller.setSort({...sort, seed: new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0)});} catch (error) {runtime.reportError(error);}}}/>
-    {active && filters && <HomeRowFilters controller={source.controller} runtime={runtime} onClose={() => setFilters(false)}/>}
+    {active && filters && <HomeRowFiltersSheet controller={source.controller} runtime={runtime} onClose={() => setFilters(false)}/>}
     <ToastHost testID="home-see-all-not-interested" obstructionTop={dockTop} toast={active && undo ? {
       id: undo.id, message: defaultI18n.t('entry.notInterestedDone', {title: undo.entry.displayTitle ?? undo.entry.title}), durationMs: 8000, actionOnTV: true,
       action: {label: defaultI18n.t('action.undo'), onPress: () => {
