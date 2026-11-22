@@ -212,3 +212,65 @@ test('a stale acquisition whose release fails prevents the replacement from star
   assert.equal(service.failed.length, 1);
   coordinator.stop();
 });
+
+test('a slow release of the old engine does not use up the new engine\'s start time', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const {service, native, mpv, wanted, coordinator} = make('native');
+  coordinator.start();
+  await settle();
+  let released!: () => void;
+  native.release = lease => { native.released.push(lease); return new Promise<void>(resolve => { released = resolve; }); };
+  let started!: () => void;
+  const acquireMpv = mpv.acquire.bind(mpv);
+  mpv.acquire = () => new Promise(resolve => { started = () => resolve(acquireMpv()); });
+  wanted.engine = 'mpv';
+  coordinator.reconsiderEngine();
+  await settle();
+  t.mock.timers.tick(7_000);  // the old engine takes 7 s to let go (Android TV emulator, debug build)
+  released();
+  await settle();
+  t.mock.timers.tick(3_000);  // and the new one 3 s to start: 10 s in all, but each within its own budget
+  started();
+  await settle();
+  assert.deepEqual(service.failed, []);
+  assert.equal(coordinator.getEngine(), 'mpv');
+  assert.equal(mpv.commands.at(-1)!.binding.lease, 'mpv-lease-1');
+  coordinator.stop();
+});
+
+test('a release that never finishes still fails the start, after its own budget', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const {service, native, wanted, coordinator} = make('native');
+  coordinator.start();
+  await settle();
+  native.release = lease => { native.released.push(lease); return new Promise<void>(() => {}); };
+  wanted.engine = 'mpv';
+  coordinator.reconsiderEngine();
+  await settle();
+  t.mock.timers.tick(9_999);
+  assert.deepEqual(service.failed, []);
+  t.mock.timers.tick(1);
+  assert.equal(service.failed.length, 1);
+  coordinator.stop();
+});
+
+test('an engine that never starts fails 5 s after the old one let go', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const {service, native, mpv, wanted, coordinator} = make('native');
+  coordinator.start();
+  await settle();
+  let released!: () => void;
+  native.release = lease => { native.released.push(lease); return new Promise<void>(resolve => { released = resolve; }); };
+  mpv.acquire = () => new Promise(() => {});
+  wanted.engine = 'mpv';
+  coordinator.reconsiderEngine();
+  await settle();
+  t.mock.timers.tick(8_000);
+  released();
+  await settle();
+  t.mock.timers.tick(4_999);
+  assert.deepEqual(service.failed, []);
+  t.mock.timers.tick(1);
+  assert.equal(service.failed.length, 1);
+  coordinator.stop();
+});

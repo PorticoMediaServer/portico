@@ -6,6 +6,8 @@ import type {
 import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
 import type {PassthroughFormats} from './passthrough-formats';
 const isLocalSource = (url: string | undefined): boolean => !!url && url.startsWith('file://');
+/** How long the previous engine may take to let go, and then how long this one may take to start. */
+export const RELEASE_BUDGET_MS = 10_000, START_BUDGET_MS = 5_000;
 export type NativeMediaSource = string | Readonly<{url: string; localParts: readonly LocalPart[]}>;
 export type NativeLease = Readonly<{ lease: string; instanceId: string }>;
 export type NativeBinding = Readonly<{
@@ -332,7 +334,7 @@ export class NativePlaybackCoordinator {
       transport = this.transport,
       intent = this.service.getSnapshot().intentId;
     let expired = false;
-    const timer = setTimeout(() => {
+    const expire = () => {
       expired = true;
       if (this.active && life === this.lifecycle && epoch === this.engineEpoch) {
         this.acquiring = false;
@@ -341,11 +343,17 @@ export class NativePlaybackCoordinator {
           serviceText('queuePlayer.startFailed'),
         );
       }
-    }, 5000);
+    };
+    // Two budgets: the previous engine's release, then this engine's start. One shared 5 s budget let a
+    // slow release (a slow TV box, a debug build) use up the start's time, so a start that would have
+    // succeeded was failed with "Playback could not continue".
+    let timer = setTimeout(expire, RELEASE_BUDGET_MS);
     let staleReleaseFailed = false;
     try {
       await this.releaseBarrier;
+      clearTimeout(timer);
       if (expired || !this.active || life !== this.lifecycle || epoch !== this.engineEpoch) return;
+      timer = setTimeout(expire, START_BUDGET_MS);
       const lease = await transport.acquire(this.ownerId());
       if (
         expired ||
