@@ -19,7 +19,7 @@ import type {useSearch} from '../../pages/shared/search/useSearch';
 import {Artwork} from '../artwork';
 import {Button, Chip, Focusable} from '../controls';
 import {Parts, Progress} from '../cards/primitives';
-import {FocusRegion, type FocusRegionProps} from '../focus';
+import {FocusRegion, type FocusAddress, type FocusRegionProps} from '../focus';
 import {Icon} from '../Icon';
 import {TopResult} from './Search';
 import {TVRow} from '../layout/TVRow';
@@ -75,9 +75,11 @@ export function TVSearchVoice({focus, title, description, busy, onPress}: {
   </FocusRegion>;
 }
 
-export function TVSearchResults({view, destination, runtime, explore, actions, selection, ids, keyboard, keyboardKey, scroll}: Pick<NativeTVSearchPageProps, 'destination' | 'runtime' | 'explore' | 'actions' | 'selection'> & {
-  view: ReturnType<typeof useSearch>; ids: ReturnType<typeof nativeDestinationFocusIds>; keyboard: string; keyboardKey?: string; scroll: RefObject<ScrollView | null>;
+export function TVSearchResults(props: Pick<NativeTVSearchPageProps, 'destination' | 'runtime' | 'explore' | 'actions' | 'selection'> & {
+  view: ReturnType<typeof useSearch>; ids: ReturnType<typeof nativeDestinationFocusIds>; keyboard: string;
+  screenStart?: FocusAddress; scroll: RefObject<ScrollView | null>;
 }) {
+  const {view, destination, runtime, explore, actions, selection, ids, keyboard, screenStart, scroll} = props;
   const theme = useTheme(), frame = useFrameMetrics(), focusRoom = frameSpec.search.tvFocusRoom;
   const {t, state, landing, active, typed, empty, emptyAll, emptyIn, top, groups, problem, chips, chipsDrawn} = view;
   // The chip row shows whole chips only, never one cut at its ends (owner, 20 Nov 20:30).
@@ -136,7 +138,7 @@ export function TVSearchResults({view, destination, runtime, explore, actions, s
           previousRegion={sections[index - 1] ? ids.searchSection(sections[index - 1]!.id) : top ? ids.searchTop : chipsDrawn ? ids.searchChips : undefined}
           previousFallback={sections[index - 1] ? ids.searchSection(sections[index - 1]!.id) : top ? ids.searchTop : undefined}
           nextRegion={sections[index + 1] ? ids.searchSection(sections[index + 1]!.id) : undefined}
-          screenStart={keyboardKey ? {regionId: keyboard, childId: keyboardKey} : undefined} scrollY={viewport.y} viewportHeight={viewport.height}
+          screenStart={screenStart} scrollY={viewport.y} viewportHeight={viewport.height}
           contentRoot={contentRoot} width={resultsWidth} focusRoom={focusRoom} layoutRevision={contentHeight} paging={state.group === 'all' ? state.paging?.[group.id] : {loading: state.search.phase === 'loading', error: state.search.error}}/>)}
       </View></ScrollView>
     </FocusRegion>;
