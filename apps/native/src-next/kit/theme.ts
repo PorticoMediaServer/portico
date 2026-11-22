@@ -36,6 +36,11 @@ export const titleLine = (size: number): number => Math.ceil(size * measuredLine
  * at regular). In a tighter box Android cuts it at both edges and Apple at the top. The font's own line ('normal',
  * about 1.37) clears on both. One number for both systems, every form and every weight: the largest measured. */
 export const measuredLineFloor = 1.36;
+/** How many lines a kit text may take before it is cut with an ellipsis, spread onto a Text (`{...textLines(1)}`). The one
+ * home for this setting, as type roles are for size: a kit part says how many lines, never a literal of its own. */
+export function textLines(count: number): Readonly<{numberOfLines: number; ellipsizeMode: 'tail'}> {
+  return {numberOfLines: Math.max(1, Math.floor(count)), ellipsizeMode: 'tail'};
+}
 
 /** The height one line of a role draws at: its own line box, else the measured floor of its size (a part that must hold
  * N lines of a role, a list row's stride, reads it here). */

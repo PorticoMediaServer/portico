@@ -10,10 +10,10 @@ const themeModule = await screenModule(new URL('../src-next/kit/theme.ts', impor
   }},
 });
 const {shellType} = await screenModule(new URL('../src-next/kit/shell/visual.ts', import.meta.url), {'../theme': themeModule, react: {...react, default: react}});
-const {NativeHandheldPlaybackFailed} = await screenModule(new URL('../src-next/screens/watch/HandheldPlaybackFailed.tsx', import.meta.url), {
+const {NativeHandheldPlaybackFailed} = await screenModule(new URL('../src-next/kit/player/HandheldPlaybackFailed.tsx', import.meta.url), {
   react: {...react, default: react}, 'react-native': {View: 'View', Text: 'Text'}, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: () => '0:42'},
-  '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../../kit/controls': {Button: 'Button'}, '../../kit/theme': {useTheme: () => ({colors: {text: 'white', textSecondary: 'grey'}})},
-  '../../kit/shell/visual': {shellType},
+  '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}}, '../controls': {Button: 'Button'}, '../theme': {useTheme: () => ({colors: {text: 'white', textSecondary: 'grey'}}), textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
+  '../shell/visual': {shellType},
 });
 
 test('handheld failure offers only the supplied retry and keeps its captured callback', () => {
