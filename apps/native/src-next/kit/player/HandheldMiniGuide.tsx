@@ -4,13 +4,13 @@ import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {nowNext} from '../../../../../packages/client-core/src/guide/now-next';
 import {playbackUserMessage} from '../../../../../packages/client-core/src/playback-messages';
-import {FocusRegion} from '../../kit/focus';
-import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
-import {MiniGuideAll, MiniGuideHead, MiniGuideRow} from '../../kit/live/MiniGuide';
-import {useTheme} from '../../kit/theme';
+import {FocusRegion} from '../focus';
+import {useOverlayLifecycle} from '../overlays/OverlayHost';
+import {MiniGuideAll, MiniGuideHead, MiniGuideRow} from '../live/MiniGuide';
+import {useTheme} from '../theme';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
-import type {NativeWatchHostContext} from './WatchHost';
-import type {NativeLiveGuideSnapshot, NativeTVLiveGuide} from './live-guide';
+import type {NativeWatchHostContext} from '../../screens/watch/WatchHost';
+import type {NativeLiveGuideSnapshot, NativeTVLiveGuide} from '../../screens/watch/live-guide';
 
 /** The same bounded, authorized rows as TV, in the phone options pane or the
  * tablet's docked pane, drawn by the kit's `MiniGuideHead`, `MiniGuideRow` and
@@ -20,7 +20,8 @@ export function NativeHandheldMiniGuide({context, guide, snapshot}: {
 }) {
   const theme = useTheme(), t = defaultI18n.t, first = useRef<View>(null);
   const [now, setNow] = useState(() => serverNow());
-  useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 20_000);return () => clearInterval(timer);}, []);
+  // The guide's clock moves on every 20 s; each tick schedules the next, so nothing runs once the guide is gone.
+  useEffect(() => {const timer = setTimeout(() => setNow(serverNow()), 20_000); return () => clearTimeout(timer);}, [now]);
   const close = () => {guide.close(snapshot);};
   useOverlayLifecycle(snapshot.open, true, close, first, undefined, 0, 'watch-mini-guide');
   const current = () => snapshot.open && guide.getSnapshot() === snapshot;

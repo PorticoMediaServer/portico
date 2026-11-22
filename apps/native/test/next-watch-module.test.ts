@@ -21,13 +21,13 @@ import {codecName} from '../../../packages/client-core/src/presentation/playback
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 
 const {react} = hooks();
-const infoPanel = await screenModule(new URL('../src-next/screens/watch/PlaybackInfoPanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+const infoPanel = await screenModule(new URL('../src-next/kit/player/PlaybackInfoPanel.tsx', import.meta.url), {'../states': {Quiet: ({children}: any) => children}, 
   react, 'react-native': {ActivityIndicator: 'ActivityIndicator', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
   '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/player-core/src': {sameFence},
   '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords},
   '../../../../../packages/client-core/src/presentation/playback-info': {codecName},
-  '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/theme': {nativeType: (value: unknown) => value, useTheme: () => ({})},
-  '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence},
+  '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../theme': {nativeType: (value: unknown) => value, useTheme: () => ({})},
+  './PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, '../../screens/watch/playback-info': {lossSentence},
 });
 const menuCalls: any[][] = [];
 let captured: any, optionsDisposed = 0, screensDisposed = 0;
@@ -44,7 +44,7 @@ const {createNativeWatchModule, nativeWatchChromeFacts} = await screenModule(new
   '../../../../../packages/client-core/src/playback-v1/quality': {qualityOptionSelected}, './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {nativeWatchTracks},
   '../../../../../packages/i18n/src': {defaultI18n}, './panel-names': {createNativeWatchPanelNames},
   './ChannelRoute': {NativeWatchChannelRoute: 'Channel'},
-  './PlaybackInfoPanel': {NativePlaybackInfoPanel: 'PlaybackInfo', playbackInfoWords: infoPanel.playbackInfoWords},
+  '../../kit/player/PlaybackInfoPanel': {NativePlaybackInfoPanel: 'PlaybackInfo', playbackInfoWords: infoPanel.playbackInfoWords},
   './WatchPanels': {NativeWatchPanels: 'Panels'}, './panel-options': {NativeWatchPanelOptions: class {dispose() {optionsDisposed++;}}},
   './live-guide': {NativeTVLiveGuide: class {guideAction() {return () => {};} close() {return false;} dispose() {}}},
   './live-actions': {NativeTVLiveActions: class {close() {return false;} dispose() {}}},
