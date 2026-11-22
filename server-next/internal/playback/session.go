@@ -103,6 +103,9 @@ type Session struct {
 	Generation      int
 	StartPositionMs int64
 	SeekID          string
+	// OpenedAtMs is where this playing began, which a seek or a new stream does not change:
+	// whether it began from the title's resume point decides what a short stop keeps.
+	OpenedAtMs int64
 
 	// PositionMs is where the device last said it was.
 	PositionMs int64
@@ -164,7 +167,9 @@ type session struct {
 	// The latest progress sample and whether it still has to be saved.
 	sampleAt time.Time
 	playedMs int64
-	dirty    bool
+	// furthestMs is the furthest position the device reported in this playing.
+	furthestMs int64
+	dirty      bool
 	// counted says this play is in the day's totals: once Play history lists it (countLocked).
 	counted bool
 	// awayKbps is what this stream takes of the upload speed, 0 at home. See away.go.
@@ -450,6 +455,7 @@ func (s *Service) tell(event string, sess *session) {
 
 func (s *Service) sampleLocked(sess *session, positionMs, playedMs int64, now time.Time) {
 	sess.PositionMs = max(positionMs, 0)
+	sess.furthestMs = max(sess.furthestMs, sess.PositionMs)
 	// Played time only grows, and never faster than the clock.
 	before := sess.playedMs
 	sess.playedMs = min(max(sess.playedMs, playedMs), now.Sub(sess.StartedAt).Milliseconds())
@@ -487,7 +493,8 @@ func (s *Service) Save(ctx context.Context, p db.Priority, only ...string) {
 		owners = append(owners, sess)
 		batch = append(batch, db.Progress{Viewer: sess.Viewer(), ItemID: sess.Item.PublicID, DeviceID: sess.Device.ID,
 			PlayID: sess.ID, PositionMS: sess.PositionMs, At: sess.sampleAt, WatchedMS: sess.playedMs,
-			Away: sess.Network != NetworkLocal, Delivery: db.ParsePlayDelivery(sess.Plan.Route), OwnerOnly: sess.Channel != nil})
+			Opening: &db.Opening{FromMS: sess.OpenedAtMs, FurthestMS: max(sess.furthestMs, sess.OpenedAtMs)},
+			Away:    sess.Network != NetworkLocal, Delivery: db.ParsePlayDelivery(sess.Plan.Route), OwnerOnly: sess.Channel != nil})
 	}
 	if len(only) > 0 {
 		for _, id := range only {

@@ -285,6 +285,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 		in.Prepared.mu.Unlock()
 		sess.StartPositionMs, sess.PositionMs, position = 0, 0, 0
 	}
+	sess.OpenedAtMs, sess.furthestMs = position, position
 	sess.Item.Versions = nil
 	if in.Paused {
 		sess.State, sess.pausedSince = StatePaused, now

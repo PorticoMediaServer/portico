@@ -529,6 +529,15 @@ type Progress struct {
 	// OwnerOnly saves no place and no watched mark: a finished play goes into the owner's
 	// Play history only, as a Library Channel's plays do.
 	OwnerOnly bool
+	// Opening is where this playing began and the furthest it reached, when the server saw it
+	// played; nil for progress a device sends from what it played out of reach.
+	Opening *Opening
+}
+
+// Opening is how a playing began and how far it went, in milliseconds of the title.
+type Opening struct {
+	FromMS     int64
+	FurthestMS int64
 }
 
 // Settings a profile can change that decide what a position means. Values are percentages.
@@ -795,6 +804,14 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 	}
 	if position < started && !resumeAt.Valid {
 		return false, nil
+	}
+	if position < started && misStart(sample.Opening, started) {
+		// Opened under the started mark (Play from the start instead of Resume, or the other
+		// copy of a show) and stopped before reaching it: the earlier resume point stays (owner,
+		// 22 Nov, on rule 8). A playing that began from the resume point keeps rule 8 exactly:
+		// a seek back and a stop there moves the point. The title still counts as played now,
+		// so one taken off Continue Watching comes back to it (rule 13).
+		return false, w.touchPlayed(id, sample.At)
 	}
 	_, _, err = w.apply(sample.ItemID, StateEdit{PositionMS: &position, Ago: ago})
 	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrInvalid) {
