@@ -509,7 +509,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
       const Screen = (ports.isTV ? tvTitlePages : touchTitlePages)[route.entry.kind] ?? NativeTitleScreen;
       // This visit's route occurrence: the TV page names its season and episode regions by it (stable under the player,
       // fresh on a new visit).
-      const visit = runtime.navigation?.presentationStack?.().at(-1)?.occurrence;
+      const visit = [...(runtime.navigation?.presentationStack?.() ?? [])].reverse().find(presentation => presentation.route === route)?.occurrence;
       return <Screen authority={ports.authority} {...ports.title} visit={visit} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
         selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
         back={() => {ports.navigation.back(ports.authority);}} more={(entry, anchorRef) => {
