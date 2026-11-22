@@ -4,6 +4,7 @@ import type {FactPart} from '@core/presentation/kit-model';
 import type {SegmentKind, SegmentReviewEntry, SegmentReviewMarker, SegmentTitleReview, SegmentTitleSummary} from '@core/segment-review.ts';
 import {Button, Select} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
+import {Artwork, type ArtworkSource} from '../../../kit/artwork';
 import {CreateMarkerSheet, SegmentWindows, StatTiles, type SegmentEdit, type SegmentMark} from '../../../kit/shell';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {Menu} from '../../../kit/overlays/Popover';
@@ -48,7 +49,8 @@ type DetectOpening = Readonly<{title: SegmentTitleReview; source: SegmentIntrosS
 type ReviewAdmission = Readonly<{source: SegmentIntrosSource; title: SegmentTitleReview; libraryId: string; titleId: string; season: number | undefined}>;
 
 /** desktop-settings 8: Find, then the stats strip, then Review, with Advanced last (as every settings page ends). */
-export function ServerIntros({source, modeRows, advancedRows, onPreview}: {source: SegmentIntrosSource; modeRows: ReactNode; advancedRows?: ReactNode; onPreview: (libraryId: string, itemId: string, start: number) => void}) {
+export function ServerIntros({source, modeRows, advancedRows, onPreview, artwork}: {source: SegmentIntrosSource;
+  /** Draws a title's poster beside its name; without it the list is names only. */ artwork?: (path: string | undefined, width: number, ratio: number) => ArtworkSource | null | undefined; modeRows: ReactNode; advancedRows?: ReactNode; onPreview: (libraryId: string, itemId: string, start: number) => void}) {
   const snapshot = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const opening = useRef(0);
   const committed = useRef<EditOpening | undefined>(undefined);
@@ -142,9 +144,10 @@ export function ServerIntros({source, modeRows, advancedRows, onPreview}: {sourc
           {snapshot.titlesError ? <ReviewNotice tone="bad">{t('web.segments.error')}</ReviewNotice> : null}
           {!snapshot.titlesLoading && status && snapshot.libraryId && !snapshot.titles.length ? <p className={styles.empty}>{t('web.segments.noTitles')}</p> : null}
           {snapshot.titles.map(value => <button key={value.id} type="button" className={styles.show} aria-current={snapshot.titleId === value.id || undefined} onClick={() => {void source.openTitle(value.id);}}>
-            <b>{value.title || t('web.segments.untitled')}</b>
+            <span className={styles.showPoster} aria-hidden="true">{(() => {const art = artwork?.(value.posterUrl, 80 * (globalThis.devicePixelRatio || 1), 2 / 3); return art ? <Artwork source={art} alt="" visible/> : <Icon name={value.kind === 'movie' ? 'i-film' : 'i-tv'} size={18}/>;})()}</span>
+            <span className={styles.showText}><b>{value.title || t('web.segments.untitled')}</b>
             <small>{titleLine(value)}</small>
-            {value.markers.suggested ? <span className={styles.todo}>{t('web.segments.toReview', {count: value.markers.suggested})}</span> : null}
+            {value.markers.suggested ? <span className={styles.todo}>{t('web.segments.toReview', {count: value.markers.suggested})}</span> : null}</span>
           </button>)}
           {snapshot.titlesCursor ? <Button variant="ghost" size="small" onClick={() => {void source.moreTitles();}} disabled={snapshot.titlesLoading}>{t('web.segments.showMore')}</Button> : null}
         </div>

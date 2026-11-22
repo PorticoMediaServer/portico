@@ -16,7 +16,8 @@ export type SegmentMarkerCounts = Readonly<{automatic: number; suggested: number
 export type SegmentLibrary = Readonly<{libraryId: string; name: string; itemKind: 'episode' | 'movie'; choice: SegmentChoice; mode: SegmentMode; files: SegmentCounts}>;
 export type SegmentFailure = Readonly<{itemId: string; title: string; state: string; errorCode: string; updatedMS: number}>;
 export type SegmentStatus = Readonly<{mode: SegmentMode; libraries: readonly SegmentLibrary[]; files: SegmentCounts; showsWaiting: number; catchUpComplete: boolean; lastFullPassMS: number; failures: readonly SegmentFailure[]}>;
-export type SegmentTitleSummary = Readonly<{id: string; title: string; kind: 'show' | 'movie'; files: SegmentCounts; markers: SegmentMarkerCounts}>;
+export type SegmentTitleSummary = Readonly<{id: string; title: string; kind: 'show' | 'movie'; files: SegmentCounts; markers: SegmentMarkerCounts;
+  /** The title's poster (`/v1/images/…`), when the server has one. */ posterUrl?: string}>;
 export type SegmentTitlePage = Readonly<{libraryId: string; titles: readonly SegmentTitleSummary[]; nextCursor: string}>;
 export type SegmentKind = 'intro' | 'recap' | 'credits' | 'commercial' | 'outro';
 /** Where a marker came from: other episodes' audio, a chapter title, the film's picture, the owner, or an earlier detector. */
@@ -78,7 +79,9 @@ export function parseSegmentTitles(raw: unknown): SegmentTitlePage {
   if (!filled(v.libraryId, 256) || !text(v.nextCursor, 8192)) fail();
   const titles = keepReadable('segments', 'titles', list(v.titles, 100), t => {
     if (!object(t) || !filled(t.id, 256) || !text(t.title, 1024)) fail();
-    return Object.freeze({id: t.id, title: t.title, kind: one(t.kind, ['show', 'movie'] as const), files: counts(t.files), markers: markerCounts(t.markers)});
+    // A poster is drawn only from the server's own image route; anything else is left out, not refused.
+    const poster = typeof t.poster === 'string' && t.poster.startsWith('/v1/images/') && t.poster.length <= 1024 ? t.poster : undefined;
+    return Object.freeze({id: t.id, title: t.title, kind: one(t.kind, ['show', 'movie'] as const), files: counts(t.files), markers: markerCounts(t.markers), ...(poster ? {posterUrl: poster} : {})});
   });
   return Object.freeze({libraryId: v.libraryId, titles: Object.freeze(titles), nextCursor: v.nextCursor});
 }
