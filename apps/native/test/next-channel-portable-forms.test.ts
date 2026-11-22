@@ -10,10 +10,14 @@ const nodes=(value:any):any[]=>Array.isArray(value)?value.flatMap(nodes):value?.
 test('the actual Hours sheet edits a detached rebuilt block without global structuredClone',async()=>{
  const saved=globalThis.structuredClone;delete (globalThis as any).structuredClone;
  const block=Object.freeze({id:'block',days:Object.freeze(['mon']),from:'01:00',to:'02:00'}),value={libraries:['library'],kinds:['movie'],quality:{},logoOnScreen:{},blocks:[block]};let submitted:any,tree:any;
- const {NativeChannelHours}=await screenModule(new URL('../src-next/screens/settings-live/server/channels/ChannelHours.tsx',import.meta.url),{
-  react:{...React,default:React},'react-native':{Text:'Text',View:'View'},'../../../../../../../packages/client-core/src':{clonePortableDto},
+ const hook=await screenModule(new URL('../src-next/pages/shared/live/channels/useChannelHours.ts',import.meta.url),{
+  react:{...React,default:React},'../../../../../../../packages/client-core/src':{clonePortableDto},
   '../../../../../../../packages/client-core/src/server-admin/owner-channel-draft':draft,'../../../../../../../packages/client-core/src/server-admin/owner-library-channels':{newChannelOperation:()=> 'new'},
-  '../../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v,locale:'en-US'}},'../../../../kit/controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},'../../../../kit/overlays':{BottomSheet:'BottomSheet'},'../../../../kit/theme':{useTheme:()=>({colors:{}})},'./ChannelSelection':{NativeChannelSelection:'Selection'},
+ });
+ const {NativeChannelHours}=await screenModule(new URL('../src-next/kit/live/channels/ChannelHours.tsx',import.meta.url),{
+  react:{...React,default:React},'react-native':{Text:'Text',View:'View'},'../../../../../../packages/client-core/src/server-admin/owner-channel-draft':draft,
+  '../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v,locale:'en-US'}},'../../controls':{Button:'Button',Select:'Select',Switch:'Switch',TextField:'TextField'},'../../overlays':{BottomSheet:'BottomSheet'},'../../theme':{useTheme:()=>({colors:{},type:{},space:{}})},'./ChannelSelection':{NativeChannelSelection:'Selection'},
+  '../../../pages/shared/live/channels/useChannelHours':hook,
  });
  const state={presets:[]};
  const group={current:()=>true,source:{subscribe:()=>()=>{},getSnapshot:()=>state,presets:async()=>{}},libraries:[]};

@@ -9,9 +9,9 @@ import {HealthFacts, LibraryChannelCard, MenuGroup} from '../../../kit/live/Chan
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeChannelsGroup} from '../../../screens/settings-live/server/channels/model';
-import {NativeChannelEditor} from '../../../screens/settings-live/server/channels/ChannelEditor';
-import {NativeBlockPresets} from '../../../screens/settings-live/server/channels/BlockPresets';
-import {NativeChannelLogo} from '../../../screens/settings-live/server/channels/ChannelLogo';
+import {NativeChannelEditor} from '../../../kit/live/channels/ChannelEditor';
+import {NativeBlockPresets} from '../../../kit/live/channels/BlockPresets';
+import {NativeChannelLogo} from '../../../kit/live/channels/ChannelLogo';
 import {useChannelsGroup, useLibraryChannels} from '../../shared/live/useLibraryChannels';
 
 const t = defaultI18n.t;
