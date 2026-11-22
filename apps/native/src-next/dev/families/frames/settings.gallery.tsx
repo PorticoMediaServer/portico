@@ -21,7 +21,6 @@ import {ProfilePINPage} from '../../../pages/touch/accounts/ProfilePINPage';
 import {ProfilesPage} from '../../../pages/touch/accounts/ProfilesPage';
 import {RememberProfileRow} from '../../../screens/accounts/RememberProfileRow';
 import {DownloadsStillPlay} from '../../../kit/states/DownloadsStillPlay';
-import {TVSwitchRow} from '../../../screens/settings-live/server/TVSettingRows';
 import {useTheme} from '../../../kit/theme';
 import type {IconName} from '../../../kit/Icon';
 import type {Gallery} from '../../gallery-registry';
@@ -38,11 +37,12 @@ const none = () => {};
 const profile = {id: 'demo', name: f('profileName'), initial: f('profileName')[0]!, color: 'blue' as const};
 const skipOptions = [{value: 'ask', label: fx('ask')}, {value: 'auto', label: f('skipAuto')}, {value: 'off', label: f('never')}];
 
-/** A switch row: the switch beside the label on touch; on TV the row is the focus stop and OK flips it (the TV
- * Settings' own `TVSwitchRow`). */
+/** A switch row: the switch beside the label on touch; on TV the row is the focus stop and OK flips it, the switch drawn
+ * and never focused (as Settings' own preference rows draw it). */
 function SwitchRow({label, help, on, onChange, first, dependent}: {label: string; help?: string; on: boolean; onChange: (on: boolean) => void; first?: boolean; dependent?: boolean}) {
   const theme = useTheme();
-  return theme.isTV ? <TVSwitchRow testID={label} label={label} description={help} checked={on} dependent={dependent} onChange={onChange}/>
+  return theme.isTV ? <SettingsRow testID={label} first={first} dependent={dependent} label={label} description={help}
+    toggle={{checked: on, visual: <Switch checked={on} focusable={false} accessibilityLabel={label}/>}} onPress={() => onChange(!on)}/>
     : <SettingsRow first={first} dependent={dependent} label={label} description={help} control={<Switch checked={on} onCheckedChange={onChange} accessibilityLabel={label}/>}/>;
 }
 /** desktop-settings f1, phone-app 18, tablet f12: Saved, section help, a switch with dependent rows, values, the choice
