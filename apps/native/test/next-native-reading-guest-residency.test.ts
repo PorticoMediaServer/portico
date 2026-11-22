@@ -53,9 +53,9 @@ test('twenty original sessions can evict and restore real guest components witho
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'a'.repeat(64)};
   const navigation = new NativeShellNavigation(authority, () => authority);
   const context = {navigation, authority: () => authority, current: () => true, subscribeAuthority: () => () => {}};
-  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/screens/read/ReadRoute.tsx', import.meta.url), {
-    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './host-component': {nativeReadHost: () => 'LogicalReadHost'},
-    './read-route-back': {readRouteBack},
+  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, '../screens/read/host-component': {nativeReadHost: () => 'LogicalReadHost'},
+    '../screens/read/read-route-back': {readRouteBack},
   });
   let opens = 0, closes = 0, resolveLate: ((value: Uint8Array) => void) | undefined;
   let pendingOutcome: Promise<boolean> | undefined; const sessions: any[] = [], progresses: any[] = [], owners: Awaited<ReturnType<typeof createReadingSessionOwner>>[] = [];

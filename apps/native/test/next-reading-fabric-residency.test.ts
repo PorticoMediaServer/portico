@@ -112,8 +112,8 @@ test(`actual retained Read components cap guest residency and restore original s
     './annotation-session': {nativeAnnotationBridge: (value: any) => value.session}, './annotation-sync': {NativeAnnotationSync: class {dispose() {} flush() {return Promise.resolve();}}},
     './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false},
   });
-  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/screens/read/ReadRoute.tsx', import.meta.url), {
-    react, 'react-native': {Platform: {isTV: false}}, './host-component': {nativeReadHost: () => ReadNativeHost}, './read-route-back': {readRouteBack},
+  const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
+    react, 'react-native': {Platform: {isTV: false}}, '../screens/read/host-component': {nativeReadHost: () => ReadNativeHost}, '../screens/read/read-route-back': {readRouteBack},
   });
   const renderer = createNativeReadRenderer(context, preferences, () => {}); cleanupRenderer = () => renderer.dispose();
   function Root() {React.useSyncExternalStore(navigation.subscribe, navigation.getSnapshot, navigation.getSnapshot); return renderer.renderRetained();}
