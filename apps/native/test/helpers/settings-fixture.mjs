@@ -16,6 +16,9 @@ export async function settingsFixture(previous) {
   for (const [path, value] of Object.entries(modules)) {
     const sibling = /^\.\.\/\.\.\/\.\.\/pages\/shared\/settings\/([^/]+)$/.exec(path)?.[1];
     if (sibling) modules[`./${sibling}`] ??= value;
+    // …and a stub for a touch or TV page answers the shared pages' `../../touch/…` and `../../tv/…` imports of it.
+    const formPage = /^\.\.\/\.\.\/\.\.\/pages\/((?:touch|tv)\/.+)$/.exec(path)?.[1];
+    if (formPage) modules[`../../${formPage}`] ??= value;
   }
   // This device's playback rows now come from pages/shared/settings/DevicePlaybackRows (components) and useDeviceRows
   // (focus ids, Safe mode availability); the tests' per-row stubs are merged into those two modules.
