@@ -120,6 +120,7 @@ export const channelBuilderMessages = {
   'builder.noMatchesHelp': 'Loosen a condition, or choose more libraries.',
   'builder.save': 'Save channel',
   'builder.create': 'Create channel',
+  'builder.createShort': 'Create',
   'builder.cancel': 'Cancel',
   'builder.error.name': 'Give the channel a name.',
   'builder.error.libraries': 'Choose at least one library.',
