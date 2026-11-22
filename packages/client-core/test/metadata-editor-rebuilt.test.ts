@@ -197,4 +197,8 @@ test("a book's number in its series is an editable whole number beside Year; non
   assert.deepEqual(spec && {type: spec.type, min: spec.min, max: spec.max, group: spec.group}, {type: 'integer', min: 0, max: 99999, group: 'numbers'});
   assert.equal(data.snapshot.fields.number?.value, '2');
   assert.equal(rebuiltRepair(book(0), {}, [], [], scope, {kind: 'book' as never, id: 'itm_b', libraryId: 'lib'}).snapshot.fields.number?.value, '');
+  // Saving sends it as a whole number, and an emptied field as 0, which the server takes as "remove".
+  const {repairPatch} = await import('../src/metadata-repair.ts');
+  assert.deepEqual(repairPatch({number: {value: '3'}}, data), {number: 3});
+  assert.deepEqual(repairPatch({number: {value: ''}}, data), {number: 0});
 });
