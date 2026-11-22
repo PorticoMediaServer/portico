@@ -72,6 +72,10 @@
 .title[data-cover] .head { grid-template-rows: auto auto; padding-top: calc(var(--space-px-12) + var(--button-hero-height) + var(--space-sm)); }
 .cover { grid-row: 1; justify-self: center; position: relative; overflow: hidden; border-radius: var(--frame-card-radius); background: var(--color-raised); box-shadow: 0 24px 60px -20px color-mix(in srgb, var(--color-ink) 80%, transparent); }
 .cover > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* A cover drawn whole at its own shape (a comic's wide page) leaves the box: no raised tile or shadow around empty
+   space; the picture carries the shadow itself. */
+.cover:has(> [data-whole-fitted]) { background: none; box-shadow: none; overflow: visible; }
+.cover > [data-whole-fitted] > * { box-shadow: 0 24px 60px -20px color-mix(in srgb, var(--color-ink) 80%, transparent); }
 .cover[data-shape=square] { width: min(var(--frame-title-cover-square), 60vw); aspect-ratio: 1; } /* frameSpec.hero.title.cover, per form */
 .cover[data-shape=poster] { width: min(var(--frame-title-cover-poster), 48vw); aspect-ratio: 2 / 3; }
 .cover[data-shape=circle] { width: var(--frame-title-cover-circle); aspect-ratio: 1; border-radius: 50%; }

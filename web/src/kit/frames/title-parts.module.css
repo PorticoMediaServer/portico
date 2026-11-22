@@ -97,7 +97,8 @@
 
 /* The About table: labels in the tertiary grey, values white; links underlined (desktop-detail f3). */
 .about { margin: 0; display: grid; gap: var(--space-px-12); }
-.about > div { display: grid; grid-template-columns: var(--frame-title-about-label) minmax(0, 1fr); column-gap: var(--space-sm); }
+/* Label and value share a centre line: a linked value (a 44 px target on a touch screen) stays level with its label. */
+.about > div { display: grid; grid-template-columns: var(--frame-title-about-label) minmax(0, 1fr); column-gap: var(--space-sm); align-items: center; }
 .about dt { font-size: var(--type-row-help-size); line-height: var(--type-row-label-line); color: var(--color-text-tertiary); }
 .about dd { margin: 0; font-size: var(--type-row-help-size); line-height: var(--type-row-label-line); color: var(--color-text); }
 .link { border: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-text) 40%, transparent); text-underline-offset: 3px; }
