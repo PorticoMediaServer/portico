@@ -9,7 +9,10 @@ import * as accountWork from '../src-next/platform/account-work.ts';
 import {parseSecurityState} from '../../../packages/client-core/src/hosted-security.ts';
 import {readPorticoAccountSecurity} from '../../../packages/client-core/src/portico-services-native.ts';
 
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree?.props ? [tree, ...nodes(tree.props.children), ...nodes(tree.props.control)] : [];
+// The panel's own kit parts (the failure line, More sign-in options, Two-step's control) are drawn so their contents are in the tree.
+const drawn = (tree: any) => typeof tree?.type === 'function' && tree.type.name.startsWith('Hosted') ? tree.type(tree.props) : undefined;
+const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : drawn(tree) !== undefined ? [tree, ...nodes(drawn(tree))]
+  : tree?.props ? [tree, ...nodes(tree.props.children), ...nodes(tree.props.control)] : [];
 
 async function fixture({hosted = true, matching = true, hasPassword = true, providerReady = true, kind = 'password'}: {
   hosted?: boolean; matching?: boolean; hasPassword?: boolean; providerReady?: boolean; kind?: 'password' | 'twoStep';
@@ -53,14 +56,14 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
   }
   const opened: string[] = [];
   let openFails = false;
-  const {NativeHostedSignInPanel} = await screenModule(new URL('../src-next/screens/settings-live/NativeHostedSignInPanel.tsx', import.meta.url), {
+  const {NativeHostedSignInPanel} = await screenModule(new URL('../src-next/pages/shared/settings/HostedSignInPanel.tsx', import.meta.url), {
     react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View', Linking: {openURL: async (url: string) => {if (openFails) throw new Error('no_browser'); opened.push(url);}}},
-    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown, audience: string) => {presented.push([error, audience]); return {body: 'Security read failed'};}},
-    '../../../../../packages/client-core/src/portico-services-native': {readPorticoAccountSecurity},
-    '../../kit/controls': {FormError, Button: 'Button'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
-    '../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
-    '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'}, '../../platform/account-security': {NativeAccountSecurity: Controller},
-    '../../platform/account-work': accountWork,  '../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
+    '../../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown, audience: string) => {presented.push([error, audience]); return {body: 'Security read failed'};}},
+    '../../../../../../packages/client-core/src/portico-services-native': {readPorticoAccountSecurity},
+    '../../../kit/controls': {FormError, Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
+    '../../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
+    '../../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'}, '../../../platform/account-security': {NativeAccountSecurity: Controller},
+    '../../../platform/account-work': accountWork,  '../../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
       const url = new URL(input), token = new Headers(init.headers).get('Authorization')?.replace(/^Bearer /, '');
       calls.push([url.origin, token, url.pathname + url.search, init.method, undefined, init.signal]);
       const state: any = await reply();
@@ -69,8 +72,8 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
       assert(answer, 'no retired Services routes');
       return new Response(JSON.stringify(answer), {status: 200, headers: {'Content-Type': 'application/json'}});
     }},
-    '../../pages/touch/accounts/AccountSecurityPage': {AccountSecuritySheet: 'AccountSecuritySheet', PasswordResetSheet: 'PasswordResetSheet'},
-    '../../pages/shared/accounts/useAccountSecurity': {accountSecurityAvailability: shared.accountSecurityAvailability}, './native-account-security': securityScope,
+    '../../touch/accounts/AccountSecurityPage': {AccountSecuritySheet: 'AccountSecuritySheet', PasswordResetSheet: 'PasswordResetSheet'},
+    '../accounts/useAccountSecurity': {accountSecurityAvailability: shared.accountSecurityAvailability}, '../../../screens/settings-live/native-account-security': securityScope,
   });
   let tree: any;
   const render = () => {tree = host.render(() => NativeHostedSignInPanel({kind, context, lifetime, t: (key: string) => key, runtime: {}})); for (const effect of effects.splice(0)) effect(); return tree;};
