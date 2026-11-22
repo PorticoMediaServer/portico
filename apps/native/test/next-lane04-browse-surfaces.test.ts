@@ -134,7 +134,7 @@ test('a superseded or dismissed See all Undo callback is revoked before the next
     '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../../../../packages/i18n/src': {defaultI18n: {t}},
     '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: any) => entry.id,
       setNotInterested: (_api: unknown, input: any) => new Promise<void>(resolve => requests.push({entry: input.itemId, value: input.notInterested, resolve}))},
-    './HomeRowFilters': {HomeRowFilters: 'HomeRowFilters'}, './row-controller': {NativeHomeRowController: Controller},
+    '../../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'HomeRowFilters'}, './row-controller': {NativeHomeRowController: Controller},
     '../../platform/server-connections': {nativeRouteCrypto: {random: (length: number) => new Uint8Array(length)}},
     '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {}, '../../kit/theme': {},
     '../read/platform': {}, '../read/reading-books-open': {}, './entry-lifetime': {},
