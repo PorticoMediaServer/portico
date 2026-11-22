@@ -146,5 +146,6 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
 
 export function GuideChannelArt({channel, source, size}: {channel: GuideChannelRow; source: ReturnType<NativeShellRuntime['artwork']>; size: number}) {
   const mark = channel.mark && channel.sourceId ? {...channel.mark, sourceId: channel.sourceId, id: channel.id} : undefined;
-  return mark ? <ChannelMark mark={mark} source={source} size={size}/> : source ? <Artwork source={source} fit="contain"/> : null;
+  // A logo without a mark takes the mark's corners, so the channel column reads as one set of tiles.
+  return mark ? <ChannelMark mark={mark} source={source} size={size}/> : source ? <View style={{width: size, height: size, borderRadius: size * 8 / 34, overflow: 'hidden'}}><Artwork source={source} fit="contain"/></View> : null;
 }
