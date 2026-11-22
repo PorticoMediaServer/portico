@@ -33,3 +33,12 @@ test('a folder path loses its trailing slash, so /srv/media/ is the folder /srv/
  for(const [path,clean] of [['/srv/media/','/srv/media'],['/srv/media//','/srv/media'],['/','/'],['C:\\Media\\','C:\\Media'],['C:\\','C:\\'],['/srv/Films /','/srv/Films ']])assert.equal(cleanServerPath(path),clean);
  assert.equal(cleanServerPath(typedServerPath(' /srv/media// ')),'/srv/media');
 });
+
+test('a library card leaves out kinds it holds none of and words audiobooks as books', async () => {
+ const {visibleLibraryCounts} = await import('../src/library-summary.ts');
+ // phone-app 6, Anime: "8 shows · 32 episodes", not "0 movies · 8 shows · 32 episodes".
+ assert.deepEqual(visibleLibraryCounts([{kind:'movie',count:0,atLeast:false},{kind:'show',count:8,atLeast:false},{kind:'episode',count:32,atLeast:false}]).map(part=>[part.pivot,part.count]),[['shows',8],['episodes',32]]);
+ assert.deepEqual(visibleLibraryCounts([{kind:'audiobook',count:8,atLeast:false}]).map(part=>part.pivot),['books']);
+ // A capped count is kept even at zero; an unknown kind has no word and is left out.
+ assert.equal(visibleLibraryCounts([{kind:'movie',count:0,atLeast:true},{kind:'hologram',count:4,atLeast:false}]).length,1);
+});

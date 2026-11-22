@@ -8,6 +8,7 @@ import type {ContentEntry} from '../../../../../../packages/client-core/src/libr
 import {browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {libraryTabs, type LibraryTabId} from '../../../../../../packages/client-core/src/presentation/library-tabs';
 import {serverTextLabel} from '../../../../../../packages/client-core/src/presentation/server-text';
+import {visibleLibraryCounts} from '../../../../../../packages/client-core/src/library-summary';
 import {shareLinkActions} from '../../../screens/share/share-actions';
 import {nativeLibraryCanSave, nativeLibraryEntryKey, type NativeLibrarySnapshot} from '../../../screens/library/model';
 import {libraryAppliedFilters} from '../../../screens/library/applied-filters';
@@ -272,10 +273,9 @@ export function useLibraryOverview({directory, runtime, activation, openLibrary}
   };
 }
 
-const countNames: Record<string, string> = {movie: 'movies', show: 'shows', episode: 'episodes', artist: 'artists', album: 'albums', song: 'songs', book: 'books', author: 'authors', series: 'series', ebook: 'books', comic: 'titles'};
-function libraryCounts(counts: readonly Readonly<{kind: string; count: number; atLeast?: boolean}>[]) {
-  return counts.flatMap(part => countNames[part.kind] ? [{id: part.kind, role: 'value' as const,
-    text: t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: countNames[part.kind]})}] : []);
+function libraryCounts(counts: Parameters<typeof visibleLibraryCounts>[0]) {
+  return visibleLibraryCounts(counts).map(part => ({id: part.kind, role: 'value' as const,
+    text: t(part.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: part.count, pivot: part.pivot})}));
 }
 
 const rememberedMusicShelf = new WeakMap<LibraryProps['destination'], {regionId: string; childId: string}>();
