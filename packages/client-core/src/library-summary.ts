@@ -48,3 +48,12 @@ export async function readLibrarySummaries(api:{request<T>(path:string,method?:s
  if(!object(raw)||!Array.isArray(raw.items)||raw.items.length>2048)invalid();
  return Object.freeze(raw.items.map(row=>{if(!object(row)||!text(row.id)||!text(row.name)||!text(row.kind))invalid();return Object.freeze({id:row.id,name:row.name,kind:libraryKind(row.kind),summary:optionalSummary(row.summary)});}));
 }
+
+/** The word each count kind is shown with (the `lib.count` pivot). An audiobook library's titles are books (phone-app 6:
+ * "8 books  7 authors"). */
+const countPivots:Readonly<Record<string,string>>=Object.freeze({movie:'movies',show:'shows',episode:'episodes',artist:'artists',album:'albums',song:'songs',book:'books',audiobook:'books',author:'authors',series:'series',ebook:'books',comic:'titles'});
+/** A library card's counts in the server's order, each with its word; a kind the library holds none of is left out
+ * ("8 shows · 32 episodes", never "0 movies"), and so is a kind with no word. */
+export function visibleLibraryCounts(counts:LibrarySummary['counts']):readonly Readonly<{kind:string;count:number;atLeast:boolean;pivot:string}>[]{
+ return counts.flatMap(part=>countPivots[part.kind]&&(part.count>0||part.atLeast)?[Object.freeze({kind:part.kind,count:part.count,atLeast:part.atLeast,pivot:countPivots[part.kind]!})]:[]);
+}
