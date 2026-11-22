@@ -223,7 +223,10 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
   const port: LiveChromePort = {
     fence: currentFence, channel: authoritative, ...(programme ? {programme} : {}),
     ...(linear.next ? {nextProgramme: {title: linear.next.title, startMs: linear.next.startMs, endMs: linear.next.endMs}} : {}),
-    window: {...(linear.programme ? {programmeStartMs: linear.programme.startMs, programmeEndMs: linear.programme.endMs} : {}),
+    // The rail spans what is on now: the session's own programme (a Library Channel's title), else the guide's, the same
+    // programme the value text and the times under the rail name. Without one it spans the rewind window.
+    window: {...(linear.programme ? {programmeStartMs: linear.programme.startMs, programmeEndMs: linear.programme.endMs}
+      : programme && programme.endMs > programme.startMs ? {programmeStartMs: programme.startMs, programmeEndMs: programme.endMs} : {}),
       mediaOriginMs: origin, seekStartMs: origin + timeline.start * 1000, seekEndMs: origin + timeline.end * 1000, liveEdgeMs: origin + timeline.edge * 1000,
       positionMs: origin + position * 1000, behindSeconds: timeline.behind, atLive: timeline.behind <= 2},
     ...(down ? {down} : {}), ...(up ? {up} : {}), miniGuide, skipBackSeconds: skips.back, skipForwardSeconds: skips.forward,
