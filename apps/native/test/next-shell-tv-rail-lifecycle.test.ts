@@ -453,7 +453,8 @@ test('the rail pins Search and Home above and Live TV and Saved over Settings; o
   assert.deepEqual(focusIds(render(false)).slice(-3), ['saved', 'settings', ids.profile], 'without Live TV, Saved sits over Settings');
 });
 
-test('Apple TV: focus coming back to Profile and server after its menu stays there; an entry by position still goes to the page item', async () => {
+test('Apple TV: focus coming back to Profile and server after its menu stays there; an entry by position still goes to the page item', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
   const {hooks} = await import('./helpers/screen-harness.mjs');
   const {motionRules} = await import('../../../packages/design/src/index');
   const {defaultI18n} = await import('../../../packages/i18n/src');
@@ -482,8 +483,14 @@ test('Apple TV: focus coming back to Profile and server after its menu stays the
     profile.props.onPress();
     assert.equal(menus, 1);
     region.props.onFocusChange(false);
+    // #5060: choosing Switch server closes the menu and passes focus through the rail on its way to the page; the page's
+    // Back is still the return.
+    region.props.onFocusChange(true);
+    region.props.onFocusChange(false);
+    t.mock.timers.tick(1000);
     region.props.onFocusChange(true);
     assert.equal(frames.length, 0, 'Back from the menu or its page stays on Profile and server');
+    t.mock.timers.tick(1000);
     region.props.onFocusChange(false);
     region.props.onFocusChange(true);
     assert.equal(frames.length, 1, 'a later entry onto the same item by position still asks for the current page item');
