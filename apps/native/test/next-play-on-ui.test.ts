@@ -26,11 +26,11 @@ async function sheet(options: {airplay?: boolean; tablet?: boolean; state?: any}
     resume: (...args: any[]) => commands.push(['resume', ...args]), stop: (...args: any[]) => commands.push(['stop', ...args]),
     send: (...args: any[]) => commands.push(['send', ...args]), choose: (...args: any[]) => commands.push(['choose', ...args]), startCast() {}, openCastRemote() {},
     cast: {viewIsCurrent: (control: any) => control === state.cast?.control, selectTrack: (...args: any[]) => commands.push(['track', ...args])}};
-  const module = await screenModule(new URL('../src-next/screens/watch/PlayOnSheets.tsx', import.meta.url), {
+  const module = await screenModule(new URL('../src-next/kit/player/PlayOnSheets.tsx', import.meta.url), {
     react: hook.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: translate}}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
-    '../../kit/overlays': {Dialog: 'Dialog', BottomSheet: 'BottomSheet', Popover: 'Popover'}, '../../kit/theme': {nativeType, useTheme: () => theme},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../platform/device-platform': {hasAirPlay: options.airplay ?? false, isTablet: options.tablet ?? false},
+    '../../../../../packages/i18n/src': {defaultI18n: {t: translate}}, '../controls': {Button: 'Button', Focusable: 'Focusable'},
+    '../overlays': {Dialog: 'Dialog', BottomSheet: 'BottomSheet', Popover: 'Popover'}, '../theme': {useTheme: () => theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../shell/visual': {shellType: (size: number, weight: number, lineHeight: any = 'normal', tracking = 0) => nativeType({size, weight, lineHeight, tracking})},
+    '../Icon': {Icon: 'Icon'}, '../../platform/device-platform': {hasAirPlay: options.airplay ?? false, isTablet: options.tablet ?? false},
     '../../platform/play-on/AudioRoutePicker': {NativeAirPlayRoutePicker: 'AirPlayPicker'}, './PlayOnRemote': {NativePlayOnRemote: 'Remote'},
   });
   const render = (props: any = {}) => hook.render(() => module.NativePlayOnSheets({controller, artwork: (path?: string) => path ? {uri: path} : undefined,
@@ -129,17 +129,17 @@ test('an old stopped Cast source cannot hide a later Portico remote', async () =
 
 async function remoteScreen() {
   const hook = hooks(), effects: (() => void | (() => void))[] = [];
-  const module = await screenModule(new URL('../src-next/screens/watch/PlayOnRemote.tsx', import.meta.url), {
+  const module = await screenModule(new URL('../src-next/kit/player/PlayOnRemote.tsx', import.meta.url), {
     react: {...hook.react, useEffect: (effect: () => void) => effects.push(effect)},
     'react-native': {Modal: 'Modal', ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => any) => fn()},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 50, bottom: 34})},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: (seconds: number) => String(seconds)},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: translate}}, '../../kit/artwork': {AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}},
-    '../../kit/overlays/surface': {useSurfaceMotion: (open: boolean) => ({motion: {reduce: false}, present: open, progress: {value: 1}})},
-    '../../kit/theme': {nativeType, useTheme: () => theme}, '../../platform/native-blur': {BlurView: 'BlurView'}, '../../platform/device-platform': {isTablet: false},
+    '../../../../../packages/i18n/src': {defaultI18n: {t: translate}}, '../artwork': {AmbientArt: 'AmbientArt', Artwork: 'Artwork'},
+    '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'},
+    '../overlays': {BottomSheet: 'BottomSheet'}, '../overlays/OverlayHost': {useOverlayLifecycle() {}},
+    '../overlays/surface': {useSurfaceMotion: (open: boolean) => ({motion: {reduce: false}, present: open, progress: {value: 1}})},
+    '../theme': {useTheme: () => theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../shell/visual': {shellType: (size: number, weight: number, lineHeight: any = 'normal', tracking = 0) => nativeType({size, weight, lineHeight, tracking})}, '../../platform/native-blur': {BlurView: 'BlurView'}, '../../platform/device-platform': {isTablet: false},
   });
   return {module, hook, effects};
 }

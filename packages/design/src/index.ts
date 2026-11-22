@@ -263,6 +263,8 @@ const handheldType = {
   // Round 8. The episode's name beside "S1 E2" (`playerSubtitle` is the number: regular and secondary; this is bold and
   // primary), and the audio player's title block (phone-app 13, tablet-play 9, desktop-listen, tv 7).
   playerSubtitleStrong: type(13, 'normal', 700), audioTitle: type(23, 28, 800, -.02), audioByline: type(16, 'normal', 600), audioDetail: type(13, 'normal', 500),
+  // The Play on list's "Your devices" heading and the tablet Play on popover's title.
+  playOnHeading: type(13, 'normal', 700),
 };
 /** The end-card (PostPlay) type roles from desktop-player.html's post-play block:
  * kicker 15, title 76, compact title 56, feature 32, name 14 and year 13, with

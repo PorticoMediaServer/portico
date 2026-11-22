@@ -4,14 +4,15 @@ import Animated, {useAnimatedStyle} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {clockText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {AmbientArt, Artwork, type AmbientArtSource, type ArtworkSource} from '../../kit/artwork';
-import {Button, Focusable} from '../../kit/controls';
-import {Icon, type IconName} from '../../kit/Icon';
-import {BottomSheet} from '../../kit/overlays';
-import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
-import {useSurfaceMotion} from '../../kit/overlays/surface';
-import {Layer} from '../../kit/shell/Layer';
-import {nativeType, useTheme} from '../../kit/theme';
+import {AmbientArt, Artwork, type AmbientArtSource, type ArtworkSource} from '../artwork';
+import {Button, Focusable} from '../controls';
+import {Icon, type IconName} from '../Icon';
+import {BottomSheet} from '../overlays';
+import {useOverlayLifecycle} from '../overlays/OverlayHost';
+import {useSurfaceMotion} from '../overlays/surface';
+import {Layer} from '../shell/Layer';
+import {textLines, useTheme} from '../theme';
+import {shellType} from '../shell/visual';
 import {BlurView} from '../../platform/native-blur';
 import {isTablet} from '../../platform/device-platform';
 import type {PlayOnRemote} from '../../platform/play-on/controller';
@@ -55,8 +56,8 @@ export function NativePlayOnTabletRemote(props: NativePlayOnRemoteProps) {
         <Artwork source={props.artwork} width={92} height={92} visible={props.open}/>
       </View>
       <View style={{flex: 1, minWidth: 0}}>
-        <Text numberOfLines={1} style={[nativeType({size: 20, weight: 800, tracking: -.02, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{remote.title ?? t('player.queueNowPlaying')}</Text>
-        <Text numberOfLines={1} style={[theme.type.body, {marginTop: 2, color: theme.colors.textSecondary}]}>{remote.device}</Text>
+        <Text {...textLines(1)} style={[shellType(20, 800, 'normal', -.02, theme.textScale), {color: theme.colors.text}]}>{remote.title ?? t('player.queueNowPlaying')}</Text>
+        <Text {...textLines(1)} style={[theme.type.body, {marginTop: 2, color: theme.colors.textSecondary}]}>{remote.device}</Text>
         {remote.positionKnown && <Text style={[theme.type.bodyStrong, {marginTop: 6, color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{[clockText(remote.positionSeconds),
           remote.durationSeconds > 0 ? clockText(remote.durationSeconds) : undefined].filter(Boolean).join(' / ')}</Text>}
       </View>
@@ -97,7 +98,7 @@ export function NativePlayOnPhoneRemote(props: NativePlayOnRemoteProps) {
       accessibilityLabel={t(direction === 'back' ? 'player.skipBackSeconds' : 'player.skipForwardSeconds', {seconds})}
       onPress={() => props.skip(direction === 'back' ? -seconds : seconds)} style={{width: 48, height: 48, alignItems: 'center', justifyContent: 'center'}}>
       <Icon name={direction === 'back' ? 'i-rew' : 'i-ffw'} size={38} color={theme.colors.text}/>
-      <Text accessible={false} style={[nativeType({size: 10.5, weight: 800, tracking: 0, lineHeight: 'normal'}, theme.textScale),
+      <Text accessible={false} style={[shellType(10.5, 800, 'normal', 0, theme.textScale),
         {position: 'absolute', color: theme.colors.text, marginTop: 2}]}>{seconds}</Text>
     </Focusable> : null;
   };
@@ -106,7 +107,7 @@ export function NativePlayOnPhoneRemote(props: NativePlayOnRemoteProps) {
       borderRadius: 12, overflow: 'hidden', gap: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(237,245,250,.12)'}}>
     <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={16} reducedTransparencyFallbackColor={theme.colors.raisedBright}/>
     <Icon name={icon} size={18} color={theme.colors.text}/>
-    <Text style={[nativeType({size: 11.5, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary, textAlign: 'center'}]}>{label}</Text>
+    <Text style={[shellType(11.5, 700, 'normal', 0, theme.textScale), {color: theme.colors.textSecondary, textAlign: 'center'}]}>{label}</Text>
   </Focusable>;
   return <Modal visible={animation.motion.reduce ? animation.present : open} transparent={animation.motion.reduce}
     animationType={animation.motion.reduce ? 'none' : 'slide'} presentationStyle={animation.motion.reduce ? 'overFullScreen' : 'fullScreen'}
@@ -118,7 +119,7 @@ export function NativePlayOnPhoneRemote(props: NativePlayOnRemoteProps) {
       <ScrollView contentContainerStyle={{flexGrow: 1, alignItems: 'center', paddingTop: insets.top, paddingBottom: Math.max(40, insets.bottom), paddingHorizontal: 24}}>
         <View style={{width: '100%', maxWidth: 500, minHeight: 48, flexDirection: 'row', alignItems: 'center'}}>
           <Button ref={closeButton} testID="remote-close" variant="text" iconOnly icon="i-down" accessibilityLabel={t('action.close')} onPress={props.close}/>
-          <Text style={[nativeType({size: 14.5, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale),
+          <Text style={[shellType(14.5, 700, 'normal', 0, theme.textScale),
             {flex: 1, textAlign: 'center', color: theme.colors.text}]}>{t('playOn.playingOn', {device: remote.device})}</Text>
           <View style={{width: 44}}/>
         </View>
@@ -126,8 +127,8 @@ export function NativePlayOnPhoneRemote(props: NativePlayOnRemoteProps) {
           <Artwork source={props.artwork} width={width} height={width * 9 / 16} visible={open}/>
         </View>
         <View style={{width, marginTop: 34}}>
-          <Text style={[nativeType({size: 23, weight: 800, tracking: -.025, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}]}>{title}</Text>
-          {!!subtitle && <Text style={[nativeType({size: 16, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {marginTop: 2, color: theme.colors.textSecondary}]}>{subtitle}</Text>}
+          <Text style={[shellType(23, 800, 'normal', -.025, theme.textScale), {color: theme.colors.text}]}>{title}</Text>
+          {!!subtitle && <Text style={[shellType(16, 600, 'normal', 0, theme.textScale), {marginTop: 2, color: theme.colors.textSecondary}]}>{subtitle}</Text>}
         </View>
         <View style={{width, marginTop: 24}}>
           <NativeRemoteSeek key={`${remote.id}:${remote.itemId ?? ''}`} remote={remote} enabled={seekable && open}
@@ -155,7 +156,7 @@ export function NativePlayOnPhoneRemote(props: NativePlayOnRemoteProps) {
           {seekable && action('restart', 'i-restart', t('next.controls.startOver'), props.startOver)}
           {remote.allows.stop && action('stop', 'i-stop', t('action.stop'), props.stop)}
         </View>}
-        <Text style={[nativeType({size: 12.5, weight: 400, tracking: 0, lineHeight: 18.125}, theme.textScale),
+        <Text style={[shellType(12.5, 400, 18.125, 0, theme.textScale),
           {width, marginTop: 14, color: theme.colors.textTertiary, textAlign: 'center'}]}>{t('playOn.volumeOnTV')}</Text>
       </ScrollView>
       {props.panel}
