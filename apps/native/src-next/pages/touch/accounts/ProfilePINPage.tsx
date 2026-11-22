@@ -5,7 +5,7 @@ import {Button, NumberPad} from '../../../kit/controls';
 import {SignInFrame} from '../../../kit/frames';
 import {AccountHint, profileFaceSize} from '../../../kit/accounts/AccountParts';
 import {useProfilePIN} from '../../shared/accounts/useProfilePIN';
-import {PhonePINEntry} from '../../../screens/accounts/PhonePINEntry';
+import {PhonePINEntry} from '../../../kit/accounts/PhonePINEntry';
 
 const t = defaultI18n.t;
 

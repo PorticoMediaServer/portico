@@ -1,7 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 import {StyleSheet, Text, TextInput, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {useTheme} from '../../kit/theme';
+import {useTheme} from '../theme';
 
 export type PhonePINEntryProps = Readonly<{
   value: string; onChange: (value: string) => void; onComplete?: (value: string) => void;
