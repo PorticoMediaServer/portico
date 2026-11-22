@@ -14,7 +14,7 @@ import {MFARequiredError, type IdentityOptions, type IdentityTransaction, type R
 import type {SetupCodeSnapshot} from '../../../../../packages/client-core/src/setup-code';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {TVAccountFields, TVAuthLayout} from '../../kit/frames/TVAuthLayout';
+import {TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 import {StateLayout} from '../../kit/states';
 import {Button, Focusable, TextField, FormError, Switch} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -67,6 +67,7 @@ import {afterEntry} from '../../shell/after-entry';
 import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
 import {SignInPage} from '../../pages/touch/accounts/SignInPage';
 import {LegalAgreement} from '../../kit/accounts/LegalAgreement';
+import {AccountEntryEndedNotice, AccountEntryFields, AccountEntryLegal, AccountEntryPasswordToggle, AccountEntryStep} from '../../kit/accounts/AccountEntryParts';
 import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PasswordStrengthMeter} from '../../kit/accounts/PasswordStrengthMeter';
 import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
@@ -884,16 +885,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     textContentType={oneTime && !theme.isTV ? 'oneTimeCode' : credential === 'new-password' ? 'newPassword' : credential === 'email' ? 'emailAddress' : credential}
     autoComplete={oneTime && !theme.isTV ? 'one-time-code' : credential === 'password' ? 'current-password' : credential}
     autoCapitalize="none" autoCorrect={false} editable={!busy} error={invalid} description={help} placeholder={placeholder}
-    trailing={revealable(credential, label) ? <Button testID="accounts-password-visibility" variant="text" size="compact" iconOnly icon={passwordShown ? 'i-eyeoff' : 'i-eye'} iconSize={18}
-      accessibilityLabel={t(passwordShown ? 'accounts.signIn.hidePassword' : 'accounts.signIn.showPassword')} accessibilityState={{selected: passwordShown}}
-      disabled={busy} style={{height: 40, width: 40, paddingHorizontal: 0}} onPress={() => {if (lifetime.current && stageRef.current === stage && !busyRef.current && !acting.current) setPasswordShown(value => !value);}}/> : undefined}/>;
+    trailing={revealable(credential, label) ? <AccountEntryPasswordToggle shown={passwordShown} label={t(passwordShown ? 'accounts.signIn.hidePassword' : 'accounts.signIn.showPassword')}
+      disabled={busy} onPress={() => {if (lifetime.current && stageRef.current === stage && !busyRef.current && !acting.current) setPasswordShown(value => !value);}}/> : undefined}/>;
   const codeField = (label: string, value: string, change: (next: string) => void) => field(label, value, change, false, undefined, undefined, undefined, undefined, true);
   // A two-step code on a phone or tablet is six boxes in two threes (auth.html 6, account-10 frame 3, account-31 frame 3);
   // TV keeps its own code field.
   const twoStepField = (value: string, change: (next: string) => void) => theme.isTV ? codeField(t('auth.verificationCode'), value, change)
     : <PhonePINEntry length={6} label={t('auth.verificationCode')} value={value} onChange={change} busy={busy} error={Boolean(stageError)}/>;
-  const fields = (...children: React.ReactNode[]) => theme.isTV ? <TVAccountFields>{children}</TVAccountFields>
-    : <View style={{alignSelf: 'stretch', gap: 14, marginBottom: 20}}>{children}</View>;
+  const fields = (...children: React.ReactNode[]) => <AccountEntryFields>{children}</AccountEntryFields>;
   // The kit's labelled switch is the box; the legal line below the form links the Terms of Use.
   const ageTerms = <Switch key="age-terms" testID="accounts-age-terms" checked={acceptTerms} disabled={busy} onCheckedChange={setAcceptTerms}>
     {t('services.signup.ageTerms', {terms: t('services.signup.termsOfUse')})}</Switch>;
@@ -910,7 +909,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const status = Platform.isTV && setupElsewhereRefusal(stageError)
     ? <FormError placement="block">{t('accounts.setup.elsewhere')}</FormError>
     : failure && !failure.silent ? <FormError placement="block">{passwordInvalid ? t('web.signIn.error.credentials', {server: server!.name}) : failure.body}</FormError>
-    : accountEnded && stage === 'welcome' ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.text, marginBottom: 16}]}>{t('web.signIn.error.accountEnded')}</Text> : null;
+    : accountEnded && stage === 'welcome' ? <AccountEntryEndedNotice>{t('web.signIn.error.accountEnded')}</AccountEntryEndedNotice> : null;
   const directoryView = stage === 'servers' ? directoryFailure(target, error) : 'other';
   const hostedWaiting = stage === 'servers' && !!target && error instanceof HostedSignInUnavailable;
   const directoryScope = accountScope.current;
@@ -968,14 +967,13 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   // Pickers and directory/recovery states keep their authored centred composition.
   const EntryLayout = theme.isTV ? TVAuthLayout : ['profiles', 'profile-pin', 'servers', 'account-sign-out', 'tv'].includes(stage) ? StateLayout : FormLayout;
   const formStep = theme.platform === 'phone' && stage.startsWith('setup-')
-    ? <Text style={[theme.type.captionStrong, {fontSize: 13.5 * theme.textScale, color: theme.colors.textSecondary}]}>{t('accounts.setup.title')}</Text> : undefined;
+    ? <AccountEntryStep>{t('accounts.setup.title')}</AccountEntryStep> : undefined;
   const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <EntryLayout testID="accounts-entry" title={title} body={body} kicker={formStep} beforeActions={theme.isTV ? <>{before}{status}</> : <>{status}{before}</>} primaryAction={primary} secondaryAction={backAction} avoidKeyboard={stage === 'profile-pin'}>{more}</EntryLayout>;
   // O-159: a server this app can't talk to is refused before any credential, by name.
   const refusal = negotiationRefusal(error);
   if (refusal) return <ServerNeedsUpdate refusal={refusal} onBack={() => {setError(undefined); reset();}}/>;
   const openLegalLink = (url: string) => {void run(async () => {await Linking.openURL(url);});};
-  const legalFooter = <LegalAgreement style={[theme.type.caption, {fontSize: 12 * theme.textScale, color: theme.colors.textTertiary, textAlign: 'center', marginTop: 'auto', paddingTop: 24}]}
-    linkStyle={{color: theme.colors.accentStrong}} onOpenLink={openLegalLink}/>;
+  const legalFooter = <AccountEntryLegal onOpenLink={openLegalLink}/>;
   if (Platform.isTV && stage === 'tv-required-setup' && requiredSetup) return <TVRequiredSetupHandoff serverName={requiredSetup.serverName}
     requirement={requiredSetup.requirement} url={new URL('/settings/profile', requiredSetup.serverOrigin).href} busy={busy}
     copy={{body: requiredSetup.requirement === 'password' ? 'next.auth.tv.requiredPasswordBody' : 'next.auth.tv.requiredTwoStepBody', reference: 'next.auth.tv.handoffHint'}}

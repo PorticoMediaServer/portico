@@ -66,6 +66,12 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../../../../packages/i18n/src': {defaultI18n: copy},
     '../../../../../packages/client-core/src/public-links': {porticoPublicLinks},
   });
+  // The account entry's own kit parts, drawn for real so the legal line inside them can be pressed.
+  const entryParts = await screenModule(new URL('../src-next/kit/accounts/AccountEntryParts.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, '../controls': {Button: 'Button'},
+    '../frames/TVAuthLayout': {TVAccountFields: 'TVAccountFields'}, './LegalAgreement': legal,
+    '../theme': {useTheme: () => ({isTV: false, colors: {}, type: {}})},
+  });
   const modules: Record<string, any> = {
     react: {...React, default: React},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: () => ({remove() {}})},
@@ -83,7 +89,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../platform/server-connections': {browseNearby: async () => []},
     '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}},
     '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'AccountSignIn'},
-    '../../kit/accounts/LegalAgreement': legal, '../../kit/accounts/AccountForm': {AccountForm: 'AccountForm'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
+    '../../kit/accounts/LegalAgreement': legal, '../../kit/accounts/AccountEntryParts': entryParts, '../../kit/accounts/AccountForm': {AccountForm: 'AccountForm'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
     '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
   };
   Object.assign(modules, {'../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}});
@@ -161,7 +167,9 @@ test('registration preserves API argument order while drawing approved fields, p
   assert.equal(f.tree().type, 'AccountForm');
   assert.deepEqual(f.fields().map(node => node.props.label), ['auth.email', 'auth.username', 'auth.yourName · field.optional', 'auth.password']);
   assert.equal(f.tree().props.primaryAction.label, 'action.continue');
-  const agreement = nodes(f.tree().props.children).find(node => node.type.name === 'LegalAgreement');
+  // The legal line is the kit's AccountEntryLegal, which draws LegalAgreement.
+  const legal = nodes(f.tree().props.children).find(node => node.type.name === 'AccountEntryLegal'), agreement = legal.type(legal.props);
+  assert.equal(agreement.type.name, 'LegalAgreement');
   const footer = agreement.type(agreement.props);
   assert.ok(words(footer).includes('auth.terms')); assert.ok(words(footer).includes('auth.privacyPolicy'));
   await act(() => nodes(footer).find(node => node.props.children === 'auth.terms').props.onPress());
