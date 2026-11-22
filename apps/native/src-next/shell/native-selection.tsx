@@ -225,7 +225,8 @@ export function createNativeSelection(context: NativeShellBootstrapContext, sour
       const port = context.playback.cataloguePlayback?.();
       const item = await readCatalogueSelectionItem({queries: viewerQueriesFor(context.api, authority.scope), api: context.api, scope: authority.scope, requestId: feedback.requestId,
         signal: controller.signal, isCurrent: current}, entry, {play: !!port, queue: !!port && queueControl(),
-          ...(leaf(entry) ? {myList: true, favorite: true, watched: true, edit: true, delete: true, playlist: true, collection: true} : {})});
+          // Edit opens the owner's bulk editor; only the owner is offered it (as in the library).
+          ...(leaf(entry) ? {myList: true, favorite: true, watched: true, edit: context.session()?.viewer.role === 'owner', delete: true, playlist: true, collection: true} : {})});
       if (!current()) throw cancelled();
       const groups = source.getSnapshot().groups, sectionOrder = groups.findIndex(value => value.id === group);
       const section = groups[sectionOrder]!, index = section.items.indexOf(entry);

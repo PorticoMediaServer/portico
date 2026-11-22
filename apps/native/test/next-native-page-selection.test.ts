@@ -240,3 +240,17 @@ test('a page kept current is held while its selection is open, and let go when i
     assert.equal(releases, 2, 'released exactly once');
   } finally {selection.dispose(); f.close();}
 });
+
+test('a pick offers Edit only to the owner: other profiles read the title without the bulk editor port', async () => {
+  const f = await fixture();
+  try {
+    f.selection.start!(); f.selection.item(movie, 'known')!.onEnter(); await tick();
+    assert.equal(f.reads.at(-1).ports.edit, false, 'a profile with no owner role is not offered Edit');
+    f.bar().props.onCancel(); f.close();
+    const owner = await fixture();
+    const session = owner.context.session(); owner.context.session = () => ({...session, viewer: {...session.viewer, role: 'owner'}});
+    owner.selection.start!(); owner.selection.item(movie, 'known')!.onEnter(); await tick();
+    assert.equal(owner.reads.at(-1).ports.edit, true);
+    owner.close();
+  } finally {f.close();}
+});
