@@ -125,8 +125,10 @@ export function MagazineIssues({state, archive, theme, runtime, tablet, width, o
       {/* tablet-read 10, phone-read 24: the archive's Order, beside the year chips. */}
       {(tablet || scroll) && state.order ? <Focusable ref={orderAnchor} accessibilityRole="button" accessibilityLabel={`${t('next.overlays.order')}, ${t('next.reader.issueOrder', {order: state.order})}`}
         onPress={() => setOrderMenu(true)} focusKind="chip" focusRadius={9}
-        style={{height: 34, marginRight: 28, paddingLeft: 12, paddingRight: 9, borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: alpha(theme.colors.text, .08)}}>
-        <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginRight: 4}]}>{t('next.overlays.order')}</Text>
+        // A phone draws it as plain words with its chevron (phone-read 24 "Latest first ⌄"); a tablet as a labelled box.
+        style={tablet ? {height: 34, marginRight: 28, paddingLeft: 12, paddingRight: 9, borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: alpha(theme.colors.text, .08)}
+          : {height: 34, marginRight: 20, paddingLeft: 8, borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 6}}>
+        {tablet ? <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginRight: 4}]}>{t('next.overlays.order')}</Text> : null}
         <Text style={[theme.type.chip, {color: theme.colors.text}]}>{t('next.reader.issueOrder', {order: state.order})}</Text>
         <Icon name="i-down" size={18} color={theme.colors.textTertiary}/>
       </Focusable> : null}

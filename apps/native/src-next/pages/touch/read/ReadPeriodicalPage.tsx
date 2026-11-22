@@ -19,7 +19,7 @@ const {t} = defaultI18n;
  * chips with Latest first and the issues under each year. A newspaper, and TV, keep the archive frame. */
 export function ReadPeriodicalPage(props: ReadPeriodicalProps) {
   const {route, runtime, onBack} = props;
-  const {state, actions, archive, open, offer, magazine, selected, backdrop} = useReadPeriodical(props);
+  const {state, actions, archive, open, offer, magazine, selected, library, backdrop} = useReadPeriodical(props);
   const theme = useTheme(), width = usePageWidth(), tablet = theme.platform !== 'phone';
   const head = useMagazineHead({state, issue: selected, offer, actions, runtime, onOpen: open});
   const common = {state, runtime, actions, onOpen: open, offer};
@@ -29,7 +29,7 @@ export function ReadPeriodicalPage(props: ReadPeriodicalProps) {
     <TitleFrame testID={`native-read-periodical-${route.groupId}`} back={back} topAction={head.more}
       art={<AmbientArt treatment="page" source={backdrop}/>}
       cover={{shape: 'poster', node: size => <PeriodicalCover issue={selected} title={state.groupName ?? ''} width={size} height={size * 1.5} runtime={runtime}/>}}
-      kicker={{label: t('next.reader.magazine')}} title={state.groupName ?? ''} metadata={<HeroMetadata facts={head.facts}/>}
+      kicker={library ? {kind: t('next.reader.magazine'), label: library.name, onPress: library.open} : {label: t('next.reader.magazine')}} title={state.groupName ?? ''} metadata={<HeroMetadata facts={head.facts}/>}
       primary={head.primary && {icon: 'i-book', ...head.primary, testID: 'read-periodical-read'}}
       actions={[...(head.listed ? [head.listed] : []), ...(head.more ? [head.more] : [])]}
       scroller={(content, inset, collapse) => <MagazineIssues {...common} theme={theme} tablet={tablet} width={Math.min(1180, width)} archive={archive}

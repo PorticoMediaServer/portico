@@ -48,7 +48,10 @@ export function useReadPeriodical({controller, route, context, runtime}: ReadPer
       ...(nativePublicationReadsAvailable() ? {download: () => askNativeDownload({title: issue.item.title, itemId: issue.item.id, reading: true, anchorRef, lifetime})} : {})} : undefined;
   };
   const magazine = route.publicationType === 'magazine', selected = periodicalHeroIssue(state, magazine);
-  return {state, actions, archive, open, offer, magazine, selected, backdrop: runtime.ambient(selected?.item.coverUrl)};
+  // The archive's library, its name a link to it (phone-read 24's "Magazine · Books").
+  const known = context.libraries().find(value => value.id === route.libraryId);
+  const library = known ? {name: known.name, open: () => runtime.onDestination({kind: 'library', libraryId: known.id})} : undefined;
+  return {state, actions, archive, open, offer, magazine, selected, library, backdrop: runtime.ambient(selected?.item.coverUrl)};
 }
 
 export type PeriodicalArchiveActions = ReturnType<typeof useReadPeriodical>['archive'];
