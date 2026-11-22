@@ -50,15 +50,15 @@ async function load(role: 'owner' | 'member') {
   const context: any = {session: () => ({viewer: {role}}), current: () => live, authority: () => ({viewerFence: 'fence'}), subscribeAuthority: () => () => {},
     navigation: {subscribe: (listener: () => void) => {navigation.add(listener); return () => {navigation.delete(listener);};}},
     api: {request: async (path: string, method?: string) => {requests.push([path, method]); return {};}}};
-  const {createNativeTitleActions} = await screenModule(new URL('../src-next/screens/watch/title-actions.tsx', import.meta.url), {
-    react: h.react, 'react-native': {Text: 'Text'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/detail': {DetailService: FakeDetail}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
-    '../../../../../packages/client-core/src/presentation/entry-actions': {refreshMetadataPath}, '../../shell/selection-display': {selectedItemsLabel: () => '1 title'},
-    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', RatingDialog: 'RatingDialog'}, '../../kit/theme': {useTheme: () => ({type: {}, colors: {}})},
-    '../search/loaded-destinations': {NativeLoadedDestinations: FakeDestinations}, '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'Picker'},
-    '../destinations/bulk-media': {NativeBulkMedia: FakeBulk}, '../destinations/lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => live})},
-    '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request', reportError: (error: unknown) => {reported.push(error);}, notice: (message: string) => {notices.push(message);}})},
-    '../downloads/request': {askNativeDownload: (request: unknown) => {downloads.push(request);}}, './download-request': {nativeDownloadRequest},
+  const {createNativeTitleActions} = await screenModule(new URL('../src-next/shell/title-actions.tsx', import.meta.url), {
+    react: h.react, 'react-native': {Text: 'Text'}, '../../../../packages/i18n/src': {defaultI18n},
+    '../../../../packages/client-core/src/detail': {DetailService: FakeDetail}, '../../../../packages/client-core/src/presentation/errors': {presentError},
+    '../../../../packages/client-core/src/presentation/entry-actions': {refreshMetadataPath}, './selection-display': {selectedItemsLabel: () => '1 title'},
+    '../kit/artwork': {Artwork: 'Artwork'}, '../kit/selection': {BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog', RatingDialog: 'RatingDialog'}, '../kit/theme': {useTheme: () => ({type: {}, colors: {}})},
+    '../screens/search/loaded-destinations': {NativeLoadedDestinations: FakeDestinations}, '../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'Picker'},
+    '../screens/destinations/bulk-media': {NativeBulkMedia: FakeBulk}, '../screens/destinations/lifetime': {nativeDestinationLifetime: () => ({scope: {serverId: 'server', viewerId: 'viewer'}, current: () => live})},
+    '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'request', reportError: (error: unknown) => {reported.push(error);}, notice: (message: string) => {notices.push(message);}})},
+    '../screens/downloads/request': {askNativeDownload: (request: unknown) => {downloads.push(request);}}, '../screens/watch/download-request': {nativeDownloadRequest},
   });
   const handle = createNativeTitleActions(context);
   const lifetime = () => {const abort = new AbortController(); let current = true; return {abort, end: () => {current = false; for (const listener of navigation) listener();}, value: {signal: abort.signal, isCurrent: () => current}};};
