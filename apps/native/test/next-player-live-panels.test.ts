@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/identity.ts';
 import {nowNext} from '../../../packages/client-core/src/guide/now-next.ts';
 import {sameAuthority} from '../src-next/shell/model.ts';
@@ -25,7 +26,7 @@ for (const [name, window, expectedPane, expectedPicture] of [
   const h = hooks(), source: any = {authority, fence, retired: false, dock: {local: {fence, expanded: true, kind: 'live'}}, playback: {intent: 'playing'}, queue: {}}, controlState: any = {fence, visible: true};
   let guideState: any = {fence, open: false, phase: 'ready', rows: [], busy: false};
   const playback = {subscribe, getSnapshot: () => source}, controls = {subscribe, getSnapshot: () => controlState}, guide = {subscribe, getSnapshot: () => guideState};
-  const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/WatchHost.tsx', import.meta.url), { '../../platform/layout/full-window': {nativePlayerOpen: () => {}},
+  const {WatchHostPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchHostPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', { '../../platform/layout/full-window': {nativePlayerOpen: () => {}},
   '../../kit/theme': {useTheme: () => ({colors: {ink: '#08121b'}})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, react: {...h.react, useLayoutEffect() {}}, 'react-native': {View: 'View', StatusBar: {}, Dimensions: {get: () => window}, useWindowDimensions: () => window},
     'react-native-reanimated': {default: {View: 'Animated'}, useSharedValue: (value: unknown) => h.react.useRef({value}).current, useAnimatedStyle: (run: () => unknown) => run(), withTiming: (value: unknown) => value, cancelAnimation() {}},
@@ -37,7 +38,9 @@ for (const [name, window, expectedPane, expectedPicture] of [
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: subscribe}, './tv-presentation': {nativeWatchTVPresentation},
     '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: subscribe},
     './post-play-gate': {showsOwnEnd},
-  });
+  }));
+  // The page hands its drawing to the kit's WatchHostView; draw it here so the checks below see the host's tree.
+  const NativeWatchHost = (props: any) => {const tree: any = WatchHostPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;};
   const render = (isTV = false) => h.render(() => NativeWatchHost({authority, current: () => authority, playback, controls, outlet: {}, runtime: {text: {t}}, setPresentation() {}, isTV,
     bindings: {liveGuide: guide, chrome: () => ({}), panel: () => 'options-panel'}}));
   const before = nodes(render()).find(node => node.type === 'Picture');assert.ok(before);

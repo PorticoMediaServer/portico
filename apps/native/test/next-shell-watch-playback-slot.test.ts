@@ -1,6 +1,7 @@
 // @fabric-react
 import {DockVideoExitImages} from '../src-next/kit/dock/video-exit-paint.ts';
 import {listeningCoverFixture} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant} from '../src-next/shell/listening-presentation.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -254,7 +255,7 @@ test('actual WatchHost panel/control geometry reaches the persistent layer throu
   const outlet = new NativeWatchOutlet(() => ({authority, fence, window: wide}));
   const d = await layer(true, outlet, {os: 'ios'}), controls = new NativeWatchControls(false);
   const measurements: ((x: number, y: number, width: number, height: number) => void)[] = [];
-  const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/WatchHost.tsx', import.meta.url), { '../../platform/layout/full-window': {nativePlayerOpen: () => {}},
+  const {WatchHostPage} = await screenModule(new URL('../src-next/pages/shared/player/WatchHostPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', { '../../platform/layout/full-window': {nativePlayerOpen: () => {}},
   '../../kit/theme': {useTheme: () => ({colors: {ink: '#08121b'}})},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => wide, Dimensions: {get: () => wide},
@@ -273,7 +274,9 @@ test('actual WatchHost panel/control geometry reaches the persistent layer throu
     '../settings-live/group-port': {groupPort, subscribeGroupPort}, '../../kit/focus': {useOptionalFocusRegistry: () => undefined},
     '../../kit/useScreenReader': {useScreenReader: () => false},
     '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'TVPanelTransition', TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelPresence: () => ({open: false, value: undefined, exited() {}})},
-  });
+  }));
+  // The page hands its drawing to the kit's WatchHostView; draw it here so the checks below see the host's tree.
+  const NativeWatchHost = (props: any) => {const tree: any = WatchHostPage(props); return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;};
   const {NativeWatchPicture} = await screenModule(new URL('../src-next/shell/watch-picture.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => wide},
     '../../../../packages/player-core/src': {sameFence}, './model': {sameAuthority},

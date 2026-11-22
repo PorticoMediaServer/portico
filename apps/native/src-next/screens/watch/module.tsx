@@ -17,7 +17,7 @@ import type {NativeTitleActionsHandle} from '../../shell/title-actions';
 import {NativePlaybackInfoPanel, playbackInfoWords} from '../../kit/player/PlaybackInfoPanel';
 import {NativeWatchPanels, type NativeWatchPanelsProps, type NativeWatchStylePort} from './WatchPanels';
 import {NativeWatchPanelOptions} from './panel-options';
-import type {NativeWatchHostBindings} from './WatchHost';
+import type {NativeWatchHostBindings} from '../../pages/shared/player/useWatchHost';
 import {sameAuthority} from '../../shell/model';
 import type {NativePlaybackFailure} from '../../kit/player/PlaybackFailed';
 import type {NativeWatchPanelNames} from './panel-model';

@@ -18,7 +18,7 @@ import {Icon, type IconName} from '../../kit/Icon';
 import {nativeType, useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
-import type {NativeWatchHostContext} from './WatchHost';
+import type {NativeWatchHostContext} from '../../pages/shared/player/useWatchHost';
 import type {NativeWatchPanel} from './controls';
 import {nativeWatchTracks} from './track-identity';
 import {nativeWatchPanelRows, type NativeWatchPanelNames, type NativeWatchChoiceRow} from './panel-model';

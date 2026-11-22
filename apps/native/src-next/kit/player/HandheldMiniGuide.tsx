@@ -9,7 +9,7 @@ import {useOverlayLifecycle} from '../overlays/OverlayHost';
 import {MiniGuideAll, MiniGuideHead, MiniGuideRow} from '../live/MiniGuide';
 import {useTheme} from '../theme';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
-import type {NativeWatchHostContext} from '../../screens/watch/WatchHost';
+import type {NativeWatchHostContext} from '../../pages/shared/player/useWatchHost';
 import type {NativeLiveGuideSnapshot, NativeTVLiveGuide} from '../../screens/watch/live-guide';
 
 /** The same bounded, authorized rows as TV, in the phone options pane or the
