@@ -6,6 +6,7 @@ import {nowNext} from '../../../packages/client-core/src/guide/now-next.ts';
 import {sameAuthority} from '../src-next/shell/model.ts';
 import {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs} from '../src-next/platform/layout/player-presentation.ts';
 import {nativeWatchTVPresentation} from '../src-next/screens/watch/tv-presentation.ts';
+import {showsOwnEnd} from '../src-next/screens/watch/post-play-gate.ts';
 
 const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
 const strings = (value: any): string => Array.isArray(value) ? value.map(strings).join(' ') : value?.props ? strings(value.props.children) : value == null || value === false ? '' : String(value);
@@ -35,6 +36,7 @@ for (const [name, window, expectedPane, expectedPicture] of [
     './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'}, '../../kit/player/HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: subscribe}, './tv-presentation': {nativeWatchTVPresentation},
     '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: subscribe},
+    './post-play-gate': {showsOwnEnd},
   });
   const render = (isTV = false) => h.render(() => NativeWatchHost({authority, current: () => authority, playback, controls, outlet: {}, runtime: {text: {t}}, setPresentation() {}, isTV,
     bindings: {liveGuide: guide, chrome: () => ({}), panel: () => 'options-panel'}}));
