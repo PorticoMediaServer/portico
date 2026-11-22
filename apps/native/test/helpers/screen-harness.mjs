@@ -233,12 +233,16 @@ export async function screenModule(file, modules) {
   }
   // A screen's logic that moved into a `pages/shared` hook, or its drawing into a kit part, keeps running for real: when a
   // fixture names no namespace for it, the file is loaded with the fixture's own namespaces, each re-pointed from its folder.
+  // Where a relative path lands under src-next (`kit/layout/Lockup`), so a kit part that moved beside the parts it names
+  // still meets the harness's stand-ins for them; tried only after the fixture's own answer.
+  const landed = value => value.startsWith('.') ? new URL(value, file).pathname.split('/src-next/')[1]?.replace(/\.(?:tsx?|mjs)$/, '') ?? '' : '';
   for (const declaration of parsed.program.body.filter(d => d.type === 'ImportDeclaration' && /\/(?:pages\/shared|kit)\//.test(d.source.value)
     && !Object.hasOwn(modules, d.source.value))) {
     // A kit part the harness already stands in for (its leaf stubs) keeps that stand-in.
     // So does one the fixture's own namespaces already answer (a fallback proxy answers any path).
     if (/\/kit\//.test(declaration.source.value) && (modules[declaration.source.value] != null
-      || leaf(declaration.source.value, modules.react?.default ?? modules.react, modules['react-native']) !== undefined)) continue;
+      || leaf(declaration.source.value, modules.react?.default ?? modules.react, modules['react-native']) !== undefined
+      || leaf(landed(declaration.source.value), modules.react?.default ?? modules.react, modules['react-native']) !== undefined)) continue;
     const target = await sharedHookFile(new URL(declaration.source.value, file));
     if (!target) continue;
     const own = Object.fromEntries(Object.entries(modules).map(([key, value]) => {
@@ -261,7 +265,7 @@ export async function screenModule(file, modules) {
     const namespace = `__screenModuleImport${declaration.start}`;
     const missing = declaration.specifiers.length ? `${namespace} == null`
       : `!Object.hasOwn(modules, ${source}) || ${namespace} == null`;
-    const required = `const ${namespace} = Object.hasOwn(modules, ${source}) ? modules[${source}] : __leaf(${source}, modules.react?.default ?? modules.react, modules['react-native']) ?? modules[${source}]; if (${missing}) throw new Error(${JSON.stringify(`screenModule(${file.pathname}): no namespace for `)} + ${source});`;
+    const required = `const ${namespace} = Object.hasOwn(modules, ${source}) ? modules[${source}] : __leaf(${source}, modules.react?.default ?? modules.react, modules['react-native']) ?? modules[${source}] ?? __leaf(${JSON.stringify(landed(declaration.source.value))}, modules.react?.default ?? modules.react, modules['react-native']); if (${missing}) throw new Error(${JSON.stringify(`screenModule(${file.pathname}): no namespace for `)} + ${source});`;
     const bindings = declaration.specifiers.map(specifier => {
       const value = specifier.type === 'ImportNamespaceSpecifier' ? namespace
         : `${namespace}[${JSON.stringify(specifier.type === 'ImportDefaultSpecifier' ? 'default' : specifier.imported.name ?? specifier.imported.value)}]`;

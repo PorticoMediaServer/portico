@@ -37,7 +37,7 @@ async function scene(platform: 'android' | 'tvos') {
   const requests: {regionId: string; childId: string}[] = [], focusOf = registry.focus;
   registry.focus = ((address: {regionId: string; childId: string}, options?: unknown) => {requests.push({...address}); return focusOf(address, options as never);}) as typeof registry.focus;
   const unselected = {active: false, isSelected: () => false, onToggle() {}, onEnter() {}};
-  // TitleScreen's mapping of a related row's pages to the shelf's paging (TitleScreen.tsx, related rows).
+  // TitleScreen's mapping of a related row's pages to the shelf's paging (kit/player/TitleScreenView.tsx, related rows).
   const Scene = ({pages, targeted = true, covered = false}: {pages: NativeRelatedRowSnapshot; targeted?: boolean; covered?: boolean}) => e(focus.FocusProvider, {registry},
     e(native.View, {style: {flex: 1}},
       e(focus.FocusRegion, {id: 'title.actions', orientation: 'horizontal', edges: {down: 'title.related'}, style: {height: 120}}, e(Stop, {id: 'play', w: 240, h: 80})),

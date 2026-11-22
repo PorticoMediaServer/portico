@@ -4,7 +4,7 @@ import {AmbientArt} from '../../../kit/artwork';
 import {EpisodeList, PanelBlock, PeopleSheet, TitleDetails, TitleFrame} from '../../../kit/frames';
 import {HeroMetadata, PosterRow, SeasonBar} from '../../../kit/layout';
 import {SeasonSheet} from '../../../kit/layout/SeasonSheet';
-import type {NativeTitleScreenProps} from '../../../screens/watch/TitleScreen';
+import type {NativeTitleScreenProps} from '../../../pages/shared/player/useTitleScreen';
 import {PlayOnButton} from '../../../shell/PlayOnButton';
 import {useTitle} from '../../shared/title/useTitle';
 

@@ -6,8 +6,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {loadTitleScreen} from './helpers/load-title-screen.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
-const {TitleEpisode, TitleRelated} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
+const {TitleEpisode, TitleRelated} = await loadTitleScreen({
   '../../kit/frames/TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
   '../../kit/useMotion': {useMotion: () => ({reduce: false})},
   '../../../../../packages/client-core/src/presentation/errors': {presentError},

@@ -62,7 +62,7 @@ const {createNativeWatchScreens} = await screenModule(new URL('../src-next/shell
   '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n},
   '../../shell/model': {sameAuthority}, './controls': {NativeWatchControls}, '../../../../../packages/client-core/src/file-info-session': {FileInfoSession, fileInfoUsesGroups}, '../../pages/shared/title/FileInfoPanel': {NativeFileInfoPanel: 'FileInfoPanel'}, './playback-info': {readNativePlaybackInfo},
   './track-identity': {nativeWatchTracks}, '../../pages/shared/player/WatchEpisodesPage': episodes,
-  './title-controller': {NativeTitleController}, './title-starts': {NativeTitleStarts}, './TitleScreen': {NativeTitleScreen: 'Title'}, '../../pages/touch/title/routes': {touchTitlePages: {movie: 'Title', show: 'Title'}},
+  './title-controller': {NativeTitleController}, './title-starts': {NativeTitleStarts}, '../../pages/shared/player/TitleScreenPage': {TitleScreenPage: 'Title'}, '../../pages/touch/title/routes': {touchTitlePages: {movie: 'Title', show: 'Title'}},
   '../../pages/tv/title/routes': {tvTitlePages: {movie: 'Title'}},
   './version-destination': {NativeVersionChooserController}, './version-options': {nativeVersionChoices, nativeVersionNames},
   '../../pages/shared/player/WatchHostPage': {WatchHostPage: 'WatchHost'}, '../../pages/shared/player/WatchChromePage': {WatchChromePage: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},

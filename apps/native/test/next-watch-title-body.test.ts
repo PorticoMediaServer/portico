@@ -6,12 +6,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {loadTitleScreen} from './helpers/load-title-screen.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {playbackFence, sameFence} from '../../../packages/player-core/src/index.ts';
 import {cardText, episodeLabel, playbackIdentity, titleFactParts} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
-const {NativeTitleScreen, TitleEpisode} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
+const {NativeTitleScreen, TitleEpisode} = await loadTitleScreen({
   '../../kit/frames/TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
   '../../kit/useMotion': {useMotion: () => ({reduce: false})},
   '../../../../../packages/client-core/src/presentation/errors': {presentError},

@@ -4,7 +4,7 @@ import {AmbientArt} from '../../../kit/artwork';
 import {StateRow, TitleDetails, TitleFrame, TitleSection, TVEpisodeShelf, TVSeasonList, type EpisodeBandData} from '../../../kit/frames';
 import {HeroMetadata, PosterRow} from '../../../kit/layout';
 import {Menu} from '../../../kit/overlays';
-import type {NativeTitleScreenProps} from '../../../screens/watch/TitleScreen';
+import type {NativeTitleScreenProps} from '../../../pages/shared/player/useTitleScreen';
 import {useTitle, type TitleView, type TVSeason} from '../../shared/title/useTitle';
 
 const t = defaultI18n.t;

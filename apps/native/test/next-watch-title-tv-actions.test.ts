@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {loadTitleScreen} from './helpers/load-title-screen.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {sameFence} from '../../../packages/player-core/src/index.ts';
 import {cardText, episodeLabel, playbackIdentity, titleFactParts} from '../../../packages/client-core/src/presentation/kit-model/index.ts';
@@ -16,7 +17,7 @@ const enteredRegions: string[] = [];
 let capturedFocus: any = undefined;
 const focusRegistry = {subscribe: () => () => {}, getSnapshot: () => 0, capture: () => capturedFocus, focusRegion: (id: string) => {enteredRegions.push(id); return true;}};
 
-const {NativeTitleScreen} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
+const {NativeTitleScreen} = await loadTitleScreen({
   '../../kit/frames/TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
   '../../kit/useMotion': {useMotion: () => ({reduce: false})},
   '../../../../../packages/client-core/src/presentation/errors': {presentError},
