@@ -217,13 +217,14 @@ function TitlePage({shortHead, art, cover, back, topAction, kicker, byline, plac
       if (target !== undefined) scroll.current?.scrollTo({y: Math.max(0, target), animated: !motion.reduce});
     }, () => {}));
   };
-  // The tabs follow the section that holds focus.
+  // The tabs follow the section that holds focus, also when the page's own tab is set from elsewhere (its place restored
+  // on the way back from the player) while focus stays in a section.
   const sectionTabs = useRef<readonly (string | undefined)[]>([]);
   useEffect(() => {
     const tab = typeof where === 'number' ? sectionTabs.current[where] : undefined;
     if (tabs && tab !== undefined && tab !== tabs.value) tabs.onValueChange(tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [where]);
+  }, [where, tabs?.value]);
   const failure = state && 'title' in state ? state : undefined, loading = !!state && !failure;
   if (failure) return <View testID={testID} style={{flex: 1}}>
     {!tv && <View style={{position: 'absolute', zIndex: theme.layers.sticky, left: theme.space.sm, top: insets.top + theme.space.tight}}><RoundBarButton icon="i-left" label={back.label} onPress={back.onPress} testID={back.testID}/></View>}
