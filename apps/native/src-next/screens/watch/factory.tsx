@@ -42,7 +42,7 @@ import {NativeWatchHost, type NativeWatchHostBindings, type NativeWatchHostConte
 import {NativeWatchEpisodes} from './EpisodePanel';
 import type {MenuAction} from '../../kit/overlays/types';
 import type {NativeTitleActionsHandle} from './title-actions';
-import type {NativeSelection} from '../selection/native-selection';
+import type {NativeSelection} from '../../shell/native-selection';
 import {viewerQueriesFor} from '../../shell/freshness';
 
 export type NativeWatchCapture = Readonly<{

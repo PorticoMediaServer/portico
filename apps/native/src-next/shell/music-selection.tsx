@@ -2,7 +2,7 @@ import React from 'react';
 import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
 import type {SelectionContext} from '../../../../packages/client-core/src/selection-model';
 import type {NativeShellBootstrapContext} from './bootstrap';
-import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from '../screens/selection/native-selection';
+import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from './native-selection';
 import type {NativeTVMusicController} from '../screens/destinations/music/model';
 
 /** The album and artist row cards (releases, other releases, similar) draw from this

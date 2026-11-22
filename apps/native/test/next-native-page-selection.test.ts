@@ -26,18 +26,18 @@ async function fixture(browse = false, preserveEvicted = true, personal?: (optio
     snapshot() {return {busy: false};}
     dispose() {}
   }
-  const {createNativeSelection} = await screenModule(new URL('../src-next/screens/selection/native-selection.tsx', import.meta.url), {
+  const {createNativeSelection} = await screenModule(new URL('../src-next/shell/native-selection.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../../../../packages/client-core/src/selection-model': {SelectionModel, BrowseSelectionModel, selectionKey, browseSelectionKey, selectionFourthAction,
+    '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../../packages/client-core/src/selection-model': {SelectionModel, BrowseSelectionModel, selectionKey, browseSelectionKey, selectionFourthAction,
       readCatalogueSelectionItem: async (lifetime: any, entry: any, ports: any) => {reads.push({lifetime, entry, ports}); await gate; return {id: entry.id, libraryId: entry.libraryId, kind: entry.kind, capabilities: selectionCapabilities(entry.kind, ports)};},
       playCatalogueSelection: async (_port: unknown, items: any[], lifetime: any) => {if (lifetime.isCurrent()) played.push(items);}, enqueueCatalogueSelection: async () => {},
       createCataloguePersonalSelection: personal ?? (() => assert.fail('no personal mutation in this fixture'))},
-    '../../shell/selection-display': {selectedItemsLabel: (summary: any) => String(summary.count)}, '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
-    '../../kit/theme': {useTheme: () => ({isTV: true, layers: {navigation: 1}})}, '../../kit/overlays': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Failure'})}, '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': {mediaSelectionKey: (entry: any) => entry.id},
-    '../destinations/lifetime': {nativeDestinationLifetime}, '../native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'operation', reportError: (error: unknown) => errors.push(error), notice: (message: string) => notices.push(message)})},
-    '../search/loaded-destinations': {NativeLoadedDestinations: Destination}, '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'Picker'}, '../destinations/bulk-media': {NativeBulkMedia: class {}}
+    './selection-display': {selectedItemsLabel: (summary: any) => String(summary.count)}, '../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar'},
+    '../kit/theme': {useTheme: () => ({isTV: true, layers: {navigation: 1}})}, '../kit/overlays': {Dialog: 'Dialog'}, '../kit/controls': {Button: 'Button'},
+    '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Failure'})}, '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection': {mediaSelectionKey: (entry: any) => entry.id},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime}, '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'operation', reportError: (error: unknown) => errors.push(error), notice: (message: string) => notices.push(message)})},
+    '../screens/search/loaded-destinations': {NativeLoadedDestinations: Destination}, '../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'Picker'}, '../screens/destinations/bulk-media': {NativeBulkMedia: class {}}
   });
   const source = {current: () => visible, subscribe: (listener: () => void) => {sourceListeners.add(listener); return () => sourceListeners.delete(listener);}, getSnapshot: () => snapshot};
   const selection = createNativeSelection(context, source, {area: 'search', aggregates: true, preserveEvicted});
@@ -118,7 +118,7 @@ test('music Top and All songs keep separate real Browse contexts and only one ac
   const f = await fixture(true), h = hooks(), listeners = new Set<() => void>(); let current = true;
   const contexts: any[] = [];
   const {createNativeMusicSelection} = await screenModule(new URL('../src-next/shell/music-selection.tsx', import.meta.url), {
-    react: h.react, '../screens/selection/native-selection': {createNativeSelection: (context: any, source: any, options: any) => {contexts.push(source.getSnapshot().context); return f.createNativeSelection(context, source, options);}}
+    react: h.react, './native-selection': {createNativeSelection: (context: any, source: any, options: any) => {contexts.push(source.getSnapshot().context); return f.createNativeSelection(context, source, options);}}
   });
   const state = {songs: [song], allSongs: {songs: [song]}, albums: [], similar: []};
   // The page's album and artist rows (W-20) are a third owner; with no loaded projection it offers no context.

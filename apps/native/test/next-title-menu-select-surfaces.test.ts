@@ -21,7 +21,7 @@ import {prepareDiscTitle, readDiscTitles} from '../src-next/screens/watch/disc-t
 import {NativeWatchPresenters} from '../src-next/screens/watch/presenters.ts';
 import {NativeScreenServices} from '../src-next/screens/screen-services.ts';
 import type {NativeShellBootstrapContext} from '../src-next/shell/bootstrap.ts';
-import type {NativeSelection} from '../src-next/screens/selection/native-selection.ts';
+import type {NativeSelection} from '../src-next/shell/native-selection.ts';
 
 // W-18: DESIGN puts Select in every card's hold-OK menu. The shared builder draws the
 // row (WatchOverlays) and each surface hands it the card's own selection entry; the

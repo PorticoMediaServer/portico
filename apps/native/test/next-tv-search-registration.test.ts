@@ -93,26 +93,26 @@ async function setup() {
     readonly surface: string;
     constructor(options: ConstructorParameters<typeof NativeSearchExplore>[0]) {super(options); this.surface = options.surface;}
   }
-  const engine = await screenModule(new URL('../src-next/screens/selection/native-selection.tsx', import.meta.url), {
+  const engine = await screenModule(new URL('../src-next/shell/native-selection.tsx', import.meta.url), {
     react: hooks().react, 'react-native': {View: 'View', Text: 'Text'},
     'react-native-safe-area-context': {useSafeAreaInsets: unavailable},
-    '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/selection-model': selectionCore,
-    '../../../../../packages/client-core/src/presentation/errors': {presentError},
-    '../../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../../packages/client-core/src/media-selection': {mediaSelectionKey},
-    '../../kit/overlays': {Dialog: 'Dialog'}, '../../kit/controls': {Button: 'Button'},
-    '../../shell/selection-display': {selectedItemsLabel}, '../../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar',
+    '../../../../packages/i18n/src': {defaultI18n},
+    '../../../../packages/client-core/src/selection-model': selectionCore,
+    '../../../../packages/client-core/src/presentation/errors': {presentError},
+    '../../../../packages/client-core/src/presentation/selection-notice': {selectionDoneNotice: (args: unknown, failed = 0) => JSON.stringify([args, failed])}, '../../../../packages/client-core/src/media-selection': {mediaSelectionKey},
+    '../kit/overlays': {Dialog: 'Dialog'}, '../kit/controls': {Button: 'Button'},
+    './selection-display': {selectedItemsLabel}, '../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'SelectionPhoneActionBar',
       BulkEditor: 'BulkEditor', DeleteMediaDialog: 'DeleteMediaDialog'},
-    '../../kit/theme': {useTheme: unavailable}, '../destinations/lifetime': {nativeDestinationLifetime},
-    '../native-screen-services': {nativeScreenServices: () => ({requestId: unavailable, reportError: (error: unknown) => errors.push(error)})},
+    '../kit/theme': {useTheme: unavailable}, '../screens/destinations/lifetime': {nativeDestinationLifetime},
+    '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: unavailable, reportError: (error: unknown) => errors.push(error)})},
     // The selection owner uses these real controllers; the picker dialog itself is a drawn host and
     // its own focus/identity coverage is next-shell-tv-overlay-ids.
-    '../search/loaded-destinations': {NativeLoadedDestinations},
-    '../destinations/bulk-media': {NativeBulkMedia},
-    '../../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'},
+    '../screens/search/loaded-destinations': {NativeLoadedDestinations},
+    '../screens/destinations/bulk-media': {NativeBulkMedia},
+    '../kit/selection/LoadedDestinationPicker': {NativeDestinationPicker: 'NativeDestinationPicker'},
   });
   const {createNativeSearchSelection} = await screenModule(new URL('../src-next/screens/search/selection.ts', import.meta.url), {
-    react: hooks().react, '../selection/native-selection': engine,
+    react: hooks().react, '../../shell/native-selection': engine,
   });
   const registry = registryPort;
   // The reader's Search-all-books route is registered too; it is a TV-refused route,
