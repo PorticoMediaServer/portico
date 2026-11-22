@@ -67,7 +67,7 @@ test('the actual TV Search caller binds genuine query, navigation activation and
   assert.equal(keyboard.props.rightRegionId, ids.searchResults); keyboard.props.onChangeText('actual query a'); assert.deepEqual(calls, ['actual query a']);
   const results = resultHost.render(() => content.TVSearchResults(tree.props.list.props));
   const resultRegion = elements(results).find(node => node.type === 'FocusRegion' && node.props.id === ids.searchResults)!;
-  assert.equal(resultRegion.props.entryRegion, ids.searchSection('movies')); assert.equal(resultRegion.props.edges.left, ids.searchKeyboardRow(0));
+  assert.equal(resultRegion.props.entryRegion, ids.searchSection('movies')); assert.equal(resultRegion.props.edges.left, ids.searchKeyboard);
   const section = elements(results).find(node => node.type === 'TVSearchSection')!;
   assert.equal(section.props.group.items[0], entry); assert.equal(section.props.selection, undefined); assert.equal(section.props.regionId, ids.searchSection('movies'));
   registry.configure({id: ids.searchSection('movies'), parent: ids.searchResults});

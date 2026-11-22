@@ -6,7 +6,7 @@ import {useTVSearch, type NativeTVSearchPageProps} from '../../shared/search/use
 
 export function TVSearchPage(props: NativeTVSearchPageProps) {
   const {destination, runtime, explore, actions, selection, copy} = props;
-  const {view, active, state, t, ids, scroll, keyboard, keyboardKey, setKeyboardRow, voice, beginVoice} = useTVSearch(props);
+  const {view, active, state, t, ids, scroll, keyboard, screenStart, setKeyboardRow, voice, beginVoice} = useTVSearch(props);
   return <SearchFrame visible={active.visible} testID="native-tv-search-screen"
     field={<TVSearchQuery text={state.text} label={t('web.shell.search')} placeholder={t('web.search.placeholder')}/>}
     keyboard={<>
@@ -16,6 +16,6 @@ export function TVSearchPage(props: NativeTVSearchPageProps) {
         edges: {left: ids.rail, right: ids.searchResults, up: keyboard}}} title={t(copy.preferToTalk)} description={t(copy.voiceHint)} busy={voice.busy}
         onPress={beginVoice}/>}
     </>}
-    list={<TVSearchResults {...{view, destination, runtime, explore, actions, selection, ids, keyboard, keyboardKey, scroll}}/>}
+    list={<TVSearchResults {...{view, destination, runtime, explore, actions, selection, ids, keyboard, screenStart, scroll}}/>}
     overlay={<>{voice.field}{selection?.render(path => <TVSearchSelectionArtwork runtime={runtime} path={path}/>)}</>}/>;
 }

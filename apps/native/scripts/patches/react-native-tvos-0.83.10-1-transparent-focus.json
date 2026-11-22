@@ -7,7 +7,7 @@
     {
       "path": "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm",
       "beforeSHA256": "7e8c2e72ce6e4f71b93c5c2f6d453e2c43ddd6257a8540f1ed73117d5c4e8638",
-      "afterSHA256": "ecf7647ac5006339545ed2acd372c29cb93a61905e11891ff0ff9b7755552dce",
+      "afterSHA256": "8bb046fa289e3502bc8e87b3233dbb93dfc846086043f556325f68df3a97e2f1",
       "replacements": [
         {
           "before": "- (BOOL)canBecomeFocused\n{\n  if ([self isTVFocusGuide]) {\n    return NO;\n  }\n  return _props->isTVSelectable;\n}\n",
@@ -32,6 +32,22 @@
         {
           "before": "[self.focusGuideRight.leftAnchor constraintEqualToAnchor:self.rightAnchor].active = YES;",
           "after": "[self.focusGuideRight.leftAnchor constraintEqualToAnchor:self.rightAnchor constant:kPorticoFocusGuideGap].active = YES;"
+        },
+        {
+          "before": "    if (context.nextFocusedView == self) {\n      [self becomeFirstResponder];",
+          "after": "    if (context.nextFocusedView == self) {\n      // Portico: once any view has asked for focus, the root's preferred view follows the view that holds focus, so a\n      // dropped focus (tvOS drops it while a large result set mounts under the Search keyboard) goes back to the view\n      // last focused, app-wide, not to the view that first asked (the page's entry key, which typed the wrong letter).\n      // A view with hasTVPreferredFocus re-asks on layout whenever it is not the preferred view; the kit never sets it.\n      RCTSurfaceHostingProxyRootView *porticoRoot = [self containingRootView];\n      if (porticoRoot != nil && porticoRoot.reactPreferredFocusedView != nil) {\n        porticoRoot.reactPreferredFocusedView = self;\n      }\n      [self becomeFirstResponder];"
+        },
+        {
+          "before": "- (void)didMoveToWindow {\n  [super didMoveToWindow];\n",
+          "after": "// Portico: a view leaving the window stops being the root's preferred view: Fabric recycles component views, and a\n// recycled one shown on the next page must never receive a dropped focus meant for the view it used to be. The\n// preference falls back to the view JS last asked to focus (the page's entry), while that is still on screen.\n- (void)willMoveToWindow:(UIWindow *)newWindow {\n  [super willMoveToWindow:newWindow];\n  if (newWindow != nil) return;\n  RCTSurfaceHostingProxyRootView *porticoRoot = [self containingRootView];\n  if (porticoRoot == nil || porticoRoot.reactPreferredFocusedView != self) return;\n  UIView *porticoEntry = ((PorticoWeakView *)objc_getAssociatedObject(porticoRoot, &kPorticoFocusEntry)).view;\n  BOOL porticoEntryLive = porticoEntry != nil && porticoEntry != self && porticoEntry.window != nil;\n  porticoRoot.reactPreferredFocusedView = porticoEntryLive ? porticoEntry : nil;\n}\n\n- (void)didMoveToWindow {\n  [super didMoveToWindow];\n"
+        },
+        {
+          "before": "@implementation RCTViewComponentView {\n",
+          "after": "// Portico: the view JS last asked to focus, per root view, held weakly (see willMoveToWindow:).\n@interface PorticoWeakView : NSObject\n@property (nonatomic, weak) UIView *view;\n@end\n@implementation PorticoWeakView\n@end\nstatic char kPorticoFocusEntry;\n\n@implementation RCTViewComponentView {\n"
+        },
+        {
+          "before": "    rootview.reactPreferredFocusedView = self;\n",
+          "after": "    rootview.reactPreferredFocusedView = self;\n    PorticoWeakView *porticoEntry = [PorticoWeakView new];\n    porticoEntry.view = self;\n    objc_setAssociatedObject(rootview, &kPorticoFocusEntry, porticoEntry, OBJC_ASSOCIATION_RETAIN_NONATOMIC);\n"
         }
       ]
     }
