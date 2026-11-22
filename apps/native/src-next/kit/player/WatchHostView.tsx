@@ -4,7 +4,7 @@ import {LayerStatusBar} from '../shell/Layer';
 import Animated from 'react-native-reanimated';
 import type {PlayerRect} from '../../platform/layout/player-presentation';
 import {TVPanelTransition, TVPanelSlide, TVPanelScrim, useTVPanelPresence} from '../overlays/TVPanelMotion';
-import {NativeWatchChrome} from '../../screens/watch/WatchChrome';
+import {WatchChromePage} from '../../pages/shared/player/WatchChromePage';
 // Named through kit/ so a test that loads the watch host gets the harness's PlaybackWaiting stand-in, as it did before.
 import {PlaybackWaiting} from '../../kit/states/PlaybackWaiting';
 import {NativeWatchPicture} from '../../shell/watch-picture';
@@ -28,7 +28,7 @@ export function WatchHostView({surface, authority, playback, outlet, runtime, co
     {layout.details && <View testID="watch-details-pane" style={pagePane(layout.details)} pointerEvents="box-none">{bindings.details?.(context)}</View>}
     {layout.episodes && <View testID="watch-episodes-pane" style={pagePane(layout.episodes)} pointerEvents="box-none">{bindings.episodes?.(context)}</View>}
     {chromePane && <View testID="watch-controls-pane" pointerEvents="box-none" style={positioned(television ? {x: 0, y: 0, width: television.canvas.width, height: television.canvas.height} : chromePane)}>
-      <NativeWatchChrome {...bindings.chrome(source, runtime)} waiting={waiting.waiting} onPictureControlsLayout={setWaitingBottomInset} notice={(noticesEnabled || lossNotice?.value.required) && expanded && lossNotice && lossNotice.key === noticeKey && layout.mode !== 'watch' && layout.mode !== 'book' ? {key: lossNotice.key, value: lossNotice.value, shownAt: 0} : undefined} source={source} controls={controls} playback={playback} text={runtime.text}
+      <WatchChromePage {...bindings.chrome(source, runtime)} waiting={waiting.waiting} onPictureControlsLayout={setWaitingBottomInset} notice={(noticesEnabled || lossNotice?.value.required) && expanded && lossNotice && lossNotice.key === noticeKey && layout.mode !== 'watch' && layout.mode !== 'book' ? {key: lossNotice.key, value: lossNotice.value, shownAt: 0} : undefined} source={source} controls={controls} playback={playback} text={runtime.text}
         width={television?.canvas.width ?? chromePane.width} height={television?.canvas.height ?? chromePane.height} compact={layout.mode === 'watch' || layout.mode === 'book'} fullWindowRequest={fullWindowRequest} tablet={!isTV && Math.min(window.width, window.height) >= 600}
         tabletop={!isTV && layout.mode === 'tabletop' && layout.episodes && layout.controls ? (layout.controls.width < window.width ? 'column' : 'stacked') : undefined}
         bar={!isTV && layout.mode === 'full-window' && window.width >= 1024}

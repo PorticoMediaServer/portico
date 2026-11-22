@@ -34,7 +34,7 @@ for (const [name, window, expectedPane, expectedPicture] of [
     '../../platform/layout/player-presentation': {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs}, '../../platform/platformPosture': {usePlatformPosture: () => posture},
     '../../kit/useMotion': {useMotion: () => ({reduce: true})}, '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined}, '../../kit/focus': {useOptionalFocusRegistry: () => undefined}, '../../kit/useScreenReader': {useScreenReader: () => false},
     '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'Transition', TVPanelSlide: 'Slide', TVPanelScrim: 'Scrim', useTVPanelPresence: () => ({open: false})},
-    './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'}, '../../kit/player/HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
+    '../../pages/shared/player/WatchChromePage': {WatchChromePage: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'}, '../../kit/player/HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: subscribe}, './tv-presentation': {nativeWatchTVPresentation},
     '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: subscribe},
     './post-play-gate': {showsOwnEnd},

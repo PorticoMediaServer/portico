@@ -13,7 +13,7 @@ test('P2-71-PERF: a held scrub re-renders only what prints the landing time, the
   setLanding(undefined);
   assert.equal(hintRenders, 41, 'the hint follows every step and the end');
   assert.equal(chromeRenders, 2, 'the 800-line chrome renders on start and end only');
-  const chrome = readFileSync(new URL('../src-next/screens/watch/WatchChrome.tsx', import.meta.url), 'utf8');
+  const chrome = ['../src-next/pages/shared/player/useWatchChrome.ts', '../src-next/kit/player/WatchChromeView.tsx'].map(path => readFileSync(new URL(path, import.meta.url), 'utf8')).join('\n');
   assert.doesNotMatch(chrome, /useState<number>\(\), \[returnAt/, 'no per-step landing state in the chrome');
   assert.match(chrome, /<LandingTime store=\{landingStore\} fallback=\{returnAt\}\/>/);
 });

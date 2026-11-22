@@ -36,7 +36,7 @@ import {NativeVersionChooserController} from '../screens/watch/version-destinati
 import {NativeDiscTitlesController} from '../screens/watch/disc-titles-controller';
 import {prepareDiscTitle, readDiscTitles, type DiscTitles} from '../screens/watch/disc-titles';
 import {NativeWatchControls, type NativeWatchControlContext} from '../screens/watch/controls';
-import {NativeWatchChrome, type NativeWatchChromeProps} from '../screens/watch/WatchChrome';
+import {WatchChromePage, type NativeWatchChromeProps} from '../pages/shared/player/WatchChromePage';
 import {NativeWatchPicture, type NativeWatchPictureProps} from './watch-picture';
 import {WatchHostPage} from '../pages/shared/player/WatchHostPage';
 import type {NativeWatchHostBindings, NativeWatchHostContext} from '../pages/shared/player/useWatchHost';
@@ -610,6 +610,6 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
   });
   function Watch(props: Omit<NativeWatchChromeProps, 'controls' | 'playback' | 'source'>) {
     const source = useSyncExternalStore(ports.playback.subscribe, ports.playback.getSnapshot);
-    return alive() ? <NativeWatchChrome {...props} source={source} playback={ports.playback} controls={controls}/> : null;
+    return alive() ? <WatchChromePage {...props} source={source} playback={ports.playback} controls={controls}/> : null;
   }
 }
