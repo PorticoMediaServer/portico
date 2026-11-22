@@ -46,11 +46,14 @@ async function fixture() {
     '../../kit/theme': {nativeType, useTheme: () => theme}, '../../kit/focus': {FocusRegion: 'FocusRegion', useOptionalFocusRegistry: () => undefined},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (item: any) => item.id}, './tv-title-focus': {tvTitleRegionMap}, '../../shell/tv-focus': {},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable', window: null, folds: []})}, '../../shell/model': {mediumRailMetrics: {width: 84}},
-    './TitlePeople': {TitlePeople: 'TitlePeople'}, '../../kit/layout/SeasonBar': {SeasonBar: 'TitleSeasonBar'}, './TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, '../../kit/layout/ShowSeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
+    '../../kit/title/TitlePeople': {TitlePeople: 'TitlePeople'}, '../../kit/layout/SeasonBar': {SeasonBar: 'TitleSeasonBar'}, '../../kit/title/TitleEpisodePlate': {NativeTitleEpisodePlate: 'EpisodePlate'}, '../../kit/layout/ShowSeasonsSheet': {NativeSeasonsSheet: 'Seasons'},
     '../../kit/frames/TVEpisodeBrowser': {TVEpisodeBrowser: 'TVEpisodeBrowser'}, './ShowSettingsSheet': {NativeShowSettingsSheet: 'Settings'},
   };
   const {NativeTitleScreen, TitleRelated} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), modules);
-  const {NativeTitleEpisodePlate} = await screenModule(new URL('../src-next/screens/watch/TitleEpisodePlate.tsx', import.meta.url), modules);
+  // The plate is a kit part (kit/title): the same stubs, named from its folder.
+  const {NativeTitleEpisodePlate} = await screenModule(new URL('../src-next/kit/title/TitleEpisodePlate.tsx', import.meta.url), {...modules,
+    '../artwork': modules['../../kit/artwork'], '../controls': modules['../../kit/controls'], '../theme': {...modules['../../kit/theme'], textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
+    '../shell/visual': {shellType: (size: number, weight: any, lineHeight: any = 'normal', tracking = 0, scale = 1) => nativeType({size, weight, lineHeight, tracking}, scale)}});
   const props = {controller, text: {t}, ambient: () => undefined, artwork: () => undefined, aboutLabel: 'About',
     back: () => {calls.push('back');}, navigate() {}, more() {}, reportError: assert.fail, renderError: assert.fail,
     download() {}, onPlayOn: (anchor: any) => {calls.push(anchor);}};

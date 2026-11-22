@@ -84,9 +84,9 @@ async function rowComposition(b: Awaited<ReturnType<typeof bindings>>) {
     '../focus/page-boundary': page, './FocusAnchor': {useFocusAnchor: () => ({anchor() {}, repeating: false, offset: {value: 0}, scrollRef: {current: null}, stop() {}, move() {}})},
     './MotionItem': {MotionItem: 'MotionItem'}, './types': layoutTypes});
   const shelf = await screenModule(new URL('../src-next/tv/layout/TVShelf.tsx', import.meta.url), {react: b.react, 'react-native': b.native, '../../kit/theme': {useTheme: () => b.theme}, '../../kit/layout/Row': row});
-  const people = await screenModule(new URL('../src-next/screens/watch/TitlePeople.tsx', import.meta.url), {'../../kit/states': {SkeletonBlock: 'SkeletonBlock'}, '../../kit/focus': b.focus, '../../../../../packages/i18n/src': {defaultI18n}, react: b.react, 'react-native': b.native,
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', PersonCircle: 'PersonCircle'}, '../../tv/layout/TVShelf': shelf, '../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
-    '../../kit/controls': {Focusable: b.Focusable}, '../../kit/theme': {useTheme: () => b.theme, nativeType, fontFamilies}});
+  const people = await screenModule(new URL('../src-next/kit/title/TitlePeople.tsx', import.meta.url), {'../states': {SkeletonBlock: 'SkeletonBlock'}, '../focus': b.focus, '../../../../../packages/i18n/src': {defaultI18n}, react: b.react, 'react-native': b.native,
+    '../artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', PersonCircle: 'PersonCircle'}, '../../tv/layout/TVShelf': shelf, '../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
+    '../controls': {Focusable: b.Focusable}, '../theme': {useTheme: () => b.theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../shell/visual': {shellType: (size: number, weight: any, lineHeight: any = 'normal', tracking = 0, scale = 1) => nativeType({size, weight, lineHeight, tracking}, scale)}});
   return {row, shelf, people};
 }
 

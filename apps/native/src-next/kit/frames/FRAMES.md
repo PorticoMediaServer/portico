@@ -374,7 +374,7 @@ the `details` form; Stage 2 moves it into the kit), episode-display. Each names 
 these now.
 
 Still the screens' own, for Stage 2 (they read the title controller or TV shelves directly):
-`screens/watch/TitlePeople.tsx` (TV paging and focus; Stage 2 draws it on `CastRow`), `TitleEpisodePlate.tsx` (the
+`kit/title/TitlePeople.tsx` (TV paging and focus; Stage 2 draws it on `CastRow`), `kit/title/TitleEpisodePlate.tsx` (the
 episode opened in place; the gallery's is built from the kit parts). A person's page is rebuilt on `TitleFrame` with
 `cover` (`pages/touch/person`, `pages/tv/person`), and a collection's on `TitleFrame` (`pages/touch/collection`,
 `pages/tv/collection`).
