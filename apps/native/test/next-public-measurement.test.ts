@@ -21,7 +21,7 @@ async function fixture() {
   const {NativePublicMeasurementGate} = await screenModule(new URL('../src-next/dev/public-measurement.tsx', import.meta.url), {
     react, 'react-native': {Linking: {getInitialURL: () => initial, addEventListener: (_event: string, receive: typeof listener) => {
       listener = receive; return {remove: () => {if (listener === receive) listener = undefined;}};
-    }}}, '../screens/accounts/AccountEntry': {AccountEntry}, './measurement-launch': {nativeMeasurementLaunch},
+    }}}, '../pages/shared/accounts/AccountEntryPage': {AccountEntryPage: AccountEntry}, './measurement-launch': {nativeMeasurementLaunch},
   });
   let normal = 0, disposed = 0;
   const predicates: (() => boolean)[] = [];

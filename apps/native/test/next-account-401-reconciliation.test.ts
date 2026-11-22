@@ -148,28 +148,28 @@ async function entry(t: any, f: F, extra: Record<string, any> = {}, resumeAccoun
   const modules: Record<string, any> = {
     react: {...React, default: React}, 'react-native': {Platform: {isTV: false}, NativeModules: {}, View: 'View', Text: 'Text', Image: 'Image',
       AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: () => ({remove() {}})}},
-    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/client-core/src': core,
-    '../../../../../packages/client-core/src/route-identity': identity, '../../../../../packages/client-core/src/server-address': serverAddress,
-    '../../../../../packages/client-core/src/hosted-security': security,
-    '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/password-strength': passwordPolicy, '../../../../../packages/client-core/src/join-link': joinLink,
-    '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
-    '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'},
-    '../../platform/accounts': {nativeAccounts: {accountCredentials: () => f.owner,
+    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../../packages/client-core/src': core,
+    '../../../../../../packages/client-core/src/route-identity': identity, '../../../../../../packages/client-core/src/server-address': serverAddress,
+    '../../../../../../packages/client-core/src/hosted-security': security,
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../../packages/client-core/src/password-strength': passwordPolicy, '../../../../../../packages/client-core/src/join-link': joinLink,
+    '../../../../../../packages/client-core/src/short-invitation-code': invitationCode,
+    '../../../kit/theme': {useTheme: () => theme}, '../../../kit/states': {StateLayout: 'Layout'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'},
+    '../../../platform/accounts': {nativeAccounts: {accountCredentials: () => f.owner,
       // The account's list read over the actual native transport; the signed list's own check is client-core's (portico-server-list.test.ts).
       porticoServers: async (issued: {accessToken: string}) => {
         const answer = await nativeNetworkFetch(hostedUrl + '/v1/servers', {method: 'GET', headers: {Authorization: 'Bearer ' + issued.accessToken}});
         const value = await answer.json() as any;
         if (!answer.ok) throw new core.ApiError(answer.status, value?.error?.code ?? 'request_failed', 'refused', answer.status >= 500);
         return {items: value.items};
-      }}}, '../../platform/account-work': accountWork,
-    '../../platform/account-authority': {hostedUrl}, '../../platform/portico-sign-in': {NativePorticoSignIn: Auth},
-    '../../platform/server-connections': await import('../src-next/platform/server-connections'),
-    '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './tv-code-opening': tvOpening, './directory-chooser': chooser, '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'SignIn'}, '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
-    '../../pages/touch/accounts/NoServersPage': {NoServersPage: 'NoServers'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}},
+      }}}, '../../../platform/account-work': accountWork,
+    '../../../platform/account-authority': {hostedUrl}, '../../../platform/portico-sign-in': {NativePorticoSignIn: Auth},
+    '../../../platform/server-connections': await import('../src-next/platform/server-connections'),
+    '../../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../../platform/tv-menu': {useTVMenuCapture() {}}, '../../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../../screens/accounts/tv-code-opening': tvOpening, '../../../screens/accounts/directory-chooser': chooser, '../../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../touch/accounts/SignInPage': {SignInPage: 'SignIn'}, '../../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
+    '../../touch/accounts/NoServersPage': {NoServersPage: 'NoServers'}, '../../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}},
     ...extra,
   };
-  const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), new Proxy(modules,
+  const {AccountEntryPage: AccountEntry} = await screenModule(new URL('../src-next/pages/shared/accounts/AccountEntryPage.tsx', import.meta.url), new Proxy(modules,
     {get: (all, name: string) => all[name] ?? new Proxy({}, {get: (_, key) => () => {throw new Error('Unvisited entry port ' + name + ':' + String(key));}})}));
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'require'); Object.defineProperty(globalThis, 'require', {configurable: true, value: () => 'wordmark'});
   t.after(() => {if (previous) Object.defineProperty(globalThis, 'require', previous); else Reflect.deleteProperty(globalThis, 'require');});
@@ -328,7 +328,7 @@ test('when the account ends while a server is opening, welcome is not left busy'
   const f = await fixture(); const held = deferred<never>();
   transport(t, async () => response(200, {items: [listed]}));
   class SignIn {static parseInvitationEntry() {return undefined;} connectPortico() {return held.promise;} dispose() {} serverDescriptor() {return undefined;}}
-  const app = await entry(t, f, {'../../platform/server-sign-in': {NativeServerSignIn: SignIn}, './directory-refusal': await import('../src-next/screens/accounts/directory-refusal')}); await app.settle();
+  const app = await entry(t, f, {'../../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../../screens/accounts/directory-refusal': await import('../src-next/screens/accounts/directory-refusal')}); await app.settle();
   const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.beforeActions)] : [];
   await act(() => all(app.tree()).find(node => (node.type === 'Focusable' || typeof node.props.name === 'string') && node.props.onPress).props.onPress()); await app.settle();
   f.renewal(async () => {throw new core.ApiError(401, 'session_ended', 'Ended', false);});

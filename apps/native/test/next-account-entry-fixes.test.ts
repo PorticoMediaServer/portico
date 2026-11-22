@@ -79,26 +79,26 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: () => ({remove() {}})},
       Platform: {isTV: false, OS: 'ios'}, NativeModules: {PorticoAccountAuth: {canOpenBrowser: false}}, View: 'View', Text: 'Text', Image: 'Image',
       Linking: {openURL: async (url: string) => {calls.links.push(url); if (linkFailure) throw linkFailure;}}},
-    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n: copy},
-    '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: false, body: 'Request failed'})},
-    '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
-    '../../../../../packages/client-core/src/server-address': serverAddress,
-    '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField', Focusable: 'Focusable', Switch: 'Switch'},
-    '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: Server},
-    '../../platform/portico-sign-in': {NativePorticoSignIn: Portico, porticoUsernameUnavailable: () => false},
-    '../../platform/server-connections': {browseNearby: async () => []},
-    '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}},
-    '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'AccountSignIn'},
-    '../../kit/accounts/LegalAgreement': legal, '../../kit/accounts/AccountEntryParts': entryParts, '../../kit/accounts/AccountForm': {AccountForm: 'AccountForm'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
-    '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
+    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../../packages/i18n/src': {defaultI18n: copy},
+    '../../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({silent: false, body: 'Request failed'})},
+    '../../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
+    '../../../../../../packages/client-core/src/server-address': serverAddress,
+    '../../../../../../packages/client-core/src/password-strength': passwordPolicy,
+    '../../../kit/theme': {useTheme: () => theme}, '../../../kit/states': {StateLayout: 'StateLayout'}, '../../../kit/controls': {Button: 'Button', TextField: 'TextField', Focusable: 'Focusable', Switch: 'Switch'},
+    '../../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../../platform/server-sign-in': {NativeServerSignIn: Server},
+    '../../../platform/portico-sign-in': {NativePorticoSignIn: Portico, porticoUsernameUnavailable: () => false},
+    '../../../platform/server-connections': {browseNearby: async () => []},
+    '../../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../../platform/tv-menu': {useTVMenuCapture() {}},
+    '../../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, '../../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../touch/accounts/SignInPage': {SignInPage: 'AccountSignIn'},
+    '../../../kit/accounts/LegalAgreement': legal, '../../../kit/accounts/AccountEntryParts': entryParts, '../../../kit/accounts/AccountForm': {AccountForm: 'AccountForm'}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
+    '../../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
   };
-  Object.assign(modules, {'../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}});
+  Object.assign(modules, {'../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}});
   const strict = new Proxy(modules, {get: (all, name: string) => all[name] ?? new Proxy({}, {
     get: (_, exported: string) => function unvisited() {throw new Error('Unexpected account-entry boundary ' + name + ':' + exported);},
   })});
-  const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), strict);
+  const {AccountEntryPage: AccountEntry} = await screenModule(new URL('../src-next/pages/shared/accounts/AccountEntryPage.tsx', import.meta.url), strict);
   const previousRequire = Object.getOwnPropertyDescriptor(globalThis, 'require');
   if (invitationRole) {
     Object.defineProperty(globalThis, 'require', {configurable: true, value: () => 'wordmark'});

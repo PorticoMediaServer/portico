@@ -21,7 +21,7 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import * as directoryChooser from '../src-next/screens/accounts/directory-chooser';
 import * as qrScanner from '../src-next/platform/qr-scanner';
-import type {NativeAccountEntryStage} from '../src-next/screens/accounts/AccountEntry';
+import type {NativeAccountEntryStage} from '../src-next/pages/shared/accounts/AccountEntryPage';
 import {moveOfferDays} from '../../../packages/client-core/src/sign-in';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
@@ -66,14 +66,14 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     dispose() {events.push('dispose-command');}
   }
   // These adapters forward the screen's dependency lists to the real hooks.
-  const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), {'../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../shell/StartupBoot': {BootWaitLine: 'BootWaitLine'}, 
-    '../../platform/tv-menu': {useTVMenuCapture() {}},
-    './tv-code-opening': tvCodeOpening,
-    '../../../../../packages/client-core/src/join-link': joinLink,
-    '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
-    '../../platform/qr-scanner': qrScanner,
-    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
-    './tv-approval-finalization': tvApprovalFinalization, './tv-approval-credentials': tvApprovalCredentials,
+  const {AccountEntryPage: AccountEntry} = await screenModule(new URL('../src-next/pages/shared/accounts/AccountEntryPage.tsx', import.meta.url), {'../../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../../shell/StartupBoot': {BootWaitLine: 'BootWaitLine'}, 
+    '../../../platform/tv-menu': {useTVMenuCapture() {}},
+    '../../../screens/accounts/tv-code-opening': tvCodeOpening,
+    '../../../../../../packages/client-core/src/join-link': joinLink,
+    '../../../../../../packages/client-core/src/short-invitation-code': invitationCode,
+    '../../../platform/qr-scanner': qrScanner,
+    '../../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
+    '../../../screens/accounts/tv-approval-finalization': tvApprovalFinalization, '../../../screens/accounts/tv-approval-credentials': tvApprovalCredentials,
     react: {...React, default: React,
       // The harness forwards the component’s dependency array unchanged.
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,19 +81,19 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
       // eslint-disable-next-line react-hooks/exhaustive-deps
       useEffect: (create: () => void | (() => void), deps: readonly unknown[]) => React.useEffect(() => {phase = 'passive'; try {return create();} finally {phase = 'render';}}, deps)},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: (_: string, handler: () => boolean) => {back.add(handler); return {remove: () => back.delete(handler)};}}, Platform: {isTV: options.tv === true}, NativeModules: {PorticoAccountAuth: {canOpenBrowser: options.providers === true}}, Linking: {openURL: async () => {}}, View: 'View', Text: 'Text'},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src': {},
-    '../../../../../packages/client-core/src/sign-in': {moveOfferDays}, '../../../../../packages/client-core/src/route-identity': {routeOrigin},
-    '../../../../../packages/client-core/src/server-address': serverAddress,
-    '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../kit/theme': {useTheme: () => createTheme({isTV: options.tv === true, width: options.tv ? 1920 : 390})},
-    '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    '../../pages/touch/accounts/SetupPage': {SetupPage: 'NativeSetup'},
-    './directory-chooser': directoryChooser,
-    '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
-    '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials, signOutPorticoAccount: async (scope: {accountId: string}) => {signedOut.push(scope.accountId);}}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../platform/portico-sign-in': {NativePorticoSignIn: Portico},
-    '../../platform/server-connections': {browseNearby: async () => {events.push('discovery'); return [];}}, '../../platform/tv-sign-in': {}, '../../platform/account-authority': {},
-    '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../tv/auth': {TVMoveHandoff: 'TVMoveHandoff'}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'}, '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, '../../kit/accounts/DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, '../../pages/touch/accounts/AccountWorkspacePage': {AccountWorkspacePage: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, '../../pages/touch/accounts/NoServersPage': {NoServersPage: 'PhoneNoServers'}, '../../pages/tv/accounts/NoServersPage': {NoServersPage: 'TVNoServers'}, '../../kit/accounts/EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, '../../pages/touch/accounts/OfflineServersPage': {OfflineServersPage: 'OfflineServers'}, '../../pages/tv/accounts/OfflineServersPage': {OfflineServersPage: 'TVOfflineServers'}, '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, 'react-native-qrcode-svg': {default: 'QR'},
+    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../../../../packages/client-core/src': {},
+    '../../../../../../packages/client-core/src/sign-in': {moveOfferDays}, '../../../../../../packages/client-core/src/route-identity': {routeOrigin},
+    '../../../../../../packages/client-core/src/server-address': serverAddress,
+    '../../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../kit/theme': {useTheme: () => createTheme({isTV: options.tv === true, width: options.tv ? 1920 : 390})},
+    '../../../../../../packages/client-core/src/password-strength': passwordPolicy,
+    '../../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
+    '../../touch/accounts/SetupPage': {SetupPage: 'NativeSetup'},
+    '../../../screens/accounts/directory-chooser': directoryChooser,
+    '../../../kit/states': {StateLayout: 'Layout'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
+    '../../../platform/account-work': accountWork, '../../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials, signOutPorticoAccount: async (scope: {accountId: string}) => {signedOut.push(scope.accountId);}}}, '../../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../../platform/portico-sign-in': {NativePorticoSignIn: Portico},
+    '../../../platform/server-connections': {browseNearby: async () => {events.push('discovery'); return [];}}, '../../../platform/tv-sign-in': {}, '../../../platform/account-authority': {},
+    '../../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../../tv/auth': {TVMoveHandoff: 'TVMoveHandoff'}, '../../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'}, '../../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'}, '../../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, '../../../kit/accounts/DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, '../../../screens/accounts/directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, '../../touch/accounts/AccountWorkspacePage': {AccountWorkspacePage: 'PhoneAccountWorkspace'}, '../../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, '../../touch/accounts/NoServersPage': {NoServersPage: 'PhoneNoServers'}, '../../tv/accounts/NoServersPage': {NoServersPage: 'TVNoServers'}, '../../../kit/accounts/EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, '../../touch/accounts/OfflineServersPage': {OfflineServersPage: 'OfflineServers'}, '../../tv/accounts/OfflineServersPage': {OfflineServersPage: 'TVOfflineServers'}, '../../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, 'react-native-qrcode-svg': {default: 'QR'},
   });
   const onStageChange = (...args: NativeAccountEntryStage[]) => {
     assert.equal(phase, 'layout'); assert.equal(args.length, 1, 'the observer receives only the stage, never fields or authority');

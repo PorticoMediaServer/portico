@@ -163,34 +163,34 @@ async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () 
     'react-native': {Platform: {isTV: true}, AppState: {currentState: 'active', addEventListener: (_: string, listener: (value: string) => void) => {appStateChange = listener; return {remove() {}};}},
       BackHandler: {addEventListener: (_: string, fn: () => boolean) => {back.add(fn); return {remove: () => back.delete(fn)};}},
       TVEventControl: {enableTVMenuKey() {}, disableTVMenuKey() {}}, View: 'View', Text: 'Text', Image: 'Image', NativeModules: {}},
-    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/route-identity': {routeOrigin},
-    '../../../../../packages/client-core/src/server-address': serverAddress,
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Fixture failure', category: 'unavailable'})},
-    '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../../../../packages/client-core/src/join-link': joinLink,
-    '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
-    '../../kit/theme': {useTheme: () => createTheme({isTV: true, width: 1920})}, '../../kit/states': {StateLayout: 'Layout'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {ProfilePicker: 'Picker'},
-    '../../tv/auth/code-retry': await screenModule(new URL('../src-next/tv/auth/code-retry.ts', import.meta.url), {react: {...React, default: React},
+    'react-native-qrcode-svg': {default: 'QR'}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../../packages/client-core/src/route-identity': {routeOrigin},
+    '../../../../../../packages/client-core/src/server-address': serverAddress,
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Fixture failure', category: 'unavailable'})},
+    '../../../../../../packages/client-core/src/password-strength': passwordPolicy,
+    '../../../../../../packages/client-core/src/join-link': joinLink,
+    '../../../../../../packages/client-core/src/short-invitation-code': invitationCode,
+    '../../../kit/theme': {useTheme: () => createTheme({isTV: true, width: 1920})}, '../../../kit/states': {StateLayout: 'Layout'},
+    '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../../kit/artwork': {ProfilePicker: 'Picker'},
+    '../../../tv/auth/code-retry': await screenModule(new URL('../src-next/tv/auth/code-retry.ts', import.meta.url), {react: {...React, default: React},
       '../../../../../packages/client-core/src/timer': await import('../../../packages/client-core/src/timer.ts')}),
-    '../../tv/auth': {TVCodePresenter: 'Code', TVFrontDoor: 'Front', TVCredentialForm: 'Credentials'},
-    '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: approvedAccounts ?? {accountCredentials: () => ({synchronize: async () => {}, getSnapshot: () => ({}), subscribe: () => () => {}})}},
-    '../../platform/server-sign-in': {NativeServerSignIn: LocalSource},
-    '../../platform/portico-sign-in': {NativePorticoSignIn: AuthSource},
-    '../../platform/server-connections': {browseNearby: async () => []},
-    '../../platform/tv-sign-in': {createNativePorticoTVSignIn: () => f.newService('portico')},
-    './directory-chooser': directoryChooser, '../../platform/tv-menu': {useTVMenuCapture() {}}, './tv-code-opening': tvCodeOpening, './tv-approval-finalization': tvApproval, './tv-approval-credentials': tvApprovalCredentials,
-    '../../../../../packages/client-core/src': {HttpHostedApi: class {async servers() {return {items: []};}}},
-    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
+    '../../../tv/auth': {TVCodePresenter: 'Code', TVFrontDoor: 'Front', TVCredentialForm: 'Credentials'},
+    '../../../platform/account-work': accountWork, '../../../platform/accounts': {nativeAccounts: approvedAccounts ?? {accountCredentials: () => ({synchronize: async () => {}, getSnapshot: () => ({}), subscribe: () => () => {}})}},
+    '../../../platform/server-sign-in': {NativeServerSignIn: LocalSource},
+    '../../../platform/portico-sign-in': {NativePorticoSignIn: AuthSource},
+    '../../../platform/server-connections': {browseNearby: async () => []},
+    '../../../platform/tv-sign-in': {createNativePorticoTVSignIn: () => f.newService('portico')},
+    '../../../screens/accounts/directory-chooser': directoryChooser, '../../../platform/tv-menu': {useTVMenuCapture() {}}, '../../../screens/accounts/tv-code-opening': tvCodeOpening, '../../../screens/accounts/tv-approval-finalization': tvApproval, '../../../screens/accounts/tv-approval-credentials': tvApprovalCredentials,
+    '../../../../../../packages/client-core/src': {HttpHostedApi: class {async servers() {return {items: []};}}},
+    '../../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
   };
   // Unvisited native/credential branches may import names, but an unexpected
   // invocation fails loudly; no omitted guard/service is silently a no-op.
-  Object.assign(modules, {'../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}});
+  Object.assign(modules, {'../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}});
   const strict = new Proxy(modules, {get: (all, module: string) => all[module] ?? new Proxy({}, {
     get: (_, name: string) => function unexpectedBoundary() {throw new Error(`Unvisited fixture boundary: ${module}:${name}`);},
   })});
-  const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), strict);
+  const {AccountEntryPage: AccountEntry} = await screenModule(new URL('../src-next/pages/shared/accounts/AccountEntryPage.tsx', import.meta.url), strict);
   const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {completed++;}, resumeAccount});});
   await act(() => host.mount());
   return {host, background: () => appStateChange('background'), tree: () => tree, completed: () => completed, back, accounts, refs, writes, AuthSource,

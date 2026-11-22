@@ -3,7 +3,7 @@ import {defaultI18n} from '../../../../packages/i18n/src';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
 import {beginNativeInstallation} from '../platform/installation';
 import {HomeSkeleton, StateView} from '../kit/states';
-import {AccountEntry} from '../screens/accounts/AccountEntry';
+import {AccountEntryPage} from '../pages/shared/accounts/AccountEntryPage';
 import {RestoredShell} from '../shell/RestoredShell';
 
 /** Reachable only through App's existing DEV KitHost. This is the genuine
@@ -26,5 +26,5 @@ export function AccountProofHost({serverAddress}: {serverAddress: string}) {
       primaryAction={{id: 'retry-installation', label: defaultI18n.t('action.tryAgain'), onPress: () => setAttempt(value => value + 1)}}/>;
   }
   if (!state.ready) return <HomeSkeleton visible elapsedMs={0}/>;
-  return complete ? <RestoredShell/> : <AccountEntry initialStage="address" initialAddress={serverAddress} onComplete={() => setComplete(true)}/>;
+  return complete ? <RestoredShell/> : <AccountEntryPage initialStage="address" initialAddress={serverAddress} onComplete={() => setComplete(true)}/>;
 }
