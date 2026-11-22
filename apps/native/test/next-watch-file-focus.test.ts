@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {surfacePaintFixture, screenModule} from './helpers/screen-harness.mjs';
+import {stubsFrom} from './helpers/stubs-from.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 import {mergeExplanation} from '../../../packages/client-core/src/title-identity.ts';
@@ -24,7 +25,7 @@ const {NativeFileInfoContent} = await screenModule(new URL('../src-next/kit/titl
   '../../../../../packages/i18n/src': {defaultI18n},
   '../controls': controls, '../Icon': {Icon: 'Icon'}, '../theme': themed, '../shell/visual': {shellType: () => ({})},
 });
-const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
+const {WatchOverlaysPage: NativeWatchOverlays} = await screenModule(new URL('../src-next/pages/shared/player/WatchOverlaysPage.tsx', import.meta.url), stubsFrom('screens/watch', 'pages/shared/player', {
   '../../kit/overlays/SurfacePaintHost': surfacePaintFixture, '../../kit/title/FileInfoContent': {NativeFileInfoContent},
   react, 'react-native': {Modal: 'Modal', Platform: {isTV: true}, ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
   '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/title-identity': {mergeExplanation},
@@ -34,8 +35,7 @@ const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/wa
   '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'},
   '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'TVPanelTransition', TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelPresence: (value: unknown) => ({value, open: value !== undefined, exited() {}}), useTVPanelInteractive: () => true, useTVPanelModal: () => ({visible: true})},
   '../../kit/player/DiscTitlesSheet': {NativeDiscTitlesSheet: 'DiscTitlesSheet'}, '../../kit/overlays/title-menu': titleMenu, './menu-model': {nativeWatchMenuGroups},
-  '../../kit/player/VersionChooser': {NativeVersionChooser: 'VersionChooser'}, '../../kit/overlays/surface': {FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/theme': themed,
-});
+  '../../kit/player/VersionChooser': {NativeVersionChooser: 'VersionChooser'}, '../../kit/overlays/surface': {FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle() {}}, '../../kit/theme': {...themed, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../../kit/shell/visual': {shellType: () => ({})}}));
 const contexts: {current: unknown}[] = [];
 const focus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
   react: {...react, createContext: (current: unknown) => {const value = {current}; contexts.push(value); return value;}, useContext: (context: {current: unknown}) => context.current},
