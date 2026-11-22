@@ -15,7 +15,7 @@ import {SearchGenres, SearchLoading, SearchOnNow, SearchResultRow, SearchResults
 import {StateView} from '../../../kit/states';
 import type {NativeSearchScreenProps} from '../../shared/search/useSearch';
 import {nativeSearchGenreTiles} from '../../../screens/search/genre-tiles';
-import {nativeSearchEntryKey} from '../../../screens/search/model';
+import {nativeSearchChipCount, nativeSearchEntryKey} from '../../../screens/search/model';
 import {useSearch} from '../../shared/search/useSearch';
 
 export function SearchPage(props: NativeSearchScreenProps) {
@@ -58,8 +58,7 @@ export function SearchPage(props: NativeSearchScreenProps) {
       action: <Button variant="text" size="small" onPress={() => destination.selectGroup('all')}>{t('web.search.everything')}</Button>} : undefined;
   const scopes = chipsDrawn ? chips.map(chip => {
     const group = groups.find(candidate => candidate.id === chip.id);
-    const count = chip.id === 'all' ? groups.every(value => value.totalCountExact) ? groups.reduce((sum, value) => sum + value.totalCount, 0) : undefined
-      : group?.totalCountExact ? group.totalCount : undefined;
+    const count = nativeSearchChipCount(chip.id, groups, state.totals);
     return <Chip key={chip.id} testID={`search-chip-${chip.id}`} selected={state.group === chip.id} count={count} retry={group?.status === 'error'}
       disabled={group?.status === 'success' && group.totalCount === 0} onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
   }) : undefined;
