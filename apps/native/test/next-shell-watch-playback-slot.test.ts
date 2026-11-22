@@ -54,7 +54,7 @@ async function layer(withWatch = true, canonical?: NativeWatchReader, options: {
   const callbacks: ((x: number, y: number) => void)[] = [];
   let node: any = {measureInWindow: (callback: any) => {callbacks.push(callback);}};
   const morph = {dragging: {value: false}, dockX: {value: 0}, dockFade: {value: 1}};
-  const signalFacts = await screenModule(new URL('../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {
+  const signalFacts = await screenModule(new URL('../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {'../../../platform/device-platform': {isTablet: false},
     react: {...React, default: React}, 'react-native': {Platform: {OS: options.os ?? 'android'}},
   });
   const musicSignal = signalPath; // The projection lives beside the path model (kit/player/SignalPath draws it).

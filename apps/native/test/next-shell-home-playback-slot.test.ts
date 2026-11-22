@@ -32,7 +32,7 @@ test('actual playback layer converts measured window slot to its own origin and 
   const theme = createTheme({isTV: false, width: 390});
   const react = {...h.react, useLayoutEffect: h.react.useEffect, useId: () => 'listening'};
   react.default = react;
-  const signalFacts = await screenModule(new URL('../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {
+  const signalFacts = await screenModule(new URL('../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {'../../../platform/device-platform': {isTablet: false},
     react, 'react-native': {Platform: {OS: 'android'}},
   });
   const musicSignal = signalPath; // The projection lives beside the path model (kit/player/SignalPath draws it).

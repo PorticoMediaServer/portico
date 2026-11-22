@@ -110,7 +110,8 @@ test('an absent delivered rate stays unknown and claims no PCM rate or capabilit
   }
   // The pill may say "not bit-perfect"; it may never say the output was bit-perfect.
   assert.equal(view.pill, t('player.signal.pill.notBitPerfect'));
-  assert.equal(view.steps.find(step => step.id === 'output')?.value, undefined);
+  // An unreported output says so plainly; it never invents a rate.
+  assert.equal(view.steps.find(step => step.id === 'output')?.value, t('player.signal.output.unreported'));
 });
 
 const layoutInput = (source: MusicSignalInput['source']): MusicSignalInput => ({
@@ -136,7 +137,7 @@ test('source Atmos alone claims no passthrough and no output fact', () => {
   for (const text of [view.state ?? '', view.pill, view.accessibleName ?? '', JSON.stringify(view.steps)]) {
     assert.ok(!/passthrough|bit-perfect parity/i.test(text), `no passthrough claim in: ${text}`);
   }
-  assert.equal(view.steps.find(step => step.id === 'output')?.value, undefined);
+  assert.equal(view.steps.find(step => step.id === 'output')?.value, t('player.signal.output.unreported'));
 });
 
 test('Atmos lost is drawn from measured server or output facts only', () => {
@@ -184,7 +185,8 @@ test('a bit-perfect flag alone claims no bit-perfect output', () => {
   assert.equal(view.healthy, false);
   assert.notEqual(view.rule, 5);
   assert.equal(view.pill, t('player.signal.pill.notBitPerfect'));
-  assert.equal(view.steps.find(step => step.id === 'output')?.value, undefined);
+  // The measured rate is stated as a rate, never as bit-perfect.
+  assert.equal(view.steps.find(step => step.id === 'output')?.value, t('player.signal.output.rate', {rate: t('player.signal.rate', {khz: 96})}));
   for (const text of [view.state ?? '', view.accessibleName ?? '']) {
     assert.ok(!/bit-perfect|passthrough/i.test(text), `no output claim in: ${text}`);
   }

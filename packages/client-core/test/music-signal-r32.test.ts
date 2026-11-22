@@ -30,6 +30,8 @@ test('812: browser and Apple never claim bit-perfect, unknown output stays unkno
  assert.equal(musicSignal({...base,server:undefined,output:desktop}).pill.key,'player.signal.pill.notBitPerfect');
  assert.equal(musicSignal({...base,output:{...desktop,volume:.72}}).rule,'desktop-volume');
  assert.equal(musicSignal(base).steps.at(-1)?.value,undefined);
+ // An app's output with no reported rate says so plainly; a browser's keeps only its note.
+ assert.deepEqual(musicSignal({...base,output:{platform:'apple',device:'iphone'}}).steps.at(-1)?.value,{key:'player.signal.output.unreported'});
 });
 test('b4: EQ failure is green/untouched in the step and speaks the exact accessible phrase',()=>{
  const model=musicSignal({...base,source:{...base.source,bitDepth:16,sampleRate:44100},eqOn:true});
