@@ -14,6 +14,8 @@ import (
 type readingArea struct {
 	// reading opens books. See reading.go.
 	reading *reading.Service
+	// bookText is the index "search all books" reads. See reading_search.go.
+	bookText *reading.BookText
 }
 
 // startReading builds this area's services and registers its routes and job kinds. New calls it
@@ -29,6 +31,24 @@ func (s *Server) startReading(ctx context.Context) error {
 	s.reading.FromHome = s.fromHome
 	s.reading.Copies = filepath.Join(s.dataDir, "download-copies")
 	s.readingRoutes()
+	if s.bookText, err = reading.OpenBookText(filepath.Join(s.dataDir, "booktext.db"), s.reading, s.log); err != nil {
+		return err
+	}
+	s.readingSearchRoutes()
+	// Each pass reads new and changed books for under a minute, so a large library is read
+	// over many passes and other housekeeping, which runs one piece at a time, waits little.
+	s.jobs.Tidy("book text", 2*time.Minute, func(ctx context.Context) error {
+		files, err := s.db.BookTextFiles(ctx)
+		if err != nil {
+			return err
+		}
+		bounded, cancel := context.WithTimeout(ctx, 45*time.Second)
+		defer cancel()
+		if err := s.bookText.Update(bounded, files); err != nil && bounded.Err() == nil {
+			return err
+		}
+		return nil
+	})
 	s.jobs.Tidy("deleted annotations", 24*time.Hour, func(ctx context.Context) error {
 		return s.db.RemoveOldAnnotationMarkers(ctx, s.now())
 	})

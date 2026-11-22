@@ -322,6 +322,35 @@ export interface BookProblem {
   message: string;
 }
 
+export interface BookSearchAnchor {
+  normalization: string;
+  offsetUnit: string;
+  matchUnit: string;
+}
+
+export interface BookSearchHit {
+  libraryId: string;
+  itemId: string;
+  sourceId: string;
+  sourceRevision: string;
+  title?: string;
+  coverUrl?: string;
+  sectionPath: string;
+  sectionIndex: number;
+  utf16Offset: number;
+  excerpt: string;
+  matchStart: number;
+  matchLength: number;
+}
+
+export interface BookSearchPage {
+  indexedOnly: boolean;
+  indexRevision: number;
+  anchor: BookSearchAnchor;
+  hits: BookSearchHit[];
+  next?: string;
+}
+
 export interface BookVersion {
   id: string;
   format: string;
@@ -5056,6 +5085,7 @@ export interface Routes {
   'PUT /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: AnnotationBody; response: Annotation};
   'DELETE /v1/items/{id}/annotations/{annotationId}': {access: 'withProfile'; request: undefined; response: undefined};
   'POST /v1/annotations:batch': {access: 'withProfile'; request: AnnotationBatch; response: AnnotationResults};
+  'GET /v1/reading/search': {access: 'withProfile'; request: undefined; response: BookSearchPage};
   'GET /v1/admin/library-channels': {access: 'owner'; request: undefined; response: LibraryChannelPage};
   'POST /v1/admin/library-channels': {access: 'owner'; request: LibraryChannelSave; response: LibraryChannel};
   'PUT /v1/admin/library-channels/order': {access: 'owner'; request: LibraryChannelOrder; response: undefined};
