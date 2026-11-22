@@ -253,7 +253,10 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
           const run = 'visible:' + entries[begin].position;
           const registration = model!.registerWindow(ticket, {id: run, sectionId: 'library', sectionOrder: 0, start: entries[begin].position,
             ...(whole ? {queryId: whole.query.id} : {}), items: items.slice(begin, end)});
-          if (!registration.ok) throw cancelled();captured.registrations.push(registration.unregister);
+          // A title that no longer matches the whole list's summary (a file went missing since) is refused: drop the
+          // summary so it is read again, exact.
+          if (!registration.ok) {if (whole && 'forgetWholeSelection' in source && typeof source.forgetWholeSelection === 'function') source.forgetWholeSelection();throw cancelled();}
+          captured.registrations.push(registration.unregister);
           for (let index = begin; index < end; index++) {
             const row = Object.freeze({...entries[index], key: browseSelectionKey(model!.getSnapshot().context.scope, items[index]), capabilities: items[index].capabilities});
             rows.push(row);handles.set(row, {window: captured, run});
@@ -323,6 +326,8 @@ export function createLibraryPlaySelection(input: LibraryPlaySelectionOptions) {
   };
   return {
     start,
+    /** The actions this selection can run, which the screen hands to its browse controller for the exact Select all. */
+    ports,
     getSnapshot(): LibraryPlaySelectionSnapshot {
       if (!closed && (signal.aborted || !isCurrent())) retire(undefined, true);
       return state;
