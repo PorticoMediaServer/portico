@@ -15,6 +15,7 @@ import {useFrameMetrics} from '../../../kit/frames/metrics';
 import {Banner, MenuRow, Popover} from '../../../kit/overlays';
 import {OverlaysProvider} from '../../../kit/overlays/OverlayHost';
 import {AccountMenu, ChoiceMatrix, DefaultHint, NotificationItem, ProfileAvatar, ServerHeader, SettingsNav, SettingsProfileCard, SettingsRow, ShortcutTiles} from '../../../kit/shell';
+import {OfflineServersPage} from '../../../pages/touch/accounts/OfflineServersPage';
 import {LegalAgreement} from '../../../kit/accounts/LegalAgreement';
 import {PhonePINEntry} from '../../../kit/accounts/PhonePINEntry';
 import {ProfilePINPage} from '../../../pages/touch/accounts/ProfilePINPage';
@@ -304,6 +305,11 @@ function Notifications() {
 const WentWrong = () => <Page destination={{kind: 'home'}}><PageStateFrame icon="i-warn" tone="error" title={f('wentWrong')} body={f('wentWrongBody')} primaryAction={{id: 'retry', label: fx('tryAgain'), icon: 'i-retry', onPress: none}} secondaryAction={{id: 'home', label: f('goHome'), onPress: none}}/></Page>;
 const PlaybackFailed = () => <Window><PageStateFrame icon="i-warn" tone="error" title={f('playbackFailed')} body={f('playbackFailedBody')} primaryAction={{id: 'version', label: f('otherVersion'), onPress: none}} secondaryAction={{id: 'retry', label: fx('tryAgain'), onPress: none}}/></Window>;
 
+/** connect 37 on a phone: two servers not answering, one of them retrying. Real page, gallery rows. */
+const offlineScope = {};
+const OfflineServers = () => <Window><OfflineServersPage scope={offlineScope} revision={1} isCurrent={() => true} busy={false} retryIn={12}
+  rows={[{id: 'home', name: f('serverName'), subtitle: {key: 'web.chooser.lastSeen', values: {date: f('lastSeenYesterday')}}} as never, {id: 'cabin', name: f('serverCabin')} as never]}
+  onRetry={none} onBack={none} onRefresh={none} onFind={none} onDownloads={none}/></Window>;
 const whole = {screen: true} as const;
 const touch = ['phone', 'tablet'] as const;
 const galleries: readonly Gallery[] = [
@@ -325,6 +331,7 @@ const galleries: readonly Gallery[] = [
   {id: 'frames-sign-in-code', title: 'next.platform.frame.signIn', render: SignInCode, platforms: touch, ...whole},
   {id: 'frames-sign-in-portico', title: 'next.platform.frame.signIn', render: SignInPortico, platforms: touch, ...whole},
   {id: 'frames-whos-watching', title: 'next.platform.frame.signIn', render: WhosWatching, platforms: touch, ...whole},
+  {id: 'frames-offline-servers', title: 'next.platform.frame.signIn', render: OfflineServers, platforms: touch, ...whole},
   {id: 'frames-profile-pin', title: 'next.platform.frame.signIn', render: ProfilePIN, platforms: touch, ...whole},
   {id: 'frames-account-menu', title: 'next.platform.frame.sheet', render: Account, ...whole},
   {id: 'frames-notifications', title: 'next.platform.frame.sheet', render: Notifications, platforms: touch, ...whole},

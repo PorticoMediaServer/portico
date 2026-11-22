@@ -52,7 +52,7 @@ import type {AccountDownloadsEntry} from './downloads-entry-model';
 import type {NativeInvitationLink} from '../../platform/invitation-links';
 import {PhoneAccountWorkspace} from './PhoneAccountWorkspace';
 import {NativeAccountWorkspace} from '../../platform/account-workspace';
-import {OfflineServers} from './OfflineServers';
+import {OfflineServersPage} from '../../pages/touch/accounts/OfflineServersPage';
 import {NoServersPage as TVNoServersPage} from '../../pages/tv/accounts/NoServersPage';
 import {OfflineServersPage as TVOfflineServersPage} from '../../pages/tv/accounts/OfflineServersPage';
 import {PhoneAccountMoveNotice} from '../../kit/accounts/PhoneAccountMoveNotice';
@@ -1617,7 +1617,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         || capturedDownload.source !== downloads || !capturedDownload.source.current() || !capturedDownload.source.getSnapshot().available) return;
       capturedDownload.source.open();
     };
-    const Offline = Platform.isTV ? TVOfflineServersPage : OfflineServers;
+    const Offline = Platform.isTV ? TVOfflineServersPage : OfflineServersPage;
     return <Offline onDownloads={!!capturedDownload && capturedDownload.source === downloads && capturedDownload.active && downloadValue?.available && downloads?.current() ? openDownloads : undefined} username={nativeAccounts.accountCredentials().getSnapshot().session?.account.username}
       onSettings={() => openAccountWorkspace(scope, current)}
       onJoin={() => {if (current() && !busyRef.current) openInvitationEntry();}}

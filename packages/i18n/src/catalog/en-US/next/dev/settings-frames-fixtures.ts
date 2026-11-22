@@ -98,6 +98,8 @@ export const settingsFramesFixtureMessages = {
   'next.settingsFrames.fixture.otherVersion': 'Play another version',
   'next.settingsFrames.fixture.signInTo': 'Sign in to',
   'next.settingsFrames.fixture.serverName': 'Portico demo',
+  'next.settingsFrames.fixture.serverCabin': 'Cabin',
+  'next.settingsFrames.fixture.lastSeenYesterday': 'yesterday',
   'next.settingsFrames.fixture.onThisNetwork': 'On this network',
   'next.settingsFrames.fixture.foundAddress': '192.168.1.20',
   'next.settingsFrames.fixture.newServer': 'New Portico server',
