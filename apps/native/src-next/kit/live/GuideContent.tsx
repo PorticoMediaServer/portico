@@ -16,7 +16,7 @@ import {OwnerTag} from '../shell/ServerIdentity';
 import {StateView} from '../states';
 import {visibleGuideRows} from '../../screens/settings-live/guide-pan-model';
 import {nativeChannelMenuEntries} from '../../screens/settings-live/guide-presentation';
-import {NativeSeriesRuleSheet} from '../../screens/settings-live/LiveSeriesRule';
+import {NativeSeriesRuleSheet} from './SeriesRuleSheet';
 import {NativeLiveTabs} from './LiveTabs';
 import {guideFocusMoved, liveGuideEntry, tvProgrammeGroups} from '../../screens/settings-live/tv-settings-focus';
 
