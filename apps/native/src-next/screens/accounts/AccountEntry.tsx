@@ -2,7 +2,6 @@ import {accountExpectation, nativeAccountRead} from '../../platform/account-work
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {AppState, Linking, NativeModules, Platform, Share, Image, Text, View} from 'react-native';
 import {useTVMenuCapture} from '../../platform/tv-menu';
-import QRCode from 'react-native-qrcode-svg';
 import type {HostedServer} from '../../../../../packages/client-core/src';
 import {ServerSignInProbe, moveOfferDays, type ServerSignIn} from '../../../../../packages/client-core/src/sign-in';
 import {firstAnswering, serverAddressCandidates} from '../../../../../packages/client-core/src/server-address';
@@ -67,7 +66,7 @@ import {afterEntry} from '../../shell/after-entry';
 import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
 import {SignInPage} from '../../pages/touch/accounts/SignInPage';
 import {LegalAgreement} from '../../kit/accounts/LegalAgreement';
-import {AccountEntryEndedNotice, AccountEntryFields, AccountEntryLegal, AccountEntryPasswordToggle, AccountEntryStep} from '../../kit/accounts/AccountEntryParts';
+import {AccountEntryCode, AccountEntryEndedNotice, AccountEntryFields, AccountEntryLegal, AccountEntryPasswordToggle, AccountEntryStep} from '../../kit/accounts/AccountEntryParts';
 import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PasswordStrengthMeter} from '../../kit/accounts/PasswordStrengthMeter';
 import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
@@ -1829,10 +1828,10 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     status={<>{status}{(tvState.phase === 'denied' || tvState.phase === 'error') && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginBottom: 28}]}>{t(tvState.phase === 'denied' ? 'activation.declined' : 'activation.failed')}</Text>}</>}
     busy={busy} onTypeCredentials={() => {void renderedTV?.credentials();}} onBack={codeBack}
     onLocal={tvDoor ? () => {if (renderedTV?.current() && !busyRef.current) {back(); setError(undefined); stageRef.current = 'address'; setStage('address');}} : undefined} onNewCode={newCode} onRetry={retryApproval} retryAt={approval?.retryAt} credentialsDisabled={!!approval && !renderedTV?.canTypeCredentials()}/>;
-  return layout(t('activation.title'), consentBody,
-    <View style={{gap: 16, marginBottom: 20}}>{tvState.verificationUriComplete && <QRCode value={tvState.verificationUriComplete} size={theme.isTV ? 240 : 180}/>}
-      <Text selectable style={[theme.type.title, {color: theme.colors.text}]}>{tvState.userCode ?? t('activation.preparingCode')}</Text>
-      {tvState.verificationUri && <Text selectable style={[theme.type.body, {color: theme.colors.textSecondary}]}>{tvState.verificationUri}</Text>}
-      <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t(tvState.phase === 'denied' ? 'activation.declined' : tvState.phase === 'error' ? 'activation.failed' : 'activation.codeRefreshes')}</Text></View>,
+  // A phone or tablet signing in with a code another device approves: its own title ("Use a code from another device", the
+  // button that opened it), not the TV's "Activate Portico on this TV".
+  return layout(t('auth.useCodeFromAnotherDevice'), consentBody,
+    <AccountEntryCode qr={tvState.verificationUriComplete} code={tvState.userCode ?? t('activation.preparingCode')} address={tvState.verificationUri}
+      note={t(tvState.phase === 'denied' ? 'activation.declined' : tvState.phase === 'error' ? 'activation.failed' : 'activation.codeRefreshes')}/>,
     retryApproval ? {id: 'retry-approval', label: t('action.tryAgain'), disabled: busy || (approval?.retryAt ?? 0) > Date.now(), loading: busy, onPress: retryApproval} : newCode ? {id: 'new-code', label: t('activation.getNewCode'), disabled: busy, loading: busy, onPress: newCode} : undefined);
 }
