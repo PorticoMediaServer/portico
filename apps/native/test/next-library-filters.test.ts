@@ -35,16 +35,16 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false
     '../../screens/library/model': {nativeLibraryCanSave},
   });
   const {useLibraryFrameFilters} = fieldsModule;
-  const {LibraryFilters} = await screenModule(new URL('../src-next/screens/library/LibraryFilters.tsx', import.meta.url), {
+  const {LibraryFilters} = await screenModule(new URL('../src-next/kit/browse/LibraryFilters.tsx', import.meta.url), {
     '@portico/design': {frameSpec: {browse: {filtersWidth: {tv: 680, expanded: 380}}}},
-    '../../kit/browse/LibraryFilterFields': fieldsModule,
+    './LibraryFilterFields': fieldsModule,
     react: host.react, 'react-native': {Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/browse': {FilterBuilder: 'FilterBuilder'}, '../../kit/controls': {Button: 'Button'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/focus': {useFocusRegistry: () => ({focus: (address: unknown) => calls.push(['focus', address])})},
-    '../../kit/overlays': {BottomSheet: 'BottomSheet', SidePanel: 'SidePanel'}, '../../kit/states': {StateView: 'StateView'},
-    '../../kit/browse/presentation': {browseType: () => ({}), browsePlatform: (used: any) => used.isTV ? 'tv' : used.platform === 'phone' ? 'phone' : 'desktop'}, '../../kit/theme': {useTheme: () => theme}, './filter-controls': {libraryFilterChange, libraryFilterField},
-    './model': {nativeLibraryCanSave},
+    '.': {FilterBuilder: 'FilterBuilder'}, './FiltersPane': {FiltersPane: 'FiltersPane'}, '../controls': {Button: 'Button'}, '../Icon': {Icon: 'Icon'}, '../focus': {useFocusRegistry: () => ({focus: (address: unknown) => calls.push(['focus', address])})},
+    '../overlays': {BottomSheet: 'BottomSheet', SidePanel: 'SidePanel'}, '../states': {StateView: 'StateView'},
+    './presentation': {browseType: () => ({}), browsePlatform: (used: any) => used.isTV ? 'tv' : used.platform === 'phone' ? 'phone' : 'desktop'}, '../theme': {useTheme: () => theme}, '../../screens/library/filter-controls': {libraryFilterChange, libraryFilterField},
+    '../../screens/library/model': {nativeLibraryCanSave},
   });
   if (frame) {
     const filters = host.render(() => useLibraryFrameFilters({draft, generation: 1, source, runtime, labels: {field: () => 'Genre'}, owner: true, live: frame.live, onSave: (value: unknown) => calls.push(['save', value])}));

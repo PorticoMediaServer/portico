@@ -30,7 +30,7 @@ import {nativeDestinationLifetime} from '../destinations/lifetime';
 import {homeCardText} from '../home/model';
 import {libraryAppliedFilters} from '../library/applied-filters';
 import {NativeLibraryDestination, nativeLibraryEntryKey} from '../library/model';
-import {LibraryFilters} from '../library/LibraryFilters';
+import {LibraryFilters} from '../../kit/browse/LibraryFilters';
 import type {NativeLibraryFilterDraft} from '../library/filters';
 import {openNativeReadSeries, type NativeReadOrigin} from './eligibility';
 import {audiobookAuthorInitials} from '../destinations/audiobooks/presentation';
