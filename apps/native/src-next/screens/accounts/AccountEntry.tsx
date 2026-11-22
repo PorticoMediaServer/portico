@@ -42,7 +42,7 @@ import {formatShortInvitationCode, parseShortInvitationCode} from '../../../../.
 import type {NativeSignInHint} from '../../platform/sign-in-ended';
 import {PhoneOwnerReset} from '../../kit/accounts/PhoneOwnerReset';
 import type {ResetFileLocation} from '../../../../../packages/client-core/src/account-reset';
-import {NativeSetup} from './NativeSetup';
+import {SetupPage} from '../../pages/touch/accounts/SetupPage';
 import {PhoneFindServer} from '../../kit/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../pages/touch/accounts/ServerSignInPage';
 import {PhonePINEntry} from '../../kit/accounts/PhonePINEntry';
@@ -961,7 +961,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const stopOwnedRetry = () => {if (retryEpoch.current === epoch) stopRetry();};
     return stopOwnedRetry;
   }, [stage, target, directoryView, hostedWaiting, busy, appActive, allDirectoryOffline, servers, directoryScope, stopRetry]);
-  // One setup target per server shown for setup: NativeSetup keeps one controller for it.
+  // One setup target per server shown for setup: SetupPage keeps one controller for it.
   const setupTarget = useMemo(() => server && setupAddress ? Object.freeze({origin: setupAddress, server, expected: endedTarget.current}) : undefined, [server, setupAddress]);
   // Phone and tablet share the compact form column (auth.html frames 4 to 6).
   const FormLayout = theme.isTV ? TVAuthLayout : AccountForm;
@@ -1061,7 +1061,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('accounts.setup.confirmWarning')}</Text>
     </View>, action('confirm-setup', t('accounts.setup.confirmAction'), async () => {if (lifetime.current && stageRef.current === 'setup-confirm') setStage('setup');}));
   // First-run setup on the shared controller; it pairs with the same first-contact proof as sign-in.
-  if (stage === 'setup' && setupTarget) return <NativeSetup target={setupTarget}
+  if (stage === 'setup' && setupTarget) return <SetupPage target={setupTarget}
     onAdmitted={id => {if (!lifetime.current || stageRef.current !== 'setup') return; onSetupComplete?.(id); onComplete();}}
     onLeave={() => {if (lifetime.current && stageRef.current === 'setup') setStage('setup-confirm');}}/>;
   if (stage === 'address') {
