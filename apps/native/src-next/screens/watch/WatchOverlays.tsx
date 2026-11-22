@@ -22,8 +22,8 @@ import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
 import {nativeType, useTheme} from '../../kit/theme';
 import type {NativeScreenServices} from '../screen-services';
 import type {NativeWatchOverlay, NativeWatchPresenters} from './presenters';
-import {NativeVersionChooser} from './VersionChooser';
-import {NativeDiscTitlesSheet} from './DiscTitlesSheet';
+import {NativeVersionChooser} from '../../kit/player/VersionChooser';
+import {NativeDiscTitlesSheet} from '../../kit/player/DiscTitlesSheet';
 import {NativeFileInfoContent} from './FileInfoContent';
 import {overlayPaintKey, overlayPaintPermit, RetainedOverlay, type OverlayPaintPermit} from '../../kit/overlays/SurfacePaintHost';
 
