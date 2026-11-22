@@ -25,7 +25,7 @@ const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/
   '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
   '../../platform/layout/player-presentation': {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs: 250},
   '../../platform/platformPosture': {usePlatformPosture: () => posture},
-  './WatchChrome': {NativeWatchChrome: 'Chrome'}, './picture-slot': {NativeWatchPicture: 'Picture'},
+  './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
   './HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
   './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {open: false, rows: []}; return () => snapshot;})()},
   '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'Transition', TVPanelSlide: 'Slide', TVPanelScrim: 'Scrim', useTVPanelPresence: (value: unknown) => ({value, open: value !== undefined})},
@@ -34,9 +34,9 @@ const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/
     withTiming: (value: any) => value, cancelAnimation: () => {}},
   '../../kit/useMotion': {useMotion: () => ({reduce: false, timing: () => ({duration: 0})})},
 });
-const {NativeWatchPicture} = await screenModule(new URL('../src-next/screens/watch/picture-slot.tsx', import.meta.url), {
+const {NativeWatchPicture} = await screenModule(new URL('../src-next/shell/watch-picture.tsx', import.meta.url), {
   react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => window},
-  '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
+  '../../../../packages/player-core/src': {sameFence}, './model': {sameAuthority},
 });
 const child = (tree: any, id: string): any => {
   for (const node of React.Children.toArray(tree?.props?.children) as any[]) {

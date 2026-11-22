@@ -37,7 +37,7 @@ import {NativeDiscTitlesController} from './disc-titles-controller';
 import {prepareDiscTitle, readDiscTitles, type DiscTitles} from './disc-titles';
 import {NativeWatchControls, type NativeWatchControlContext} from './controls';
 import {NativeWatchChrome, type NativeWatchChromeProps} from './WatchChrome';
-import {NativeWatchPicture, type NativeWatchPictureProps} from './picture-slot';
+import {NativeWatchPicture, type NativeWatchPictureProps} from '../../shell/watch-picture';
 import {NativeWatchHost, type NativeWatchHostBindings, type NativeWatchHostContext} from './WatchHost';
 import {NativeWatchEpisodes} from './EpisodePanel';
 import type {MenuAction} from '../../kit/overlays/types';

@@ -21,7 +21,7 @@ import {NativeWatchControls} from '../src-next/screens/watch/controls.ts';
 import {nativeWatchTVPresentation} from '../src-next/screens/watch/tv-presentation.ts';
 import {focusTestID} from '../src-next/kit/focus/registry.ts';
 import {tvFocusIds} from '../src-next/shell/tv-focus.ts';
-import type {NativeWatchPictureSlot} from '../src-next/screens/watch/picture-slot.tsx';
+import type {NativeWatchPictureSlot} from '../src-next/shell/watch-picture.tsx';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {groupPort, subscribeGroupPort} from '../src-next/screens/settings-live/group-port.ts';
@@ -217,9 +217,9 @@ test('the checked watch measurement publishes its full pane through the canonica
   const outlet = new NativeWatchOutlet(current), d = await layer(true, outlet);
   const callbacks: ((x: number, y: number, width: number, height: number) => void)[] = [];
   let picture: any;
-  const {NativeWatchPicture} = await screenModule(new URL('../src-next/screens/watch/picture-slot.tsx', import.meta.url), {
+  const {NativeWatchPicture} = await screenModule(new URL('../src-next/shell/watch-picture.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => wide},
-    '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
+    '../../../../packages/player-core/src': {sameFence}, './model': {sameAuthority},
   });
   const view = {measureInWindow(callback: typeof callbacks[number]) {callbacks.push(callback);}};
   const owner = createFabricHookHost(() => {
@@ -261,7 +261,7 @@ test('actual WatchHost panel/control geometry reaches the persistent layer throu
     '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
     '../../platform/layout/player-presentation': {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs: 250},
     '../../platform/platformPosture': {usePlatformPosture: () => posture},
-    './WatchChrome': {NativeWatchChrome: 'Chrome'}, './picture-slot': {NativeWatchPicture: 'Picture'},
+    './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
     './HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
     './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {open: false, rows: []}; return () => snapshot;})()},
     './tv-presentation': {nativeWatchTVPresentation},
@@ -272,9 +272,9 @@ test('actual WatchHost panel/control geometry reaches the persistent layer throu
     '../../kit/useScreenReader': {useScreenReader: () => false},
     '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'TVPanelTransition', TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelPresence: () => ({open: false, value: undefined, exited() {}})},
   });
-  const {NativeWatchPicture} = await screenModule(new URL('../src-next/screens/watch/picture-slot.tsx', import.meta.url), {
+  const {NativeWatchPicture} = await screenModule(new URL('../src-next/shell/watch-picture.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => wide},
-    '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
+    '../../../../packages/player-core/src': {sameFence}, './model': {sameAuthority},
   });
   const view = {measureInWindow(callback: typeof measurements[number]) {measurements.push(callback);}};
   const setPresentation = (context: any) => controls.source(fence, {...context, expanded: d.adapter.getSnapshot().dock.local?.expanded === true, paused: false});
