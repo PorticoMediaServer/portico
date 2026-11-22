@@ -836,7 +836,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
         <Text numberOfLines={1} style={[nativeType({size: 23, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, flexShrink: 1}]}>{liveConfirmation}</Text>
       </View>}
       {props.liveGuide && liveGuide.timezone && <NativeMiniGuide key={JSON.stringify(fence)} open={miniOpen} onExited={miniExited} rows={liveGuide.rows.map(row => ({channel: row.channel, ...nowNext(row.programmes, now), watching: row.step === 0}))}
-        now={now} timezone={liveGuide.timezone} loading={liveGuide.phase === 'loading'} busy={liveGuide.busy} artwork={props.artwork}
+        now={now} timezone={liveGuide.timezone} loading={liveGuide.phase === 'loading' || !!liveGuide.programmesLoading && liveGuide.rows.every(row => !row.programmes.length)} busy={liveGuide.busy} artwork={props.artwork}
         onSelect={channel => {const row = liveGuide.rows.find(value => value.channel === channel);if (current() && row) void props.liveGuide?.tune(row, liveGuide);}}
         onClose={() => {if (current()) props.liveGuide?.close(liveGuide);}} onFullGuide={() => {if (current()) props.liveGuide?.fullGuide(liveGuide);}}
         error={liveGuide.error ? <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{playbackUserMessage(liveGuide.error)}</Text> : undefined}/>}

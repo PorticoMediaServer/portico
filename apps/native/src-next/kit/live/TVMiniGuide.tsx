@@ -33,6 +33,7 @@ export type NativeMiniGuideProps = Readonly<{
   now: number;
   /** The guide's published timezone. A rejected name draws no time, never another zone. */
   timezone: string;
+  /** Programmes are still being read: the note says so, and a row without one says nothing rather than "No information". */
   loading?: boolean;
   busy?: boolean;
   error?: React.ReactNode;
@@ -109,7 +110,7 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
             <MiniGuideHead/>
             {!!props.error && <View style={{paddingHorizontal: 12, paddingBottom: 12}}>{props.error}</View>}
             {props.loading && <Text style={[theme.type.tvMiniGuideNote, {color: theme.colors.textTertiary, paddingHorizontal: 12, paddingBottom: 12}]}>{t('next.browse.native.markAllPreparing')}</Text>}
-            {rows.map((row, index) => <MiniGuideRow key={rowKey(row)} ref={index === entry ? first : undefined} id={rowKey(row)} channel={row.channel} title={row.now?.title} progress={progress(row)}
+            {rows.map((row, index) => <MiniGuideRow key={rowKey(row)} ref={index === entry ? first : undefined} id={rowKey(row)} channel={row.channel} title={row.now?.title ?? (props.loading ? '' : undefined)} progress={progress(row)}
               logo={row.channel.logoUrl ? props.artwork?.(row.channel.logoUrl) : undefined} next={row.next && {title: row.next.title, at: clock(row.next.start, locale, props.timezone)}}
               watching={row.watching} preferredFocus={props.open && index === entry} disabled={!props.open || !!props.busy || !tuneable(row)} onPress={() => props.onSelect(row.channel)}/>)}
             <MiniGuideAll ref={entry < 0 ? first : undefined} disabled={!props.open || !!props.busy} onPress={props.onFullGuide}/>
