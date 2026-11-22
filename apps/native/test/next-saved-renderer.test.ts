@@ -6,9 +6,9 @@ import {NativeSavedDestination} from '../src-next/screens/saved/model.ts';
 import {nativeDestinationLifetime} from '../src-next/screens/destinations/lifetime.ts';
 
 test('independent Saved descriptor uses the actual viewer lifetime with no Search or selection dependency', async () => {
-  const {createNativeSavedRenderer} = await screenModule(new URL('../src-next/screens/saved/renderer.tsx', import.meta.url), {
-    react: {default: React}, '../../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'}, './model': {NativeSavedDestination},
-    '../destinations/lifetime': {nativeDestinationLifetime},
+  const {createNativeSavedRenderer} = await screenModule(new URL('../src-next/shell/saved-renderer.tsx', import.meta.url), {
+    react: {default: React}, '../pages/touch/saved/SavedPage': {SavedPage: 'SavedPage'}, '../screens/saved/model': {NativeSavedDestination},
+    '../screens/destinations/lifetime': {nativeDestinationLifetime},
   });
   let current = true, calls = 0;
   const viewer = {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'};

@@ -63,7 +63,7 @@ function modules(state: {
     '../../../../packages/i18n/src': {defaultI18n},
     '../platform/identity-failure': {NativeIdentityFailure: class extends Error {}},
     '../screens/accounts/ServerIdentityFailure': {ServerIdentityFailure: 'ServerIdentityFailure'},
-    '../screens/settings/NativeSettingsAppearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
+    './settings-appearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
   };
 }
 

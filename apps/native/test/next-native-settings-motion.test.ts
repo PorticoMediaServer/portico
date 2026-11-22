@@ -32,9 +32,9 @@ async function fixture(inheritedReduced = false, supported = true) {
   const native = {isReduceMotionEnabled() {assert.equal(this, native); return pending.promise;}, addEventListener(name: string, listener: (value: boolean) => void) {
     assert.equal(this, native); assert.equal(name, 'reduceMotionChanged'); event = listener; return {remove() {removals++;}};
   }};
-  const {NativeSettingsAppearance} = await screenModule(new URL('../src-next/screens/settings/NativeSettingsAppearance.tsx', import.meta.url), {
+  const {NativeSettingsAppearance} = await screenModule(new URL('../src-next/shell/settings-appearance.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {AccessibilityInfo: supported ? native : undefined},
-    '../../kit/theme': {ThemeProvider: 'ThemeProvider', useTheme: () => inherited},
+    '../kit/theme': {ThemeProvider: 'ThemeProvider', useTheme: () => inherited},
   });
   const child = React.createElement('existing-shell');
   const host = await fabricHost();

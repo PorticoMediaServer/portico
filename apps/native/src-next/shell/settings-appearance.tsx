@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {AccessibilityInfo} from 'react-native';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import {ThemeProvider, textScaleFor, useTheme} from '../../kit/theme';
+import type {NativeShellRuntime} from './runtime';
+import {ThemeProvider, textScaleFor, useTheme} from '../kit/theme';
 
 type Source = Pick<NativeShellRuntime, 'subscribe' | 'reportError'> & Readonly<{appearanceMotion?: 'follow' | 'reduce'; appearanceTextSize?: 'standard' | 'large'}>;
 
