@@ -21,7 +21,8 @@ import {libraryTab, libraryTabs, type LibraryTabId} from '../../../../../package
 import {BooksPage} from '../../pages/touch/reading/BooksPage';
 import {createNativeLibraryPlaySelection} from './play-selection';
 import {createNativeDiscoverSelection} from './discover-selection';
-import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNamingPanelId, NativeTVLibrarySurface} from './tv-library';
+import {createNativeTVLibraryNamingStore, nativeTVLibraryActions, nativeTVNamingPanelId} from './tv-library';
+import {NativeTVLibrarySurface} from '../../pages/tv/library/SaveViewPanel';
 import type {NativeTVLibraryNamingStore} from './tv-library';
 import {nativeLibraryOpening, nativeLibraryOpeningRoute} from './opening';
 import {takeLibrarySavedView} from './saved-view-intent';

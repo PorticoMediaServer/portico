@@ -44,8 +44,8 @@ test('the Library descriptor requires the actual authorized ID and never supplie
       createNativeTVLibraryNamingStore: () => ({subscribe: () => () => {}, getSnapshot: () => undefined, open: () => false, close: () => false, dispose: () => {}}),
       nativeTVLibraryActions: (actions: unknown) => actions,
       nativeTVNamingPanelId: (_authority: unknown, libraryId: string) => `tv.${JSON.stringify(libraryId)}.naming`,
-      NativeTVLibrarySurface: 'NativeTVLibrarySurface',
     },
+    '../../pages/tv/library/SaveViewPanel': {NativeTVLibrarySurface: 'NativeTVLibrarySurface'},
   });
   assert.equal(exportedPlay, createNativeLibraryPlaySelection, 'the barrel exposes the actual headless producer');
   const viewer = {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', role: 'owner'};
