@@ -8,6 +8,8 @@ test("a queue entry keeps the library the server names, so Now Playing can read 
   assert.equal(parseEntry({...base, libraryId: 'lib_music'}).libraryId, 'lib_music');
   assert.equal(parseEntry(base).libraryId, undefined);
   assert.equal(parseEntry({...base, libraryId: ''}).libraryId, undefined);
+  // A malformed library id on a hidden entry is dropped; on an available entry it is refused like any other id.
+  assert.equal(parseEntry({...base, available: false, libraryId: 'bad id with spaces'}).libraryId, undefined);
 });
 
 test("the player passes an entry's library on only for an available entry in the accepted window", async t => {
@@ -28,4 +30,9 @@ test("the player passes an entry's library on only for an available entry in the
   (player as unknown as {accept(h: unknown, w: unknown): void}).accept(header, window);
   const view = (player.getSnapshot() as {view?: {items: readonly {entryId: string; libraryId?: string}[]}}).view;
   assert.deepEqual(view?.items.map(item => [item.entryId, item.libraryId]), [['qe_1', 'lib_music'], ['qe_2', undefined]]);
+  // A window the header does not match (another revision) is not accepted: no entry offers its library.
+  const stale = parseQueue({id: 'q1', revision: 'r2', total: 2, medium: 'audio', current: {entryId: 'qe_1', position: 0}, repeat: 'off'});
+  (player as unknown as {accept(h: unknown, w: unknown): void}).accept(stale, window);
+  const staleView = (player.getSnapshot() as {view?: {items: readonly {entryId: string; libraryId?: string}[]}}).view;
+  assert.deepEqual(staleView?.items.map(item => item.libraryId), [undefined, undefined]);
 });
