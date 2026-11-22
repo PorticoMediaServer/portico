@@ -62,6 +62,8 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
   let disposed = false, revision = 0, entering = false, token = '';
   let producer: Producer | undefined, stopModel: (() => void) | undefined;
   let pending: AbortController | undefined, personalController: AbortController | undefined, queued: string | undefined;
+  // The source token whose whole-view summary the model refused: that view's titles are picked one by one.
+  let wholeRefused: string | undefined;
   let destinations: NativeLoadedDestinations | undefined, destinationKind: 'playlist' | 'collection' | undefined;
   let destinationController: AbortController | undefined, stopDestinations: (() => void) | undefined;
   let bulk: NativeBulkMedia | undefined, bulkController: AbortController | undefined, stopBulk: (() => void) | undefined;
@@ -121,7 +123,16 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     if (producer && next === token) return producer;
     reset();
     try {
-      producer = createNativeLibraryPlaySelection(context, source);
+      const built = createNativeLibraryPlaySelection(context, source, {wholeOffered: wholeRefused !== next, onWholeRefused: () => {
+        // Rebuilt outside the failing read. The pick that was waiting is kept; picks the old producer held are not.
+        void Promise.resolve().then(() => {
+          if (disposed || producer !== built || token !== next) return;
+          const key = queued; wholeRefused = next; reset();
+          if (!ensure()) return;
+          entering = true; queued = key; emit();
+        });
+      }});
+      producer = built;
       stopModel = producer.model.subscribe(() => {if (producer?.model.getSnapshot().active) entering = false; emit();});
       token = next; emit();
       return producer;
@@ -371,7 +382,8 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     // A card menu opened on one view never starts a selection on the next (a library or tab switch since).
     const viewToken = sourceToken();
     layoutSnapshot = Object.freeze({active: entering || !!snapshot()?.active,
-      isSelected: (key: string) => live() && !!entryForKey(key) && selectedKeys().includes(keyOf(entryForKey(key)!) ?? ''),
+      // The model answers membership: an explicit pick, or (after Select all) a bound title the whole view holds.
+      isSelected: (key: string) => {const entry = live() ? entryForKey(key) : undefined, picked = entry && keyOf(entry); return !!picked && !!model()?.isSelected(picked);},
       onToggle: (key: string) => {if (live()) toggle(key);}, onEnter: (key: string) => {if (live()) toggle(key); else if (!owner && sourceToken() === viewToken) enter(key);}});
     return layoutSnapshot;
   };
@@ -409,7 +421,7 @@ export function createNativeLibrarySelection(context: NativeShellBootstrapContex
     item: entry => {
       const owner = producer, ownerToken = token, key = nativeLibraryEntryKey(entry), live = () => owner === producer && ownerToken === token && !!owner, viewToken = sourceToken();
       return {active: entering || !!snapshot()?.active,
-        selected: live() && !!keyOf(entry) && selectedKeys().includes(keyOf(entry)!),
+        selected: live() && !!keyOf(entry) && !!model()?.isSelected(keyOf(entry)!),
         onToggle: () => {if (live()) toggle(key);}, onEnter: () => {if (live()) toggle(key); else if (!owner && sourceToken() === viewToken) enter(key);}};
     },
     render: (artwork?: (path?: string) => React.ReactNode) => <LibrarySelectionBars store={store} artwork={artwork ?? (() => null)}/>,
@@ -485,7 +497,7 @@ function LibrarySelectionBars({store, artwork}: {store: Store; artwork: (path?: 
   }) : [];
   const props: SelectionBarProps = {count: summary?.count ?? 0, selectionLabel: summary ? selectedItemsLabel(summary) : undefined,
     onCancel: () => {setMenu(null); store.cancel(state!);}, actions, menu, onMenuChange: setMenu,
-    ...(wholeUnavailable ? {selectAllUnavailable: {label: defaultI18n.t('next.selection.selectAllUnavailableLabel'), reason: defaultI18n.t(wholeUnavailable.reason === 'source_changed' ? 'next.selection.selectAllSourceChanged' : 'next.selection.selectAllSearchNotBounded')}} : whole ? {selectAllLabel: defaultI18n.t('next.selection.selectAll', {count: whole.total}), onSelectAll: () => store.selectWhole(state!, whole.id)} : {}),
+    ...(wholeUnavailable ? {selectAllUnavailable: {label: defaultI18n.t('next.selection.selectAllUnavailableLabel'), reason: defaultI18n.t(wholeUnavailable.reason === 'source_changed' ? 'next.selection.selectAllSourceChanged' : 'next.selection.selectAllSearchNotBounded')}} : whole && state?.target?.mode !== 'query' ? {selectAllLabel: defaultI18n.t('next.selection.selectAll', {count: whole.total}), onSelectAll: () => store.selectWhole(state!, whole.id)} : {}),
     fourthSlot: summary && selectionFourthAction(summary) === 'mark-watched' ? 'watched' : 'myList',
     onAction: action => {
       if (action === 'play' || action === 'playNext' || action === 'playLater' || action === 'download') {setMenu(null); void store.execute(action, state!);}
