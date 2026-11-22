@@ -45,6 +45,7 @@ async function librarySelection({supported = false, isTV = false} = {}) {
     throw new Error(`Unexpected request: ${method} ${path}`);
   }};
   const context = {api, session: () => ({viewer: {role: 'owner'}, deviceId: 'device'}), subscribeAuthority: () => () => {},
+    playback: {subscribe: () => () => {}, getSnapshot: () => ({dock: {}})},
     navigation: {getSnapshot: () => ({revision: 1})}};
   const source = {getSnapshot: () => ({phase: 'ready', library: {id: 'library'}, tab: {id: 'movies'}, revision: 'reading-1', queryRevision: 0, collection: {}}),
     subscribe: () => () => {}, hold: () => () => {}};
@@ -58,7 +59,7 @@ async function librarySelection({supported = false, isTV = false} = {}) {
     '../../../../packages/client-core/src/presentation/selection-notice': {}, '../../../../packages/client-core/src/media-selection': {},
     './selection-display': {selectedItemsLabel: () => '2 movies'},
     '../kit/selection': {SelectionBar: 'SelectionBar', SelectionPhoneActionBar: 'PhoneBar', DeleteMediaDialog: 'DeleteMediaDialog'},
-    '../kit/theme': {useTheme: () => ({isTV, layers: {navigation: 1}, type: {}, colors: {}})}, '../kit/overlays': {}, '../kit/controls': {},
+    '../kit/theme': {useTheme: () => ({isTV, layers: {navigation: 1}, type: {}, colors: {}})}, '../kit/overlays/OverlayHost': {OverlayPortal: ({children}: any) => children}, '../kit/overlays': {}, '../kit/controls': {},
     '../screens/destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true, scope: {serverId: 'server', viewerId: 'owner'}})},
     '../screens/native-screen-services': {nativeScreenServices: () => ({reportError: (error: unknown) => {throw error;}})},
     '../kit/selection/LoadedDestinationPicker': {}, '../screens/search/loaded-destinations': {}, '../screens/destinations/bulk-media': {NativeBulkMedia},
