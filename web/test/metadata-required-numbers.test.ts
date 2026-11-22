@@ -2,13 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {defaultI18n} from '@i18n';
-import {componentModule} from './helpers/component-harness.mjs';
-import {createRenderer} from './helpers/interaction-harness.mjs';
 
 // OW-3: an episode's Season number and Episode number could be cleared in the editor; the server refused the whole
 // save, and the editor called it an uncertain write. The schema now marks them required, and the field says so first.
-const h = createRenderer();
-const {fieldError} = await componentModule(new URL('../src/screens/metadata/MetadataEditor.tsx', import.meta.url), {react: h.react, '@i18n': {defaultI18n}});
+// The check now lives in client-core (shared with native's reader owner sheet); the editor imports it.
+const {metadataFieldError: fieldError} = await import('../../packages/client-core/src/presentation/metadata-field.ts');
 const spec = (field: string, min: number, max: number, required?: boolean) => ({field, label: field === 'seasonNumber' ? 'Season number' : 'Episode number', group: 'numbers', type: 'integer', min, max, bulk: false, ...(required ? {required} : {})});
 
 test('a required number can\'t be left empty, and says its bounds beside the field', () => {
