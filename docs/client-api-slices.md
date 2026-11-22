@@ -335,7 +335,7 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/platform/playback/runtime.ts:1277` | request `this.request` | get_items_id |
 | `apps/native/src-next/platform/playback/runtime.ts:1401` | request `this.request` | dynamic/wrapper: inspect enclosing applyOptions |
 | `apps/native/src-next/platform/playback/runtime.ts:1454` | request `this.request` | dynamic/wrapper: inspect enclosing readForcedImage |
-| `apps/native/src-next/screens/settings-live/LiveRoute.tsx:17` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
+| `apps/native/src-next/shell/live-route.tsx:20` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx:65` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx:77` | request `context.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/TogetherScreen.tsx:218` | request `ports.context.api.request` | get_items_id |

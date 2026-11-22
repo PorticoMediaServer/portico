@@ -1,13 +1,13 @@
 import React from 'react';
 import {Platform} from 'react-native';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
-import {ReadingSettingsPage} from '../../pages/touch/settings/ReadingSettingsPage';
-import {nativeReadingSettingsPreferences} from './reading-preferences';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
+import {ReadingSettingsPage} from '../pages/touch/settings/ReadingSettingsPage';
+import {nativeReadingSettingsPreferences} from '../screens/settings/reading-preferences';
 
-export {nativeReadingSettingsPreferences} from './reading-preferences';
-export type {NativeReadingSettingsPreferences} from './reading-preferences';
-export {openNativeReadingSettings} from './reading-entry';
+export {nativeReadingSettingsPreferences} from '../screens/settings/reading-preferences';
+export type {NativeReadingSettingsPreferences} from '../screens/settings/reading-preferences';
+export {openNativeReadingSettings} from '../screens/settings/reading-entry';
 
 export function createNativeReadingSettingsRenderer(context: NativeShellBootstrapContext): NativeRouteRenderer {
   const source = nativeReadingSettingsPreferences(context);

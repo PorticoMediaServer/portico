@@ -1,9 +1,9 @@
 import React from 'react';
 import {View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
-import {phoneBarHeight, shellLayout} from '../../shell/model';
-import {createNativeDownloadsView} from './view';
+import {nativeShellRoutes, type NativeRouteFactory} from './route-registry';
+import {phoneBarHeight, shellLayout} from './model';
+import {createNativeDownloadsView} from '../screens/downloads/view';
 
 function DownloadsRoute({children}: {children: React.ReactNode}) {
   const insets = useSafeAreaInsets(), dimensions = useWindowDimensions();

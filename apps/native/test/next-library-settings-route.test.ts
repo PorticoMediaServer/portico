@@ -9,11 +9,11 @@ import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime';
 const authority = {serverId: 'server', accountId: 'account', profileId: 'primary', epoch: 'one', viewerFence: 'fence'};
 test('library settings selects the actual owner library and denies secondary/member/admin access', async () => {
   let fallback = 0;
-  const {createNativeLibrarySettingsRenderer} = await screenModule(new URL('../src-next/screens/settings-live/owner-libraries/LibrarySettingsRoute.tsx', import.meta.url), {
-    react: {...React, default: React}, '../lifetime': {NativeScreenLifetime},
-    '../settings-ports': {createNativeSettingsPorts: (context: unknown) => ({context})},
-    '../SettingsRoute': {createNativeSettingsRenderer: () => ({render: () => {fallback++; return 'fallback';}, dispose() {}})},
-    '../Screen': {Screen: 'Screen'}, '../../../pages/touch/settings/ServerLibrariesPage': {ServerLibrariesPage: 'Panel'},
+  const {createNativeLibrarySettingsRenderer} = await screenModule(new URL('../src-next/shell/library-settings-route.tsx', import.meta.url), {
+    react: {...React, default: React}, '../screens/settings-live/lifetime': {NativeScreenLifetime},
+    '../screens/settings-live/settings-ports': {createNativeSettingsPorts: (context: unknown) => ({context})},
+    '../screens/settings-live/SettingsRoute': {createNativeSettingsRenderer: () => ({render: () => {fallback++; return 'fallback';}, dispose() {}})},
+    '../screens/settings-live/Screen': {Screen: 'Screen'}, '../pages/touch/settings/ServerLibrariesPage': {ServerLibrariesPage: 'Panel'},
   });
   for (const variant of [{role: 'owner', primaryProfileId: 'primary', disabled: false}, {role: 'owner', primaryProfileId: 'other'}, {role: 'member', primaryProfileId: 'primary'}, {role: 'admin', primaryProfileId: 'primary'}, {role: 'owner', primaryProfileId: 'primary', disabled: true}, {role: 'owner', primaryProfileId: 'primary', disabled: false, canManage: false}]) {
     const context = {current: () => true, authority: () => authority, subscribeAuthority: () => () => {}, account: {canManage: !('canManage' in variant) || variant.canManage !== false, account: variant}};

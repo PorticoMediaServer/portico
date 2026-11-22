@@ -5,15 +5,15 @@ import '../screens/home/CustomizeRoute';
 import '../screens/home/SeeAllRoute';
 import '../screens/library/register';
 import '../screens/collections/register';
-import '../screens/library/OverviewRoute';
+import '../shell/library-overview-route';
 // App.tsx loads this only for handsets; the TV rail's Search needs it too.
 import '../screens/search/register';
 import '../screens/people/register';
-import '../screens/settings-live/LiveRoute';
-import '../screens/settings-live/TogetherRoute';
+import '../shell/live-route';
+import '../shell/together-route';
 import '../screens/destinations/music/register';
 import '../screens/destinations/audiobooks/register';
-import '../screens/destinations/saved/register';
+import '../shell/saved-destination-route';
 import {createNativeWatchBindings, registerNativeWatch} from '../screens/watch';
 
 registerNativeWatch(createNativeWatchBindings);
