@@ -16,12 +16,22 @@ import (
 // GET /v1/libraries/{id} and say what the library can be browsed by, so an app never
 // hard-codes them.
 type Library struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Kind    string   `json:"kind"`
-	Views   []View   `json:"views,omitempty"`
-	Sorts   []Sort   `json:"sorts,omitempty"`
-	Filters []Filter `json:"filters,omitempty"`
+	ID      string          `json:"id"`
+	Name    string          `json:"name"`
+	Kind    string          `json:"kind"`
+	Views   []View          `json:"views,omitempty"`
+	Sorts   []Sort          `json:"sorts,omitempty"`
+	Filters []Filter        `json:"filters,omitempty"`
+	Summary *LibrarySummary `json:"summary,omitempty"`
+}
+
+type LibrarySummary struct {
+	Counts        []db.LibrarySummaryCount `json:"counts"`
+	CoverURLs     []string                 `json:"coverUrls"`
+	LatestArtwork string                   `json:"latestArtwork"`
+	FirstScan     bool                     `json:"firstScan"`
+	Empty         bool                     `json:"empty"`
+	EmptyKnown    bool                     `json:"emptyKnown"`
 }
 
 // Libraries is the answer of GET /v1/libraries.

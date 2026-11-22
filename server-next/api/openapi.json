@@ -5132,6 +5132,9 @@
             },
             "type": "array"
           },
+          "summary": {
+            "$ref": "#/components/schemas/LibrarySummary"
+          },
           "views": {
             "items": {
               "$ref": "#/components/schemas/View"
@@ -6023,6 +6026,62 @@
         },
         "required": [
           "ids"
+        ],
+        "type": "object"
+      },
+      "LibrarySummary": {
+        "properties": {
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/LibrarySummaryCount"
+            },
+            "type": "array"
+          },
+          "coverUrls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "empty": {
+            "type": "boolean"
+          },
+          "emptyKnown": {
+            "type": "boolean"
+          },
+          "firstScan": {
+            "type": "boolean"
+          },
+          "latestArtwork": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "counts",
+          "coverUrls",
+          "latestArtwork",
+          "firstScan",
+          "empty",
+          "emptyKnown"
+        ],
+        "type": "object"
+      },
+      "LibrarySummaryCount": {
+        "properties": {
+          "atLeast": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "count",
+          "atLeast"
         ],
         "type": "object"
       },

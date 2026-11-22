@@ -72,6 +72,12 @@ func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrar
 // LibraryCoverHashes samples at most 64 recent titles per cover-bearing kind, using
 // items_by_added, then images_item. A sparse or artless library never needs a full walk.
 func (d *DB) LibraryCoverHashes(ctx context.Context, library Library) ([]string, error) {
+	return libraryCoverHashes(ctx, d.read, library, "1", 4)
+}
+
+func libraryCoverHashes(ctx context.Context, reader interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, library Library, visible string, limit int) ([]string, error) {
 	kinds := map[string][]ItemKind{
 		LibraryMovies: {KindMovie}, LibraryShows: {KindShow}, LibraryAnime: {KindMovie, KindShow},
 		LibraryMusic: {KindAlbum}, LibraryAudiobooks: {KindAudiobook}, LibraryBooks: {KindBook}, LibraryComics: {KindComic, KindIssue},
@@ -79,14 +85,17 @@ func (d *DB) LibraryCoverHashes(ctx context.Context, library Library) ([]string,
 	var parts []string
 	var args []any
 	for _, kind := range kinds {
-		parts = append(parts, `SELECT * FROM (SELECT id, added_at FROM items
-			WHERE library_id = ? AND kind = ? ORDER BY added_at DESC, id DESC LIMIT 64)`)
+		parts = append(parts, `SELECT * FROM (SELECT id, added_at FROM items i
+			WHERE library_id = ? AND kind = ? AND `+visible+` ORDER BY added_at DESC, id DESC LIMIT 64)`)
 		args = append(args, library.ID, kind)
 	}
-	rows, err := d.read.QueryContext(ctx, `WITH recent AS MATERIALIZED (`+strings.Join(parts, ` UNION ALL `)+`)
+	if len(parts) == 0 {
+		return nil, nil
+	}
+	rows, err := reader.QueryContext(ctx, `WITH recent AS MATERIALIZED (`+strings.Join(parts, ` UNION ALL `)+`)
 		SELECT DISTINCT (SELECT file_hash FROM images WHERE item_id = recent.id AND role IN (1, 6)
 			AND selected = 1 AND file_hash IS NOT NULL AND file_hash != '' ORDER BY role, id LIMIT 1) AS hash
-		FROM recent WHERE hash IS NOT NULL ORDER BY added_at DESC, id DESC LIMIT 4`, args...)
+		FROM recent WHERE hash IS NOT NULL ORDER BY added_at DESC, id DESC LIMIT ?`, append(args, limit)...)
 	if err != nil {
 		return nil, err
 	}

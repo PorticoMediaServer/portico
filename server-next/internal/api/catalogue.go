@@ -50,12 +50,29 @@ func (s *Server) catalogueRoutes() {
 	s.episodeDisplayRoutes()
 	s.searchRoutes()
 	Handle(s, "GET /v1/libraries", WithProfile, func(r *http.Request, _ None) (Libraries, error) {
-		libraries, err := s.db.Libraries(r.Context(), viewer(r))
-		out := Libraries{Items: make([]Library, len(libraries))}
-		for n, l := range libraries {
-			out.Items[n] = Library{ID: l.PublicID, Name: l.Name, Kind: l.Kind}
+		ctx, profile := r.Context(), viewer(r)
+		libraries, err := s.db.LibrarySummaries(ctx, profile)
+		if err != nil {
+			return Libraries{}, err
 		}
-		return out, err
+		out := Libraries{Items: make([]Library, 0, len(libraries))}
+		for _, library := range libraries {
+			summary := LibrarySummary{
+				Counts: library.Counts, CoverURLs: []string{}, FirstScan: library.FirstScan,
+				Empty: true, EmptyKnown: len(library.Counts) > 0,
+			}
+			for _, count := range library.Counts {
+				summary.Empty = summary.Empty && count.Count == 0
+			}
+			for _, hash := range library.CoverHashes {
+				summary.CoverURLs = append(summary.CoverURLs, "/v1/images/"+hash)
+			}
+			if len(summary.CoverURLs) > 0 {
+				summary.LatestArtwork = summary.CoverURLs[0]
+			}
+			out.Items = append(out.Items, Library{ID: library.PublicID, Name: library.Name, Kind: library.Kind, Summary: &summary})
+		}
+		return out, nil
 	})
 	Handle(s, "GET /v1/libraries/{id}", WithProfile, func(r *http.Request, _ None) (Library, error) {
 		l, err := s.db.Library(r.Context(), viewer(r), r.PathValue("id"))

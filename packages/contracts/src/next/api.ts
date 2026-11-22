@@ -1538,6 +1538,7 @@ export interface Library {
   views?: View[];
   sorts?: Sort[];
   filters?: Filter[];
+  summary?: LibrarySummary;
 }
 
 export interface LibraryChannel {
@@ -1798,6 +1799,21 @@ export interface LibraryOptions {
 
 export interface LibraryOrder {
   ids: string[];
+}
+
+export interface LibrarySummary {
+  counts: LibrarySummaryCount[];
+  coverUrls: string[];
+  latestArtwork: string;
+  firstScan: boolean;
+  empty: boolean;
+  emptyKnown: boolean;
+}
+
+export interface LibrarySummaryCount {
+  kind: string;
+  count: number;
+  atLeast: boolean;
 }
 
 export interface List {
