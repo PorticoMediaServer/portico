@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"testing"
 )
@@ -77,7 +79,7 @@ func TestSegmentReviewPagesTitlesBeforeLoadingTheirMarkers(t *testing.T) {
 	if len(status.Libraries) != 2 || status.Mode != "standard" || status.Files.Pending == 0 {
 		t.Fatal(status)
 	}
-	seen := map[string]bool{}
+	seen, posters := map[string]bool{}, 0
 	for _, lib := range status.Libraries {
 		cursor := ""
 		for {
@@ -90,12 +92,22 @@ func TestSegmentReviewPagesTitlesBeforeLoadingTheirMarkers(t *testing.T) {
 					t.Fatal("repeated title", title.ID)
 				}
 				seen[title.ID] = true
+				// A title's poster comes with it, for the review list to show beside its name.
+				if title.Poster != "" {
+					posters++
+					if !strings.HasPrefix(title.Poster, "/v1/images/") {
+						t.Fatalf("%s poster: %q", title.Title, title.Poster)
+					}
+				}
 			}
 			if page.NextCursor == "" {
 				break
 			}
 			cursor = page.NextCursor
 		}
+	}
+	if posters == 0 {
+		t.Fatal("no title in the review list carries its poster")
 	}
 	if len(seen) < 51 {
 		t.Fatal("the fixture did not exercise a second page", fmt.Sprint(len(seen)))

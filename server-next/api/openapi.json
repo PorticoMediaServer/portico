@@ -13287,6 +13287,9 @@
           "markers": {
             "$ref": "#/components/schemas/SegmentReviewCounts"
           },
+          "poster": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           }

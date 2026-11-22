@@ -167,7 +167,11 @@ func (s *Server) segmentTitles(r *http.Request, _ None) (SegmentTitlePage, error
 		if err != nil {
 			return out, err
 		}
-		out.Titles = append(out.Titles, SegmentTitleSummary{t.ID, t.Title, t.Kind.String(), segmentFiles(c), segmentCounts(m)})
+		summary := SegmentTitleSummary{ID: t.ID, Title: t.Title, Kind: t.Kind.String(), Files: segmentFiles(c), Markers: segmentCounts(m)}
+		if t.PosterHash != "" {
+			summary.Poster = "/v1/images/" + t.PosterHash
+		}
+		out.Titles = append(out.Titles, summary)
 	}
 	return out, nil
 }
