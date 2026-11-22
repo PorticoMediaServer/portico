@@ -77,8 +77,14 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     const toProfile = returning && landed?.regionId === ids.rail && landed.childId === ids.profile;
     // A frame later and only if focus is still in the rail: focus that only passed through it (dropped there while a page
     // opened, then asked onto that page's start) must not be pulled back to the rail.
+    // On Apple TV the profile item can't take focus while the page the menu opened still covers it, so Back lands the rail
+    // elsewhere (its current page's item): a return then asks for the profile item once the rail has focus.
+    const profileAddress = {regionId: ids.rail, childId: ids.profile};
     if (owns && !opened.current && Platform.OS === 'ios' && !toProfile) {
-      requestAnimationFrame(() => {if (registry.capture()?.regionId === ids.rail) registry.focusRegion(ids.rail);});
+      requestAnimationFrame(() => {
+        if (registry.capture()?.regionId !== ids.rail) return;
+        if (returning) registry.focus(profileAddress); else registry.focusRegion(ids.rail);
+      });
     }
     opened.current = owns; changeRef.current(owns);
   }, [registry, ids.rail, ids.profile]);
