@@ -1,13 +1,13 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Platform, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {sameFence, type ChannelPlaybackFence} from '../../../../../packages/player-core/src';
-import {Button} from '../../kit/controls';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRoute} from '../../shell/routes';
-import type {NativeWatchModuleBindings} from './module';
-import {TopBar} from '../../kit/layout/TopBar';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import {sameFence, type ChannelPlaybackFence} from '../../../../packages/player-core/src';
+import {Button} from '../kit/controls';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeShellRoute} from './routes';
+import type {NativeWatchModuleBindings} from '../screens/watch/module';
+import {TopBar} from '../kit/layout/TopBar';
 
 /** The launch page owns its original route, not the adopted player's lifetime. */
 export function NativeWatchChannelRoute({context, route, title}: {context: NativeShellBootstrapContext; route: Extract<NativeShellRoute, {kind: 'channel'}>; title: NativeWatchModuleBindings['title']}) {
