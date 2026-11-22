@@ -43,6 +43,8 @@ function facts(raw: unknown): Record<string, string | number> {
  }
  return out;
 }
+/** A fact-less line (it names only that something happened) is kept at most once a minute per level, area and message. */
+export const APP_LOG_BARE_QUIET_MS = 60_000;
 export class AppLog {
  private lines: {at: number; text: string; bytes: number}[] = [];
  private size = 0;
@@ -53,10 +55,20 @@ export class AppLog {
   const oldest = this.now() - APP_LOG_AGE_MS;
   while (this.lines.length && (this.size > APP_LOG_BYTES || this.lines[0].at < oldest)) this.size -= this.lines.shift()!.bytes;
  }
+ /** When each fact-less line (a console warning, a repeated screen warning) was last kept. Such a line says only that
+  * something happened, so a repeat within a minute adds nothing, and a dev build's warning twice a second would
+  * otherwise push every useful line out of the bounded ring. */
+ private bare = new Map<string, number>();
  private append(at: number, level: unknown, area: unknown, message: unknown, raw: unknown) {
   if (typeof level !== 'string' || !levels.has(level) || typeof area !== 'string' || !areas.has(area) || typeof message !== 'string' || !messages.has(message)
    || !Number.isFinite(at) || at < this.now() - APP_LOG_AGE_MS || at > this.now()) return;
-  const text = JSON.stringify({time: at, level, area, message, facts: facts(raw)});
+  const kept = facts(raw);
+  if (Object.keys(kept).length === 0) {
+   const key = `${level} ${area} ${message}`, last = this.bare.get(key);
+   if (last !== undefined && Math.abs(at - last) < APP_LOG_BARE_QUIET_MS) return;
+   this.bare.set(key, at);
+  }
+  const text = JSON.stringify({time: at, level, area, message, facts: kept});
   const bytes = new TextEncoder().encode(text).length + 1;
   this.lines.push({at,text,bytes}); this.size += bytes;
  }
@@ -73,7 +85,7 @@ export class AppLog {
   this.lines.sort((a,b)=>a.at-b.at); this.trim();
  }
  snapshot(): string {this.trim(); return this.lines.map(line=>line.text).join('\n');}
- clear() {this.lines=[];this.size=0;for (const changed of this.listeners) changed();}
+ clear() {this.lines=[];this.size=0;this.bare.clear();for (const changed of this.listeners) changed();}
  subscribe(changed:()=>void) {this.listeners.add(changed);return ()=>{this.listeners.delete(changed);};}
 }
 /** Web uses this memory-only ring. Native binds its private last-run file to the same instance. */
