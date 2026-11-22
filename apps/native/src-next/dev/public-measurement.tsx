@@ -1,6 +1,6 @@
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {Linking} from 'react-native';
-import {AccountEntry} from '../screens/accounts/AccountEntry';
+import {AccountEntryPage} from '../pages/shared/accounts/AccountEntryPage';
 import {nativeMeasurementLaunch, type NativeMeasurementLaunch} from './measurement-launch';
 
 type Launch = Readonly<{ready: boolean; selection: NativeMeasurementLaunch; revision: number}>;
@@ -27,7 +27,7 @@ export function useNativePublicMeasurementLaunch(): Launch {
 const noPublicAdmission = (): never => {throw Object.assign(new Error('native_public_measurement_has_no_auth_admission'), {code: 'cancelled'});};
 
 /** A controller-only boundary: no new View, style, registry or presenter. The
- * public branch is the actual welcome AccountEntry; normal auth never mounts
+ * public branch is the actual welcome AccountEntryPage; normal auth never mounts
  * while launch selection is unresolved or refused. Collector installation is
  * supplied only by App's DEV branch after its owned module is available. */
 export function NativePublicMeasurementGate({renderNormal, install}: Readonly<{
@@ -54,5 +54,5 @@ export function NativePublicMeasurementGate({renderNormal, install}: Readonly<{
   }, [install, launch, welcome]);
   if (!launch.ready || launch.selection.kind === 'refused') return null;
   if (launch.selection.kind === 'normal') return renderNormal();
-  return <AccountEntry key={launch.revision} initialStage="welcome" initialAddress="" onStageChange={onStageChange} onComplete={noPublicAdmission}/>;
+  return <AccountEntryPage key={launch.revision} initialStage="welcome" initialAddress="" onStageChange={onStageChange} onComplete={noPublicAdmission}/>;
 }

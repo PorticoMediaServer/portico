@@ -35,27 +35,27 @@ function backOwner() {
   const listeners = new Set<() => boolean>();
   return {listeners, api: {addEventListener: (_: string, handler: () => boolean) => {listeners.add(handler); return {remove: () => listeners.delete(handler)};}}};
 }
-// Stubs written from screens/accounts, re-pointed for a module loaded from shell/ (the accounts route moved there).
+// Stubs written from pages/shared/accounts (the entry page), re-pointed for a module loaded from shell/ (the accounts route).
 const fromAccounts = (modules: Record<string, unknown>) => Object.fromEntries(Object.entries(modules).map(([key, value]) => {
   if (!key.startsWith('.')) return [key, value];
-  const path = posix.relative('src-next/shell', posix.join('src-next/screens/accounts', key));
+  const path = posix.relative('src-next/shell', posix.join('src-next/pages/shared/accounts', key));
   return [path.startsWith('.') ? path : `./${path}`, value];
 }));
 const shared = (back: Awaited<ReturnType<typeof backOwner>>) => ({
   react: {...React, default: React},
   'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: back.api, Platform: {OS: 'ios', isTV: true}, Dimensions: {get: () => ({width: 1920, height: 1080})}, NativeModules: {}, TVEventControl: {enableTVMenuKey: () => menuCalls.push('enable'), disableTVMenuKey: () => menuCalls.push('disable')}, View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
-  '../../../../../packages/i18n/src': {defaultI18n},
-  '../../../../../packages/client-core/src/route-identity': {routeOrigin},
-  '../../../../../packages/client-core/src/server-address': serverAddress,
-  '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'PIN refused'})},
-  '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},
-  '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
-  '../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../kit/Icon': {Icon: 'Icon'},
-  '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), remove: async () => {}}, offlineOwnerKey: () => 'owner'},
-  './sign-out-downloads': {removeCapturedDownloads: async () => 0},
-  '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
+  '../../../../../../packages/i18n/src': {defaultI18n},
+  '../../../../../../packages/client-core/src/route-identity': {routeOrigin},
+  '../../../../../../packages/client-core/src/server-address': serverAddress,
+  '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'PIN refused'})},
+  '../../../kit/theme': {useTheme: () => theme}, '../../../kit/states': {StateLayout: 'Layout'},
+  '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
+  '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/Icon': {Icon: 'Icon'},
+  '../../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), remove: async () => {}}, offlineOwnerKey: () => 'owner'},
+  '../../../screens/accounts/sign-out-downloads': {removeCapturedDownloads: async () => 0},
+  '../../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
     TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required', TVWhosWatching: 'WhosWatching', TVProfileSwitchPage: 'SwitchPage'},
-    '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
+    '../../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
 });
 
 test('TV entry Forgot PIN keeps the same account operation and returns to the same pad with empty boxes', async () => {
@@ -79,25 +79,25 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
   const menu = await screenModule(new URL('../src-next/platform/tv-menu.ts', import.meta.url), {
     react: shared(back).react, 'react-native': shared(back)['react-native'], './tv-menu-policy': {createTVMenuPolicy},
   });
-  const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), {'../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../shell/StartupBoot': {BootWaitLine: 'BootWaitLine'}, 
-    '../../platform/tv-menu': menu,
-    './tv-code-opening': tvCodeOpening,
-    './tv-approval-credentials': tvApprovalCredentials, './tv-approval-finalization': tvApprovalFinalization,
-    '../../../../../packages/client-core/src/join-link': joinLink, '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
-    '../../platform/qr-scanner': qrScanner, '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
-    ...shared(back), '../../../../../packages/client-core/src': {},
-    '../../../../../packages/client-core/src/sign-in': {},
-    '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
-    '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn},
-    '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
-    '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, 'react-native-qrcode-svg': {default: 'QR'},
-    '../../kit/accounts/DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, '../../pages/tv/accounts/NoServersPage': {NoServersPage: 'TVNoServers'}, '../../kit/accounts/EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, '../../pages/touch/accounts/OfflineServersPage': {OfflineServersPage: 'OfflineServers'}, '../../pages/tv/accounts/OfflineServersPage': {OfflineServersPage: 'TVOfflineServers'}, '../../pages/touch/accounts/AccountWorkspacePage': {AccountWorkspacePage: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, '../../pages/touch/accounts/NoServersPage': {NoServersPage: 'PhoneNoServers'}, '../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
-    './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
-    '../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../pages/touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../pages/touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'},
-    '../../../../../packages/client-core/src/password-strength': passwordPolicy,
-    '../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    '../../pages/touch/accounts/SetupPage': {SetupPage: 'NativeSetup'},
-    './directory-chooser': {directoryRows: () => [], directoryFailure: () => 'other', directoryOfflineBody: () => ({key: 'web.chooser.unreachableBodyNever'})},
+  const {AccountEntryPage: AccountEntry} = await screenModule(new URL('../src-next/pages/shared/accounts/AccountEntryPage.tsx', import.meta.url), {'../../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../../shell/StartupBoot': {BootWaitLine: 'BootWaitLine'}, 
+    '../../../platform/tv-menu': menu,
+    '../../../screens/accounts/tv-code-opening': tvCodeOpening,
+    '../../../screens/accounts/tv-approval-credentials': tvApprovalCredentials, '../../../screens/accounts/tv-approval-finalization': tvApprovalFinalization,
+    '../../../../../../packages/client-core/src/join-link': joinLink, '../../../../../../packages/client-core/src/short-invitation-code': invitationCode,
+    '../../../platform/qr-scanner': qrScanner, '../../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
+    ...shared(back), '../../../../../../packages/client-core/src': {},
+    '../../../../../../packages/client-core/src/sign-in': {},
+    '../../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
+    '../../../platform/account-work': accountWork, '../../../platform/accounts': {nativeAccounts: {}}, '../../../platform/server-sign-in': {NativeServerSignIn: SignIn},
+    '../../../platform/portico-sign-in': {}, '../../../platform/server-connections': {browseNearby: async () => []},
+    '../../../platform/tv-sign-in': {}, '../../../platform/account-authority': {}, 'react-native-qrcode-svg': {default: 'QR'},
+    '../../../kit/accounts/DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, '../../../screens/accounts/directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, '../../tv/accounts/NoServersPage': {NoServersPage: 'TVNoServers'}, '../../../kit/accounts/EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, '../../touch/accounts/OfflineServersPage': {OfflineServersPage: 'OfflineServers'}, '../../tv/accounts/OfflineServersPage': {OfflineServersPage: 'TVOfflineServers'}, '../../touch/accounts/AccountWorkspacePage': {AccountWorkspacePage: 'PhoneAccountWorkspace'}, '../../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, '../../touch/accounts/NoServersPage': {NoServersPage: 'PhoneNoServers'}, '../../../kit/accounts/PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'},
+    '../../../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../../touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
+    '../../../kit/accounts/PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, '../../touch/accounts/MovePasswordPage': {MovePasswordPage: 'MovePassword'}, '../../touch/accounts/MoveCodePage': {MoveCodePage: 'MoveCode'}, '../../touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'},
+    '../../../../../../packages/client-core/src/password-strength': passwordPolicy,
+    '../../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
+    '../../touch/accounts/SetupPage': {SetupPage: 'NativeSetup'},
+    '../../../screens/accounts/directory-chooser': {directoryRows: () => [], directoryFailure: () => 'other', directoryOfflineBody: () => ({key: 'web.chooser.unreachableBodyNever'})},
   });
   let tree: any;
   const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {calls.push('complete');}});});
@@ -168,7 +168,7 @@ test('TV profile-switch hand-off preserves its current family, selection control
     ...fromAccounts(shared(back)), '../platform/account-work': accountWork, '../platform/accounts': {nativeAccounts: {}}, '../platform/app-session-storage': {},
     '../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../screens/accounts/downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, '../screens/accounts/AccountEntry': {AccountEntry: 'Entry'}, '../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
+    }}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../screens/accounts/downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, '../pages/shared/accounts/AccountEntryPage': {AccountEntryPage: 'Entry'}, '../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
     '../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../platform/account-authority': {hostedUrl: 'https://hosted.test'},
@@ -258,7 +258,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
     ...fromAccounts(shared(back)), '../platform/account-work': accountWork, '../platform/accounts': {nativeAccounts: {}}, '../platform/app-session-storage': {},
     '../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../screens/accounts/downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, '../screens/accounts/AccountEntry': {AccountEntry: 'Entry'}, '../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
+    }}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../screens/accounts/downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, '../pages/shared/accounts/AccountEntryPage': {AccountEntryPage: 'Entry'}, '../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, '../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../pages/touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
     '../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../platform/account-authority': {hostedUrl: 'https://hosted.test'},
