@@ -401,6 +401,8 @@ export function parseEntry(v: unknown): QueueEntry {
   const images = obj(v.images) ? v.images : {};
   const episode = kind === 'episode', song = kind === 'track';
   const entry: QueueEntry = Object.freeze({entryId: id(v.entryId, 'entry id'), position: num(v.position), itemId: available ? id(v.itemId, 'item id') : typeof v.itemId === 'string' ? v.itemId : '', kind, title: str(v.title), durationMs: optNum(v.durationMs), available,
+    // The entry's own library (server 21 Nov): what Now Playing's favourite read and per-title actions address.
+    ...(typeof v.libraryId === 'string' && v.libraryId ? {libraryId: id(v.libraryId, 'library id')} : {}),
     ...(episode && rootId ? {showId: rootId} : {}), ...(episode && parentId ? {seasonId: parentId} : {}),
     ...(episode && index !== undefined ? {episode: Object.freeze({seasonNumber: parentIndex ?? 0, number: index})} : {}),
     ...(song && parentId ? {albumId: parentId} : {}), ...(song && parentTitle ? {album: parentTitle} : {}),
