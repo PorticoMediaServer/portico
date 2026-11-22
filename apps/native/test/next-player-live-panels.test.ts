@@ -32,7 +32,7 @@ for (const [name, window, expectedPane, expectedPicture] of [
     '../../platform/layout/player-presentation': {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs}, '../../platform/platformPosture': {usePlatformPosture: () => posture},
     '../../kit/useMotion': {useMotion: () => ({reduce: true})}, '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined}, '../../kit/focus': {useOptionalFocusRegistry: () => undefined}, '../../kit/useScreenReader': {useScreenReader: () => false},
     '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'Transition', TVPanelSlide: 'Slide', TVPanelScrim: 'Scrim', useTVPanelPresence: () => ({open: false})},
-    './WatchChrome': {NativeWatchChrome: 'Chrome'}, './picture-slot': {NativeWatchPicture: 'Picture'}, './HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
+    './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'}, './HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: subscribe}, './tv-presentation': {nativeWatchTVPresentation},
     '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: subscribe},
   });
@@ -88,10 +88,10 @@ test('mobile live More opens the current real menu, details and series sheet wit
   let sheet: any = {id: 1, kind: 'more', offer: {channel: {kind: 'live', recordAvailable: true, name: 'Summit Sports', favorite: false}, programme: {title: 'Mountain Stage'}}, lifetime: {isCurrent: () => current}, port: {recordings: {}}};
   let state: any = {sheet, busy: false};
   const actions = {subscribe, getSnapshot: () => state, close: (value: unknown) => calls.push(['close', value]), series: (value: unknown) => calls.push(['series', value]), favorite: (value: unknown) => calls.push(['favorite', value]), details: (value: unknown) => calls.push(['details', value]), seriesCreated: (value: unknown) => calls.push(['created', value])};
-  const {NativeLiveActionPanels} = await screenModule(new URL('../src-next/screens/watch/LiveActionPanels.tsx', import.meta.url), {
+  const {NativeLiveActionPanels} = await screenModule(new URL('../src-next/kit/player/LiveActionPanels.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text'}, '../../../../../packages/client-core/src/guide/legacy-source': {legacyChannel: (value: unknown) => value, legacyProgramme: (value: unknown) => value},
-    '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/states': {StateView: 'State'}, '../../kit/theme': {useTheme: () => theme},
-    '../../kit/live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../settings-live/LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRuleSheet'},
+    '../overlays': {Dialog: 'Dialog', Menu: 'Menu'}, '../states': {StateView: 'State'}, '../theme': {useTheme: () => theme},
+    '../live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../../screens/settings-live/LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRuleSheet'},
   });
   const render = () => h.render(() => NativeLiveActionPanels({actions, context: {playback: {subscribe, getSnapshot: () => ({})}}, runtime: {text: {t}, reportError: assert.fail}}));
   const menu = render();assert.equal(menu.type, 'Menu');assert.equal(menu.props.description, 'Mountain Stage');assert.deepEqual(menu.props.items.map((item: any) => item.id), ['series', 'favorite', 'details']);

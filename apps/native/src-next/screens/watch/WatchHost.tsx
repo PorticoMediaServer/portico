@@ -22,7 +22,7 @@ import type {NativeWatchOutletPort} from '../../shell/watch-outlet';
 import {NativeWatchChrome, type NativeWatchChromeProps} from './WatchChrome';
 import {PlaybackWaiting} from '../../kit/states/PlaybackWaiting';
 import {playbackWaiting} from '../../../../../packages/client-core/src/presentation/playback-waiting';
-import {NativeWatchPicture} from './picture-slot';
+import {NativeWatchPicture} from '../../shell/watch-picture';
 import {NativeHandheldMiniGuide} from './HandheldMiniGuide';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from './live-guide';
 import {nativeWatchTVPresentation} from './tv-presentation';

@@ -48,7 +48,7 @@ const {createNativeWatchModule, nativeWatchChromeFacts} = await screenModule(new
   './WatchPanels': {NativeWatchPanels: 'Panels'}, './panel-options': {NativeWatchPanelOptions: class {dispose() {optionsDisposed++;}}},
   './live-guide': {NativeTVLiveGuide: class {guideAction() {return () => {};} close() {return false;} dispose() {}}},
   './live-actions': {NativeTVLiveActions: class {close() {return false;} dispose() {}}},
-  './LiveActionPanels': {NativeLiveActionPanels: 'LiveActionPanels'}, './PlaybackFailed': {NativePlaybackFailed: 'PlaybackFailed'},
+  '../../kit/player/LiveActionPanels': {NativeLiveActionPanels: 'LiveActionPanels'}, './PlaybackFailed': {NativePlaybackFailed: 'PlaybackFailed'},
   './HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldPlaybackFailed'}, '../../kit/player/WatchPostPlay': {NativeWatchPostPlay: 'PostPlay'},
   './factory': {createNativeWatchScreens: (ports: any) => {captured = ports; return {title: {render: () => 'title'}, watch: {
     render: (runtime: any) => ports.player.chrome(ports.playback.getSnapshot(), runtime), body: () => 'body', back: () => true,
