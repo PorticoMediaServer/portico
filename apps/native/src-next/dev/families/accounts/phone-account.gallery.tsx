@@ -9,6 +9,7 @@ import {useTheme} from '../../../kit/theme';
 import {SignInPage} from '../../../pages/touch/accounts/SignInPage';
 import {PhoneFindServer, type FoundServer} from '../../../screens/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../../pages/touch/accounts/ServerSignInPage';
+import {MovePasswordPage} from '../../../pages/touch/accounts/MovePasswordPage';
 
 // The phone and tablet sign-in screens (auth.html frames 4, 5 and 6) in the states the review desk signs against:
 // at rest, filled, long values, busy and error. Each case is the whole screen, so it cancels the Kit window's gutter.
@@ -21,6 +22,16 @@ function Whole({children}: {children: React.ReactNode}) {
   return <View style={{flex: 1, marginHorizontal: -theme.gutter}}>{children}</View>;
 }
 const wrong = () => <FormError placement="block">{presentError(Object.assign(new Error('invalid'), {code: 'password_wrong'}), 'sign-in').body}</FormError>;
+
+/** A move client held at its password step, for the frame only: it never proves anything. */
+function MovePassword({busy = false, error = false}: {busy?: boolean; error?: boolean}) {
+  // One snapshot for the frame's life: the store must hand back the same object until it changes.
+  const [controller] = useState(() => {
+    const snapshot = {phase: 'password', busy, error: error ? Object.assign(new Error('invalid'), {code: 'password_wrong'}) : null};
+    return {subscribe: () => noop, getSnapshot: () => snapshot, proveOldPassword: async () => {}, cancel: noop};
+  });
+  return <Whole><MovePasswordPage controller={controller as never} serverName="Portico demo" onBack={noop}/></Whole>;
+}
 
 function Welcome({username = '', password = '', busy = false, notice = false}: {username?: string; password?: string; busy?: boolean; notice?: boolean}) {
   const [user, setUser] = useState(username), [secret, setSecret] = useState(password);
@@ -62,6 +73,9 @@ const galleries: readonly Gallery[] = [
   {id: 'phone-account-find-long', title: T, platforms: P, screen: true, render: () => <Find found={nearby(true)} address={fixture['next.controls.native.fixture.longAddress']}/>},
   {id: 'phone-account-find-empty', title: T, platforms: P, screen: true, render: () => <Find found={[]}/>},
   {id: 'phone-account-find-error', title: T, platforms: P, screen: true, render: () => <Find found={[]} failed error address="192.168.1.99:32500"/>},
+  {id: 'phone-account-move-password', title: T, platforms: P, screen: true, render: () => <MovePassword/>},
+  {id: 'phone-account-move-password-busy', title: T, platforms: P, screen: true, render: () => <MovePassword busy/>},
+  {id: 'phone-account-move-password-error', title: T, platforms: P, screen: true, render: () => <MovePassword error/>},
   {id: 'phone-account-local', title: T, platforms: P, screen: true, render: () => <Local/>},
   {id: 'phone-account-local-filled', title: T, platforms: P, screen: true, render: () => <Local username={user} password={secret}/>},
   {id: 'phone-account-local-long', title: T, platforms: P, screen: true, render: () => <Local serverName={fixture['next.controls.native.fixture.longServerName']}
