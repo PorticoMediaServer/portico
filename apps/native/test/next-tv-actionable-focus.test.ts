@@ -649,7 +649,7 @@ test('actual Search registration keeps equal-value retained genre R1/R2 focus ro
     '../screens/search/on-now': {NativeSearchOnNow: class {dispose() {}}},...stackSlotFixture, react: b.react, 'react-native': b.native,
     './route-registry': {nativeShellRoutes: {registerRoute() {}, registerDestination() {}}}, '../screens/destinations/lifetime': {nativeDestinationLifetime: () => ({current: () => true})},
     '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}, menuState: {subscribe: () => () => {}, getSnapshot: () => 0}})},
-    '../screens/search/controller': {}, '../screens/search/actions': {}, '../screens/search/explore': {}, '../screens/search/selection': {}, './search-page': {SearchPageFor: 'SearchPageFor'}, '../pages/touch/search/AllGenresPage': {}, '../pages/tv/search/AllGenresPage': {}, '../screens/search/reading-register': {},
+    '../screens/search/controller': {}, '../screens/search/actions': {}, '../screens/search/explore': {}, '../screens/search/selection': {}, './search-page': {SearchPageFor: 'SearchPageFor'}, '../pages/touch/search/AllGenresPage': {}, '../pages/tv/search/AllGenresPage': {}, './reading-search-route': {},
     '../screens/search/navigation': {createNativeSearchGenreController: (_: any, route: any) => {
       const snapshot = {phase: 'ready', capabilities: {library: {kind: 'movie'}, sorts}, sort, predicates: [], collection, queryRevision: 0};
       return {source: {subscribe: () => () => {}, getSnapshot: () => snapshot, getMemory: () => ({firstVisibleIndex: 0, offset: 0}), contains: () => false,

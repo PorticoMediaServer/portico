@@ -1,13 +1,13 @@
-import {useNativeStackHosted, useNativeStackPlacement} from '../../kit/navigation/stack-slot';
+import {useNativeStackHosted, useNativeStackPlacement} from '../kit/navigation/stack-slot';
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {Platform, View} from 'react-native';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativeShellRoute} from '../../shell/routes';
-import type {NativeRouteRenderer} from '../../shell/route-registry';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import {createNativeReadingSearch, type NativeReadingSearchPort, type ReadingSearchOpening} from './reading-search';
-import {ReadingSearchPage} from '../../pages/touch/read/ReadingSearchPage';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeShellRuntime} from './runtime';
+import type {NativeShellRoute} from './routes';
+import type {NativeRouteRenderer} from './route-registry';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import {createNativeReadingSearch, type NativeReadingSearchPort, type ReadingSearchOpening} from '../screens/search/reading-search';
+import {ReadingSearchPage} from '../pages/touch/read/ReadingSearchPage';
 
 type SearchRoute = Extract<NativeShellRoute, {kind: 'search-reading'}>;
 type Entry = Readonly<{route: SearchRoute; key: number; port: NativeReadingSearchPort}>;

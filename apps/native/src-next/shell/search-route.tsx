@@ -20,7 +20,7 @@ import {CoveredLayer} from '../kit/focus';
 import {AllGenresPage} from '../pages/touch/search/AllGenresPage';
 import {AllGenresPage as TVAllGenresPage} from '../pages/tv/search/AllGenresPage';
 import {createNativeSearchSelection} from '../screens/search/selection';
-import {createNativeReadingSearchModule} from '../screens/search/reading-register';
+import {createNativeReadingSearchModule} from './reading-search-route';
 import {authorityKey} from './model';
 
 type Root = Readonly<{route: NativeShellRoute; key: number; focusScope: string; search: ReturnType<typeof createNativeSearchController>;
