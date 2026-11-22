@@ -14,7 +14,7 @@ import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {ProfileAvatarFace} from '../../kit/shell/AccountSurfaces';
 import {CountdownRing} from '../../kit/states';
-import {LocalServerAddress, ServerSwitcher} from '../../kit/accounts/ServerSwitcher';
+import {LocalServerAddress} from '../../kit/accounts/ServerSwitcher';
 import {currentServedServerOrigin} from '../../platform/served-origin';
 import wordmark from '../../shell/wordmark.svg';
 import {AccountSignInView} from './AccountSignInView';
@@ -191,14 +191,6 @@ export function MobileServerChooser({rows, initial, attempt, busy = false, notic
   </section>;
 }
 
-function useNarrowViewport() {
-  const subscribe = useCallback((listener: () => void) => {
-    const query = matchMedia('(max-width: 700px)');
-    query.addEventListener('change', listener);
-    return () => query.removeEventListener('change', listener);
-  }, []);
-  return useSyncExternalStore(subscribe, () => matchMedia('(max-width: 700px)').matches, () => false);
-}
 function initialOf(name: string | undefined) {
   const trimmed = name?.trim(), first = trimmed ? Array.from(trimmed)[0] : undefined;
   return first?.toLocaleUpperCase();
@@ -224,7 +216,6 @@ function ServersScreen() {
 function BoundServers({entry, form}: {entry: BrowserAccountEntry; form: AccountSignInForm}) {
   const state = useSyncExternalStore(entry.subscribe, entry.getSnapshot);
   const signedIn = useSyncExternalStore(porticoAccountHolder.subscribe, porticoAccountHolder.signedIn);
-  const narrow = useNarrowViewport();
   const [choices, setChoices] = useState<readonly SavedServerChoice[]>([]), [busy, setBusy] = useState(false), [working, setWorking] = useState(false), [error, setError] = useState<unknown>();
   const [mode, setMode] = useState<'chooser' | 'address' | 'entry'>(() => router.state.location.search.local === true ? 'address' : 'chooser'), [origin, setOrigin] = useState<string>();
   const [attempt, setAttempt] = useState<MobileChooserAttempt>();
@@ -355,19 +346,17 @@ function BoundServers({entry, form}: {entry: BrowserAccountEntry; form: AccountS
       const result = entry.getSnapshot();
       if (result.server && (result.phase === 'password' || result.phase === 'portico')) {setOrigin(result.origin); setMode('entry');}
     });}} />;
-  if (narrow) {
-    const rows = mobileChooserRows(choices, directory);
-    const presented = error ? presentError(error, 'sign-in', {operation: 'load'}) : undefined;
-    const notice = presented && !presented.silent ? presented.body : undefined;
-    const mobileAttempt = attempt ?? (busy && !rows.length ? {kind: 'loading'} as const : error && !rows.length ? {kind: 'loadFailed'} as const : undefined);
-    return <MobileServerChooser rows={rows} initial={initialOf(accountName)}
-      attempt={mobileAttempt} busy={busy || working} notice={notice}
-      onChoose={row => {retryDelay.current = 20; void openServer(row);}} onRefresh={() => {setAttempt(undefined); setError(undefined); void refresh();}}
-      onLocal={() => {form.clear(); entry.cancel(); setError(undefined); setMode('address');}} onDifferentAccount={rows.some(row => row.signIn === 'portico') ? differentAccount : undefined}
-      onCheckNow={checkNow} onOther={other} />;
-  }
-  return <ServerSwitcher choices={choices} busy={busy || working} error={error} onChoose={choice => void openServer(choice)} onRefresh={() => void refresh()}
-    onLocal={() => {form.clear(); entry.cancel(); setError(undefined); setMode('address');}} onClose={close} />;
+  // connect.html frames 1 and 6: the chooser is a page at every width (desktop draws the list on the page, never a
+  // dialog over an empty one).
+  const rows = mobileChooserRows(choices, directory);
+  const presented = error ? presentError(error, 'sign-in', {operation: 'load'}) : undefined;
+  const notice = presented && !presented.silent ? presented.body : undefined;
+  const mobileAttempt = attempt ?? (busy && !rows.length ? {kind: 'loading'} as const : error && !rows.length ? {kind: 'loadFailed'} as const : undefined);
+  return <MobileServerChooser rows={rows} initial={initialOf(accountName)}
+    attempt={mobileAttempt} busy={busy || working} notice={notice}
+    onChoose={row => {retryDelay.current = 20; void openServer(row);}} onRefresh={() => {setAttempt(undefined); setError(undefined); void refresh();}}
+    onLocal={() => {form.clear(); entry.cancel(); setError(undefined); setMode('address');}} onDifferentAccount={rows.some(row => row.signIn === 'portico') ? differentAccount : undefined}
+    onCheckNow={checkNow} onOther={other} />;
 }
 export default defineWebScreen({id: 'servers', component: ServersRoute, chrome: 'standalone', validateSearch: raw => ({...(raw.local === true || raw.local === 'true' ? {local: true} : {}),
   // O-161: the server a shared link names; the Hosted chooser opens it when this account can.

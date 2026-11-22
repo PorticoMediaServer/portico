@@ -9,7 +9,8 @@
   position: relative;
   min-height: 100svh;
   overflow: hidden;
-  background: var(--color-ink);
+  /* The app's cinematic backdrop shows through, as on every other page. */
+  background: none;
   color: var(--color-text);
   font-family: var(--font);
 }
@@ -52,3 +53,25 @@
 .stateButton { width: 100%; height: 48px; margin-bottom: 10px; border-radius: 11px; font-size: calc(var(--type-button-size) + 1px); }
 .otherLink { margin: 2px auto 0; font-size: calc(var(--type-body-size) - .5px); color: var(--color-text-tertiary); }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-top-color: color-mix(in srgb, var(--color-text) 16%, transparent); } }
+
+/* connect.html frame 1: from 701 the same page at desktop scale. The wordmark at the shell's gutter, the title (the 64 lockup)
+   and lede at the gutter, then a 640-wide list of 76 px rows, Refresh and the quiet links under it. */
+@media (min-width: 701px) {
+  .header { height: 76px; padding: 0 var(--shell-gutter); }
+  .header img { height: 20px; }
+  .content { padding: 124px var(--shell-gutter) 0; max-width: calc(820px + 2 * var(--shell-gutter)); }
+  .content h1 { margin-bottom: 16px; font-size: var(--type-lockup-long-size); line-height: var(--type-lockup-long-line); letter-spacing: var(--type-lockup-long-tracking); }
+  .lede { margin-bottom: 36px; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); }
+  .group, .refresh, .links { max-width: 640px; }
+  .group { background: none; overflow: visible; display: flex; flex-direction: column; gap: 10px; }
+  .row { min-height: 76px; padding: 0 20px 0 16px; gap: 16px; border-radius: 16px; background: var(--color-raised); font-size: var(--type-synopsis-size); }
+  .row + .row::before { display: none; }
+  .row:hover:not(:disabled) { background: var(--color-raised-high); }
+  .rowIcon { width: 44px; height: 44px; border-radius: 12px; }
+  .rowText small { font-size: var(--type-row-subtitle-size); }
+  .refresh { width: auto; margin-top: 24px; }
+  .links { flex-direction: row; align-items: center; gap: 28px; margin-top: 24px; }
+  .links button { font-size: var(--type-body-size); }
+  .state { padding: 0 var(--shell-gutter); }
+  .stateActions { max-width: 360px; }
+}
