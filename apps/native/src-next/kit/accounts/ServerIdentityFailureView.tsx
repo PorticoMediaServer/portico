@@ -30,7 +30,8 @@ export function ServerIdentityFailureView({failure, busy, confirm, onConfirmChan
       <View style={{marginTop: 'auto', height: 64, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-settings" size={30} color={theme.colors.textTertiary}/></View>
     </View> : <Image accessible accessibilityLabel={t('next.platform.appName')} source={require('../../../assets/wordmark.png')} resizeMode="contain" style={{position: 'absolute', left: 24, top: 64, width: 74, height: 17}}/>}
     <View style={{position: 'absolute', inset: 0, justifyContent: 'center', paddingHorizontal: tv ? 200 : 30}}>
-      <View style={{width: tv ? 1340 : undefined, alignItems: tv ? 'flex-start' : 'center'}}>
+      {/* A phone's or tablet's page is one centred column, no wider than reads well on a tablet; its buttons fill it. */}
+      <View style={{width: tv ? 1340 : undefined, maxWidth: tv ? undefined : 440, alignSelf: tv ? undefined : 'center', alignItems: tv ? 'flex-start' : 'center'}}>
         <View style={{width: tv ? 88 : 76, height: tv ? 88 : 76, borderRadius: tv ? 44 : 38, alignItems: 'center', justifyContent: 'center',
           marginBottom: tv ? 34 : 22, backgroundColor: tv ? `${theme.colors.text}1A` : `${color}1F`,
           ...(tv ? {borderWidth: 1, borderColor: `${theme.colors.text}1F`} : undefined)}}>{failure.changed ? <Icon name="i-shieldx" size={tv ? 40 : 34} color={color}/> :
@@ -41,9 +42,9 @@ export function ServerIdentityFailureView({failure, busy, confirm, onConfirmChan
         <Text style={[theme.type.identityBody,
           {color: theme.colors.textSecondary, maxWidth: tv ? 900 : undefined, textAlign: tv ? 'left' : 'center', marginBottom: tv ? 40 : 24}]}>{t(failure.changed ? 'connection.identity.changedBody' : 'portico.failure.identity.body')}</Text>
         <View style={{alignSelf: 'stretch', flexDirection: tv ? 'row' : 'column', gap: tv ? 28 : 10}}>
-          <Button disabled={busy} icon="i-retry" iconSize={tv ? 28 : undefined} preferredFocus onPress={onRetry} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('action.tryAgain')}</Button>
-          <Button disabled={busy} variant="glass" icon={tv ? 'i-server' : undefined} iconSize={tv ? 28 : undefined} onPress={onChoose} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('portico.landing.chooseAnother')}</Button>
-          {failure.changed && <Button ref={opener} disabled={busy} variant={tv ? 'glass' : 'text'} onPress={() => setConfirm(true)} style={tv ? undefined : {height: 36, marginTop: 4}}>{t('connection.identity.forget', {server: name})}</Button>}
+          <Button disabled={busy} icon="i-retry" iconSize={tv ? 28 : undefined} preferredFocus align={tv ? 'start' : 'stretch'} onPress={onRetry} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('action.tryAgain')}</Button>
+          <Button disabled={busy} variant="glass" icon={tv ? 'i-server' : undefined} iconSize={tv ? 28 : undefined} align={tv ? 'start' : 'stretch'} onPress={onChoose} style={tv ? undefined : {height: 48, borderRadius: 11}}>{t('portico.landing.chooseAnother')}</Button>
+          {failure.changed && <Button ref={opener} disabled={busy} variant={tv ? 'glass' : 'text'} align={tv ? 'start' : 'center'} onPress={() => setConfirm(true)} style={tv ? undefined : {height: 36, marginTop: 4}}>{t('connection.identity.forget', {server: name})}</Button>}
         </View>
       </View>
     </View>
