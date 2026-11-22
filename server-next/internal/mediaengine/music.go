@@ -126,6 +126,10 @@ func (e *Engine) musicPlan(ctx context.Context, r playback.PlanRequest, request 
 			break
 		}
 	}
+	// What the file holds against what plays (music's signal line, "FLAC 24/96").
+	if info := plan.PlaybackInfo(); info != nil {
+		out.PlaybackInfo, _ = json.Marshal(info)
+	}
 	// What the app is shown before the stream has an address; the stream's own copy has them.
 	out.AudioRender, _ = json.Marshal(plan)
 	sum := sha256.Sum256(append(append([]byte("music\x00"), out.AudioRender...), []byte(path)...))

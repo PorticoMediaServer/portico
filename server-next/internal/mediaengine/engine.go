@@ -649,6 +649,13 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		BitrateKbps: (plan.VideoBitrateBPS + plan.AudioBitrateBPS) / 1000, Quality: q, Notice: notice,
 		Audio:  &playback.Decision{Action: action(plan.AudioAction), Reasons: plan.ReasonCodes, To: plan.OutputAudioCodec, Channels: plan.AudioChannels},
 		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID, strmFileID: r.Version.FileID, parts: parts, disc: disc}}
+	// What the file holds against what plays here (the player's info sheet, music's signal line
+	// "FLAC 24/96"), from the plan just committed; nothing when the planner traced nothing.
+	if info := streaming.PlaybackInfoForPlan(plan, nil); info != nil {
+		if raw, err := json.Marshal(info); err == nil {
+			out.PlaybackInfo = raw
+		}
+	}
 	if plan.Strategy == streaming.DeliveryOriginal {
 		out.Mode, out.Audio.Action = "direct", "direct"
 		out.Audio.Reasons, out.Audio.To = nil, ""
