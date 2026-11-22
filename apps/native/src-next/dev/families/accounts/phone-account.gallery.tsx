@@ -9,6 +9,7 @@ import {useTheme} from '../../../kit/theme';
 import {SignInPage} from '../../../pages/touch/accounts/SignInPage';
 import {PhoneFindServer, type FoundServer} from '../../../screens/accounts/PhoneFindServer';
 import {ServerSignInPage} from '../../../pages/touch/accounts/ServerSignInPage';
+import {PhoneAccountMoveNotice, type PhoneAccountMoveNoticeState} from '../../../kit/accounts/PhoneAccountMoveNotice';
 
 // The phone and tablet sign-in screens (auth.html frames 4, 5 and 6) in the states the review desk signs against:
 // at rest, filled, long values, busy and error. Each case is the whole screen, so it cancels the Kit window's gutter.
@@ -50,6 +51,11 @@ function Local({serverName = 'Portico demo', address = '192.168.1.20:32500', use
     links={<Button variant="link" onPress={noop}>{t('auth.forgotPassword')}</Button>}/></Whole>;
 }
 
+function Move({state, busy = false}: {state: PhoneAccountMoveNoticeState; busy?: boolean}) {
+  return <Whole><PhoneAccountMoveNotice state={state} busy={busy}/></Whole>;
+}
+const moveServer = 'Portico demo', longServer = fixture['next.controls.native.fixture.longServerName'];
+
 const user = fixture['next.controls.native.fixture.username'], secret = fixture['next.controls.native.fixture.password'];
 const galleries: readonly Gallery[] = [
   {id: 'phone-account-welcome', title: T, platforms: P, screen: true, render: () => <Welcome/>},
@@ -68,5 +74,12 @@ const galleries: readonly Gallery[] = [
     address={fixture['next.controls.native.fixture.longAddress']} username={fixture['next.controls.native.fixture.longUsername']} password={secret}/>},
   {id: 'phone-account-local-busy', title: T, platforms: P, screen: true, render: () => <Local busy username={user} password={secret}/>},
   {id: 'phone-account-local-error', title: T, platforms: P, screen: true, render: () => <Local error username="nana" password={secret}/>},
+  {id: 'phone-account-move-linked', title: T, platforms: P, screen: true, render: () => <Move state={{kind: 'linked', onChooseProfile: noop}}/>},
+  {id: 'phone-account-move-to-portico', title: T, platforms: P, screen: true, render: () => <Move state={{kind: 'to-portico', serverName: moveServer, onContinue: noop, onCreateAccount: noop}}/>},
+  {id: 'phone-account-move-to-local', title: T, platforms: P, screen: true, render: () => <Move state={{kind: 'to-local', serverName: moveServer, onEnterCode: noop, onChooseServer: noop}}/>},
+  {id: 'phone-account-move-collision', title: T, platforms: P, screen: true, render: () => <Move state={{kind: 'collision', details: {serverName: moveServer, existingUsername: user}, onDifferentAccount: noop, onBack: noop}}/>},
+  {id: 'phone-account-move-confirm-long', title: T, platforms: P, screen: true, render: () => <Move state={{kind: 'confirm', serverName: longServer,
+    username: fixture['next.controls.native.fixture.longUsername'], account: user, onMove: noop, onNotYou: noop, onCancel: noop}}/>},
+  {id: 'phone-account-move-busy', title: T, platforms: P, screen: true, render: () => <Move busy state={{kind: 'to-portico', serverName: moveServer, onContinue: noop, onCreateAccount: noop}}/>},
 ];
 export default galleries;

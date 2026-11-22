@@ -3,9 +3,9 @@ import {Image, ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {MoveCollisionDetails} from '../../../../../packages/client-core/src/account-move';
-import {Button} from '../../kit/controls';
-import {Icon, type IconName} from '../../kit/Icon';
-import {nativeType, useTheme} from '../../kit/theme';
+import {Button} from '../controls';
+import {Icon, type IconName} from '../Icon';
+import {useTheme} from '../theme';
 
 /** These are confirmed controller outcomes, never a result inferred from a tap.
  * Credential entry, grant adoption and profile selection stay with their owners. */
@@ -48,12 +48,10 @@ export function PhoneAccountMoveNotice({state, busy = false}: {state: PhoneAccou
           <View pointerEvents="none" style={{position: 'absolute', inset: -10, borderRadius: 48, borderWidth: 10, borderColor: `${color}0D`}}/>
           <Icon name={icon} size={34} color={color}/>
         </View>
-        <Text accessibilityRole="header" style={[nativeType({size: 26, lineHeight: 29.12, weight: 800, tracking: -.03}, theme.textScale),
-          {color: theme.colors.text, textAlign: 'center', marginBottom: 10}]}>{title}</Text>
-        <Text style={[nativeType({size: 15, lineHeight: 22.5, weight: 400, tracking: 0}, theme.textScale),
-          {color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 24}]}>{body}</Text>
-        <Button disabled={busy} loading={busy || undefined} onPress={action.press}
-          style={{alignSelf: 'stretch', height: 48, borderRadius: 11, marginBottom: 10}} textStyle={{fontSize: 16 * theme.textScale}}>{action.label}</Button>
+        <Text accessibilityRole="header" style={[theme.type.moveNoticeTitle, {color: theme.colors.text, textAlign: 'center', marginBottom: 10}]}>{title}</Text>
+        <Text style={[theme.type.accountLede, {color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 24}]}>{body}</Text>
+        <Button size="episode" disabled={busy} loading={busy || undefined} onPress={action.press}
+          style={{alignSelf: 'stretch', marginBottom: 10}}>{action.label}</Button>
         {secondary && <Button variant="link" disabled={busy} onPress={secondary.press} style={{alignSelf: 'stretch'}}>{secondary.label}</Button>}
       </View>
     </ScrollView>
