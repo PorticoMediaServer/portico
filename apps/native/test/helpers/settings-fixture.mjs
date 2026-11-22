@@ -12,6 +12,11 @@ export async function settingsFixture(previous) {
     modules[revised] = value;
   }
   modules['react-native'] = {Keyboard: {dismiss() {}}, ...modules['react-native']};
+  // A stub for a module that now lives beside these pages (pages/shared/settings) also answers their sibling import.
+  for (const [path, value] of Object.entries(modules)) {
+    const sibling = /^\.\.\/\.\.\/\.\.\/pages\/shared\/settings\/([^/]+)$/.exec(path)?.[1];
+    if (sibling) modules[`./${sibling}`] ??= value;
+  }
   // This device's playback rows now come from pages/shared/settings/DevicePlaybackRows (components) and useDeviceRows
   // (focus ids, Safe mode availability); the tests' per-row stubs are merged into those two modules.
   const rowStubs = Object.entries(modules).filter(([path]) => /screens\/settings-live\/Native(SafeMode|ApplePassthrough|FrameRate|Passthrough|DynamicRange|LossNotices)Row$/.test(path)).map(([, value]) => value);
