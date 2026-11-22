@@ -68,3 +68,18 @@ test('a sheet that is still running its exit counts as leaving: a confirmation w
   await menu.set(true, false); await act(() => menu.view.now.onDismiss()); await menu.set(false);
   assert.equal(sheet.view.now.visible, true);
 });
+
+test('on iOS a picker mounted in the same commit as the menu that opened it closing still waits for the menu to leave', async () => {
+  const {menu, sheet} = await presence('ios');
+  await menu.host.mount(); await sheet.host.mount();
+  await menu.set(true); assert.equal(menu.view.now.visible, true);
+  // Search › a song's ⋯ › Add to playlist…: the item closes the menu and opens the picker in one state update, so both
+  // render before either's effects run (iPhone: the picker never appeared and its empty Modal blocked every tap).
+  menu.view.shown = false; sheet.view.present = true; sheet.view.shown = true;
+  await act(() => {menu.host.rerender(); sheet.host.rerender();});
+  assert.equal(menu.view.now.visible, false);
+  assert.equal(sheet.view.now.visible, false, 'not presented in the commit that starts the menu\'s dismissal');
+  await act(() => menu.view.now.onDismiss());
+  await menu.set(false);
+  assert.equal(sheet.view.now.visible, true, 'presented once the menu has gone');
+});

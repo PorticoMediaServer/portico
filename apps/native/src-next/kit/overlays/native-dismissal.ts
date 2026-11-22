@@ -53,7 +53,8 @@ export function useNativeDismissal(onGone: () => void, wait = LAYER_FOCUS_WAIT_M
  * before it has finished leaving: UIKit can't present a view controller that is still being dismissed, and flipping
  * `visible` back does not cancel the dismissal. A report while its presentation is shown is UIKit's own Menu dismissal
  * of it (D16): its close then has nothing left to wait for. A presentation whose dismissal is never reported is
- * retired by the fallback; it then blocks nothing, and its report, if it ever comes, is ignored.
+ * retired by the fallback; it then blocks nothing, and its report, if it ever comes, is ignored. On iOS a new
+ * presentation is asked one commit after it is wanted, so a leaving one registered in the same commit is seen first.
  */
 type Presentation = Readonly<{
   /** The current presentation (0 before the first). */
@@ -82,7 +83,13 @@ export function useNativeModalPresence(present: boolean, shown = present, wait =
   // A new presentation also waits while another overlay's Modal is still leaving (iOS); its own leaving is not counted.
   const own = useRef<object | null>(null);
   const others = useSyncExternalStore(subscribeLeaving, leavingCount, leavingCount) - (own.current ? 1 : 0);
-  const ask = shown && present && !state.leaving && (state.shown || !ios || others === 0);
+  // A new presentation on iOS asks only after one commit has passed with it wanted: a menu item that closes its menu
+  // and opens a picker does both in one commit, and the menu's leaving is registered in that commit's effects, after
+  // this render. Asking at once presented the picker under the menu's dismissal: UIKit dropped it and its empty Modal
+  // took every tap (iPhone, Search › ⋯ › Add to playlist…, a film's Add to collection…).
+  const wanted = shown && present && !state.leaving, [armed, setArmed] = useState(false);
+  useEffect(() => {if (wanted !== armed) setArmed(wanted);}, [wanted, armed]);
+  const ask = wanted && (state.shown || !ios || armed && others === 0);
   if (ask !== state.shown) {
     now = ask ? {token: state.token + 1, shown: true, leaving: false, gone: false} // a new presentation
       : {...state, shown: false, leaving: ios && !state.gone, gone: false}; // its dismissal starts
