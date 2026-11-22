@@ -56,11 +56,11 @@ test('season focus and accessibility activation agree, current seasons avoid rel
 test('a focused empty credits host advances cast to crew, stops on blur/loading, and leaves failures for Retry', async () => {
   const h = hooks(), effects: (() => void)[] = [], react: any = {...h.react}; react.default = react;
   react.useEffect = (effect: () => void, deps: any[]) => {const before = h.react.useRef(undefined); if (!before.current || deps.some((value, index) => value !== before.current[index])) {before.current = deps; effects.push(effect);}};
-  const {TitlePeople} = await screenModule(new URL('../src-next/screens/watch/TitlePeople.tsx', import.meta.url), {
-    react, 'react-native': native, '../../kit/artwork': {Artwork: 'Artwork', PersonCircle: 'PersonCircle'},
+  const {TitlePeople} = await screenModule(new URL('../src-next/kit/title/TitlePeople.tsx', import.meta.url), {
+    react, 'react-native': native, '../artwork': {Artwork: 'Artwork', PersonCircle: 'PersonCircle'},
     '../../tv/layout/TVShelf': {TVShelf: 'TVShelf', tvItemKey: (entry: any) => entry.id}, '../../tv/layout/TVArtFocus': {TVArtFocus: 'TVArtFocus'},
-    '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/states': {SkeletonBlock: 'SkeletonBlock'},
-    '../../../../../packages/i18n/src': i18n, '../../kit/theme': {useTheme: () => theme, fontFamilies: {}, nativeType: () => ({})},
+    '../controls': {Focusable: 'Focusable'}, '../focus': {FocusRegion: 'FocusRegion'}, '../states': {SkeletonBlock: 'SkeletonBlock'},
+    '../../../../../packages/i18n/src': i18n, '../theme': {useTheme: () => theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../shell/visual': {shellType: () => ({})},
   });
   let requests = 0, paging: any = {hasMore: true, loading: false, waitingId: 'actual-cast-first', requestNext: () => {requests++;}};
   const render = () => {const tree = h.render(() => TitlePeople({credits: [], artwork() {}, focus: {id: 'credits'}, paging})); effects.splice(0).forEach(effect => effect()); return nodes(tree);};
