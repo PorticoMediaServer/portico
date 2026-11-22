@@ -55,7 +55,7 @@ import {NativeAccountWorkspace} from '../../platform/account-workspace';
 import {OfflineServers} from './OfflineServers';
 import {NoServersPage as TVNoServersPage} from '../../pages/tv/accounts/NoServersPage';
 import {OfflineServersPage as TVOfflineServersPage} from '../../pages/tv/accounts/OfflineServersPage';
-import {PhoneAccountMoveNotice} from './PhoneAccountMoveNotice';
+import {PhoneAccountMoveNotice} from '../../kit/accounts/PhoneAccountMoveNotice';
 import {MovePasswordPage} from '../../pages/touch/accounts/MovePasswordPage';
 import {PhoneMoveCode} from './PhoneMoveCode';
 import {EndedMoveCodeAction} from '../../kit/accounts/EndedMoveCodeAction';
