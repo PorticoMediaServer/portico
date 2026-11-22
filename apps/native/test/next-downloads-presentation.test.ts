@@ -126,7 +126,7 @@ test('Remove from this phone asks first with the shared confirm, and removes onl
     './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
     './useReadingFacts': await screenModule(new URL('../src-next/screens/downloads/useReadingFacts.ts', import.meta.url), {react: {...React, default: React}}),
     '../../kit/saved/SavedForms': await screenModule(new URL('../src-next/kit/saved/SavedForms.tsx', import.meta.url), {
-      '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
+      '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
       react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
       '../controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'}, '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'},
       '../theme': {useTheme: () => theme}}),
@@ -182,7 +182,7 @@ test('Downloads rows use the shared hold/menu boundary with their actual native 
     './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
     './useReadingFacts': await screenModule(new URL('../src-next/screens/downloads/useReadingFacts.ts', import.meta.url), {react: {...React, default: React}}),
     '../../kit/saved/SavedForms': await screenModule(new URL('../src-next/kit/saved/SavedForms.tsx', import.meta.url), {
-      '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
+      '../focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../browse/presentation': {browseType: () => ({})}, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
       react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
       '../controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'}, '../overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'},
       '../theme': {useTheme: () => theme}}),

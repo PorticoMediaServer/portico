@@ -19,7 +19,7 @@ import {SearchHistory, TopResult} from '../../../kit/search';
 import {OwnerTag, SettingsRow} from '../../../kit/shell';
 import {FocusProvider} from '../../../kit/focus';
 import {useTheme} from '../../../kit/theme';
-import {NativeTVKeyboard} from '../../../screens/search/TVKeyboard';
+import {NativeTVKeyboard} from '../../../kit/search/TVKeyboard';
 import type {Gallery} from '../../gallery-registry';
 import {capability, labels} from '../browse/browse.gallery';
 import {Page, asset, libraries} from './frames.gallery';

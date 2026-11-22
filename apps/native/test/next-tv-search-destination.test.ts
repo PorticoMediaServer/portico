@@ -54,7 +54,7 @@ test('the actual TV Search caller binds genuine query, navigation activation and
   });
   const {TVSearchPage} = await screenModule(new URL('../src-next/pages/tv/search/SearchPage.tsx', import.meta.url), {
     react, '../../../kit/frames': {SearchFrame: 'SearchFrame'}, '../../../kit/search/TVSearchContent': content,
-    '../../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
+    '../../../kit/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
   });
   const props = {destination: {subscribe() {}, getSnapshot: () => state, setText: (text: string) => calls.push(text), refreshHistory: async () => {}},
     runtime: {text: defaultI18n, getSnapshot: () => ({authority}), registerScrollToTop: () => () => {}, reportError: () => {},
