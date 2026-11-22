@@ -156,14 +156,16 @@ export function LanguageList({label, value, available, limit, onChange, testID, 
 export type SubtitlePreviewPaint = Readonly<{scale: number; color: string; backgroundColor: string; edge: 'none' | 'outline' | 'shadow'; position: 'bottom' | 'raised' | 'top'}>;
 
 /** Audio & subtitles' preview: a 16:9 stage (an optional still behind it) with one caption line drawn in the chosen size,
- * colour, background and position. The line is 5.2% of the stage's height at Medium, the proportion web draws. */
+ * colour, background and position. The line is 5.2% of the stage's height at Medium, the proportion web draws. On TV the
+ * stage is tv-more 25's strip above the rows (190 high, the page's width, 20 above the rows) with the line at the player's own 30 at Medium,
+ * since a 16:9 stage at the page's width would fill the screen. */
 export function SubtitlePreview({paint, source, visible = true, testID}: {paint: SubtitlePreviewPaint; source?: ArtworkSource; visible?: boolean; testID?: string}) {
   const theme = useTheme(), [height, setHeight] = useState(0), line = defaultI18n.t('settings.subtitlePreview.line');
-  const cue = height * .052 * paint.scale;
+  const cue = (theme.isTV ? 30 : height * .052) * paint.scale;
   const place = paint.position === 'top' ? {top: '8%' as const} : {bottom: paint.position === 'raised' ? '17%' as const : '6.5%' as const};
   const edge = paint.edge === 'none' ? {} : {textShadowColor: theme.colors.shadow, textShadowOffset: {width: 0, height: paint.edge === 'shadow' ? 2 : 0}, textShadowRadius: paint.edge === 'shadow' ? 3 : 1.5};
   return <View testID={testID} accessibilityRole="image" accessibilityLabel={line} onLayout={event => setHeight(event.nativeEvent.layout.height)}
-    style={{width: '100%', maxWidth: theme.isTV ? undefined : 480, aspectRatio: 16 / 9, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.ink, borderWidth: 1, borderColor: theme.colors.line}}>
+    style={{width: '100%', maxWidth: theme.isTV ? undefined : 480, ...(theme.isTV ? {height: 190, marginBottom: 20} : {aspectRatio: 16 / 9}), borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.ink, borderWidth: 1, borderColor: theme.colors.line}}>
     {source && <Artwork source={source} visible={visible} position={{x: .5, y: .3}}/>}
     {height > 0 && <View pointerEvents="none" style={{position: 'absolute', left: '5%', right: '5%', alignItems: 'center', ...place}}>
       <Text allowFontScaling={false} style={[shellType(cue, 600, cue * 1.3), {color: paint.color, backgroundColor: paint.backgroundColor,
