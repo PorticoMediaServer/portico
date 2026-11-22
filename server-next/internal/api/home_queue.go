@@ -22,7 +22,7 @@ func (s *Server) prepareQueueSource(r *http.Request, source *playqueue.QueueSour
 		}
 		row = &playqueue.HomeRowSource{Library: views[0].Library}
 		viewQuery = views[0].Query
-		source.List = ""
+		source.SavedView, source.List = source.List, ""
 	} else if row.ID == "" {
 		return ErrField("source.homeRow.id", "Choose a Home row.")
 	}

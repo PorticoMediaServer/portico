@@ -373,11 +373,24 @@ export function parseQueue(v: unknown): QueueHeader {
     repeat: oneOf(v.repeat, ['off', 'one', 'all'] as const, 'off'),
     shuffle: v.shuffle === true ? Object.freeze({seed: '', lap: 0}) : undefined,
     refills: v.refills === true,
-    segments: Object.freeze([]),
+    segments: parseSegments(v.segments),
     next: Object.freeze(next ? {entryId: next, available: true, reason: 'ready' as const} : {entryId: null, available: false, reason: 'end' as const}),
     // The rest of what happens at the end is the player's, from the profile's settings.
     postPlay: Object.freeze({autoplay: true, countdownSeconds: 10, passoutCheckDue: v.passoutCheckDue === true, automaticAdvances: num(v.automaticAdvances), startDuringCredits: false}),
   });
+}
+
+/** What the queue plays from (server 22 Nov: one segment, what it was started with). A malformed
+ * segment is dropped alone: "Playing from" is a label, never a reason to refuse the queue. */
+function parseSegments(v: unknown): readonly QueueSegment[] {
+  if (!Array.isArray(v)) return Object.freeze([]);
+  const out: QueueSegment[] = [];
+  for (const raw of v.slice(0, 16)) {
+    if (!obj(raw) || typeof raw.id !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(raw.id) || out.some(s => s.id === raw.id)) continue;
+    const label = typeof raw.label === 'string' && raw.label.length <= 512 && !/[\x00-\x1f\x7f]/.test(raw.label) ? raw.label : '';
+    out.push(Object.freeze({id: raw.id, kind: oneOf(raw.kind, ['items', 'selector', 'radio', 'other'] as const, 'other'), label, count: 0, state: 'ready' as const}));
+  }
+  return Object.freeze(out);
 }
 
 /** An artwork address on this server's API, as the queue window gives it. */
@@ -406,6 +419,8 @@ export function parseEntry(v: unknown): QueueEntry {
     // The entry's own library (server 21 Nov): what Now Playing's favourite read and per-title actions address.
     // A hidden (unavailable) entry never offers its library, so a malformed one there is dropped, not fatal to the queue.
     ...(typeof v.libraryId === 'string' && v.libraryId ? available ? {libraryId: id(v.libraryId, 'library id')} : {} : {}),
+    // The queue segment it came with ("Playing from"); a malformed one is dropped, not fatal.
+    ...(typeof v.segmentId === 'string' && /^[A-Za-z0-9_.-]{1,128}$/.test(v.segmentId) ? {segmentId: v.segmentId} : {}),
     ...(episode && rootId ? {showId: rootId} : {}), ...(episode && parentId ? {seasonId: parentId} : {}),
     ...(episode && index !== undefined ? {episode: Object.freeze({seasonNumber: parentIndex ?? 0, number: index})} : {}),
     ...(song && parentId ? {albumId: parentId} : {}), ...(song && parentTitle ? {album: parentTitle} : {}),
