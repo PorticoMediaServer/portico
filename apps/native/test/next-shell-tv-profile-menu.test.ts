@@ -26,7 +26,7 @@ test('actual TV profile menu has ordered safe actions, member gating and no extr
   const {TVProfileMenu} = await screenModule(new URL('../src-next/shell/TVProfileMenu.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../packages/i18n/src': {defaultI18n},
     '../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})}, '../kit/artwork': {ProfileFace: 'Face'},
-    '../kit/overlays': {Menu: 'Menu'}, './tv-focus': {tvFocusIds},
+    '../kit/overlays': {Menu: 'Menu'}, './tv-focus': {tvFocusIds}, './tv-profile-return': await import('../src-next/shell/tv-profile-return.ts'),
   });
   const ref = {current: null};
   const snapshot = {authority, account: two, profile: {id: 'profile', name: 'Demo'}, serverName: 'Actual server', unreadNotificationCount: 7};
@@ -64,7 +64,7 @@ test('the profile flyout names no initial focus, so the shared menu takes the re
   const {TVProfileMenu} = await screenModule(new URL('../src-next/shell/TVProfileMenu.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../packages/i18n/src': {defaultI18n},
     '../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})}, '../kit/artwork': {ProfileFace: 'Face'},
-    '../kit/overlays': {Menu: 'Menu'}, './tv-focus': {tvFocusIds},
+    '../kit/overlays': {Menu: 'Menu'}, './tv-focus': {tvFocusIds}, './tv-profile-return': await import('../src-next/shell/tv-profile-return.ts'),
   });
   const ref = {current: null};
   const render = (view: MenuView, extra: Record<string, unknown> = {}) => TVProfileMenu({snapshot: {
@@ -89,12 +89,20 @@ test('the profile flyout names no initial focus, so the shared menu takes the re
   assert.ok(!absent.props.items.some((item: any) => item.id === 'together'));
   assert.equal(absent.props.initialFocusId, undefined);
 
-  // Exact identity: the rendered onSelect is the projection's own onPress reference, not a copy
-  // and not a wrapper.
+  // The rendered onSelect runs the projection's own onPress (no copy of its work), and first tells the side menu a choice
+  // was made, so that page's Back is still a return to Profile and server (#5060).
+  const returns = await import('../src-next/shell/tv-profile-return.ts');
   for (const id of ['profiles', 'servers', 'notifications', 'together']) {
-    const source = switching.actions.find(action => action.id === id);
+    const source = switching.actions.find(action => action.id === id)!;
     const drawn = two.props.items.find((item: any) => item.id === id);
-    assert.equal(drawn.onSelect, source!.onPress, `rendered ${id} keeps the action's own press`);
+    let pressed = 0; const press = source.onPress; (source as any).onPress = () => {pressed++;};
+    const redrawn = render(switching).props.items.find((item: any) => item.id === id);
+    returns.profileReturn.chose = false;
+    redrawn.onSelect();
+    (source as any).onPress = press;
+    assert.equal(pressed, 1, `rendered ${id} runs the action's own press`);
+    assert.equal(returns.profileReturn.chose, true, `rendered ${id} marks a menu choice`);
+    assert.ok(drawn, `rendered ${id}`);
   }
 
   // Member role: the owner-only server action and its divider are not drawn at all.
@@ -126,7 +134,7 @@ test('the TV profile flyout draws Forget remembered profile when the device reme
   const {TVProfileMenu} = await screenModule(new URL('../src-next/shell/TVProfileMenu.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../packages/i18n/src': {defaultI18n},
     '../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})}, '../kit/artwork': {ProfileFace: 'Face'},
-    '../kit/overlays': {Menu: 'Menu'}, './tv-focus': {tvFocusIds},
+    '../kit/overlays': {Menu: 'Menu'}, './tv-focus': {tvFocusIds}, './tv-profile-return': await import('../src-next/shell/tv-profile-return.ts'),
   });
   const ref = {current: null}, forget = () => {};
   const render = (view: MenuView) => TVProfileMenu({snapshot: {authority, account: view, profile: {id: 'profile', name: 'Demo'}, serverName: 'Actual server', unreadNotificationCount: 0},
@@ -135,7 +143,10 @@ test('the TV profile flyout draws Forget remembered profile when the device reme
   const drawn = render(nativeAccountMenu(account, () => {}, true, () => true, forget)).props.items.find((item: any) => item.id === 'forget-remembered');
   assert.ok(drawn, 'offered while the device remembers the profile');
   assert.equal(drawn.label, 'Forget remembered profile');
-  assert.equal(drawn.onSelect, forget);
+  let forgot = 0;
+  const counted = render(nativeAccountMenu(account, () => {}, true, () => true, () => {forgot++;})).props.items.find((item: any) => item.id === 'forget-remembered');
+  counted.onSelect();
+  assert.equal(forgot, 1, 'its press is the Forget itself');
 });
 
 /**

@@ -15,12 +15,9 @@ import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {ListEdgeFade, useListEdges, useWholeItems} from '../kit/layout/ListEdgeFade';
 import {libraryIcon, visibleLibraries, type ShellAuthority, type ShellDestination} from './model';
+import {profileReturn} from './tv-profile-return';
 
 type RailEntry = {key: string; label: string; icon: IconName; destination: ShellDestination};
-/** The profile menu's pending return (TVRail: "The profile menu was opened from Profile and server"), shared by every rail drawn. */
-const pendingProfileReturn = {current: false, destination: ''};
-/** How long focus must stay in the rail before a return counts as used (a menu choice leaving for a page takes less). */
-const profileReturnSettleMs = 600;
 
 export function TVRail({libraries, hasLiveTV, destination, profile, unread = false, onNavigate, onProfile, profileRef, onExpandedChange, authority, returnTo, dimmed}: {
   authority: ShellAuthority; returnTo?: FocusAddress; libraries: readonly Library[]; hasLiveTV: boolean; destination: ShellDestination; profile: ProfileOption;
@@ -72,23 +69,20 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
   const opened = useRef(false);
   // The profile menu was opened from Profile and server: focus coming back to that item (the menu closed, or the page it
   // opened went Back) is a return, not an entry, and stays there (tv-focus "Choices made": Back returns to the rail's
-  // profile item). Used once.
-  // It is kept outside the rail: a full-screen page the menu opened (Switch server) covers the shell, and the rail drawn
-  // again on Back started with no pending return, so Apple TV sent focus to the current page's item (#5060).
-  const destinationKey = JSON.stringify(destination);
-  const openProfile = () => {pendingProfileReturn.current = true; pendingProfileReturn.destination = destinationKey; onProfile();};
-  // A page the menu opened that leads elsewhere (Notifications opening a library) ends the pending return: the next Left
-  // into the rail is an entry again. Drawing the rail again on the same destination does not.
+  // profile item). Used once; kept in `profileReturn` (shell/tv-profile-return.ts).
+  const destinationKey = JSON.stringify(destination), scopeKey = JSON.stringify([authority, profile.id]);
+  const openProfile = () => {Object.assign(profileReturn, {pending: true, destination: destinationKey, scope: scopeKey, chose: false}); onProfile();};
+  // A page the menu opened that leads elsewhere (Notifications opening a library), another server or another profile ends
+  // the pending return: the next Left into the rail is an entry again. Drawing the rail again on the same ones does not.
   React.useEffect(() => {
-    if (pendingProfileReturn.destination !== destinationKey) pendingProfileReturn.current = false;
-    pendingProfileReturn.destination = destinationKey;
-  }, [destinationKey]);
+    if (profileReturn.destination !== destinationKey || profileReturn.scope !== scopeKey) Object.assign(profileReturn, {pending: false, chose: false});
+    Object.assign(profileReturn, {destination: destinationKey, scope: scopeKey});
+  }, [destinationKey, scopeKey]);
   const focusChanged = useCallback((owns: boolean) => {
-    const returning = owns && pendingProfileReturn.current;
-    // A return is used once focus stays in the rail. Choosing Switch server in the menu passes focus through the rail for a
-    // moment on its way to the page; that page's Back is still the return (#5060).
-    if (owns && !returning) pendingProfileReturn.current = false;
-    if (returning) setTimeout(() => {if (opened.current) pendingProfileReturn.current = false;}, profileReturnSettleMs);
+    // What a menu choice opened has taken focus: its Back is the return, even if focus passed through the rail first.
+    if (!owns && profileReturn.chose) Object.assign(profileReturn, {pending: true, chose: false});
+    const returning = owns && profileReturn.pending;
+    if (owns) profileReturn.pending = false;
     const landed = registry.capture();
     const toProfile = returning && landed?.regionId === ids.rail && landed.childId === ids.profile;
     // A frame later and only if focus is still in the rail: focus that only passed through it (dropped there while a page

@@ -6,6 +6,7 @@ import {ProfileFace} from '../kit/artwork';
 import {nativeType, useTheme} from '../kit/theme';
 import type {NativeShellSnapshot} from './runtime';
 import {tvFocusIds} from './tv-focus';
+import {profileMenuChose} from './tv-profile-return';
 
 /** The rail's measured opener anchors the drawn continuous profile flyout. */
 export function TVProfileMenu({snapshot, open, onOpenChange, returnFocusRef}: {
@@ -13,13 +14,13 @@ export function TVProfileMenu({snapshot, open, onOpenChange, returnFocusRef}: {
 }) {
   const account = snapshot.account, theme = useTheme(), unread = snapshot.unreadNotificationCount;
   const items: MenuEntry[] = account.actions.map(action => ({id: action.id, label: action.label, icon: action.icon,
-    destructive: action.destructive, onSelect: action.onPress,
+    destructive: action.destructive, onSelect: () => {profileMenuChose(); action.onPress();},
     trailing: action.id === 'notifications' && typeof unread === 'number' && Number.isSafeInteger(unread) && unread > 0
       ? <Text style={[nativeType({size: 20, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.accentStrong}]}>{defaultI18n.t('settings.unreadCount', {count: unread})}</Text>
       : action.trailing}));
   if (account.serverAction && account.viewerRole !== 'member') {
     const action = account.serverAction;
-    items.push({id: 'server-divider', separator: true}, {id: action.id, label: action.label, icon: action.icon, tone: 'owner', onSelect: action.onPress,
+    items.push({id: 'server-divider', separator: true}, {id: action.id, label: action.label, icon: action.icon, tone: 'owner', onSelect: () => {profileMenuChose(); action.onPress();},
       trailing: <Text style={[nativeType({size: 20, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary, backgroundColor: `${theme.colors.ink}99`, paddingVertical: 3, paddingHorizontal: 12, borderRadius: 8}]}>{defaultI18n.t('next.shell.viewOnly')}</Text>});
   }
   const context = <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, paddingTop: 14, paddingHorizontal: 18, paddingBottom: 18}}>

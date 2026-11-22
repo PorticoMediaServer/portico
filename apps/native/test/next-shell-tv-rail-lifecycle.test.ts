@@ -357,8 +357,8 @@ test('the real rail declares current-page entry and semantic Right return; nativ
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
     '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/shell/BrandSymbol': {BrandSymbol: 'BrandSymbol'}, '../kit/theme': {useTheme: () => theme},
     '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
-    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})},
-  });
+    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})}, './tv-profile-return': await import('../src-next/shell/tv-profile-return.ts'),
+    });
   const render = () => h.render(() => TVRail({authority, libraries: [], hasLiveTV: false, destination: {kind: 'home'}, profile: {id: 'p', name: 'Actual'},
     onNavigate: (next: unknown) => navigations.push(next), onProfile() {}, profileRef: {current: null}, onExpandedChange: (open: boolean) => changes.push(open),
     returnTo}));
@@ -434,8 +434,8 @@ test('the rail pins Search and Home above and Live TV and Saved over Settings; o
     '../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => registry, focusTestID: (await import('../src-next/kit/focus/registry')).focusTestID}, './tv-focus': focusModel,
     '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
     '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
-    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})},
-  });
+    '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})}, './tv-profile-return': await import('../src-next/shell/tv-profile-return.ts'),
+    });
   const libraries = Array.from({length: 10}, (_, index) => ({id: `lib${index}`, name: `Library ${index}`, kind: 'movies'}));
   const render = (live: boolean) => nodes(h.render(() => TVRail({authority, libraries, hasLiveTV: live, destination: {kind: 'home'}, profile: {id: 'p', name: 'Actual'},
     onNavigate() {}, onProfile() {}, profileRef: {current: null}, onExpandedChange() {}})));
@@ -453,14 +453,14 @@ test('the rail pins Search and Home above and Live TV and Saved over Settings; o
   assert.deepEqual(focusIds(render(false)).slice(-3), ['saved', 'settings', ids.profile], 'without Live TV, Saved sits over Settings');
 });
 
-test('Apple TV: focus coming back to Profile and server after its menu stays there; an entry by position still goes to the page item', async t => {
-  t.mock.timers.enable({apis: ['setTimeout']});
+test('Apple TV: focus coming back to Profile and server after its menu stays there; an entry by position still goes to the page item', async () => {
   const {hooks} = await import('./helpers/screen-harness.mjs');
   const {motionRules} = await import('../../../packages/design/src/index');
   const {defaultI18n} = await import('../../../packages/i18n/src');
   const h = hooks(), registry = createFocusRegistry(), theme = createTheme({isTV: true, width: 1920}), ids = focusModel.tvFocusIds(authority);
   const frames: (() => void)[] = [], requestFrame = (globalThis as any).requestAnimationFrame;
   (globalThis as any).requestAnimationFrame = (run: () => void) => {frames.push(run); return frames.length;};
+  const returns = await import('../src-next/shell/tv-profile-return.ts');
   try {
     const {TVRail} = await screenModule(new URL('../src-next/shell/TVRail.tsx', import.meta.url), {
       react: h.react, '@portico/design': {motionRules}, 'react-native': {Image: 'Image', Platform: {OS: 'ios'}, ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: () => null},
@@ -471,6 +471,7 @@ test('Apple TV: focus coming back to Profile and server after its menu stays the
       '../kit/artwork': {ProfileFace: 'ProfileFace'}, '../kit/Icon': {Icon: 'Icon'}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme},
       '../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({duration: 0})})}, './model': shellModel,
       '../kit/layout/ListEdgeFade': {ListEdgeFade: 'ListEdgeFade', useListEdges: () => ({edges: {top: false, bottom: false}, scroll: {}}), useWholeItems: () => ({scroll: {}, container: {}, pad: 0, focus() {}, cut: () => false, item: () => ({})})},
+      './tv-profile-return': returns,
     });
     let menus = 0;
     const tree = nodes(h.render(() => TVRail({authority, libraries: [], hasLiveTV: false, destination: {kind: 'settings'}, profile: {id: 'p', name: 'Actual'},
@@ -483,17 +484,22 @@ test('Apple TV: focus coming back to Profile and server after its menu stays the
     profile.props.onPress();
     assert.equal(menus, 1);
     region.props.onFocusChange(false);
-    // #5060: choosing Switch server closes the menu and passes focus through the rail on its way to the page; the page's
-    // Back is still the return.
     region.props.onFocusChange(true);
-    region.props.onFocusChange(false);
-    t.mock.timers.tick(1000);
-    region.props.onFocusChange(true);
-    assert.equal(frames.length, 0, 'Back from the menu or its page stays on Profile and server');
-    t.mock.timers.tick(1000);
+    assert.equal(frames.length, 0, 'Back from the menu stays on Profile and server');
     region.props.onFocusChange(false);
     region.props.onFocusChange(true);
     assert.equal(frames.length, 1, 'a later entry onto the same item by position still asks for the current page item');
+    // #5060: choosing Switch server closes the menu and passes focus through the rail on its way to the page; the page's
+    // Back is still the return. A plain return left at once (Right straight after Back) leaves nothing pending.
+    profile.props.onPress();
+    returns.profileMenuChose();
+    region.props.onFocusChange(true);
+    region.props.onFocusChange(false);
+    region.props.onFocusChange(true);
+    assert.equal(frames.length, 1, 'Back from the page the menu opened stays on Profile and server');
+    region.props.onFocusChange(false);
+    region.props.onFocusChange(true);
+    assert.equal(frames.length, 2, 'after that return, the next entry is an entry again');
     // Apple TV: Back from the page the menu opened can land the rail on another item first (the profile item is still
     // covered); the return then asks for Profile and server.
     const settingsAddress = {regionId: ids.rail, childId: 'settings'};
