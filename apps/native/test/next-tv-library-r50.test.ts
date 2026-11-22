@@ -99,12 +99,12 @@ const destination = (id: string) => ({getSnapshot: () => ({library: {id}})} as a
 const draft = {predicates: [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Action']}], sort: {field: 'title', direction: 'asc'}} as any;
 
 const screenStubs = (host: any, naming: any) => ({
-  react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../packages/i18n/src': {defaultI18n},
-  '../../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../kit/controls': {Button: 'Button'},
-  '../../../kit/focus': {useFocusRegistry: () => ({focus: () => true})}, '../../../kit/overlays': {Banner: 'Banner', SidePanel: 'SidePanel'},
-  '../../../kit/browse/presentation': {alpha: () => '#000', browseType: () => ({})},
-  '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff', textTertiary: '#aaa', accentStrong: '#5cb3e2'}})},
-  '../../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, './naming': naming,
+  react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
+  '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../controls': {Button: 'Button'},
+  '../focus': {useFocusRegistry: () => ({focus: () => true})}, '../overlays': {Banner: 'Banner', SidePanel: 'SidePanel'},
+  '../browse/presentation': {alpha: () => '#000', browseType: () => ({})},
+  '../theme': {useTheme: () => ({colors: {text: '#fff', textTertiary: '#aaa', accentStrong: '#5cb3e2'}})},
+  '../../screens/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../screens/library/tv-library/naming': naming,
 });
 
 test('F-LIB-52 opens the naming keyboard on the shared keyboard own first key', async () => {
@@ -211,7 +211,7 @@ test('the TV toolbar Save view opens the keyboard and never the phone sheet', as
 
 test('ruling 37 keeps today fields and strings on the 680px TV side surface', async () => {
   const naming = await namingModule(), host = hooks();
-  const {NativeTVLibrarySaveViewPanel, NativeTVLibrarySurface} = await screenModule(new URL('TVLibraryScreen.tsx', origin), screenStubs(host, naming));
+  const {NativeTVLibrarySaveViewPanel, NativeTVLibrarySurface} = await screenModule(new URL('../src-next/kit/library/TVSaveViewPanel.tsx', import.meta.url), screenStubs(host, naming));
   const fixture = namingFixture([]);
   fixture.input.openKeyboard();
   const render = () => host.render(() => NativeTVLibrarySaveViewPanel({naming: fixture.naming as any, id: 'panel'}));
