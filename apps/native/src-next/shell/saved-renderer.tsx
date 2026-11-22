@@ -1,14 +1,14 @@
 import React from 'react';
-import type {MessageId} from '../../../../../packages/i18n/src';
-import type {NativeOfflineDownloadsDevice} from '../../platform/offline-downloads';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeRouteRenderer} from '../../shell/route-registry';
-import {nativeDestinationLifetime} from '../destinations/lifetime';
-import type {NativeDestinationActivationPort} from '../destinations/focus';
-import {SavedPage} from '../../pages/touch/saved/SavedPage';
-import type {NativeSavedActions, NativeSavedSelectionPort} from '../../pages/shared/saved/useSavedPage';
-import type {NativeSavedDownloadsCopy} from '../../kit/saved/SavedDownloadCard';
-import {NativeSavedDestination} from './model';
+import type {MessageId} from '../../../../packages/i18n/src';
+import type {NativeOfflineDownloadsDevice} from '../platform/offline-downloads';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import type {NativeRouteRenderer} from './route-registry';
+import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
+import type {NativeDestinationActivationPort} from '../screens/destinations/focus';
+import {SavedPage} from '../pages/touch/saved/SavedPage';
+import type {NativeSavedActions, NativeSavedSelectionPort} from '../pages/shared/saved/useSavedPage';
+import type {NativeSavedDownloadsCopy} from '../kit/saved/SavedDownloadCard';
+import {NativeSavedDestination} from '../screens/saved/model';
 
 export type NativeSavedRendererPorts = Readonly<{
   requestId: () => Promise<string>;

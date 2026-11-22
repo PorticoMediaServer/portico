@@ -30,7 +30,7 @@ import {createRememberedDownloadsOpening, type RememberedDownloadsOpening} from 
 import {RememberedDownloadsPage, RememberedDownloadsShortcut} from '../pages/touch/downloads/RememberedDownloadsPage';
 import {downloadEntryIdentity} from '../screens/downloads/presentation';
 import {AccessibilityInfo, AppState, Image, Platform, Text, View, findNodeHandle} from 'react-native';
-import {NativeSettingsAppearance} from '../screens/settings/NativeSettingsAppearance';
+import {NativeSettingsAppearance} from './settings-appearance';
 import {homeActionDiagnostics} from '../platform/home-action-diagnostics';
 import {acknowledgeSecureRecordsRecovered, isSecureRecordsLost, secureRecordsRecoveredNotice} from '../platform/secure-records';
 import {SecureRecordsRecovery} from './SecureRecordsRecovery';
