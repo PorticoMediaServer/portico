@@ -90,6 +90,8 @@ export function createNativeTVMusicRenderer(context: NativeShellBootstrapContext
       const onPlaylist = page.entry.kind === 'album' ? () => page.picker.openAlbum(
         {albumId: page.entry.id, load: () => page.controller.albumMembership()},
         {signal: page.abort.signal, isCurrent: () => current() && pageCurrent()},
+        // The confirmation every form owes an add: "Added to <playlist>."
+        playlist => {if (playlist.name) runtime.notice?.(runtime.text.t('entry.addedTo', {name: playlist.name}));},
       ) : undefined;
       if (!Platform.isTV) return <>
         {page.entry.kind === 'album'

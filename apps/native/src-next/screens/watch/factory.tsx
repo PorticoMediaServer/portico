@@ -392,7 +392,9 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
       ...(ports.playlistPicker && ['movie', 'episode', 'song', 'audiobook_file'].includes(entry.kind) && entry.available !== false ? {addToPlaylist: () => {
         if (!current(captured)) return;
         const operation = new AbortController();
-        ports.playlistPicker!.open(entry.id, {signal: operation.signal, isCurrent: () => current(captured)});
+        ports.playlistPicker!.open(entry.id, {signal: operation.signal, isCurrent: () => current(captured)},
+          // The confirmation every form owes an add: "Added to <playlist>."
+          playlist => {if (playlist.name) ports.notice?.(defaultI18n.t('entry.addedTo', {name: playlist.name}));});
       }} : {}),
       ...(startOver ? {playFromStart: async () => {
         const operation = new AbortController();
