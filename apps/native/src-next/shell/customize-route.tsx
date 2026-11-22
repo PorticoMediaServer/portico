@@ -3,7 +3,8 @@ import {NativeModules, Platform} from 'react-native';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import {PersonalSavedService, readPersonalResource} from '../../../../packages/client-core/src/personal-saved';
 import {StateView} from '../kit/states';
-import {HomeCustomize, type NativeHomeCustomizeCopy} from '../screens/home/HomeCustomize';
+import {HomeCustomizePage as TVHomeCustomizePage} from '../pages/tv/home/HomeCustomizePage';
+import type {NativeHomeCustomizeCopy} from '../pages/shared/home/useHomeCustomize';
 import {HomeCustomizePage} from '../pages/touch/home/HomeCustomizePage';
 import {NativeHomeCustomizeController} from '../screens/home/customize-controller';
 import {NativeHomeSavedViewSummaries} from '../screens/home/saved-view-summaries';
@@ -164,7 +165,7 @@ function Customization({source, runtime, close}: {source: Source; runtime: Nativ
       if (!intentAdded.current) setIntentProblem(runtime.text.t('error.unavailable'));
     }, () => {if (source.current()) setIntentProblem(runtime.text.t('error.unavailable'));});
   }, [source, state.phase, runtime]);
-  const Page = Platform.isTV ? HomeCustomize : HomeCustomizePage;
+  const Page = Platform.isTV ? TVHomeCustomizePage : HomeCustomizePage;
   return <Page summary={view => source.summaries.line(view, labels)} controller={source.controller} copy={copy} i18n={labels} onClose={close} onAddView={retry} notice={customizeNotice(intentProblem, state.noLongerAvailable ? runtime.text.t('next.home.viewsNoLongerAvailable', {count: state.noLongerAvailable}) : undefined)} renderError={(error, again) => <StateView variant="centered" {...runtime.error(error, again, 'home')} testID="home-customize-error"/>} testID="home-customize"
       views={{items: views.resources, loading: views.loading, error: views.error, retry, hasMore: !!views.nextCursor,
         loadMore: () => {if (source.current()) void source.views.next().catch(error => {if (source.current()) runtime.reportError(error);});},
