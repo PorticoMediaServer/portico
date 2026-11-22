@@ -5,7 +5,7 @@ import type {NativeShellBootstrapContext} from './bootstrap';
 import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
 import {nativeDestinationLifetime} from '../screens/destinations/lifetime';
 import {createNativeEntryActions} from '../screens/destinations/entry-actions';
-import {createNativeMusicSelection} from '../screens/destinations/music/selection';
+import {createNativeMusicSelection} from './music-selection';
 import {NativeTVMusicController} from '../screens/destinations/music/model';
 import {AlbumPage} from '../pages/touch/music/AlbumPage';
 import {ArtistPage} from '../pages/touch/music/ArtistPage';

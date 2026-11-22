@@ -117,8 +117,8 @@ test('Browse selects real tracks without an entity privacy fence and aggregate g
 test('music Top and All songs keep separate real Browse contexts and only one active selection', async () => {
   const f = await fixture(true), h = hooks(), listeners = new Set<() => void>(); let current = true;
   const contexts: any[] = [];
-  const {createNativeMusicSelection} = await screenModule(new URL('../src-next/screens/destinations/music/selection.tsx', import.meta.url), {
-    react: h.react, '../../selection/native-selection': {createNativeSelection: (context: any, source: any, options: any) => {contexts.push(source.getSnapshot().context); return f.createNativeSelection(context, source, options);}}
+  const {createNativeMusicSelection} = await screenModule(new URL('../src-next/shell/music-selection.tsx', import.meta.url), {
+    react: h.react, '../screens/selection/native-selection': {createNativeSelection: (context: any, source: any, options: any) => {contexts.push(source.getSnapshot().context); return f.createNativeSelection(context, source, options);}}
   });
   const state = {songs: [song], allSongs: {songs: [song]}, albums: [], similar: []};
   // The page's album and artist rows (W-20) are a third owner; with no loaded projection it offers no context.
