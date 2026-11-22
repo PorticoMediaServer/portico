@@ -6,11 +6,17 @@ import type {ReadingPeriodicalType, ReadingPeriodicalGroup, ReadingPeriodicalIss
 
 type Options = Readonly<{cursor?: string; limit?: number; issueDate?: string; year?: string; month?: string; order?: 'oldest' | 'newest'}>;
 const date = (value: string | undefined) => !!value && /^\d{4}-\d{2}(-\d{2})?$/.test(value) && !value.startsWith('0000') && Number.isFinite(Date.parse(value.length === 7 ? value + '-01' : value)) && new Date(value.length === 7 ? value + '-01' : value).toISOString().startsWith(value);
-function issue(wire: Item, kind: ReadingPeriodicalType, group?: Readonly<{id: string; title: string}>): ReadingPeriodicalIssue | undefined {
+/** An issue, with its volume and number when its name gives both ("Vol. 4, No. 9"). */
+export type PeriodicalIssue = ReadingPeriodicalIssue & Readonly<{volume?: number; number?: number}>;
+const whole = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) > 0;
+function issue(wire: Item, kind: ReadingPeriodicalType, group?: Readonly<{id: string; title: string}>): PeriodicalIssue | undefined {
  const item = readingItem(wire);
  if (!item || !date(wire.releaseDate) || kind === 'newspaper' && wire.releaseDate!.length !== 10) return undefined;
- return {item: {...item, publicationType: {value: kind, source: 'file'}, ...(group ? {series: {id: group.id, name: group.title, source: 'file'}} : {})}, issueDate: wire.releaseDate!};
+ const numbered = whole(wire.parentIndex) && whole(wire.index) ? {volume: wire.parentIndex, number: wire.index} : {};
+ return {item: {...item, publicationType: {value: kind, source: 'file'}, ...(group ? {series: {id: group.id, name: group.title, source: 'file'}} : {})}, issueDate: wire.releaseDate!, ...numbered};
 }
+/** How often a run comes out, as the server names it; anything else is not shown. */
+const frequencies = new Set(['daily', 'weekly', 'fortnightly', 'monthly', 'bimonthly', 'quarterly', 'annual']);
 export async function rebuiltPeriodicalGroups(api: ServerRequester, library: string, kind: ReadingPeriodicalType, options: Options, signal?: AbortSignal): Promise<ReadingPeriodicalGroupsPage> {
  const page = await callServer(api, 'GET /v1/items', {query: {library, kind: 'series', publication: kind, sort: 'title', cursor: options.cursor, limit: options.limit ?? 24}, signal});
  const groups = await Promise.all((page.items ?? []).map(async group => {
@@ -46,7 +52,10 @@ export async function rebuiltPeriodicalIssues(api: ServerRequester, library: str
  const dayChoices = (days.values ?? []).map(v => ({value: v.value, count: v.count})).sort((a,b) => a.value.localeCompare(b.value));
  const out: ReadingPeriodicalIssuesPage = {libraryId: library, seriesId: series, publicationType: kind, items,
   years: yearChoices.map(v => ({year: v.value, issueCount: v.count})), days: dayChoices.map(v => ({date: v.value, issueCount: v.count})), ...options, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})};
- return {...out, yearChoices, dayChoices, calendarMonth: options.month};
+ // The archive head: the run's publisher and how often it comes out, when the server knows them.
+ const head = {...(typeof group.publisher === 'string' && group.publisher ? {publisher: group.publisher} : {}),
+  ...(typeof group.frequency === 'string' && frequencies.has(group.frequency) ? {frequency: group.frequency} : {})};
+ return {...out, items, yearChoices, dayChoices, calendarMonth: options.month, ...head};
 }
 /** A Read library's newest magazine issues by issue date, a page at a time: Discover's New issues
  * row, the same read as the server's own landing row. */

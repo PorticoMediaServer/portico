@@ -661,7 +661,7 @@ func (im *importer) reread(found *importedItem, it *ImportItem, parent *imported
 	}
 	// Only what the files give is replaced: the owner's labels, which can keep the title from
 	// a profile, and moods from title data stay.
-	if _, err := im.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind = ?)`, found.id, TagGenre); err != nil {
+	if _, err := im.exec(`DELETE FROM item_tags WHERE item_id = ? AND tag_id IN (SELECT id FROM tags WHERE kind IN (?, ?))`, found.id, TagGenre, TagStudio); err != nil {
 		return err
 	}
 	return im.describe(found.id, it)

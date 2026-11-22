@@ -175,9 +175,9 @@ var sortSpecs = map[string]sortSpec{
 	SortFileSize:        {columns: []string{fileSizeSQL}, nullable: true},
 }
 
-// seriesOrder is a series' own order, as volumeOrder has it: by volume number, then the
+// seriesOrder is a series' own order, as volumeOrder has it: by volume and number, then the
 // volumes with none by title.
-var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.sort_title"}}
+var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number * 0 + ifnull(i.parent_index, 0), 1e18)", "ifnull(i.index_number, 1e18)", "i.sort_title"}}
 
 // sortSpec is how this list is ordered. Its own order means volume order for a series.
 func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {

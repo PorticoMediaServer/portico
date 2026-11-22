@@ -4475,6 +4475,9 @@
             },
             "type": "object"
           },
+          "frequency": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -4509,6 +4512,9 @@
             "type": "integer"
           },
           "publicationType": {
+            "type": "string"
+          },
+          "publisher": {
             "type": "string"
           },
           "ratings": {
