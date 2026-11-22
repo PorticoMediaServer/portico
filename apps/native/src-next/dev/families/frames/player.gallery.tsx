@@ -1,6 +1,6 @@
 import React, {useState, type ReactNode} from 'react';
 import {Platform, ScrollView, Text, View, useWindowDimensions} from 'react-native';
-import {formatMessage} from '../../../../../../packages/i18n/src';
+import {defaultI18n, formatMessage} from '../../../../../../packages/i18n/src';
 import {framesFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/frames-fixtures';
 import {playerFixtureMessages} from '../../../../../../packages/i18n/src/catalog/en-US/next/dev/player-fixtures';
 import {Artwork, ChannelMark, type ArtworkSource} from '../../../kit/artwork/index';
@@ -20,6 +20,7 @@ import {Icon} from '../../../kit/Icon';
 import {useTheme} from '../../../kit/theme';
 import {Layer} from '../../../kit/shell/Layer';
 import {SignalLine, SignalSheet, TVSignalSheet, type SignalPathView} from '../../../kit/player/SignalPath';
+import {nativeSignalPath} from '../../../screens/destinations/music/signal-path-model';
 import type {Gallery} from '../../gallery-registry';
 import {referenceOrigin} from '../../reference-art';
 
@@ -334,15 +335,16 @@ function Audio({variant}: {variant: AudioVariant}) {
     panel={panel}/></Window>;
 }
 
-/** The music signal path (music-plus 3/5, 3b/6), for looking at without a USB DAC: the line under the title, untouched
- * (green, Bit-perfect) and converted, and the sheet each opens (TV's own side sheet on TV). */
-const signal = (changed: boolean): SignalPathView => ({healthy: !changed, pill: p(changed ? 'signalPillChanged' : 'signalPillLossless'), source: p('signalSource'),
-  state: p(changed ? 'signalStateChanged' : 'signalStateDirect'), steps: [
-    {id: 'file', label: p('signalStepFile'), value: p('signalStepFileValue'), changed: false},
-    {id: 'decode', label: p('signalStepDecode'), value: p('signalStepDecodeValue'), changed: false},
-    ...(changed ? [{id: 'rate', label: p('signalStepRate'), value: p('signalStepRateValue'), note: p('signalStepRateNote'), changed: true}] : []),
-    {id: 'volume', label: p('signalStepVolume'), value: p('signalStepVolumeValue'), note: p('signalStepVolumeNote'), changed: false},
-    {id: 'output', label: p('signalStepOutput'), value: p(changed ? 'signalStepOutputSpeaker' : 'signalStepOutputDac'), changed: false}]});
+/** The music signal path (music-plus 3/5, 3b/6), for looking at without a USB DAC: built by the app's own signal model
+ * (`nativeSignalPath`) from fixture facts, so the words and the pill are exactly what a real session would show. A phone
+ * on Android 14+ with a USB DAC can be bit-perfect; an Apple device never claims it, so it shows the matched rate. The
+ * converted case is the device resampling a 96 kHz file to 48 kHz. */
+const signalSource = {codec: 'flac', lossless: true, bitDepth: 24, sampleRate: 96_000, channels: 2} as const;
+const signal = (changed: boolean): SignalPathView => nativeSignalPath({source: signalSource, server: {route: 'original'}, eqOn: false, eqApplied: false,
+  normalization: 'off', levelingApplied: false, output: changed
+    ? {platform: Platform.OS === 'ios' ? 'apple' : 'android', device: Platform.OS === 'ios' ? 'iphone' : 'phone', sampleRate: 48_000, bitDepth: 24, resampledBy: Platform.OS === 'ios' ? 'iphone' : 'phone'}
+    : Platform.OS === 'ios' ? {platform: 'apple', device: 'iphone', sampleRate: 96_000, bitDepth: 24, sampleRateMatched: true}
+      : {platform: 'android', device: 'phone', usbDac: true, sampleRate: 96_000, bitDepth: 24, bitPerfect: true, bitPerfectMode: 'android14-usb'}}, defaultI18n.t);
 function SignalLineCase() {
   const theme = useTheme();
   return <View testID="frames-audio-signal" style={{padding: theme.gutter, gap: theme.space.sm, alignItems: 'flex-start'}}>
