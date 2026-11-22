@@ -69,7 +69,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
   const phone = await screenModule(new URL('../src-next/pages/touch/accounts/SignInPage.tsx', import.meta.url), {
     react: {...React, default: React}, '../../../../../../packages/i18n/src': {defaultI18n},
     '../../../kit/frames': {SignInFrame: 'SignInFrame'}, '../../../kit/accounts/AccountParts': {AccountDivider: 'Divider', AccountFields: 'Fields', AccountLinks: 'Links', AccountTerms: 'Terms'},
-    '../../../screens/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'},
+    '../../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'},
   });
   const modules:any={react:{...React,default:React},'react-native':rn,'react-native-qrcode-svg':{default:'QR'},
     '../../../../../packages/i18n/src':{defaultI18n},'../../../../../packages/client-core/src':{HttpHostedApi:class {}},
@@ -80,7 +80,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
     '../../platform/account-work': accountWork, '../../platform/accounts':{nativeAccounts:accounts},'../../platform/server-sign-in':{NativeServerSignIn:Server},'../../platform/portico-sign-in':auth,
     '../../platform/server-connections':{browseNearby:async()=>[]},'../../platform/account-authority':{hostedUrl:'https://hosted.example'},
     '../../platform/qr-scanner':{qrScannerAvailable:()=>false},'../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}}, './tv-code-opening':tvOpening,'./directory-chooser':chooser,
-    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './ProviderButton': {ProviderButton: 'ProviderButton'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage':phone,'./directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
+    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../kit/accounts/ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage':phone,'./directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
     '../../platform/hosted-sign-in-unavailable':{HostedSignInUnavailable:class extends Error {}},
   };
   const ports=new Proxy(modules,{get:(obj,name)=>name in obj?obj[name]:new Proxy({},{get:(_,exported)=>(..._args:any[])=>{throw new Error('Unexpected port '+String(name)+'.'+String(exported));}})});

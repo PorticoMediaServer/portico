@@ -9,7 +9,7 @@ import type {NativeAccountWorkspace} from '../../platform/account-workspace';
 import type {NativeAccountSecurity, NativeAccountSecurityKind, NativeAccountSecuritySnapshot} from '../../platform/account-security';
 import {providerOnlySignIn, type SecurityState} from '../../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {PasswordStrengthMeter} from './PasswordStrengthMeter';
+import {PasswordStrengthMeter} from '../../kit/accounts/PasswordStrengthMeter';
 
 const idle: NativeAccountSecuritySnapshot = {step: 'form', busy: false};
 const noSubscribe = () => () => {};

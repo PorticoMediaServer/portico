@@ -1,6 +1,6 @@
 import React from 'react';
-import {Button} from '../../kit/controls';
-import {useTheme} from '../../kit/theme';
+import {Button} from '../controls';
+import {useTheme} from '../theme';
 
 export type IdentityProviderId = 'google' | 'apple';
 
@@ -13,6 +13,6 @@ export function ProviderButton({provider, label, busy = false, testID, onPress}:
   return <Button variant="text" icon={google ? 'i-google' : 'i-apple'} iconSize={19} iconColor={google ? undefined : '#fff'} testID={testID} disabled={busy}
     style={{width: '100%', alignSelf: 'stretch', height: 48, borderRadius: 11, borderWidth: 1, borderColor: google ? '#5f6368' : 'rgba(237,245,250,.22)',
       backgroundColor: google ? '#131314' : '#000'}}
-    textStyle={{fontSize: 16 * theme.textScale, fontWeight: '700', color: google ? '#e3e3e3' : '#fff'}}
+    textStyle={{...theme.type.providerButton, color: google ? '#e3e3e3' : '#fff'}}
     onPress={() => {if (!busy) onPress();}}>{label}</Button>;
 }

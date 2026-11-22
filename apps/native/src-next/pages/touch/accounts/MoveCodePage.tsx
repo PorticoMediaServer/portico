@@ -4,7 +4,7 @@ import {Button, FormError, TextField} from '../../../kit/controls';
 import {AccountFields, AccountLinks} from '../../../kit/accounts/AccountParts';
 import {StateActionButton} from '../../../kit/states/StateActionButton';
 import {SignInFrame} from '../../../kit/frames';
-import {PasswordStrengthMeter} from '../../../screens/accounts/PasswordStrengthMeter';
+import {PasswordStrengthMeter} from '../../../kit/accounts/PasswordStrengthMeter';
 import type {NativeMemberAccountMove} from '../../../platform/member-account-move';
 import {useMoveCode} from '../../shared/accounts/useMoveCode';
 

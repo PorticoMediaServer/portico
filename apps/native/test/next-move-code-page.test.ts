@@ -30,7 +30,7 @@ async function mount(isCurrent: () => boolean) {
   const {MoveCodePage} = await screenModule(new URL('../src-next/pages/touch/accounts/MoveCodePage.tsx', import.meta.url), {react,
     '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/controls': {Button: 'Button', FormError: 'FormError', TextField: 'Field'},
     '../../../kit/accounts/AccountParts': {AccountFields: 'Fields', AccountLinks: 'Links'}, '../../../kit/states/StateActionButton': {StateActionButton: 'Action'},
-    '../../../kit/frames': {SignInFrame: 'Frame'}, '../../../screens/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'Meter'},
+    '../../../kit/frames': {SignInFrame: 'Frame'}, '../../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'Meter'},
     '../../shared/accounts/useMoveCode': hook});
   let tree: any;
   const host = createFabricHookHost(() => {tree = MoveCodePage({controller: controller as any, isCurrent, onBack: () => calls.push('back')});});

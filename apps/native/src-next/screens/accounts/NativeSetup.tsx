@@ -11,7 +11,7 @@ import {StateLayout} from '../../kit/states';
 import {useTheme} from '../../kit/theme';
 import {nativeAccounts} from '../../platform/accounts';
 import {createNativeSetupAdapter, type NativeSetupTarget} from '../../platform/setup-adapter';
-import {PasswordStrengthMeter} from './PasswordStrengthMeter';
+import {PasswordStrengthMeter} from '../../kit/accounts/PasswordStrengthMeter';
 import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PhoneSetupApproval} from '../../kit/accounts/PhoneSetupApproval';
 

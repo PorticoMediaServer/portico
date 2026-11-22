@@ -32,7 +32,7 @@ test('phone account presenter exposes only its offered password and provider cap
     const {SignInPage} = await screenModule(new URL('../src-next/pages/touch/accounts/SignInPage.tsx', import.meta.url), {
       react: {...React, default: React}, '../../../../../../packages/i18n/src': {defaultI18n},
       '../../../kit/frames': {SignInFrame: 'SignInFrame'}, '../../../kit/accounts/AccountParts': parts,
-      '../../../screens/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'},
+      '../../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'}, '../../../kit/controls': {Button: 'Button', TextField: 'Field'},
     });
     let tree: any, passwordEnabled = false, registration = true, recovery = true;
     const calls: string[] = [];

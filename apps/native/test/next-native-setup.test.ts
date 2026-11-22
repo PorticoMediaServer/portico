@@ -86,7 +86,7 @@ async function fixture(options: FixtureOptions) {
     '../../kit/theme': {useTheme: () => theme},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}},
     '../../platform/setup-adapter': {createNativeSetupAdapter: (_target: any, _live: any) => ({ports: {}, dispose() {adapterDisposals++;}})},
-    './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
+    '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
     // The layout and the approval sheet are real components here so their props stay inspectable and the form's
     // beforeActions children actually mount; every leaf they draw is still a string stub.
     '../../kit/accounts/AccountForm': {AccountForm: (props: any) => React.createElement('PhoneAccountForm', props, props.beforeActions)},
