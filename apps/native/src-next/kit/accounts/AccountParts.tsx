@@ -1,6 +1,6 @@
 import React, {type ReactNode} from 'react';
 import {Text, View} from 'react-native';
-import {LegalAgreement} from '../../screens/accounts/LegalAgreement';
+import {LegalAgreement} from './LegalAgreement';
 import {useTheme} from '../theme';
 
 export function AccountFields({children}: {children: ReactNode}) {
