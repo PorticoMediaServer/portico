@@ -32,3 +32,6 @@
 .emptyState { padding: 0 !important; max-width: none !important; display: flex; flex-direction: column; align-items: center; text-align: center; }
 .emptyState > * { align-items: center; text-align: center; }
 .emptyState [class*='stateIcon'] { margin-inline: auto; }
+
+/* A hero without a backdrop: its generated art fades out over its lower part instead of ending in a straight line. */
+.heroGenerated { -webkit-mask-image: linear-gradient(180deg, var(--color-shadow) 45%, transparent 100%); mask-image: linear-gradient(180deg, var(--color-shadow) 45%, transparent 100%); }
