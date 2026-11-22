@@ -166,8 +166,8 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/destinations/music/model.ts:434` | request `request` | dynamic/wrapper: inspect enclosing raw |
 | `apps/native/src-next/screens/destinations/music/model.ts:464` | request `request` | dynamic/wrapper: inspect enclosing page |
 | `apps/native/src-next/screens/destinations/pins.ts:32` | request `options.api.request` | dynamic/wrapper: inspect enclosing value |
-| `apps/native/src-next/screens/home/CustomizeRoute.tsx:74` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
-| `apps/native/src-next/screens/home/SeeAllRoute.tsx:106` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
+| `apps/native/src-next/shell/customize-route.tsx:74` | request `context.api.request` | dynamic/wrapper: inspect enclosing value |
+| `apps/native/src-next/shell/see-all-route.tsx:106` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/home/row-controller.ts:52` | request `this.api.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/home/row-controller.ts:61` | request `this.request` | dynamic/wrapper: inspect enclosing [raw, row] |
 | `apps/native/src-next/screens/home/row-controller.ts:93` | request `this.request` | dynamic/wrapper: inspect enclosing page |

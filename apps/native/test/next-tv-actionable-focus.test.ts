@@ -529,16 +529,16 @@ test('retained Home recommendation menu delegates the original entry, anchor and
     collection = {getSnapshot: (() => {const snapshot = {refreshing: false}; return () => snapshot;})(), residentItems: () => [{entry}], subscribe: () => () => {}};
     subscribe = () => () => {}; snapshot: any; getSnapshot = () => this.snapshot ??= {phase: 'ready', row: {id: this.rowId, kind: 'recommendation'}}; dispose() {}
   }
-  const mod = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, react: b.react,
-    'react-native': {...b.native, Platform: {isTV: true}, AccessibilityInfo: {isScreenReaderEnabled: async () => false, addEventListener: () => ({remove() {}})}}, '../../kit/focus': b.focus,
-    '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true}, '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
-    '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
-    '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
-    '../destinations/entry-actions': {createNativeEntryActions: (context: any, membership: any) => {
+  const mod = await screenModule(new URL('../src-next/shell/see-all-route.tsx', import.meta.url), {...stackSlotFixture, react: b.react,
+    'react-native': {...b.native, Platform: {isTV: true}, AccessibilityInfo: {isScreenReaderEnabled: async () => false, addEventListener: () => ({remove() {}})}}, '../kit/focus': b.focus,
+    '../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true}, '../kit/overlays': {ToastHost: 'ToastHost'}, '../kit/controls': {},
+    '../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../pages/touch/library/SeeAllPage': {}, '../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'Filters'}, '../screens/home/row-controller': {NativeHomeRowController: Controller},
+    '../platform/server-connections': {}, './routes': {}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, './model': {},
+    '../kit/theme': {}, '../kit/dock/DockClearance': {useDockClearance: () => 0},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: (context: any, membership: any) => {
       receivedContext = context; receivedMembership = membership;
       return {menu: (...args: any[]) => calls.push(args), dispose() {}};
-    }}, '../read/platform': {hiddenReadingLibraryOnTV: () => false}, '../read/reading-books-open': {}, './entry-lifetime': {}});
+    }}, '../screens/read/platform': {hiddenReadingLibraryOnTV: () => false}, '../screens/read/reading-books-open': {}, '../screens/home/entry-lifetime': {}});
   const context: any = {current: () => live, authority: () => authority, libraries: () => [], api: {}, navigation: {retainedRoutes: () => [], getSnapshot: () => ({route: currentRoute})}};
   const rows = mod.createNativeHomeRows(context, () => {}); rows.reconcile();
   const runtime = {getSnapshot: (() => {const snapshot = {authority}; return () => snapshot;})()}, retained = nodes(rows.render(runtime))[0]; let tree: any;
@@ -570,15 +570,15 @@ test('retained Home Undo uses the shared toast with the original entry command',
     collection = {getSnapshot: (() => {const snapshot = {refreshing: false}; return () => snapshot;})(), residentItems: () => [], subscribe: () => () => {}};
     subscribe = () => () => {}; snapshot: any; getSnapshot = () => this.snapshot ??= {phase: 'ready', row: {id: this.rowId, kind: 'recommendation'}}; dispose() {}
   }
-  const mod = await screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, react: b.react,
-    'react-native': {...b.native, Platform: {isTV: true}}, '../../kit/focus': b.focus,
-    '../../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: unknown) => entry, setNotInterested: async () => true},
-    '../../kit/overlays': {ToastHost: 'ToastHost'}, '../../kit/controls': {},
-    '../../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'Filters'}, './row-controller': {NativeHomeRowController: Controller},
-    '../../platform/server-connections': {}, '../../shell/routes': {}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, '../../shell/model': {},
-    '../../kit/theme': {}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
-    '../destinations/entry-actions': {createNativeEntryActions: () => ({menu: (_entry: unknown, _anchor: unknown, _select: unknown, extras: any[]) => {extra = extras?.[0];}, dispose() {}})},
-    '../read/platform': {hiddenReadingLibraryOnTV: () => false}, '../read/reading-books-open': {}, './entry-lifetime': {}});
+  const mod = await screenModule(new URL('../src-next/shell/see-all-route.tsx', import.meta.url), {...stackSlotFixture, react: b.react,
+    'react-native': {...b.native, Platform: {isTV: true}}, '../kit/focus': b.focus,
+    '../../../../packages/client-core/src/recommendation-feedback': {isRecommendationRow: () => true, notInterestedTarget: (entry: unknown) => entry, setNotInterested: async () => true},
+    '../kit/overlays': {ToastHost: 'ToastHost'}, '../kit/controls': {},
+    '../../../../packages/i18n/src': {defaultI18n}, '@portico/design': {}, '../pages/touch/library/SeeAllPage': {}, '../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../pages/shared/home/HomeRowFiltersSheet': {HomeRowFiltersSheet: 'Filters'}, '../screens/home/row-controller': {NativeHomeRowController: Controller},
+    '../platform/server-connections': {}, './routes': {}, './route-registry': {nativeShellRoutes: {registerRoute() {}}}, './model': {},
+    '../kit/theme': {}, '../kit/dock/DockClearance': {useDockClearance: () => 0},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({menu: (_entry: unknown, _anchor: unknown, _select: unknown, extras: any[]) => {extra = extras?.[0];}, dispose() {}})},
+    '../screens/read/platform': {hiddenReadingLibraryOnTV: () => false}, '../screens/read/reading-books-open': {}, '../screens/home/entry-lifetime': {}});
   const context: any = {current: () => true, authority: () => authority, libraries: () => [], api: {}, navigation: {retainedRoutes: () => [], getSnapshot: (() => {const snapshot = {route}; return () => snapshot;})()}};
   const rows = mod.createNativeHomeRows(context, () => {}); rows.reconcile();
   const runtime = {getSnapshot: (() => {const snapshot = {authority}; return () => snapshot;})(), reportError: (error: unknown) => {throw error;}}, retained = nodes(rows.render(runtime))[0];

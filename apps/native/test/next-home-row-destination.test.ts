@@ -10,18 +10,18 @@ import {nativeDispatchedPlayLifetime, nativeHomeEntryLifetime, reportDispatchedP
 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'home-fence'};
 
-const rowModule = (isTV = false) => screenModule(new URL('../src-next/screens/home/SeeAllRoute.tsx', import.meta.url), {...stackSlotFixture, 
-    '../../kit/useScreenReader': {useScreenReader: () => false},
-    react: {...React, default: React}, '../../../../../packages/client-core/src/recommendation-feedback': {}, '../../../../../packages/i18n/src': {}, '../../kit/overlays': {}, '../../kit/controls': {}, 'react-native': {Platform: {isTV}, View: 'View'}, '../../kit/focus': {},
-    '@portico/design': {}, '../../pages/touch/library/SeeAllPage': {}, '../../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../../pages/shared/home/HomeRowFiltersSheet': {},
-    './row-controller': {NativeHomeRowController}, '../../platform/server-connections': {}, '../../shell/routes': {titleRoute, nativeEntryRoute, nativeEntryRouteSupported},
-    '../../shell/route-registry': {nativeShellRoutes: new NativeShellRouteRegistry()}, '../../shell/model': {}, '../../kit/theme': {},
-    '../read/platform': {hiddenReadingLibraryOnTV},
-    '../../kit/dock/DockClearance': {useDockClearance: () => 0},
+const rowModule = (isTV = false) => screenModule(new URL('../src-next/shell/see-all-route.tsx', import.meta.url), {...stackSlotFixture, 
+    '../kit/useScreenReader': {useScreenReader: () => false},
+    react: {...React, default: React}, '../../../../packages/client-core/src/recommendation-feedback': {}, '../../../../packages/i18n/src': {}, '../kit/overlays': {}, '../kit/controls': {}, 'react-native': {Platform: {isTV}, View: 'View'}, '../kit/focus': {},
+    '@portico/design': {}, '../pages/touch/library/SeeAllPage': {}, '../pages/tv/library/SeeAllPage': {SeeAllPage: 'HomeSeeAll'}, '../pages/shared/home/HomeRowFiltersSheet': {},
+    '../screens/home/row-controller': {NativeHomeRowController}, '../platform/server-connections': {}, './routes': {titleRoute, nativeEntryRoute, nativeEntryRouteSupported},
+    './route-registry': {nativeShellRoutes: new NativeShellRouteRegistry()}, './model': {}, '../kit/theme': {},
+    '../screens/read/platform': {hiddenReadingLibraryOnTV},
+    '../kit/dock/DockClearance': {useDockClearance: () => 0},
     // Menu lifetime is exercised by next-destination-entry-actions; this fixture owns row retention.
-    '../destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}})},
-    '../read/reading-books-open': {openNativeReadingBookEntry: async () => false},
-    './entry-lifetime': {nativeHomeEntryLifetime, nativeDispatchedPlayLifetime, reportDispatchedPlayFailure},
+    '../screens/destinations/entry-actions': {createNativeEntryActions: () => ({dispose() {}})},
+    '../screens/read/reading-books-open': {openNativeReadingBookEntry: async () => false},
+    '../screens/home/entry-lifetime': {nativeHomeEntryLifetime, nativeDispatchedPlayLifetime, reportDispatchedPlayFailure},
   });
 
 test('real row outlet retains its exact controller through a title and cancels only pending navigation work', async () => {

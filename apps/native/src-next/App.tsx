@@ -32,8 +32,8 @@ if (!Platform.isTV) {
 }
 require('./shell/settings-mount');
 require('./shell/licences-route');
-require('./screens/home/CustomizeRoute');
-require('./screens/home/SeeAllRoute');
+require('./shell/customize-route');
+require('./shell/see-all-route');
 require('./shell/live-route');
 require('./shell/together-route');
 require('./shell/saved-route');
