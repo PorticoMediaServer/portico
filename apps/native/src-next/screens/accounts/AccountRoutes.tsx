@@ -43,7 +43,7 @@ import {ProfileSwitchPage, ProfileSwitchStatus} from '../../pages/touch/accounts
 import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {ServerChooserPage} from '../../pages/touch/accounts/ServerChooserPage';
-import {TVTrustedCertificates} from './TVTrustedCertificates';
+import {TrustedCertificatesPage} from '../../pages/shared/accounts/TrustedCertificatesPage';
 import {TVServerChooserPage, TVServerSettingsPanel} from '../../pages/tv/accounts/ServerChooserPage';
 import {removeCapturedServerDownloads} from './sign-out-downloads';
 import {ProfilesPage as TVProfilesPage} from '../../pages/tv/accounts/ProfilesPage';
@@ -428,7 +428,7 @@ export function ServersRoute(props: {
       <Text style={[theme.type.body, {color: theme.colors.text, flex: 1}]}>{t('settings.signOutConfirm.removeDownloads')}</Text>
     </Focusable>}
   </BottomSheet> : null;
-  if (!Platform.isTV) return <><ServerChooserPage certificates={<TVTrustedCertificates context={context}/>} snapshot={servers} busy={busy} error={errorView} onBack={onBack ? cancel : undefined}
+  if (!Platform.isTV) return <><ServerChooserPage certificates={<TrustedCertificatesPage context={context}/>} snapshot={servers} busy={busy} error={errorView} onBack={onBack ? cancel : undefined}
     onSelect={value => {void run(async () => {await nativeAccounts.switchServer(value.id); onComplete?.();});}}
     onSignOut={value => {void run(async () => {
       const state = await nativeAppSessions.read(), found = state.servers.find(item => item.connection.pin.serverId === value.id);
@@ -491,7 +491,7 @@ export function ServersRoute(props: {
     });},
     onRefresh: () => {void run(async () => {const value = await nativeAccounts.snapshot(); if (alive.current) setServers(value);});},
     onAdd: opens ? () => opens('add') : () => {void run(async () => {openAdd();});},
-    certificates: (bind, refreshServers) => <TVTrustedCertificates context={context} refreshRef={bind('certificates-refresh')}
+    certificates: (bind, refreshServers) => <TrustedCertificatesPage context={context} refreshRef={bind('certificates-refresh')}
       refreshDown={refreshServers}/>,
     footer: bind => <View style={{alignSelf: 'stretch', gap: 8, marginTop: 10}}>
       <Button ref={bind('link-tv')} focusId="link-tv" variant="link" disabled={busy}
