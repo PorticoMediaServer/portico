@@ -127,6 +127,31 @@ func (s *Server) pageHomeRows(r *http.Request, rows []HomeRow, library string) (
 			continuing = page.Items
 		}
 		rows[n] = homePage(rows[n], page, false)
+		if rows[n].ID == "continue" {
+			// The hero's extra facts are a nicety: Home is served without them if they can't be read.
+			if err := s.addEpisodeContext(r, rows[n].Items); err != nil && r.Context().Err() == nil {
+				s.log.Warn("Home's Continue Watching was sent without its episodes' show facts", "error", err)
+			}
+		}
 	}
 	return continuing, nil
+}
+
+// addEpisodeContext gives each episode in Home's Continue Watching what the hero says about it
+// beyond its card: its story, and its show's year, genres and seasons.
+func (s *Server) addEpisodeContext(r *http.Request, items []Item) error {
+	var episodes []string
+	for _, it := range items {
+		if it.Kind == "episode" {
+			episodes = append(episodes, it.ID)
+		}
+	}
+	found, err := s.db.EpisodeContexts(r.Context(), viewer(r), episodes)
+	for n, it := range items {
+		if c, ok := found[it.ID]; ok {
+			items[n].Summary = c.Summary
+			items[n].HomeTitleContext = &HomeTitleContext{Kind: "show", Year: c.ShowYear, Genres: append([]string{}, c.Genres...), SeasonCount: c.Seasons}
+		}
+	}
+	return err
 }

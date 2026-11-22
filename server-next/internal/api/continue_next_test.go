@@ -48,6 +48,10 @@ func TestContinueWatchingOffersTheNextVisibleEpisode(t *testing.T) {
 			t.Fatalf("between episodes %s: %+v", path, rows)
 		}
 	}
+	// Home's hero says the show's facts for an episode it offers ("1 season").
+	if c := continuing("/v1/home")[0].HomeTitleContext; c == nil || c.Kind != "show" || c.SeasonCount != 1 || c.Genres == nil {
+		t.Fatalf("the hero's show context: %+v", c)
+	}
 	edit(th.eps[1], map[string]any{"continueDismissed": true})
 	if rows := continuing("/v1/home"); len(rows) != 0 {
 		t.Fatalf("the dismissed next episode was replaced or kept: %+v", rows)
