@@ -128,6 +128,8 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const searchMove = useRef<object | undefined>(undefined);
   const activeRef = useRef(active); activeRef.current = active;
   const [searchScope, setSearchScope] = useState<ReaderSearchScope>();
+  // A search that failed belongs to the scope it ran in; Try again makes a fresh scope for the same words.
+  const [searchFailed, setSearchFailed] = useState<ReaderSearchScope>(), [searchRetry, setSearchRetry] = useState(0);
   const searchScopeRef = useRef<ReaderSearchScope | undefined>(undefined);
   const [hitsScope, setHitsScope] = useState<ReaderSearchScope>();
   const visibleHits = hitsQuery === query && hitsScope === searchScope ? hits : [];
@@ -135,7 +137,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
     const scope: ReaderSearchScope = Object.freeze({query, active, abort: new AbortController()});
     searchScopeRef.current = scope; setSearchScope(scope);
     return () => {scope.abort.abort(); if (searchScopeRef.current === scope) searchScopeRef.current = undefined;};
-  }, [query, active, controller, authority, publication]);
+  }, [query, active, controller, authority, publication, searchRetry]);
   const changeQuery = (next: string) => {
     const scope = searchScope;
     if (!scope || searchScopeRef.current !== scope || !activeRef.current || queryRef.current !== query || next === query) return;
@@ -205,7 +207,9 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       }
       // Iterator exhaustion can be a bounded indexed-search stop. It does not
       // establish a complete book-wide count or a no-matches claim.
-    })().catch(error => {if (queryCurrent && searchScopeRef.current === scope && !signal.aborted && authority.isCurrent()) reportError(error);})
+    // A search that can't finish (the bridge busy with the book's own reads, a page that wouldn't load) says so in the
+    // search panel with Try again. It never ends the reader: the book open behind it is still fine.
+    })().catch(() => {if (queryCurrent && searchScopeRef.current === scope && !signal.aborted && authority.isCurrent()) setSearchFailed(scope);})
       .finally(() => {if (queryCurrent && searchScopeRef.current === scope) setSearching(false);});
     return () => {queryCurrent = false; life.abort();};
   }, [searchScope, controller, authority, active, query, reportError, snapshot.status, snapshot.sourceId, snapshot.sourceRevision, publication]);
@@ -258,8 +262,11 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   </ReaderPanel>
     : panel === 'search' ? <ReaderPanel label={t('next.reader.search')} returnFocusRef={anchor} tabs={[{id: 'search', label: t('next.reader.search')}]}
       selected="search" onSelect={() => {}} onClose={() => setPanel(undefined)}><ReaderSearch query={query} onQuery={changeQuery} hits={searchHits} current={currentHit} loading={searching}
-        resultSummary={hitsQuery === query && query.trim() && !searching && visibleHits.length > 0
-          ? t('next.reader.matchesShown', {count: visibleHits.length}) : undefined}
+        resultSummary={searchFailed && searchFailed === searchScope && !searching ? t('next.reader.searchFailed')
+          : hitsQuery === query && query.trim() && !searching && visibleHits.length > 0 ? t('next.reader.matchesShown', {count: visibleHits.length}) : undefined}
+        retry={searchFailed && searchFailed === searchScope && !searching ? {label: t('next.states.tryAgain'), onPress: () => {
+          if (searchScopeRef.current === searchFailed && activeRef.current && authority.isCurrent()) {setSearchFailed(undefined); setSearchRetry(value => value + 1);}
+        }} : undefined}
         onSearchAll={onSearchAll && query.trim() ? () => {
           const current = controller.getSnapshot(), value = query.trim();
           if (!value || !active || !authority.isCurrent() || publication.signal.aborted || current.status !== 'ready'

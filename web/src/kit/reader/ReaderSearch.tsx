@@ -13,11 +13,13 @@ export type ReaderSearchProps = Readonly<{
   query: string; onQuery: (value: string) => void; hits: readonly ReaderSearchHit[];
   current?: string; loading: boolean; resultSummary?: string; onStep?: (direction: 'previous' | 'next') => void;
   onSearchAll?: () => void;
+  /** A search that couldn't finish: its line is the summary, and this asks again for the same words. */
+  retry?: Readonly<{label: string; onPress: () => void}>;
   copy: Readonly<{search: string; clear: string; move: string; wholeWords: string; searchAll: string}>;
 }>;
 
 /** desktop-read 8; phone-read 6. Searching and cancellation belong to the actual core. */
-export function ReaderSearch({query, onQuery, hits, current, loading, resultSummary, onStep, onSearchAll, copy}: ReaderSearchProps) {
+export function ReaderSearch({query, onQuery, hits, current, loading, resultSummary, onStep, onSearchAll, retry, copy}: ReaderSearchProps) {
   const id = useId();
   return <div className={styles.search}>
     <div className={styles.field}><Icon name="i-search" size={22} /><input type="search" aria-label={copy.search} value={query} autoFocus
@@ -26,7 +28,7 @@ export function ReaderSearch({query, onQuery, hits, current, loading, resultSumm
       aria-describedby={resultSummary ? `${id}-summary` : undefined} />
       {query && <button type="button" aria-label={copy.clear} onClick={() => onQuery('')}><Icon name="i-x" size={18} /></button>}
     </div>
-    <div className={styles.summary} id={`${id}-summary`} role="status">{resultSummary}{onStep && hits.length > 0 && <span className={styles.keys} aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd>{copy.move}</span>}</div>
+    <div className={styles.summary} id={`${id}-summary`} role="status">{resultSummary}{retry && <button type="button" className={styles.retry} onClick={retry.onPress}>{retry.label}</button>}{onStep && hits.length > 0 && <span className={styles.keys} aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd>{copy.move}</span>}</div>
     <div className={styles.results} aria-busy={loading}>{hits.map(hit => <button key={hit.id} type="button" className={styles.hit} data-current={hit.id === current || undefined}
       aria-current={hit.id === current ? 'location' : undefined} disabled={!hit.onNavigate} onClick={hit.onNavigate}>
       {(hit.chapter || hit.page) && <span className={styles.where}>{hit.chapter && <span>{hit.chapter}</span>}{hit.page && <span>{hit.page}</span>}</span>}
