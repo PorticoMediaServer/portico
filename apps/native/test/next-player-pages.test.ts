@@ -78,7 +78,7 @@ test('closing TV Lyrics returns focus to its opener without starting at Play aga
     '../../../platform/playback/equalizer': {nativeEqualizer: {getSnapshot: () => ({supported: false})}},
     '../../../platform/overlay-keys': {}, '../../../kit/player/ListeningSongActions': {},
     './useNowPlayingQueue': {nowPlayingSource: () => undefined},
-    '../../../screens/destinations/music/TVQueuePolicy': {useTVQueuePolicy: () => ({})},
+    './useTVQueuePolicy': {useTVQueuePolicy: () => ({})},
     '../../../tv/layout/TVPageMotion': {useTVPageMotion: () => ({open: true, ready: true})}, '../../../kit/navigation/back': {},
   });
   let fence = {};

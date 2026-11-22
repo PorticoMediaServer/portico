@@ -10,7 +10,7 @@ import {MusicSignalLine, MusicSignalSheet} from '../../../screens/destinations/m
 import {NativeListeningNotice} from '../../../kit/player/ListeningNotice';
 import {NowPlayingQueue} from '../../../kit/player/NowPlayingQueue';
 import {nowPlayingQueueFocusScope, nowPlayingQueueEditPort} from '../../shared/player/useNowPlayingQueue';
-import {TVMusicFocus, TVMusicSeek} from '../../../screens/destinations/music/TVMusicFocus';
+import {TVMusicFocus, TVMusicSeek} from '../../../kit/player/TVMusicFocus';
 import {TVPageTransition} from '../../../tv/layout/TVPageMotion';
 import {useTVAudioPlayer, type TVAudioPlayerProps} from '../../shared/player/useTVAudioPlayer';
 

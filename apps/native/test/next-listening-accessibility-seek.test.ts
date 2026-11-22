@@ -60,7 +60,7 @@ async function fixture(hosted = true) {
     '../../../kit/dock/model': {commandAllowed, dockCommand, playbackPosition, seekBounds, seekTo},
     '../../../kit/frames': {AudioPlayerFrame: 'AudioPlayerPage'}, './useNowPlayingQueue': {nowPlayingSource: () => undefined},
     '../../../kit/player/ListeningSongActions': {ListeningSongActions: 'SongActions', ListeningFavoritePaint: 'Favorite'},
-    '../../../screens/destinations/music/TVMusicFocus': {MusicFocusRegion: 'FocusRegion', TVMusicFocus: 'TVFocus', TVMusicSeek: 'TVSeek'},
+    '../../../kit/player/TVMusicFocus': {MusicFocusRegion: 'FocusRegion', TVMusicFocus: 'TVFocus', TVMusicSeek: 'TVSeek'},
     '../../../kit/player/ListeningNotice': {NativeListeningNotice: 'Notice'}, './TVNowPlayingScreen': {TVNowPlayingScreen: 'TVNowPlaying'},
     '../../../kit/overlays/SurfacePaintHost': {RetainedOverlay: 'RetainedOverlay'},
     '../../../kit/dock/PlayerMorphBridge': {usePublishedPlayerMorph: () => undefined},

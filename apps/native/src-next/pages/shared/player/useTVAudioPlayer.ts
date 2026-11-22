@@ -10,7 +10,7 @@ import type {NativeEqualizerCopy} from '../../../kit/frames/EqualizerFrame';
 import {listeningSongFavorite} from '../../../kit/player/ListeningSongActions';
 import {nowPlayingQueueRows, nowPlayingSource} from './useNowPlayingQueue';
 import type {NowPlayingScreenProps} from './audio-player';
-import {useTVQueuePolicy} from '../../../screens/destinations/music/TVQueuePolicy';
+import {useTVQueuePolicy} from './useTVQueuePolicy';
 import {useTVPageMotion} from '../../../tv/layout/TVPageMotion';
 import {registerBack} from '../../../kit/navigation/back';
 
