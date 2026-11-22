@@ -1,4 +1,5 @@
 import {Platform} from 'react-native';
+import {isTablet} from '../../../platform/device-platform';
 import type {NativePlaybackRuntimeSnapshot} from '../../../platform/playback/types';
 import type {DeviceEqualizer} from '../../../platform/playback/equalizer';
 import type {MusicFormatFacts, MusicOutputFacts, MusicServerSignal, MusicSignalInput} from '../../../../../../packages/client-core/src/music-signal';
@@ -10,6 +11,7 @@ function format(facts: PlaybackSoundFacts | undefined): MusicFormatFacts | undef
   return Object.freeze({
     codec, ...(facts.lossless !== undefined ? {lossless: facts.lossless} : {}),
     ...(facts.bitDepth ? {bitDepth: facts.bitDepth} : {}), ...(facts.sampleRate ? {sampleRate: facts.sampleRate} : {}),
+    ...(facts.bitrateKbps ? {bitrateBps: facts.bitrateKbps * 1000} : {}),
     ...(facts.channels ? {channels: facts.channels} : {}), ...(facts.layout ? {layout: facts.layout} : {}),
     ...(facts.objectAudio === 'atmos' ? {atmos: true} : {}),
   });
@@ -38,8 +40,10 @@ export function nativeMusicSignal(snapshot: Pick<NativePlaybackRuntimeSnapshot, 
   const observed = snapshot.session?.observedPlayback?.audio;
   const platform: MusicOutputFacts['platform'] = Platform.OS === 'ios' ? 'apple' : Platform.OS === 'android' ? 'android' : 'other';
   const sampleRate = observed?.sampleRate && Number.isFinite(observed.sampleRate) ? observed.sampleRate : undefined;
+  // The output step names this device the way the mock-ups do: "This iPhone", "This Apple TV", "This phone".
+  const device: MusicOutputFacts['device'] = Platform.OS === 'ios' ? (Platform.isTV ? 'appleTv' : Platform.isPad ? 'ipad' : 'iphone') : Platform.isTV ? 'tv' : isTablet ? 'tablet' : 'phone';
   const output: MusicOutputFacts = Object.freeze({
-    platform, device: Platform.isTV ? 'tv' : 'phone',
+    platform, device,
     ...(observed?.handling === 'passthrough' ? {passthrough: true} : {}),
     ...(sampleRate ? {sampleRate} : {}),
     ...(observed?.bitDepth ? {bitDepth: observed.bitDepth} : {}),

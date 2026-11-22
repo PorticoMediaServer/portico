@@ -1,13 +1,14 @@
 import React, {useId, useRef} from 'react';
 import {Pressable, ScrollView, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Icon} from '../Icon';
 import {Button, Focusable} from '../controls';
-import {SidePanel} from '../overlays';
+import {BottomSheet, SidePanel} from '../overlays';
 import type {FocusRef} from '../overlays/types';
 import {alpha} from '../shell/visual';
-import {useTheme} from '../theme';
+import {textLines, useTheme} from '../theme';
 
 const t = defaultI18n.t;
 
@@ -26,7 +27,7 @@ export function SignalLine({path, onPress, focusRef}: {path: SignalPathView; onP
   const body = (focused = false) => <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 10 : 7, minWidth: 0}}>
     <Icon name={tv ? 'i-wave' : 'i-pulse'} size={tv ? 26 : 15} color={colour}/>
     {path.source ? <Text ellipsizeMode="clip" style={[theme.type.captionStrong, {color: tv ? theme.colors.textSecondary : theme.colors.text, flexShrink: 0}]}>{path.source}</Text> : null}
-    {path.state ? <Text style={[theme.type.caption, {color: tv ? focused ? theme.colors.text : theme.colors.textTertiary : theme.colors.textSecondary, flexShrink: 1}]}>{path.state}</Text> : null}
+    {path.state ? <Text {...textLines(1)} style={[theme.type.caption, {color: tv ? focused ? theme.colors.text : theme.colors.textTertiary : theme.colors.textSecondary, flexShrink: 1}]}>{path.state}</Text> : null}
     {tv && <Icon name="i-right" size={20} color={theme.colors.textTertiary}/>}
   </View>;
   const label = path.accessibleName ?? [path.source, path.state].filter(Boolean).join('. ');
@@ -41,11 +42,11 @@ export function SignalLine({path, onPress, focusRef}: {path: SignalPathView; onP
 /** The output's pill: green while the path is untouched. */
 function SignalPill({path}: {path: SignalPathView}) {
   const theme = useTheme();
-  return <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, alignSelf: 'flex-start', paddingHorizontal: theme.space.controlGap + 2,
+  return <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.xs, alignSelf: 'flex-start', maxWidth: '100%', paddingHorizontal: theme.space.controlGap + 2,
     paddingVertical: theme.isTV ? theme.space.xs : 5, borderRadius: theme.isTV ? 10 : 12,
     backgroundColor: path.healthy ? alpha(theme.colors.healthy, .16) : alpha(theme.colors.text, .1)}}>
     {theme.isTV && <View style={{width: 10, height: 10, borderRadius: 5, backgroundColor: path.healthy ? theme.colors.healthy : theme.colors.textTertiary}}/>}
-    <Text style={[theme.type.captionStrong, {color: path.healthy ? theme.colors.healthy : theme.colors.textSecondary}]}>{path.pill}</Text>
+    <Text {...textLines(1)} style={[theme.type.captionStrong, {flexShrink: 1, color: path.healthy ? theme.colors.healthy : theme.colors.textSecondary}]}>{path.pill}</Text>
   </View>;
 }
 
@@ -67,20 +68,22 @@ function Step({step, last}: {step: SignalStep; last: boolean}) {
   </View>;
 }
 
-/** music-plus 3b: the signal path on a phone, in the player's panel: "Signal path", the output's pill and Done, then the steps. */
-export function SignalSheet({path, onClose}: {path: SignalPathView; onClose: () => void}) {
-  const theme = useTheme();
-  return <View style={{flex: 1, backgroundColor: theme.colors.ink, paddingTop: 54, paddingHorizontal: theme.space.md - 4}}>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm - 2}}>
-      <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{t('player.signal.title')}</Text>
-      <SignalPill path={path}/>
-      <View style={{flex: 1}}/>
-      <Button size="small" testID="music-signal-done" onPress={onClose}>{t('action.done')}</Button>
-    </View>
-    <ScrollView style={{marginTop: theme.space.sm}} showsVerticalScrollIndicator={false}>
+/** music-plus 3b: the signal path on a phone, a bottom sheet over the player with its grabber: "Signal path", the output's pill
+ * and Done, then the steps. Swipe down, tap outside or Done closes it. */
+export function SignalSheet({path, open, onClose, returnFocusRef}: {path: SignalPathView; open: boolean; onClose: () => void; returnFocusRef?: FocusRef}) {
+  const theme = useTheme(), done = useRef<View>(null);
+  return <BottomSheet open={open} onOpenChange={next => {if (!next) onClose();}} title={t('player.signal.title')} accessibilityLabel={t('player.signal.title')}
+    testID="music-signal-sheet" fitContent initialFocusRef={done} returnFocusRef={returnFocusRef}
+    headerContent={<View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm - 2, paddingHorizontal: theme.space.md - 4, paddingBottom: theme.space.sm}}>
+      <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text, flexShrink: 0}]}>{t('player.signal.title')}</Text>
+      {/* The pill gives way (one line, cut) so Done keeps its whole width. */}
+      <View style={{flex: 1, minWidth: 0, alignItems: 'flex-start'}}><SignalPill path={path}/></View>
+      <View style={{flexShrink: 0}}><Button ref={done} size="small" testID="music-signal-done" onPress={onClose}>{t('action.done')}</Button></View>
+    </View>}>
+    <View style={{paddingHorizontal: theme.space.md - 4, paddingBottom: theme.space.sm}}>
       {path.steps.map((step, index) => <Step key={step.id} step={step} last={index === path.steps.length - 1}/>)}
-    </ScrollView>
-  </View>;
+    </View>
+  </BottomSheet>;
 }
 
 /** listening-notices8: the TV side sheet. Only Done takes focus; the overlay owns Back, the held boundary and the return to the

@@ -114,7 +114,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
   const adapter = createNativeShellPlaybackAdapter({appVersion: 'test', api: {},
     session: () => ({viewer: {authority: 'local', profileId: 'profile'}}), authority: () => runtime.getSnapshot().authority,
     subscribeSettings: () => () => {}, settings: () => ({engine: 'native'})});
-  const signalFacts = await screenModule(new URL('../../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {react, 'react-native': native});
+  const signalFacts = await screenModule(new URL('../../src-next/screens/destinations/music/signal-facts.ts', import.meta.url), {react, 'react-native': native, '../../../platform/device-platform': {isTablet: false}});
   const signalView = signalPath; // The projection lives beside the path model (kit/player/SignalPath draws it).
   const {NativePlaybackLayer} = await screenModule(new URL('../../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'../platform/tv-keys': {useTVKeyEvent() {}}, 
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
