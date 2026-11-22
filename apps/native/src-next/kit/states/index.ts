@@ -16,3 +16,4 @@ export type {StateAction, StateContentProps, StateTone} from './types';
 export {ActionNotice, type ActionNoticeProps} from './ActionNotice';
 export {useUserAction} from './use-user-action';
 export {DownloadsStillPlay} from './DownloadsStillPlay';
+export {TVHomeRecovery} from './TVHomeRecovery';

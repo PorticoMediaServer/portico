@@ -9,7 +9,7 @@ import {Button, Focusable, Tabs} from '../../../kit/controls';
 import {Banner, Menu, OverlaysProvider, SidePanel} from '../../../kit/overlays';
 import {Icon} from '../../../kit/Icon';
 import {fontFamilies, useTheme} from '../../../kit/theme';
-import {CountdownRing, DetailsPanel, GridSkeleton, HomeSkeleton, StateLayout, StateSentence, StateView, TitleSkeleton, retryProgress, type StateFact} from '../../../kit/states';
+import {CountdownRing, DetailsPanel, GridSkeleton, HomeSkeleton, StateLayout, StateSentence, StateView, TitleSkeleton, TVHomeRecovery, retryProgress, type StateFact} from '../../../kit/states';
 import type {Gallery} from '../../gallery-registry';
 import {referenceOrigin} from '../../reference-art';
 
@@ -86,6 +86,16 @@ function Connection({detailsInitially = false, owner = false, testID}: {detailsI
       <DetailsPanel {...detailsAudience} compact facts={facts} testID={`${prefix}.facts`} />
     </SidePanel>
   </Canvas>;
+}
+
+/** The TV Home's own recovery part (kit/states/TVHomeRecovery), with fixture facts. */
+function TVHomeRecoveryCase() {
+  const t = defaultI18n.t, opener = useRef<View>(null), [details, setDetails] = useState(false);
+  return <Canvas><TVHomeRecovery title={t('next.states.cantReach', {server: fixture.server})} body={t('next.states.cantReachBody')}
+    retry={{progress: retryProgress(30, 90), label: t('next.states.retryIn', {seconds: 30}), detail: t('next.states.triesSince', {count: 6, time: fixture.since})}}
+    facts={[t('next.states.triesSince', {count: 6, time: fixture.since}), t('next.states.retryIn', {seconds: 30})]}
+    detailsOpen={details} opener={opener} onRetryNow={() => {}} onSwitchServer={() => {}} onDetails={() => setDetails(true)}
+    onCloseDetails={() => setDetails(false)}/></Canvas>;
 }
 
 function PageFailure() {
@@ -299,6 +309,7 @@ function UpdateApp() {
 const all = ['phone', 'tablet', 'tv'] as const;
 const galleries: readonly Gallery[] = [
   {id: 'states-connection', title: Platform.isTV ? 'next.states.native.connectionTV' : 'next.states.native.connectionPhone', render: Connection, platforms: all},
+  {id: 'states-tv-home-recovery', title: 'next.states.native.connectionTV', render: TVHomeRecoveryCase, platforms: ['tv']},
   {id: 'states-connection-details', title: 'next.states.native.details', render: () => <Connection detailsInitially />, platforms: all},
   {id: 'states-page-failure', title: 'next.states.native.pageFailure', render: PageFailure, platforms: all},
   {id: 'states-saved-empty', title: 'next.states.myListEmpty', render: () => <Empty />, platforms: all},
