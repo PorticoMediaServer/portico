@@ -31,7 +31,7 @@ export function useTVPresentationCompletion() {
   }), []);
 }
 
-type PanelModal = Readonly<{visible: boolean; onDismiss?: () => void; key?: number}>;
+type PanelModal = Readonly<{visible: boolean; onDismiss?: () => void; onShow?: () => void; key?: number}>;
 type PanelMotion = {progress: SharedValue<number>; reduced: boolean; interactive: boolean; modal: PanelModal};
 const Context = createContext<PanelMotion | undefined>(undefined);
 export function useTVPanelInteractive() {return useContext(Context)?.interactive ?? true;}
@@ -53,7 +53,7 @@ export function TVPanelTransition({open, onExited, modal = false, children}: {op
     if (!arrived) {if (modal) setOut(true); else exitRef.current();}
   }, [completion, modal]);
   useEffect(() => {if (out && !native.mounted) exitRef.current();}, [out, native.mounted]);
-  const shown = useMemo(() => modal ? {visible: native.visible, onDismiss: native.onDismiss, key: native.key} : SHOWN, [modal, native.visible, native.onDismiss, native.key]);
+  const shown = useMemo(() => modal ? {visible: native.visible, onDismiss: native.onDismiss, onShow: native.onShow, key: native.key} : SHOWN, [modal, native.visible, native.onDismiss, native.onShow, native.key]);
   useEffect(() => {
     const ticket = completion.begin();
     setLanded(false);

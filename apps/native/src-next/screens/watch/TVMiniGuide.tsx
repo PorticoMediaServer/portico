@@ -95,7 +95,7 @@ function MiniGuideSurface(props: NativeMiniGuideProps & {open: boolean; onExited
     if (!Number.isFinite(props.now) || typeof start !== 'number' || typeof end !== 'number' || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) return undefined;
     return Math.max(0, Math.min(1, (props.now - start) / (end - start)));
   };
-  return <Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} animationType="none" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
+  return <Modal key={native.key} transparent visible={native.visible} onDismiss={native.onDismiss} onShow={native.onShow} animationType="none" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
     <Animated.View pointerEvents={props.open ? 'auto' : 'none'} accessibilityElementsHidden={!props.open} importantForAccessibility={props.open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, fade]} accessibilityViewIsModal>
       <View pointerEvents="box-none" testID="tv-mini-guide-canvas" style={{position: 'absolute', left: canvas.left, top: canvas.top, width: canvas.width, height: canvas.height, transformOrigin: 'top left', transform: [{scale: canvas.scale}]}}>
         {/* The drawn shell keeps its shadow outside the clipped glass layer. */}

@@ -65,6 +65,8 @@ type Presentation = Readonly<{
   leaving: boolean;
   /** UIKit dismissed it by itself while shown (D16). */
   gone: boolean;
+  /** UIKit reported it on screen (`onShow`), so it was not dropped. */
+  seen?: boolean;
 }>;
 /** Every presentation still leaving on iOS, across overlays: from the start of its exit (`closing`: it runs its own
  * exit while its `Modal` is still shown) until UIKit reports it gone. UIKit drops a `Modal` presented over one that is
@@ -74,8 +76,14 @@ const leavingModals = new Set<object>(), leavingListeners = new Set<() => void>(
 const leavingChanged = () => {for (const listener of [...leavingListeners]) listener();};
 const subscribeLeaving = (listener: () => void) => {leavingListeners.add(listener); return () => {leavingListeners.delete(listener);};};
 const leavingCount = () => leavingModals.size;
+/** How long a Modal unmounted while shown is treated as still leaving: React Native reports no dismissal after unmount,
+ * and a Menu's non-animated dismissal is done well within this. */
+export const UNMOUNTED_DISMISS_MS = 500;
+/** How long a presentation may wait for UIKit's `onShow` before it is taken as dropped, and how often it asks again. */
+export const UNSEEN_MODAL_MS = 800;
+export const UNSEEN_RETRIES = 3;
 
-export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS, closing = false): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void; key: number}> {
+export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS, closing = false): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void; onShow: () => void; key: number}> {
   const ios = Platform.OS === 'ios';
   const [state, setState] = useState<Presentation>({token: 0, shown: false, leaving: false, gone: false});
   let now = state;
@@ -99,7 +107,34 @@ export function useNativeModalPresence(present: boolean, shown = present, wait =
     : current.leaving ? {...current, leaving: false}
     : current.shown && !current.gone ? {...current, gone: true} : current), []);
   const token = now.token, onDismiss = useMemo(() => () => report(token), [report, token]);
+  // The net: UIKit drops a Modal presented while another is still on screen or leaving, and nothing says so but the
+  // missing `onShow`. A presentation not seen within `UNSEEN_MODAL_MS` is withdrawn and asks again, which then waits for
+  // whatever was in the way, at most `UNSEEN_RETRIES` times (iPhone: a title menu began closing 10 ms after the picker
+  // its item opened had asked, and the dropped picker's empty Modal blocked the page).
+  const onShow = useMemo(() => () => setState(current => current.token === token && current.shown ? {...current, seen: true} : current), [token]);
+  const retries = useRef(0);
+  if (!wanted) retries.current = 0;
+  useEffect(() => {
+    if (!ios || !state.shown || state.seen || retries.current >= UNSEEN_RETRIES) return;
+    const asked = state.token;
+    const timer = setTimeout(() => {
+      retries.current++;
+      setState(current => current.token === asked && current.shown && !current.seen ? {token: current.token, shown: false, leaving: false, gone: false} : current);
+    }, UNSEEN_MODAL_MS);
+    return () => clearTimeout(timer);
+  }, [ios, state.shown, state.seen, state.token]);
   const holding = ios && (state.leaving || closing && state.shown);
+  // A Modal whose owner unmounts it while it is shown (a menu drawn only while its entry exists, closed by its own item)
+  // never reports a dismissal, yet UIKit is still taking it down: it counts as leaving for a short while, so a picker the
+  // item opens waits (iPhone, Search › ⋯ › Add to playlist…: #5012's wait alone was not enough).
+  const showing = useRef(false);
+  showing.current = ios && now.shown && present;
+  useEffect(() => () => {
+    if (!showing.current) return;
+    const entry = {};
+    leavingModals.add(entry); leavingChanged();
+    setTimeout(() => {if (leavingModals.delete(entry)) leavingChanged();}, UNMOUNTED_DISMISS_MS);
+  }, []);
   useEffect(() => {
     if (!holding) return;
     const entry = {}; own.current = entry; leavingModals.add(entry); leavingChanged();
@@ -111,5 +146,5 @@ export function useNativeModalPresence(present: boolean, shown = present, wait =
     const timer = setTimeout(() => setState(current => current.token === leaving && current.leaving ? {...current, leaving: false} : current), wait);
     return () => clearTimeout(timer);
   }, [state.leaving, state.token, wait]);
-  return {mounted: present || now.leaving, visible: now.shown, onDismiss, key: token};
+  return {mounted: present || now.leaving, visible: now.shown, onDismiss, onShow, key: token};
 }
