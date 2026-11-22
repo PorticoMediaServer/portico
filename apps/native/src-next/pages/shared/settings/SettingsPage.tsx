@@ -22,7 +22,7 @@ import {ServerRemoteAccessPage} from './ServerRemoteAccessPage';
 import {ServerStreamingPage} from '../../touch/settings/ServerStreamingPage';
 import {ServerSegmentsPage} from '../../touch/settings/ServerSegmentsPage';
 import {ServerPeoplePage} from '../../touch/settings/ServerPeoplePage';
-import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
+import {ServerSignInPage} from '../../touch/settings/ServerSignInPage';
 import {ServerMetadataPage} from '../../touch/settings/ServerMetadataPage';
 import {ServerHistoryPage} from '../../touch/settings/ServerHistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../kit/settings/remote-sources/NativeRemoteSourcesScreen';
@@ -84,8 +84,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     {!!sheetShortcuts.length && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts.map(action => action.id === 'notifications' && unreadNotifications > 0
       ? {...action, trailing: <SettingsNotificationCount count={defaultI18n.number(unreadNotifications)}/>} : action)}/>}
   </>;
-  const custom = signInPage ? <NativeServerSignIn ports={ports} runtime={runtime} compactHeader={compact} onOpenPage={choose}/>
-    : dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
+  const custom = dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : undefined;
   // connect-24: a TV's Switch server page has its own line under the title.
@@ -93,7 +92,9 @@ export function NativeSettingsPage(props: SettingsProps) {
   const intro = page.id === 'playback' ? t('settings.playback.deviceIntro') : switchServerLede;
   const preferenceProps = {ports, controller, runtime, devicePreferences, reportedOutputs, awayLimitLabel,
     onStreaming: () => choose('streaming'), onQuality: () => choose('quality')};
-  const settingsPage = (!compact || pushed) && (generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
+  const settingsPage = (!compact || pushed) && (signInPage ? <ServerSignInPage ports={ports} runtime={runtime} server={serverHeader} retry={retry} onOpenPage={choose}
+    back={compact ? {label: title, onPress: phoneBack} : undefined}/>
+    : generalPage ? <ServerGeneralPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
     : remoteAccessPage ? <ServerRemoteAccessPage ports={ports} runtime={runtime} server={serverHeader} retry={retry}
     back={compact ? {label: title, onPress: phoneBack} : undefined}/>
