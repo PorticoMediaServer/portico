@@ -937,11 +937,10 @@ CREATE TABLE list_shares (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX list_shares_profile ON list_shares (profile_id);
 
--- A profile's play queue on one device: one for music and audiobooks and one for video, so
--- music comes back with its queue and place after a video. A queue outlives a restart; one
--- nobody has played for 30 days is removed. selection says what a queue too long to hold at
--- once was built from and how far into it the queue has got, so it is refilled as the
--- listener nears the end. shuffle_seed is NULL while shuffle is off.
+-- A profile's play queue on one device: one for music and audiobooks and one for video, so music
+-- comes back with its queue and place after a video. A queue outlives a restart; one nobody has
+-- played for 30 days is removed. selection says what a queue too long to hold at once was built
+-- from and how far into it the queue has got, so it is refilled; shuffle_seed is NULL while off.
 CREATE TABLE play_queues (
   id               INTEGER NOT NULL PRIMARY KEY,
   public_id        TEXT    NOT NULL UNIQUE,
@@ -952,6 +951,7 @@ CREATE TABLE play_queues (
   repeat           TEXT    NOT NULL DEFAULT 'off' CHECK (repeat IN ('off', 'one', 'all')),
   shuffle_seed     INTEGER,
   selection        TEXT,
+  source           TEXT, -- what it was started from, for "Playing from" (queue_source.go)
   revision         INTEGER NOT NULL DEFAULT 1,
   created_at       INTEGER NOT NULL,
   played_at        INTEGER NOT NULL

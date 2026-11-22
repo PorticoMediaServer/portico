@@ -132,6 +132,26 @@ type QueueSource struct {
 	Mix string `json:"mix,omitempty"`
 }
 
+// ref is what a queue started from this source plays from: what Now Playing names as
+// "Playing from". A queue taken on from another device plays from what that one did.
+func (src QueueSource) ref() db.QueueSourceRef {
+	switch {
+	case src.Container != "":
+		return db.QueueSourceRef{Kind: db.QueueFromContainer, ID: src.Container}
+	case src.List != "":
+		return db.QueueSourceRef{Kind: db.QueueFromList, ID: src.List}
+	case src.Mix != "":
+		return db.QueueSourceRef{Kind: db.QueueFromMix, ID: src.Mix}
+	case src.Radio != "":
+		return db.QueueSourceRef{Kind: db.QueueFromRadio, ID: src.Radio}
+	case len(src.Items) > 0:
+		return db.QueueSourceRef{Kind: db.QueueFromItems}
+	case src.View != nil || src.HomeRow != nil:
+		return db.QueueSourceRef{Kind: db.QueueFromView}
+	}
+	return db.QueueSourceRef{}
+}
+
 // selection is what a queue too long to hold at once was built from, and how far into it
 // the queue has got. It is stored with the queue as JSON.
 type selection struct {
@@ -317,6 +337,7 @@ func (s *Service) Create(ctx context.Context, c Caller, in CreateInput) (db.Queu
 		}
 	}
 	src := in.Source
+	n.Source = src.ref().Text()
 	if src.Queue != "" {
 		copied, err := s.db.CopyableQueue(ctx, c.Viewer, src.Queue)
 		if err != nil {
@@ -326,6 +347,7 @@ func (s *Service) Create(ctx context.Context, c Caller, in CreateInput) (db.Queu
 			return db.Queue{}, ErrUnsupported
 		}
 		n.Items, n.Start, n.ShuffleSeed, n.Selection, n.InOrder, n.Repeat = copied.Items, copied.Start, copied.ShuffleSeed, copied.Selection, true, copied.Repeat
+		n.Source = copied.Source
 		return s.db.CreateQueue(ctx, n)
 	}
 	if src.Radio != "" {

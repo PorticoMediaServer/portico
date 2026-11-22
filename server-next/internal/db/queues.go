@@ -46,8 +46,12 @@ type Queue struct {
 	Shuffled bool
 	// Selection is what a queue too long to hold at once was built from. See playqueue.
 	Selection string
-	Revision  int64
-	Total     int
+	// Source is what the queue was started from, and SourceLabel its name as this viewer may
+	// see it ("" when the viewer may not, or it has none). See queue_source.go.
+	Source      QueueSourceRef
+	SourceLabel string
+	Revision    int64
+	Total       int
 	// CurrentEntry is the entry being played, 0 for none, and CurrentIndex where it stands.
 	CurrentEntry int64
 	CurrentIndex int
@@ -78,11 +82,11 @@ type QueueEntry struct {
 
 func queueByID(ctx context.Context, tx *sql.Tx, v Viewer, acc access, publicID string) (Queue, error) {
 	var q Queue
-	var selection sql.NullString
-	err := tx.QueryRowContext(ctx, `SELECT q.id, q.public_id, q.device_id, q.medium, q.repeat, q.shuffle_seed, q.selection, q.revision,
+	var selection, source sql.NullString
+	err := tx.QueryRowContext(ctx, `SELECT q.id, q.public_id, q.device_id, q.medium, q.repeat, q.shuffle_seed, q.selection, q.source, q.revision,
 		ifnull(q.current_entry_id, 0), ifnull((SELECT position FROM queue_entries WHERE id = q.current_entry_id), -1), q.played_at
 		FROM play_queues q WHERE q.public_id = ? AND q.profile_id = ?`, publicID, v.ProfileID).
-		Scan(&q.ID, &q.PublicID, &q.DeviceID, &q.Medium, &q.Repeat, &q.seed, &selection, &q.Revision, &q.CurrentEntry, &q.currentPosition, &q.PlayedAt)
+		Scan(&q.ID, &q.PublicID, &q.DeviceID, &q.Medium, &q.Repeat, &q.seed, &selection, &source, &q.Revision, &q.CurrentEntry, &q.currentPosition, &q.PlayedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return q, ErrNotFound
 	}
@@ -90,6 +94,9 @@ func queueByID(ctx context.Context, tx *sql.Tx, v Viewer, acc access, publicID s
 		return q, err
 	}
 	q.Shuffled, q.Selection = q.seed.Valid, selection.String
+	if q.Source, q.SourceLabel, err = queueSource(ctx, tx, v, acc, source.String); err != nil {
+		return q, err
+	}
 	var before, after, afterMS sql.NullInt64
 	err = tx.QueryRowContext(ctx, `SELECT count(*), sum(e.position < @cur), sum(e.position > @cur),
 		sum(CASE WHEN e.position > @cur THEN ifnull(i.duration_ms, 0) END)
@@ -279,6 +286,8 @@ type NewQueue struct {
 	// InOrder says Items are already in the order to play: a slice of a shuffled selection.
 	InOrder   bool
 	Selection string
+	// Source is what the queue was started from (QueueSourceRef.Text), or "".
+	Source string
 	// Repeat is off (empty), one or all: a queue moved to another device keeps it.
 	Repeat string
 	// IdempotencyKey and RequestHash make a repeated request return what it made the first time.
@@ -335,8 +344,9 @@ func insertQueue(tx *sql.Tx, n NewQueue, publicID string) error {
 		n.Viewer.ProfileID, n.DeviceID, medium, n.Now.Add(-queueIdle).UnixMilli()); err != nil {
 		return err
 	}
-	res, err := tx.Exec(`INSERT INTO play_queues (public_id, profile_id, device_id, medium, shuffle_seed, selection, repeat, created_at, played_at)
-		VALUES (?, ?, ?, ?, ?, nullif(?, ''), ifnull(nullif(?, ''), 'off'), ?, ?)`, publicID, n.Viewer.ProfileID, n.DeviceID, medium, n.ShuffleSeed, n.Selection, n.Repeat, at, at)
+	res, err := tx.Exec(`INSERT INTO play_queues (public_id, profile_id, device_id, medium, shuffle_seed, selection, source, repeat, created_at, played_at)
+		VALUES (?, ?, ?, ?, ?, nullif(?, ''), nullif(?, ''), ifnull(nullif(?, ''), 'off'), ?, ?)`,
+		publicID, n.Viewer.ProfileID, n.DeviceID, medium, n.ShuffleSeed, n.Selection, n.Source, n.Repeat, at, at)
 	if err != nil {
 		return err
 	}

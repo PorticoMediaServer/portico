@@ -11092,6 +11092,12 @@
           "revision": {
             "type": "string"
           },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/QueueSegment"
+            },
+            "type": "array"
+          },
           "shuffle": {
             "type": "boolean"
           },
@@ -11336,6 +11342,9 @@
           "rootTitle": {
             "type": "string"
           },
+          "segmentId": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -11417,6 +11426,42 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "QueueSegment": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/QueueSegmentSource"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "source"
+        ],
+        "type": "object"
+      },
+      "QueueSegmentSource": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
         ],
         "type": "object"
       },
