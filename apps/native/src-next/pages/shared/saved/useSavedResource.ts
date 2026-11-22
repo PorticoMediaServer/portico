@@ -467,7 +467,7 @@ const squareKinds = new Set(['album', 'song', 'book', 'audiobook_file']);
 /** One row of a playlist or collection as the kit's title list draws it (collections 11a, 12a): its art, title, what it is,
  * its year and length, then Watched or the time left, and its ⋯. */
 export function savedResourceRowItem(row: SavedResourceRowValue, runtime: NativeShellRuntime, actions: NativeSavedEntryActions,
-  onMore: (anchor: RefObject<View | null>) => void, selection?: CardSelection): TitleListItem & Readonly<{id: string}> {
+  onMore: (anchor: RefObject<View | null>) => void, selection?: CardSelection, library?: string): TitleListItem & Readonly<{id: string}> {
   const entry = row.media;
   const progress = entry.duration && entry.progressSeconds && !entry.watched ? Math.min(1, entry.progressSeconds / entry.duration) : undefined;
   const left = progress === undefined ? undefined : length(Math.max(0, (entry.duration ?? 0) - (entry.progressSeconds ?? 0)));
@@ -475,7 +475,7 @@ export function savedResourceRowItem(row: SavedResourceRowValue, runtime: Native
     progress === undefined && !entry.watched ? length(entry.duration) : undefined];
   return {id: row.id, title: entry.displayTitle || entry.title, facts: facts.filter((fact): fact is string => !!fact),
     square: squareKinds.has(entry.kind), watched: entry.watched, progress, remaining: left && t('next.kit.remaining', {time: left}),
-    artwork: runtime.artwork(entry.posterUrl), selection, onNavigate: () => actions.open(entry), onMore,
+    artwork: runtime.artwork(entry.posterUrl), selection, onNavigate: () => actions.open(entry), onMore, library,
     testID: `saved-row-${encodeURIComponent(row.id)}`};
 }
 

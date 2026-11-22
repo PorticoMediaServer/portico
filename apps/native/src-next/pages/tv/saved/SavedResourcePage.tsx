@@ -39,8 +39,9 @@ export function SavedResourcePage(props: NativeSavedResourceProps) {
     ...(view.duration ? [{id: 'length', text: durationText(view.duration, t) ?? '', role: 'context' as const}] : []),
     ...(collection && view.visibility ? [{id: 'shared', text: view.visibility.text ?? '', role: 'context' as const}] : []),
   ].filter(fact => !!fact.text);
+  // collections 18: each row names its library in a column.
   const rows = view.rows.map(row => savedResourceRowItem(row, runtime, actions, () => view.openEntryMenu(row),
-    selection?.item(row.media)));
+    selection?.item(row.media), savedLibraryName(libraries, row.media.libraryId)));
   const empty = {kind: 'empty' as const, icon: isPlaylist ? 'i-queue' as const : 'i-stack' as const,
     title: t(isPlaylist ? 'web.saved.playlistEmpty' : savedView ? 'web.saved.viewEmpty' : 'web.saved.collectionEmpty'),
     reason: isPlaylist ? t('web.saved.playlistEmptyBody') : undefined};

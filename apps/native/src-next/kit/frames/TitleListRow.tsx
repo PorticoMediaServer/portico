@@ -46,6 +46,8 @@ export type TitleListItem = Readonly<{title: string;
   note?: string;
   /** A duration aligned after a TV book row’s title and narrator. */
   trailing?: string;
+  /** TV playlist and collection rows (collections 18): the item's library, in its own column before the state. */
+  library?: string;
   /** A square cover (a book) in place of a poster. */
   square?: boolean;
   watched?: boolean;
@@ -124,6 +126,8 @@ function TVListRow({item, onFocus}: Readonly<{item: TitleListItem; onFocus?: () 
         {item.facts.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: theme.space.controlGap}}>
           {item.facts.map(fact => <Text key={fact} style={[theme.type.about, {color: theme.colors.textTertiary}]}>{fact}</Text>)}</View>}
       </View>
+      {item.library !== undefined && <Text style={[theme.type.about, {width: tvRow.library, color: theme.colors.textTertiary}]}>
+        {item.library}</Text>}
       {state !== undefined && <View style={{width: tvRow.state, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: theme.space.controlGap}}>
         {item.watched && <Icon name="i-check" size={row.check} color={theme.colors.textTertiary}/>}
         <Text style={[theme.type.about, {textAlign: 'right', fontVariant: ['tabular-nums'], ...(item.remaining && !item.watched ? {fontFamily: fontFamilies[700], color: theme.colors.accentStrong} : {color: item.watched ? theme.colors.textTertiary : theme.colors.textSecondary})}]}>{state}</Text>
