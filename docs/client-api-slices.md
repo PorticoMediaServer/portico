@@ -378,8 +378,8 @@ This is a historical migration inventory. Current calls are counted by `python3 
 |---|---|---|
 | `apps/native/src-next/pages/shared/settings/useServerOfflineNotice.ts:46` | request `new HttpLocalApi(hostedUrl, live.accessToken, nativeNetworkFetch).request` | dynamic/wrapper: inspect enclosing run |
 | `apps/native/src-next/screens/settings-live/NativeAccountSecurityPanels.tsx:250` | request `scope.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/SettingsRoute.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/SettingsRoute.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
+| `apps/native/src-next/shell/settings-route.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
+| `apps/native/src-next/shell/settings-route.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsScreen.tsx:149` | request `ports.context.api.request` | get_settings_configuration |
 | `apps/native/src-next/screens/settings-live/SettingsScreen.tsx:228` | request `ports.context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/SettingsScreen.tsx:332` | request `ports.context.api.request` | get_admin_updates |

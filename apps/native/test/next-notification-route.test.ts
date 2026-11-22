@@ -39,7 +39,7 @@ test('the published commands and views open a real surface or run in place', asy
 });
 
 test('on phone and tablet a named server page opens on that Settings page, never the Dashboard (N5-3)', () => {
-  const source = readFileSync(new URL('../src-next/screens/settings-live/SettingsRoute.tsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src-next/shell/settings-route.tsx', import.meta.url), 'utf8');
   assert.match(source, /if \(!Platform\.isTV && route\.page\) return <NativeSettingsPage key=\{[^}]+\}[^>]*initialPage=\{route\.page\}/);
   assert.doesNotMatch(source, /allowed === 'owner' && route\.page === 'live'/, 'Live is no longer the only page the phone opens');
   const screen = readFileSync(new URL('../src-next/pages/shared/settings/useSettingsPage.ts', import.meta.url), 'utf8');
