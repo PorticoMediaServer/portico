@@ -129,7 +129,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     '../kit/player/ListeningSurface': {ListeningPagePreview: 'ListeningPagePreview', ListeningPageBackground: 'ListeningPageBackground'},
     '../pages/touch/player/AudioPlayerPage': {AudioPlayerPage: 'NowPlayingScreen'},
     '../pages/tv/player/ListeningRoute': {TVListeningRoute: 'TVListeningRoute'},
-    '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'},
+    '../kit/player/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'},
     './use-listening-song': {useListeningSong},
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},

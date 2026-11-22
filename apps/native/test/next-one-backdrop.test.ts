@@ -20,7 +20,7 @@ const LAYERS: Record<string, string> = {
   'kit/player/ListeningSurface.tsx': 'the audio player (audio layer)',
   'kit/player/TVAudioSurface.tsx': 'the TV audio player (audio layer) and its equaliser page',
   'screens/watch/WatchHost.tsx': 'the full-window video player (status bar only: the picture is its own native surface)',
-  'screens/watch/PlayOnRemote.tsx': 'the remote control page, a window of its own',
+  'kit/player/PlayOnRemote.tsx': 'the remote control page, a window of its own',
   'shell/NativeContentLinks.tsx': 'the page for a link that cannot be opened',
   'shell/NativeShareLinks.tsx': 'the page for a share link that cannot be opened',
   'kit/live/channels/ChannelEditor.tsx': 'the channel editor and its preview, windows of their own',

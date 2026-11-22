@@ -1,12 +1,14 @@
 import React, {useEffect, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {AmbientArtSource, ArtworkSource} from '../../kit/artwork';
-import {Button, Focusable} from '../../kit/controls';
-import type {CastDockIdentity} from '../../kit/dock';
-import {BottomSheet, Dialog, Popover} from '../../kit/overlays';
-import {nativeType, useTheme} from '../../kit/theme';
-import {Icon, type IconName} from '../../kit/Icon';
+import type {AmbientArtSource, ArtworkSource} from '../artwork';
+import {Button, Focusable} from '../controls';
+import type {CastDockIdentity} from '../dock';
+import {BottomSheet, Dialog, Popover} from '../overlays';
+import {useTheme} from '../theme';
+import {typeScale} from '@portico/design';
+import {shellType} from '../shell/visual';
+import {Icon, type IconName} from '../Icon';
 import {hasAirPlay, isTablet} from '../../platform/device-platform';
 import {NativeAirPlayRoutePicker} from '../../platform/play-on/AudioRoutePicker';
 import type {NativePlayOn, PlayOnRemote} from '../../platform/play-on/controller';
@@ -107,8 +109,8 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
   const tablet = isTablet && !theme.isTV;
   const rowStyle = {minHeight: tablet ? 52 : 58, paddingVertical: 6, paddingHorizontal: 12, borderRadius: tablet ? 10 : 12,
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: tablet ? 12 : 14};
-  const titleStyle = [nativeType({size: tablet ? 15 : 16, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text}];
-  const helperStyle = [nativeType({size: tablet ? 12.5 : 13, weight: 500, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary, marginTop: 1}];
+  const titleStyle = [shellType(tablet ? 15 : 16, 600, 'normal', 0, theme.textScale), {color: theme.colors.text}];
+  const helperStyle = [shellType(tablet ? 12.5 : 13, 500, 'normal', 0, theme.textScale), {color: theme.colors.textTertiary, marginTop: 1}];
   const airPlayReady = hasAirPlay && airPlayVideo && !state.sending && !castState?.transferPending
     && !['connecting', 'pairing', 'waiting', 'casting'].includes(castState?.phase ?? '');
   const chosenDevice = state.chosen?.kind === 'device' ? state.chosen.device.id : undefined, here = !state.chosen && !state.remote && castState?.phase !== 'casting';
@@ -141,7 +143,7 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
       <Button variant="glass" onPress={() => controller.castCommand('stop', undefined, cast?.control)}>{t('action.cancel')}</Button>
     </View>}
     {castState?.phase === 'error' && <Text style={[theme.type.body, {color: theme.colors.textSecondary, paddingVertical: 12}]}>{castState.error ?? t('cast.error.unreachable')}</Text>}
-    <Text testID="play-on-network" accessibilityRole="header" style={[nativeType({size: 13, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale),
+    <Text testID="play-on-network" accessibilityRole="header" style={[theme.type.playOnHeading,
       {color: theme.colors.textTertiary, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6}]}>{t('playOn.yourDevices')}</Text>
     {state.directoryPhase === 'loading' && !state.receivers.length && <Text style={[theme.type.body, {color: theme.colors.textTertiary, paddingVertical: 14}]}>{t('playOn.looking')}</Text>}
     {state.directoryPhase === 'error' && <Text style={[theme.type.body, {color: theme.colors.textSecondary, paddingVertical: 14}]}>{state.directoryError || t('playOn.devicesUnavailable')}</Text>}
@@ -181,7 +183,7 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
   return <>{remoteSheet}{tablet && state.anchorRef ? <Popover open testID="play-on-sheet" title={t('player.playOn')} showTitle anchorRef={state.anchorRef}
     onOpenChange={open => {if (!open) controller.close();}} width={360} placement="bottom-end" offset={8} modal backdropOpacity={0}
     style={{borderRadius: 16, backgroundColor: 'rgba(22,44,58,.96)'}} contentStyle={{padding: 6}}
-    titleType={{size: 13, weight: 700, tracking: 0, lineHeight: 'normal'}} titleTextStyle={{color: theme.colors.textTertiary, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6}}>
+    titleType={typeScale.handheld.playOnHeading} titleTextStyle={{color: theme.colors.textTertiary, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6}}>
     <ScrollView keyboardShouldPersistTaps="handled">{directory}</ScrollView>
   </Popover> : <Dialog open testID="play-on-sheet" title={t('player.playOn')} onOpenChange={open => {if (!open) controller.close();}} showClose
     description={state.message ?? t('playOn.chooseDevice')}>{directory}</Dialog>}</>;

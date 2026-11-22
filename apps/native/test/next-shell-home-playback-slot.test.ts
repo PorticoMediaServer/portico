@@ -60,7 +60,7 @@ test('actual playback layer converts measured window slot to its own origin and 
     '../kit/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
     '../kit/player/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
     '../screens/destinations/music/signal-path-model': musicSignal, '../screens/destinations/music/signal-facts': signalFacts,
-    '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'},
+    '../kit/player/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'},
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': {listeningNoticeKey},
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},
