@@ -114,3 +114,26 @@ test('a failure kept on screen writes one line however it is re-rendered, and wr
  appLogShownError({...facts, category: 'changed', errorCode: 'other', status: 412}, 1_000_000 + 66_500);
  assert.equal(appLog.snapshot().split('\n').length, 3);
 });
+
+test('a fact-less line repeated within a minute is kept once, so a warning flood cannot push useful lines out', () => {
+ let now = 1_000_000; const log = new AppLog(()=>now);
+ log.write('info','playback','playback',{state:'playing',engine:'native'});
+ for (let i = 0; i < 5000; i++) { now += 500; log.write('warn','app','warning'); }
+ const lines = log.snapshot().split('\n').map(line=>JSON.parse(line));
+ assert.equal(lines.filter(line=>line.message==='playback').length, 1, 'the useful line survives the flood');
+ // 5000 warnings over 2,500 s: one kept a minute.
+ const warnings = lines.filter(line=>line.message==='warning');
+ assert.ok(warnings.length >= 41 && warnings.length <= 43, `kept ${warnings.length} warning lines`);
+});
+
+test('lines that carry facts are never folded, and a fact-less line returns after a quiet minute', () => {
+ let now = 1_000_000; const log = new AppLog(()=>now);
+ log.write('warn','network','network-failure',{method:'GET',status:503,code:'http_error'});
+ log.write('warn','network','network-failure',{method:'GET',status:503,code:'http_error'});
+ log.write('warn','app','warning'); now += 59_999; log.write('warn','app','warning'); now += 1; log.write('warn','app','warning');
+ log.write('error','app','error');
+ const lines = log.snapshot().split('\n').map(line=>JSON.parse(line));
+ assert.equal(lines.filter(line=>line.message==='network-failure').length, 2);
+ assert.equal(lines.filter(line=>line.message==='warning').length, 2);
+ assert.equal(lines.filter(line=>line.level==='error').length, 1, 'a different level is its own key');
+});
