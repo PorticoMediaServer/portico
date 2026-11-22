@@ -26,7 +26,7 @@ import {ServerSignInPage} from '../../touch/settings/ServerSignInPage';
 import {ServerMetadataPage} from '../../touch/settings/ServerMetadataPage';
 import {ServerHistoryPage} from '../../touch/settings/ServerHistoryPage';
 import {NativeRemoteSourcesScreen} from '../../../kit/settings/remote-sources/NativeRemoteSourcesScreen';
-import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
+import {ServerDashboardPage} from '../../touch/dashboard/ServerDashboardPage';
 import {useSettingsPage, type SettingsProps} from './useSettingsPage';
 import {SettingsPreferences} from './SettingsPreferences';
 
@@ -84,7 +84,7 @@ export function NativeSettingsPage(props: SettingsProps) {
     {!!sheetShortcuts.length && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts.map(action => action.id === 'notifications' && unreadNotifications > 0
       ? {...action, trailing: <SettingsNotificationCount count={defaultI18n.number(unreadNotifications)}/>} : action)}/>}
   </>;
-  const custom = dashboardPage ? <NativeDashboardScreen controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
+  const custom = dashboardPage ? <ServerDashboardPage controller={dashboard!} ports={ports} runtime={runtime} inline onDenied={dashboardDenied} deniedFallback={null}/>
     : remoteSourcesPage ? <NativeRemoteSourcesScreen ports={ports} runtime={runtime} onBackHandlerChange={setRemoteBack}/>
     : undefined;
   // connect-24: a TV's Switch server page has its own line under the title.

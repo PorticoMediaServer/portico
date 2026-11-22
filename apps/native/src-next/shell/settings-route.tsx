@@ -15,7 +15,7 @@ import {ServerSettingsPage} from '../pages/tv/settings/ServerSettingsPage';
 import {isTVServerPage} from '../pages/shared/settings/tv-server-pages';
 import {EqualizerSettingsPage} from '../pages/shared/settings/EqualizerSettingsPage';
 import {NativeSettingsPage} from '../pages/shared/settings/SettingsPage';
-import {NativeDashboardScreen} from '../screens/settings-live/DashboardScreen';
+import {ServerDashboardPage} from '../pages/touch/dashboard/ServerDashboardPage';
 import {createNativeSettingsPorts, nativeSettingsRequestId} from '../screens/settings-live/settings-ports';
 import {createNativeSettingsDownloads} from '../screens/settings-live/downloads-summary';
 
@@ -66,7 +66,7 @@ function createComposition(context: NativeShellBootstrapContext) {
         // A named server page opens on that page of Settings, which shows it only to a viewer who may
         // see it (N5-3: Review devices opens People & devices, not the Dashboard). No page is the Dashboard.
         if (!Platform.isTV && route.page) return <NativeSettingsPage key={route.page === 'live' ? route.channelId ?? 'live' : route.page} ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard} initialPage={route.page} initialChannelId={route.page === 'live' ? route.channelId : undefined}/>;
-        if (!Platform.isTV) return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
+        if (!Platform.isTV) return <ServerDashboardPage ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
         const requested = isTVServerPage(route.page) ? route.page : undefined;
         const page = allowed === 'owner' ? requested ?? 'general' : requested === 'people' ? 'people' : 'dashboard';
         return <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage={page}/>;
@@ -80,7 +80,7 @@ function createComposition(context: NativeShellBootstrapContext) {
         const fallback = <NativeSettingsPage ports={ports} controller={settings} runtime={runtime} devicePreferences={devicePreferences} dashboard={dashboard}/>;
         // TV: the Dashboard is a page of Server settings; a viewer the server turns away gets Settings at once.
         if (Platform.isTV) return admission() !== 'denied' ? <ServerSettingsPage ports={ports} runtime={runtime} dashboard={dashboard} initialPage="dashboard"/> : fallback;
-        return <NativeDashboardScreen ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
+        return <ServerDashboardPage ports={ports} controller={dashboard} runtime={runtime} deniedFallback={fallback}/>;
       },
       dispose,
     } satisfies NativeRouteRenderer,
