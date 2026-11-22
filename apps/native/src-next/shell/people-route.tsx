@@ -12,7 +12,7 @@ import type {NativeShellBootstrapContext} from './bootstrap';
 import type {NativeShellRuntime} from './runtime';
 import type {NativeShellRoute} from './routes';
 import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
-import {createNativeSelection, type NativeSelection} from '../screens/selection/native-selection';
+import {createNativeSelection, type NativeSelection} from './native-selection';
 import {createNativeEntryActions} from '../screens/destinations/entry-actions';
 import {createNativePersonController, personDepartments, type NativePersonController, type NativePersonSnapshot} from '../screens/people/controller';
 import {createNativePersonCreditWindow, type NativePersonCreditWindow} from '../screens/people/credit-window';

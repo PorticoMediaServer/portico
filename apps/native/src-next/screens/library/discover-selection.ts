@@ -1,7 +1,7 @@
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {SelectionContext} from '../../../../../packages/client-core/src/selection-model';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from '../selection/native-selection';
+import {createNativeSelection, type NativeSelection, type NativeSelectionGroup, type NativeSelectionSource} from '../../shell/native-selection';
 import type {NativeLibrarySnapshot} from './model';
 
 /**

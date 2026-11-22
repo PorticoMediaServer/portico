@@ -2,7 +2,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import type {SavedProjection, SavedRoute} from '../../../../../packages/client-core/src/saved';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeDestinationActivationPort} from '../destinations/focus';
-import {catalogueSelectionSource, createNativeSelection, type NativeCatalogueSelectionSnapshot, type NativeSelection} from '../selection/native-selection';
+import {catalogueSelectionSource, createNativeSelection, type NativeCatalogueSelectionSnapshot, type NativeSelection} from '../../shell/native-selection';
 
 /** The two authorized Saved projections and their change signal: everything this selection
  * reads from a destination. The phone hub is one source; the TV Saved destination is adapted
