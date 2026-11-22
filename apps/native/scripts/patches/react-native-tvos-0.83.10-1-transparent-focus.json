@@ -7,7 +7,7 @@
     {
       "path": "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm",
       "beforeSHA256": "7e8c2e72ce6e4f71b93c5c2f6d453e2c43ddd6257a8540f1ed73117d5c4e8638",
-      "afterSHA256": "8bb046fa289e3502bc8e87b3233dbb93dfc846086043f556325f68df3a97e2f1",
+      "afterSHA256": "8fa68a7a613feb5ca7eceef60b94a24adcc0823b2dc99e19be9d3bbc0c7c8053",
       "replacements": [
         {
           "before": "- (BOOL)canBecomeFocused\n{\n  if ([self isTVFocusGuide]) {\n    return NO;\n  }\n  return _props->isTVSelectable;\n}\n",
@@ -48,6 +48,10 @@
         {
           "before": "    rootview.reactPreferredFocusedView = self;\n",
           "after": "    rootview.reactPreferredFocusedView = self;\n    PorticoWeakView *porticoEntry = [PorticoWeakView new];\n    porticoEntry.view = self;\n    objc_setAssociatedObject(rootview, &kPorticoFocusEntry, porticoEntry, OBJC_ASSOCIATION_RETAIN_NONATOMIC);\n"
+        },
+        {
+          "before": "#pragma mark - Apple TV methods\n",
+          "after": "#pragma mark - Apple TV methods\n\n// Portico: a region (a TVFocusGuideView with destinations) named as where focus should go, by a nextFocus guide or by the\n// root, hands focus to its destinations, as moving into it by position does. Without this a nextFocus guide aimed at a\n// region found nothing focusable in it and tvOS fell back to position (Films \u203a Discover: Up from a card reached the\n// library chevron, not the tab; Settings: Right from Switch server went nowhere).\n- (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {\n  if (self.focusGuide != nil && _focusDestinations.count > 0) return _focusDestinations;\n  return [super preferredFocusEnvironments];\n}\n"
         }
       ]
     }
