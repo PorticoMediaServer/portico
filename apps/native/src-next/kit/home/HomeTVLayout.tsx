@@ -1,7 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {ScrollView, Text, View, type AccessibilityActionEvent, type AccessibilityActionInfo} from 'react-native';
 import {typeScale} from '@portico/design';
-import {Focusable} from '../controls';
+import {Button, Focusable} from '../controls';
 import {Icon} from '../Icon';
 import {alpha} from '../browse/presentation';
 import {SidePanel} from '../overlays';
@@ -14,7 +14,7 @@ export function TVHomeLayoutPanel({title, description, onBack, initialFocusRef, 
 }) {
   const theme = useTheme();
   return <SidePanel open onOpenChange={open => {if (!open) onBack();}} title={title} description={description} width={860} topInset={0}
-    logicalCanvas={{width: 860, height: 1080}} showClose={false} titleType={{...typeScale.tenFoot.pageTitle, lineHeight: 'normal'}}
+    logicalCanvas={{width: 860, height: 1080}} showClose={false} titleType={typeScale.tenFoot.pageTitle}
     descriptionTextStyle={[theme.type.tvHomeLayoutIntro, {color: theme.colors.textTertiary, marginTop: 8}]} testID={testID}
     initialFocusRef={initialFocusRef} footer={footer} style={{paddingTop: 46, paddingLeft: 60, paddingRight: 96}}>{children}</SidePanel>;
 }
@@ -130,4 +130,11 @@ export function TVHomeLayoutNotice({message, action}: {message?: string; action?
 /** The panel's foot: one action at each end. */
 export function TVHomeLayoutFoot({start, end}: {start?: ReactNode; end?: ReactNode}) {
   return <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18}}>{start ?? <View/>}{end}</View>;
+}
+
+/** Reset in the reset confirmation: a glass button in the record colour. */
+export function TVHomeResetButton({label, testID, disabled, onPress}: {label: string; testID: string; disabled: boolean; onPress: () => void}) {
+  const theme = useTheme();
+  return <Button focusId="reset-confirm" testID={testID} variant="glass" style={{backgroundColor: `${theme.colors.record}24`}} textStyle={{color: theme.colors.record}}
+    disabled={disabled} onPress={onPress}>{label}</Button>;
 }

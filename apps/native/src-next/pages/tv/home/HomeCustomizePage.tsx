@@ -4,10 +4,9 @@ import {serverTextLabel} from '../../../../../../packages/client-core/src/presen
 import {Button, Switch} from '../../../kit/controls';
 import {HomeSavedViewChoices} from '../../../kit/home/HomeLayout';
 import {TVHomeAlwaysOn, TVHomeLayoutConflict, TVHomeLayoutFoot, TVHomeLayoutHandle, TVHomeLayoutList, TVHomeLayoutNotice, TVHomeLayoutPanel,
-  TVHomeLayoutRemove, TVHomeLayoutRow, TVHomeMoveHints, TVHomeViewMark} from '../../../kit/home/HomeTVLayout';
+  TVHomeLayoutRemove, TVHomeLayoutRow, TVHomeMoveHints, TVHomeResetButton, TVHomeViewMark} from '../../../kit/home/HomeTVLayout';
 import {Dialog} from '../../../kit/overlays';
 import {OverlayFootRow} from '../../../kit/overlays/surface';
-import {useTheme} from '../../../kit/theme';
 import {useHomeCustomize, type HomeCustomizeProps} from '../../shared/home/useHomeCustomize';
 
 const t = defaultI18n.t;
@@ -17,7 +16,7 @@ const t = defaultI18n.t;
  * Back puts it back. Choosing a saved view swaps the rows for the views; a layout changed elsewhere asks to reload. */
 export function HomeCustomizePage(props: HomeCustomizeProps) {
   const {copy, i18n, views, summary, notice, noticeAction, renderError, testID, controller} = props;
-  const theme = useTheme(), view = useHomeCustomize(props), {state, choosing, blocked, displayed, heights, positions, targetY} = view;
+  const view = useHomeCustomize(props), {state, choosing, blocked, displayed, heights, positions, targetY} = view;
   const footer = choosing
     ? <TVHomeLayoutFoot start={views?.hasMore ? <Button focusId="views-more" testID={`${testID}-views-more`} variant="text" disabled={views.loading} onPress={views.loadMore}>{i18n.t('action.showMore')}</Button> : undefined}
       end={<Button focusId="views-cancel" testID={`${testID}-views-cancel`} variant="glass" onPress={view.returnToAdd}>{i18n.t('action.cancel')}</Button>}/>
@@ -75,8 +74,7 @@ export function HomeCustomizePage(props: HomeCustomizeProps) {
       title={t('confirm.resetHome.title')} description={t('confirm.resetHome.body')} initialFocusRef={view.cancelReset} returnFocusRef={view.resetButton} showClose={false}
       footer={<OverlayFootRow layout="end">
         <Button ref={view.cancelReset} focusId="reset-cancel" testID={`${testID}-reset-cancel`} variant="glass" onPress={() => view.closeReset(view.resetOpening)}>{t('action.cancel')}</Button>
-        <Button focusId="reset-confirm" testID={`${testID}-reset-submit`} variant="glass" style={{backgroundColor: `${theme.colors.record}24`}} textStyle={{color: theme.colors.record}}
-          disabled={state.pending} onPress={() => view.confirmReset(view.resetOpening)}>{copy.reset}</Button>
+        <TVHomeResetButton label={copy.reset} testID={`${testID}-reset-submit`} disabled={state.pending} onPress={() => view.confirmReset(view.resetOpening)}/>
       </OverlayFootRow>}>{null}</Dialog>
   </>;
 }
