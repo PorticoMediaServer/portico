@@ -48,7 +48,8 @@ export function useTVAudioPlayer({occupant, queue, width, height, onAction, onAd
   // Right names a queue containing a real readable native focus stop.
   const queueRegion = queue && nowPlayingQueueRows(queue).some(row => !row.current) ? `${id}.queue` : undefined;
   const favourite = song && listeningSongFavorite(song.token, song.pending);
-  const actionsRegion = lyrics || onAddToPlaylist || equalizer.supported || favourite ? `${id}.actions` : undefined;
+  // ⋯ More is always there (Stop, at least), so the actions row always is.
+  const actionsRegion = `${id}.actions`;
   const enabled = page.open && page.ready && !panel && !more;
   const currentItem = queue?.items.find(item => item.entryId === queue.queue.currentEntryId);
   const playingFrom = nowPlayingSource(queue);
@@ -72,7 +73,12 @@ export function useTVAudioPlayer({occupant, queue, width, height, onAction, onAd
     return false;
   }), []);
   const act = (action: Parameters<typeof dockCommand>[1]) => {if (page.open && page.ready && !panel && !more && commandAllowed(occupant, action)) onAction(dockCommand(occupant, action));};
+  // ⋯ More's Stop: the menu is open while it is chosen, so it does not go through act().
+  const stop = () => {
+    setMore(false);
+    if (page.open && page.ready && commandAllowed(occupant, 'stop')) onAction(dockCommand(occupant, 'stop'));
+  };
   return {id, canvas, page, panel, setPanel, more, setMore, signalRef, moreRef, lyricsRef, equalizer, policy,
     position, bounds, span, artist, album, queueRegion, favourite, actionsRegion, enabled, currentItem, playingFrom,
-    previousRef, toggleRef, nextRef, playlistRef, act, close, startFocus};
+    previousRef, toggleRef, nextRef, playlistRef, act, stop, close, startFocus};
 }

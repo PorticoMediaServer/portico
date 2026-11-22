@@ -24,7 +24,7 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
   const t = defaultI18n.t, {presentation: p, playback} = occupant;
   const {id, canvas, page, panel, setPanel, more, setMore, signalRef, moreRef, lyricsRef, equalizer, policy,
     position, bounds, span, artist, album, queueRegion, favourite, actionsRegion, enabled, currentItem, playingFrom,
-    previousRef, toggleRef, nextRef, playlistRef, act, close, startFocus} = useTVAudioPlayer(props);
+    previousRef, toggleRef, nextRef, playlistRef, act, stop, close, startFocus} = useTVAudioPlayer(props);
   return <TVMusicFocus id={id} visible={page.open} covered={!!panel || more} interactive={page.ready} entry="toggle" onClose={onClose}>
     <TVAudioSurface testID={testID} ready={page.ready} ambient={p.ambient}>
       <TVAudioCanvas canvas={canvas}>
@@ -32,8 +32,8 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
         artwork={p.artwork ?? artwork?.(currentItem?.posterUrl)}
         context={playingFrom ? t('web.player.playingFromLabel') : t('player.queueNowPlaying')} source={playingFrom}
         byline={[artist.map(part => part.text).join(' '), album.map(part => part.text).join(' ') || currentItem?.album || '']} close={{icon: 'i-down', label: t('player.minimize'), onPress: onClose}}
-        more={equalizer.supported ? {icon: 'i-more', label: t('next.controls.more'), focusId: 'more', testID: `${testID}-more`,
-          anchorRef: moreRef, onPress: () => setMore(true)} : undefined}
+        more={{icon: 'i-more', label: t('next.controls.more'), focusId: 'more', testID: `${testID}-more`,
+          anchorRef: moreRef, onPress: () => setMore(true)}}
         signal={signal && <MusicSignalLine view={signal} focusRef={signalRef} onPress={() => setPanel('signal')}/>}
         scrubber={<TVMusicSeek occupant={occupant} onAction={onAction} enabled={enabled} testID={`${testID}-scrubber`}/>}
         times={{position: clockText(Math.max(0, position - (bounds?.start ?? 0))) ?? '', end: clockText(span) ?? ''}}
@@ -59,8 +59,10 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
           signal: {id: `${id}.signal`, entry: 'music-signal-line', enabled, edges: {down: `${id}.progress`, right: queueRegion}},
           seek: {id: `${id}.progress`, entry: 'seek', enabled, edges: {up: signal ? `${id}.signal` : undefined, down: `${id}.transport`, right: queueRegion}},
           transport: {id: `${id}.transport`, entry: 'toggle', enabled, orientation: 'horizontal', edges: {up: `${id}.progress`, down: actionsRegion, right: queueRegion}},
-          actions: actionsRegion ? {id: actionsRegion, entry: lyrics ? 'lyrics' : onAddToPlaylist ? 'playlist' : favourite ? 'favorite' : 'more',
-            enabled, orientation: 'horizontal', edges: {up: `${id}.transport`, right: queueRegion}} : undefined,
+          // Drawn left to right; More is always last, so Right from it goes on to the queue.
+          actions: {id: actionsRegion, entry: lyrics ? 'lyrics' : onAddToPlaylist ? 'playlist' : favourite ? 'favorite' : 'more',
+            order: [...(lyrics ? ['lyrics'] : []), ...(onAddToPlaylist ? ['playlist'] : []), ...(favourite ? ['favorite'] : []), 'more'],
+            enabled, orientation: 'horizontal', edges: {up: `${id}.transport`, right: queueRegion}},
         }}
         panelTitle={queue ? t('next.music.upNext') : undefined}
         panel={queue && <NowPlayingQueue testID={`${testID}-queue`} view={queue} onPlay={onQueuePlay} artwork={artwork}
@@ -70,7 +72,12 @@ function TVAudioPlayerContent(props: TVAudioPlayerProps) {
           regionId={`${id}.queue`} edges={{left: `${id}.transport`}}/>}/>
       </TVAudioCanvas>
       <Menu testID={`${id}.more`} open={more} onOpenChange={setMore} title={t('next.controls.more')} presentation="sideSheet" returnFocusRef={moreRef} restoreFocus={panel !== 'eq'}
-        items={equalizer.supported ? [{id: 'eq', label: t('next.media.eq.title'), icon: 'i-gauge', onSelect: () => {setMore(false); setPanel('eq');}}] : []}/>
+        items={[
+          // As the touch player's ⋯ offers them: the signal's details, the equalizer, and Stop.
+          ...(signal ? [{id: 'signal', label: t('player.opt.info'), icon: 'i-info' as const, onSelect: () => {setMore(false); setPanel('signal');}}] : []),
+          ...(equalizer.supported ? [{id: 'eq', label: t('next.media.eq.title'), icon: 'i-gauge' as const, onSelect: () => {setMore(false); setPanel('eq');}}] : []),
+          {id: 'stop', label: t('action.stop'), icon: 'i-stop' as const, disabled: !p.capabilities.stop, onSelect: stop},
+        ]}/>
       {panel === 'signal' && signal && <MusicSignalSheet view={signal} contextTitle={p.identity.title} onClose={close} returnFocusRef={signalRef}/>}
       {panel === 'lyrics' && lyrics && <TVAudioLyrics testID={`${id}.lyrics`} open title={t('player.lyrics')} onOpenChange={open => {if (!open) close();}} returnFocusRef={lyricsRef} restoreFocus={false}>{lyrics}</TVAudioLyrics>}
       {panel === 'eq' && <TVAudioEqualizer canvas={canvas}>
