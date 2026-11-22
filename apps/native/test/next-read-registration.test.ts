@@ -68,7 +68,7 @@ test('Read registration retains the original occurrence across Reading Settings 
       '../destinations/lifetime': await import('../src-next/screens/destinations/lifetime'),
       '../../shell/reading-settings-route': {openNativeReadingSettings}, './platform': await import('../src-next/screens/read/platform'),
       './read-book-model': await import('../src-next/screens/read/read-book-model'), './read-periodical-model': await import('../src-next/screens/read/read-periodical-model'),
-      './read-series-model': await import('../src-next/screens/read/read-series-model'), './ReadBookHost': {ReadBookHost: 'ReadBookHost'},
+      './read-series-model': await import('../src-next/screens/read/read-series-model'), '../../pages/touch/read/ReadBookHost': {ReadBookHost: 'ReadBookHost'},
       '../../pages/touch/read/ReadPeriodicalPage': {ReadPeriodicalPage: 'ReadPeriodicalPage'}, '../../pages/touch/read/ReadSeriesPage': {ReadSeriesPage: 'ReadSeriesScreen'}}),
   });
   assert.equal(registered, 'read'); assert.equal(f.requests, 0);

@@ -8,7 +8,7 @@ import {isReadingLibraryKind, readingRouteId} from './platform';
 import {NativeReadBook} from './read-book-model';
 import {NativeReadPeriodical} from './read-periodical-model';
 import {NativeReadSeries} from './read-series-model';
-import {ReadBookHost} from './ReadBookHost';
+import {ReadBookHost} from '../../pages/touch/read/ReadBookHost';
 import {ReadPeriodicalPage} from '../../pages/touch/read/ReadPeriodicalPage';
 import {ReadSeriesPage} from '../../pages/touch/read/ReadSeriesPage';
 
