@@ -17,7 +17,7 @@ export function restoredShellLifecycleStub() {
       NativeProfileGated: class NativeProfileGated extends Error {},
       nativeProfileGated: error => error?.code === 'profile_pin_reentry',
     },
-    '../screens/accounts/LifecycleProfileGate': {LifecycleProfileGate: () => null},
+    '../pages/shared/accounts/ProfileGatePage': {ProfileGatePage: () => null},
     '../pages/touch/accounts/ManageUnlockPage': {ManageUnlockPage: () => null},
   };
 }

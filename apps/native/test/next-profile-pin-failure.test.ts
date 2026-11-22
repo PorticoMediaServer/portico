@@ -28,6 +28,6 @@ test('anything else keeps the shared presentation', () => {
 
 test('both PIN screens ask for the PIN text before the shared presentation', () => {
   const read = (name: string) => readFileSync(new URL(`../src-next/screens/accounts/${name}`, import.meta.url), 'utf8');
-  assert.match(read('LifecycleProfileGate.tsx'), /profilePinFailureText\(failed\) \?\? failure\.body/);
+  assert.match(readFileSync(new URL('../src-next/pages/shared/accounts/useLifecycleProfileGate.ts', import.meta.url), 'utf8'), /profilePinFailureText\(failed\) \?\? failure\.body/);
   assert.equal(read('AccountRoutes.tsx').match(/profilePinFailureText\(error\) \?\? presentError\(error, 'profiles'\)\.body/g)?.length, 4);
 });

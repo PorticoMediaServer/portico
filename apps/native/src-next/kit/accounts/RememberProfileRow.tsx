@@ -10,8 +10,9 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
  * chosen, under the faces on Who's watching and under the boxes on a profile's PIN. Callers show
  * it only where the server allows remembering (its "Remember PIN for" isn't Off).
  */
-export function RememberProfileRow({checked, onChange, disabled = false, focusId, marginTop = 10}: {
-  checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; focusId: string; marginTop?: number;
+export function RememberProfileRow({checked, onChange, disabled = false, focusId, underFaces = false, marginTop = underFaces ? 34 : 10}: {
+  checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; focusId: string;
+  /** Under Who's watching's faces, set further apart than under a PIN. */ underFaces?: boolean; marginTop?: number;
 }) {
   const theme = useTheme(), label = defaultI18n.t('pin.rememberOnDevice');
   return <Focusable focusId={focusId} accessibilityRole="checkbox" accessibilityState={{checked, disabled}} accessibilityLabel={label}

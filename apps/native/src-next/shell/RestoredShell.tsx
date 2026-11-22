@@ -38,7 +38,7 @@ import {takeLaunchStartedAt} from '../platform/boot-host';
 import {StartupBoot} from './StartupBoot';
 import {choosingProfile, lifecycleSettled, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {NativeProfileGated, NativeProfileMoved, nativeProfileGated} from '../platform/session-lifecycle-native';
-import {LifecycleProfileGate} from '../screens/accounts/LifecycleProfileGate';
+import {ProfileGatePage} from '../pages/shared/accounts/ProfileGatePage';
 import {ManageUnlockPage} from '../pages/touch/accounts/ManageUnlockPage';
 import type {IdentityFailureCode} from '../../../../packages/client-core/src/session-lifecycle';
 
@@ -52,7 +52,7 @@ function ProfileGateHost({onReady}: {onReady: () => void}) {
   const handed = useRef(false);
   // Hand over once: the root restarts from the lifecycle's new sign-in.
   useEffect(() => {if (!choosingProfile(state) && !handed.current) {handed.current = true; onReady();}}, [state, onReady]);
-  return choosingProfile(state) ? <LifecycleProfileGate/> : null;
+  return choosingProfile(state) ? <ProfileGatePage/> : null;
 }
 import {createNativeStartupRecovery, startupRetrySeconds, startupWait, type NativeStartupWait} from './startup-recovery';
 import {afterEntry} from './after-entry';
