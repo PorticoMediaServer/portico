@@ -34,7 +34,9 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
   const own = shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined);
   // In a grid every card takes the grid's one shape; a circle (an artist) keeps its own.
   const shape = slot && own !== 'circle' ? slot : own;
-  const ordinary = cardText({...homeCardSubject(entry), itemCount: ['collection', 'category', 'playlist'].includes(entry.kind) ? entry.count : undefined, albumCount: entry.albumCount, songCount: entry.kind === 'album' || entry.kind === 'disc' ? entry.count : undefined, countIsLowerBound: entry.countIsLowerBound}, 'ordinary', env);
+  const ordinary = cardText({...homeCardSubject(entry), itemCount: ['collection', 'category', 'playlist'].includes(entry.kind) ? entry.count : undefined, albumCount: entry.albumCount, songCount: entry.kind === 'album' || entry.kind === 'disc' ? entry.count : undefined,
+    // desktop-listen Authors: an author's circle says how many books ("2 books").
+    bookCount: entry.kind === 'author' ? entry.count : undefined, countIsLowerBound: entry.countIsLowerBound}, 'ordinary', env);
   const kind = entry.kind === 'movie' ? 'next.browse.kind.movie' : entry.kind === 'show' && family === 'anime' ? 'next.browse.kind.anime' : entry.kind === 'show' && family === 'tv' ? 'next.browse.kind.show' : undefined;
   // Frame #collections draws the watched share after the years, and only when a film is watched.
   const watched = entry.kind === 'collection' ? collectionWatchedCount(entry) : undefined;
