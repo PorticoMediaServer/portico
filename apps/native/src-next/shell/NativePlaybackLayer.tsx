@@ -30,7 +30,7 @@ import {NowPlayingLyrics} from '../kit/player/NowPlayingLyrics';
 import type {LyricsTarget} from '../../../../packages/client-core/src/lyrics';
 import {musicSignalView} from '../screens/destinations/music/signal-path-model';
 import {NativeListeningNotice} from '../kit/player/ListeningNotice';
-import {NativePlayOnSheets} from '../screens/watch/PlayOnSheets';
+import {NativePlayOnSheets} from '../kit/player/PlayOnSheets';
 import {useListeningSong} from './use-listening-song';
 import {nativeMusicSignal} from '../screens/destinations/music/signal-facts';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant, type ListeningPaintOpening} from './listening-presentation';

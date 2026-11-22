@@ -131,7 +131,7 @@ async function rig({reduced = false, docked = false, kind = 'video', os = 'andro
     '../kit/player/NowPlayingLyrics': {NowPlayingLyrics: 'NowPlayingLyrics'},
     '../kit/player/ListeningNotice': {NativeListeningNotice: 'ListeningNotice'},
     '../screens/destinations/music/signal-path-model': signalView, '../screens/destinations/music/signal-facts': signalFacts,
-    '../screens/watch/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'}, './use-listening-song': {useListeningSong},
+    '../kit/player/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'}, './use-listening-song': {useListeningSong},
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': {listeningNoticeKey},
