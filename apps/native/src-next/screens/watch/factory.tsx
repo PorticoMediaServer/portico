@@ -39,7 +39,7 @@ import {NativeWatchControls, type NativeWatchControlContext} from './controls';
 import {NativeWatchChrome, type NativeWatchChromeProps} from './WatchChrome';
 import {NativeWatchPicture, type NativeWatchPictureProps} from '../../shell/watch-picture';
 import {NativeWatchHost, type NativeWatchHostBindings, type NativeWatchHostContext} from './WatchHost';
-import {NativeWatchEpisodes} from './EpisodePanel';
+import {WatchEpisodesPage} from '../../pages/shared/player/WatchEpisodesPage';
 import type {MenuAction} from '../../kit/overlays/types';
 import type {NativeTitleActionsHandle} from '../../shell/title-actions';
 import type {NativeSelection} from '../../shell/native-selection';
@@ -562,7 +562,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     const key = `watch:${titleKey(entry)}`;
     let controller = controllers.get(key);
     if (!controller) controller = createTitleController(key, entry, true);
-    return <NativeWatchEpisodes controller={controller} currentId={entry.id} playing={source.playback.intent === 'playing'} text={host.runtime.text} pane={pane}
+    return <WatchEpisodesPage controller={controller} currentId={entry.id} playing={source.playback.intent === 'playing'} text={host.runtime.text} pane={pane}
       artwork={host.runtime.artwork} onClose={host.closePanel}
       onPlay={next => {
         if (!next.playback) return;
