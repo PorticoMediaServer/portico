@@ -24,6 +24,9 @@ const (
 	FieldCredits       = "credits"
 	FieldMatch         = "match"
 	FieldEdition       = "edition"
+	// FieldNumber is a volume's or issue's number in its series (reading rule 42: the owner
+	// sets it); a scan never changes it once a person has.
+	FieldNumber = "number"
 )
 
 // tagFields are the lists a provider or an NFO file speaks for, by tag kind. Labels and moods
@@ -89,3 +92,6 @@ func keptFields(locked sql.NullString, sources map[string]string) map[string]boo
 	}
 	return keep
 }
+
+// numberLocked is the condition that the items row in hand has its number locked by a person.
+const numberLocked = `ifnull(locked_fields, '') LIKE '%"` + FieldNumber + `"%'`

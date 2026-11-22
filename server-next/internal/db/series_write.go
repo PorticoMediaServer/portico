@@ -18,7 +18,8 @@ func (im *importer) rereadSeries(id int64, it *ImportItem) error {
 	if err := im.collectionsRated(series...); err != nil {
 		return err
 	}
-	_, err = im.exec(`UPDATE items SET index_number = ? WHERE id = ? AND parent_id IS NULL AND index_number IS NOT ?`,
+	// The number a person set (FieldNumber) stays.
+	_, err = im.exec(`UPDATE items SET index_number = ? WHERE id = ? AND parent_id IS NULL AND index_number IS NOT ? AND NOT `+numberLocked,
 		it.IndexNumber, id, it.IndexNumber)
 	return err
 }

@@ -2465,6 +2465,7 @@ export interface MetadataPatch {
   unlockAll?: boolean;
   useProvider?: string[];
   metadataLanguage?: string;
+  number?: number;
 }
 
 export interface MetadataRefreshed {

@@ -2,9 +2,11 @@ package api
 
 import (
 	"fmt"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
@@ -45,5 +47,40 @@ func TestTheNextVolume(t *testing.T) {
 		if got := next(c.kind, c.from); got != c.want {
 			t.Errorf("after %s comes %q, want %q", c.from, got, c.want)
 		}
+	}
+
+	// The owner sets a volume's number (reading rule 42): "One" becomes volume 3, so it now
+	// follows "Two"; a rescan of its changed file, whose own metadata still says 1, keeps it.
+	one := b.find(db.KindBook, "One")
+	var doc MetadataDocument
+	if w := call(t, b.s, "GET", "/v1/admin/items/"+one+"/metadata", b.owner.AccessToken, nil, &doc); w.Code != 200 || doc.Fields["number"].Value != float64(1) {
+		t.Fatalf("the editor's number for One: %d %+v", w.Code, doc.Fields["number"])
+	}
+	three := 3
+	r := newRequest("PATCH", "/v1/admin/items/"+one+"/metadata", b.owner.AccessToken, MetadataPatch{Number: &three})
+	r.Header.Set("If-Match", `"`+doc.Revision+`"`)
+	w := httptest.NewRecorder()
+	b.s.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("setting One's number answered %d: %s", w.Code, w.Body)
+	}
+	opf := `<package xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+			<dc:title>One</dc:title><meta name="calibre:series" content="Fables"/><meta name="calibre:series_index" content="1"/><meta name="x" content="changed"/></metadata></package>`
+	if err := os.WriteFile(filepath.Join(b.books, "Fables", "One.opf"), []byte(opf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(time.Hour)
+	for _, f := range []string{"One.opf", "One.epub"} {
+		if err := os.Chtimes(filepath.Join(b.books, "Fables", f), future, future); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b.scan()
+	if got := next(db.KindBook, "Two"); got != "One" {
+		t.Errorf("after Two comes %q, want One (the owner's volume 3)", got)
+	}
+	call(t, b.s, "GET", "/v1/admin/items/"+one+"/metadata", b.owner.AccessToken, nil, &doc)
+	if f := doc.Fields["number"]; f.Value != float64(3) || !f.Locked {
+		t.Errorf("One's number after a rescan: %+v", f)
 	}
 }

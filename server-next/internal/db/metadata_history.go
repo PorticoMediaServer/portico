@@ -500,7 +500,7 @@ func afterEntry(b *batchTx, entry int64) (snapshot, error) {
 var (
 	fieldColumns = map[string][]string{FieldPublicationType: {"publication"}, FieldTitle: {"title"}, FieldSortTitle: {"sort_title"}, FieldOriginalTitle: {"original_title"},
 		FieldSummary: {"summary"}, FieldTagline: {"tagline"}, FieldYear: {"year"}, FieldReleaseDate: {"release_date"},
-		FieldContentRating: {"content_rating", "rating_age"}, FieldRating: {"community_rating"}, FieldEdition: {"edition"}}
+		FieldContentRating: {"content_rating", "rating_age"}, FieldRating: {"community_rating"}, FieldEdition: {"edition"}, FieldNumber: {"index_number"}}
 	fieldTags = map[string]string{FieldGenres: TagGenre, FieldStudios: TagStudio, FieldNetworks: TagNetwork, FieldCountries: TagCountry}
 )
 
