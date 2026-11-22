@@ -19,7 +19,7 @@ import {SidewaysPlayerPage, type SidewaysPill} from '../../pages/touch/player/Si
 import {TVPlayerPage} from '../../pages/tv/player/PlayerPage';
 import {FocusRegion, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
-import {NativeTVGroupPill} from '../settings-live/GroupPill';
+import {TVGroupPill} from '../../pages/tv/player/GroupPillPage';
 import {nativeType, useTheme} from '../../kit/theme';
 import {useMotion, useReducedMotion} from '../../kit/useMotion';
 import {useScreenReader} from '../../kit/useScreenReader';
@@ -754,7 +754,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   if (theme.isTV) {
     const group = <FocusRegion id="watch-group" entry="player-group-pill" orientation="horizontal" enabled={controlsEnabled && groupPillPresent}
       edges={{down: 'watch-seek-region', right: linear && liveOffer && props.liveActions ? 'watch-live-actions' : undefined}} stops={{up: true}}>
-      <NativeTVGroupPill onHost={groupPillHost} onSheetChange={groupSheetChange}/>
+      <TVGroupPill onHost={groupPillHost} onSheetChange={groupSheetChange}/>
     </FocusRegion>;
     const liveTools = linear && liveOffer && props.liveActions ? <FocusRegion id="watch-live-actions" entry="watch-live-more" orientation="horizontal"
       enabled={controlsEnabled} edges={{down: 'watch-seek-region', left: groupPillPresent ? 'watch-group' : undefined}} stops={{up: true}}>{liveButtons()}</FocusRegion> : undefined;

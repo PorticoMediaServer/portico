@@ -39,14 +39,16 @@ async function pillTree() {
     host: {present: true}, clock: {ready: 3, waitingFor: 0},
     members: [member({id: 'me', name: 'Me Myself'}), member({id: 'public', name: 'Sam Rivera', username: 'sam'}), member({id: 'private', name: 'Hidden Person', private: true})]};
   const owner = {subscribe: () => () => {}, current: () => true, getSnapshot: () => ({phase: 'live', group}), makeHost: async () => {}};
-  const {NativeTVGroupPill} = await screenModule(new URL('../src-next/screens/settings-live/GroupPill.tsx', import.meta.url), {
+  const {TVGroupPill} = await screenModule(new URL('../src-next/pages/tv/player/GroupPillPage.tsx', import.meta.url), {
     react: {...react, default: react}, 'react-native': {Text: 'Text', View: 'View', findNodeHandle: () => undefined},
-    '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
-    '../../kit/artwork': {ProfileFace: 'ProfileFace'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/overlays': {SidePanel: 'SidePanel'},
-    '../../kit/theme': {useTheme: () => theme}, '../../kit/browse/presentation': {browseType: () => ({})},
-    './group-port': {groupPort: () => owner, subscribeGroupPort: () => () => {}}, './together-presentation': {memberNames},
+    '../../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
+    '../../../kit/artwork': {ProfileFace: 'ProfileFace'}, '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/overlays': {SidePanel: 'SidePanel'},
+    '../../../kit/theme': {useTheme: () => theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../../../kit/browse/presentation': {browseType: () => ({})},
+    '../../../screens/settings-live/group-port': {groupPort: () => owner, subscribeGroupPort: () => () => {}}, '../../../screens/settings-live/together-presentation': {memberNames},
   });
-  return host.render(() => NativeTVGroupPill({}));
+  // The page draws the kit's TVGroupPillView; draw it here so the walk below sees the pill and the people sheet.
+  const tree = host.render(() => TVGroupPill({}));
+  return typeof tree?.type === 'function' ? tree.type(tree.props) : tree;
 }
 
 test('the people sheet shows the username first and the group name beneath it', async () => {

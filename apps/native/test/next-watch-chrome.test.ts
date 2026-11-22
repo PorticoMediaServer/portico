@@ -33,7 +33,7 @@ const chromeModules = {
   'react-native-gesture-handler': {Gesture: {Pan: gesture}, GestureDetector: 'GestureDetector'},
   '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds},
   './useSkipPromptMotion': {useSkipPromptMotion: (value: unknown) => ({value, interactive: !!value, bodyStyle: {}, positionStyle: {}})},
-  '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, '../../pages/touch/player/SidewaysPlayerPage': {SidewaysPlayerPage: 'SidewaysPlayerPage'}, '../../pages/tv/player/PlayerPage': {TVPlayerPage: 'TVPlayerPage'}, '../../kit/player/TVControlLabel': {TVControlLabel: 'TVControlLabel'}, '../settings-live/GroupPill': {NativeTVGroupPill: 'GroupPill'},
+  '../../pages/touch/player/PlayerPage': {PlayerPage: 'PlayerPage'}, '../../pages/touch/player/SidewaysPlayerPage': {SidewaysPlayerPage: 'SidewaysPlayerPage'}, '../../pages/tv/player/PlayerPage': {TVPlayerPage: 'TVPlayerPage'}, '../../kit/player/TVControlLabel': {TVControlLabel: 'TVControlLabel'}, '../../pages/tv/player/GroupPillPage': {TVGroupPill: 'GroupPill'},
   './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {}; return () => snapshot;})()},
   './live-actions': {noLiveActionsSubscription: () => () => {}, emptyLiveActions: (() => {const snapshot = {}; return () => snapshot;})()},
   '../../../../../packages/client-core/src/guide/now-next': {nowNext: () => ({})},
