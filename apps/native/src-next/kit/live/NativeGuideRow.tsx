@@ -4,8 +4,8 @@ import Animated, {useAnimatedStyle, type SharedValue} from 'react-native-reanima
 import Svg, {Defs, Pattern, Rect} from 'react-native-svg';
 import {SLOT_MS, layoutRow, legacyChannel, nowNext, type GuideCell, type GuideChannelRow, type GuideProgram} from '../../../../../packages/client-core/src/guide';
 import {channelUnavailableMessage} from '../../../../../packages/client-core/src/presentation/live-availability';
-import {programmeFactParts} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {Artwork, ChannelMark} from '../artwork';
+import {channelArtMark, programmeFactParts} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {ChannelMark} from '../artwork';
 import {Focusable} from '../controls';
 import {FocusItem, useCovered} from '../focus';
 import {Icon} from '../Icon';
@@ -94,7 +94,7 @@ function NativeLiveListRow({channel, programme, next, now, runtime, clock, heigh
   const remaining = programme && programmeFactParts({startMs: programme.start, endMs: programme.end}, runtime.text, now).find(fact => fact.id === 'remaining');
   const progress = programme && programme.end > programme.start ? Math.max(0, Math.min(1, (now - programme.start) / (programme.end - programme.start))) : undefined;
   return <Focusable ref={node} testID={`live-list-${channel.sourceId}-${channel.id}`} accessibilityRole="button" accessibilityLabel={[channel.name, programme?.title].filter(Boolean).join(' ')} onPress={() => onOpen(node.current)} onLongPress={() => onMenu(node.current)} focusKind="row" style={{minHeight: height, opacity: legacyChannel(channel)?.serverHidden ? .5 : 1, paddingVertical: 12, paddingHorizontal: 20, flexDirection: 'row', gap: 14, borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
-    <View style={{width: 46, alignItems: 'center', gap: 5}}>{(logo || channel.mark && channel.sourceId) && <View style={{width: 46, height: 46, borderRadius: 11, overflow: 'hidden'}}><GuideChannelArt channel={channel} source={logo} size={46}/></View>}<Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{channel.number}</Text></View>
+    <View style={{width: 46, alignItems: 'center', gap: 5}}><View style={{width: 46, height: 46, borderRadius: 11, overflow: 'hidden'}}><GuideChannelArt channel={channel} source={logo} size={46}/></View><Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary}]}>{channel.number}</Text></View>
     <View style={{flex: 1, minWidth: 0}}>
       <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8}}><Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary, flexShrink: 1}]}>{channel.name}</Text>{channel.favorite && <Icon name="i-star-f" size={10} color={theme.colors.accentStrong}/>}<ProgrammeFlags programme={programme} text={runtime.text}/>{remaining && <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary, marginLeft: 'auto'}]}>{remaining.text}</Text>}</View>
       <Text style={[theme.type.listLabel, {color: theme.colors.text, marginTop: 3}]}>{programme?.title ?? runtime.text.t('guide.noInformation')}</Text>
@@ -144,8 +144,8 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
   </Focusable>;
 }
 
+/** A channel's art in the guide, its list row and its programme sheet: always the rounded mark box, its logo over it when
+ * it has one; a channel with no mark from the server shows its number (or "TV") on its tint, as Home's On now does. */
 export function GuideChannelArt({channel, source, size}: {channel: GuideChannelRow; source: ReturnType<NativeShellRuntime['artwork']>; size: number}) {
-  const mark = channel.mark && channel.sourceId ? {...channel.mark, sourceId: channel.sourceId, id: channel.id} : undefined;
-  // A logo without a mark takes the mark's corners, so the channel column reads as one set of tiles.
-  return mark ? <ChannelMark mark={mark} source={source} size={size}/> : source ? <View style={{width: size, height: size, borderRadius: size * 8 / 34, overflow: 'hidden'}}><Artwork source={source} fit="contain"/></View> : null;
+  return <ChannelMark mark={channelArtMark(channel)} source={source} size={size}/>;
 }
