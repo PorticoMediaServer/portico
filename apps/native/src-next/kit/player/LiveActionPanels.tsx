@@ -8,7 +8,7 @@ import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {ProgrammeDetails} from '../live/ProgrammeDetails';
-import {NativeSeriesRuleSheet} from '../../screens/settings-live/LiveSeriesRule';
+import {NativeSeriesRuleSheet} from '../live/SeriesRuleSheet';
 import type {NativeTVLiveActions} from '../../screens/watch/live-actions';
 
 /** Composition over the existing More menu, programme details and DVR rule sheet.

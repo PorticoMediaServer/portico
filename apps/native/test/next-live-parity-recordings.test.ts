@@ -111,7 +111,7 @@ async function fixture({isTV = true, role = 'owner', primary = 'main', canManage
     '../../kit/useScreenReader': {useScreenReader: () => false},
     './useGuideTimePan': {useGuideTimePan: () => ({active: false, position: {value: 0}})}, '../../../../../packages/client-core/src/presentation/live-availability': {channelUnavailableMessage: () => undefined, liveServerWideNotice: () => undefined, liveGuideStale: () => false}, './guide-pan-model': guidePan, './LivePhonePicker': {NativeLivePhonePicker: 'PhonePicker'},
     './LiveOwnerScreen': {NativeLiveOwnerScreen: (props: any) => {editors.push(`owner:${props.initialAction}`); return jsx('OwnerEditor', props);}},
-    './LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRule'}, './server/tv-server-reader': {nativeServerAdmission}, '../../tv/auth': handoff, '../../tv/auth/TVHandoff': handoff,
+    '../../kit/live/SeriesRuleSheet': {NativeSeriesRuleSheet: 'SeriesRule'}, './server/tv-server-reader': {nativeServerAdmission}, '../../tv/auth': handoff, '../../tv/auth/TVHandoff': handoff,
   });
   const ports = {context};
   let showingRecordings = false;

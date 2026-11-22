@@ -2,15 +2,15 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import type {GuideChannel, GuideProgramme} from '../../../../../packages/client-core/src/channel-guide';
 import type {DVRCommandLifetime, RecordingDraft, RulePreview, RuleConfig, Occurrence} from '../../../../../packages/client-core/src/dvr';
-import {Button, Chip, Select} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
-import {Dialog} from '../../kit/overlays';
-import {StateView} from '../../kit/states';
-import {shellType} from '../../kit/shell/visual';
-import {useTheme} from '../../kit/theme';
+import {Button, Chip, Select} from '../controls';
+import {Icon} from '../Icon';
+import {Dialog} from '../overlays';
+import {StateView} from '../states';
+import {shellType} from '../shell/visual';
+import {useTheme} from '../theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import type {NativeRecordingsController} from './recordings-controller';
-import {keepChoiceList, seriesConfig, type SeriesForm} from './recording-rule-presentation';
+import type {NativeRecordingsController} from '../../screens/settings-live/recordings-controller';
+import {keepChoiceList, seriesConfig, type SeriesForm} from '../../screens/settings-live/recording-rule-presentation';
 
 const paddingChoices = [0, 60, 120, 300, 600, 900];
 
@@ -69,7 +69,8 @@ export function NativeSeriesRuleSheet({controller, draft, defaults, runtime, ope
     finally {busyCommand.current = false;if (current()) setBusy(false);}
   };
   const rowStyle = {height: tv ? 76 : 52, borderRadius: tv ? 16 : 12, paddingHorizontal: tv ? 26 : 16, backgroundColor: `${theme.colors.text}0F`};
-  const rowText = {fontSize: (tv ? 25 : 15.5) * theme.textScale, fontWeight: '600' as const};
+  // The choice rows' words are the theme's row label (15.5 handheld, 25 on a TV, weight 600), size and weight only.
+  const {fontSize, fontWeight} = theme.type.rowLabel, rowText = {fontSize, fontWeight};
   const minutes = (value: number) => t(value ? 'recordings.minutes' : 'recordings.none', {count: value / 60});
   return <Dialog open={open} onOpenChange={onOpenChange} title={draft?.programme.title ?? ''} restoreFocus={lifetime ? false : undefined}
     headerContext={<View style={{flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: tv ? 18 : 12}}><Icon name="i-repeatrule" size={tv ? 26 : 20} color={theme.colors.accentStrong}/><Text style={[shellType(tv ? 22 : 14, 700), {color: theme.colors.accentStrong}]}>{t('guide.recordSeriesTitle')}</Text></View>}

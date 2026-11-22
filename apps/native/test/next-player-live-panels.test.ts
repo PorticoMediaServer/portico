@@ -93,7 +93,7 @@ test('mobile live More opens the current real menu, details and series sheet wit
   const {NativeLiveActionPanels} = await screenModule(new URL('../src-next/kit/player/LiveActionPanels.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text'}, '../../../../../packages/client-core/src/guide/legacy-source': {legacyChannel: (value: unknown) => value, legacyProgramme: (value: unknown) => value},
     '../overlays': {Dialog: 'Dialog', Menu: 'Menu'}, '../states': {StateView: 'State'}, '../theme': {useTheme: () => theme},
-    '../live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../../screens/settings-live/LiveSeriesRule': {NativeSeriesRuleSheet: 'SeriesRuleSheet'},
+    '../live/ProgrammeDetails': {ProgrammeDetails: 'ProgrammeDetails'}, '../live/SeriesRuleSheet': {NativeSeriesRuleSheet: 'SeriesRuleSheet'},
   });
   const render = () => h.render(() => NativeLiveActionPanels({actions, context: {playback: {subscribe, getSnapshot: () => ({})}}, runtime: {text: {t}, reportError: assert.fail}}));
   const menu = render();assert.equal(menu.type, 'Menu');assert.equal(menu.props.description, 'Mountain Stage');assert.deepEqual(menu.props.items.map((item: any) => item.id), ['series', 'favorite', 'details']);
