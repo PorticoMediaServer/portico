@@ -75,15 +75,15 @@ test('Search actions preserve exact current media and Person identities without 
     const host = hooks();
     const {homeCardText} = await import('../src-next/screens/home/model');
     const {nativeSearchEntryKey} = await import('../src-next/screens/search/model');
-    const {SearchGridCard} = await screenModule(new URL('../src-next/screens/search/SearchGridCard.tsx', import.meta.url), {
-    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame'},
-    '../../kit/browse': {SongRow: 'SongRow'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({isTV: false})},
+    const {SearchGridCard} = await screenModule(new URL('../src-next/kit/search/SearchGridCard.tsx', import.meta.url), {
+    '../artwork': {Artwork: 'Artwork'}, '../cards/primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame'},
+    '../browse': {SongRow: 'SongRow'}, '../selection': {SelectionCircle: 'SelectionCircle'}, '../Icon': {Icon: 'Icon'},
+    '../browse/presentation': {browseType: () => ({})}, '../theme': {useTheme: () => ({isTV: false})},
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({caption: [], detail: []}), nameInitials},
       react: host.react, 'react-native': {View: 'View'},
-      '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
-      '../../kit/focus': await focusNamespace(host.react),
-      '../home/model': {homeCardText, nativeSearchCardText: (entry: any, env: any) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env)}, './model': {nativeSearchEntryKey},
+      '../cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
+      '../focus': await focusNamespace(host.react),
+      '../../screens/home/model': {homeCardText, nativeSearchCardText: (entry: any, env: any) => homeCardText(entry.kind === 'show' ? {...entry, seasonCount: undefined} : entry, false, env)}, '../../screens/search/model': {nativeSearchEntryKey},
     });
     const personCard = host.render(() => SearchGridCard({entry: person, group: 'people', runtime: f.runtime, actions: f.actions, width: 120}));
     const movieCard = host.render(() => SearchGridCard({entry: movie, group: 'movies', runtime: f.runtime, actions: f.actions, width: 120}));

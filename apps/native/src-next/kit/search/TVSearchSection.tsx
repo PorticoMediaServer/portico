@@ -13,7 +13,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import {Row} from '../layout/Row';
 import {TVLoadedGrid} from '../../tv/layout/TVLoadedGrid';
 import {NativeSearchDestination, nativeSearchEntryKey, nativeSearchTailKey, type NativeSearchSnapshot} from '../../screens/search/model';
-import {SearchGridCard} from '../../screens/search/SearchGridCard';
+import {SearchGridCard} from './SearchGridCard';
 import type {NativeSearchActions, NativeSearchSelectionPort} from '../../screens/search/types';
 
 type Cell = Readonly<{kind: 'entry'; entry: SearchEntry}> | Readonly<{kind: 'tail'; id: string}>;

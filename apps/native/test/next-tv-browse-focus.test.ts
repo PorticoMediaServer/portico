@@ -104,14 +104,14 @@ test('TV saved-name form uses the remote keyboard, authored panel size, trim/bou
 
 test('TV Search song results use full-width track rows and channels use factual wide cards', async () => {
   const h = hooks(), calls: any[] = [], key = (group: string, entry: any) => `${group}:${entry.id}`;
-  const {SearchGridCard} = await screenModule(new URL('../src-next/screens/search/SearchGridCard.tsx', import.meta.url), {
-    react: h.react, 'react-native': native, '../../kit/focus': {useFocusWaiting: () => false},
-    '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
-    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame'},
-    '../../kit/browse': {SongRow: 'SongRow'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/browse/presentation': type, '../../kit/theme': {useTheme: () => theme},
+  const {SearchGridCard} = await screenModule(new URL('../src-next/kit/search/SearchGridCard.tsx', import.meta.url), {
+    react: h.react, 'react-native': native, '../focus': {useFocusWaiting: () => false},
+    '../cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
+    '../artwork': {Artwork: 'Artwork'}, '../cards/primitives': {ArtFrame: 'ArtFrame', CardFrame: 'CardFrame'},
+    '../browse': {SongRow: 'SongRow'}, '../selection': {SelectionCircle: 'SelectionCircle'}, '../Icon': {Icon: 'Icon'},
+    '../browse/presentation': type, '../theme': {useTheme: () => theme},
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: (entry: any) => ({title: entry.title, caption: [], detail: []})},
-    '../home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})}, './model': {nativeSearchEntryKey: key},
+    '../../screens/home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})}, '../../screens/search/model': {nativeSearchEntryKey: key},
   });
   const song = {id: 'track', kind: 'song', title: 'Real track', libraryId: 'music'}, runtime = {artwork: () => undefined, text: {}};
   const actions = {open() {}, play: (entry: any, group: string) => calls.push(['play', entry, group]), menu: (entry: any, group: string) => calls.push(['more', entry, group])};
@@ -137,7 +137,7 @@ test('TV Search song results use full-width track rows and channels use factual 
     '../controls': {Focusable: 'Focusable'}, '../focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({})},
     '../focus/replacement-refocus': {useReplacementRefocus() {}}, '../focus/page-boundary': {useRowPageBoundary() {}}, '../states': {}, '../browse/presentation': type, '../theme': {useTheme: () => theme},
     '../layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
-    '../../screens/search/model': {nativeSearchEntryKey: key, nativeSearchTailKey: () => ''}, '../../screens/search/SearchGridCard': {SearchGridCard: 'SearchGridCard'},
+    '../../screens/search/model': {nativeSearchEntryKey: key, nativeSearchTailKey: () => ''}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'},
   });
   const section = gridHost.render(() => TVSearchSection({group: {id: 'songs', status: 'success', items: [song]}, enabled: true, singleRow: true, width: 1044, regionId: 'songs',
     runtime, actions, destination: {}, contentRoot: {current: null}}));

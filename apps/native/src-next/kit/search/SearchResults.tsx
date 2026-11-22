@@ -8,7 +8,7 @@ import {nowNext} from '../../../../../packages/client-core/src/guide/now-next';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeSearchCardText} from '../../screens/home/model';
 import {nativeSearchEntryKey} from '../../screens/search/model';
-import {SearchGridCard} from '../../screens/search/SearchGridCard';
+import {SearchGridCard} from './SearchGridCard';
 import type {NativeSearchActions, NativeSearchGenre, NativeSearchSelectionPort} from '../../screens/search/types';
 import type {NativeSearchOnNowSnapshot} from '../../screens/search/on-now';
 import {Artwork} from '../artwork';

@@ -20,7 +20,7 @@ async function fixture() {
     '../focus/replacement-refocus': {useReplacementRefocus: (...args: any[]) => {refocused = args;}}, '../focus/page-boundary': {useRowPageBoundary: (...args: any[]) => {boundary = args;}},
     '../states': {LoadingPaint: 'LoadingPaint', SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../browse/presentation': {browseType}, '../theme': {useTheme: () => theme}, '../layout/Row': {Row: 'Row'}, '../../tv/layout/TVLoadedGrid': {TVLoadedGrid: 'TVLoadedGrid'},
-    '../../screens/search/model': {nativeSearchEntryKey, nativeSearchTailKey}, '../../screens/search/SearchGridCard': {SearchGridCard: 'SearchGridCard'},
+    '../../screens/search/model': {nativeSearchEntryKey, nativeSearchTailKey}, './SearchGridCard': {SearchGridCard: 'SearchGridCard'},
   });
   const items = Array.from({length: 12}, (_, index) => ({id: `served-${index}`, kind: 'movie', libraryId: 'movies', title: 'Stored title'}));
   const props: any = {group: {id: 'movies', status: 'success', items, totalCount: 53, totalCountExact: true, nextCursor: 'offered-cursor'},
@@ -83,14 +83,14 @@ test('All mode is a windowed horizontal row whose offered cursor fills the origi
 
 test('the actual card accepts absent data only under its owned loading slot and forwards the retained native address', async () => {
   const host = hooks(), calls: unknown[] = []; let waiting = true;
-  const {SearchGridCard} = await screenModule(new URL('../src-next/screens/search/SearchGridCard.tsx', import.meta.url), {
-    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame'},
-    '../../kit/browse': {SongRow: 'SongRow'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({isTV: false})},
+  const {SearchGridCard} = await screenModule(new URL('../src-next/kit/search/SearchGridCard.tsx', import.meta.url), {
+    '../artwork': {Artwork: 'Artwork'}, '../cards/primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame'},
+    '../browse': {SongRow: 'SongRow'}, '../selection': {SelectionCircle: 'SelectionCircle'}, '../Icon': {Icon: 'Icon'},
+    '../browse/presentation': {browseType: () => ({})}, '../theme': {useTheme: () => ({isTV: false})},
     '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({caption: [], detail: []})},
-    react: host.react, 'react-native': {View: 'View'}, '../../kit/focus': {useFocusWaiting: () => waiting},
-    '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
-    '../home/model': {homeCardText: () => ({}), nativeSearchCardText: () => ({})}, './model': {nativeSearchEntryKey},
+    react: host.react, 'react-native': {View: 'View'}, '../focus': {useFocusWaiting: () => waiting},
+    '../cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
+    '../../screens/home/model': {homeCardText: () => ({}), nativeSearchCardText: () => ({})}, '../../screens/search/model': {nativeSearchEntryKey},
   });
   const props: any = {group: 'movies', width: 196, focusId: 'original-waiting-host', testID: 'retained-native-id',
     runtime: {text: {}, artwork: () => undefined}, actions: {open: (...args: unknown[]) => calls.push(args), menu() {throw new Error('unexpected menu');}}};
