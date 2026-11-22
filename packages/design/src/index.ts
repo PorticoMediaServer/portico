@@ -203,6 +203,10 @@ const handheldType = {
   // the mini guide's note under its rows, and a title chrome's hero line.
   tvControlLabel: type(21, 'normal', 700), tvControlDetail: type(20, 'normal', 600), tvMiniGuideNote: type(19, 'normal', 600),
   tvTitleChrome: type(62, 74, 800, -.035),
+  // Customize Home's rows: a row's name, what it shows, and "Always on Home" (a phone's sheet; TV's panel in `tenFoot`),
+  // and the TV panel's line of help under its title (TV only; each column keeps the TV value).
+  homeLayoutTitle: type(16, 'normal', 700), homeLayoutDetail: type(13, 'normal', 500), homeLayoutAlwaysOn: type(12, 'normal', 400),
+  tvHomeLayoutIntro: type(22, 30.8, 400),
   libraryKindTitle: type(20, 'normal', 800, -.02),
   liveOwnerSourceTitle: type(16.5, 'normal', 700),
   // Existing mobile-web audiobook detail metrics; consumers lift these without redesign.
@@ -309,6 +313,8 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     playerTitle: type(44, 48, 800, -.035), playerSubtitle: type(24, 'normal', 600), playerSubtitleStrong: type(24, 'normal', 700), playerTime: type(24, 'normal', 700), playerPill: type(22, 'normal', 700),
     playerSkip: type(13, 'normal', 800), playerPreviewTime: type(22, 'normal', 800), playerPrompt: type(26, 'normal', 700),
     audioTitle: type(96, 100, 800, -.04), audioByline: type(34, 'normal', 700), audioDetail: type(24, 'normal', 400),
+    // final3-tv Customize Home panel: a row's name 26/600, what it shows 19/500, "Always on Home" 20/400.
+    homeLayoutTitle: type(26, 'normal', 600), homeLayoutDetail: type(19, 'normal', 500), homeLayoutAlwaysOn: type(20, 'normal', 400),
   },
 };
 /** R2: a tablet's own column (tablet.html, tablet-play.html), the same for `medium` and `expanded`. A tablet is not a

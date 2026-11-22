@@ -42,14 +42,21 @@ test('unadmitted libraries and other server resources start no reads, and a mism
 for (const isTV of [false, true]) test(`actual ${isTV ? 'TV' : 'phone'} Home chooser draws only computed lines and preserves the selected real resource`, async () => {
   const theme = createTheme({width: isTV ? 1920 : 390, isTV});
   const h = hooks();
-  const {HomeSavedViewChoices, HomeCustomize} = await screenModule(new URL('../src-next/screens/home/HomeCustomize.tsx', import.meta.url), {
-    '../../platform/tv-key-adapter': {createTVKeyAdapter}, '../../platform/tv-key-source': {tvKeySource: 'native'},
+  const kit = {'react-native': {ScrollView: 'Scroll', Text: 'Text', View: 'View'}, 'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'},
+    '../controls': {Focusable: 'Row'}, '../Icon': {Icon: 'Icon'}, '../browse/presentation': {alpha}, '../theme': {useTheme: () => theme}, '../../screens/home/customize-drag': {createHomeRowDrag}};
+  const {HomeSavedViewChoices} = await screenModule(new URL('../src-next/kit/home/HomeLayout.tsx', import.meta.url), {react: {...h.react, useLayoutEffect: h.react.useEffect}, ...kit});
+  const pageModules = {
+    '../../../platform/tv-key-adapter': {createTVKeyAdapter}, '../../../platform/tv-key-source': {tvKeySource: 'native'},
     react: {...h.react, useLayoutEffect: h.react.useEffect},
-    'react-native': {ScrollView: 'Scroll', Text: 'Text', View: 'View'}, 'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel}, '../../kit/controls': {Focusable: 'Row', Button: 'Button', Switch: 'Switch'}, '../../kit/focus': {useCovered: () => false, useFocusRegistry: () => ({})}, '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/browse/presentation': {alpha},
-    '../../kit/overlays': {BottomSheet: 'Sheet', SidePanel: 'Panel', Dialog: 'Dialog'}, '../../kit/overlays/OverlayHost': {}, '../../kit/theme': {nativeType, useTheme: () => theme}, './customize-controller': {}, './customize-drag': {createHomeRowDrag},
-  });
+    'react-native': {ScrollView: 'Scroll', Text: 'Text', View: 'View'}, 'react-native-gesture-handler': {Gesture: {Native: () => ({})}, GestureDetector: 'GestureDetector'}, '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../../packages/client-core/src/presentation/server-text': {serverTextLabel}, '../../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../../kit/focus': {useCovered: () => false, useFocusRegistry: () => ({})},
+    '../../../kit/home/HomeLayout': {HomeSavedViewChoices: 'Choices', HomeAlwaysOn: 'AlwaysOn', HomeDragHandle: 'Grip', HomeLayoutCard: 'Card', HomeLayoutRow: 'LayoutRow', HomeLayoutScroll: 'Scroller', HomeViewMark: 'Mark'},
+    '../../../kit/home/HomeTVLayout': Object.fromEntries(['TVHomeAlwaysOn', 'TVHomeLayoutConflict', 'TVHomeLayoutFoot', 'TVHomeLayoutHandle', 'TVHomeLayoutList', 'TVHomeLayoutNotice', 'TVHomeLayoutPanel', 'TVHomeLayoutRemove', 'TVHomeLayoutRow', 'TVHomeMoveHints', 'TVHomeViewMark'].map(name => [name, name === 'TVHomeLayoutRow' ? 'LayoutRow' : name])),
+    '../../../kit/overlays': {BottomSheet: 'Sheet', Dialog: 'Dialog', Banner: 'Banner'}, '../../../kit/overlays/surface': {OverlayFootRow: 'Foot'}, '../../../kit/states': {StateView: 'StateView'},
+    '../../../kit/overlays/OverlayHost': {}, '../../../kit/theme': {useTheme: () => theme},
+  };
+  const homeHook = await screenModule(new URL('../src-next/pages/shared/home/useHomeCustomize.ts', import.meta.url), pageModules);
+  const {HomeCustomizePage: HomeCustomize} = await screenModule(new URL(`../src-next/pages/${isTV ? 'tv' : 'touch'}/home/HomeCustomizePage.tsx`, import.meta.url), {...pageModules, '../../shared/home/useHomeCustomize': homeHook});
   const resources = [view('drawn'), view('withheld')], selected: PersonalResource[] = [];
   const tree = HomeSavedViewChoices({views: resources, i18n: defaultI18n, summary: (resource: PersonalResource) => resource === resources[0] ? 'COMPUTED' : undefined, onChoose: (resource: PersonalResource) => selected.push(resource)});
   const text = nodes(tree).filter(node => node.type === 'Text').flatMap(node => node.props.children);
@@ -68,7 +75,8 @@ for (const isTV of [false, true]) test(`actual ${isTV ? 'TV' : 'phone'} Home cho
     move: t('next.home.layoutMoveAction'), drop: t('next.home.layoutDropAction'), putBack: t('next.home.layoutPutBackAction'),
   };
   const body = h.render(() => HomeCustomize({controller, copy, i18n: defaultI18n, onClose() {}, onAddView() {}, testID: 'customize', summary: () => 'COMPUTED'}));
-  const rowWords = nodes(body).filter(node => node.type === 'Text').flatMap(node => node.props.children);
+  // A row's words are its kit part's title and detail (the part draws them).
+  const rowWords = nodes(body).filter(node => node.type === 'LayoutRow').flatMap(node => [node.props.title, node.props.detail]);
   assert.ok(rowWords.includes('COMPUTED'), 'the newly chosen transient row uses the same computed-line port');
   assert.equal(rowWords.includes(resources[0].summary), false);
   assert.equal(controller.getSnapshot().rows.at(-1)!.savedView, resources[0]);
