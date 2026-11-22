@@ -13,7 +13,7 @@ export type TVLayerSpec = Readonly<{
    * own, so the layer under it keeps the focus it had before, not the new layer's first control. */
   owns?: (snapshot: FocusSnapshot) => boolean;
 }>;
-type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'> & Partial<Pick<FocusRegistry, 'preferredAsk' | 'preferredCount' | 'focusEpoch'>>;
+type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'> & Partial<Pick<FocusRegistry, 'preferredAsk' | 'preferredCount' | 'focusEpoch' | 'child'>>;
 type Clock = Readonly<{later: (run: () => void, ms: number) => unknown; cancel: (handle: unknown) => void}>;
 const realClock: Clock = {later: (run, ms) => setTimeout(run, ms), cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>)};
 /** How long a layer waits for the element it is owed to attach (a windowed grid re-projecting, a page re-enabling its cards). */
@@ -39,12 +39,19 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   const same = (a: FocusSnapshot | undefined, b: FocusSnapshot | undefined) => a?.regionId === b?.regionId && a?.childId === b?.childId;
   const emit = () => {revision++; for (const listener of [...listeners]) listener();};
   const drop = (key: string) => {const saved = openers.get(key); openers.delete(key); saved?.release();};
-  // The last few places focus has been, newest last: a layer that took focus before it was pushed points past its own.
-  const recent: FocusSnapshot[] = [];
+  // The last few places focus has been, newest last, each with the layer on top when it was taken: a layer that took focus
+  // before it was pushed (or covered while focus was nowhere) points past its own. Read only on a focus change.
+  const recent: {snapshot: FocusSnapshot; under?: string}[] = [];
+  let seenEpoch = -1;
   const offRecent = registry.subscribe(() => {
+    const epoch = registry.focusEpoch?.();
+    if (epoch !== undefined && epoch === seenEpoch) return;
+    seenEpoch = epoch ?? -1;
     const now = registry.capture();
-    if (now && !same(now, recent.at(-1))) {recent.push(now); if (recent.length > 8) recent.shift();}
+    if (now && !same(now, recent.at(-1)?.snapshot)) {recent.push({snapshot: now, under: layers.at(-1)?.key}); if (recent.length > 8) recent.shift();}
   });
+  // Still on screen: a page that is gone (Home, before a new destination) is never owed.
+  const attached = (snapshot: FocusSnapshot) => !registry.child || !!registry.child({regionId: snapshot.regionId, childId: snapshot.childId});
 
   /** Keep asking until focus has moved off where it was when the layer changed (or is already on what the layer is
    * owed), or the wait runs out. A request that cannot land yet (nothing attached) is asked again as each element
@@ -111,7 +118,8 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
         // The player took focus as it drew, or focus was nowhere as it covered the page (Back from an episode came back to
         // Play, not its tile): the opener is the newest focus from before it.
         const mine = (snapshot: FocusSnapshot) => !!top?.owns?.(snapshot);
-        const prior = !captured || mine(captured) ? [...recent].reverse().find(snapshot => !mine(snapshot) && !outside(snapshot)) : captured;
+        const prior = !captured || mine(captured) ? [...recent].reverse().find(entry => entry.under === before && !mine(entry.snapshot)
+          && !outside(entry.snapshot) && attached(entry.snapshot))?.snapshot : captured;
         const opener = prior?.returnTo ?? prior;
         drop(before);
         if (opener) openers.set(before, {snapshot: opener, release: registry.retain(opener)});
