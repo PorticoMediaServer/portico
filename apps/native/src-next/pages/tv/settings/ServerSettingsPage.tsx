@@ -10,11 +10,13 @@ import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScr
 import type {NativeDashboardController} from '../../../screens/settings-live/dashboard-controller';
 import {ownerLibraryCounts, ownerLibraryKind, ownerLibraryState} from '../../../screens/settings-live/owner-libraries/presentation';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
-import {TVRemoteAccessPanel} from '../../../screens/settings-live/server/TVRemoteAccessPanel';
 import {TVPeoplePanel} from '../../../screens/settings-live/server/TVPeoplePanel';
 import {tvServerPageDefinition, tvServerPagesFor, type TVServerPage} from '../../../screens/settings-live/server/TVServerPageMenu';
-import {TVServerReadOnlyPanel} from '../../../screens/settings-live/server/TVServerReadOnlyPanel';
+import type {TVReadOnlyPage} from '../../../screens/settings-live/server/tv-server-page-data';
+import type {NativeScreenLifetime} from '../../../screens/settings-live/lifetime';
+import {TVServerFacts} from '../../../kit/settings/TVServerFacts';
 import {useTVServerSettings} from '../../shared/settings/useTVServerSettings';
+import {useTVServerReadOnly} from '../../shared/settings/useTVServerReadOnly';
 
 export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'general'}: {
   ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; dashboard: NativeDashboardController; initialPage?: TVServerPage;
@@ -38,8 +40,7 @@ export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'ge
       server={<ServerHeader serverName={serverName} viewerRole={role} audience={audience} viewOnly/>}>
       <SettingsControlRows key={page} id={rows} orientation="vertical" edges={{left: column}}>
         {page === 'people' ? <TVPeoplePanel ports={ports} runtime={runtime} lifetime={lifetime}/>
-          : page === 'remote' ? <TVRemoteAccessPanel ports={ports} runtime={runtime} lifetime={lifetime}/>
-          : page !== 'libraries' ? <TVServerReadOnlyPanel page={page} ports={ports} runtime={runtime} lifetime={lifetime}/>
+          : page !== 'libraries' ? <ReadOnlyPage page={page} ports={ports} runtime={runtime} lifetime={lifetime}/>
           : <>
             {state.phase === 'loading' && <StateView title={t('status.loading')}/>}
             {state.error && <StateView {...runtime.error(state.error, () => {void service.loadLibraries();})}/>}
@@ -58,4 +59,12 @@ export function ServerSettingsPage({ports, runtime, dashboard, initialPage = 'ge
     </SettingsPageFrame>;
   return <SettingsListFrame testID="native-tv-server-settings" bar={{title: t('next.shell.serverSettings')}}
     backdrop={<ServerBand viewerRole={role} audience={audience}/>} list={list} page={body}/>;
+}
+
+/** A server page this TV shows read-only (Remote access too): its facts from the GET-only reader, a page at a time. */
+function ReadOnlyPage(props: {page: TVReadOnlyPage; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; lifetime: NativeScreenLifetime}) {
+  const {page, runtime} = props, view = useTVServerReadOnly(props);
+  if (view.error !== undefined) return <StateView testID={`tv-server-${page}-error`} {...runtime.error(view.error, view.retry)}/>;
+  if (!view.snapshot) return <StateView title={runtime.text.t('status.loading')}/>;
+  return <TVServerFacts page={page} facts={view.snapshot.facts} empty={<StateView title={view.empty}/>} previous={view.previous} next={view.next}/>;
 }
