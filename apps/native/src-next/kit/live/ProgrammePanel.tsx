@@ -34,7 +34,7 @@ export function ProgrammePanel({channel, programme, now, runtime, favorite, busy
   const largeLogo = theme.isTV ? theme.targets.touch : theme.space.xl;
   const header = <View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm, marginBottom: theme.space.sm}}>
     {/* The mark fills the box it is given; the header gives it its own square at the row's start (live mock-programme). */}
-    {(logo || channel.mark && channel.sourceId) && <View style={{width: largeLogo, height: largeLogo}}><GuideChannelArt channel={channel} source={logo} size={largeLogo}/></View>}
+    <View style={{width: largeLogo, height: largeLogo}}><GuideChannelArt channel={channel} source={logo} size={largeLogo}/></View>
     <View style={{flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.xs, alignItems: 'center'}}>
       <Text style={[theme.type.rowLabel, {color: theme.colors.text}]}>{channel.name}</Text>
       <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{channel.number}</Text>
