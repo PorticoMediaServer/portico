@@ -1,40 +1,26 @@
-import React, {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {Text, View} from 'react-native';
-import {FormError} from '../../kit/controls';
-import {ProfilePicker} from '../../kit/artwork';
-import {useTheme} from '../../kit/theme';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {HttpHostedApi} from '../../../../../packages/client-core/src';
-import type {PickerProfile} from '../../../../../packages/client-core/src/session-lifecycle';
-import {BootWaitLine} from '../../shell/StartupBoot';
-import {TVForgotPINHandoff, TVPickerRememberRow, TVProfilePINForm, TVWhosWatching} from '../../tv/auth';
-import {nativeSessionLifecycle} from '../../platform/native-session-lifecycle';
-import {NativeProfileRecovery, temporaryRecoveryApi} from '../../platform/profile-recovery';
-import {nativeAccounts} from '../../platform/accounts';
-import {hostedUrl} from '../../platform/account-authority';
-import {nativeNetworkFetch} from '../../platform/server-connections';
-import {ProfilePINPage} from '../../pages/touch/accounts/ProfilePINPage';
-import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
-import {afterEntry} from '../../shell/after-entry';
-import {profilePinFailureText} from './profile-pin-failure';
-import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
-import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
-import {useTVMenuCapture} from '../../platform/tv-menu';
-import {registerBack} from '../../kit/navigation/back';
-
-const t = defaultI18n.t;
+import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
+import {HttpHostedApi} from '../../../../../../packages/client-core/src';
+import type {PickerProfile} from '../../../../../../packages/client-core/src/session-lifecycle';
+import {useTheme} from '../../../kit/theme';
+import {nativeSessionLifecycle} from '../../../platform/native-session-lifecycle';
+import {NativeProfileRecovery, temporaryRecoveryApi} from '../../../platform/profile-recovery';
+import {nativeAccounts} from '../../../platform/accounts';
+import {hostedUrl} from '../../../platform/account-authority';
+import {nativeNetworkFetch} from '../../../platform/server-connections';
+import {afterEntry} from '../../../shell/after-entry';
+import {profilePinFailureText} from '../../../screens/accounts/profile-pin-failure';
+import {useTVMenuCapture} from '../../../platform/tv-menu';
+import {registerBack} from '../../../kit/navigation/back';
 
 /**
- * Who's watching, and a profile's PIN, as the session lifecycle asks for them: at launch when no
- * profile is remembered, and when a PIN changed elsewhere (profile_pin_reentry). The drawn frames
- * are AccountEntry's profile stages (auth.html 13–17). "Remember this profile on this device" is
- * offered under the faces and under the PIN, only where the server allows remembering (auth.html
- * section 8, 2 Nov). A tick on the picker remembers a profile without a PIN at once, and carries to a
- * PIN profile's page, where the server applies it only after a correct PIN: nothing is sent before.
+ * Who's watching, and a profile's PIN, as the session lifecycle asks for them: at launch when no profile is remembered,
+ * and when a PIN changed elsewhere (profile_pin_reentry). A callback belongs to the committed prompt and the exact
+ * lifecycle state that supplied it. The tick remembers a profile without a PIN at once, and carries to a PIN profile's
+ * page, where the server applies it only after a correct PIN: nothing is sent before. Moved from the old gate as it was.
  */
-export function LifecycleProfileGate() {
-  const theme = useTheme();
+export function useLifecycleProfileGate() {
+  const tv = useTheme().isTV;
   const {lifecycle, ports} = nativeSessionLifecycle();
   const snapshot = useSyncExternalStore(lifecycle.subscribe, lifecycle.getSnapshot, lifecycle.getSnapshot);
   const pick = useSyncExternalStore(lifecycle.actions.pickProfile.subscribe, lifecycle.actions.pickProfile.getSnapshot, lifecycle.actions.pickProfile.getSnapshot);
@@ -42,7 +28,6 @@ export function LifecycleProfileGate() {
   const [code, setCode] = useState(''), [remember, setRemember] = useState(true), [forgot, setForgot] = useState(false);
   const [recovery, setRecovery] = useState<{controller: NativeProfileRecovery; id: string; name: string}>();
   const state = snapshot.state;
-  // A callback belongs to the committed prompt and the exact lifecycle state that supplied it.
   const presented = useMemo(() => ({state, forgot, recovery}), [state, forgot, recovery]);
   const committed = useRef<typeof presented | undefined>(undefined);
   useLayoutEffect(() => {
@@ -56,7 +41,7 @@ export function LifecycleProfileGate() {
   // TV, notes/motion.md S.3, as the in-app picker does: a refused PIN stays in the red boxes for 400 ms, then they empty
   // for the next try (each refusal is a new lifecycle state). Only the refused code is emptied: a digit pressed in that
   // time has already started the next one. The phone's field keeps what is typed.
-  const refused = theme.isTV && state.kind === 'enteringPin' && state.rejected ? state : undefined;
+  const refused = tv && state.kind === 'enteringPin' && state.rejected ? state : undefined;
   const codeNow = useRef(code); codeNow.current = code;
   useEffect(() => {
     if (!refused) return;
@@ -80,46 +65,37 @@ export function LifecycleProfileGate() {
     else if (state.kind === 'choosingProfile' && state.switching) lifecycle.cancelSwitch();
   };
   const handlesBack = state.kind === 'enteringPin' || !!recovery || forgot || state.kind === 'choosingProfile' && state.switching;
-  useTVMenuCapture(theme.isTV && handlesBack);
+  useTVMenuCapture(tv && handlesBack);
   useEffect(() => {
     const subscription = registerBack(() => {back(); return handlesBack;}, {scope: 'surface'});
     return () => subscription();
   });
-  if (state.kind !== 'choosingProfile' && state.kind !== 'enteringPin') return null;
+  if (state.kind !== 'choosingProfile' && state.kind !== 'enteringPin') return undefined;
 
   const connection = ports.connection(state.server.serverId);
+  const busy = pick.phase === 'working' || submit.phase === 'working';
   const art = (id: string) => connection?.account.profiles.find(value => value.id === id)?.art ?? 'blue';
   const option = (value: PickerProfile) => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: art(value.id),
     primary: value.primary, pinRequired: value.pinRequired, disabled: busy});
-  const busy = pick.phase === 'working' || submit.phase === 'working';
   // Each screen says only its own failure: a refused PIN stays on the PIN page and doesn't follow Back to the picker,
   // and the picker only says why a pick failed.
   const failed = state.kind === 'enteringPin' ? submit.phase === 'failed' ? submit.failure.cause : undefined
     : pick.phase === 'failed' ? pick.failure.cause : undefined;
   const failure = failed ? presentError(failed, state.kind === 'enteringPin' ? 'profiles' : 'sign-in') : undefined;
-  const status = failure && !failure.silent ? <FormError placement="block">{profilePinFailureText(failed) ?? failure.body}</FormError> : null;
-  const wait = <BootWaitLine active={busy} serverName={state.server.name} testID="lifecycle-profile-wait"/>;
+  const failureText = failure && !failure.silent ? profilePinFailureText(failed) ?? failure.body : undefined;
+  const common = {tv, busy, back, remember, setRemember, option, art, failureText, server: state.server, connection};
 
   if (state.kind === 'choosingProfile') {
     // Add profile and Manage profiles open Profiles from the main profile, after its PIN if it has one (rules 25 and 27).
-    const main = theme.isTV ? undefined : state.profiles.find(value => value.primary);
+    const main = tv ? undefined : state.profiles.find(value => value.primary);
     const openManagement = () => {if (busy || !main) return; afterEntry.request({kind: 'profiles'}, main.id); lifecycle.actions.pickProfile.start(main.id, remember && state.canRemember);};
-    const picker = <ProfilePicker focusScope={`tv.auth.profiles.${state.server.serverId}`} focusBusy={busy} profiles={state.profiles.map(option)}
-      preferredProfileId={state.focus} onSelect={id => {afterEntry.clear(); lifecycle.actions.pickProfile.start(id, remember && state.canRemember);}}
-      {...(main ? {onManage: openManagement, ...(state.profiles.length < 8 ? {onAdd: openManagement} : {})} : {})}
-      title={theme.isTV ? t('accounts.profiles.onServer', {server: state.server.name}) : t('auth.whosWatching')}
-      {...(theme.isTV ? {} : {description: t('accounts.profiles.serverContext', {server: state.server.name})})}/>;
-    const tick = state.canRemember ? theme.isTV ? <TVPickerRememberRow checked={remember} onChange={setRemember} busy={busy}/>
-      : <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/> : null;
-    if (theme.isTV) return <TVWhosWatching testID="lifecycle-profiles">{picker}{tick}{status}{wait}</TVWhosWatching>;
-    return <ProfilesPage testID="lifecycle-profiles" picker={picker} onBack={state.switching ? back : undefined} backDisabled={busy}>{tick}{status}{wait}</ProfilesPage>;
+    return {...common, kind: 'choosing' as const, state, management: main ? openManagement : undefined,
+      select: (id: string) => {afterEntry.clear(); lifecycle.actions.pickProfile.start(id, remember && state.canRemember);}};
   }
 
   const profile = state.profile;
   const ready = () => currentPIN() && lifecycle.actions.pickProfile.getSnapshot().phase !== 'working'
     && lifecycle.actions.submitPin.getSnapshot().phase !== 'working';
-  const changeCode = (value: string) => {if (ready()) setCode(value);};
-  const changeRemember = (value: boolean) => {if (ready()) setRemember(value);};
   const send = (value: string) => {
     if (/^\d{4}$/.test(value) && ready()) lifecycle.actions.submitPin.start(value, remember && state.canRemember);
   };
@@ -144,25 +120,17 @@ export function LifecycleProfileGate() {
       }})};
     committed.current = undefined; setRecovery(next);
   };
-  if (recovery && connection) return <ProfileRecoveryPage controller={recovery.controller} profileName={recovery.name} username={connection.account.account.username}
-    onOpen={value => {
-      if (!ready()) return;
+  return {...common, kind: 'pin' as const, state, profile, code, forgot, recovery, openRecovery, send,
+    changeCode: (value: string) => {if (ready()) setCode(value);},
+    changeRemember: (value: boolean) => {if (ready()) setRemember(value);},
+    startForgot: () => {if (ready()) {committed.current = undefined; setCode(''); setForgot(true);}},
+    recoveryOpen: (value: string) => {
+      if (!ready() || !recovery) return;
       send(value); committed.current = undefined;
       recovery.controller.dispose(); setRecovery(undefined); setCode(value);
-    }}
-    onClose={() => {
-      if (!currentPIN()) return;
+    },
+    recoveryClose: () => {
+      if (!currentPIN() || !recovery) return;
       committed.current = undefined; recovery.controller.dispose(); setRecovery(undefined); setCode('');
-    }}/>;
-  if (theme.isTV && forgot && connection) return <TVForgotPINHandoff profileName={profile.name}
-    serverAddress={connection.api.baseUrl} server={{id: state.server.serverId, signIn: state.server.signIn}} onBack={back}/>;
-  // Under the boxes in a line of its own height (TVCodeErrorLine): no margin of its own, so nothing moves when it shows.
-  const pinStatus = failure && !failure.silent ? <Text style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(failed) ?? failure.body}</Text> : undefined;
-  if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={changeCode} busy={busy} error={pinStatus}
-    {...(state.canRemember ? {remember: {checked: remember, onChange: changeRemember}} : {})}
-    hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (ready()) {committed.current = undefined; setCode(''); setForgot(true);}}}/>;
-  return <ProfilePINPage testID="lifecycle-profile-pin" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: art(profile.id)}}}
-    value={code} onChange={changeCode} onSubmit={send} busy={busy} rejected={!!state.rejected} status={status}
-    remember={state.canRemember ? <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={changeRemember} disabled={busy}/> : undefined}
-    hints={wait} onForgot={openRecovery} forgotDisabled={!connection} onBack={back}/>;
+    }};
 }

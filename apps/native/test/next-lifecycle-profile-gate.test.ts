@@ -36,19 +36,26 @@ async function gate(rememberProfiles: boolean, isTV = false, refuse = false) {
   const lifecycle = new SessionLifecycle(ports);
   lifecycle.start(); await settle();
   let tree: any, menuCaptured = false, nativeBack: (() => boolean) | undefined;
-  const {LifecycleProfileGate} = await screenModule(new URL('../src-next/screens/accounts/LifecycleProfileGate.tsx', import.meta.url), {
-    react: {...React, default: React},
-    '../../platform/tv-menu': {useTVMenuCapture: (capture: boolean) => {menuCaptured = capture;}},
-    'react-native': {BackHandler: {addEventListener: (_: string, handler: () => boolean) => {nativeBack = handler; return {remove() {nativeBack = undefined;}};}}, Text: 'Text', View: 'View'},
-    '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/artwork': {ProfilePicker: 'Picker'},
-    '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {useTheme: () => createTheme({isTV, width: isTV ? 1920 : 390})},
-    '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
-    '../../../../../packages/client-core/src': {HttpHostedApi: class {}}, '../../../../../packages/client-core/src/route-identity': {routeOrigin: (v: string) => v},
-    '../../shell/StartupBoot': {BootWaitLine: 'Wait'}, '../../tv/auth': {TVForgotPINHandoff: 'TVForgot', TVProfilePINForm: 'TVPIN', TVWhosWatching: 'TVWho', TVPickerRememberRow: 'TVPickerRemember'},
-    '../../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({lifecycle, ports})},
-    '../../platform/profile-recovery': {NativeProfileRecovery: class {}, temporaryRecoveryApi: () => undefined},
-    '../../platform/accounts': {nativeAccounts: {}}, '../../platform/account-authority': {hostedUrl: 'https://hosted.example'},
-    '../../platform/server-connections': {nativeNetworkFetch: fetch}, './profile-pin-failure': {profilePinFailureText: () => undefined}, '../../kit/accounts/PhonePINEntry': {PhonePINEntry: 'PIN'}, '../../pages/touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../pages/touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../pages/touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'}, '../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
+  const theme = createTheme({isTV, width: isTV ? 1920 : 390});
+  const reactNative = {BackHandler: {addEventListener: (_: string, handler: () => boolean) => {nativeBack = handler; return {remove() {nativeBack = undefined;}};}}, Text: 'Text', View: 'View'};
+  const hook = await screenModule(new URL('../src-next/pages/shared/accounts/useLifecycleProfileGate.ts', import.meta.url), {
+    react: {...React, default: React}, 'react-native': reactNative,
+    '../../../platform/tv-menu': {useTVMenuCapture: (capture: boolean) => {menuCaptured = capture;}},
+    '../../../kit/theme': {useTheme: () => theme},
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../../../../../packages/client-core/src': {HttpHostedApi: class {}},
+    '../../../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({lifecycle, ports})},
+    '../../../platform/profile-recovery': {NativeProfileRecovery: class {}, temporaryRecoveryApi: () => undefined},
+    '../../../platform/accounts': {nativeAccounts: {}}, '../../../platform/account-authority': {hostedUrl: 'https://hosted.example'},
+    '../../../platform/server-connections': {nativeNetworkFetch: fetch}, '../../../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined},
+    '../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}},
+  });
+  const {ProfileGatePage: LifecycleProfileGate} = await screenModule(new URL('../src-next/pages/shared/accounts/ProfileGatePage.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': reactNative, '../../../kit/theme': {useTheme: () => theme},
+    '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', FormError: 'FormError'}, '../../../kit/artwork': {ProfilePicker: 'Picker'},
+    '../../../shell/StartupBoot': {BootWaitLine: 'Wait'}, '../../../tv/auth': {TVForgotPINHandoff: 'TVForgot', TVProfilePINForm: 'TVPIN', TVWhosWatching: 'TVWho', TVPickerRememberRow: 'TVPickerRemember'},
+    '../../touch/accounts/ProfilePINPage': {ProfilePINPage: 'PhoneProfilePIN'}, '../../touch/accounts/ProfilesPage': {ProfilesPage: 'PhoneWhosWatching'},
+    '../../touch/accounts/ProfileRecoveryPage': {ProfileRecoveryPage: 'Recovery'}, '../../../kit/accounts/RememberProfileRow': {RememberProfileRow: 'Remember'},
+    './useLifecycleProfileGate': hook,
   });
   const host = createFabricHookHost(() => {tree = LifecycleProfileGate();});
   await act(() => host.mount());
