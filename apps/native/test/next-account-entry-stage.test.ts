@@ -79,7 +79,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../kit/theme': {useTheme: () => createTheme({isTV: options.tv === true, width: options.tv ? 1920 : 390})},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     '../../kit/accounts/PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
-    './NativeSetup': {NativeSetup: 'NativeSetup'},
+    '../../pages/touch/accounts/SetupPage': {SetupPage: 'NativeSetup'},
     './directory-chooser': directoryChooser,
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {FormError, Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../platform/portico-sign-in': {NativePorticoSignIn: Portico},
