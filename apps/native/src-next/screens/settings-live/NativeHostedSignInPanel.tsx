@@ -16,7 +16,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import {AccountSecuritySheet, PasswordResetSheet} from '../../pages/touch/accounts/AccountSecurityPage';
 import {accountSecurityAvailability} from '../../pages/shared/accounts/useAccountSecurity';
 import {createNativeAccountSecurityScope, nativeAccountSecurityAllowed} from './native-account-security';
-import type {NativeSettingsPanelDeps} from './settings-panels';
+import type {NativeSettingsPanelDeps} from './settings-panel-deps';
 type Opening = Readonly<{current: () => boolean; refresh: () => Promise<void>}>;
 const noSubscription = () => () => {};
 

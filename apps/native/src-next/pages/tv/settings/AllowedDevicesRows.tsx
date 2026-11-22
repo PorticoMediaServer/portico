@@ -1,7 +1,7 @@
 import React from 'react';
 import {Button} from '../../../kit/controls';
 import {SettingsRow} from '../../../kit/shell';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 import {useAllowedDevices} from '../../shared/settings/useAllowedDevices';
 
 export function AllowedDevicesRows(props: NativeSettingsPanelDeps) {

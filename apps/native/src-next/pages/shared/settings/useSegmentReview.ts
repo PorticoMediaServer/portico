@@ -5,7 +5,7 @@ import {repeat} from '../../../../../../packages/client-core/src/timer';
 import {parseMediaItem} from '../../../../../../packages/client-core/src/media-item';
 import {validateContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import type {SegmentWindow} from '../../../kit/shell/SegmentWindows';
-import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panels';
+import type {NativeSettingsPanelDeps} from '../../../screens/settings-live/settings-panel-deps';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {NativeSegmentReviewController} from '../../../screens/settings-live/owner-libraries/segment-review-controller';
 import {registerBack} from '../../../kit/navigation/back';

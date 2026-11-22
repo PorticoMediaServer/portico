@@ -343,7 +343,7 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/settings-live/live-controller.ts:44` | request `api.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/live-controller.ts:147` | request `this.api.request` | dynamic/wrapper: inspect enclosing value |
 | `apps/native/src-next/screens/settings-live/server/troubleshooting/playback-problems-source.ts:20` | request `this.context.api.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/settings-panels.tsx:124` | request `context.api.request` | dynamic/wrapper: inspect enclosing controls |
+| `apps/native/src-next/pages/shared/settings/useSettingsPanels.ts:69` | request `context.api.request` | dynamic/wrapper: inspect enclosing controls |
 | `apps/native/src-next/screens/settings-live/together-media.ts:55` | request `this.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/together-playback.ts:95` | request `context.api.request` | get_items_id |
 | `apps/native/src-next/screens/watch/disc-titles.ts:69` | request `api.request` | dynamic/wrapper: inspect enclosing raw |

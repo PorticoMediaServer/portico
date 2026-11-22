@@ -16,7 +16,7 @@ test('Test connection reads GET /v1/system over the route in use and says the se
     '../../../../../../packages/client-core/src/query/server-api': await import('../../../packages/client-core/src/query/server-api.ts'),
     '../../../kit/controls': {Button: 'Button', Select: 'Select'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'},
     '../../../kit/settings/DeviceRows': {DeviceRowBlock: 'DeviceRowBlock'},
-    '../../../platform/connection-preference': {}, '../../../platform/device-settings': {}, '../../../shell/runtime': {}, '../../../screens/settings-live/settings-panels': {},
+    '../../../platform/connection-preference': {}, '../../../platform/device-settings': {}, '../../../shell/runtime': {}, '../../../screens/settings-live/settings-panel-deps': {},
   });
   const context = {serverName: 'Home', api: {request: async (path: string, method?: string) => {sent.push({path, method}); return {id: 'srv'};}}};
   const lifetime = {request: <T,>(work: (signal: AbortSignal) => Promise<T>) => work(new AbortController().signal)};
