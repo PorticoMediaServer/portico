@@ -8,13 +8,18 @@ import type {NativeShellSnapshot} from './runtime';
 import {tvFocusIds} from './tv-focus';
 import {profileMenuChose} from './tv-profile-return';
 
+/** The choices that open a page (shell/account.ts routes and the owner's server settings). Only they keep the side menu's
+ * return for that page's Back; Forget remembered profile and the pending-changes row stay where they are, so focus coming
+ * back is the menu's own return, used at once (#5060). */
+const opensPage = new Set(['profiles', 'servers', 'notifications', 'together', 'settings', 'server']);
+
 /** The rail's measured opener anchors the drawn continuous profile flyout. */
 export function TVProfileMenu({snapshot, open, onOpenChange, returnFocusRef}: {
   snapshot: NativeShellSnapshot; open: boolean; onOpenChange: (open: boolean) => void; returnFocusRef: React.RefObject<View | null>;
 }) {
   const account = snapshot.account, theme = useTheme(), unread = snapshot.unreadNotificationCount;
   const items: MenuEntry[] = account.actions.map(action => ({id: action.id, label: action.label, icon: action.icon,
-    destructive: action.destructive, onSelect: () => {profileMenuChose(); action.onPress();},
+    destructive: action.destructive, onSelect: opensPage.has(action.id) ? () => {profileMenuChose(); action.onPress();} : action.onPress,
     trailing: action.id === 'notifications' && typeof unread === 'number' && Number.isSafeInteger(unread) && unread > 0
       ? <Text style={[nativeType({size: 20, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.accentStrong}]}>{defaultI18n.t('settings.unreadCount', {count: unread})}</Text>
       : action.trailing}));
