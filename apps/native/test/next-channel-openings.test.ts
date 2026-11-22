@@ -37,10 +37,17 @@ test('a replaced native channel menu cannot invoke or dismiss its predecessor',a
  const {hooks,screenModule}=await import('./helpers/screen-harness.mjs'),host=hooks(),calls:string[]=[];
  Object.assign(host.react,{useLayoutEffect:()=>{}});Object.assign(host.react.default,{useLayoutEffect:()=>{}});
  const rows=[row,{...row,id:'second',name:'Second'}],state={channels:rows,choices:{items:[]},presets:[]},source={subscribe:()=>()=>{},getSnapshot:()=>state,action:async(value:any)=>{calls.push(value.id);},load:async()=>{},open:async(value:any)=>{calls.push(value.id);}};
- const {Channels}=await screenModule(new URL('../src-next/screens/settings-live/server/channels/LibraryChannelsPage.tsx',import.meta.url),{
-  react:host.react,'react-native':{Text:'Text',View:'View'},'../../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v,number:String,dateTime:String}},
-  '../../../../../../../packages/client-core/src/presentation/kit-model/channels':{channelMonograms:()=>new Map(rows.map(v=>[v.id,new Map([[v.id,{text:'CH',seed:v.id}]])]))},
-  '../../../../kit/artwork':{ChannelMark:'ChannelMark'},'../../../../kit/controls':{Button:'Button',Focusable:'Focusable'},'../../../../kit/overlays':{BottomSheet:'BottomSheet',MenuRow:'MenuRow'},'../../../../kit/shell/visual':{shellType:()=>({})},'../../../../kit/theme':{useTheme:()=>({colors:{}})},'./model':{},'./ChannelEditor':{NativeChannelEditor:'Editor'},'./BlockPresets':{NativeBlockPresets:'Presets'},'./ChannelLogo':{NativeChannelLogo:'Logo'},
+ const i18n={defaultI18n:{t:(v:string)=>v,number:String,dateTime:String}};
+ const hook=await screenModule(new URL('../src-next/pages/shared/live/useLibraryChannels.ts',import.meta.url),{
+  react:host.react,'../../../../../../packages/i18n/src':i18n,'../../../screens/settings-live/server/channels/model':{},
+  '../../../../../../packages/client-core/src/presentation/kit-model/channels':{channelMonograms:()=>new Map(rows.map(v=>[v.id,new Map([[v.id,{text:'CH',seed:v.id}]])]))},
+ });
+ const {LibraryChannelsList:Channels}=await screenModule(new URL('../src-next/pages/touch/live/LibraryChannelsTab.tsx',import.meta.url),{
+  react:host.react,'../../../../../../packages/i18n/src':i18n,'../../shared/live/useLibraryChannels':hook,
+  '../../../kit/controls':{Button:'Button'},'../../../kit/frames':{SectionCard:'SectionCard'},'../../../kit/overlays':{BottomSheet:'BottomSheet',MenuRow:'MenuRow'},
+  '../../../kit/settings/StorageParts':{StorageActions:'StorageActions',StorageNote:'StorageNote',StorageSheetBody:'StorageSheetBody'},'../../../kit/live/LiveSourceParts':{LiveSourcesEmpty:'Empty'},
+  '../../../kit/live/ChannelParts':{HealthFacts:'HealthFacts',LibraryChannelCard:'LibraryChannelCard',MenuGroup:'MenuGroup'},
+  '../../../screens/settings-live/server/channels/ChannelEditor':{NativeChannelEditor:'Editor'},'../../../screens/settings-live/server/channels/BlockPresets':{NativeBlockPresets:'Presets'},'../../../screens/settings-live/server/channels/ChannelLogo':{NativeChannelLogo:'Logo'},
  });
  const nodes=(v:any):any[]=>Array.isArray(v)?v.flatMap(nodes):v?.props?[v,...nodes(v.props.children),...nodes(v.props.footer)]:[];
  const group={source,current:()=>true},render=()=>host.render(()=>Channels({group,runtime:{artwork:()=>undefined}})),menu=(tree:any)=>nodes(tree).filter(v=>v.type==='BottomSheet')[1];let tree=render();
