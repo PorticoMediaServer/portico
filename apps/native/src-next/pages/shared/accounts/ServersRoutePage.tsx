@@ -29,9 +29,11 @@ export function ServersRoutePage(props: ServersRouteProps) {
   if (panel === 'sign-out-account') return layout(t('accounts.signOut.portico'), undefined, undefined, view.signOutAccountAction);
   if (panel === 'consent-kind') return layout(t('settings.linkTV'), t('linkTV.enterCode'), <ServersConsentChoices>
     {view.localConsentOffered && <Button variant="glass" disabled={busy} onPress={view.chooseLocalConsent}>{t('accounts.session.local')}</Button>}
-    <Button variant="glass" disabled={busy} onPress={view.choosePorticoConsent}>{t('account.portico')}</Button>
+    {/* Only while this app holds a Portico Account: without one the choice could only fail. */}
+    {view.accountHeld && <Button variant="glass" disabled={busy} onPress={view.choosePorticoConsent}>{t('account.portico')}</Button>}
   </ServersConsentChoices>);
-  if (panel === 'consent-code') return layout(t('settings.linkTV'), t(view.consentPortico ? 'accounts.consent.portico' : 'accounts.consent.local'),
+  // The phone's side of Link a TV: what approving does (the TV's own instructions, accounts.consent.*, belong on the TV).
+  if (panel === 'consent-code') return layout(t('settings.linkTV'), t('linkTV.approveCaption', {where: t(view.consentPortico ? 'linkTV.scopeAccount' : 'linkTV.scopeServer')}),
     <ServersConsentCodeBox><TextField label={t('linkTV.enterCode')} value={view.code} onChangeText={view.changeCode}
       autoCapitalize="characters" maxLength={9} autoCorrect={false} editable={!busy}/></ServersConsentCodeBox>,
     view.reviewAction);

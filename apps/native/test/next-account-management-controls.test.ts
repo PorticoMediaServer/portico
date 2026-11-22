@@ -155,11 +155,14 @@ test('Play on link intent starts at approval choice, normalizes entry and gates 
   const f = await fixture();
   const route = f.AccountRoute({context: f.context, route: {kind: 'servers', initialPanel: 'consent-kind'}});
   assert.equal(route.props.initialPanel, 'consent-kind');
+  // Portico Account is offered only while this app holds one (#5264); this test approves through it.
+  heldAccount = true;
   let tree: any;
   const host = createFabricHookHost(() => {tree = f.ServersRoute(route.props);}); await act(() => host.mount());
   try {
     assert.equal(tree.props.title, 'settings.linkTV');
     await act(() => button(tree, 'account.portico').props.onPress());
+    assert.equal(tree.props.body, 'linkTV.approveCaption', 'the phone says what approving does, not the TV\'s own instructions');
     let input = nodes(tree).find(value => value.type === 'TextField');
     await act(() => input.props.onChangeText('abcd-efg'));
     assert.equal(tree.props.primaryAction.disabled, true);
@@ -169,7 +172,7 @@ test('Play on link intent starts at approval choice, normalizes entry and gates 
     assert.equal(tree.props.primaryAction.disabled, false);
     await act(() => tree.props.primaryAction.onPress());
     assert.deepEqual(f.calls.find(call => call[0] === 'review'), ['review', 'ABCD-EFGH']);
-  } finally {await host.unmount();}
+  } finally {await host.unmount(); heldAccount = false;}
 });
 
 test('each committed account route opening gets its own component key', async () => {

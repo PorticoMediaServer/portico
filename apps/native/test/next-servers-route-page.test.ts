@@ -5,12 +5,10 @@ import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 
-const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.footer)] : [];
+const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.footer), ...nodes(node.props.beforeActions)] : [];
 
-test('Forget on the servers page asks once with the downloads choice, then forgets only the server it captured', async () => {
-  const calls: unknown[][] = [];
-  const saved = {connection: {pin: {serverId: 'srv_a', fingerprint: 'fp'}, session: {sessionFamilyId: 'family', viewer: {serverId: 'srv_a'}}}};
-  const theme = {isTV: false, colors: {text: '#fff', textSecondary: '#ccc', danger: '#d33', lineStrong: '#678', accentStrong: '#4af', ink: '#071018'}, type: {body: {}, button: {}}};
+const saved = {connection: {pin: {serverId: 'srv_a', fingerprint: 'fp'}, session: {sessionFamilyId: 'family', viewer: {serverId: 'srv_a'}}}};
+async function load(held: boolean, calls: unknown[][], theme: unknown) {
   const {ServersRoutePage} = await screenModule(new URL('../src-next/pages/shared/accounts/ServersRoutePage.tsx', import.meta.url), {
     react: {...React, default: React},
     'react-native': {Platform: {isTV: false, OS: 'android'}, Dimensions: {get: () => ({width: 412, height: 915})}, Text: 'Text', View: 'View'},
@@ -18,7 +16,7 @@ test('Forget on the servers page asks once with the downloads choice, then forge
     '../../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
     '../../../platform/accounts': {nativeAccounts: {
       snapshot: async () => ({selectedServerId: 'srv_a', servers: [{id: 'srv_a', name: 'Den', signIn: 'local'}]}),
-      accountCredentials: () => ({subscribe: () => () => {}, getSnapshot: () => ({}), synchronize: async () => {}}),
+      accountCredentials: () => ({subscribe: () => () => {}, getSnapshot: () => (held ? {session: {account: {id: 'a'}, familyId: 'f'}} : {}), synchronize: async () => {}}),
       forgetServer: async (value: unknown) => {calls.push(['forget', value]);},
       signOutServer: async (...args: unknown[]) => {calls.push(['sign-out', ...args]);}}},
     '../../../platform/app-session-storage': {nativeAppSessions: {read: async () => ({servers: [saved]}), selected: () => saved}, subscribeNativeAppSessions: () => () => {}},
@@ -34,6 +32,13 @@ test('Forget on the servers page asks once with the downloads choice, then forge
     '../../touch/accounts/ServerChooserPage': {ServerChooserPage: 'Chooser'},
     '../../tv/accounts/ServerChooserPage': {TVServerChooserPage: 'TVChooser', TVServerSettingsPanel: 'TVPanel'},
   });
+  return ServersRoutePage;
+}
+
+test('Forget on the servers page asks once with the downloads choice, then forgets only the server it captured', async () => {
+  const calls: unknown[][] = [];
+  const theme = {isTV: false, colors: {text: '#fff', textSecondary: '#ccc', danger: '#d33', lineStrong: '#678', accentStrong: '#4af', ink: '#071018'}, type: {body: {}, button: {}}};
+  const ServersRoutePage = await load(false, calls, theme);
   let tree: any;
   const host = createFabricHookHost(() => {tree = ServersRoutePage({onBack() {}, onComplete: () => calls.push(['complete'])});});
   await host.mount(); await host.flush();
@@ -50,4 +55,18 @@ test('Forget on the servers page asks once with the downloads choice, then forge
   find(node => node.props?.onConfirm).props.onConfirm(); await settle();
   assert.deepEqual(calls, [['remove-downloads'], ['forget', {serverId: 'srv_a', familyId: 'family', fingerprint: 'fp'}], ['complete']]);
   await host.unmount();
+});
+
+test('Link a TV offers Portico Account only while this app holds one; without one only the server\'s own sign-in is offered', async () => {
+  const theme = {isTV: false, colors: {}, type: {}};
+  for (const held of [false, true]) {
+    const ServersRoutePage = await load(held, [], theme);
+    let tree: any;
+    const host = createFabricHookHost(() => {tree = ServersRoutePage({initialPanel: 'consent-kind', onBack() {}, context: {current: () => true, api: {}, session: () => undefined, account: {serverId: 'srv_a', account: {role: 'owner'}}}});});
+    await host.mount(); for (let index = 0; index < 4; index++) {await host.rerender(); await host.flush();}
+    const labels = nodes(tree).filter(node => node.type === 'Button').map(node => node.props.children);
+    assert.equal(labels.includes('account.portico'), held, held ? 'a held account is offered' : 'no account, no Portico choice');
+    assert.ok(labels.includes('accounts.session.local'), 'the selected local server is offered');
+    await host.unmount();
+  }
 });
