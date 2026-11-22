@@ -1,6 +1,5 @@
 import React, {useId, useRef} from 'react';
 import {Pressable, ScrollView, Text, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Icon} from '../Icon';
@@ -75,9 +74,12 @@ export function SignalSheet({path, open, onClose, returnFocusRef}: {path: Signal
   return <BottomSheet open={open} onOpenChange={next => {if (!next) onClose();}} title={t('player.signal.title')} accessibilityLabel={t('player.signal.title')}
     testID="music-signal-sheet" fitContent initialFocusRef={done} returnFocusRef={returnFocusRef}
     headerContent={<View style={{flexDirection: 'row', alignItems: 'center', gap: theme.space.sm - 2, paddingHorizontal: theme.space.md - 4, paddingBottom: theme.space.sm}}>
-      <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text, flexShrink: 0}]}>{t('player.signal.title')}</Text>
-      {/* The pill gives way (one line, cut) so Done keeps its whole width. */}
-      <View style={{flex: 1, minWidth: 0, alignItems: 'flex-start'}}><SignalPill path={path}/></View>
+      {/* Title and pill share the room left of Done; when both don't fit on one row the pill drops under the title, whole
+          (music-plus 3b shows it whole), so Done keeps its full width and nothing is cut. */}
+      <View style={{flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: theme.space.sm - 2, rowGap: theme.space.xs}}>
+        <Text accessibilityRole="header" style={[theme.type.heading, {color: theme.colors.text}]}>{t('player.signal.title')}</Text>
+        <SignalPill path={path}/>
+      </View>
       <View style={{flexShrink: 0}}><Button ref={done} size="small" testID="music-signal-done" onPress={onClose}>{t('action.done')}</Button></View>
     </View>}>
     <View style={{paddingHorizontal: theme.space.md - 4, paddingBottom: theme.space.sm}}>
