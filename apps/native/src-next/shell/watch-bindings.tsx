@@ -1,16 +1,16 @@
 import React from 'react';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import {nativeScreenError, nativeScreenErrorPage, nativeScreenServices} from '../native-screen-services';
-import {NativeWatchPresenters} from './presenters';
-import {NativeWatchOverlays} from './WatchOverlays';
-import type {NativeWatchModuleBindings} from './module';
-import {NativeWatchExternalRequests} from './external-requests';
-import {askNativeDownload} from '../downloads/request';
-import {createMusicPlaylistPicker} from '../destinations/music/MusicPlaylistPicker';
-import {nativeDownloadRequest} from './download-request';
-import {createNativeTitleActions} from './title-actions';
-import {createNativeTitleSelection} from '../../pages/shared/title/title-selection';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import type {NativeShellBootstrapContext} from './bootstrap';
+import {nativeScreenError, nativeScreenErrorPage, nativeScreenServices} from '../screens/native-screen-services';
+import {NativeWatchPresenters} from '../screens/watch/presenters';
+import {NativeWatchOverlays} from '../screens/watch/WatchOverlays';
+import type {NativeWatchModuleBindings} from '../screens/watch/module';
+import {NativeWatchExternalRequests} from '../screens/watch/external-requests';
+import {askNativeDownload} from '../screens/downloads/request';
+import {createMusicPlaylistPicker} from '../screens/destinations/music/MusicPlaylistPicker';
+import {nativeDownloadRequest} from '../screens/watch/download-request';
+import {createNativeTitleActions} from '../screens/watch/title-actions';
+import {createNativeTitleSelection} from '../pages/shared/title/title-selection';
 
 /** One real authority-local composition, borrowed by handheld and TV entry.
  * It owns Title/File info overlays; shared feedback is mounted by assembly. */
