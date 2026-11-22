@@ -2,12 +2,12 @@ import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {RemoteSource} from '../../../../../../packages/client-core/src/remote-storage';
-import type {NativeSettingsLivePorts} from '../../settings-live/ports';
+import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {Button} from '../../../kit/controls/Button';
-import {StateView} from '../../../kit/states';
-import {useTheme} from '../../../kit/theme';
-import {NativeRemoteSourcesController} from './controller';
+import {Button} from '../../controls/Button';
+import {StateView} from '../../states';
+import {useTheme} from '../../theme';
+import {NativeRemoteSourcesController} from '../../../screens/settings/remote-sources/controller';
 import {AddSourceFlow, FolderStep, ManageSource, Problem, remoteSourceError, stateWords, type ChosenSourceFolder} from './RemoteSourceForms';
 import {SourceFolderBrowser} from './SourceFolderBrowser';
 

@@ -3,12 +3,12 @@ import {Linking, Text, View} from 'react-native';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 import {defaultRemotePreset, missingField, remotePresets, remoteRefusal, remoteSourceCreate, type RemoteFolder, type RemoteLimits, type RemotePreset, type RemoteSource} from '../../../../../../packages/client-core/src/remote-storage';
 import type {AdminLibrary} from '../../../../../../packages/contracts/src/next/api';
-import {Button} from '../../../kit/controls/Button';
-import {TextField} from '../../../kit/controls/TextField';
-import {useTheme} from '../../../kit/theme';
+import {Button} from '../../controls/Button';
+import {TextField} from '../../controls/TextField';
+import {useTheme} from '../../theme';
 import {FormScrollView} from '../../../platform/keyboard';
-import type {NativeRemoteSourcesController} from './controller';
-import {FormError} from '../../../kit/controls';
+import type {NativeRemoteSourcesController} from '../../../screens/settings/remote-sources/controller';
+import {FormError} from '../../controls';
 
 type Translate = typeof defaultI18n.t;
 /** A folder chosen on a source, for a library. */

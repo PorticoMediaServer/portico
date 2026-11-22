@@ -25,7 +25,7 @@ import {ServerPeoplePage} from '../../touch/settings/ServerPeoplePage';
 import {NativeServerSignIn} from '../../../screens/settings-live/server/SignInPage';
 import {ServerMetadataPage} from '../../touch/settings/ServerMetadataPage';
 import {ServerHistoryPage} from '../../touch/settings/ServerHistoryPage';
-import {NativeRemoteSourcesScreen} from '../../../screens/settings/remote-sources/NativeRemoteSourcesScreen';
+import {NativeRemoteSourcesScreen} from '../../../kit/settings/remote-sources/NativeRemoteSourcesScreen';
 import {NativeDashboardScreen} from '../../../screens/settings-live/DashboardScreen';
 import {useSettingsPage, type SettingsProps} from './useSettingsPage';
 import {SettingsPreferences} from './SettingsPreferences';

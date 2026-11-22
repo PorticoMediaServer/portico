@@ -2,8 +2,8 @@ import React, {useEffect, useState} from 'react';
 import {Text} from 'react-native';
 import type {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {RemoteFolder, RemoteSource} from '../../../../../../packages/client-core/src/remote-storage';
-import {Button} from '../../../kit/controls/Button';
-import type {NativeRemoteSourcesController} from './controller';
+import {Button} from '../../controls/Button';
+import type {NativeRemoteSourcesController} from '../../../screens/settings/remote-sources/controller';
 import {Page, Problem, remoteSourceError, type ChosenSourceFolder} from './RemoteSourceForms';
 
 /** A source's folders, opened one at a time, for Add library: the chosen folders go back to that page. */
