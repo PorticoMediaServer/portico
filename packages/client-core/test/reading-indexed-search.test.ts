@@ -27,6 +27,8 @@ test('options, anchor, IDs, cover, duplicate positions, archive paths and UTF-16
   assert.throws(() => parseReadingIndexedSearchPage(page({anchor: {...anchor, normalization: 'other'}})), /invalid_reading_indexed_search/);
   assert.throws(() => parseReadingIndexedSearchPage(page({hits: [hit(), hit({matchStart: 0})]})), /invalid_reading_indexed_search/);
   assert.throws(() => parseReadingIndexedSearchPage(page({hits: [hit({sourceRevision: 'revision'})]})), /invalid_reading_indexed_search/);
+  assert.equal(parseReadingIndexedSearchPage(page({hits: [hit({sourceRevision: '0123456789abcdef'})]})).hits[0]!.sourceRevision, '0123456789abcdef');
+  assert.throws(() => parseReadingIndexedSearchPage(page({hits: [hit({sourceRevision: 'a'.repeat(20)})]})), /invalid_reading_indexed_search/);
   assert.throws(() => parseReadingIndexedSearchPage(page({hits: [hit({libraryId: 'bad id'})]})), /invalid_reading_indexed_search/);
   assert.throws(() => parseReadingIndexedSearchPage(page({hits: [hit({coverUrl: '/art'})]})), /invalid_reading_indexed_search/);
   assert.throws(() => parseReadingIndexedSearchPage(page({hits: [hit({coverUrl: cover('other')})]})), /invalid_reading_indexed_search/);
