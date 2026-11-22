@@ -427,7 +427,6 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/settings-live/server/GeneralPage.tsx:57` | request `api.request` | get_settings_configuration |
 | `apps/native/src-next/screens/settings-live/server/GeneralPage.tsx:91` | request `api.request` | dynamic/wrapper: inspect enclosing loadUpdates |
 | `apps/native/src-next/screens/settings-live/server/HistoryPage.tsx:38` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
-| `apps/native/src-next/screens/settings-live/server/NotificationDestinations.tsx:20` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/server/RemoteAccessPage.tsx:51` | request `api.request` | get_networking_certificate, post_networking_certificate_config, post_networking_certificate_retry |
 | `apps/native/src-next/screens/settings-live/server/StreamingPage.tsx:35` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings-live/server/StreamingPage.tsx:61` | request `owned.api.request` | get_settings_configuration |
@@ -483,6 +482,7 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/settings-live/use-settings-request-scope.ts:15` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `apps/native/src-next/screens/settings/remote-sources/controller.ts:60` | request `originalApi.request` | dynamic/wrapper: inspect enclosing result |
 | `apps/native/src-next/screens/settings/remote-sources/controller.ts:149` | request `originalApi.request` | dynamic/wrapper: inspect enclosing result |
+| `apps/native/src-next/shell/notification-destinations.tsx:20` | request `context.api.request` | dynamic/wrapper: inspect enclosing request |
 | `web/src/screens/account/feedback-controller.ts:52` | request `this.api.request` | dynamic/wrapper: inspect enclosing answer |
 | `web/src/screens/dashboard/bindings.ts:94` | request `options.api.request` | dynamic/wrapper: inspect enclosing request |
 | `web/src/screens/dashboard/bindings.ts:100` | request `options.api.requestRaw` | dynamic/wrapper: inspect enclosing request |

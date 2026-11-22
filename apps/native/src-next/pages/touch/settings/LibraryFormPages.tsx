@@ -15,7 +15,7 @@ import {StorageActions as PageActions, StorageNote as PageNote, StorageSheetBody
 import {SettingsRow} from '../../../kit/shell';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
-import {FolderSourcePicker} from '../../../screens/settings-live/owner-libraries/FolderSourcePicker';
+import {FolderSourcePicker} from '../../../kit/settings/FolderSourcePicker';
 import {ownerLibraryIntervals, ownerLibraryKind, ownerLibraryKinds} from '../../../screens/settings-live/owner-libraries/presentation';
 import {TRASH_RULES, useAddFolder, useAddLibrary, useLibraryTrash, type AddLibraryInput} from '../../shared/settings/useLibraryForms';
 

@@ -8,7 +8,7 @@ import type {ServerRequester} from '../../../../../../packages/client-core/src/q
 import {emptyLibraryTrash, readLibraryTrash, removedAtNextScan, saveTrashRule, type LibraryTrash, type TrashRule} from '../../../../../../packages/client-core/src/admin/library-trash';
 import type {ExpectedRemoteSource} from '../../../../../../packages/client-core/src/remote-source-selection';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
-import type {LibraryFolderChoice} from '../../../screens/settings-live/owner-libraries/FolderSourcePicker';
+import type {LibraryFolderChoice} from './useFolderSourcePicker';
 import {ownerLibraryKind} from '../../../screens/settings-live/owner-libraries/presentation';
 
 type Translate = typeof defaultI18n.t;
