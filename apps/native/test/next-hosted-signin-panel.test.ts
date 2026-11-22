@@ -39,12 +39,11 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
     subscribe: (listener: () => void) => {listeners.add(listener); return () => listeners.delete(listener);},
     synchronize: async () => {}, accessSession: async () => session};
   const bridge = {canOpenBrowser: providerReady}, theme = {isTV: false, colors: {danger: 'red', textSecondary: 'grey'}};
-  const shared = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSecurity.tsx', import.meta.url), {
-    react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View'},
-    '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
-    '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'presented'})},
-    '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
-    '../../kit/theme': {useTheme: () => theme}, '../../platform/clipboard': {copyText: async () => {}}, '../../kit/accounts/PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
+  const shared = await screenModule(new URL('../src-next/pages/shared/accounts/useAccountSecurity.ts', import.meta.url), {
+    react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}},
+    '../../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
+    '../../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'presented'})},
+    '../../../platform/clipboard': {copyText: async () => {}},
   });
   class Controller {
     disposed = false; readonly security: any; readonly current: () => boolean; opened: string[] = [];
@@ -70,7 +69,8 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
       assert(answer, 'no retired Services routes');
       return new Response(JSON.stringify(answer), {status: 200, headers: {'Content-Type': 'application/json'}});
     }},
-    '../accounts/PhoneAccountSecurity': {AccountSecuritySheet: 'AccountSecuritySheet', PasswordResetSheet: 'PasswordResetSheet', accountSecurityAvailability: shared.accountSecurityAvailability}, './native-account-security': securityScope,
+    '../../pages/touch/accounts/AccountSecurityPage': {AccountSecuritySheet: 'AccountSecuritySheet', PasswordResetSheet: 'PasswordResetSheet'},
+    '../../pages/shared/accounts/useAccountSecurity': {accountSecurityAvailability: shared.accountSecurityAvailability}, './native-account-security': securityScope,
   });
   let tree: any;
   const render = () => {tree = host.render(() => NativeHostedSignInPanel({kind, context, lifetime, t: (key: string) => key, runtime: {}})); for (const effect of effects.splice(0)) effect(); return tree;};

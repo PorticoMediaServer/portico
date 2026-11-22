@@ -10,7 +10,7 @@ import {accountSessionDevice} from '../../../../../packages/client-core/src/acco
 import type {PorticoSessionRow} from '../../../../../packages/client-core/src/portico-services-native';
 import type {HostedServer} from '../../../../../packages/client-core/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {PhoneAccountSecurity} from './PhoneAccountSecurity';
+import {AccountSecurityPage} from '../../pages/touch/accounts/AccountSecurityPage';
 import {Quiet} from '../../kit/states';
 
 type CommittedOpening = {source?: NativeAccountWorkspace; active: boolean; failed: boolean};
@@ -80,7 +80,7 @@ export function PhoneAccountWorkspace({createSource, username, onDone, onFind, o
           <FormError placement="inline">{state.failure}</FormError>
           <Button onPress={() => {if (current() && state.page !== 'menu') void source?.open(state.page);}}>{t('action.tryAgain')}</Button>
         </>}
-        {state.security && source && <PhoneAccountSecurity workspace={source} security={state.security}/>}
+        {state.security && source && <AccountSecurityPage workspace={source} security={state.security}/>}
         {(commandFailure || state.mutationFailure) && <FormError placement="inline">{commandFailure || state.mutationFailure}</FormError>}
         {state.notice && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.text}]}>{state.notice}</Text>}
         {state.sessions?.map(row => {

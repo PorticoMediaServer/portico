@@ -13,7 +13,8 @@ import {NativeAccountSecurity, type NativeAccountSecurityKind} from '../../platf
 import {accountExpectation, nativeAccountRead} from '../../platform/account-work';
 import {nativeNetworkFetch} from '../../platform/server-connections';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {AccountSecuritySheet, PasswordResetSheet, accountSecurityAvailability} from '../accounts/PhoneAccountSecurity';
+import {AccountSecuritySheet, PasswordResetSheet} from '../../pages/touch/accounts/AccountSecurityPage';
+import {accountSecurityAvailability} from '../../pages/shared/accounts/useAccountSecurity';
 import {createNativeAccountSecurityScope, nativeAccountSecurityAllowed} from './native-account-security';
 import type {NativeSettingsPanelDeps} from './settings-panels';
 type Opening = Readonly<{current: () => boolean; refresh: () => Promise<void>}>;
