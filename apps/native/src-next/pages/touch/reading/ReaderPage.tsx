@@ -8,10 +8,10 @@ import {ReaderGuestPage} from './ReaderGuestPage';
 export function ReaderPage(props: ReaderPageProps) {
   const {context, target, active, preferences, onBack, onOpenSettings, resident = true, binding, onGuestState} = props;
   const place = useNativeStackPlacement(target), t = defaultI18n.t;
-  const {owner, snapshot, failed, busy, ended, tooLarge, retryOriginal, reopenEnded, back} = useReaderSession(props);
+  const {owner, snapshot, failed, busy, ended, tooLarge, retryOriginal, reopenEnded, back, hint} = useReaderSession(props);
   if (!resident) return null;
   if (snapshot.phase === 'ready') return place(<ReaderGuestPage owner={owner} active={active} preferences={preferences}
-    onBack={onBack} onSettings={onOpenSettings} contentsTarget={target.contentsTarget} onGuestState={onGuestState} activeCurrent={binding?.activeCurrent}/>);
+    onBack={onBack} onSettings={onOpenSettings} contentsTarget={target.contentsTarget} onGuestState={onGuestState} activeCurrent={binding?.activeCurrent} hint={hint}/>);
   return place(<ReaderFrame active={active} back={{testID: 'native-read-host-back', label: t('action.back'), onPress: back}}
       state={ended ? {title: t('next.reader.sessionEndedTitle'), body: t('next.reader.sessionEndedBody'),
         primaryAction: {id: 'reopen', label: t('next.reader.openAgain'), disabled: !active || !context.current(), onPress: reopenEnded}}

@@ -5,7 +5,8 @@ import {createReadingHost, connectReadingHost, type ReadingHostSession, type Rea
 import {parsePreferenceSnapshot} from '../src/preferences.ts';
 import {ReadingError, type ReadingManifest} from '../src/reading.ts';
 const preferences = parsePreferenceSnapshot(JSON.parse(readFileSync(new URL('fixtures/preferences.json', import.meta.url), 'utf8')).response.data);
-function pair(format: 'pdf' | 'epub' | 'cbz' = 'pdf', beforeConnect?: (host: ReturnType<typeof createReadingHost>) => void, onSearchAll?: ReadingHostSearchAll) {
+function pair(format: 'pdf' | 'epub' | 'cbz' = 'pdf', beforeConnect?: (host: ReturnType<typeof createReadingHost>) => void, onSearchAll?: ReadingHostSearchAll,
+  hint?: {hintSeen: boolean; onHintSeen: () => void}) {
   const life = new AbortController(), sent: string[] = [], calls: string[] = [];
   const payload = Uint8Array.from({length: 170003}, (_, i) => i % 251);
   const manifest: ReadingManifest = Object.freeze({sessionId: 'session', sourceId: 'asset', itemId: 'item', revision: 'a'.repeat(64), size: payload.length, format, metadata: {title: 'Actual title'},
@@ -19,7 +20,7 @@ function pair(format: 'pdf' | 'epub' | 'cbz' = 'pdf', beforeConnect?: (host: Ret
     async progress() {return {progress: null};}, async saveProgress() {calls.push('save'); return {progress: null, saved: false};},
   };
   const host = createReadingHost({session: facade, channel: 'captured_unique_channel', preferences: () => preferences, initialProgress: {progress: null}, current: () => current,
-    send(message) {sent.push(message); input?.(message);}, onBack() {back++;}, onSettings() {settings++;}, ...(onSearchAll ? {onSearchAll} : {})});
+    send(message) {sent.push(message); input?.(message);}, onBack() {back++;}, onSettings() {settings++;}, ...(onSearchAll ? {onSearchAll} : {}), ...hint});
   beforeConnect?.(host);
   const connection = connectReadingHost({send: host.receive, subscribe(listener) {input = listener; return () => {input = undefined;};}});
   return {connection, host, life, calls, payload, sent, facade, deliver(message: string) {input?.(message);}, get back() {return back;}, get settings() {return settings;}, retire() {current = false; host.dispose();}};
@@ -87,6 +88,25 @@ test('activity received before a guest subscribes is replayed without accepting 
 });
 
 const nextTurn = () => new Promise<void>(resolve => setImmediate(resolve));
+
+test('the first-run hint is the app\'s to remember: absent without a host memory, its seen fact at start, and Got it reaches only that host', async t => {
+  const old = pair('epub'), oldGuest = await old.connection.ready;
+  t.after(() => {oldGuest.dispose(); old.host.dispose();});
+  assert.equal(oldGuest.hintSeen, undefined); assert.equal(oldGuest.markHintSeen, undefined);
+  for (const seen of [false, true]) {
+    let marks = 0;
+    const f = pair('epub', undefined, undefined, {hintSeen: seen, onHintSeen: () => {marks++;}}), guest = await f.connection.ready;
+    t.after(() => {guest.dispose(); f.host.dispose();});
+    assert.equal(guest.hintSeen, seen);
+    await guest.markHintSeen!();
+    assert.equal(marks, 1);
+    assert.deepEqual(f.calls, [], 'Got it reads nothing from the book');
+  }
+  old.host.receive(JSON.stringify({v: 1, channel: 'captured_unique_channel', kind: 'request', id: 99, method: 'hint-seen', args: {}}));
+  await nextTurn();
+  const replies = old.sent.map(value => JSON.parse(value)).filter(message => message.kind === 'reply' && message.id === 99);
+  assert.equal(replies.length, 1); assert.ok(replies[0].error, 'a host with no memory answers Got it with an error, never a value');
+});
 const searchPacket = (id: number, query: string, extra: Record<string, unknown> = {}) => JSON.stringify({
   v: 1, channel: 'captured_unique_channel', kind: 'request', id, method: 'search-all', args: {query}, ...extra,
 });

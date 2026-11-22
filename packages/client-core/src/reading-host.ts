@@ -80,11 +80,14 @@ function contentsTarget(value: unknown, manifest: ReadingManifest): ReadingHostC
 /** RN retains the actual captured facade. Its caller still owns session.close().
  * Binary messages are pulled in <=48KiB chunks; just one original member/page is
  * retained, with an idle deadline, never a book/archive cache. */
-export function createReadingHost({session, channel, preferences, initialProgress, initialContentsTarget, crease, current, send, onBack, onSettings, onSearchAll, onUnavailable, saveHighlights}: Readonly<{
+export function createReadingHost({session, channel, preferences, initialProgress, initialContentsTarget, crease, current, send, onBack, onSettings, onSearchAll, onUnavailable, saveHighlights, hintSeen, onHintSeen}: Readonly<{
   saveHighlights?: (file: ReadingHighlightsFile, signal: AbortSignal, isCurrent: () => boolean) => Promise<'saved' | 'cancelled'>;
   session: ReadingHostSession; channel: string; preferences: () => PreferenceSnapshot; initialProgress: ReadingProgress;
   initialContentsTarget?: ReadingHostContentsTarget; crease?: ReadingHostCrease; onUnavailable?: () => void;
   onSearchAll?: ReadingHostSearchAll;
+  /** The first-run hint, remembered by the app: whether this device has seen it, and the guest's "Got it". A guest
+   * in a web view without storage otherwise shows it on every open. Both or neither. */
+  hintSeen?: boolean; onHintSeen?: () => void;
   current: () => boolean; send: (message: string) => void; onBack: () => void; onSettings: () => void;
 }>) {
   if (!/^[A-Za-z0-9_-]{16,128}$/.test(channel)) fail();
@@ -147,7 +150,7 @@ export function createReadingHost({session, channel, preferences, initialProgres
     if (data.kind === 'ready') {
       if (started || !valid()) return;
       if (capturedContentsTarget && data.contentsTarget !== true) {dispose(); onUnavailable?.(); return;}
-      started = true; post({kind: 'initial', canSaveHighlights: !!saveHighlights && manifest.canAnnotate === true && !!session.annotations && !!session.mutateAnnotation, canSearchAll: typeof onSearchAll === 'function', manifest: {...manifest, canAnnotate:manifest.canAnnotate === true && !!session.annotations && !!session.mutateAnnotation ? true : undefined}, preferences: preferences(), progress: initialProgress, active,
+      started = true; post({kind: 'initial', canSaveHighlights: !!saveHighlights && manifest.canAnnotate === true && !!session.annotations && !!session.mutateAnnotation, canSearchAll: typeof onSearchAll === 'function', ...(onHintSeen ? {hintSeen: hintSeen === true} : {}), manifest: {...manifest, canAnnotate:manifest.canAnnotate === true && !!session.annotations && !!session.mutateAnnotation ? true : undefined}, preferences: preferences(), progress: initialProgress, active,
         ...(capturedContentsTarget ? {contentsTarget: capturedContentsTarget} : {}), ...(capturedCrease ? {crease: capturedCrease} : {})}); return;
     }
     if (!started || data.channel !== channel || !valid()) return;
@@ -250,6 +253,7 @@ export function createReadingHost({session, channel, preferences, initialProgres
         value = await session.saveProgress(args as Parameters<ReadingSession['saveProgress']>[0], request.signal);
       } else if (method === 'back') {onBack(); value = null;}
       else if (method === 'settings') {onSettings(); value = null;}
+      else if (method === 'hint-seen' && onHintSeen) {onHintSeen(); value = null;}
       else fail();
       check(); if (request.signal.aborted) {if (transfer?.id === id) release(); fail('cancelled');}
       if (ownsBinary) {binaryRequest = false; ownsBinary = false;}
@@ -274,6 +278,8 @@ export type ReadingGuest = Readonly<{
   saveHighlights?: (revision: number, signal: AbortSignal) => Promise<'saved' | 'cancelled'>;
   /** Present only when the original native host supplies the navigation port. */
   searchAll?: (query: string, signal?: AbortSignal) => Promise<void>;
+  /** Present only when the app remembers the first-run hint for this device. */
+  hintSeen?: boolean; markHintSeen?: () => Promise<void>;
   back: () => Promise<void>; openSettings: () => Promise<void>; dispose: () => void;
 }>;
 /** Bundled browser side: structural source ports only, no selected-server API. */
@@ -385,6 +391,7 @@ export function connectReadingHost(transport: ReadingHostTransport): Readonly<{r
         // activity through Settings even before the guest has finished loading.
         if (data.active !== undefined && typeof data.active !== 'boolean') fail();
         if (data.canSearchAll !== undefined && typeof data.canSearchAll !== 'boolean') fail();
+        if (data.hintSeen !== undefined && typeof data.hintSeen !== 'boolean') fail();
         active = typeof data.active === 'boolean' ? data.active : true;
         channel = data.channel; initialized = true; clearTimeout(startDeadline);
         const session: ReadingHostSession = Object.freeze({manifest, signal: life.signal,
@@ -421,7 +428,8 @@ export function connectReadingHost(transport: ReadingHostTransport): Readonly<{r
             const result = await call('highlights-export', {revision}, signal);
             if (result !== 'saved' && result !== 'cancelled') fail();
             return result;
-          }} : {}), ...(initialContentsTarget ? {contentsTarget: initialContentsTarget} : {}), get crease() {return crease;},
+          }} : {}), ...(typeof data.hintSeen === 'boolean' ? {hintSeen: data.hintSeen, markHintSeen: async () => {await call('hint-seen');}} : {}),
+          ...(initialContentsTarget ? {contentsTarget: initialContentsTarget} : {}), get crease() {return crease;},
           onCrease: (listener: () => void) => {if (life.signal.aborted) return () => {}; creaseListeners.add(listener); return () => {creaseListeners.delete(listener);};},
           preferences: Object.freeze({getSnapshot: () => snapshot, subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}}),
           onActive: (listener: (active: boolean) => void) => {

@@ -99,7 +99,7 @@ test(`actual live host with its presentation binding fences original close on ${
     './annotation-journal': {NativeAnnotationJournal: class {unbind() {}}, nativeAnnotationIdentity: () => ({}), nativeAnnotationLeaseOf: () => undefined},
     './annotation-session': {nativeAnnotationBridge: (value: any) => value.session},
     './annotation-sync': {NativeAnnotationSync: class {dispose() {} flush() {return Promise.resolve();}}},
-    './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false},
+    './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false}, '../../platform/reader-hint-memory': {nativeReaderHintMemory: () => ({seen: () => false, markSeen() {}})},
   });
   let tree: unknown; const source = {getSnapshot: () => preferences, subscribe: () => () => {}};
   const host = createFabricHookHost(() => {tree = ReadNativeHost({context, target: route, binding, active: true,

@@ -127,7 +127,7 @@ async function harness(fixture: Fixture) {
     './annotation-journal': {NativeAnnotationJournal: class {bind() {} unbind() {} dispose() {}}, nativeAnnotationIdentity: () => ({}), nativeAnnotationLeaseOf: () => ({})},
     './annotation-session': {nativeAnnotationBridge: (value: any) => value.session},
     './annotation-sync': {NativeAnnotationSync: class {flush() {return Promise.resolve();} subscribe() {return () => {};} getSnapshot() {return {};} dispose() {}}},
-    './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false},
+    './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false}, '../../platform/reader-hint-memory': {nativeReaderHintMemory: () => ({seen: () => false, markSeen() {}})},
   });
   return {ReadNativeHost, NativeReadingGuestHost, ReadingGuestView, context, reader, received, get hostCalls() {return hostCalls;}, get versionCalls() {return versionCalls;}, get openCalls() {return openCalls;},
     /** The server ended the session and the client's one transparent reopen didn't hold (RD-7). */

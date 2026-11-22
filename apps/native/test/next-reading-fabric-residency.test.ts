@@ -110,7 +110,7 @@ test(`actual retained Read components cap guest residency and restore original s
     './NativeReadingGuestHost': {NativeReadingGuestHost}, './reading-session-owner': {createReadingSessionOwner, closeReadingResource},
     './annotation-journal': {NativeAnnotationJournal: class {unbind() {}}, nativeAnnotationIdentity: () => ({}), nativeAnnotationLeaseOf: () => undefined},
     './annotation-session': {nativeAnnotationBridge: (value: any) => value.session}, './annotation-sync': {NativeAnnotationSync: class {dispose() {} flush() {return Promise.resolve();}}},
-    './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false},
+    './annotation-authoring': {NATIVE_OFFLINE_ANNOTATION_AUTHORING: false}, '../../platform/reader-hint-memory': {nativeReaderHintMemory: () => ({seen: () => false, markSeen() {}})},
   });
   const {createNativeReadRenderer} = await screenModule(new URL('../src-next/shell/read-renderer.tsx', import.meta.url), {
     react, 'react-native': {Platform: {isTV: false}}, '../screens/read/host-component': {nativeReadHost: () => ReadNativeHost}, '../screens/read/read-route-back': {readRouteBack},

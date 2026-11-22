@@ -4,6 +4,7 @@ import type WebView from 'react-native-webview';
 import type {PreferenceSnapshot} from '../../../../../../packages/client-core/src/preferences';
 import type {ReadingHostSearchAll, ReadingHostContentsTarget} from '../../../../../../packages/client-core/src/reading-host';
 import {usePlatformPosture} from '../../../platform/platformPosture';
+import type {ReaderHintMemory} from '../../../platform/reader-hint-memory';
 import {readerAssetEntry} from '../../../screens/read/asset-origin';
 import {createReadingGuestBridge} from '../../../kit/reading/ReadingGuestView';
 import type {createReadingSessionOwner} from '../../../screens/read/reading-session-owner';
@@ -15,16 +16,18 @@ type Reader = ReturnType<typeof createReadingGuestBridge>;
 export type ReaderGuestProps = {
   owner: Owner; active: boolean; preferences: Readonly<{getSnapshot: () => PreferenceSnapshot; subscribe: (listener: () => void) => () => void}>;
   onBack: () => void; onSettings: () => void; onSearchAll?: ReadingHostSearchAll; contentsTarget?: ReadingHostContentsTarget; onGuestState?: (mounted: boolean, incarnation: object) => void; activeCurrent?: () => boolean;
+  /** The first-run hint, remembered on this device (the guest's own storage is off): read when the guest starts. */
+  hint?: ReaderHintMemory;
 };
 
-export function useReaderGuest({owner, active, preferences, onBack, onSettings, onSearchAll, contentsTarget, onGuestState, activeCurrent}: ReaderGuestProps) {
+export function useReaderGuest({owner, active, preferences, onBack, onSettings, onSearchAll, contentsTarget, onGuestState, activeCurrent, hint}: ReaderGuestProps) {
   const view = useRef<WebView>(null), reader = useRef<Reader | undefined>(undefined);
   const dimensions = useWindowDimensions(), posture = usePlatformPosture();
   const crease = posture.status === 'available' && posture.window?.width === dimensions.width && posture.window.height === dimensions.height
     ? posture.folds.find(value => value.orientation === 'vertical' && value.bounds.left > 0 && value.bounds.left <= value.bounds.right && value.bounds.right <= dimensions.width)?.bounds : undefined;
   const creaseRef = useRef(crease); creaseRef.current = crease;
   const disposeGuest = useRef<(() => void) | undefined>(undefined);
-  const callbacks = useRef({active, onBack, onSettings, onSearchAll}); callbacks.current = {active, onBack, onSettings, onSearchAll};
+  const callbacks = useRef({active, onBack, onSettings, onSearchAll, hint}); callbacks.current = {active, onBack, onSettings, onSearchAll, hint};
   /** One pure presence boolean: the bridge port and the guest effect's key read the same value. */
   const hasSearchAll = !!onSearchAll;
   const [state, setState] = useState<Readonly<{url?: string; reader?: Reader; failed?: boolean}>>({});
@@ -70,6 +73,7 @@ export function useReaderGuest({owner, active, preferences, onBack, onSettings, 
         ...(hasSearchAll ? {onSearchAll: (query, signal, isLive) => current() && callbacks.current.active && !!callbacks.current.onSearchAll
           ? callbacks.current.onSearchAll(query, signal, isLive) : false} : {}),
         onUnavailable: () => {if (current()) setState({failed: true}); dispose();},
+        ...(callbacks.current.hint ? {hintSeen: callbacks.current.hint.seen(), onHintSeen: () => {if (current()) callbacks.current.hint?.markSeen();}} : {}),
       }, view, () => {});
       if (!current()) {owned.dispose(); throw new Error('reading_retired');}
       reader.current = owned; owned.setActive(callbacks.current.active);
