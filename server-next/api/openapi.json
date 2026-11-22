@@ -1105,6 +1105,107 @@
         ],
         "type": "object"
       },
+      "BookSearchAnchor": {
+        "properties": {
+          "matchUnit": {
+            "type": "string"
+          },
+          "normalization": {
+            "type": "string"
+          },
+          "offsetUnit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "normalization",
+          "offsetUnit",
+          "matchUnit"
+        ],
+        "type": "object"
+      },
+      "BookSearchHit": {
+        "properties": {
+          "coverUrl": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "matchLength": {
+            "type": "integer"
+          },
+          "matchStart": {
+            "type": "integer"
+          },
+          "sectionIndex": {
+            "type": "integer"
+          },
+          "sectionPath": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "utf16Offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "libraryId",
+          "itemId",
+          "sourceId",
+          "sourceRevision",
+          "sectionPath",
+          "sectionIndex",
+          "utf16Offset",
+          "excerpt",
+          "matchStart",
+          "matchLength"
+        ],
+        "type": "object"
+      },
+      "BookSearchPage": {
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/BookSearchAnchor"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/BookSearchHit"
+            },
+            "type": "array"
+          },
+          "indexRevision": {
+            "type": "integer"
+          },
+          "indexedOnly": {
+            "type": "boolean"
+          },
+          "next": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "indexedOnly",
+          "indexRevision",
+          "anchor",
+          "hits"
+        ],
+        "type": "object"
+      },
       "BookVersion": {
         "properties": {
           "fingerprint": {
@@ -31048,6 +31149,39 @@
         "x-access": "withProfile",
         "x-audience": "Clients",
         "x-scope": "session"
+      }
+    },
+    "/v1/reading/search": {
+      "get": {
+        "operationId": "get_v1_reading_search",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookSearchPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/receivers": {

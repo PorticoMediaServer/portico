@@ -19,6 +19,8 @@ export type ReadingIndexedSearchApi = Readonly<{request<T>(path: string, method?
 const publishedRoutes: readonly Readonly<{id: string; method: string; path: string}>[] = routes;
 const publicId = /^[A-Za-z0-9_-]{1,128}$/;
 const cursorToken = /^[A-Za-z0-9_-]{1,512}$/;
+/** The book file's fingerprint as the book route gives it: 16 hex digits (64 from older servers). */
+const fileRevision = /^(?:[a-f0-9]{16}|[a-f0-9]{64})$/;
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const text = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max;
 const integer = (value: unknown, low: number, high = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && (value as number) >= low && (value as number) <= high;
@@ -84,7 +86,7 @@ function sameAnchor(value: unknown): ReadingIndexedSearchAnchor | undefined {
 }
 
 function hit(value: GetReadingSearchResponse['hits'][number]): ReadingIndexedSearchHit {
-  if (!publicId.test(value.libraryId) || !publicId.test(value.itemId) || !publicId.test(value.sourceId) || !/^[a-f0-9]{64}$/.test(value.sourceRevision)) return bad();
+  if (!publicId.test(value.libraryId) || !publicId.test(value.itemId) || !publicId.test(value.sourceId) || !fileRevision.test(value.sourceRevision)) return bad();
   if (!member(value.sectionPath) || !integer(value.sectionIndex, 0, 4095) || !integer(value.utf16Offset, 0, 8 << 20)) return bad(); // text_index_query.go scan budget / reading.ts
   if (!text(value.excerpt, 8192) || !wellFormed(value.excerpt) || !integer(value.matchStart, 0) || !integer(value.matchLength, 1)) return bad();
   if (value.matchStart + value.matchLength > value.excerpt.length) return bad();

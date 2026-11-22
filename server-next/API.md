@@ -467,7 +467,7 @@ Not carried: `/v1/downloads/receipts*`, `/receipt-keys`, `/revocations` and
 `/v1/downloads`); `POST /v1/downloads/progress` (`state:batch`); `GET`/`PUT
 /v1/downloads/settings` (the `downloads` settings document); seek previews inside a download.
 
-### Reading (8)
+### Reading (9)
 
 A book is an item: its page is `GET /v1/items/{id}`, its place and read mark go through `PUT
 /v1/items/{id}/state`, "mark all read" is a job over a selection, and its lists are `GET
@@ -491,14 +491,14 @@ Home has a "Continue your books" row (`continue_books`) for books, comics and au
 | `GET /v1/items/{id}/annotations` | The profile, for a book it may see | Its bookmarks, highlights and notes in the book, in book order, a page at a time. Deleted ones are not listed: an app removes those it sent before and no longer finds (a `since=` would miss edits made out of reach, which carry the time they were made) |
 | `PUT /v1/items/{id}/annotations/{annotationId}`, `DELETE /v1/items/{id}/annotations/{annotationId}` | The profile | Add or change one (the app makes the id, so a repeat changes nothing; the 5,001st is refused); delete one everywhere |
 | `POST /v1/annotations:batch` | The profile | What a device made while out of reach; the later edit to one id wins |
+| `GET /v1/reading/search` | A profile | Search all books: where the words of `q` stand, in that order, in the EPUB, MOBI and AZW3 books the profile may see (`libraryId` keeps to one library), a page at a time (`limit`, 20 by default and at most 50; `cursor` is a page's `next`). Each hit names the book, its version (`sourceId`) and file fingerprint (`sourceRevision`), the section, and the match's UTF-16 offset in that section's text as the reader normalises it (`anchor`), with an excerpt. Only books already read into the server's book index are searched (`indexedOnly`); it reads new and changed books a few minutes at a time, and `indexRevision` changes with it. A book whose file changed is left out until it is read again |
 
 Not carried: `/v1/reading/sessions*` (nothing is open on the server; bytes are media
 addresses); reading `progress` routes and `/v1/reading/offline/progress*` (the one state
 route; the later place wins and nothing is refused); `/v1/items/{id}/reading/mark` and
 `/v1/libraries/{id}/reading/mark-all` (the state route and a job); `/v1/reading/items`,
 `/discover`, `/continue`, series and periodical routes (the item list, the library landing and
-Home); the reading `my-list`, `favorite` and saved-group routes (the state route);
-`GET /v1/reading/search` across every book (put off until someone asks).
+Home); and the reading `my-list`, `favorite` and saved-group routes (the state route).
 
 ### Live TV and recordings (18)
 
