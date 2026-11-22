@@ -66,7 +66,7 @@ import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
 import {RememberProfileRow} from './RememberProfileRow';
 import {SignInPage} from '../../pages/touch/accounts/SignInPage';
-import {LegalAgreement} from './LegalAgreement';
+import {LegalAgreement} from '../../kit/accounts/LegalAgreement';
 import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PasswordStrengthMeter} from './PasswordStrengthMeter';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';

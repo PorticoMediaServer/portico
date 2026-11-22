@@ -65,7 +65,7 @@ async function entry(canRemember: boolean, api?: ProfileAPI) {
     '../../../../../packages/client-core/src/join-link': joinLink,
     '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
     '../../platform/qr-scanner': qrScanner,
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
+    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
     react: {...React, default: React},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: back.api, Platform: {isTV: false}, Dimensions: {get: () => ({width: 390, height: 844})}, NativeModules: {}, View: 'View', Text: 'Text', ScrollView: 'ScrollView'},
     'react-native-qrcode-svg': {default: 'QR'},

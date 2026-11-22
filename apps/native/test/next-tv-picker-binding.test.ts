@@ -77,7 +77,7 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
     './tv-code-opening': tvCodeOpening,
     './tv-approval-credentials': tvApprovalCredentials, './tv-approval-finalization': tvApprovalFinalization,
     '../../../../../packages/client-core/src/join-link': joinLink, '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
-    '../../platform/qr-scanner': qrScanner, './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
+    '../../platform/qr-scanner': qrScanner, '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
     ...shared(back), '../../../../../packages/client-core/src': {},
     '../../../../../packages/client-core/src/sign-in': {},
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},

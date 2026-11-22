@@ -20,14 +20,14 @@ test('phone account presenter exposes only its offered password and provider cap
   let host: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
   try {
     const links: string[] = []; let linkFailure = false;
-    const legal = await screenModule(new URL('../src-next/screens/accounts/LegalAgreement.tsx', import.meta.url), {
+    const legal = await screenModule(new URL('../src-next/kit/accounts/LegalAgreement.tsx', import.meta.url), {
       react: {...React, default: React}, 'react-native': {Text: 'Text'},
       '../../../../../packages/i18n/src': {defaultI18n},
       '../../../../../packages/client-core/src/public-links': {porticoPublicLinks},
     });
     const parts = await screenModule(new URL('../src-next/kit/accounts/AccountParts.tsx', import.meta.url), {
       react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'},
-      '../../screens/accounts/LegalAgreement': legal, '../theme': {useTheme: () => createTheme({isTV: false, width: 390})},
+      './LegalAgreement': legal, '../theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     });
     const {SignInPage} = await screenModule(new URL('../src-next/pages/touch/accounts/SignInPage.tsx', import.meta.url), {
       react: {...React, default: React}, '../../../../../../packages/i18n/src': {defaultI18n},

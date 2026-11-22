@@ -61,7 +61,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     dispose() {}
   }
   const credentials = {synchronize: async () => {calls.synchronize++;}, getSnapshot: () => ({session})};
-  const legal = await screenModule(new URL('../src-next/screens/accounts/LegalAgreement.tsx', import.meta.url), {
+  const legal = await screenModule(new URL('../src-next/kit/accounts/LegalAgreement.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Text: 'Text'},
     '../../../../../packages/i18n/src': {defaultI18n: copy},
     '../../../../../packages/client-core/src/public-links': {porticoPublicLinks},
@@ -83,7 +83,7 @@ async function fixture(context: import('node:test').TestContext, initialStage: '
     '../../platform/server-connections': {browseNearby: async () => []},
     '../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../platform/tv-menu': {useTVMenuCapture() {}},
     './PhoneFindServer': {PhoneFindServer: 'PhoneFindServer'}, '../../pages/touch/accounts/ServerSignInPage': {ServerSignInPage: 'PhoneServerSignIn'}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'AccountSignIn'},
-    './LegalAgreement': legal, '../../kit/accounts/AccountForm': {AccountForm: 'AccountForm'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
+    '../../kit/accounts/LegalAgreement': legal, '../../kit/accounts/AccountForm': {AccountForm: 'AccountForm'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'Strength'},
     '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'},
   };
   Object.assign(modules, {'../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}});

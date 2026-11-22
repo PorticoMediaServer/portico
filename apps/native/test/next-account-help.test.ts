@@ -31,7 +31,7 @@ test('phone Portico Forgot password hands off directly without a native reset fo
     '../../../../../packages/client-core/src/join-link': joinLink,
     '../../../../../packages/client-core/src/short-invitation-code': invitationCode,
     '../../platform/qr-scanner': {qrScannerAvailable: () => false, scanQRCode: async () => undefined},
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
+    '../../kit/accounts/LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../kit/accounts/AccountForm': {AccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, '../../pages/touch/accounts/SignInPage': {SignInPage: 'PhoneAccountSignIn'},
     './tv-approval-finalization': {}, './tv-approval-credentials': {},
     react: {...React, default: React},
     'react-native': {AppState: {currentState: 'active', addEventListener: () => ({remove() {}})}, BackHandler: {addEventListener: () => ({remove() {}})}, Linking: {openURL: async () => {if (linkFails) throw new Error('no_browser');}}, Platform: {isTV: false},

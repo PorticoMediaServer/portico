@@ -14,7 +14,7 @@ const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : 
 const words = (node: any): string => Array.isArray(node) ? node.map(words).join('') : node?.props ? words(node.props.children) : typeof node === 'string' ? node : '';
 
 async function legalModule(i18n = defaultI18n) {
-  return screenModule(new URL('../src-next/screens/accounts/LegalAgreement.tsx', import.meta.url), {
+  return screenModule(new URL('../src-next/kit/accounts/LegalAgreement.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Text: 'Text'},
     '../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../../../../../packages/client-core/src/public-links': {porticoPublicLinks},
