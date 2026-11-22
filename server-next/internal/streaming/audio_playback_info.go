@@ -36,6 +36,9 @@ func audioPlanComparison(source *PlaybackSoundFacts, p *AudioPlan, remote, quali
 	}
 	src := *source
 	src.Lossless = copiedBool(source.Lossless)
+	if p.SourceBitrateBPS > 0 {
+		src.BitrateKbps = int(p.SourceBitrateBPS / 1000)
+	}
 	delivered := src
 	delivered.Lossless = copiedBool(src.Lossless)
 	route, reason := "original", "compatible"
@@ -48,6 +51,9 @@ func audioPlanComparison(source *PlaybackSoundFacts, p *AudioPlan, remote, quali
 		}
 		delivered = PlaybackSoundFacts{Codec: p.Codec, SampleRate: p.SampleRate, Channels: p.Channels,
 			BitDepth: p.BitDepth, Lossless: knownAudioEncodingLossless(p.Codec, "", "")}
+		if p.Convert != nil && p.Convert.BitrateBPS > 0 {
+			delivered.BitrateKbps = p.Convert.BitrateBPS / 1000
+		}
 	}
 	info := &PlaybackInfo{Route: route, Routes: PlaybackRoutes{Sound: route}, Reason: PlaybackReason{Kind: reason},
 		Source: PlaybackMediaFacts{Audio: &src}, Delivered: PlaybackMediaFacts{Audio: &delivered},

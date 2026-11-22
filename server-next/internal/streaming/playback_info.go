@@ -56,6 +56,9 @@ type PlaybackSoundFacts struct {
 	// undecoded ("passthrough") or decoded to PCM ("decoded"). It is never
 	// stated for the source, which is a file, not an output.
 	Delivery string `json:"delivery,omitempty"`
+	// BitrateKbps is the track's rate, from the file's probe for the source and from the
+	// conversion for a converted track ("AAC 256"); absent when unknown.
+	BitrateKbps int `json:"bitrateKbps,omitempty"`
 }
 
 // Subtitle facts come from the actual selected resource, not a rendition label
@@ -282,6 +285,7 @@ func PlaybackInfoForPlan(p DeliveryPlan, subtitle *PlaybackSubtitleFacts) *Playb
 			SampleRate:  a.SampleRate,
 			BitDepth:    a.BitDepth,
 			Lossless:    copiedBool(a.Lossless),
+			BitrateKbps: a.BitRate / 1000,
 		}
 		out.Source.Audio = &src
 		dst := src
@@ -304,6 +308,7 @@ func PlaybackInfoForPlan(p DeliveryPlan, subtitle *PlaybackSubtitleFacts) *Playb
 			}
 			dst.Profile, dst.Variant, dst.ObjectAudio = "", "", ""
 			dst.Channels, dst.SampleRate, dst.BitDepth, dst.Layout = p.AudioChannels, p.AudioSampleRate, 0, ""
+			dst.BitrateKbps = int(p.AudioBitrateBPS / 1000)
 			if target := p.ConversionTarget; target != nil {
 				dst.BitDepth, dst.Layout = target.AudioBitDepth, target.AudioChannelLayout
 			}

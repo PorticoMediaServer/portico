@@ -127,6 +127,8 @@ type TraceAudio struct {
 	Layout      string `json:"layout,omitempty"`
 	SampleRate  int    `json:"sampleRate,omitempty"`
 	BitDepth    int    `json:"bitDepth,omitempty"`
+	// BitRate is the track's rate in bits per second from the probe; 0 when unknown.
+	BitRate int `json:"bitRate,omitempty"`
 	// Why this track: explicit, carried, preferred_language, default, first.
 	ChosenBy string `json:"chosenBy"`
 	Tracks   int    `json:"tracks"`

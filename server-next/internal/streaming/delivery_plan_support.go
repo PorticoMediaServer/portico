@@ -22,6 +22,7 @@ func traceAudioSource(audio *SourceAudio, chosenBy string, tracks int) *TraceAud
 		Layout:      audio.Layout,
 		SampleRate:  audio.SampleRate,
 		BitDepth:    audio.BitsPerSample,
+		BitRate:     int(audio.BitRate),
 		ChosenBy:    chosenBy,
 		Tracks:      tracks,
 	}
