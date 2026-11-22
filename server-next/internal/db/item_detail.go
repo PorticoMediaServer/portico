@@ -28,6 +28,8 @@ type ItemDetail struct {
 	CreditTotal   int
 	Versions      []Version
 	AlbumAudio    *AlbumAudioSummary
+	// Publisher and Frequency are a magazine's or newspaper's (periodical_facts.go).
+	Publisher, Frequency string
 }
 
 // ItemRef names another item: the show an episode belongs to, for example.
@@ -273,6 +275,9 @@ func (d *DB) item(ctx context.Context, v Viewer, publicID string, whole bool) (I
 	}
 	if err == nil && out.Kind == KindMovie {
 		out.Collections, err = filmCollections(ctx, tx, v, acc, out.ID)
+	}
+	if err == nil && out.Kind == KindSeries {
+		out.Publisher, out.Frequency, err = periodicalFacts(ctx, tx, acc, out.ID, out.Tags)
 	}
 	return out, err
 }

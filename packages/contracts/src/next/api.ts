@@ -1364,6 +1364,8 @@ export interface Item {
   versions?: Media[];
   albumAudio?: AlbumAudioSummary;
   collections?: FilmCollection[];
+  publisher?: string;
+  frequency?: string;
 }
 
 export interface ItemChapter {

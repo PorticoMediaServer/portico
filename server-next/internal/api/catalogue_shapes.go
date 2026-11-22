@@ -189,6 +189,11 @@ type Item struct {
 	Versions       []Media            `json:"versions,omitempty"`
 	AlbumAudio     *AlbumAudioSummary `json:"albumAudio,omitempty"`
 	Collections    []FilmCollection   `json:"collections,omitempty"`
+
+	// Publisher and Frequency are a magazine's or newspaper's, on its series read (GET
+	// /v1/items/{id}). Frequency is daily, weekly, fortnightly, monthly, bimonthly, quarterly or annual.
+	Publisher string `json:"publisher,omitempty"`
+	Frequency string `json:"frequency,omitempty"`
 }
 
 // ItemChapter is one chapter of an audiobook: its number through the book, title and span.
@@ -623,6 +628,7 @@ func detailShape(d db.ItemDetail) Item {
 	out.EpisodeDisplay = d.EpisodeDisplay
 	out.Collections = d.Collections
 	out.OriginalTitle, out.Summary, out.Tagline, out.Edition = d.OriginalTitle, d.Summary, d.Tagline, d.Edition
+	out.Publisher, out.Frequency = d.Publisher, d.Frequency
 	out.Available, out.CreditTotal = &d.Available, &d.CreditTotal
 	if d.NextEpisode != nil {
 		target := itemShape(*d.NextEpisode)

@@ -202,8 +202,9 @@ func readPlace(raw string) Place {
 // ReadPlace reads a stored place; a place that is not one reads as the start.
 func ReadPlace(raw string) Place { return readPlace(raw) }
 
-// volumeOrder is the order of a series' volumes: by number, then those with none by title.
-const volumeOrder = `i.index_number IS NULL, i.index_number, i.sort_title, i.id`
+// volumeOrder is the order of a series' volumes: by volume and number (a magazine's "Vol. 4, No. 9"),
+// then those with no number by title.
+const volumeOrder = `i.index_number IS NULL, ifnull(i.parent_index, 0), i.index_number, i.sort_title, i.id`
 
 // nextVolume is the volume after this one in its series, in volumeOrder: a book in a series
 // of books, or an issue of a comic series.
@@ -219,9 +220,9 @@ func nextVolume(ctx context.Context, tx *sql.Tx, v Viewer, acc access, id int64)
 		return nil, err
 	}
 	ref := &ItemRef{}
-	err := tx.QueryRowContext(ctx, `WITH me AS (SELECT index_number IS NULL AS u, index_number AS n, sort_title AS t, id FROM items WHERE id = @me)
+	err := tx.QueryRowContext(ctx, `WITH me AS (SELECT index_number IS NULL AS u, ifnull(parent_index, 0) AS v, index_number AS n, sort_title AS t, id FROM items WHERE id = @me)
 		SELECT i.public_id, i.kind, i.title, i.index_number FROM (`+siblings+`) i, me
-		WHERE (i.index_number IS NULL, ifnull(i.index_number, 0), i.sort_title, i.id) > (me.u, ifnull(me.n, 0), me.t, me.id)
+		WHERE (i.index_number IS NULL, ifnull(i.parent_index, 0), ifnull(i.index_number, 0), i.sort_title, i.id) > (me.u, me.v, ifnull(me.n, 0), me.t, me.id)
 		AND `+acc.visible("i")+` ORDER BY `+volumeOrder+` LIMIT 1`,
 		append(v.args(), sql.Named("me", id), sql.Named("series", RelationSeriesMember), sql.Named("parent", parent.Int64),
 			sql.Named("issue", KindIssue))...).Scan(&ref.PublicID, &ref.Kind, &ref.Title, &ref.Index)
