@@ -1,16 +1,16 @@
 import React, {useMemo, useSyncExternalStore} from 'react';
 import type {ReactNode} from 'react';
 import {Text, View} from 'react-native';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
-import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
-import {Button} from '../../../kit/controls';
-import {useFocusRegistry} from '../../../kit/focus';
-import {Banner, SidePanel} from '../../../kit/overlays';
-import {alpha, browseType} from '../../../kit/browse/presentation';
-import {useTheme} from '../../../kit/theme';
-import {NativeTVKeyboard} from '../../search/TVKeyboard';
-import {nativeTVNameEdit, nativeTVNamingFirstKey} from './naming';
-import type {NativeTVLibraryNaming, NativeTVLibraryNamingStore} from './naming';
+import {defaultI18n} from '../../../../../packages/i18n/src';
+import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
+import {Button} from '../controls';
+import {useFocusRegistry} from '../focus';
+import {Banner, SidePanel} from '../overlays';
+import {alpha, browseType} from '../browse/presentation';
+import {useTheme} from '../theme';
+import {NativeTVKeyboard} from '../../screens/search/TVKeyboard';
+import {nativeTVNameEdit, nativeTVNamingFirstKey} from '../../screens/library/tv-library/naming';
+import type {NativeTVLibraryNaming, NativeTVLibraryNamingStore} from '../../screens/library/tv-library/naming';
 
 /** The drawn ten-foot name field (tv.html frame 5 `.sfield`) with its own caret
  * (ruling 27.2): 500x80, radius 16, 8% ink wash, 34/700 value, 3x40 accent caret. */
@@ -29,7 +29,6 @@ export function NativeTVLibrarySaveViewPanel({naming, id}: {naming: NativeTVLibr
   const edit = (next: string) => {const name = nativeTVNameEdit(form, state.keyboard, next); if (name !== undefined) naming.controller.setName(name);};
   return <SidePanel testID={id} open={form.open} onOpenChange={open => {if (!open) naming.close();}} showClose={false} dismissOnBack={!busy}
     title={defaultI18n.t('lib.saveViewTitle')} description={defaultI18n.t('lib.saveViewLede')}
-    titleType={{size: 44, weight: 800, tracking: -.03, lineHeight: 52.8}}
     width={680} topInset={0} initialFocusRef={initialFocusRef}
     style={{paddingTop: 42, paddingLeft: 56, paddingRight: 96, paddingBottom: 56}}
     footer={<View style={{flexDirection: 'row', gap: 16}}>
@@ -37,14 +36,14 @@ export function NativeTVLibrarySaveViewPanel({naming, id}: {naming: NativeTVLibr
       <Button testID={`${id}-save`} focusId="save-view" variant="primary" loading={busy} disabled={blocked || !form.name.trim()}
         onPress={() => {void naming.controller.save();}}>{defaultI18n.t('lib.saveView')}</Button>
     </View>}>
-    <View style={{gap: 24}}>
+    <View style={{gap: 12}}>
       {form.error !== undefined && <Banner testID={`${id}-error`} variant="notice" tone="error" placement="inline"
         message={presentError(form.error, 'library', {operation: 'save'}).body}/>}
       <View style={{gap: 10}}>
         <Text style={[browseType(theme, 20, 700), {color: theme.colors.textTertiary}]}>{defaultI18n.t('lib.saveViewName')}</Text>
         <View testID={fieldId} accessibilityRole="text" accessibilityLabel={defaultI18n.t('lib.saveViewName')}
-          style={[tvNamingField, {backgroundColor: alpha(theme.colors.text, .08)}]}>
-          <Text numberOfLines={1} style={[browseType(theme, 34, 700), {color: form.name ? theme.colors.text : theme.colors.textTertiary, flexShrink: 1}]}>
+          style={[tvNamingField, {overflow: 'hidden', backgroundColor: alpha(theme.colors.text, .08)}]}>
+          <Text style={[browseType(theme, 34, 700), {color: form.name ? theme.colors.text : theme.colors.textTertiary, flexShrink: 1}]}>
             {form.name || defaultI18n.t('lib.saveViewPlaceholder')}</Text>
           <View testID={`${fieldId}-caret`} accessible={false} importantForAccessibility="no" pointerEvents="none"
             style={{width: 3, height: 40, borderRadius: 2, marginLeft: -12, backgroundColor: theme.colors.accentStrong}}/>
