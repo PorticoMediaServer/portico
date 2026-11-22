@@ -168,10 +168,10 @@ test('Episodes enters the playing row, and its season sheet returns to the actua
 
 test('Playback Info missing comparison settles on a named, focused Retry and retries explicitly', async () => {
   const h = watchHooks(); let reads = 0;
-  const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/screens/watch/PlaybackInfoPanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+  const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/kit/player/PlaybackInfoPanel.tsx', import.meta.url), {'../states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
     '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords: () => ({})}, '../../../../../packages/client-core/src/presentation/playback-info': {codecName: String},
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence: () => undefined},
+    '../controls': controlsAtoms, '../theme': themed, './PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, '../../screens/watch/playback-info': {lossSentence: () => undefined},
   });
   const context: any = {fence, source: {lease: 'lease', fence}, state: {panel: 'playback-info', fence}, runtime: {}, panelCurrent: () => true};
   const read = async () => {reads++; return undefined;};
@@ -185,10 +185,10 @@ test('Playback Info missing comparison settles on a named, focused Retry and ret
 
 test('Playback Info timeout settles on the same focused recovery without a render failure', async context => {
   const h = watchHooks();
-  const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/screens/watch/PlaybackInfoPanel.tsx', import.meta.url), {'../../kit/states': {Quiet: ({children}: any) => children}, 
+  const {NativePlaybackInfoPanel} = await screenModule(new URL('../src-next/kit/player/PlaybackInfoPanel.tsx', import.meta.url), {'../states': {Quiet: ({children}: any) => children}, 
     react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/player-core/src': playerCore,
     '../../../../../packages/client-core/src/video-track-labels': {videoTrackWords: () => ({})}, '../../../../../packages/client-core/src/presentation/playback-info': {codecName: String},
-    '../../kit/controls': controlsAtoms, '../../kit/theme': themed, '../../kit/player/PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, './playback-info': {lossSentence: () => undefined},
+    '../controls': controlsAtoms, '../theme': themed, './PlaybackInfo': {PlaybackInfoComparison: 'PlaybackInfoComparison'}, '../../screens/watch/playback-info': {lossSentence: () => undefined},
   });
   const host: any = {fence, source: {lease: 'lease', fence}, state: {panel: 'playback-info', fence}, runtime: {}, panelCurrent: () => true};
   const read = () => new Promise(() => {});
@@ -381,7 +381,7 @@ async function failureModuleFixture(owner = true) {
     react: h.react, 'react-native': {Platform: {isTV: true}}, '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: () => () => {}}, '../../platform/device-settings': {},
     '../../../../../packages/client-core/src/audiobook-preferences': {}, '../../../../../packages/player-core/src': playerCore, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/playback-v1/quality': {},
     './factory': {createNativeWatchScreens: (ports: any) => {player = ports.player; return {watch: {}, dispose() {}, capture: (entry: any, current: () => boolean) => {const value = {entry, current}; captures.push(value); return value;}, versions: async (...args: unknown[]) => {versions.push(args);}};}},
-    './PlaybackInfoPanel': {playbackInfoWords: () => ({network: (value: string) => value})}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
+    '../../kit/player/PlaybackInfoPanel': {playbackInfoWords: () => ({network: (value: string) => value})}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
     './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {}, './ChannelRoute': {}, './live-guide': {NativeTVLiveGuide: class {dispose() {}}}, './live-actions': {NativeTVLiveActions: class {dispose() {}}}, '../../kit/player/LiveActionPanels': {},
     './PlaybackFailed': {NativePlaybackFailed: 'Failure'}, '../../kit/player/HandheldPlaybackFailed': {}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {}, '../../platform/server-preferences': {},
     '../../../../../packages/client-core/src/presentation/browse-toolbar': {}, './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},

@@ -26,7 +26,7 @@ const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/
   '../../platform/layout/player-presentation': {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs: 250},
   '../../platform/platformPosture': {usePlatformPosture: () => posture},
   './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'},
-  './HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
+  '../../kit/player/HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
   './live-guide': {noLiveGuideSubscription: () => () => {}, emptyLiveGuide: (() => {const snapshot = {open: false, rows: []}; return () => snapshot;})()},
   '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'Transition', TVPanelSlide: 'Slide', TVPanelScrim: 'Scrim', useTVPanelPresence: (value: unknown) => ({value, open: value !== undefined})},
   './tv-presentation': {nativeWatchTVPresentation},

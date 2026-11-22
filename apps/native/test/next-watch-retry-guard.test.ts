@@ -14,7 +14,7 @@ const {createNativeWatchModule} = await screenModule(new URL('../src-next/screen
   '../../../../../packages/client-core/src/audiobook-preferences': {}, '../../../../../packages/player-core/src': {sameFence}, '../../../../../packages/i18n/src': {defaultI18n: {t: (s: string) => s}},
   '../../platform/playback/subtitle-style-choices': {nativeSubtitleStyleKeys, nativeSubtitleStyleValue},
   '../../../../../packages/client-core/src/playback-v1/quality': {}, './factory': {createNativeWatchScreens: (ports: any) => {captured = ports; return {watch: {}, dispose() {}};}},
-  './PlaybackInfoPanel': {}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
+  '../../kit/player/PlaybackInfoPanel': {}, './WatchPanels': {}, './panel-options': {NativeWatchPanelOptions: class {dispose() {}}}, '../../shell/model': {sameAuthority},
   './minimize': {minimizeTarget: (dock: any, pressed: any) => dock.local?.expanded ? dock.local.fence : pressed}, './track-identity': {}, './ChannelRoute': {}, './live-guide': {NativeTVLiveGuide: class {guideAction() {return () => {};} close() {return false;} dispose() {}}}, './live-actions': {NativeTVLiveActions: class {close() {return false;} dispose() {}}}, '../../kit/player/LiveActionPanels': {}, './PlaybackFailed': {NativePlaybackFailed: 'TVFailure'},
   '../../kit/player/HandheldPlaybackFailed': {NativeHandheldPlaybackFailed: 'HandheldFailure'}, '../../kit/player/WatchPostPlay': {}, '../../platform/device-platform': {}, './panel-names': {},
   './system-media': {bindNativeVideoSystemMedia: () => () => {}}, './post-play-navigation': {nativePostPlayNavigation},

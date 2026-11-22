@@ -6,12 +6,12 @@ import {videoTrackWords} from '../../../../../packages/client-core/src/video-tra
 import {codecName} from '../../../../../packages/client-core/src/presentation/playback-info';
 import type {PlaybackInfoWords} from '../../../../../packages/client-core/src/playback-info-projection';
 import type {NativePlaybackReadLifetime} from '../../platform/playback/types';
-import {Button} from '../../kit/controls';
-import {PlaybackInfoComparison} from '../../kit/player/PlaybackInfo';
-import {useTheme} from '../../kit/theme';
-import type {NativeWatchHostContext} from './WatchHost';
-import {lossSentence, type NativePlaybackInfo} from './playback-info';
-import {Quiet} from '../../kit/states';
+import {Button} from '../controls';
+import {PlaybackInfoComparison} from './PlaybackInfo';
+import {useTheme} from '../theme';
+import type {NativeWatchHostContext} from '../../screens/watch/WatchHost';
+import {lossSentence, type NativePlaybackInfo} from '../../screens/watch/playback-info';
+import {Quiet} from '../states';
 
 const t = defaultI18n.t;
 const range = (value: string | undefined) => value === 'sdr' ? t('next.watch.info.sdr') : value === 'hdr10' ? t('next.kit.hdr.hdr10')

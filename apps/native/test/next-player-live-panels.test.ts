@@ -32,7 +32,7 @@ for (const [name, window, expectedPane, expectedPicture] of [
     '../../platform/layout/player-presentation': {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs}, '../../platform/platformPosture': {usePlatformPosture: () => posture},
     '../../kit/useMotion': {useMotion: () => ({reduce: true})}, '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined}, '../../kit/focus': {useOptionalFocusRegistry: () => undefined}, '../../kit/useScreenReader': {useScreenReader: () => false},
     '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'Transition', TVPanelSlide: 'Slide', TVPanelScrim: 'Scrim', useTVPanelPresence: () => ({open: false})},
-    './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'}, './HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
+    './WatchChrome': {NativeWatchChrome: 'Chrome'}, '../../shell/watch-picture': {NativeWatchPicture: 'Picture'}, '../../kit/player/HandheldMiniGuide': {NativeHandheldMiniGuide: 'HandheldMiniGuide'},
     './live-guide': {emptyLiveGuide: () => ({}), noLiveGuideSubscription: subscribe}, './tv-presentation': {nativeWatchTVPresentation},
     '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: subscribe},
   });
@@ -61,11 +61,11 @@ test('the handheld guide renders actual now/next rows and rejects retained actio
     react: h.react, 'react-native': reactNative, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/presentation/kit-model/index': {channelTint: (seed: unknown) => seed},
     '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../artwork/Artwork': {Artwork: 'Artwork'}, '../Icon': {Icon: 'Icon'}, '../theme': themed,
   });
-  const {NativeHandheldMiniGuide} = await screenModule(new URL('../src-next/screens/watch/HandheldMiniGuide.tsx', import.meta.url), {
+  const {NativeHandheldMiniGuide} = await screenModule(new URL('../src-next/kit/player/HandheldMiniGuide.tsx', import.meta.url), {
     react: h.react, 'react-native': reactNative, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/guide/now-next': {nowNext},
     '../../../../../packages/client-core/src/playback-messages': {playbackUserMessage: String},
-    '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/overlays/OverlayHost': {useOverlayLifecycle: (...args: unknown[]) => lifecycle.push(args)},
-    '../../kit/live/MiniGuide': kit, '../../kit/theme': themed, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: true})},
+    '../focus': {FocusRegion: 'FocusRegion'}, '../overlays/OverlayHost': {useOverlayLifecycle: (...args: unknown[]) => lifecycle.push(args)},
+    '../live/MiniGuide': kit, '../theme': themed, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: true})},
   });
   const expand = (value: any): any => Array.isArray(value) ? value.map(expand) : !value?.props ? value
     : typeof value.type === 'function' ? expand(value.type(value.props)) : {...value, props: {...value.props, children: expand(value.props.children)}};

@@ -14,7 +14,7 @@ import type {NativePlaybackRuntimeSnapshot} from '../../platform/playback/types'
 import {createNativeWatchScreens, type NativeWatchFactoryPorts, type NativeWatchMenuExtra} from './factory';
 import type {MusicPlaylistPickerHandle} from '../destinations/music/MusicPlaylistPicker';
 import type {NativeTitleActionsHandle} from './title-actions';
-import {NativePlaybackInfoPanel, playbackInfoWords} from './PlaybackInfoPanel';
+import {NativePlaybackInfoPanel, playbackInfoWords} from '../../kit/player/PlaybackInfoPanel';
 import {NativeWatchPanels, type NativeWatchPanelsProps, type NativeWatchStylePort} from './WatchPanels';
 import {NativeWatchPanelOptions} from './panel-options';
 import type {NativeWatchHostBindings} from './WatchHost';
