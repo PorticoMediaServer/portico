@@ -235,6 +235,8 @@ test('a slow release of the old engine does not use up the new engine\'s start t
   assert.deepEqual(service.failed, []);
   assert.equal(coordinator.getEngine(), 'mpv');
   assert.equal(mpv.commands.at(-1)!.binding.lease, 'mpv-lease-1');
+  t.mock.timers.tick(10_000);  // no timer left behind fails the start later
+  assert.deepEqual(service.failed, []);
   coordinator.stop();
 });
 
