@@ -29,7 +29,7 @@ async function mount(account: {username: string; hasPassword: boolean; twoStep: 
     '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField', FormError: 'FormError'},
     '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../platform/profile-recovery': {nativePorticoRecovery: portico}, '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'},
-    './PhonePINEntry': {PhonePINEntry: 'PINEntry'}, './ProviderButton': {ProviderButton: 'ProviderButton'},
+    './PhonePINEntry': {PhonePINEntry: 'PINEntry'}, '../../kit/accounts/ProviderButton': {ProviderButton: 'ProviderButton'},
   });
   let tree: any;
   const host = createFabricHookHost(() => {tree = PhoneProfileRecovery({controller, profileName: 'Alex', username: 'demo', onOpen() {}, onClose() {}, portico});});
