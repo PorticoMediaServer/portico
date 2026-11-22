@@ -175,7 +175,9 @@ function TVTabsUpGuide({region, value}: {region: FocusRegionProps; value: string
   // The tab goes in as the `destinations` prop, never set imperatively: react-native-tvos makes a TVFocusGuideView with
   // neither that prop nor autoFocus unselectable on tvOS (`isTVSelectable`), so UIKit never saw this guide (lane 13, 22 Nov:
   // Up from the Continue card still reached the chevron with no guide in the focus log).
-  return <TVFocusGuideView destinations={target ? [target as never] : []} focusable={live} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>;
+  // autoFocus while live keeps a guide on the view even if the tab can't be found natively; without one it would be a
+  // plain focusable strip and Up could land on nothing.
+  return <TVFocusGuideView destinations={target ? [target as never] : []} autoFocus={live} focusable={live} style={{position: 'absolute', left: 0, right: 0, top: 0, height: 1}}/>;
 }
 
 /** One piece of a pushed list's reason line: a title it names is drawn in the strong ink ("Because you watched Dune"). */
