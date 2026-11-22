@@ -129,7 +129,7 @@ screen fills the places as below; the frame does the arranging.
 `AudioPlayerFrame` draws its five transport slots with `PlayerControl` and takes the scrubber and read-outs as
 `scrubber`. Their sizes, scrims and type are `frameSpec.player`, `componentSpec.transport` and the `player*` type roles.
 
-The built video player (`screens/watch/WatchChrome.tsx`, `kit/player/WatchTimeline.tsx`, `kit/player/TrickplayStrip.tsx`)
+The built video player (`kit/player/WatchChromeView.tsx` (its state is `pages/shared/player/useWatchChrome`), `kit/player/WatchTimeline.tsx`, `kit/player/TrickplayStrip.tsx`)
 still draws its own versions; they are bound to the playback runtime. Stage 2 moves that screen onto the frame and
 these parts and deletes its private drawing. Apply the same test to any other screen that needs more than stock
 parts (the reader, the guide grid, the equaliser): name the parts, put them in the kit, draw them in the Kit page.
@@ -202,7 +202,7 @@ Left for Stage 2, listed so it is not forgotten:
   `kit/player/WatchEpisodesView.tsx` (the episode panel; its reads are `pages/shared/player/useWatchEpisodes`) still draw their own header, groups and rows. They read the playback adapter and the title
   controller directly, so they could not be moved as they are. Stage 2 puts them on `PlayerPanel`, `PlayerPanelGroup`,
   `PlayerPanelRow` and `PlayerEpisodeRow` and deletes their private rows.
-- `WatchChrome.tsx` still draws its own channel down and up buttons and Go to live; Stage 2 replaces them with
+- `kit/player/WatchChromeView.tsx` still draws its own channel down and up buttons and Go to live; Stage 2 replaces them with
   `PlayerChannelStep` and the pill.
 - The short guide (`TVMiniGuide.tsx`, `HandheldMiniGuide.tsx`) is still the screen's: it opens in its own modal layer
   and reads the guide directly.
