@@ -542,7 +542,8 @@ export function TitleRow({heading, subtitle, entries, binding, guard, pagination
   const titleMenu = useTitleMenu(binding.context);
   // The row's own page fence: a row that moved on never draws a menu or runs one.
   const current = () => { try { guard?.(); } catch { return false; } return binding.context.isCurrent(); };
-  const props = {focusScope: binding.context, heading, subtitle: phone ? undefined : subtitle, items: entries, getKey: (entry: ContentEntry) => entry.id, renderItem: (entry: ContentEntry) => {
+  // The row's type and gutters follow the window like Home's and Discover's rows (phone heading 19, not desktop's 22).
+  const props = {focusScope: binding.context, platform: width >= 1024 ? 'desktop' as const : 'phone-web' as const, heading, subtitle: phone ? undefined : subtitle, items: entries, getKey: (entry: ContentEntry) => entry.id, renderItem: (entry: ContentEntry) => {
     const onPlay = titleMenu.play(entry, current);
     const props = {model: entryCard(entry, env), artwork: binding.context.artwork.foreground(entry.posterUrl, 380, 2 / 3), onNavigate: () => runScreenCommand(binding.context, () => { if (binding.context.isCurrent()) { guard?.(); binding.context.effects.openEntry(entry); } }), watched: entry.watched,
       onMore: (anchor: HTMLButtonElement) => titleMenu.open(anchor, {entry, title: entry.displayTitle ?? entry.title, current, ...(onPlay ? {onPlay} : {})})};
