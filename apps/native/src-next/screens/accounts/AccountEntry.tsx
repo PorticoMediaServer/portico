@@ -1,6 +1,6 @@
 import {accountExpectation, nativeAccountRead} from '../../platform/account-work';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {AppState, Linking, NativeModules, Platform, Share, Image, Text, View} from 'react-native';
+import {AppState, Linking, NativeModules, Platform, Share, Text, View} from 'react-native';
 import {useTVMenuCapture} from '../../platform/tv-menu';
 import type {HostedServer} from '../../../../../packages/client-core/src';
 import {ServerSignInProbe, moveOfferDays, type ServerSignIn} from '../../../../../packages/client-core/src/sign-in';
@@ -16,7 +16,6 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {TVAuthLayout} from '../../kit/frames/TVAuthLayout';
 import {StateLayout} from '../../kit/states';
 import {Button, Focusable, TextField, FormError, Switch} from '../../kit/controls';
-import {Icon} from '../../kit/Icon';
 import {ProfilePicker} from '../../kit/artwork';
 import {BootWaitLine} from '../../shell/StartupBoot';
 import {negotiationRefusal} from '../../platform/negotiation';
@@ -65,7 +64,7 @@ import {ProfilesPage} from '../../pages/touch/accounts/ProfilesPage';
 import {afterEntry} from '../../shell/after-entry';
 import {RememberProfileRow} from '../../kit/accounts/RememberProfileRow';
 import {SignInPage} from '../../pages/touch/accounts/SignInPage';
-import {AccountEntryChoices, AccountEntryChoicesLegal, AccountEntryCode, AccountEntryEndedNotice, AccountEntryFields, AccountEntryFootNote, AccountEntryLegal, AccountEntryNote, AccountEntryNotes, AccountEntryPasswordToggle, AccountEntryResend, AccountEntrySentNotes, AccountEntryStep} from '../../kit/accounts/AccountEntryParts';
+import {AccountEntryActions, AccountEntryAddress, AccountEntryChoices, AccountEntryCodeNote, AccountEntryNearby, AccountEntryNearbyLine, AccountEntryNearbyServer, AccountEntryServerList, AccountEntryServerRow, AccountEntryChoicesLegal, AccountEntryCode, AccountEntryDetails, AccountEntryLine, AccountEntryScan, AccountEntryWordmark, AccountEntryEndedNotice, AccountEntryFields, AccountEntryFootNote, AccountEntryLegal, AccountEntryNote, AccountEntryNotes, AccountEntryPasswordToggle, AccountEntryResend, AccountEntrySentNotes, AccountEntryStep} from '../../kit/accounts/AccountEntryParts';
 import {AccountForm} from '../../kit/accounts/AccountForm';
 import {PasswordStrengthMeter} from '../../kit/accounts/PasswordStrengthMeter';
 import {ProfileRecoveryPage} from '../../pages/touch/accounts/ProfileRecoveryPage';
@@ -999,14 +998,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       const result = await source.signInLocal(username, password);
       if (lifetime.current && operation.current === source) {setPassword(''); consume(result);}
     }, !address.trim() || !username.trim() || !password) : action('portico-again', t('accounts.signIn.continuePortico'), portico),
-    <View style={{gap: 12}}>{!Platform.isTV && endedSignIn.signIn === 'portico' && <EndedMoveCodeAction scope={endedSignIn} busy={busy}
+    <AccountEntryActions>{!Platform.isTV && endedSignIn.signIn === 'portico' && <EndedMoveCodeAction scope={endedSignIn} busy={busy}
       isCurrent={() => lifetime.current && stageRef.current === 'ended-sign-in' && latestEndedHint.current === endedSignIn}
       onStart={(guard, signal) => run(() => beginEndedMemberCode(guard, signal))}/>}
       {endedSignIn.signIn === 'local' && <Button variant="link" disabled={busy} onPress={() => {
       if (lifetime.current && stageRef.current === 'ended-sign-in') void run(async () => {await Linking.openURL(new URL('/sign-in', endedSignIn.origin).href);});
     }}>{t('auth.forgotPassword')}</Button>}
       <Button variant="link" disabled={busy} onPress={() => {if (lifetime.current && stageRef.current === 'ended-sign-in') {setUsername(''); setPassword(''); reset(); onBack?.();}}}>{t('auth.useDifferentAccount')}</Button>
-    </View>);
+    </AccountEntryActions>);
   if (stage === 'account-workspace' && accountWorkspace.current?.createSource) {
     const ticket = accountWorkspace.current;
     const current = () => ticket.active && accountWorkspace.current === ticket && lifetime.current && stageRef.current === 'account-workspace';
@@ -1051,11 +1050,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     onForgot={() => startAccount({kind: 'forgot'})} onCreate={() => startAccount({kind: 'create'})}
     onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {setError(undefined); setProviderNotice(undefined); stageRef.current = 'address'; setStage('address');}}}/>;
   if (stage === 'setup-confirm') return layout(t('accounts.setup.confirmTitle'), t('accounts.setup.confirmBody'),
-    <View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>
-      <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{server!.name}</Text>
-      <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{new URL(setupAddress).host}</Text>
-      <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('accounts.setup.confirmWarning')}</Text>
-    </View>, action('confirm-setup', t('accounts.setup.confirmAction'), async () => {if (lifetime.current && stageRef.current === 'setup-confirm') setStage('setup');}));
+    <AccountEntryDetails>
+      <AccountEntryLine tone="strong">{server!.name}</AccountEntryLine>
+      <AccountEntryLine tone="caption">{new URL(setupAddress).host}</AccountEntryLine>
+      <AccountEntryLine>{t('accounts.setup.confirmWarning')}</AccountEntryLine>
+    </AccountEntryDetails>, action('confirm-setup', t('accounts.setup.confirmAction'), async () => {if (lifetime.current && stageRef.current === 'setup-confirm') setStage('setup');}));
   // First-run setup on the shared controller; it pairs with the same first-contact proof as sign-in.
   if (stage === 'setup' && setupTarget) return <SetupPage target={setupTarget}
     onAdmitted={id => {if (!lifetime.current || stageRef.current !== 'setup') return; onSetupComplete?.(id); onComplete();}}
@@ -1073,20 +1072,19 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       onInvitation={() => {if (lifetime.current && stageRef.current === 'address' && !busyRef.current) openInvitationEntry();}}
       onBack={() => {if (lifetime.current && stageRef.current === 'address' && !busyRef.current) back();}}/>;
     return layout(t('accounts.signIn.local'), undefined, fields(field(t('accounts.signIn.address'), address, setAddress)), action('inspect', t('action.continue'), async () => {await inspect();}, !address.trim()),
-      <View style={{alignSelf: 'stretch', gap: 10, marginTop: 18}}>
-        <Text style={[theme.isTV ? theme.type.accountHint : theme.type.caption, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{t('playOn.onThisNetwork')}</Text>
-        {nearbyStatus === 'loading' && <Text style={[theme.isTV ? theme.type.accountHint : theme.type.caption, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{t('status.loading')}</Text>}
-        {nearbyStatus === 'failed' && <Text accessibilityRole="alert" style={[theme.isTV ? theme.type.accountLede : theme.type.caption, {color: theme.colors.textSecondary}]}>{t('connection.discovery.failed')}</Text>}
-        {nearbyStatus === 'ready' && nearby.length === 0 && <Text style={[theme.isTV ? theme.type.accountLede : theme.type.caption, {color: theme.colors.textSecondary}]}>{t('connection.discovery.empty')}</Text>}
-        {nearby.map(value => <View key={value.origin} style={{gap: 4}}><Button variant="glass" disabled={busy} onPress={() => {
+      <AccountEntryNearby>
+        <AccountEntryNearbyLine>{t('playOn.onThisNetwork')}</AccountEntryNearbyLine>
+        {nearbyStatus === 'loading' && <AccountEntryNearbyLine>{t('status.loading')}</AccountEntryNearbyLine>}
+        {nearbyStatus === 'failed' && <AccountEntryNearbyLine kind="notice" alert>{t('connection.discovery.failed')}</AccountEntryNearbyLine>}
+        {nearbyStatus === 'ready' && nearby.length === 0 && <AccountEntryNearbyLine kind="notice">{t('connection.discovery.empty')}</AccountEntryNearbyLine>}
+        {nearby.map(value => <AccountEntryNearbyServer key={value.origin} host={new URL(value.origin).host}><Button variant="glass" disabled={busy} onPress={() => {
           if (!current() || busyRef.current) return;
           setAddress(value.origin); void run(async () => {await inspect(value.origin);});
-        }}>{value.server.name}{value.server.setupRequired ? ' · ' + t('accounts.setup.confirmAction') : ''}</Button>
-          <Text style={[theme.isTV ? theme.type.accountHint : theme.type.caption, {color: theme.isTV ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{new URL(value.origin).host}</Text></View>)}
+        }}>{value.server.name}{value.server.setupRequired ? ' · ' + t('accounts.setup.confirmAction') : ''}</Button></AccountEntryNearbyServer>)}
         {nearbyStatus !== 'loading' && <Button variant="link" disabled={busy} onPress={() => {
           if (!current() || busyRef.current) return; ticket!.active = false; setNearbyRefresh(value => value + 1);
         }}>{t('web.chooser.tryAgain')}</Button>}
-      </View>);
+      </AccountEntryNearby>);
   }
   if (stage === 'owner-reset' || stage === 'owner-reset-code' || stage === 'owner-reset-done') {
     const ticket = ownerResetOpening.current, source = ticket?.source, renderedStage = stage;
@@ -1129,11 +1127,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       additionalActions={[{id: 'move-on-phone', label: t('next.auth.tv.moveOnPhone'), disabled: busy, onPress: () => {if (!busy) setStage('tv-move-handoff');}}]}
       secondaryAction={backAction}/>;
     return layout(t('accounts.signIn.usesPortico', {server: server!.name}), notice, undefined, action('portico', t('accounts.signIn.continuePortico'), portico),
-      !Platform.isTV && <View style={{gap: 12}}>
+      !Platform.isTV && <AccountEntryActions>
         {moveDays !== undefined && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberMove);}}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</Button>}
         {server?.move === 'to_portico' && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
         {/* No "Can't use your Portico Account?" until the rebuilt server lets the reset file sign the owner in (asked for). */}
-      </View>);
+      </AccountEntryActions>);
   }
   if (stage === 'member-move' && memberMove && moveSnapshot && memberOperation.current === operation.current) {
     if (moveSnapshot.phase === 'code' || moveSnapshot.phase === 'local') {
@@ -1164,7 +1162,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (stage === 'identity-code' && Platform.isTV) return <TVIdentityCodeForm server={identityAddress} code={identityCode} wrong={identityWrong} busy={busy}
     onChange={value => {setIdentityCode(value); setIdentityWrong(false);}} onSubmit={value => {void run(() => confirmCode(value));}}/>;
   if (stage === 'identity-code') return <FormLayout testID="accounts-identity-code" title={t('connection.identity.checkTitle', {server: identityAddress})} body={t('connection.identity.checkBody')}
-    kicker={Platform.isTV ? undefined : <View><Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{identityAddress}</Text></View>}
+    kicker={Platform.isTV ? undefined : <AccountEntryAddress>{identityAddress}</AccountEntryAddress>}
     beforeActions={<>{fields(<TextField appearance={theme.platform === 'phone' ? 'auth' : undefined} label={t('connection.identity.codeLabel')} value={identityCode} autoCapitalize="characters" autoCorrect={false} editable={!busy}
       error={identityWrong ? t('connection.identity.codeWrong') : undefined} onChangeText={value => {
         const raw = value.toUpperCase().replace(/[\s-]/g, '').slice(0, 12), shown = raw.match(/.{1,4}/g)?.join('-') ?? '';
@@ -1212,16 +1210,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const rootStatus = NativeServerSignIn.invitationUnavailable(error)
       ? <FormError placement="inline">{t('web.directJoin.entryUnavailable')}</FormError> : status;
     return <FormLayout testID="accounts-invitation-entry" title={t('web.directJoin.title')} body={external ? undefined : t('web.directJoin.entryBody')}
-      kicker={<Image source={require('../../../assets/wordmark.png')} accessibilityLabel={t('accounts.brand')} resizeMode="contain" style={{width: 74, height: 17}}/>}
-      beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 18}}>{rootStatus}
+      kicker={<AccountEntryWordmark label={t('accounts.brand')}/>}
+      beforeActions={<AccountEntryDetails roomy>{rootStatus}
         <TextField appearance={theme.platform === 'phone' ? 'auth' : undefined} label={t('accounts.signIn.address')} value={address} onChangeText={change(setAddress)} autoCapitalize="none" autoCorrect={false} editable={!busy && !external && !scannedInvitationLink}/>
         {!external && !scannedInvitationLink && <TextField appearance={theme.platform === 'phone' ? 'auth' : undefined} label={t('web.directJoin.code')} placeholder={t('web.directJoin.codePlaceholder')} value={code} onChangeText={change(setCode, true)}
           autoCapitalize="characters" autoCorrect={false} autoComplete="off" editable={!busy} onSubmitEditing={submit}/>}
-        {!external && qrScannerAvailable() ? <View style={{gap: 6}}>
-          <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('services.start.qrPhone')}</Text>
+        {!external && qrScannerAvailable() ? <AccountEntryScan hint={t('services.start.qrPhone')}>
           <Button variant="link" disabled={busy || invitationScanning} loading={invitationScanning || undefined} onPress={() => {void scan();}}>{t('accounts.move.scanQR')}</Button>
-        </View> : null}
-      </View>} primaryAction={{id: 'preview-invitation-entry', label: t('action.continue'), disabled: busy || !parsed, loading: busy, onPress: submit}}
+        </AccountEntryScan> : null}
+      </AccountEntryDetails>} primaryAction={{id: 'preview-invitation-entry', label: t('action.continue'), disabled: busy || !parsed, loading: busy, onPress: submit}}
       secondaryAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: () => {if (current()) back();}}}/>;
   }
   if (stage === 'invitation-account') {
@@ -1240,11 +1237,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     });};
     return <FormLayout testID="accounts-invitation-account" title={t('accounts.invitation.to') + ' ' + (preview?.serverName ?? '')}
       body={preview ? t('accounts.invitation.porticoBody', {server: preview.serverName}) : undefined}
-      beforeActions={<View style={{gap: 12, alignSelf: 'stretch', marginBottom: 18}}>{status}
-        {preview && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{preview.role === 'admin' ? t('accounts.invitation.admin') : t('accounts.invitation.member')}</Text>}
-        {preview?.allLibraries && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('server.people.allLibraries')}</Text>}
-        {preview?.libraries.map((library, index) => <Text key={index} style={[theme.type.body, {color: theme.colors.textSecondary}]}>{library.name}</Text>)}
-      </View>} primaryAction={{id: 'sign-in-to-join', label: t('auth.signInWithAccount'), disabled: busy || !preview, loading: busy, onPress: () => begin(false)}}
+      beforeActions={<AccountEntryDetails>{status}
+        {preview && <AccountEntryLine>{preview.role === 'admin' ? t('accounts.invitation.admin') : t('accounts.invitation.member')}</AccountEntryLine>}
+        {preview?.allLibraries && <AccountEntryLine>{t('server.people.allLibraries')}</AccountEntryLine>}
+        {preview?.libraries.map((library, index) => <AccountEntryLine key={index}>{library.name}</AccountEntryLine>)}
+      </AccountEntryDetails>} primaryAction={{id: 'sign-in-to-join', label: t('auth.signInWithAccount'), disabled: busy || !preview, loading: busy, onPress: () => begin(false)}}
       secondaryAction={{id: 'create-account-to-join', label: t('auth.createAccount'), disabled: busy || !preview, onPress: () => begin(true)}}
       detailsAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: () => {if (current()) back();}}}/>;
   }
@@ -1307,14 +1304,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       const controller = ticket.controller;
       return <FormLayout testID="accounts-portico-invitation" title={t('accounts.invitation.to') + ' ' + preview.serverName}
         body={t('accounts.invitation.porticoBody', {server: preview.serverName})}
-        beforeActions={<View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>{invitationStatus}
-          <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{preview.role === 'admin' ? t('accounts.invitation.admin') : t('accounts.invitation.member')}</Text>
-          <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t('accounts.invitation.libraries')}</Text>
-          {preview.allLibraries && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('server.people.allLibraries')}</Text>}
-          {preview.libraries.map((library, index) => <Text key={index} style={[theme.type.body, {color: theme.colors.textSecondary}]}>{library.name}</Text>)}
-          <Text style={[theme.type.body, {color: theme.colors.text}]}>{controller.username}</Text>
+        beforeActions={<AccountEntryDetails>{invitationStatus}
+          <AccountEntryLine>{preview.role === 'admin' ? t('accounts.invitation.admin') : t('accounts.invitation.member')}</AccountEntryLine>
+          <AccountEntryLine tone="strong">{t('accounts.invitation.libraries')}</AccountEntryLine>
+          {preview.allLibraries && <AccountEntryLine>{t('server.people.allLibraries')}</AccountEntryLine>}
+          {preview.libraries.map((library, index) => <AccountEntryLine key={index}>{library.name}</AccountEntryLine>)}
+          <AccountEntryLine tone="primary">{controller.username}</AccountEntryLine>
           <Button variant="link" disabled={busy} onPress={differentAccount}>{t('accounts.invitation.notYou')}</Button>
-        </View>}
+        </AccountEntryDetails>}
         primaryAction={{id: 'join-portico-invitation', label: t('accounts.invitation.joinAs', {username: controller.username}), disabled: busy, loading: busy,
           onPress: () => {if (!current()) return; void run(async () => {
             if (!current()) return; const result = await controller.join(preview);
@@ -1325,15 +1322,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const localController = ticket.controller;
     return <FormLayout testID="accounts-local-invitation" title={t('accounts.invitation.to') + ' ' + preview.serverName}
       body={t('accounts.invitation.localPhoneBody', {server: preview.serverName})}
-      beforeActions={<View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>{invitationStatus}
-        <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t('accounts.invitation.libraries')}</Text>
-        {preview.allLibraries && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('server.people.allLibraries')}</Text>}
-        {preview.libraries.map((library, index) => <Text key={index} style={[theme.type.body, {color: theme.colors.textSecondary}]}>{library.name}</Text>)}
+      beforeActions={<AccountEntryDetails>{invitationStatus}
+        <AccountEntryLine tone="strong">{t('accounts.invitation.libraries')}</AccountEntryLine>
+        {preview.allLibraries && <AccountEntryLine>{t('server.people.allLibraries')}</AccountEntryLine>}
+        {preview.libraries.map((library, index) => <AccountEntryLine key={index}>{library.name}</AccountEntryLine>)}
         <TextField appearance={theme.platform === 'phone' ? 'auth' : undefined} label={t('web.directJoin.name')} value={name} onChangeText={change(setName)} editable={!busy}/>
         <TextField appearance={theme.platform === 'phone' ? 'auth' : undefined} label={t('web.directJoin.username')} value={username} error={failure === 'username' ? t('web.directJoin.error.taken') : undefined} onChangeText={change(setUsername)} autoCapitalize="none" autoCorrect={false} editable={!busy}/>
         <TextField appearance={theme.platform === 'phone' ? 'auth' : undefined} label={t('auth.password')} value={password} onChangeText={change(setPassword)} secureTextEntry autoComplete="new-password" editable={!busy}/>
         <TextField appearance={theme.platform === 'phone' ? 'auth' : undefined} label={t('web.directJoin.confirm')} value={setupPasswordConfirm} onChangeText={change(setSetupPasswordConfirm)} secureTextEntry autoComplete="new-password" editable={!busy}/>
-      </View>}
+      </AccountEntryDetails>}
       primaryAction={{id: 'join-local-invitation', label: t('web.directJoin.submit'), loading: busy,
         disabled: busy || !/^[A-Za-z0-9_.-]{3,64}$/.test(username.trim()) || !passwordStrength(password).acceptable || password !== setupPasswordConfirm,
         onPress: () => {if (!current()) return; void run(async () => {
@@ -1362,7 +1359,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       onSignIn={() => {if (lifetime.current && stageRef.current === 'local' && source === operation.current) void run(signIn);}} onBack={back}/>;
     return layout(server!.name, t('accounts.signIn.localBody'), fields(field(t('auth.username'), username, setUsername, false, 'username'), field(t('auth.password'), password, setPassword, true, 'password')),
     action('local-sign-in', t('auth.signIn'), signIn, !username || !password),
-    <View style={{alignSelf: 'stretch', gap: 8}}>{links}</View>);
+    <AccountEntryActions tight>{links}</AccountEntryActions>);
   }
   if (stage === 'factor' && factorKind.current === 'portico' && !Platform.isTV) {
     // The phone Portico factor form acts only through its own opening: the exact issued
@@ -1682,24 +1679,15 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       onSignOut={() => {if (current() && !busyRef.current) {stageRef.current = 'account-sign-out'; setStage('account-sign-out');}}}/>;
   }
   if (stage === 'servers') return layout(t('portico.landing.pickTitle'), servers.length ? t('accounts.session.portico') : t('web.hostedAccount.noServersBody'),
-    <View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>{directoryRows(server && server.signIn === 'portico' ? servers.filter(value => value.id === server.id) : servers).map((row, index) => {
+    <AccountEntryServerList>{directoryRows(server && server.signIn === 'portico' ? servers.filter(value => value.id === server.id) : servers).map((row, index) => {
       const value = servers.find(item => item.id === row.id)!;
       // TV: the list has no primary action, so the first server takes the remote's focus on arrival
       // and again when a failed connection hands control back (P2-74 X-01, E-tv-01).
-      return <Focusable key={row.id} focusTreatment="none" disabled={busy} preferredFocus={Platform.isTV && index === 0 && !busy} accessibilityLabel={`${row.name}${row.owner ? `, ${t('accounts.settings.owner')}` : ''}${row.subtitle ? `, ${t(row.subtitle.key, row.subtitle.values)}` : ''}`}
-        onPress={() => connectDirectory(value)}
-        style={({focused}) => ({flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5,
-          borderColor: focused ? theme.colors.accentStrong : theme.colors.line, backgroundColor: focused ? `${theme.colors.text}14` : `${theme.colors.text}0A`,
-          opacity: row.offline ? .55 : 1})}>
-        <Icon name="i-server" size={22} color={theme.colors.textSecondary}/>
-        <View style={{flex: 1, gap: 2}}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{row.name}</Text>
-            {row.owner && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.settings.owner')}</Text>}</View>
-          {row.subtitle && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t(row.subtitle.key, row.subtitle.values)}</Text>}
-        </View>
-        <Icon name="i-right" size={20} color={theme.colors.textTertiary}/>
-      </Focusable>;
-    })}</View>, undefined,
+      return <AccountEntryServerRow key={row.id} name={row.name} owner={row.owner ? t('accounts.settings.owner') : undefined}
+        subtitle={row.subtitle ? t(row.subtitle.key, row.subtitle.values) : undefined} offline={row.offline} disabled={busy} preferredFocus={Platform.isTV && index === 0 && !busy}
+        accessibilityLabel={`${row.name}${row.owner ? `, ${t('accounts.settings.owner')}` : ''}${row.subtitle ? `, ${t(row.subtitle.key, row.subtitle.values)}` : ''}`}
+        onPress={() => connectDirectory(value)}/>;
+    })}</AccountEntryServerList>, undefined,
     <Button variant="link" disabled={busy} onPress={() => setStage('account-sign-out')}>{t('accounts.signOut.portico')}</Button>);
   if (stage === 'account-sign-out') return layout(t('accounts.signOut.portico'), undefined, undefined,
     action('account-sign-out', t('action.signOut'), async () => {
@@ -1818,7 +1806,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     onLocal={tvDoor ? () => {if (renderedTV?.current() && !busyRef.current) {back(); setError(undefined); stageRef.current = 'address'; setStage('address');}} : undefined}/>;
   if (Platform.isTV) return <TVCodePresenter {...(tvKind === 'local' ? {mode: 'local' as const, serverName: server!.name} : {mode: 'portico' as const})} body={consentBody}
     verificationUri={tvState.verificationUri} verificationUriComplete={tvState.verificationUriComplete} userCode={tvState.userCode}
-    status={<>{status}{(tvState.phase === 'denied' || tvState.phase === 'error') && <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginBottom: 28}]}>{t(tvState.phase === 'denied' ? 'activation.declined' : 'activation.failed')}</Text>}</>}
+    status={<>{status}{(tvState.phase === 'denied' || tvState.phase === 'error') && <AccountEntryCodeNote>{t(tvState.phase === 'denied' ? 'activation.declined' : 'activation.failed')}</AccountEntryCodeNote>}</>}
     busy={busy} onTypeCredentials={() => {void renderedTV?.credentials();}} onBack={codeBack}
     onLocal={tvDoor ? () => {if (renderedTV?.current() && !busyRef.current) {back(); setError(undefined); stageRef.current = 'address'; setStage('address');}} : undefined} onNewCode={newCode} onRetry={retryApproval} retryAt={approval?.retryAt} credentialsDisabled={!!approval && !renderedTV?.canTypeCredentials()}/>;
   // A phone or tablet signing in with a code another device approves: its own title ("Use a code from another device", the

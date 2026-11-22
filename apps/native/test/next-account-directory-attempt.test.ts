@@ -88,7 +88,7 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     assert.equal(tree.type, 'PhoneAccountSignIn'); await act(() => tree.props.onProvider('apple'));
     await act(() => host.rerender());
     assert.equal(tree.type, 'Layout'); assert.equal(tree.props.title, defaultI18n.t('portico.landing.pickTitle'));
-    const rows = () => parts(tree).filter(node => node.type === 'Focusable');
+    const rows = () => parts(tree).filter(node => ['Focusable', 'AccountEntryServerRow'].includes(typeof node.type === 'string' ? node.type : node.type?.name));
     assert.equal(rows().length, 2);
 
     await act(async () => {rows()[0].props.onPress(); await host.rerender();});

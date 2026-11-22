@@ -1,7 +1,8 @@
 import React, {type ReactNode} from 'react';
-import {Text, View} from 'react-native';
+import {Image, Text, View} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import {Button} from '../controls';
+import {Button, Focusable} from '../controls';
+import {Icon} from '../Icon';
 import {TVAccountFields} from '../frames/TVAuthLayout';
 import {useTheme} from '../theme';
 import {LegalAgreement} from './LegalAgreement';
@@ -93,4 +94,86 @@ export function AccountEntryResend({action, help}: {action: ReactNode; help: str
     <View style={{alignSelf: 'center'}}>{action}</View>
     <Text style={[theme.type.caption, {color: theme.colors.textTertiary, textAlign: 'center'}]}>{help}</Text>
   </View>;
+}
+
+/** A step's facts and fields above its actions, stacked (`roomy` for a form with text fields: 14 instead of 12). */
+export function AccountEntryDetails({children, roomy = false}: {children: ReactNode; roomy?: boolean}) {
+  return <View style={{alignSelf: 'stretch', gap: roomy ? 14 : 12, marginBottom: 18}}>{children}</View>;
+}
+
+/** One line of a step's facts: `strong` (a name or heading), `primary` (body in the text colour), `secondary` (body, quieter)
+ * or `caption` (small and quieter). */
+export function AccountEntryLine({children, tone = 'secondary'}: {children: string; tone?: 'strong' | 'primary' | 'secondary' | 'caption'}) {
+  const theme = useTheme();
+  const type = tone === 'strong' ? theme.type.bodyStrong : tone === 'caption' ? theme.type.caption : theme.type.body;
+  return <Text style={[type, {color: tone === 'strong' || tone === 'primary' ? theme.colors.text : theme.colors.textSecondary}]}>{children}</Text>;
+}
+
+/** The Portico wordmark over a joining step's title. */
+export function AccountEntryWordmark({label}: {label: string}) {
+  return <Image source={require('../../../assets/wordmark.png')} accessibilityLabel={label} resizeMode="contain" style={{width: 74, height: 17}}/>;
+}
+
+/** The server's address over the identity check's title. */
+export function AccountEntryAddress({children}: {children: string}) {
+  const theme = useTheme();
+  return <View><Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{children}</Text></View>;
+}
+
+/** Scan a QR code instead: its hint, then the button. */
+export function AccountEntryScan({hint, children}: {hint: string; children: ReactNode}) {
+  const theme = useTheme();
+  return <View style={{gap: 6}}><Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{hint}</Text>{children}</View>;
+}
+
+/** A step's quieter actions stacked under its own (`tight` for a list of links: 8). */
+export function AccountEntryActions({children, tight = false}: {children: ReactNode; tight?: boolean}) {
+  return <View style={{alignSelf: tight ? 'stretch' : undefined, gap: tight ? 8 : 12}}>{children}</View>;
+}
+
+/** A TV's "servers on this network" block under the address field. */
+export function AccountEntryNearby({children}: {children: ReactNode}) {
+  return <View style={{alignSelf: 'stretch', gap: 10, marginTop: 18}}>{children}</View>;
+}
+
+/** A line in that block: a `hint` (its heading, Loading, an address) or a `notice` (nothing found, or the search failed). */
+export function AccountEntryNearbyLine({children, kind = 'hint', alert = false}: {children: string; kind?: 'hint' | 'notice'; alert?: boolean}) {
+  const theme = useTheme(), tv = theme.isTV;
+  const type = tv ? kind === 'hint' ? theme.type.accountHint : theme.type.accountLede : theme.type.caption;
+  return <Text accessibilityRole={alert ? 'alert' : undefined} style={[type, {color: tv && kind === 'hint' ? theme.colors.textTertiary : theme.colors.textSecondary}]}>{children}</Text>;
+}
+
+/** A server found on this network: its button, then its address. */
+export function AccountEntryNearbyServer({children, host}: {children: ReactNode; host: string}) {
+  return <View style={{gap: 4}}>{children}<AccountEntryNearbyLine>{host}</AccountEntryNearbyLine></View>;
+}
+
+/** A TV code screen's quiet line when the other device declined or the code failed. */
+export function AccountEntryCodeNote({children}: {children: string}) {
+  const theme = useTheme();
+  return <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginBottom: 28}]}>{children}</Text>;
+}
+
+/** The Portico Account's servers, one row each, stacked above the step's actions. */
+export function AccountEntryServerList({children}: {children: ReactNode}) {
+  return <View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>{children}</View>;
+}
+
+/** One server on the Portico Account: its name (and Owner), why it can't be reached, and an arrow; a server that is offline is dimmed. */
+export function AccountEntryServerRow({name, owner, subtitle, offline, disabled, preferredFocus, accessibilityLabel, onPress}: {
+  name: string; owner?: string; subtitle?: string; offline: boolean; disabled: boolean; preferredFocus: boolean; accessibilityLabel: string; onPress: () => void;
+}) {
+  const theme = useTheme();
+  return <Focusable focusTreatment="none" disabled={disabled} preferredFocus={preferredFocus} accessibilityLabel={accessibilityLabel} onPress={onPress}
+    style={({focused}) => ({flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5,
+      borderColor: focused ? theme.colors.accentStrong : theme.colors.line, backgroundColor: focused ? `${theme.colors.text}14` : `${theme.colors.text}0A`,
+      opacity: offline ? .55 : 1})}>
+    <Icon name="i-server" size={22} color={theme.colors.textSecondary}/>
+    <View style={{flex: 1, gap: 2}}>
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{name}</Text>
+        {owner && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{owner}</Text>}</View>
+      {subtitle && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{subtitle}</Text>}
+    </View>
+    <Icon name="i-right" size={20} color={theme.colors.textTertiary}/>
+  </Focusable>;
 }
