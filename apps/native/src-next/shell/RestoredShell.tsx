@@ -39,7 +39,7 @@ import {StartupBoot} from './StartupBoot';
 import {choosingProfile, lifecycleSettled, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {NativeProfileGated, NativeProfileMoved, nativeProfileGated} from '../platform/session-lifecycle-native';
 import {LifecycleProfileGate} from '../screens/accounts/LifecycleProfileGate';
-import {ManageUnlockHost} from '../screens/accounts/ManageUnlockHost';
+import {ManageUnlockPage} from '../pages/touch/accounts/ManageUnlockPage';
 import type {IdentityFailureCode} from '../../../../packages/client-core/src/session-lifecycle';
 
 /** The session lifecycle wants the person to choose a profile or enter its PIN before any shell opens. */
@@ -350,7 +350,7 @@ export function RestoredShell() {
   const withDownloads = (content: React.ReactNode, shortcut = true) => shortcut && remembered
     ? <View style={{flex: 1}}>{content}<RememberedDownloadsShortcut source={remembered}/></View> : content;
   if (state.runtime && state.phase === 'ready') return <NativeSettingsAppearance source={state.runtime}><>{firstLibrary && state.runtime.firstLibraryContext?.current() && state.runtime.firstLibraryContext.authority().serverId === firstLibrary && state.runtime.firstLibraryContext.account.account.role === 'owner' && state.runtime.firstLibraryContext.account.account.primaryProfileId === state.runtime.firstLibraryContext.authority().profileId ? <PhoneFirstLibrary context={state.runtime.firstLibraryContext} onDone={() => {if (!renderedCurrent()) return; const runtime = state.runtime;
-    setFirstLibrary(previous => renderedCurrent() ? undefined : previous); if (renderedCurrent()) void runtime?.refresh();}}/> : <><NativeShell runtime={state.runtime}/>{!theme.isTV && <NativeShareLinks runtime={state.runtime} online={online !== false} onRestart={complete}/>}{!theme.isTV && <ManageUnlockHost/>}<NativeContentLinks runtime={state.runtime} online={online !== false}/></>}</></NativeSettingsAppearance>;
+    setFirstLibrary(previous => renderedCurrent() ? undefined : previous); if (renderedCurrent()) void runtime?.refresh();}}/> : <><NativeShell runtime={state.runtime}/>{!theme.isTV && <NativeShareLinks runtime={state.runtime} online={online !== false} onRestart={complete}/>}{!theme.isTV && <ManageUnlockPage/>}<NativeContentLinks runtime={state.runtime} online={online !== false}/></>}</></NativeSettingsAppearance>;
   if (state.phase === 'loading' && waiting.stage === 'boot') return null;
   if (state.error instanceof NativeProfileChoice) return <ProfileGateHost onReady={complete}/>;
   // A read may still be in flight at 15 s (or 1 s offline). The recovery page is
