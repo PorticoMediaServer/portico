@@ -1670,6 +1670,7 @@ export interface LibraryChannelPreview {
   hours: number;
   sample: LibraryChannelPreviewTitle[];
   today: LibraryChannelPreviewProgramme[];
+  minutes: number;
 }
 
 export interface LibraryChannelPreviewAsk {
