@@ -82,7 +82,7 @@ async function fixture() {
   const pageAction = (id: string) => {byId('saved-resource-menu').props.onPress(); byId('saved-resource-page-menu').props.items.find((item: any) => item.id === id).onSelect();};
   return {render, byId, pageAction, intents, retries: () => retries, backs: () => backs, changes: () => changes,
     fail: (value: boolean) => {fail = value;}, hold: (value: Promise<void> | undefined) => {held = value;},
-    activate: (value: typeof active) => {active = value;}, snapshot: () => snapshot,
+    activate: (value: typeof active) => {active = value;}, snapshot: () => snapshot, replace: (value: any) => {snapshot = value;},
     grants: (actions: string[]) => {snapshot = {...snapshot, personal: {...snapshot.personal, resource: {...snapshot.personal.resource, actions}}};},
   };
 }
@@ -155,4 +155,16 @@ test('a TV collection page starts on Play all, keeps its own ⋯ beside Shuffle 
   assert.deepEqual(frame.props.actions.map((action: any) => action.testID), ['saved-shuffle', 'saved-pin', 'saved-resource-menu']);
   assert.ok(drawn.some(node => node.type === 'TitleRowWindow' && node.props.longPressOnly), 'OK opens a row; holding OK opens its sheet');
   assert.ok(drawn.some(node => node.type === 'KeyHints'));
+});
+
+test('an empty TV collection starts on its first action that can be pressed, not on a Play all it cannot press', async () => {
+  const f = await fixture(), before = f.snapshot();
+  f.replace({...before, personal: {...before.personal, entries: [], resource: {...before.personal.resource, entryCount: 0},
+    page: {...before.personal.page, totalCount: 0}}});
+  let frame = f.render().find(node => node.type === 'TitleFrame');
+  assert.equal(frame.props.primary.disabled, true);
+  assert.equal(frame.props.startFocus, 'saved-resource-menu', 'no pin grant: the options');
+  f.grants(['update', 'delete', 'reorder', 'entries', 'pin']);
+  frame = f.render().find(node => node.type === 'TitleFrame');
+  assert.equal(frame.props.startFocus, 'saved-pin');
 });

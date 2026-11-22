@@ -46,8 +46,11 @@ export function SavedResourcePage(props: NativeSavedResourceProps) {
     reason: isPlaylist ? t('web.saved.playlistEmptyBody') : undefined};
   const failure = view.stateError ? browseFailure(runtime.error(view.stateError, view.retry)) : undefined;
   const menuTitle = t(isPlaylist ? 'web.saved.playlistOptions' : 'web.saved.collectionOptions');
+  // An empty list can't play: the page starts on its first action that can be pressed (Pin, else the options).
+  const emptyLoaded = !view.rows.length && view.phase !== 'loading' && !!view.name;
+  const startFocus = emptyLoaded && !view.canPlayResource ? (canPin ? 'saved-pin' : 'saved-resource-menu') : 'saved-play';
   return <>
-    <TitleFrame testID={`native-tv-saved-resource-${isPlaylist ? 'playlist' : 'resource'}`} startFocus="saved-play"
+    <TitleFrame testID={`native-tv-saved-resource-${isPlaylist ? 'playlist' : 'resource'}`} startFocus={startFocus}
       back={{label: t('saved.title'), onPress: back, testID: 'saved-resource-back'}}
       art={<AmbientArt treatment="cover" source={view.artwork[0] ? runtime.ambient(view.artwork[0]) : undefined}/>}
       cover={{shape: 'square', mosaic: true, node: size => <CoverMosaic covers={covers} shape="square" width={size} height={size} visible={view.active.visible}/>}}
