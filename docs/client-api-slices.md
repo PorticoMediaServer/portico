@@ -196,8 +196,8 @@ This is a historical migration inventory. Current calls are counted by `python3 
 | `apps/native/src-next/screens/settings-live/RecordingsScreen.tsx:164` | request `ports.context.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:49` | request `context.api.request` | get_items_id |
 | `apps/native/src-next/screens/settings-live/owner-libraries/IntroCreditsReview.tsx:104` | request `context.api.request` | get_items_id |
-| `apps/native/src-next/screens/share/NativeContentLinks.tsx:35` | request `context.api.request` | dynamic/wrapper: inspect enclosing read |
-| `apps/native/src-next/screens/share/NativeShareLinks.tsx:31` | request `context.api.request` | dynamic/wrapper: inspect enclosing read |
+| `apps/native/src-next/shell/NativeContentLinks.tsx:35` | request `context.api.request` | dynamic/wrapper: inspect enclosing read |
+| `apps/native/src-next/shell/NativeShareLinks.tsx:31` | request `context.api.request` | dynamic/wrapper: inspect enclosing read |
 | `apps/native/src-next/screens/share/share-open.ts:39` | url `encodedRoutePath` | get_items_id |
 | `apps/native/src-next/shell/bootstrap-services.ts:153` | request `this.api.request` | dynamic/wrapper: inspect enclosing raw |
 | `apps/native/src-next/shell/bootstrap.ts:274` | request `readers.request` | get_libraries |

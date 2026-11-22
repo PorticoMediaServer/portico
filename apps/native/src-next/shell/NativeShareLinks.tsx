@@ -1,13 +1,13 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {View} from 'react-native';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Layer} from '../../kit/shell/Layer';
-import {StateView} from '../../kit/states';
-import {nativeAccounts} from '../../platform/accounts';
-import {nativeAppSessions} from '../../platform/app-session-storage';
-import {nativeShareLinks} from '../../platform/share-links';
-import type {RestoredNativeShellRuntime} from '../../shell/bootstrap';
-import {openSharedLink} from './share-open';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import {Layer} from '../kit/shell/Layer';
+import {StateView} from '../kit/states';
+import {nativeAccounts} from '../platform/accounts';
+import {nativeAppSessions} from '../platform/app-session-storage';
+import {nativeShareLinks} from '../platform/share-links';
+import type {RestoredNativeShellRuntime} from './bootstrap';
+import {openSharedLink} from '../screens/share/share-open';
 
 /** O-162: a shared link, once this server's shell is ready (after a cold start, a warm open, a
  * server switch, or sign-in and a profile). It opens over that server's Home, switches to another

@@ -17,7 +17,7 @@ import {registerTVMenuFallback} from '../platform/menu-key';
 import {useTVMenuCapture} from '../platform/tv-menu';
 import {CoveredLayer, CoveredSignal, createTVLayerStack, provideTVPage, requestNativeFocus, tvLayerSpecs, tvPageModal, tvRouteLayerKeys, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
 import {tvFocusIds, sameDestination, tvRouteKeepsRail} from './tv-focus';
-import {HomeScreen} from '../screens/home/HomeScreen';
+import {HomeScreen} from './HomeScreen';
 import {canYieldTVHomeMenu, homeStartModel, resolveTVHomeStart} from '../screens/home/home-start';
 import {authorityKey, canOpenLibrary, librariesDestination, mediumRailMetrics, phoneBarHeight, sameAuthority, selectedTab, shellLayout, type ShellDestination, type ShellTab} from './model';
 import {nativeScreenChromeHidden, subscribeNativeScreenChrome} from './chrome';

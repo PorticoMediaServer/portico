@@ -1,17 +1,17 @@
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Modal, View} from 'react-native';
-import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Layer} from '../../kit/shell/Layer';
-import {FocusRegion, holdTVPageModal, type TVPageModalHold} from '../../kit/focus';
-import {useNativeDismissal} from '../../kit/overlays/native-dismissal';
-import {useOverlayLifecycle} from '../../kit/overlays/OverlayHost';
-import {OVERLAY_PAINT_LIVE, OverlayPaintProvider} from '../../kit/overlays/OverlayPaintContext';
-import {TVDesignCanvas} from '../../kit/overlays/TVDesignCanvas';
-import {StateLayout, StateView} from '../../kit/states';
-import {useTheme} from '../../kit/theme';
-import {nativeContentLinks} from '../../platform/content-links';
-import type {RestoredNativeShellRuntime} from '../../shell/bootstrap';
-import {openContentLink} from './share-open';
+import {defaultI18n} from '../../../../packages/i18n/src';
+import {Layer} from '../kit/shell/Layer';
+import {FocusRegion, holdTVPageModal, type TVPageModalHold} from '../kit/focus';
+import {useNativeDismissal} from '../kit/overlays/native-dismissal';
+import {useOverlayLifecycle} from '../kit/overlays/OverlayHost';
+import {OVERLAY_PAINT_LIVE, OverlayPaintProvider} from '../kit/overlays/OverlayPaintContext';
+import {TVDesignCanvas} from '../kit/overlays/TVDesignCanvas';
+import {StateLayout, StateView} from '../kit/states';
+import {useTheme} from '../kit/theme';
+import {nativeContentLinks} from '../platform/content-links';
+import type {RestoredNativeShellRuntime} from './bootstrap';
+import {openContentLink} from '../screens/share/share-open';
 
 /** N5-1: a `portico://item|play` link (Top Shelf, the Android TV home screen, Siri, Spotlight,
  * Handoff), once this server's shell is ready. It opens the title over Home, `play` resumes it,

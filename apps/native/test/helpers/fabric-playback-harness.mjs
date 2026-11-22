@@ -173,7 +173,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
       '../platform/menu-key': {registerTVMenuFallback}, '../platform/tv-menu': {useTVMenuCapture: () => {}},
       '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
       '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: Container, CoveredSignal: ({children}) => children, useFocusRegistry: () => registry}, './tv-focus': tvFocus, './model': shellModel,
-      '../screens/home/HomeScreen': {HomeScreen: Empty}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer},
+      './HomeScreen': {HomeScreen: Empty}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer},
       './PhoneTabBar': {PhoneTabBar: Empty}, './MediumRail': {MediumRail: Empty}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {PhoneHomeHeader: Empty}, './DesktopHeader': {DesktopHeader: Empty},
       './TVRail': {TVRail: Empty}, './TVProfileMenu': {TVProfileMenu: Empty}}));
   }

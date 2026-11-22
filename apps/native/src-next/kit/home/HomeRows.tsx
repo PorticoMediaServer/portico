@@ -26,7 +26,7 @@ import {homeActionDiagnostics} from '../../platform/home-action-diagnostics';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {homeCardText, homePlayTarget} from '../../../../../packages/client-core/src/presentation/home-card';
 
-/** Home's rows, for the phone's Home page and the tablet and TV Home (`screens/home/HomeScreen`): the row cards, the live
+/** Home's rows, for the phone's Home page and the tablet and TV Home (`shell/HomeScreen`): the row cards, the live
  * row, the collection banner, the pending skeleton row and the row's window registration. Their sizes are the drawing's
  * (`homeRowsSpec` in packages/design); the medium window's type comes in from the form that draws it. */
 

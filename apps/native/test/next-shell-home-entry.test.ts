@@ -72,7 +72,7 @@ async function fixture() {
   const recovery = await screenModule(new URL('../src-next/screens/home/useTvHomeRecovery.ts', import.meta.url), {
     react, 'react-native': native, '../../../../../packages/client-core/src/presentation/errors': {presentError}, '../../shell/model': shellModel,
   });
-  const source = process.env.PORTICO_HOME_ENTRY_SOURCE ? pathToFileURL(process.env.PORTICO_HOME_ENTRY_SOURCE) : new URL('../src-next/screens/home/HomeScreen.tsx', import.meta.url);
+  const source = process.env.PORTICO_HOME_ENTRY_SOURCE ? pathToFileURL(process.env.PORTICO_HOME_ENTRY_SOURCE) : new URL('../src-next/shell/HomeScreen.tsx', import.meta.url);
   const {HomeScreen} = expandHome(await screenModule(source, await withHomeCards({'../../shell/PlayOnButton': {PlayOnButton: 'PlayOnButton'}, '../../kit/layout/TopBar': {roundBarSize: 38}, './generated-poster': {generatedPoster: () => null}, './live-expiry': await import('../src-next/screens/home/live-expiry.ts'), '../../shell/boot-timing': {logBootMilestone: () => {}}, '../../shell/home-read-log': {noteHomeRead: () => {}, createHomeReadLog: () => () => 'home-service'}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, 
     '../../kit/useMotion': {useMotion: () => ({transforms: true, reduce: false, timing: () => ({})})}, 
     react, 'react-native': native, 'react-native-reanimated': {default: {ScrollView: 'ScrollView'}, runOnJS: (fn: unknown) => fn, useAnimatedScrollHandler: (fn: unknown) => fn, useSharedValue: (value: unknown) => react.useRef({value}).current},

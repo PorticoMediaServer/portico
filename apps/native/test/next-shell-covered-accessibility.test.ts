@@ -26,7 +26,7 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
     '../kit/theme': {useTheme: () => ({isTV: tv, colors: {ink: '#071018'}, layers: {navigation: 3, sticky: 4, player: 8}})},
     '../kit/useMotion': {useMotion: () => ({transforms: false})}, '../platform/menu-key': {}, '../platform/tv-menu': {useTVMenuCapture() {}},
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: 'CoveredSignal', requestNativeFocus: () => false, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},
-    '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'},
+    './HomeScreen': {HomeScreen: 'HomeScreen'},
     '../screens/home/home-start': {homeStartModel: () => ({}), resolveTVHomeStart: () => undefined, canYieldTVHomeMenu: () => false},
     './model': model, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
     './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './MediumRail': {MediumRail: 'MediumRail'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'NativePlaybackLayer'},
