@@ -48,6 +48,7 @@ export async function settingsFixture(previous) {
   const Metadata = previous['../../touch/settings/ServerMetadataPage']?.ServerMetadataPage;
   const People = previous['../../touch/settings/ServerPeoplePage']?.ServerPeoplePage;
   const History = previous['../../touch/settings/ServerHistoryPage']?.ServerHistoryPage;
+  const SignIn = previous['../../touch/settings/ServerSignInPage']?.ServerSignInPage ?? 'ServerSignInPage';
   const page = await load('pages/shared/settings/SettingsPage.tsx', {...bindings, './useSettingsPage': model, './SettingsPreferences': body,
     '../../../kit/search/TVKeyboard': previous['../../../kit/search/TVKeyboard'] ?? {NativeTVKeyboard: 'NativeTVKeyboard'},
     '../../../kit/settings/remote-sources/NativeRemoteSourcesScreen': previous['../../../kit/settings/remote-sources/NativeRemoteSourcesScreen'] ?? {NativeRemoteSourcesScreen: 'NativeRemoteSourcesScreen'},
@@ -62,11 +63,12 @@ export async function settingsFixture(previous) {
     '../../touch/settings/ServerLibrariesPage': previous['../../touch/settings/ServerLibrariesPage'] ?? {ServerLibrariesPage: 'ServerLibrariesPage'},
     '../../touch/settings/ServerMetadataPage': {ServerMetadataPage: function MetadataPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'metadata', back}, e(Metadata));}},
     '../../touch/settings/ServerPeoplePage': {ServerPeoplePage: function PeoplePage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'people', back}, e(People));}},
-    '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: function HistoryPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'history', back}, e(History));}}});
+    '../../touch/settings/ServerHistoryPage': {ServerHistoryPage: function HistoryPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'history', back}, e(History));}},
+    '../../touch/settings/ServerSignInPage': {ServerSignInPage: function SignInPage({back}) {return e(fixtureFrame.SettingsPageFrame, {title: 'signin', back}, e(SignIn));}}});
   return {NativeSettingsScreen: page.NativeSettingsPage};
 }
 
 export function settingsFixtureChildren(element) {
-  return ['SettingsListFrame', 'SettingsPageFrame', 'SettingsPageLink', 'SettingsKeyHints', 'PhoneDashboardCard', 'HistoryPage', 'PeoplePage', 'MetadataPage'].includes(element?.type?.name)
+  return ['SettingsListFrame', 'SettingsPageFrame', 'SettingsPageLink', 'SettingsKeyHints', 'PhoneDashboardCard', 'HistoryPage', 'PeoplePage', 'MetadataPage', 'SignInPage'].includes(element?.type?.name)
     ? element.type(element.props) : element?.props?.children;
 }

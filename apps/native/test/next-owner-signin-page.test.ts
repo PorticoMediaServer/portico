@@ -2,8 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
-const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : value?.props ? [value, ...nodes(value.props.children)] : [];
-const words = (value: any): string => Array.isArray(value) ? value.map(words).join('') : typeof value === 'string' ? value : value?.props ? words(value.props.children) : '';
+// The page's own kit parts (SignInMoveCard, SignInWebCode…) are drawn here so their testIDs and QR code are in the tree.
+const drawn = (value: any) => typeof value?.type === 'function' && value.type.name.startsWith('SignIn') ? value.type(value.props) : undefined;
+const nodes = (value: any): any[] => Array.isArray(value) ? value.flatMap(nodes) : drawn(value) !== undefined ? [value, ...nodes(drawn(value))]
+  : value?.props ? [value, ...nodes(value.props.children)] : [];
+const words = (value: any): string => Array.isArray(value) ? value.map(words).join('') : typeof value === 'string' ? value
+  : drawn(value) !== undefined ? words(drawn(value)) : value?.props ? words(value.props.children) : '';
 async function fixture(authorized = true, isTV = false) {
   const host = hooks();
   const useCallback = (fn: (...args: any[]) => any, deps: readonly unknown[]) => host.react.useMemo(() => fn, deps);
@@ -17,15 +21,14 @@ async function fixture(authorized = true, isTV = false) {
   const api = {baseUrl: 'http://selected-server.invalid:8096'};
   const context = {api, serverName: 'Selected server', account: {account: {role: 'owner', primaryProfileId: 'main'}, capabilities: {manageSignIn: authorized}}};
   const scope = {api, lifetime: {current: () => alive}, authority: {serverId: 'server', profileId: 'main'}};
-  const {NativeServerSignIn} = await screenModule(new URL('../src-next/screens/settings-live/server/SignInPage.tsx', import.meta.url), {
+  const {ServerSignInPage: NativeServerSignIn} = await screenModule(new URL('../src-next/pages/touch/settings/ServerSignInPage.tsx', import.meta.url), {
     react: host.react, 'react-native-qrcode-svg': {default: 'QRCode'},
     'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', Linking: {openURL: async (url: string) => {visits.push(url);}}},
     '../../../../../../packages/client-core/src/account-move': {OwnerSignInSettingsClient: class {constructor(transport: unknown, input: unknown) {assert.equal(transport, api); options.push(input);} read() {reads++; return result;} finish() {finishes++; return Promise.resolve(3);} dispose() {disposed++;}}},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => `date:${value}`}},
     '../../../../../../packages/client-core/src/sign-in': {serverSignInSettingsURL: (origin: string) => {assert.equal(origin, api.baseUrl); return new URL('/settings?scope=server&section=signin', origin).href;}},
-    '../../../kit/controls': {Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
-    './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => ({colors: {}, isTV})},
-    '../use-settings-request-scope': {useSettingsRequestScope: () => scope},
+    '../../../kit/controls': {Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/frames': {SettingsPageFrame: 'SettingsPageFrame', PanelBlock: 'PanelBlock', SectionCard: 'SectionCard', StateRow: 'StateRow'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => ({colors: {}, isTV})},
+    '../../../screens/settings-live/use-settings-request-scope': {useSettingsRequestScope: () => scope},
   });
   const props = {ports: {context}, runtime: {text: {t: (id: string) => id}, error: () => ({title: 'failure'})}, onOpenPage: (id: string) => pages.push(id)};
   const render = () => {let tree = host.render(() => NativeServerSignIn(props)); if (effects.length) {effects.splice(0).forEach(run => run()); tree = host.render(() => NativeServerSignIn(props));} return tree;};
