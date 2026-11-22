@@ -28,7 +28,7 @@ import {NativeTitleScreen, type NativeTitleScreenProps} from './TitleScreen';
 import {touchTitlePages} from '../../pages/touch/title/routes';
 import {tvTitlePages} from '../../pages/tv/title/routes';
 import {FileInfoSession, fileInfoUsesGroups} from '../../../../../packages/client-core/src/file-info-session';
-import {NativeFileInfoPanel} from './FileInfoPanel';
+import {NativeFileInfoPanel} from '../../pages/shared/title/FileInfoPanel';
 import type {NativeFileInfoOwner} from './file-info';
 import {readNativePlaybackInfo} from './playback-info';
 import {nativeDiscTitleChoices, nativeVersionChoices, nativeVersionNames} from './version-options';
