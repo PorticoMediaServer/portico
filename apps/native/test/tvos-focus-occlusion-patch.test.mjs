@@ -40,6 +40,8 @@ test('the reviewed react-native-tvos source gains the tvOS focus fixes, and a re
   assert.match(patched, /- \(void\)willMoveToWindow:\(UIWindow \*\)newWindow \{[^]*porticoEntryLive \? porticoEntry : nil;/,
     'a view leaving the window (and so a recycled one) is never the preferred view; the page entry JS asked for takes its place');
   assert.match(patched, /rootview\.reactPreferredFocusedView = self;\n    PorticoWeakView \*porticoEntry/, 'focusSelf records the entry');
+  assert.match(patched, /- \(NSArray<id<UIFocusEnvironment>> \*\)preferredFocusEnvironments \{\n  if \(self\.focusGuide != nil && _focusDestinations\.count > 0\) return _focusDestinations;/,
+    'a region named as a focus target hands focus to its destinations');
   assert.equal(patchTVOSFocusOcclusion(root), 0);
 });
 
