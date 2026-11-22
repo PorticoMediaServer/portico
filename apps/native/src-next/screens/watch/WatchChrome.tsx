@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {TVControlLabel} from './TVControlLabel';
+import {TVControlLabel} from '../../kit/player/TVControlLabel';
 import {AccessibilityInfo, Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
@@ -35,7 +35,7 @@ import type {NativeWatchNotice} from './playback-info';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from './live-guide';
 import {nowNext} from '../../../../../packages/client-core/src/guide/now-next';
 import {playbackUserMessage} from '../../../../../packages/client-core/src/playback-messages';
-import {NativeMiniGuide} from './TVMiniGuide';
+import {NativeMiniGuide} from '../../kit/live/TVMiniGuide';
 import {PlayerLiveActions as TVLiveActions} from '../../kit/player/PlayerLiveActions';
 import {emptyLiveActions, noLiveActionsSubscription, type NativeTVLiveActions} from './live-actions';
 

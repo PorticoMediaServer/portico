@@ -15,7 +15,7 @@ import {FocusRegion, useOptionalFocusRegistry, type FocusRegionProps} from '../.
 import {tvFocusIds} from '../../shell/tv-focus';
 import type {ShellAuthority} from '../../shell/model';
 import {tvTitleRegionMap, tvTitleFocusSection} from './tv-title-focus';
-import {TVTitleBackdrop, TVTitleCompactHeader, TVTitleHeroCopy} from './TVTitleChrome';
+import {TVTitleBackdrop, TVTitleCompactHeader, TVTitleHeroCopy} from '../../kit/frames/TVTitleChrome';
 import {useMotion} from '../../kit/useMotion';
 import {HeroMetadata} from '../../kit/layout/Hero';
 import {SkeletonBlock, StateLayout, TitleSkeleton} from '../../kit/states';

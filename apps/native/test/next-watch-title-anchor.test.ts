@@ -8,7 +8,7 @@ import * as React from 'react';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 const {TitleEpisode, TitleRelated} = await screenModule(new URL('../src-next/screens/watch/TitleScreen.tsx', import.meta.url), {
-  './TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
+  '../../kit/frames/TVTitleChrome': {TVTitleBackdrop: 'TVTitleBackdrop', TVTitleCompactHeader: 'TVTitleCompactHeader', TVTitleHeroCopy: 'TVTitleHeroCopy'},
   '../../kit/useMotion': {useMotion: () => ({reduce: false})},
   '../../../../../packages/client-core/src/presentation/errors': {presentError},
   'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0})},

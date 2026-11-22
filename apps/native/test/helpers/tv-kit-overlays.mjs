@@ -53,7 +53,7 @@ export async function tvKitOverlays(kit, {wait = 60} = {}) {
   const guideParts = await screenModule(src('kit/live/MiniGuide.tsx'), {react, 'react-native': native, '../../../../../packages/i18n/src': i18n,
     '../../../../../packages/client-core/src/presentation/kit-model/index': {channelTint: () => '#123'}, '../controls': {Focusable, Button},
     '../artwork/Artwork': {Artwork: none}, '../Icon': {Icon: none}, '../theme': themed});
-  const guide = await screenModule(src('screens/watch/TVMiniGuide.tsx'), {react, 'react-native': native, 'react-native-reanimated': animated,
+  const guide = await screenModule(src('kit/live/TVMiniGuide.tsx'), {react, 'react-native': native, 'react-native-reanimated': animated,
     '../../../../../packages/i18n/src': i18n, '../../shell/model': {shellLayout: () => ({left: 0, top: 0, width: 1920, height: 1080, scale: 1})},
     '../../kit/overlays/surface': surface, '../../kit/overlays/OverlayHost': host, '../../kit/live/MiniGuide': guideParts,
     '../../platform/native-blur': {glassRecipe: () => ({nativeBlur: false}), BlurView: none}, '../../kit/theme': themed, '../../kit/useMotion': motion,

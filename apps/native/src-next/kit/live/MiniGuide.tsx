@@ -9,7 +9,7 @@ import {Icon} from '../Icon';
 import {nativeType, useTheme} from '../theme';
 
 /** The short guide's drawn parts (tv-player 11, tablet-play 8, phone-player 1e): its heading, one row per channel and
- * the way to the full guide. The screens (`screens/watch/TVMiniGuide`, `HandheldMiniGuide`) read the guide, choose
+ * the way to the full guide. The screens (`kit/live/TVMiniGuide`, `HandheldMiniGuide`) read the guide, choose
  * the rows and own the opening; these only draw what they are given. TV is the larger form. A row's ids are
  * `tv-mini-guide-<key>` on TV and `watch-mini-guide-<key>` on a phone and tablet. */
 const prefix = (tv: boolean) => tv ? 'tv-mini-guide' : 'watch-mini-guide';
