@@ -48,11 +48,15 @@ test('nothing is guessed: no known time left, or another row, keeps the card as 
 test('the rebuilt next episode uses the existing continuation card with its show name on web, phone and TV', async () => {
   const document = await fetchHome({request: async <T>() => ({rows: [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [{
     id: 'next-episode', kind: 'episode', title: 'Lies', rootId: 'show', rootTitle: 'Dark', index: 2, parentIndex: 1,
-    libraryId: 'shows', addedAt: '2026-11-12T00:00:00Z', images: {}, durationMs: 3600000,
+    libraryId: 'shows', addedAt: '2026-11-12T00:00:00Z', images: {}, durationMs: 3600000, summary: 'Jonas goes back.',
+    homeTitleContext: {kind: 'show', year: 2017, genres: ['Drama', 'Mystery'], seasonCount: 3},
     state: {watched: false, positionMs: 0, favorite: false, inList: false, notInterested: false, playCount: 0},
   }]}]}) as T});
   const entry = document.rows[0]!.entries[0]!;
   assert.deepEqual(entry.show, {id: 'show', name: 'Dark'});
+  // The hero's facts and story for an episode come with the row.
+  assert.deepEqual((entry as {homeTitleContext?: unknown}).homeTitleContext, {kind: 'show', year: 2017, genres: ['Drama', 'Mystery'], seasonCount: 3});
+  assert.equal(entry.overview, 'Jonas goes back.');
   assert.deepEqual(entry.playback, {itemId: 'next-episode'});
   const model = text(entry, true);
   assert.equal(model.title, 'Dark');

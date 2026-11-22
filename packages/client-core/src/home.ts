@@ -371,7 +371,9 @@ function homeActionsOf(item: Home['rows'][number]['items'][number], entry: Conte
 const homeEntriesOf = (items: Home['rows'][number]['items'], rowId: string) =>
   keepReadable('home', 'entries', [...items], raw => {
     const item = raw as Home['rows'][number]['items'][number], entry = entryFromItem(item);
-    return entry ? Object.freeze({...entry, homeActions: homeActionsOf(item, entry, rowId)}) as HomeEntry : undefined;
+    // An episode in Continue Watching brings its show's facts for the hero ("2023 · Drama · 1 season").
+    const context = entry?.kind === 'episode' ? parseHomeTitleContext((item as {homeTitleContext?: unknown}).homeTitleContext) : undefined;
+    return entry ? Object.freeze({...entry, homeActions: homeActionsOf(item, entry, rowId), ...(context ? {homeTitleContext: context} : {})}) as HomeEntry : undefined;
   });
 
 /** The rebuilt wire row uses items, shape and an opaque continuation rather than legacy entries. */
