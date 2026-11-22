@@ -91,7 +91,8 @@
 .pageServer > * { margin-bottom: 0; }
 @media (min-width: 600px) {
   .settingsFrame { display: flex; gap: var(--frame-settings-gap); padding: 0 var(--g); }
-  .settingsMaster, .settingsMaster[data-covered] { display: flex; flex: none; width: var(--frame-settings-list); padding-top: var(--frame-title-top); position: sticky; top: 0; align-self: flex-start; max-height: 100dvh; overflow-y: auto; box-sizing: border-box; }
+  /* The list sticks under the top bar, not behind it, so its own scrollbar never runs up through the bar. */
+  .settingsMaster, .settingsMaster[data-covered] { display: flex; flex: none; width: var(--frame-settings-list); padding-top: calc(var(--frame-title-top) - var(--shell-top, 76px)); position: sticky; top: var(--shell-top, 76px); align-self: flex-start; max-height: calc(100dvh - var(--shell-top, 76px)); overflow-y: auto; box-sizing: border-box; }
   .settingsMaster, .settingsDetail .page { --g: 0px; --card: 0px; }
   .settingsDetail { flex: 1; min-width: 0; max-width: var(--frame-settings-page-max); }
   .settingsBar, .pageBar { display: none; }
