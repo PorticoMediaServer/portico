@@ -18,7 +18,7 @@ func TestOwnerShowDisplayIsSharedAndEpisodesPageAcrossSeasons(t *testing.T) {
 		Dirs: []db.ImportDir{{}}, Items: []db.ImportItem{
 			{Kind: db.KindSeason, Keys: []db.ItemKey{seasonKey}, Parent: &showKey, Title: "Season 2", IndexNumber: new(2)},
 			{Kind: db.KindEpisode, Keys: []db.ItemKey{{Kind: db.KeyName, Key: "dark/2/1"}}, Parent: &seasonKey,
-				Title: "Then", IndexNumber: new(1), ParentIndex: new(2)},
+				Title: "Then", IndexNumber: new(1), ParentIndex: new(2), Summary: "Jonas goes back."},
 		}}); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,8 @@ func TestOwnerShowDisplayIsSharedAndEpisodesPageAcrossSeasons(t *testing.T) {
 		t.Fatalf("episode pages: %+v / %+v / %+v", first, next, rangePage)
 	}
 	tail := get[ItemPage](t, th.s, th.owner.AccessToken, base+"&cursor="+next.NextCursor)
-	if len(tail.Items) != 1 || tail.Items[0].Title != "Then" || tail.NextCursor != "" {
+	// A show's or season's episode list says what each episode is about, for the season's tiles.
+	if len(tail.Items) != 1 || tail.Items[0].Title != "Then" || tail.Items[0].Summary != "Jonas goes back." || tail.NextCursor != "" {
 		t.Fatalf("the second season was not in the episode list: %+v", tail)
 	}
 	seasons := get[ItemPage](t, th.s, th.owner.AccessToken, "/v1/items?parent="+show.ID)

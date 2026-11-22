@@ -54,6 +54,9 @@ type Item struct {
 	Credits []Credit
 	// Chapter is, for an audiobook in Continue your books, the chapter the viewer's place is in.
 	Chapter *Chapter
+	// Summary is, for an episode listed under its season or show, what it is about, so the
+	// season's tiles can say so without opening each one.
+	Summary string
 
 	sortTitle string
 	// imageParentID is a track's album only when this viewer may see that album.
@@ -422,6 +425,11 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	}
 	if err := loadPersonCredits(ctx, tx, where.person, page.Items); err != nil {
 		return page, err
+	}
+	if q.Parent != "" {
+		if err := loadEpisodeSummaries(ctx, tx, page.Items); err != nil {
+			return page, err
+		}
 	}
 	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
 }
