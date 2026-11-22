@@ -32,6 +32,7 @@ export function musicQueueItem(snapshot: WebPlaybackRuntimeSnapshot): Readonly<{
   const occurrence = currentOccurrence(snapshot);
   if (!occurrence) return;
   const {view, fence} = occurrence, item = view.items.find(row => row.entryId === fence.entryId && row.itemId === fence.itemId);
-  if (item?.kind !== 'song' || !item.libraryId) return;
+  // The server's queue names a song a "track" (client-core parseEntry reads it so); older answers said "song".
+  if ((item?.kind !== 'track' && item?.kind !== 'song') || !item.libraryId) return;
   return {libraryId: item.libraryId, itemId: item.itemId};
 }
