@@ -26,6 +26,9 @@ export type HomeCustomizeProps = {
   views?: Readonly<{items: readonly PersonalResource[]; loading: boolean; error?: unknown; hasMore: boolean; loadMore: () => void; renderError: (error: unknown, retry: () => void) => React.ReactNode; retry: () => void}>;
 };
 
+/** How long a dropped row holds focus while Android TV draws the list again in its new order. */
+const DROP_SETTLE_MS = 1500;
+
 /** A pick-up lands on the row itself: the D-pad listener moves only a lifted row that holds
  * focus, so a pick started from the row's own handle must not leave focus on the handle. A
  * later Back, reset, removal, close or unmount leaves the frame with nothing to do. */
@@ -122,6 +125,32 @@ export function useHomeCustomize({controller, copy, i18n, onClose, onAddView, vi
    * then or when the frame runs; and the frame moves nothing if focus has meanwhile attached somewhere else. */
   const covered = useCovered(), coveredNow = useRef(covered);
   coveredNow.current = covered;
+  /** TV: dropping a row (OK) or putting it back (Back) draws the list again in its new order. On Android TV the row loses focus
+   * as it moves, and focus falls to the first row or grip, late (after the next frame). For a short settle the row that was
+   * lifted takes focus back whenever it lands elsewhere in the panel; any key press ends the settle, so a move the user
+   * makes is never undone. */
+  const lastPicked = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const was = lastPicked.current;
+    lastPicked.current = state.pickedId;
+    if (!theme.isTV || state.pickedId || !was || !state.rows.some(row => row.id === was)) return;
+    let settling = true, frame: number | undefined;
+    const end = () => {settling = false; if (frame !== undefined) cancelAnimationFrame(frame); frame = undefined;};
+    const hold = () => {
+      if (!settling || frame !== undefined) return;
+      frame = requestAnimationFrame(() => {
+        frame = undefined;
+        const now = registry.capture();
+        if (!settling || !controller.isCurrent() || coveredNow.current || now && (now.regionId !== regionId || now.childId === was)) return;
+        focusTarget(rowRefs.current.get(was));
+      });
+    };
+    hold();
+    const off = registry.subscribe(hold), timer = setTimeout(end, DROP_SETTLE_MS);
+    // A new key going down (eventKeyAction 0); the OK that dropped the row still sends its key-up after the drop.
+    const keys = TVEventHandler.addListener(raw => {if (raw?.eventKeyAction === 0) end();});
+    return () => {end(); off(); clearTimeout(timer); keys?.remove();};
+  }, [controller, registry, regionId, state.pickedId, state.rows, theme.isTV]);
   const shownRows = useRef(state.rows), focusBefore = useRef<ReturnType<typeof registry.capture>>(undefined);
   if (shownRows.current !== state.rows) focusBefore.current = theme.isTV ? registry.capture?.() : undefined;
   useEffect(() => {

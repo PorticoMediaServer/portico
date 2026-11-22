@@ -13,7 +13,9 @@ const t = defaultI18n.t;
 
 /** Customize Home on TV (final3-tv): the panel at the right with Home's rows (grip, name, what it shows, its switch or
  * "Always on Home"), Add a saved view, then Reset to default and Save. OK on a row lifts it; ▲▼ move it, OK drops it and
- * Back puts it back. Choosing a saved view swaps the rows for the views; a layout changed elsewhere asks to reload. */
+ * Back puts it back. Choosing a saved view swaps the rows for the views; a layout changed elsewhere asks to reload.
+ * While a row is lifted every grip is off, its own too: the lifted row is the one control left, so focus stays on it as it
+ * is laid out again (Android otherwise moved focus to its grip, where Up and Down did nothing). */
 export function HomeCustomizePage(props: HomeCustomizeProps) {
   const {copy, i18n, views, summary, notice, noticeAction, renderError, testID, controller} = props;
   const view = useHomeCustomize(props), {state, choosing, blocked, displayed, heights, positions, targetY} = view;
@@ -29,7 +31,7 @@ export function HomeCustomizePage(props: HomeCustomizeProps) {
       const originalY = positions.get(row.id), shift = lifted && targetY !== undefined && originalY !== undefined ? targetY - originalY : 0;
       return <TVHomeLayoutRow key={row.id} lifted={lifted} shift={shift} height={heights.get(row.id)} minHeight={view.rowHeight} onMeasure={(y, height) => view.measure(row.id, y, height)}
         handle={row.reorderable ? <TVHomeLayoutHandle focusId={`${row.id}:handle`} testID={`${testID}-handle-${row.id}`} label={t('next.home.layoutMoveAction')}
-          lifted={lifted} disabled={blocked || !!state.pickedId && !lifted} onPress={() => view.pickRow(row.id)}/> : undefined}
+          lifted={lifted} disabled={blocked || !!state.pickedId} onPress={() => view.pickRow(row.id)}/> : undefined}
         leading={row.savedView ? <TVHomeViewMark/> : undefined} title={title} hidden={row.hidden}
         detail={row.savedView ? summary(row.savedView) : serverTextLabel(i18n, row.availabilityText)}
         rowRef={node => {if (node) view.rowRefs.current.set(row.id, node); else view.rowRefs.current.delete(row.id); if (lifted) view.picked.current = node; if (index === 0) view.first.current = node;}}
