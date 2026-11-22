@@ -1,6 +1,7 @@
-/* The Notifications page on desktop: the bell panel's own feed, given the page's width. */
-.page { width: 720px; max-width: 100%; margin: 0 auto; padding: calc(var(--shell-top, 76px) + 24px) 0 80px; }
-.page > section { border-radius: 18px; background: var(--color-raised); }
+/* The Notifications page on desktop (See all): the Libraries page head, then the feed on the page at a reading width. */
+.page { padding-bottom: 72px; }
+/* The feed's rows carry the panel's own 20px inset, so the body gives the rest of the gutter: text lines up with the title. */
+.pageBody { max-width: calc(880px + 2 * var(--shell-gutter)); padding: 16px calc(var(--shell-gutter) - 20px) 0; }
 
 /* "Your report has an update" → Open report: the reporter's read-only report (OwnFeedbackReport), styled as the owner's report sheet. */
 .reportMeta { margin: 0 0 12px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }

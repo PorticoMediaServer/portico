@@ -16,6 +16,7 @@ import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import {Button, Tabs} from '../../kit/controls';
 import {PushedNavBar} from '../../kit/shell/SettingsSurfaces';
+import {LibraryHeader} from '../../kit/browse';
 import type {ShellPopoverProps} from '../../route-registry';
 import styles from './notifications.module.css';
 import {notificationDestination} from './notification-destination';
@@ -34,7 +35,8 @@ function NotificationsScreen() {
   const captured = useProtectedWebScreenContext(), width = useShellWidth(), phone = width < 900, narrow = width < 600;
   if (!captured) return null;
   if (narrow) return <PhoneNotifications captured={captured}/>;
-  return phone ? <NotificationsFeed captured={captured} mode="page" /> : <div className={styles.page}><NotificationsFeed captured={captured} mode="page" /></div>;
+  // From 900 See all is a page like Libraries: the page title and Mark all read in the page head, the feed on the page.
+  return phone ? <NotificationsFeed captured={captured} mode="page" /> : <div className={styles.page}><NotificationsFeed captured={captured} mode="page" head /></div>;
 }
 
 const noSubscribe = () => () => {};
@@ -86,7 +88,7 @@ function NotificationsPopover({anchorRef, onClose}: ShellPopoverProps) {
 
 /** One section of phone-app 21: an audience at the page's view, drawn as a heading and its notices. */
 type FeedSection = Readonly<{audience: NotificationAudience; view: InboxView; title: ReactNode}>;
-function NotificationsFeed({captured, mode, limit, onDone, service: given, section}: {captured: Captured; mode: 'page' | 'popover'; limit?: number; onDone?: () => void;
+function NotificationsFeed({captured, mode, limit, onDone, service: given, section, head = false}: {captured: Captured; mode: 'page' | 'popover'; head?: boolean; limit?: number; onDone?: () => void;
   /** The shell's inbox unless a page brings its own (the phone page's Server section). */
   service?: InboxService; section?: FeedSection}) {
   useShellFacts(captured.context);
@@ -183,14 +185,17 @@ function NotificationsFeed({captured, mode, limit, onDone, service: given, secti
             onMarkRead={() => apply('read', note)} onArchive={() => apply('archive', note)} onMoveToInbox={() => apply('unarchive', note)} />;
         })}
   </>;
-  const panel = <NotificationsPanel snapshot={state} pages={mode === 'page'} footer={seeAll} onAudience={audience => {if (state.audiences.includes(audience)) opening?.run(state, () => {void service.load(audience, state.view);});}}
-    onView={view => {opening?.run(state, () => {void service.load(state.audience, view);});}} onReadAll={() => {if (state.phase === 'ready' && state.revision > 0) opening?.run(state, () => {void service.readAll();});}} onMore={() => {if (state.more && !state.busy) opening?.run(state, () => {void service.more();});}}>
+  const readAll = () => {if (state.phase === 'ready' && state.revision > 0) opening?.run(state, () => {void service.readAll();});};
+  const panel = <NotificationsPanel snapshot={state} pages={mode === 'page'} header={!head} footer={seeAll} onAudience={audience => {if (state.audiences.includes(audience)) opening?.run(state, () => {void service.load(audience, state.view);});}}
+    onView={view => {opening?.run(state, () => {void service.load(state.audience, view);});}} onReadAll={readAll} onMore={() => {if (state.more && !state.busy) opening?.run(state, () => {void service.more();});}}>
     {body}
   </NotificationsPanel>;
   if (!opening) return null;
   if (section) return <section className={styles.phoneSection} aria-label={typeof section.title === 'string' ? section.title : undefined}>
     <h2>{section.title}</h2>{body}{state.more && <Button variant="text" size="small" onClick={() => {if (state.more) opening.run(state, () => {void service.more();});}}>{t('web.pager.next')}</Button>}
     {report && <OwnFeedbackReport api={context.api} reportId={report} onClose={() => setReport(undefined)} />}</section>;
-  return <>{panel}{report && <OwnFeedbackReport api={context.api} reportId={report} onClose={() => setReport(undefined)} />}</>;
+  const page = head ? <><LibraryHeader name={t('notifications.title')} switcher={null} menu={<Button variant="glass" size="small" icon="i-check"
+    disabled={state.phase !== 'ready' || state.counts.unread === 0} onClick={readAll}>{t('notifications.markAllRead')}</Button>}/><div className={styles.pageBody}>{panel}</div></> : panel;
+  return <>{page}{report && <OwnFeedbackReport api={context.api} reportId={report} onClose={() => setReport(undefined)} />}</>;
 }
 export default defineWebScreen({id: 'notifications', component: NotificationsScreen, shellPopover: NotificationsPopover});
