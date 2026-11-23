@@ -99,6 +99,10 @@ export function WatchChromeView({props, dismissUndo, source, controls, width, he
   const liveOffer = actionsCurrent ? liveActions.offer : undefined;
   const liveRow = liveOffer?.channel ?? source.channelGuide?.row ?? liveGuide.rows?.find(row => row.step === 0)?.channel;
   const channelNumber = liveRow?.number;
+  // The playback runtime projects a channel without a programme title and may leave its name blank (channel-control.ts):
+  // the names come from the guide this chrome already holds, and an empty one never stands in for a name.
+  const liveName = linear ? linear.name || liveRow?.name || '' : '';
+  const liveTitle = linear ? linear.programme?.title || liveOffer?.programme.title || liveName : '';
   const recordState = liveActions.recording?.state ?? liveOffer?.programme.recording?.state;
   const recordingLabel = (value?: string): string => {
     switch (value) {
@@ -130,7 +134,7 @@ export function WatchChromeView({props, dismissUndo, source, controls, width, he
   const channelMark = linear ? (linear.media.logoUrl
     ? <Artwork source={props.artwork?.(linear.media.logoUrl)} width={64} height={64} style={{borderRadius: 15, overflow: 'hidden', marginRight: 24}}/>
     : <View style={{width: 64, height: 64, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginRight: 24, backgroundColor: theme.colors.accentDeep}}>
-        <Text style={[shellType(21, 800, 'normal', 0, theme.textScale), {color: '#fff'}]}>{initials(linear.name)}</Text></View>) : null;
+        <Text style={[shellType(21, 800, 'normal', 0, theme.textScale), {color: '#fff'}]}>{initials(liveName)}</Text></View>) : null;
   if (theme.isTV && state.panel && props.tvPanelRight !== undefined) return <View testID="watch-tv-panel-backdrop" pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{width, height}}>
     {identity && <View style={{position: 'absolute', left: 96, right: props.tvPanelRight, top: 80}}>
       <Text {...textLines(1)} style={[shellType(44, 800, 52, -.015, theme.textScale), {color: theme.colors.text}]}>{identity.title}</Text>
@@ -348,9 +352,9 @@ export function WatchChromeView({props, dismissUndo, source, controls, width, he
                 {linear.media.logoUrl && <Artwork source={props.artwork?.(linear.media.logoUrl)} width={48} height={48} style={{position: 'absolute', inset: 0}}/>}
               </View>
               <View style={{flexShrink: 1, minWidth: 0}}>
-                <Text {...textLines(1)} style={[shellType(26, 800, 'normal', -.03, theme.textScale), {color: theme.colors.text}]}>{linear.programme?.title ?? linear.name}</Text>
+                <Text {...textLines(1)} style={[shellType(26, 800, 'normal', -.03, theme.textScale), {color: theme.colors.text}]}>{liveTitle}</Text>
                 <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 1}}>
-                  <Text {...textLines(1)} style={[shellType(15, 700, 'normal', 0, theme.textScale), {color: theme.colors.textSecondary, flexShrink: 1}]}>{linear.name}</Text>
+                  <Text {...textLines(1)} style={[shellType(15, 700, 'normal', 0, theme.textScale), {color: theme.colors.textSecondary, flexShrink: 1}]}>{liveName}</Text>
                   {!!channelNumber && <Text style={[theme.type.caption, shellType(15, 400, 'normal', 0, 1), {color: theme.colors.textSecondary}]}>{channelNumber}</Text>}
                   <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}><View style={{width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.record}}/>
                     <Text style={[theme.type.captionStrong, shellType(13.5, 600, 'normal', 0, 1), {color: theme.colors.record}]}>{t('next.kit.live')}</Text></View>
@@ -460,7 +464,7 @@ export function WatchChromeView({props, dismissUndo, source, controls, width, he
     const liveTools = linear && liveOffer && props.liveActions ? <FocusRegion id="watch-live-actions" entry="watch-live-more" orientation="horizontal"
       enabled={controlsEnabled} edges={{down: 'watch-seek-region', left: groupPillPresent ? 'watch-group' : undefined}} stops={{up: true}}>{liveButtons()}</FocusRegion> : undefined;
     const titleData = linear ? {
-      title: linear.programme?.title ?? linear.name, subtitle: [linear.name, channelNumber].filter(Boolean).join('  '),
+      title: liveTitle, subtitle: [liveName, channelNumber].filter(Boolean).join('  '),
       mark: channelMark, live: t('next.kit.live'),
       detail: [linear.programme && t('next.kit.range', {start: wallClock(linear.programme.startMs), end: wallClock(linear.programme.endMs)}),
         linear.next && t('player.live.next', {title: linear.next.title})].filter(Boolean).join('  '),
@@ -586,9 +590,9 @@ export function WatchChromeView({props, dismissUndo, source, controls, width, he
         <View style={{position: 'absolute', top: (compact ? 4 : 12) + (props.edgeInsets?.top ?? 0), left: (side ?? (compact ? 6 : 54)) + (props.edgeInsets?.left ?? 0), right: (side ?? (compact ? 6 : 54)) + (props.edgeInsets?.right ?? 0), flexDirection: 'row', alignItems: 'center'}}>
           {icon('minimize', 'i-down', t('player.minimize'), () => props.onMinimize(fence), false, false, undefined, minimizeCurrent)}
           {linear && <View style={{flexShrink: 1, minWidth: 0}}>
-            <Text {...textLines(1)} style={[shellType(16.5, 800, 'normal', -.015, theme.textScale), {color: theme.colors.text}]}>{linear.programme?.title ?? linear.name}</Text>
+            <Text {...textLines(1)} style={[shellType(16.5, 800, 'normal', -.015, theme.textScale), {color: theme.colors.text}]}>{liveTitle}</Text>
             <View style={{flexDirection: 'row', alignItems: 'center', minWidth: 0, marginTop: 1}}>
-              <Text {...textLines(1)} style={[theme.type.bodyStrong, shellType(13, 600, 'normal', 0, 1), {color: theme.colors.textSecondary, flexShrink: 0}]}>{linear.name}</Text>
+              <Text {...textLines(1)} style={[theme.type.bodyStrong, shellType(13, 600, 'normal', 0, 1), {color: theme.colors.textSecondary, flexShrink: 0}]}>{liveName}</Text>
               <View style={{flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 10}}>
                 <View style={{width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.record}}/>
                 <Text style={[shellType(12, 600, 'normal', 0, 1), {color: theme.colors.text}]}>{t('next.kit.live')}</Text>
