@@ -1395,7 +1395,7 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
   const parts = await screenModule(new URL('../src-next/kit/dashboard/TVDashboardParts.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': await import('react-native'), '../controls': {Focusable}, '../artwork': {Artwork: 'Artwork'},
     '../layout/Screen': await import('../src-next/kit/layout/Screen.tsx'), '../shell': await import('../src-next/kit/shell/index.ts'),
-    '../shell/visual': await import('../src-next/kit/shell/visual.ts'), '../theme': {useTheme: () => state.theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})},
+    '../shell/visual': await import('../src-next/kit/shell/visual.ts'), '../theme': {useTheme: () => state.theme, textLines: (count: number) => ({numberOfLines: count, ellipsizeMode: 'tail'})}, '../frames/metrics': {useFrameMetrics: () => ({rightGutter: 0})},
   });
   const serverDashboard = await screenModule(new URL('../src-next/pages/shared/dashboard/useServerDashboard.ts', import.meta.url), {...pageModules, react: {...React, default: React}});
   // The owner's Disk usage reads storage through its own source; this test is about Now playing and tasks.
@@ -1432,6 +1432,8 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
       assert.ok(byID('dashboard-job-first'));
       assert.equal(byID('dashboard-jobs-more'), undefined, 'no next page of jobs');
       assert.deepEqual(jobCalls, ['status']);
+      // No alerts: the section says so in one quiet line rather than leaving an empty heading (TV lane 22).
+      assert.deepEqual(elements(panel.tree).filter(element => element.type === parts.TVDashboardQuiet).map(element => element.props.children), [defaultI18n.t('web.overview.noAlerts')]);
     } else assert.deepEqual(jobCalls, []);
     const initialMore = byID('dashboard-sessions-more')!;
     await withNativeControl(initialMore, host => host.props.onPress()); await act(() => {});
