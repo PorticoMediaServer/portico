@@ -255,6 +255,24 @@ test('TV failure keeps Retry as entry, exposes its real secondary actions and re
     const panel = find(tree, 'watch-failed-details-panel'); assert.equal(panel.props.open, true); assert.equal(panel.props.returnFocusRef, details.props.ref);
     assert.equal(find(tree, 'watch-failed').props.enabled, false);
     props.details = undefined; tree = h.render(); assert.equal(find(tree, 'watch-failed-details-panel').props.open, false); assert.equal(find(tree, 'watch-failed-details'), undefined);
+    assert.equal(find(tree, 'watch-failed-retry').props.preferredFocus, true); assert.equal(find(tree, 'watch-failed-version').props.preferredFocus, false);
+  } finally {h.unmount();}
+});
+
+test('a TV failure without Try again gives focus to its first action (a channel that failed shows only Details)', async () => {
+  const h = watchHooks();
+  const {NativePlaybackFailed} = await screenModule(new URL('../src-next/kit/player/PlaybackFailed.tsx', import.meta.url), {
+    react: h.react, 'react-native': nativeAtoms, '../../../../../packages/i18n/src': i18n, '../../../../../packages/client-core/src/presentation/kit-model/text': {clockText: String, durationText: (seconds: number) => `${Math.round(seconds / 60)} min`},
+    '../../../../../packages/client-core/src/presentation/kit-model': {playbackIdentity: () => undefined}, '../controls': controlsAtoms, '../Icon': {Icon: 'Icon'}, '../theme': themed, '../shell/visual': {shellType: () => ({})},
+    '../focus': {FocusRegion: 'FocusRegion'}, '../overlays': {SidePanel: 'SidePanel'},
+  });
+  const props: any = {context: {source: {}}, failure: {fence, positionSeconds: 0}, chromeVisible: true, details: () => h.react.createElement('Facts', {})};
+  try {
+    let tree = h.render(() => NativePlaybackFailed(props));
+    assert.equal(find(tree, 'watch-failed').props.entry, 'watch-failed-details');
+    assert.equal(find(tree, 'watch-failed-details').props.preferredFocus, true);
+    props.differentVersion = () => {}; tree = h.render();
+    assert.equal(find(tree, 'watch-failed-version').props.preferredFocus, true); assert.equal(find(tree, 'watch-failed-details').props.preferredFocus, false);
   } finally {h.unmount();}
 });
 

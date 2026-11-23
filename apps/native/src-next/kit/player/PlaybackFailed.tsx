@@ -39,6 +39,8 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
   const facts = details?.(failure), detailsOpen = detailsFor === identityKey && !!facts;
   const position = clockText(failure.positionSeconds);
   const body = failureBody(failure.reason, position ?? '', failure.ended);
+  // The first action takes focus, whichever there is: a channel that failed has no Try again, only Details.
+  const entry = retry ? 'watch-failed-retry' : differentVersion ? 'watch-failed-version' : 'watch-failed-details';
   return <View testID="watch-playback-failed" pointerEvents="box-none" style={StyleSheet.absoluteFill}>
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, {backgroundColor: '#03080c8c'}]}/>
     {!chromeVisible && identity && <View pointerEvents="none" style={{position: 'absolute', left: 96, right: 96, top: 72}}>
@@ -59,10 +61,10 @@ export function NativePlaybackFailed({context, failure, retry, details, differen
         {marginBottom: 24, color: theme.colors.text, textShadowColor: 'rgba(7,16,24,.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30}]}>{failureTitle(failure.ended)}</Text>
       <Text style={[shellType(28, 400, 40.6, 0, theme.textScale), {marginBottom: 28, maxWidth: 900, color: theme.colors.textSecondary}]}>{body}</Text>
       {(retry || facts || differentVersion) && <FocusRegion id="watch-failed" orientation="horizontal" edges={{down: 'watch-controls'}} enabled={!detailsOpen}
-        entry={retry ? 'watch-failed-retry' : differentVersion ? 'watch-failed-version' : 'watch-failed-details'} entryPolicy="entry" style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 18}}>
-        {retry && <Button focusId="watch-failed-retry" testID="watch-failed-retry" icon="i-restart" preferredFocus disabled={detailsOpen} onPress={() => retry(failure)}>{t('next.states.tryAgain')}</Button>}
-        {differentVersion && <Button focusId="watch-failed-version" testID="watch-failed-version" variant="glass" disabled={detailsOpen} onPress={() => differentVersion(failure)}>{t('next.overlays.differentVersion')}</Button>}
-        {facts && <Button ref={detailsOpener} focusId="watch-failed-details" testID="watch-failed-details" variant="glass" disabled={detailsOpen} onPress={() => {if (details?.(failure)) setDetailsFor(identityKey);}}>{t('next.states.details')}</Button>}
+        entry={entry} entryPolicy="entry" style={{flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 18}}>
+        {retry && <Button focusId="watch-failed-retry" testID="watch-failed-retry" icon="i-restart" preferredFocus={entry === 'watch-failed-retry'} disabled={detailsOpen} onPress={() => retry(failure)}>{t('next.states.tryAgain')}</Button>}
+        {differentVersion && <Button focusId="watch-failed-version" testID="watch-failed-version" variant="glass" preferredFocus={entry === 'watch-failed-version'} disabled={detailsOpen} onPress={() => differentVersion(failure)}>{t('next.overlays.differentVersion')}</Button>}
+        {facts && <Button ref={detailsOpener} focusId="watch-failed-details" testID="watch-failed-details" variant="glass" preferredFocus={entry === 'watch-failed-details'} disabled={detailsOpen} onPress={() => {if (details?.(failure)) setDetailsFor(identityKey);}}>{t('next.states.details')}</Button>}
       </FocusRegion>}
     </View>
     <SidePanel testID="watch-failed-details-panel" open={detailsOpen} onOpenChange={open => setDetailsFor(open ? identityKey : undefined)}
