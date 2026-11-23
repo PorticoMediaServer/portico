@@ -25,6 +25,9 @@ export type PlayerUpNextProps = Readonly<{
   countdownTotal: number;
   /** Phone geometry (phone-player 6): a 360-wide card in the corner. */
   compact?: boolean;
+  /** The upright watch page (phone-player 4): the card sits over a picture only about 230 pt tall, so it leaves out the still
+   * keeps one row of actions (Play now and Cancel while it counts down), and so fits the picture, clear of the status bar. */
+  tight?: boolean;
   onPlayNow: () => void;
   onWatchCredits: () => void;
   onSkipCredits: () => void;
@@ -33,7 +36,7 @@ export type PlayerUpNextProps = Readonly<{
   postPlay?: Readonly<{onCancel: () => void; onReplay: () => void; onClose: () => void}>;
 }>;
 
-export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAfter, compact = false, onPlayNow, onWatchCredits, onSkipCredits, postPlay}: PlayerUpNextProps) {
+export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAfter, compact = false, tight = false, onPlayNow, onWatchCredits, onSkipCredits, postPlay}: PlayerUpNextProps) {
   // R2: the player's cards (Up next, Still watching, the end card) read the form's roles: title `heading`, lines `body`,
   // the quieter line `caption`, buttons the kit Button's own sizes.
   const theme = useTheme(), t = defaultI18n.t, {heading, body, captionStrong} = theme.type;
@@ -53,9 +56,9 @@ export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAft
       <View style={[StyleSheet.absoluteFill, {backgroundColor: compact ? theme.colors.playerNotice : 'rgba(9,19,27,.84)'}]}/>
     </View>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: compact ? 13 : 24}}>
-      <View style={{...still, borderRadius: compact ? 8 : 12, overflow: 'hidden', backgroundColor: '#0b1822'}}>
+      {!tight && <View style={{...still, borderRadius: compact ? 8 : 12, overflow: 'hidden', backgroundColor: '#0b1822'}}>
         <Artwork source={artwork} width={still.width} height={still.height} style={{opacity: .34}}/>
-      </View>
+      </View>}
       <View style={{flex: 1, minWidth: 0}}>
         <Text style={[captionStrong, {color: compact ? theme.colors.textTertiary : theme.colors.accentStrong}]}>{t('player.post.upNext')}</Text>
         <Text style={[heading, {marginTop: theme.space.tight / 2, color: theme.colors.text}]}>{item.title}</Text>
@@ -75,8 +78,11 @@ export function PlayerUpNext({item, artwork, countdown, countdownTotal, sceneAft
       {button('play', 'primary', 'i-play', t('player.post.playNow'), onPlayNow)}
       {postPlay ? <>
         {countdown?.automatic && button('cancel', 'glass', undefined, t('action.cancel'), postPlay.onCancel)}
-        {button('replay', 'glass', 'i-replay', t('player.post.replay'), postPlay.onReplay)}
-        {button('close', 'glass', undefined, t('player.post.close'), postPlay.onClose)}
+        {/* The upright page's tight card keeps one row: while it counts down, Play now and Cancel; Cancel brings Replay and Close. */}
+        {!(tight && countdown?.automatic) && <>
+          {button('replay', 'glass', 'i-replay', t('player.post.replay'), postPlay.onReplay)}
+          {button('close', 'glass', undefined, t('player.post.close'), postPlay.onClose)}
+        </>}
       </> : <>
         {sceneAfter && button('skip', 'glass', 'i-next', t('player.skip', {kind: 'credits'}), onSkipCredits)}
         {button('watch', 'glass', undefined, t('player.post.watchCredits'), onWatchCredits)}

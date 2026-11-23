@@ -189,6 +189,13 @@ test('the existing next card renders end actions without a credits action or an 
   const waiting = render({seconds: 6.75, automatic: true});assert.match(strings(waiting), /player.post.playingIn 7/);
   nodes(waiting).find(node => node.props.testID === 'watch-up-next-cancel').props.onPress();assert.deepEqual(calls, ['cancel']);
   assert.equal(nodes(waiting).some(node => node.props.testID === 'watch-up-next-watch'), false);
+  // The upright watch page's tight card (phone-player 4) keeps one row and no still: Play now and Cancel while it counts
+  // down, then Play now, Replay and Close, so it fits the picture and stays clear of the status bar.
+  const tight = (countdown: unknown) => nodes(h.render(() => NativeUpNextCard({...props, tight: true, countdown})));
+  assert.deepEqual(tight({seconds: 6.75, automatic: true}).filter(node => node.type === 'Button').map(node => node.props.testID), ['watch-up-next-play', 'watch-up-next-cancel']);
+  assert.deepEqual(tight(null).filter(node => node.type === 'Button').map(node => node.props.testID), ['watch-up-next-play', 'watch-up-next-replay', 'watch-up-next-close']);
+  assert.equal(tight(null).some(node => node.type === 'Artwork'), false, 'the tight card leaves out the still');
+  assert.equal(nodes(waiting).some(node => node.type === 'Artwork'), true, 'the corner card keeps it');
   const scene = h.render(() => NativeUpNextCard({...props, compact: false, postPlay: undefined, sceneAfter: true, countdown: {seconds: 90, automatic: false}}));
   assert.ok([...nodes(waiting), ...nodes(scene)].filter(node => node.type === 'Text').every(node => typeof [node.props.style].flat().reduce((style: any, part: any) => ({...style, ...part}), {}).fontFamily === 'string'), 'every card label carries a type role (R2)');
 });
