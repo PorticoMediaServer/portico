@@ -47,10 +47,10 @@ export function WatchHostView({surface, authority, playback, outlet, runtime, co
     </>}
   </Animated.View>;
   return <View testID="watch-host" pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>
+    <NativeWatchPicture authority={authority} fence={fence} outlet={outlet} current={measuredCurrent} style={positioned(surface)}/>
     {/* phone-player 4: upright, the picture starts under the status bar, which sits on a black band of its own, solid from the first frame. */}
     {layout.mode === 'watch' && !isTV && layout.surface && layout.surface.y > 0 && <View testID="watch-status-band" pointerEvents="none"
       style={{position: 'absolute', left: 0, top: 0, width: layout.surface.width, height: layout.surface.y, backgroundColor: '#000'}}/>}
-    <NativeWatchPicture authority={authority} fence={fence} outlet={outlet} current={measuredCurrent} style={positioned(surface)}/>
     {television ? <View testID="watch-tv-canvas" pointerEvents="box-none" style={{position: 'absolute', left: television.canvas.left, top: television.canvas.top,
       width: television.canvas.width, height: television.canvas.height, transformOrigin: 'top left', transform: [{scale: television.canvas.scale}]}}>{content}</View> : content}
     {fullWindow && !isTV && <LayerStatusBar kind="player"/>}
