@@ -13,6 +13,8 @@ import {NoServersPage} from '../../../pages/touch/accounts/NoServersPage';
 import {MovePasswordPage} from '../../../pages/touch/accounts/MovePasswordPage';
 import {PhoneAccountMoveNotice, type PhoneAccountMoveNoticeState} from '../../../kit/accounts/PhoneAccountMoveNotice';
 import {MoveCodePage} from '../../../pages/touch/accounts/MoveCodePage';
+import {ServerIdentityFailureView} from '../../../kit/accounts/ServerIdentityFailureView';
+import {NativeIdentityFailure} from '../../../platform/identity-failure';
 
 // The phone and tablet sign-in screens (auth.html frames 4, 5 and 6) in the states the review desk signs against:
 // at rest, filled, long values, busy and error. Each case is the whole screen, so it cancels the Kit window's gutter.
@@ -81,6 +83,15 @@ function Move({state, busy = false}: {state: PhoneAccountMoveNoticeState; busy?:
 const moveServer = 'Portico demo', longServer = fixture['next.controls.native.fixture.longServerName'];
 
 const user = fixture['next.controls.native.fixture.username'], secret = fixture['next.controls.native.fixture.password'];
+// The server-identity page (#5279): a saved server answering as someone else, or its certificate failing. A real mismatch
+// can't be made on the demo, so these cases are the way to look at the page on a device.
+function IdentityFailure({code, signIn = 'local', confirm = false}: {code: string; signIn?: 'local' | 'portico'; confirm?: boolean}) {
+  const [open, setOpen] = useState(confirm), cancel = React.useRef<View>(null), opener = React.useRef<View>(null);
+  const failure = new NativeIdentityFailure(code, {serverId: 'srv_fixture', familyId: 'family', fingerprint: 'fingerprint', name: 'Portico Demo', signIn} as never);
+  return <Whole><ServerIdentityFailureView failure={failure} busy={false} confirm={open} onConfirmChange={setOpen} cancelRef={cancel} openerRef={opener}
+    onRetry={noop} onChoose={noop} onForget={noop}/></Whole>;
+}
+
 const galleries: readonly Gallery[] = [
   {id: 'phone-account-welcome', title: T, platforms: P, screen: true, render: () => <Welcome/>},
   {id: 'phone-account-welcome-filled', title: T, platforms: P, screen: true, render: () => <Welcome username={user} password={secret}/>},
@@ -113,5 +124,9 @@ const galleries: readonly Gallery[] = [
   {id: 'phone-account-move-confirm-long', title: T, platforms: P, screen: true, render: () => <Move state={{kind: 'confirm', serverName: longServer,
     username: fixture['next.controls.native.fixture.longUsername'], account: user, onMove: noop, onNotYou: noop, onCancel: noop}}/>},
   {id: 'phone-account-move-busy', title: T, platforms: P, screen: true, render: () => <Move busy state={{kind: 'to-portico', serverName: moveServer, onContinue: noop, onCreateAccount: noop}}/>},
+  {id: 'phone-account-identity-changed', title: T, platforms: P, screen: true, render: () => <IdentityFailure code="identity_mismatch"/>},
+  {id: 'phone-account-identity-changed-forget', title: T, platforms: P, screen: true, render: () => <IdentityFailure code="identity_mismatch" confirm/>},
+  {id: 'phone-account-identity-portico', title: T, platforms: P, screen: true, render: () => <IdentityFailure code="identity_mismatch" signIn="portico"/>},
+  {id: 'phone-account-identity-certificate', title: T, platforms: P, screen: true, render: () => <IdentityFailure code="certificate_untrusted"/>},
 ];
 export default galleries;
