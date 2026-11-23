@@ -38,4 +38,6 @@ test('TV account forms: the actions are one autoFocus row, primary first, so Dow
   assert.deepEqual(aimed.props.destinations, [continueHost], 'the guide sends focus coming in to Continue');
   const disabled = nodes(draw({...primary, disabled: true})).find(node => node.type === 'TVFocusGuideView');
   assert.deepEqual(disabled.props.destinations, [], 'a disabled Continue is never the aim (Back takes focus)');
+  const busy = nodes(draw({...primary, loading: true})).find(node => node.type === 'TVFocusGuideView');
+  assert.deepEqual(busy.props.destinations, [], 'nor a loading one, which cannot take focus either');
 });

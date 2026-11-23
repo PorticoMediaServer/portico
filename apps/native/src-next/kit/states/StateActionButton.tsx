@@ -12,7 +12,8 @@ import type {StateAction} from './types';
  * exists does the caller's already-required semantic action id supply it. */
 export const StateActionButton = forwardRef<View, {action: StateAction} & Pick<ButtonProps, 'variant' | 'size' | 'align' | 'style' | 'textStyle' | 'hitSlop' | 'iconSize' | 'iconColor' | 'testID'>>(function StateActionButton({action, ...props}, ref) {
   const {id, label, ...native} = action, testID = native.testID ?? controlID(props.testID, 'action', id);
-  return <Button ref={ref} {...props} {...native} testID={testID} focusId={testID ?? id}>{label}</Button>;
+  // The forwarded ref wins over an action's own, so a layout aiming at its primary always gets the host.
+  return <Button {...props} {...native} ref={ref ?? native.ref} testID={testID} focusId={testID ?? id}>{label}</Button>;
 });
 
 const controlID = (prefix: string | undefined, ...parts: readonly string[]) => prefix ? focusTestID(prefix, JSON.stringify(parts)) : undefined;
