@@ -614,7 +614,8 @@ export function WatchChromeView({props, dismissUndo, source, controls, width, he
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
             <Text style={[theme.type.bodyStrong, shellType(12.5, 600, 'normal', 0, 1), {color: theme.colors.text, fontVariant: ['tabular-nums']}]}>{clockText(source.playback.positionSeconds)}</Text>
             {linear && behindLive > 30 && <Text style={[theme.type.bodyStrong, shellType(12, 600, 'normal', 0, 1), {marginLeft: 8, color: theme.colors.textSecondary}]}>{t('player.live.behindLive', {duration: durationText(Math.max(60, Math.round(behindLive / 60) * 60), t)})}</Text>}
-            {compact && <Text style={[theme.type.bodyStrong, shellType(12, 600, 'normal', 0, 1), {color: theme.colors.textSecondary}]}>{`/ ${clockText(source.playback.duration)}`}</Text>}
+            {/* A channel has no length to show: its upright row reads the position (and how far behind live), never "/ 0:00". */}
+            {compact && !linear && <Text style={[theme.type.bodyStrong, shellType(12, 600, 'normal', 0, 1), {color: theme.colors.textSecondary}]}>{`/ ${clockText(source.playback.duration)}`}</Text>}
             <View style={{flex: 1}}/>
             {!compact && (linear && behindLive > 5 && props.goLive
               ? <Focusable focusId="watch-go-live" testID="watch-go-live" accessibilityRole="button" focusable={controlsEnabled} disabled={!controlsEnabled}
