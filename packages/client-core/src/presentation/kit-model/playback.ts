@@ -17,7 +17,8 @@ export type PlaybackFacts = Readonly<{
 export type PlaybackInfoRow = TechnicalRow & Readonly<{from?: readonly FactPart[]; to?: readonly FactPart[]}>;
 const converting = (d: StreamDecision | undefined) => d?.action === 'transcode' || d?.action === 'burn';
 function deliveryKey(decisions?: StreamDecisions, fallback?: PlaybackFacts['delivery']): 'next.kit.converting' | 'next.kit.repackaged' | 'next.kit.originalDelivery' | undefined {
-  const actions = Object.values(decisions ?? {}).map(d => d.action);
+  // A stream the server made no decision for arrives empty (subtitles: null on a session with none), not as a decision.
+  const actions = Object.values(decisions ?? {}).map(d => d?.action);
   if (actions.some(a => a === 'transcode' || a === 'burn')) return 'next.kit.converting';
   if (actions.includes('copy')) return 'next.kit.repackaged';
   if (actions.includes('direct')) return 'next.kit.originalDelivery';
