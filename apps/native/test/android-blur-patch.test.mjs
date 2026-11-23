@@ -88,6 +88,7 @@ test('npm hook preserves both blur patches before the guarded Reader patch', t =
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   assert.deepEqual(manifest.scripts.postinstall.split(' && '), [
     'node scripts/patch-apple-blur.mjs',
+    'node scripts/patch-apple-reader-webview.mjs',
     'node scripts/patch-android-blur.mjs',
     'node scripts/patch-android-reader.mjs',
     'node scripts/patch-tvos-focus-occlusion.mjs',

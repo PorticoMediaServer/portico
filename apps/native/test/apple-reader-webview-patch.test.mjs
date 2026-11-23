@@ -64,6 +64,10 @@ test('iOS installs the reviewed hook before autolinking; tvOS has no WebView hoo
   const pod = readFileSync(join(app, 'ios/Podfile'), 'utf8');
   assert.ok(pod.indexOf('patch-apple-reader-webview.mjs') >= 0 && pod.indexOf('patch-apple-reader-webview.mjs') < pod.indexOf('use_native_modules!'));
   assert.ok(!readFileSync(join(app, 'tvos/Podfile'), 'utf8').includes('patch-apple-reader-webview'));
+  // A fresh npm install re-applies it too: a build that skips pod install (Pods unchanged) after node_modules was rebuilt
+  // otherwise ships a WebView with no portico-reader:// handler, and every book fails with "unsupported URL" (22 Nov).
+  const postinstall = JSON.parse(readFileSync(join(app, 'package.json'), 'utf8')).scripts.postinstall.split(' && ');
+  assert.ok(postinstall.includes('node scripts/patch-apple-reader-webview.mjs'));
   const ios = readFileSync(join(app, 'ios/Portico.xcodeproj/project.pbxproj'), 'utf8');
   const tvos = readFileSync(join(app, 'tvos/Portico.xcodeproj/project.pbxproj'), 'utf8');
   for (const name of ['PorticoReaderAssets.m', 'PorticoReaderAssetOrigin.m']) {
