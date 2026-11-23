@@ -80,6 +80,7 @@ for (const input of [{name: 'compact phone', compact: true}, {name: 'landscape p
       picture.props.onPress();assert.deepEqual(f.calls.pop(), ['toggle']);
     }
     if (input.compact) {
+      assert.doesNotMatch(strings(tree), /\/ /, 'a channel shows no "/ duration" (it read "0:31 / 0:00")');
       const pills = all.find(node => node.props.testID === 'watch-live-pills');assert.ok(pills);
       assert.ok(nodes(pills).includes(guide));assert.ok(nodes(pills).some(node => node.props.testID === 'watch-option-quality'));
     }
