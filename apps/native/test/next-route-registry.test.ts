@@ -149,3 +149,14 @@ test('a route a factory registers while it is created tells subscribers after, n
   assert.deepEqual(heard, ['created', 'changed', 'changed'], 'outside a factory a change is told at once, as before');
   bound.dispose();
 });
+
+test('a factory that throws while it is created leaves later changes told at once', () => {
+  const registry = new NativeShellRouteRegistry(), heard: string[] = [];
+  registry.registerDestination('search', () => {throw new Error('factory_failed');});
+  registry.subscribe(() => heard.push('changed'));
+  const bound = registry.bind(fixtureContext());
+  assert.throws(() => bound.render(search, runtime), /factory_failed/);
+  registry.registerRoute('read', () => ({render: () => null}));
+  assert.deepEqual(heard, ['changed'], 'the creation count went back to zero');
+  bound.dispose();
+});
