@@ -15,14 +15,15 @@ export type SettingsRowReveal = (row: View, serial: number) => boolean;
 export type SettingsRowTargeting = Readonly<{
   open?: (rowId: string) => void;
   highlight?: string;
-  flash?: Readonly<{rowId: string; serial: number; reveal: SettingsRowReveal}>;
+  /** `quiet`: reveal only, with no flash (TV, where the row is highlighted instead). */
+  flash?: Readonly<{rowId: string; serial: number; reveal: SettingsRowReveal; quiet?: boolean}>;
 }>;
 export const SettingsRowTargetContext = createContext<SettingsRowTargeting>({});
 
 /** settings.html `.r.pulse`: the row's background goes from the accent at 34% to clear over 1.6 s, once. With reduced motion
  * there is no flash. Its box is the row's box, so it is also what `reveal` measures, once per opening (`serial`). */
-export function SettingsRowFlash({serial, reveal}: Readonly<{serial: number; reveal: SettingsRowReveal}>) {
-  const theme = useTheme(), motion = useMotion(), reduce = useReducedMotion();
+export function SettingsRowFlash({serial, reveal, quiet = false}: Readonly<{serial: number; reveal: SettingsRowReveal; quiet?: boolean}>) {
+  const theme = useTheme(), motion = useMotion(), reduce = useReducedMotion() || quiet;
   const box = useRef<View>(null), revealed = useRef<number | undefined>(undefined);
   const opacity = useSharedValue(reduce ? 0 : 1);
   useEffect(() => {

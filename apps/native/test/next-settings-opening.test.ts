@@ -9,7 +9,8 @@ const find = (tree: any, id: string) => nodes(tree).find(node => node.props?.tes
 // Settings search seams: the matches, the Covered flag, TV, and every destination entry ask the screen makes.
 const search = {matches: [] as any[], covered: false, tv: false, entries: [] as {activation: any; address: any}[],
   /** Where TV focus is, and who listens: Settings opens search only on a move onto the field once focus has settled in it. */
-  capture: undefined as {regionId: string; childId: string} | undefined, listeners: new Set<() => void>(), back: undefined as (() => boolean) | undefined};
+  capture: undefined as {regionId: string; childId: string} | undefined, listeners: new Set<() => void>(), back: undefined as (() => boolean) | undefined,
+  focusAsks: undefined as unknown[] | undefined};
 async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: 'settings'}}, initialWidth = 390, role = 'owner', initialPage?: 'live' | 'profile') {
   const host = hooks(), pending: (() => void)[] = [], effects = new Set<{cleanup?: () => void}>();
   const useLayoutEffect = (fn: () => void | (() => void), deps: any[]) => {
@@ -38,7 +39,7 @@ async function fixture(initialRoute: any = {kind: 'shell', destination: {kind: '
     '../../../../../packages/client-core/src/presentation/settings-structure': {settingsStructure: () => structure, searchSettings: () => search.matches, findSettingsPage: (searchable: any, address: string) => {for (const heading of searchable.headings) {const found = heading.pages.find((value: any) => value.id === address); if (found) return {heading, page: found};} return undefined;}},
     '../../../../../packages/client-core/src/presentation/language-list': {}, '../../../../../packages/client-core/src/presentation/region-choices': {},
     '../../../../../packages/i18n/src': {defaultI18n: {number: String}}, '../../../../../packages/client-core/src/recommendation-feedback': {}, './settings-icon': await import('../src-next/screens/settings-live/settings-icon.ts'), '../../../../../packages/design/src/next-icons': {nextIcons: {}},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => search.capture, focus: () => true, entryAddress: () => undefined, subscribe: (listener: () => void) => {search.listeners.add(listener); return () => {search.listeners.delete(listener);};}, getSnapshot: () => 0}), useCovered: () => search.covered},
+    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => ({capture: () => search.capture, focus: (address: unknown) => {search.focusAsks?.push(address); return true;}, child: () => undefined, entryAddress: () => undefined, subscribe: (listener: () => void) => {search.listeners.add(listener); return () => {search.listeners.delete(listener);};}, getSnapshot: () => 0}), useCovered: () => search.covered},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/shell': {SettingsRowTargetContext: {Provider: 'TargetProvider'}, SettingsRow: 'SettingsRow', SettingsSheet: 'SettingsSheet', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles', SettingsSectionLabel: 'SettingsSectionLabel'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'}, '../../kit/shell/visual': {shellType: () => ({}), alpha: (value: string) => value}, '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateView: 'StateView'}, '../../kit/states/sentence-parts': {}, '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'},
     '../../shell/tv-focus': {tvFocusIds: () => ({surface: (id: string) => id, rail: 'rail'})}, '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../destinations/useEntryFocus': {useDestinationEntryFocus: (activation: any, address: any) => {search.entries.push({activation, address});}},
@@ -333,11 +334,28 @@ test('tv-more 34: OK on a TV match closes search and opens its page with that ro
     assert.equal(typeof open, 'function', 'TV matches are wrapped so OK opens the page');
     open('subtitles'); f.render();
     assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'search closed');
-    assert.deepEqual(providers(f), [{highlight: 'subtitles'}]);
+    // TV highlights the row and reveals it quietly (no flash), so a row below the fold is scrolled into view.
+    const [value] = providers(f);
+    assert.equal(value.highlight, 'subtitles'); assert.equal(value.flash?.rowId, 'subtitles'); assert.equal(value.flash?.quiet, true); assert.equal(typeof value.flash?.reveal, 'function');
     const asks = search.entries.filter(entry => entry.address?.regionId === 'settings.rows.playback');
     assert.deepEqual(asks.at(-1)?.address, {regionId: 'settings.rows.playback', childId: 'subtitles'});
     assert.equal(asks.at(-1)?.activation.visible, true); assert.equal(asks.at(-1)?.activation.intent, 'enter');
   } finally {f.unmount(); search.tv = false;}
+});
+
+test('TV: choosing a match is a settle too, so the field focus Android drops as search closes asks for the chosen row again instead of reopening search', async () => {
+  const f = await searchFixture({tv: true});
+  const frames: (() => void)[] = [], raf = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = ((callback: () => void) => {frames.push(callback); return frames.length;}) as never;
+  try {
+    providers(f).find((value: any) => value.open).open('subtitles'); f.render();
+    assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'search closed');
+    const asked: unknown[] = []; search.focusAsks = asked;
+    f.find('settings-search').props.onFocus(); f.render();
+    assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'the dropped field focus does not reopen search');
+    for (const frame of frames.splice(0)) frame();
+    assert.deepEqual(asked, [{regionId: 'settings.rows.playback', childId: 'subtitles'}], 'the chosen row is asked for again');
+  } finally {f.unmount(); search.tv = false; search.focusAsks = undefined; globalThis.requestAnimationFrame = raf;}
 });
 
 test('a TV match opening that is covered before its row takes focus never asks, even once uncovered', async () => {
