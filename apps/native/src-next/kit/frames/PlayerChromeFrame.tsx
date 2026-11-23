@@ -120,7 +120,7 @@ function PlayerChromeFrameBody({picture, chromeVisible, close, title, tools, scr
     <View style={[row, {justifyContent: 'center', gap: upright ? spec.transport.upright[form === 'phone' ? 'phone' : 'tablet'].gap : spec.transport.gap[form]}]}>{transport}</View>
   </View>;
   const top = <View pointerEvents={touch} style={[row, {position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'flex-start', gap: upright ? 0 : spec.titleGap[form],
-    paddingTop: upright ? spec.portrait.top + (pane ? insets.top : 0) : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, tv && panel ? {opacity: chromeVisible ? spec.panelDim : 0} : shown]}>
+    paddingTop: upright ? spec.portrait.top : Math.max(spec.top[form], insets.top), paddingHorizontal: edge}, tv && panel ? {opacity: chromeVisible ? spec.panelDim : 0} : shown]}>
     {!tv && close}<View style={{flex: 1, minWidth: 0, alignSelf: 'center'}}>{!upright && title}</View>{clock ?? <View style={[row, {gap: upright ? 0 : theme.space.controlGap}]}>{tools}</View>}
   </View>;
   const controlRow = <View style={[row, scrubbing && {opacity: 0}, {justifyContent: 'space-between', gap: spec.endGap[form], marginTop: spec.controlsGap[form], minHeight: spec.transport.primary[form]}, sideways && {minHeight: spec.pill.height[form]}]}>

@@ -24,6 +24,9 @@ export function WatchHostView({surface, authority, playback, outlet, runtime, co
   const content = <Animated.View testID="watch-panes" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted}
     importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, paneFadeStyle]}>
     {postPlay ? <View testID="watch-post-play-pane" style={{position: 'absolute', inset: 0}}>{postPlay}</View> : <>
+    {/* phone-player 4: upright, the picture starts under the status bar, which sits on a black band of its own. */}
+    {layout.mode === 'watch' && !isTV && layout.surface && layout.surface.y > 0 && <View testID="watch-status-band" pointerEvents="none"
+      style={{position: 'absolute', left: 0, top: 0, width: layout.surface.width, height: layout.surface.y, backgroundColor: '#000'}}/>}
     {layout.content && <View testID="watch-content-pane" style={pagePane(layout.content)} pointerEvents="box-none">{bindings.content?.(context)}</View>}
     {layout.details && <View testID="watch-details-pane" style={pagePane(layout.details)} pointerEvents="box-none">{bindings.details?.(context)}</View>}
     {layout.episodes && <View testID="watch-episodes-pane" style={pagePane(layout.episodes)} pointerEvents="box-none">{bindings.episodes?.(context)}</View>}
@@ -33,7 +36,7 @@ export function WatchHostView({surface, authority, playback, outlet, runtime, co
         tabletop={!isTV && layout.mode === 'tabletop' && layout.episodes && layout.controls ? (layout.controls.width < window.width ? 'column' : 'stacked') : undefined}
         bar={!isTV && layout.mode === 'full-window' && window.width >= 1024}
         tvPanelRight={television?.backdropRight} failureAction={failureAction}
-        edgeInsets={layout.mode === 'book' && layout.controls ? {right: surface.width - layout.controls.width} : layout.mode === 'watch' && !isTV && safeTop > 0 ? {top: safeTop} : undefined}/>
+        edgeInsets={layout.mode === 'book' && layout.controls ? {right: surface.width - layout.controls.width} : undefined}/>
     </View>}
     {/* Over the picture and the controls’ gradient, below panels: "Getting ready" while the server converts the stream, or the connection
         line while media stops arriving (definition 07, rule 3; the web player's same rule). */}

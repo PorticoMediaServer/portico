@@ -123,8 +123,8 @@ export function useWatchHost({authority, current, playback, outlet, runtime, con
     return () => abort.abort();
   }, [noticeKey, expanded, lossNotice?.key]);
   const input = useMemo<PlayerPresentationInput>(() => ({window: {width: window.width, height: window.height}, posture, docked: !expanded, panelOpen: !isTV && panelOpen,
-    upNext: !isTV && !!fence && fence.kind === 'queue' && source.entry?.kind === 'episode' && !!source.entry.show?.id}),
-    [window.width, window.height, posture, expanded, panelOpen, isTV, fence, source.entry]);
+    upNext: !isTV && !!fence && fence.kind === 'queue' && source.entry?.kind === 'episode' && !!source.entry.show?.id, safeTop: isTV ? 0 : safeTop}),
+    [window.width, window.height, posture, expanded, panelOpen, isTV, fence, source.entry, safeTop]);
   const television = useMemo(() => isTV ? nativeWatchTVPresentation(input.window, !expanded, panelOpen ? state.panel : undefined) : undefined, [isTV, input.window, expanded, panelOpen, state.panel]);
   const layout = useMemo(() => isTV ? television?.layout : resolvePlayerPresentation(input), [input, isTV, television]);
   // The full-window player has no system status bar: the layer rule's own entry, mounted while it fills the window.

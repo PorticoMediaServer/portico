@@ -93,16 +93,21 @@ test('root uses the actual canonical outlet and full measured pane across book g
     assert.equal(d.reveals.length, 1); assert.deepEqual(d.calls.slice(-2), ['presentation', 'reveal']);
   } finally {await measurementHost.unmount(); await d.dispose();}
 });
-test('the upright player pushes its top controls below the status bar (P2-74 E-mobile-14)', async () => {
+test('the upright player starts under the status bar, which sits on a black band (phone-player 4; P2-74 E-mobile-14)', async () => {
   const d = await fixture();
   try {
     await act(() => {});
     window = {width: 390, height: 844}; safeTop = 59;
     await act(() => d.host.rerender());
-    assert.deepEqual(child(d.tree(), 'watch-controls-pane').props.children.props.edgeInsets, {top: 59});
+    const pane = child(d.tree(), 'watch-controls-pane');
+    assert.equal(pane.props.style.top, 59, 'the picture and its controls start under the status bar');
+    assert.equal(pane.props.children.props.edgeInsets, undefined, 'so the controls need no top inset of their own');
+    const band = child(d.tree(), 'watch-status-band');
+    assert.deepEqual([band.props.style.top, band.props.style.height, band.props.style.backgroundColor], [0, 59, '#000']);
     safeTop = 0;
     await act(() => d.host.rerender());
-    assert.equal(child(d.tree(), 'watch-controls-pane').props.children.props.edgeInsets, undefined);
+    assert.equal(child(d.tree(), 'watch-controls-pane').props.style.top, 0);
+    assert.equal(child(d.tree(), 'watch-status-band'), undefined, 'no band without a status bar');
   } finally {safeTop = 0; await d.dispose();}
 });
 test('the upright watch page is opaque under the player, so the page that started playback never shows through it (W3 F7, F8)', async () => {

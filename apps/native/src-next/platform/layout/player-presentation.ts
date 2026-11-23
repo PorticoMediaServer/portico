@@ -22,6 +22,8 @@ export type PlayerPresentationInput = Readonly<{
   panelOpen: boolean;
   /** foldable5: this session has episodes that follow it, so the tabletop can draw them. */
   upNext?: boolean;
+  /** The status bar's height. Upright (phone-player 4) the picture starts under it, on a black band, never behind it. */
+  safeTop?: number;
 }>;
 export type PlayerPresentation = Readonly<{
   mode: 'docked' | 'full-window' | 'watch' | 'book' | 'tabletop';
@@ -106,8 +108,9 @@ export function resolvePlayerPresentation(input: PlayerPresentationInput): Playe
       panel: panelOpen ? controls : undefined, hingeBand: rect(0, top, width, bottom - top), controlsAutoHide: false};
   }
   if (width <= height) {
-    const surface = rect(0, 0, width, Math.min(height, width * 9 / 16));
-    const sheet = rect(0, surface.height, width, height - surface.height);
+    const top = Math.max(0, Math.min(input.safeTop ?? 0, height));
+    const surface = rect(0, top, width, Math.min(height - top, width * 9 / 16));
+    const sheet = rect(0, top + surface.height, width, height - top - surface.height);
     // phone-player 3/4: upright, the options sheet stops under the picture so a
     // subtitle change shows as it is made; the picture keeps playing behind it.
     return {...common, mode: 'watch', surface, picture: surface, controls: panelOpen ? undefined : surface,
