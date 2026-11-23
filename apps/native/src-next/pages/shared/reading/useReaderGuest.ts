@@ -1,5 +1,6 @@
 import {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {NativeModules, useWindowDimensions} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type WebView from 'react-native-webview';
 import type {PreferenceSnapshot} from '../../../../../../packages/client-core/src/preferences';
 import type {ReadingHostSearchAll, ReadingHostContentsTarget} from '../../../../../../packages/client-core/src/reading-host';
@@ -87,5 +88,7 @@ export function useReaderGuest({owner, active, preferences, onBack, onSettings, 
   useLayoutEffect(() => {reader.current?.setCrease(crease ? {left: crease.left, right: crease.right} : undefined);}, [crease, state.reader]);
   const failure = () => {if (!state.reader || reader.current !== state.reader) return; setState({failed: true}); disposeGuest.current?.();};
   const back = () => {if (callbacks.current.active) onBack();};
-  return {state, view, currentReader: () => reader.current, onFailure: failure, back, retryOriginal};
+  // The reader page runs under the status bar; the guest view hands its height to the page (ReadingGuestView).
+  const safeTop = useSafeAreaInsets().top;
+  return {state, view, currentReader: () => reader.current, onFailure: failure, back, retryOriginal, safeTop};
 }

@@ -23,8 +23,10 @@
    Hidden controls are inert immediately; their original paint finishes fading. */
 .top, .bottom, .turn { opacity: 1; pointer-events: auto; }
 .reader[data-chrome="hidden"] :is(.top,.bottom,.turn) { opacity: 0; pointer-events: none; }
-/* The bar clears the status bar where the page runs under it (the native reader's WebView, viewport-fit=cover); 0 in a browser. */
-.reader { --reader-safe-top: env(safe-area-inset-top, 0px); }
+/* The bar clears the status bar where the page runs under it (the native reader's WebView, viewport-fit=cover); 0 in a browser.
+   Android's WebView reports env(safe-area-inset-top) only for a display cutout, so the native app also hands over its own
+   top inset as --native-safe-top; the larger of the two wins. */
+.reader { --reader-safe-top: max(env(safe-area-inset-top, 0px), var(--native-safe-top, 0px)); }
 .top { position: absolute; inset: 0 0 auto; height: calc(72px + var(--reader-safe-top)); display: flex; align-items: center; gap: 14px; padding: var(--reader-safe-top) 20px 0 18px; background: rgba(7,16,24,.9); backdrop-filter: blur(24px) saturate(1.2); box-shadow: 0 1px 0 rgba(237,245,250,.08); }
 .title { min-width: 0; }
 /* No cut text: a long title or author takes a second line (owner's rule), never an ellipsis. */

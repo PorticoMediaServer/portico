@@ -7,10 +7,10 @@ import {useReaderGuest, type ReaderGuestProps} from '../../shared/reading/useRea
 
 export function ReaderGuestPage(props: ReaderGuestProps) {
   const {owner, active} = props, theme = useTheme(), t = defaultI18n.t;
-  const {state, view, currentReader, onFailure, back, retryOriginal} = useReaderGuest(props);
+  const {state, view, currentReader, onFailure, back, retryOriginal, safeTop} = useReaderGuest(props);
   if (state.url && state.reader && !state.failed) return <ReaderFrame active={active}>
     <ReadingGuestView url={state.url} view={view} reader={state.reader} currentReader={currentReader}
-      backgroundColor={theme.colors.ink} observeBridge={() => {}} onFailure={onFailure}/>
+      backgroundColor={theme.colors.ink} observeBridge={() => {}} onFailure={onFailure} safeTop={safeTop}/>
   </ReaderFrame>;
   return <ReaderFrame active={active} back={{testID: 'native-read-host-back', label: t('action.back'), onPress: back}}
     state={state.failed ? {title: t('next.states.pageFailed'), body: t('next.states.pageFailedBody'),

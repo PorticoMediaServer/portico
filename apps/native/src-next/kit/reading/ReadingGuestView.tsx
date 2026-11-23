@@ -11,16 +11,23 @@ type Reader = ReturnType<typeof createReadingHost>;
 
 /** Credential-free native view. The captured reader must still own this view
  * when a message or an error arrives; an old view cannot address its successor. */
-export function ReadingGuestView({url, view, reader, currentReader, backgroundColor, observeBridge, onFailure}: {
+export function ReadingGuestView({url, view, reader, currentReader, backgroundColor, observeBridge, onFailure, safeTop: top = 0}: {
   url: string; view: React.RefObject<WebView | null>; reader: Reader;
   currentReader: () => Reader | undefined; backgroundColor: string;
   observeBridge: (direction: 'guest-to-host' | 'host-to-guest', message: string) => void;
   onFailure: () => void;
+  /** The app's top inset in points, which the page runs under. */
+  safeTop?: number;
 }) {
+  // The page runs under the status bar. Android's WebView gives env(safe-area-inset-top) only for a display cutout, so a tablet
+  // without one drew the reader's bar under the status bar: the page is told the app's own top inset (reader.module.css).
+  const safeTop = nativeSafeTop(top);
   return <WebView ref={view} source={{uri: url}} style={{flex: 1, backgroundColor}}
     originWhitelist={['*']} onShouldStartLoadWithRequest={request => readerNavigationAllowed(url, request.url, request.isTopFrame)}
-    injectedJavaScriptBeforeContentLoaded={__DEV__ ? readerStartupProbe : undefined}
+    injectedJavaScriptBeforeContentLoaded={(__DEV__ ? readerStartupProbe : '') + safeTop}
     injectedJavaScriptBeforeContentLoadedForMainFrameOnly
+    injectedJavaScript={safeTop}
+    injectedJavaScriptForMainFrameOnly
     onMessage={event => {if (currentReader() === reader && readerNavigationAllowed(url, event.nativeEvent.url, true)) {
       if (__DEV__) {const diagnostic = readerStartupDiagnostic(event.nativeEvent.url, event.nativeEvent.data);
         if (diagnostic) {console.warn('portico_reader_startup', JSON.stringify(diagnostic)); return;}}
@@ -30,6 +37,11 @@ export function ReadingGuestView({url, view, reader, currentReader, backgroundCo
     allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} mixedContentMode="never"
     javaScriptCanOpenWindowsAutomatically={false} setSupportMultipleWindows={false} onOpenWindow={() => {}}
     onError={onFailure} onContentProcessDidTerminate={onFailure} onRenderProcessGone={onFailure}/>;
+}
+
+/** Sets the page's --native-safe-top to the app's top inset: a whole number of points, never page text. */
+export function nativeSafeTop(top: number) {
+  return `document.documentElement&&document.documentElement.style.setProperty('--native-safe-top','${Math.max(0, Math.round(top))}px');true;`;
 }
 
 /** Build the credential-free bridge for the exact session supplied by its owner.
