@@ -7,7 +7,7 @@ import type {ReadingHostSearchAll, ReadingHostContentsTarget} from '../../../../
 import {usePlatformPosture} from '../../../platform/platformPosture';
 import type {ReaderHintMemory} from '../../../platform/reader-hint-memory';
 import {readerAssetEntry} from '../../../screens/read/asset-origin';
-import {createReadingGuestBridge} from '../../../kit/reading/ReadingGuestView';
+import {createReadingGuestBridge, nativeSafeTop} from '../../../kit/reading/ReadingGuestView';
 import type {createReadingSessionOwner} from '../../../screens/read/reading-session-owner';
 
 type Owner = ReturnType<typeof createReadingSessionOwner>;
@@ -90,5 +90,8 @@ export function useReaderGuest({owner, active, preferences, onBack, onSettings, 
   const back = () => {if (callbacks.current.active) onBack();};
   // The reader page runs under the status bar; the guest view hands its height to the page (ReadingGuestView).
   const safeTop = useSafeAreaInsets().top;
+  // The inset can change while the page is open (split screen, a fold's posture): the open page is told again.
+  const toldTop = useRef(safeTop);
+  useLayoutEffect(() => {if (toldTop.current === safeTop) return; toldTop.current = safeTop; view.current?.injectJavaScript(nativeSafeTop(safeTop));}, [safeTop, view]);
   return {state, view, currentReader: () => reader.current, onFailure: failure, back, retryOriginal, safeTop};
 }
