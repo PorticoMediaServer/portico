@@ -2,7 +2,10 @@
  * (spec §18.6) and the player: the reference, the desired transport, the media window. */
 /** A channel to watch. `name` is what the player calls it. The rebuilt server names a channel by its id alone; its `sourceId`
  * and `generation` are fixed stand-ins (`NEXT_CHANNEL_SOURCE`, `NEXT_CHANNEL_GENERATION`) and the start sends only the id. */
-export type ChannelReference = Readonly<{kind:'live-source'|'library-channel'; sourceId:string; channelId:string; generation:string; name?:string; logoUrl?:string}>;
+/** `programme`: what the guide said was airing when the device tuned. A live source's session names no programme, so the
+ * player draws this one's title and times until it ends. It is display only: the channel's rights come from its own reads. */
+export type ChannelReference = Readonly<{kind:'live-source'|'library-channel'; sourceId:string; channelId:string; generation:string; name?:string; logoUrl?:string;
+  programme?:Readonly<{id:string; title:string; startMs:number; endMs:number}>}>;
 export type ChannelSeek = Readonly<{seekCommandId:string; bufferGeneration:string; kind:'position'|'live'; positionUs:string|null}>;
 export type ChannelDesired = Readonly<{state:'playing'|'paused'; seek:ChannelSeek|null; retryRequestId:string|null}>;
 export type ChannelProgramme = Readonly<{id:string;itemId:string;title:string;startMs:number;endMs:number}>;

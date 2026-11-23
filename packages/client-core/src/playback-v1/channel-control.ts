@@ -144,7 +144,7 @@ const engineMode = (s: Session): 'direct' | 'hls' =>
 
 /** The session as the channel projection `PlaybackService.applyChannel` reads. */
 export function channelView(s: Session, channel: ChannelReference, at: ChannelAttachment, timing: Readonly<{now: number; serverNow: number}>): ChannelView {
-  const generation = String(at.generation), programme = s.kind === 'title' ? s.channel : undefined;
+  const generation = String(at.generation), programme = s.kind === 'title' ? s.channel : undefined, tuned = channel.programme;
   const start = programme?.startsAtMs, end = programme?.endsAtMs;
   // A Library Channel's timeline is its programme's title, from the programme's start; a live
   // stream's is the stream from where this device joined it.
@@ -161,7 +161,11 @@ export function channelView(s: Session, channel: ChannelReference, at: ChannelAt
   const reservation = s.countdown ? Math.max(0, s.countdown.endsAtMs - timing.serverNow + Math.round(timing.now)) : undefined;
   const linear: ChannelProjection = Object.freeze({
     channel, name: channel.name ?? '',
-    programme: programme && start !== undefined && end !== undefined ? Object.freeze({id: `${programme.id}@${start}`, itemId: s.itemId ?? '', title: '', startMs: start, endMs: end}) : null,
+    programme: programme && start !== undefined && end !== undefined
+      ? Object.freeze({id: `${programme.id}@${start}`, itemId: s.itemId ?? '', title: tuned && tuned.startMs === start && tuned.endMs === end ? tuned.title : '', startMs: start, endMs: end})
+      // A live source's session names no programme: the one the guide had airing, while it airs.
+      : s.kind === 'live' && tuned && timing.serverNow >= tuned.startMs && timing.serverNow < tuned.endMs
+        ? Object.freeze({id: tuned.id, itemId: '', title: tuned.title, startMs: tuned.startMs, endMs: tuned.endMs}) : null,
     next: null, desired,
     media: Object.freeze({...(reservation === undefined ? {} : {reservationRequiredAtMs: reservation}), streamUrl: s.presentation.url, mode: engineMode(s),
       // Live HLS dates its segments; a title, or a live source's own stream, counts media time from its start.
