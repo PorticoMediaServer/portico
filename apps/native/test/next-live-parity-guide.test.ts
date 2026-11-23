@@ -43,6 +43,7 @@ const twoSources = [
 
 type Options = {isTV?: boolean; width?: number; height?: number; role?: 'owner' | 'member'; sources?: any[]; filteredTotal?: number; hangChannels?: boolean;
   later?: any[]; scheduleFails?: boolean};
+const navigated: unknown[] = [];
 async function fixture({isTV = false, width, height, role = 'owner', sources = twoSources, filteredTotal = 0, hangChannels = false, later = [], scheduleFails = false}: Options = {}) {
   const host = await fabricHost(), listeners = new Set<() => void>(), editors: string[] = [], scheduled: any[] = [];
   const retirement = new AbortController();
@@ -73,7 +74,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     account: {id: 'owner', username: 'Owner', role, primaryProfileId: 'main', disabled: false, allowedLibraries: []},
     profiles: [{id: 'main', name: 'Main', primary: true, position: 0, art: 'blue', accessMarker: 'a', pinRequired: false}]};
   const context: any = {api: {baseUrl: 'https://server.example/'}, account, authority: () => authority, current: () => true,
-    navigation: {subscribe: listen, getSnapshot: () => route, isCurrent: () => true}};
+    navigation: {subscribe: listen, getSnapshot: () => route, isCurrent: () => true, open: (next: unknown) => {navigated.push(next);}}};
   const runtime: any = {retirementSignal: retirement.signal, subscribe: listen, getSnapshot: () => shell, text: {t: defaultI18n.t, locale: 'en-US'},
     error: (_: unknown, retry: () => void) => ({title: 'Unavailable', primaryAction: {id: 'retry', label: 'Retry', onPress: retry}}), reportError: (error: unknown) => {throw error;}, onDestination: noop};
   const native = {View: 'View', Text: 'Text', ScrollView: 'ScrollView', VirtualizedList: 'VirtualizedList', Platform: {OS: 'android'},
@@ -428,3 +429,14 @@ test('TV reads no DVR summary for the guide and draws no conflict dot', async ()
   } finally {await f.close();}
 });
 
+
+test('a phone\'s Watch live closes the programme sheet as the channel opens, so the sheet never stays over the player', async () => {
+  const f = await fixture(); try {
+    navigated.length = 0;
+    await f.open(rawChannel(), rawProgramme('p1', -10, 20));
+    await f.until(() => f.inSheet('live-watch') !== undefined);
+    await f.press('live-watch');
+    assert.equal((navigated[0] as {kind?: string} | undefined)?.kind, 'channel', 'the channel opens');
+    assert.equal(f.sheet(), undefined, 'and the sheet is gone');
+  } finally {await f.close();}
+});

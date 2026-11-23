@@ -85,7 +85,12 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
   if (selected) {
     const {channel, program} = selected;
     const watchAction = channel.tuneAvailable ? {id: 'watch', buttons: [{id: 'live-watch', label: t(onNowProgramme ? 'guide.watchLive' : 'guide.watchChannel'),
-      icon: 'i-play' as const, primary: true, opener, onPress: () => watch(channel)}]} : undefined;
+      icon: 'i-play' as const, primary: true, opener, onPress: () => {
+        // A phone's programme sheet is a modal over the window: it closes as the channel opens, or it would stay over the
+        // player (iPhone). TV and the two-pane tablet keep their pane, which the player covers.
+        if (!theme.isTV && !twoPane) setSelected(undefined);
+        watch(channel);
+      }}]} : undefined;
     if (watchAction && (theme.isTV ? showTVWatch : onNowProgramme)) programmeActions.push(watchAction);
     if (tvCanRecord && program) programmeActions.push({id: 'record', buttons: [
       {id: 'live-record', label: t(recordLabelKey(program.recording)), icon: 'i-rec', loading: recording, disabled: recording || !!program.recording,
