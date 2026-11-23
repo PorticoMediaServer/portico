@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, type ComponentProps} from 'react';
+import React, {useEffect, useMemo, useState, type ComponentProps} from 'react';
 import {tvAccountSpec} from '@portico/design';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useMotion} from '../useMotion';
@@ -48,7 +48,7 @@ export function TVAccountFields({children}: {children: React.ReactNode}) {
 /** connect36 / auth8: every account form uses this column and type rhythm. */
 export function TVAuthLayout({title, eyebrow, body, children, portico, aside, testID, beforeActions, kicker,
   primaryAction, secondaryAction, additionalActions, detailsAction}: TVAuthLayoutProps) {
-  const theme = useTheme(), window = useWindowDimensions();
+  const theme = useTheme(), window = useWindowDimensions(), [primaryHost, setPrimaryHost] = useState<View | null>(null);
   const titleStyle = useMemo(() => [theme.type.accountTitle, {color: theme.colors.text, marginBottom: tvAccountSpec.titleGap,
     // connect40's `.tvl h1`: a soft shadow keeps the title legible over the bright parts of the backdrop.
     textShadowColor: 'rgba(7, 16, 24, 0.5)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30}], [theme.type.accountTitle, theme.colors.text]);
@@ -70,10 +70,12 @@ export function TVAuthLayout({title, eyebrow, body, children, portico, aside, te
       {body != null && <Text style={[theme.type.accountLede, {color: theme.colors.textSecondary, maxWidth: 760, marginBottom: tvAccountSpec.ledeGap}]}>{body}</Text>}
       {beforeActions}
       {/* The actions sit under the start of the wide fields, so Down from a field would land on the button nearest the
-          field's middle (Back, not Continue). The row is one autoFocus guide: focus coming in lands on its first action,
-          or on the one last focused there. */}
-      {actions.length > 0 && <TVFocusGuideView autoFocus style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: tvAccountSpec.actionGap}}>
-        {actions.map(item => <StateActionButton key={item.id} testID={testID} action={item} size="hero" variant={item === primaryAction ? 'primary' : 'glass'}/>)}
+          field's middle (Back, not Continue). The row is one autoFocus guide aimed at the primary action while it can take
+          focus: focus coming in lands on it, or on the action last focused there. tvOS needs the aim: a fresh guide with
+          nothing remembered fell back to the nearest button (Apple TV, every open after the first). */}
+      {actions.length > 0 && <TVFocusGuideView autoFocus destinations={primaryHost && primaryAction && !primaryAction.disabled ? [primaryHost] : []}
+        style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: tvAccountSpec.actionGap}}>
+        {actions.map(item => <StateActionButton key={item.id} ref={item === primaryAction ? setPrimaryHost : undefined} testID={testID} action={item} size="hero" variant={item === primaryAction ? 'primary' : 'glass'}/>)}
       </TVFocusGuideView>}
       {children}
     </ScrollView>

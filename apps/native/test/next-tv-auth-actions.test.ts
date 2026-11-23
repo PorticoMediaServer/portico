@@ -22,11 +22,20 @@ test('TV account forms: the actions are one autoFocus row, primary first, so Dow
     '../states/StateActionButton': {StateActionButton: 'StateActionButton'}, '../focus': {FocusRegion: 'FocusRegion'},
   });
   const primary = {id: 'inspect', label: 'Continue', onPress() {}}, back = {id: 'back', label: 'Back', onPress() {}};
-  const tree = host.render(() => layout.TVAuthLayout({title: 'Use a local server', testID: 'accounts-entry', primaryAction: primary, secondaryAction: back,
+  const draw = (primaryAction: any) => host.render(() => layout.TVAuthLayout({title: 'Use a local server', testID: 'accounts-entry', primaryAction, secondaryAction: back,
     beforeActions: 'FIELDS'}));
+  const tree = draw(primary);
   const row = nodes(tree).find(node => node.type === 'TVFocusGuideView');
   assert.ok(row, 'the actions are drawn in one focus guide');
   assert.equal(row.props.autoFocus, true);
   assert.deepEqual(nodes(row.props.children).filter(node => node.type === 'StateActionButton').map(node => [node.props.action.id, node.props.variant]),
     [['inspect', 'primary'], ['back', 'glass']], 'Continue comes first, so it takes focus when focus first comes in');
+  // tvOS: a fresh guide with nothing remembered fell back to the nearest button (Back) on every open after the first, so the
+  // guide is aimed at the primary action while it can take focus.
+  const continueHost = {tag: 'continue'};
+  nodes(row.props.children).find(node => node.props.action?.id === 'inspect').props.ref(continueHost);
+  const aimed = nodes(draw(primary)).find(node => node.type === 'TVFocusGuideView');
+  assert.deepEqual(aimed.props.destinations, [continueHost], 'the guide sends focus coming in to Continue');
+  const disabled = nodes(draw({...primary, disabled: true})).find(node => node.type === 'TVFocusGuideView');
+  assert.deepEqual(disabled.props.destinations, [], 'a disabled Continue is never the aim (Back takes focus)');
 });
