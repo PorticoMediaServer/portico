@@ -92,12 +92,12 @@ export class NativeShellRouteRegistry {
       const value = instances.get(factory) as T | undefined;
       if (value) return value;
       if (initializing.has(factory)) return undefined;
-      initializing.add(factory);
+      initializing.add(factory); this.creating++;
       try {
         const created = factory(context);
         if (!current() || !active().has(factory) || callerCurrent?.() === false) {created.dispose?.();return undefined;}
         instances.set(factory, created);return created;
-      } finally {initializing.delete(factory);}
+      } finally {initializing.delete(factory); this.creating--;}
     };
     const renderer = (route: NativeShellRoute): NativeRouteRenderer | undefined => {
       const create = (route.kind === 'shell' ? this.destinations.get(route.destination.kind) : undefined) ?? this.routes.get(route.kind);
@@ -135,7 +135,21 @@ export class NativeShellRouteRegistry {
       dispose: () => {if (!alive) return; alive = false;if (this.preparers.get(context) === prepare) this.preparers.delete(context); unsubscribe(); for (const factory of instances.keys()) release(factory);},
     } satisfies NativeBoundRoutes);
   }
-  private changed() {for (const listener of [...this.listeners]) listener();}
+  /** A factory is being created. That can happen while the shell renders (a route's first render creates it), and a
+   * module the factory first loads may register its own routes; telling subscribers then would update the shell in the
+   * middle of its render ("Cannot update a component while rendering a different component"). */
+  private creating = 0;
+  private notifyQueued = false;
+  private changed() {
+    if (this.creating > 0) {
+      if (this.notifyQueued) return;
+      this.notifyQueued = true;
+      queueMicrotask(() => {this.notifyQueued = false; this.notify();});
+      return;
+    }
+    this.notify();
+  }
+  private notify() {for (const listener of [...this.listeners]) listener();}
 }
 
 export const nativeShellRoutes = new NativeShellRouteRegistry();
