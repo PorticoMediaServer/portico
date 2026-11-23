@@ -135,6 +135,19 @@ export function useWatchChrome(props: NativeWatchChromeProps) {
     const owner = playback.getSnapshot(), live = props.liveGuide?.getSnapshot(), actions = props.liveActions?.getSnapshot();
     return current() && !owner.retired && owner.dock.local?.expanded === true && !controls.getSnapshot().panel && !controls.getSnapshot().panelReturning && !miniPaintPresent && !(fence && ((theme.isTV || !compact) && live?.open && sameFence(live.fence, fence) || actions?.sheet && sameFence(actions.fence, fence)));
   }, [current, playback, fence, props.liveGuide, props.liveActions, controls, miniPaintPresent, theme.isTV, compact]);
+  // Moving between the controls keeps them up. Apple TV's swipes move focus without a key event reaching useTVKeyEvent,
+  // so the hide timer ran from the first reveal and the controls went while the viewer was still on them.
+  useEffect(() => {
+    if (!theme.isTV || !fence || !visible) return;
+    const at = (value = registry.capture()) => value && value.regionId.startsWith('watch-') && value.regionId !== 'watch-surface' ? `${value.regionId}\n${value.childId}` : undefined;
+    let last = at();
+    return registry.subscribe(() => {
+      const next = at();
+      if (!next || next === last) return;
+      last = next;
+      if (controlsCurrent()) controls.reveal(fence);
+    });
+  }, [theme.isTV, fence, visible, registry, controls, controlsCurrent]);
   useLayoutEffect(() => {
     if (!liveOverlayOpen || !fence) return;
     miniReturn.current = {fence, current: miniOpen ? miniRestoreProof : actionsRestoreProof, target: miniOpen ? 'guide' : 'more'};
