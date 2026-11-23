@@ -10,7 +10,7 @@ import {FocusRegion} from '../../../kit/focus';
 import type {ServerFact} from '../../../kit/shell';
 import {StateView} from '../../../kit/states';
 import {cardAccessibilityLabel} from '../../../kit/cards/model';
-import {TVDashboardBody, TVDashboardHead, TVDashboardItem, TVDashboardMore, TVDashboardSectionLabel, TVDashboardSession, TVDiskUsage} from '../../../kit/dashboard/TVDashboardParts';
+import {TVDashboardBody, TVDashboardHead, TVDashboardItem, TVDashboardMore, TVDashboardQuiet, TVDashboardSectionLabel, TVDashboardSession, TVDiskUsage} from '../../../kit/dashboard/TVDashboardParts';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../../../screens/settings-live/ports';
 import type {NativeDashboardController} from '../../../screens/settings-live/dashboard-controller';
@@ -34,7 +34,7 @@ export function DashboardPage({controller, ports, runtime, column, rows}: {
   if (health.uptimeSeconds !== undefined) facts.push({id: 'uptime', text: t('settings.server.health.upFor', {duration: defaultI18n.duration(health.uptimeSeconds)})});
   if (health.freeBytes !== undefined) facts.push({id: 'free', text: t('settings.server.health.free', {bytes: formatBytes(health.freeBytes)})});
   if (health.databaseBytes !== undefined) facts.push({id: 'database', text: t('settings.server.health.database', {bytes: formatBytes(health.databaseBytes)})});
-  const sessions = state.sessionWindow, jobs = state.jobWindow;
+  const sessions = state.sessionWindow, jobs = state.jobWindow, settled = !state.loading && state.error === undefined;
   return <TVDashboardBody>
     <TVDashboardHead serverName={ports.serverName()} role={state.admission} title={t('next.shell.dashboard')} facts={facts}/>
     <FocusRegion id={rows} entry={state.sessions[0]?.id} orientation="vertical" edges={{left: column}}>
@@ -66,6 +66,7 @@ export function DashboardPage({controller, ports, runtime, column, rows}: {
       {state.admission === 'owner' && <>
         <TVDashboardSectionLabel>{t('settings.server.alerts')}</TVDashboardSectionLabel>
         {state.alerts.map((alert, index) => <TVDashboardItem key={`${alert.code}:${index}`} focusId={`alert:${alert.code}:${index}`} testID={`dashboard-alert-${alert.code}`} label={dashboardAlertWords(alert, t).title}/>)}
+        {settled && !state.alerts.length && <TVDashboardQuiet>{t('web.overview.noAlerts')}</TVDashboardQuiet>}
         <TVDashboardSectionLabel>{t('next.shell.backgroundTasks')}</TVDashboardSectionLabel>
         {state.jobs.map((job, index) => {
           let lease = controller.jobFocusToken(job.id);
@@ -73,6 +74,7 @@ export function DashboardPage({controller, ports, runtime, column, rows}: {
             onFocus={() => {const window = state.jobWindow; if (window) {lease = controller.focusJob(job.id, window); if (index >= state.jobs.length - 2 && window.error === undefined) void controller.nextJobs(window);}}}
             onBlur={() => {if (state.jobWindow && lease) controller.blurJob(job.id, lease, state.jobWindow);}}/>;
         })}
+        {settled && !state.jobs.length && !jobs?.pending && <TVDashboardQuiet>{t('web.activity.noTasks')}</TVDashboardQuiet>}
         {jobs && <>
           {jobs.refreshRequired && <StateView {...runtime.error({code: 'stale_continuation'}, () => {if (state.jobWindow) void controller.restartJobs(state.jobWindow);}, 'server-console')} testID="dashboard-jobs-refresh-required"/>}
           {jobs.error !== undefined && <StateView {...runtime.error(jobs.error, () => {if (state.jobWindow) void controller.retryJobs(state.jobWindow);}, 'server-console')} testID="dashboard-jobs-page-error"/>}

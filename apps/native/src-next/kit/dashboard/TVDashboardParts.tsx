@@ -6,12 +6,21 @@ import {ScreenText} from '../layout/Screen';
 import {ServerHeader, type ServerFact} from '../shell';
 import {shellType} from '../shell/visual';
 import {textLines, useTheme} from '../theme';
+import {useFrameMetrics} from '../frames/metrics';
 
 /** The TV Dashboard (TV35) inside Server settings: it scrolls beside the server page list. */
 export function TVDashboardBody({children}: {children: ReactNode}) {
+  const frame = useFrameMetrics();
+  // Beside the list a Server settings page keeps the right gutter, as every other page does (SettingsPageFrame).
   return <View style={{flex: 1}}>
-    <ScrollView contentContainerStyle={{paddingBottom: 80}} style={{flex: 1}}>{children}</ScrollView>
+    <ScrollView contentContainerStyle={{paddingBottom: 80, paddingRight: frame.rightGutter}} style={{flex: 1}}>{children}</ScrollView>
   </View>;
+}
+
+/** A section with nothing in it says so in one quiet line (the phone's Dashboard words), not an empty heading. */
+export function TVDashboardQuiet({children}: {children: ReactNode}) {
+  const theme = useTheme();
+  return <Text style={[theme.type.body, {color: theme.colors.textTertiary, marginBottom: 8}]}>{children}</Text>;
 }
 
 /** The server's name (its header, held to one line), "Dashboard", and the owner's health facts: how the server is (with
