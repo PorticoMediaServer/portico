@@ -42,10 +42,11 @@ export function AccountEntryPasswordToggle({shown, label, disabled, onPress}: {s
  * (it refreshes by itself, or why it stopped). */
 export function AccountEntryCode({qr, code, address, note}: {qr?: string; code: string; address?: string; note: string}) {
   const theme = useTheme();
-  return <View style={{gap: 16, marginBottom: 20}}>{qr && <QRCode value={qr} size={theme.isTV ? 240 : 180}/>}
-    <Text selectable style={[theme.type.title, {color: theme.colors.text}]}>{code}</Text>
-    {address && <Text selectable style={[theme.type.body, {color: theme.colors.textSecondary}]}>{address}</Text>}
-    <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{note}</Text>
+  // Centred under the screen's centred title and intro: the QR, the code, the address and the note read as one block.
+  return <View style={{gap: 16, marginBottom: 20, alignItems: 'center'}}>{qr && <QRCode value={qr} size={theme.isTV ? 240 : 180}/>}
+    <Text selectable style={[theme.type.title, {color: theme.colors.text, textAlign: 'center'}]}>{code}</Text>
+    {address && <Text selectable style={[theme.type.body, {color: theme.colors.textSecondary, textAlign: 'center'}]}>{address}</Text>}
+    <Text style={[theme.type.caption, {color: theme.colors.textTertiary, textAlign: 'center'}]}>{note}</Text>
   </View>;
 }
 
