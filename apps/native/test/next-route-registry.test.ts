@@ -128,3 +128,24 @@ test('module overlays use one shared factory instance and stop at authority reti
   current = false; assert.equal(bound.renderOverlays(runtime), null);
   bound.dispose();
 });
+
+test('a route a factory registers while it is created tells subscribers after, never inside the render that created it', async () => {
+  const registry = new NativeShellRouteRegistry(), heard: string[] = [];
+  registry.subscribe(() => heard.push('changed'));
+  registry.registerDestination('search', () => {
+    // A module first loaded by this factory registers its own route, as reading-settings-route does.
+    registry.registerRoute('settings-page', () => ({render: () => null}));
+    heard.push('created');
+    return {render: () => 'page'};
+  });
+  heard.length = 0;
+  const bound = registry.bind(fixtureContext());
+  assert.equal(bound.render(search, runtime), 'page');
+  assert.deepEqual(heard, ['created'], 'no subscriber runs while the factory is being created');
+  await Promise.resolve();
+  assert.deepEqual(heard, ['created', 'changed'], 'subscribers hear the change once, right after');
+  assert.ok(registry.hasRoute('settings-page'));
+  registry.registerRoute('read', () => ({render: () => null}));
+  assert.deepEqual(heard, ['created', 'changed', 'changed'], 'outside a factory a change is told at once, as before');
+  bound.dispose();
+});
