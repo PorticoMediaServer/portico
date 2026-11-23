@@ -127,6 +127,9 @@ test('admin session facts retain viewer/device/state/position/delivery/location/
   const parts = sessionFactParts(base, env);
   assert.deepEqual(parts.map(p => [p.id, p.text, p.role]), [['viewer', 'Alex', 'identity'], ['account', 'Account', 'context'], ['device', 'on Living room TV', 'context'], ['state', 'Paused', 'status'], ['position', '12:34 of 1:00:00', 'supplement'], ['delivery', 'Playing the original file', 'status'], ['location', 'Home network', 'context'], ['bitrate', '8.0 Mbps', 'supplement'], ['started', 'Started 3:00 PM', 'supplement']]);
   assert.equal(sessionFactParts({...base, kind: 'channel'}, env).some(p => p.id === 'position'), false);
+  // A stream with no decision (subtitles: null from the server) is skipped, not read: the TV Dashboard crashed on it.
+  const undecided = {...base, decision: {video: {action: 'transcode'}, audio: {action: 'copy'}, subtitles: null}} as unknown as typeof base;
+  assert.equal(sessionFactParts(undecided, env).find(p => p.id === 'delivery')!.text, sessionFactParts({...base, decision: {video: {action: 'transcode'}}}, env).find(p => p.id === 'delivery')!.text);
   assert.equal(sessionFactParts({...base, kind: 'audio', durationMs: undefined}, env).find(p => p.id === 'position')!.text, 'At 12:34');
   assert.equal(sessionFactParts({...base, startedAt: 'bad', bandwidthKbps: Infinity, bitrateKbps: -1}, env).some(p => p.id === 'started' || p.id === 'bitrate'), false);
   assert.deepEqual(sessionFactParts({kind: 'channel'}, env), []);
