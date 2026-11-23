@@ -333,7 +333,9 @@ test('tv-more 34: OK on a TV match closes search and opens its page with that ro
     assert.equal(typeof open, 'function', 'TV matches are wrapped so OK opens the page');
     open('subtitles'); f.render();
     assert.ok(!f.nodes().some((node: any) => node.type === 'NativeTVKeyboard'), 'search closed');
-    assert.deepEqual(providers(f), [{highlight: 'subtitles'}]);
+    // TV highlights the row and reveals it quietly (no flash), so a row below the fold is scrolled into view.
+    const [value] = providers(f);
+    assert.equal(value.highlight, 'subtitles'); assert.equal(value.flash?.rowId, 'subtitles'); assert.equal(value.flash?.quiet, true); assert.equal(typeof value.flash?.reveal, 'function');
     const asks = search.entries.filter(entry => entry.address?.regionId === 'settings.rows.playback');
     assert.deepEqual(asks.at(-1)?.address, {regionId: 'settings.rows.playback', childId: 'subtitles'});
     assert.equal(asks.at(-1)?.activation.visible, true); assert.equal(asks.at(-1)?.activation.intent, 'enter');

@@ -229,7 +229,8 @@ export function useSettingsPage({ports, controller, runtime, devicePreferences, 
   }, [reveal]);
   useLayoutEffect(() => {committedAim.current = aimed; revealWaiting();}, [aimed, revealWaiting]);
   const pageScrollLayout = useCallback((height: number) => {pageViewport.current = {scroll: pageScroll.current, height}; revealWaiting();}, [revealWaiting]);
-  const rowTargeting = useMemo<SettingsRowTargeting>(() => !aimed ? {} : theme.isTV ? {highlight: aimed.rowId}
+  // TV highlights the row and also reveals it (no flash): a row below the fold took focus but stayed out of sight.
+  const rowTargeting = useMemo<SettingsRowTargeting>(() => !aimed ? {} : theme.isTV ? {highlight: aimed.rowId, flash: {rowId: aimed.rowId, serial: aimed.serial, reveal, quiet: true}}
     : {flash: {rowId: aimed.rowId, serial: aimed.serial, reveal}}, [aimed, theme.isTV, reveal]);
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]);
   const column = ids.surface('settings.pages'), rows = ids.surface(`settings.rows.${page?.id ?? ''}`), keyboard = ids.surface('settings.keyboard'), searchField = ids.surface('settings.search');
