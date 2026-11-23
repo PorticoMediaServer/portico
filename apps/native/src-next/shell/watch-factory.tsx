@@ -25,6 +25,7 @@ import type {NativeWatchOutletPort} from './watch-outlet';
 import {NativeTitleController, type NativeTitlePageHost} from '../screens/watch/title-controller';
 import {NativeTitleStarts} from '../screens/watch/title-starts';
 import {TitleScreenPage, type NativeTitleScreenProps} from '../pages/shared/player/TitleScreenPage';
+import {KeptPage} from '../pages/shared/player/KeptPage';
 import {touchTitlePages} from '../pages/touch/title/routes';
 import {tvTitlePages} from '../pages/tv/title/routes';
 import {FileInfoSession, fileInfoUsesGroups} from '../../../../packages/client-core/src/file-info-session';
@@ -534,15 +535,30 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
   const setPresentation = (value: typeof context) => {context = value; update();};
   /** Phone-player4's retained watch body, and foldable3g's two book pages: one
    * controller, one captured session, one section each side of the crease. */
+  // The page last drawn per section, with the playback run it belongs to: while Up next hands over to the queue's next item,
+  // the new fence names it a moment before its entry arrives (2 to 5 s), and the page stays instead of going blank. Only for
+  // KEPT_PAGE_MS: an entry that never arrives (a failed read) must not leave the last title's page over the next one.
+  const KEPT_PAGE_MS = 8000;
+  const lastPage = new Map<string, {run: string; title: string; page: React.ReactElement; since?: number}>();
+  const runOf = (fence: NativeWatchHostContext['fence']) => JSON.stringify(fence.playback);
   const watchPage = (host: NativeWatchHostContext, sections: 'all' | 'title' | 'episodes') => {
     const source = host.source, entry = source.entry, pane = sections === 'title' ? host.layout.details : host.layout.content;
-    if (!alive() || ports.isTV || (host.layout.mode !== 'watch' && host.layout.mode !== 'book') || !pane || !entry?.libraryId || source.retired || host.fence.kind !== 'queue'
-      || !sameFence(ports.playback.getSnapshot().fence, host.fence) || entry.id !== host.fence.itemId) return null;
+    if (!alive() || ports.isTV || (host.layout.mode !== 'watch' && host.layout.mode !== 'book') || !pane || source.retired || host.fence.kind !== 'queue'
+      || !sameFence(ports.playback.getSnapshot().fence, host.fence)) return null;
+    if (!entry?.libraryId || entry.id !== host.fence.itemId) {
+      // Only while the next entry is still on its way: an entry that is here and is another title never borrows a page.
+      const kept = lastPage.get(sections), now = Date.now();
+      if (!kept || entry || kept.run !== runOf(host.fence)) {lastPage.delete(sections); return null;}
+      kept.since ??= now;
+      if (now - kept.since >= KEPT_PAGE_MS) {lastPage.delete(sections); return null;}
+      // Its own timer ends it: a paused or buffering next item publishes nothing that would redraw this page.
+      return <KeptPage key={kept.since} until={kept.since + KEPT_PAGE_MS}>{kept.page}</KeptPage>;
+    }
     const key = `watch:${titleKey(entry)}`;
     let controller = controllers.get(key);
     if (!controller) controller = createTitleController(key, entry, true);
     const owner = controller, selection = selectionFor(key, owner);
-    return <TitleScreenPage authority={ports.authority} {...ports.title} key={`${key}:${sections}`} controller={owner} text={host.runtime.text} artwork={host.runtime.artwork} ambient={host.runtime.ambient}
+    const page = <TitleScreenPage authority={ports.authority} {...ports.title} key={`${key}:${sections}`} controller={owner} text={host.runtime.text} artwork={host.runtime.artwork} ambient={host.runtime.ambient}
       selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
       watch={{source, playback: ports.playback, width: pane.width, sections}} back={() => {ports.navigation.back(ports.authority);}}
       myList={ports.title.myList?.(entry)} download={ports.title.download} more={(member, anchorRef) => {
@@ -554,6 +570,10 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
             || onTitlePage(state, member));
         }, anchorRef, card?.onEnter).catch(ports.title.reportError);
       }}/>;
+    // A page for another title retires every kept page, so a fold during a later gap never shows an older title.
+    for (const [section, kept] of lastPage) if (kept.title !== key) lastPage.delete(section);
+    lastPage.set(sections, {run: runOf(host.fence), title: key, page});
+    return page;
   };
   const episodeList = (host: NativeWatchHostContext, pane: boolean) => {
     const source = host.source, entry = source.entry;
@@ -606,7 +626,7 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
     releaseTitle: (entry: ContentEntry) => {const key = titleKey(entry); controllerSubscriptions.get(key)?.(); controllerSubscriptions.delete(key); releaseSelection(key); controllers.get(key)?.dispose(); controllers.delete(key); starts.invalidate();},
     /** Actual playback lifetime end only; never a dock/fold/full-window change. */
     releaseWatchBody: (entry: ContentEntry) => {const key = `watch:${titleKey(entry)}`; controllerSubscriptions.get(key)?.(); controllerSubscriptions.delete(key); releaseSelection(key); controllers.get(key)?.dispose(); controllers.delete(key); starts.invalidate();},
-    dispose: () => {if (disposed) return; disposed = true; for (const destination of destinations) destination.dispose(); destinations.clear(); starts.dispose(); for (const off of controllerSubscriptions.values()) off(); controllerSubscriptions.clear(); offPlayback(); offAuthority(); offRoute(); for (const request of requests.keys()) request.abort(); requests.clear(); for (const key of [...selections.keys()]) releaseSelection(key); for (const controller of controllers.values()) controller.dispose(); controllers.clear(); offFullWindow?.(); controls.dispose();},
+    dispose: () => {if (disposed) return; disposed = true; for (const destination of destinations) destination.dispose(); destinations.clear(); starts.dispose(); for (const off of controllerSubscriptions.values()) off(); controllerSubscriptions.clear(); offPlayback(); offAuthority(); offRoute(); for (const request of requests.keys()) request.abort(); requests.clear(); for (const key of [...selections.keys()]) releaseSelection(key); for (const controller of controllers.values()) controller.dispose(); controllers.clear(); lastPage.clear(); offFullWindow?.(); controls.dispose();},
   });
   function Watch(props: Omit<NativeWatchChromeProps, 'controls' | 'playback' | 'source'>) {
     const source = useSyncExternalStore(ports.playback.subscribe, ports.playback.getSnapshot);
