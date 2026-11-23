@@ -109,6 +109,13 @@ test('expanded live tablet shows supplied programme, channel mark/number and tim
   const fallback = strings(nodes(f.render()).find(node => node.props.testID === 'watch-live-identity'));assert.match(fallback, /Summit Sports Extra/);assert.doesNotMatch(fallback, /next\.kit\.range/);
 });
 
+test('a channel the runtime projects with a blank name and programme title still names itself from the guide', async () => {
+  const f = await fixture({bar: true});
+  f.changeSource({playback: {...f.source().playback, linear: {...f.source().playback.linear, name: '', programme: {...f.source().playback.linear.programme, title: ''}}}});
+  const text = strings(nodes(f.render()).find(node => node.props.testID === 'watch-live-identity'));
+  assert.match(text, /Summit Sports Extra/, 'the guide row names the channel (it drew only "202 Live" on iPad)');
+});
+
 test('mobile live actions omit Record without the current server offer and keep library-channel More', async () => {
   const f = await fixture();f.changeActions({offer: {...f.actionState().offer, channel: {...f.row, kind: 'library', recordAvailable: false}}});
   const actions = nodes(f.render()).find(node => node.type === 'LiveActions');assert.equal(actions.props.record, undefined);assert.ok(actions.props.more);
