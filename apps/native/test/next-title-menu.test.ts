@@ -155,3 +155,13 @@ test('on TV an episode\'s Go to season sits with the personal rows, above the se
   const touch = titleMenuItems(groups, {tv: false, run() {}, related: [row('go-to-season')], surface: [row('select')]});
   assert.equal(ids(touch).includes('go-to-season'), false, 'Go to season is drawn for TV only');
 });
+
+test('in a group that lets this viewer add, a touch menu offers Watch with group and Add to group queue after Play, on a card and on the title page', () => {
+  const groups = nativeWatchMenuGroups({entry, detail: detail(), menu: fullMenu(), together: {queue: true, watch: true}});
+  const card = ids(titleMenuItems(groups, {tv: false, run() {}}));
+  assert.deepEqual(card.slice(0, 3), ['play', 'watchWithGroup', 'addToGroupQueue']);
+  const page = ids(titleMenuItems(groups, {tv: false, page: true, run() {}}));
+  assert.ok(page.includes('watchWithGroup') && page.includes('addToGroupQueue'), 'the page form keeps every row a card offers');
+  const alone = ids(titleMenuItems(nativeWatchMenuGroups({entry, detail: detail(), menu: fullMenu()}), {tv: false, run() {}}));
+  assert.ok(!alone.includes('watchWithGroup') && !alone.includes('addToGroupQueue'), 'no group, no group rows');
+});
