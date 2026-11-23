@@ -121,7 +121,9 @@ export function useSettingsPreferences({page, ports, controller, runtime, device
   const closeConfirm = (target: AccountConfirm) => {if (confirmRef.current !== target) return; confirmRef.current = undefined; setConfirmOpen(current => current === target ? undefined : current);};
   const cancel = useRef<View>(null), firstLanguage = useRef<View>(null);
   useSyncExternalStore(devicePreferences.subscribe, () => page.sections.flatMap(section => section.rows).filter(row => row.kind === 'composite' && row.storage === 'device').map(row => devicePreferences.read((row as Extract<Row, {kind: 'composite'}>).id)).join('|'));
-  useEffect(() => setAdvanced(false), [page.id]);
+  // Closed for each page, before (in the same commit as) a search result opening it again below: as a passive effect
+  // this ran after that and shut Advanced on the result's row, which then was never drawn to take focus.
+  useLayoutEffect(() => setAdvanced(false), [page.id]);
   const visible = (row: Row) => !('when' in row) || !row.when || state.preferences.effective[row.when.key] === ('equals' in row.when ? row.when.equals : undefined);
   const enabled = (row: Row) => {
     if (!('enableWhen' in row) || !row.enableWhen) return true;

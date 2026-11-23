@@ -61,7 +61,7 @@ export function SettingsRow({label, highlightQuery, description, scope, icon, na
   const lit = highlighted || (testID !== undefined && targeting.highlight === testID);
   const flash = testID !== undefined && targeting.flash?.rowId === testID ? targeting.flash : undefined;
   const content = <>
-    {flash && <SettingsRowFlash serial={flash.serial} reveal={flash.reveal}/>}
+    {flash && <SettingsRowFlash serial={flash.serial} reveal={flash.reveal} quiet={flash.quiet}/>}
     {dependent && <View pointerEvents="none" style={{position: 'absolute', left: tv ? 38 : 31, top: -1, height: '50%', width: 14, borderLeftWidth: 2, borderBottomWidth: 2, borderBottomLeftRadius: 9, borderColor: theme.colors.line}}/>}
     {dependent && continuesBranch && <View pointerEvents="none" style={{position: 'absolute', left: tv ? 38 : 31, top: 0, bottom: 0, width: 2, backgroundColor: theme.colors.line}}/>}
     {lit && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 3, borderRadius: 3, backgroundColor: theme.colors.accent}}/>}
