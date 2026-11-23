@@ -24,9 +24,6 @@ export function WatchHostView({surface, authority, playback, outlet, runtime, co
   const content = <Animated.View testID="watch-panes" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted}
     importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, paneFadeStyle]}>
     {postPlay ? <View testID="watch-post-play-pane" style={{position: 'absolute', inset: 0}}>{postPlay}</View> : <>
-    {/* phone-player 4: upright, the picture starts under the status bar, which sits on a black band of its own. */}
-    {layout.mode === 'watch' && !isTV && layout.surface && layout.surface.y > 0 && <View testID="watch-status-band" pointerEvents="none"
-      style={{position: 'absolute', left: 0, top: 0, width: layout.surface.width, height: layout.surface.y, backgroundColor: '#000'}}/>}
     {layout.content && <View testID="watch-content-pane" style={pagePane(layout.content)} pointerEvents="box-none">{bindings.content?.(context)}</View>}
     {layout.details && <View testID="watch-details-pane" style={pagePane(layout.details)} pointerEvents="box-none">{bindings.details?.(context)}</View>}
     {layout.episodes && <View testID="watch-episodes-pane" style={pagePane(layout.episodes)} pointerEvents="box-none">{bindings.episodes?.(context)}</View>}
@@ -50,6 +47,9 @@ export function WatchHostView({surface, authority, playback, outlet, runtime, co
     </>}
   </Animated.View>;
   return <View testID="watch-host" pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>
+    {/* phone-player 4: upright, the picture starts under the status bar, which sits on a black band of its own, solid from the first frame. */}
+    {layout.mode === 'watch' && !isTV && layout.surface && layout.surface.y > 0 && <View testID="watch-status-band" pointerEvents="none"
+      style={{position: 'absolute', left: 0, top: 0, width: layout.surface.width, height: layout.surface.y, backgroundColor: '#000'}}/>}
     <NativeWatchPicture authority={authority} fence={fence} outlet={outlet} current={measuredCurrent} style={positioned(surface)}/>
     {television ? <View testID="watch-tv-canvas" pointerEvents="box-none" style={{position: 'absolute', left: television.canvas.left, top: television.canvas.top,
       width: television.canvas.width, height: television.canvas.height, transformOrigin: 'top left', transform: [{scale: television.canvas.scale}]}}>{content}</View> : content}

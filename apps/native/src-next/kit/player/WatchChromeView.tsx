@@ -253,7 +253,7 @@ export function WatchChromeView({props, dismissUndo, source, controls, width, he
       onReplay={() => {if (endCurrent()) void playback.replay(fence).catch(props.reportError);}}
       onClose={() => {if (endCurrent()) void playback.stop(fence).catch(props.reportError);}}/>
   </View> : undefined;
-  const skipOfferNode = !stillWatching && (endCard || visibleOffer) && nextItem ? <NativeUpNextCard compact={phone} tight={phone && compact && width < 600 && !tablet && !linear} item={nextItem} artwork={props.artwork?.(nextItem.stillUrl ?? nextItem.backdropUrl)} offer={visibleOffer}
+  const skipOfferNode = !stillWatching && (endCard || visibleOffer) && nextItem ? <NativeUpNextCard compact={phone} tight={phone && compact && width < 600 && !tablet && !linear && !props.edgeInsets?.right} item={nextItem} artwork={props.artwork?.(nextItem.stillUrl ?? nextItem.backdropUrl)} offer={visibleOffer}
     countdown={countdown} countdownTotal={view?.postPlay.countdownSeconds ?? 10} sceneAfter={!endCard && sceneAfter} onPlayNow={() => {
       const live = playback.getSnapshot(), mode = endCard && policy?.attention === 'still-watching' ? 'still-watching' : 'manual';
       if (!controlsCurrent() || !playback.policyAdvance || !live.queue.view?.next.available || live.queue.view.next.entryId !== nextItem.entryId
