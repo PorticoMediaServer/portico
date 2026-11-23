@@ -87,6 +87,11 @@ const subjectOf = (entry: ContentEntry, detail?: DetailProjection): PlaybackSubj
   const kind = kindOf(entry.kind);
   return {kind, item: card};
 };
+/** The guide's programme airing now, for the title a channel's player draws (`ChannelReference.programme`). */
+const airingNow = (programmes: readonly Readonly<{id: string; title: string; start: number; end: number}>[]): {programme?: NonNullable<ChannelReference['programme']>} => {
+  const at = serverNow(), now = programmes.find(p => p.title && Number.isFinite(p.start) && Number.isFinite(p.end) && p.start <= at && at < p.end);
+  return now ? {programme: Object.freeze({id: now.id, title: now.title, startMs: now.start, endMs: now.end})} : {};
+};
 type Bookmark = Readonly<{playback: DockPlayback; entry?: ContentEntry; subject?: PlaybackSubject; queueId?: string; entryId?: string; channel?: ChannelReference; offline?: NativeOfflineSource}>;
 type SourceDetail = {
   service: DetailService; sourceEpoch: number; sourceKey: string;
@@ -568,7 +573,9 @@ export class NativePlaybackRuntime {
       if (!valid()) throw new Error('stale_selection_context');
       if (!serverSupportsV1Channels(capabilities)) throw new Error('channel_playback_unavailable');
       this.rememberCurrent(); this.channel = channel; this.expanded = true;
-      await this.openChannel({kind: value.provenance, sourceId: source.id, channelId: value.id, generation: value.generation, ...(value.logoPath ? {logoUrl: value.logoPath} : {})}, epoch, scoped.signal, valid, 'playing');
+      const now = value.programmes.map(p => ({id: p.id, title: p.title, start: Date.parse(p.start), end: Date.parse(p.end)}));
+      await this.openChannel({kind: value.provenance, sourceId: source.id, channelId: value.id, generation: value.generation, ...(value.name ? {name: value.name} : {}),
+        ...(value.logoPath ? {logoUrl: value.logoPath} : {}), ...airingNow(now)}, epoch, scoped.signal, valid, 'playing');
       this.changed();
     } catch (error) {
       if (epoch === this.startEpoch && this.currentAuthority()) { this.playback.leave(); this.changed(); }
@@ -601,9 +608,12 @@ export class NativePlaybackRuntime {
     try {
       this.connect(); if (!expected) await this.queue.cancel(); if (!current()) return;
       await this.o.capabilitiesReady(); if (!current()) return;
-      const [capabilities, channels] = await Promise.all([
+      const options = input.guide?.options ?? {kind: 'all' as const, sourceId: '', timezone: input.timezone}, at = serverNow();
+      const [capabilities, channels, listing] = await Promise.all([
         readPlaybackCapabilities({request: this.request}, scoped.signal),
-        readPlayerGuide({request: this.request}, input.channelId, input.guide?.options ?? {kind: 'all', sourceId: '', timezone: input.timezone}, scoped.signal),
+        readPlayerGuide({request: this.request}, input.channelId, options, scoped.signal),
+        // Only for the title drawn in the player: a channel with no listings, or a failed read, tunes the same.
+        readPlayerGuide({request: this.request}, input.channelId, options, scoped.signal, {from: new Date(at), to: new Date(at + 60_000)}).catch(() => undefined),
       ]);
       if (!current()) return;
       if (!serverSupportsV1Channels(capabilities)) throw new Error('channel_playback_unavailable');
@@ -620,7 +630,9 @@ export class NativePlaybackRuntime {
         await this.queue.cancel();if (!current()) return;
       }
       this.rememberCurrent(); this.channel = undefined; this.expanded = true;
-      await this.openChannel({kind: channel.provenance, sourceId: channel.sourceId, channelId: input.channelId, generation: channel.generation, ...(channel.logoPath ? {logoUrl: channel.logoPath} : {})}, epoch, scoped.signal, current, 'playing', accepted);
+      const airing = listing?.find(row => row.step === 0 && row.channel.id === currentRow?.id && row.channel.sourceId === currentRow?.sourceId)?.programmes ?? [];
+      await this.openChannel({kind: channel.provenance, sourceId: channel.sourceId, channelId: input.channelId, generation: channel.generation, ...(currentRow?.name ? {name: currentRow.name} : {}),
+        ...(channel.logoPath ? {logoUrl: channel.logoPath} : {}), ...airingNow(airing)}, epoch, scoped.signal, current, 'playing', accepted);
       if (current()) {this.channelGuide = origin ? Object.freeze({row: origin.row, options: Object.freeze({...origin.options})}) : undefined;this.changed();}
     } catch (error) {
       if (current()) {if (dispatching) {this.playback.leave(); this.changed();} throw error;}
