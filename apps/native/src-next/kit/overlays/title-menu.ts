@@ -19,7 +19,8 @@ export const titleMenuIcons: Readonly<Record<EntryActionId, IconName>> = Object.
 /** Phone and tablet draw one flat list in the mock-ups' order (select.html 17, tablet.html 9):
  * Play, My List, Watched, Favorites, Rate, playlist, collection, Download. Queue, Watch Together
  * and Play from beginning belong to the TV side sheet. */
-const touchOrder: readonly EntryActionId[] = ['play', 'resume', 'watchlist', 'watched', 'favorite', 'rate', 'addToPlaylist', 'addToCollection', 'download', 'removeFromContinueWatching', 'notInterested'];
+// Watch with group and Add to group queue exist only while this viewer is in a group that lets them add (entryActions).
+const touchOrder: readonly EntryActionId[] = ['play', 'resume', 'watchWithGroup', 'addToGroupQueue', 'watchlist', 'watched', 'favorite', 'rate', 'addToPlaylist', 'addToCollection', 'download', 'removeFromContinueWatching', 'notInterested'];
 const ownerOrder: readonly EntryActionId[] = ['editMetadata', 'refreshMetadata', 'delete'];
 const personalRows: ReadonlySet<EntryActionId> = new Set<EntryActionId>(['watchlist', 'favorite', 'watched']);
 
