@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import {useEffect, useState, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import type {PlayerChapter, PlayerChaptersSnapshot} from '@core/player-chapters.ts';
 import type {WebPlaybackRuntimeSnapshot} from '../../../platform/playback';
@@ -19,15 +19,35 @@ import styles from './audiobook-listening.module.css';
 import {sleepChoiceLabel, sleepChoiceValue, type ListeningSleepChoice} from './listening-owner';
 const t = defaultI18n.t;
 
+/** Cached per-locale rate formatter so playback/timer ticks never allocate a fresh Intl.NumberFormat. */
+const rateFormatters = new Map<string, Intl.NumberFormat>();
+export function formatAudiobookRate(rate: number, locale = defaultI18n.region.formatLocale): string {
+  let formatter = rateFormatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale);
+    rateFormatters.set(locale, formatter);
+  }
+  return formatter.format(rate);
+}
+
+/** Next tick delay (ms) for a live sleep timer countdown, or null once expired. */
+export function sleepCountdownDelayMs(endsAtMs: number | undefined, nowMs: number): number | null {
+  if (typeof endsAtMs !== 'number' || !Number.isFinite(endsAtMs)) return null;
+  const remaining = endsAtMs - nowMs;
+  if (remaining <= 0) return null;
+  return remaining <= 60_000 ? Math.min(1000, remaining) : Math.min(30_000, (remaining % 60_000) || 60_000);
+}
+
 /** Authored audiobook view of an existing local host. It mounts no media,
- * service, timer or runtime. Source-bearing callbacks carry the drawn witness. */
-export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [], cover, ambient, chapters, speedChoices, sleepChoices, sleepChoice, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
+ * service or runtime. Source-bearing callbacks carry the drawn witness. */
+export function AudiobookListening({snapshot, title, subtitleParts = [], cover, ambient, chapters, speedChoices, sleepChoices, sleepChoice, sleepEndsAt, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
   onIntent, onSpeed, onSleep, onChapter, onChapterPage, onChapterRetry, onCollapse, aside, notice}: Readonly<{
   snapshot: WebPlaybackRuntimeSnapshot; title: string; subtitle: ReactNode;
   /** The byline as words, for the frame (the author, then who reads it). */ subtitleParts?: readonly string[]; cover?: ArtworkSource; ambient?: AmbientArtSource;
   skips: WatchBindings['skips']; phone?: boolean; sourceLabel?: string;canPlayOn?:boolean;
   onShowPanel?: (shown: WebPlaybackRuntimeSnapshot, panel: 'speed' | 'sleep' | 'chapters' | 'play-on' | 'options') => void;
   chapters: PlayerChaptersSnapshot | null; speedChoices: readonly number[]; sleepChoices: readonly ListeningSleepChoice[]; sleepChoice: ListeningSleepChoice;
+  /** Active web sleep timer deadline in epoch ms, when a minute timer is running. */ sleepEndsAt?: number;
   onIntent: (shown: WebPlaybackRuntimeSnapshot, intent: WatchIntent) => void;
   onSpeed: (shown: WebPlaybackRuntimeSnapshot, rate: number) => void;
   onSleep: (shown: WebPlaybackRuntimeSnapshot, choice: ListeningSleepChoice) => void;
@@ -37,7 +57,22 @@ export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [
   onCollapse: () => void; aside?: ReactNode; notice?: ReactNode;
 }>) {
   const p = snapshot.presentation;
-  if (!p || p.kind !== 'audiobook' || !p.expanded || snapshot.disposed || snapshot.dock.remote?.phase === 'playing') return null;
+  const visible = !!p && p.kind === 'audiobook' && p.expanded && !snapshot.disposed && snapshot.dock.remote?.phase !== 'playing';
+  const sleepAt = visible ? (sleepEndsAt ?? snapshot.playback?.listeningDeadlines?.sleepAtMs) : undefined;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (typeof sleepAt !== 'number' || !Number.isFinite(sleepAt)) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      const current = Date.now();
+      const delay = sleepCountdownDelayMs(sleepAt, current);
+      if (delay === null) { setNowMs(current); return; }
+      timer = setTimeout(() => { setNowMs(Date.now()); schedule(); }, delay);
+    };
+    schedule();
+    return () => { if (timer !== undefined) clearTimeout(timer); };
+  }, [sleepAt]);
+  if (!visible) return null;
   const bounds = watchSeekBounds(snapshot), can = (kind: typeof p.controls[number]) => p.controls.includes(kind);
   const rows = chapters?.data?.status === 'available' ? chapters.data.chapters : [];
   // MU-2: the whole book's chapters when known, else the playing part's own.
@@ -53,10 +88,10 @@ export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [
   const chapterBar = phone && active && active.endSeconds > active.startSeconds ? {offset: active.startSeconds, duration: active.endSeconds, chapters: [],
     bounds: bounds && Math.min(bounds.end, active.endSeconds) > Math.max(bounds.start, active.startSeconds) ? {start: Math.max(bounds.start, active.startSeconds), end: Math.min(bounds.end, active.endSeconds)} : null} : undefined;
   const bookLeft = book && active && 'number' in active ? book.chapters.slice(book.current + 1).reduce((sum, chapter) => sum + (chapter.endSeconds - chapter.startSeconds), Math.max(0, active.endSeconds - p.positionSeconds)) : undefined;
-  const speedLeft = bookLeft !== undefined && p.rate > 0 ? t('web.player.speedLeft', {time: durationText(bookLeft / p.rate, t) ?? '', rate: new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate)}) : undefined;
-  const sleepAt = snapshot.playback?.listeningDeadlines?.sleepAtMs, sleepLeft = typeof sleepAt === 'number' ? Math.max(0, (sleepAt - Date.now()) / 1000) : undefined;
+  const rate = formatAudiobookRate(p.rate);
+  const speedLeft = bookLeft !== undefined && p.rate > 0 ? t('web.player.speedLeft', {time: durationText(bookLeft / p.rate, t) ?? '', rate}) : undefined;
+  const sleepLeft = typeof sleepAt === 'number' ? Math.max(0, (sleepAt - nowMs) / 1000) : undefined;
   const sleepStops = sleepLeft !== undefined && sleepLeft >= 60 ? t('web.player.sleepStops', {time: durationText(sleepLeft, t) ?? ''}) : undefined;
-  const rate = new Intl.NumberFormat(defaultI18n.region.formatLocale).format(p.rate);
   const position = chapterBar ? Math.max(0, p.positionSeconds - chapterBar.offset) : p.positionSeconds;
   const length = chapterBar ? chapterBar.duration - chapterBar.offset : p.durationSeconds;
   const lo = chapterBar?.bounds?.start ?? bounds?.start ?? 0, hi = chapterBar?.bounds?.end ?? bounds?.end ?? Math.max(p.durationSeconds, 1);
@@ -77,7 +112,7 @@ export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [
         : active ? t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)}) : ''}}
       scrubber={<SeekLine variant="player" value={hi > lo ? (at - lo) / (hi - lo) : 0}
         marks={chapterBar || !(p.durationSeconds > 0) ? [] : ticks.map(chapter => ({id: String(chapter.startSeconds), kind: 'chapter' as const, start: chapter.startSeconds / p.durationSeconds, end: chapter.startSeconds / p.durationSeconds}))}
-        input={{min: lo, max: hi, step: .1, value: at, disabled: !can('seek'), 'aria-label': t('player.position'),
+        input={{min: lo, max: hi, step: 1, value: at, disabled: !can('seek'), 'aria-label': t('player.position'),
           'aria-valuetext': t('player.clockOf', {position: watchClock(position), duration: watchClock(length)}),
           onChange: event => {const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) seek(value);}}} />}
       times={{position: watchClock(position), end: `−${watchClock(Math.max(0, length - position))}`,
@@ -92,7 +127,7 @@ export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [
       volume={!phone && can('volume') ? <PlayerVolume value={p.volume} muted={p.muted} label={t('player.volume')} muteLabel={t(p.muted ? 'player.unmute' : 'player.mute')}
         onChange={volume => onIntent(snapshot, {kind: 'volume', volume})} onMute={() => onIntent(snapshot, {kind: 'mute'})} /> : undefined}
       speed={speedChoices.length ? {label: t('player.opt.speed'), value: `${rate}×`, ...(speedLeft ? {help: speedLeft} : {}), disabled: !onShowPanel && phone, onPress: show('speed'),
-        choices: speedChoices.map(choice => ({label: `${new Intl.NumberFormat(defaultI18n.region.formatLocale).format(choice)}×`, selected: choice === p.rate, onPress: () => onSpeed(snapshot, choice)}))} : undefined}
+        choices: speedChoices.map(choice => ({label: `${formatAudiobookRate(choice)}×`, selected: choice === p.rate, onPress: () => onSpeed(snapshot, choice)}))} : undefined}
       sleep={sleepChoices.length ? {icon: 'i-moon', label: t('player.opt.sleepTimer'), value: typeof sleepChoice === 'number' && sleepChoice > 0 ? t('duration.minutes', {minutes: sleepChoice}) : sleepChoiceLabel(sleepChoice),
         active: sleepChoice !== 0, ...(sleepStops ? {help: sleepStops} : {}), onPress: show('sleep'),
         choices: sleepChoices.map(choice => ({label: typeof choice === 'number' && choice > 0 ? t('next.kit.duration.minutes', {minutes: choice}) : sleepChoiceLabel(choice), selected: sleepChoiceValue(choice) === sleepChoiceValue(sleepChoice), onPress: () => onSleep(snapshot, choice)}))} : undefined}

@@ -92,6 +92,27 @@ test('explicit text subtitle refusals and malformed documents clear the document
     clock.fire();await settle();assert.deepEqual(validators, ['', '"one"', '']);abort.abort();
   }
 });
+test('unchanged revalidation does not re-show cues, preventing periodic blinks', async () => {
+  const clock = timers(), abort = new AbortController(), first = {cues: ['one']}, second = {cues: ['two']};
+  let reads = 0, shows = 0, recoveries = 0, lastShown: typeof first | undefined;
+  await revalidateTextSubtitles({signal: abort.signal, current: () => true, read: async etag => {
+    reads++;
+    if (reads === 1) return {unchanged: false, document: first, etag: '"v1"'};
+    if (reads === 2) { assert.equal(etag, '"v1"'); return {unchanged: true}; }
+    return {unchanged: false, document: second, etag: '"v2"'};
+  }, show: value => {shows++; lastShown = value;}, clear: () => {assert.fail('must not clear');},
+    failed: () => {assert.fail('must not fail');}, recovered: () => {recoveries++;}, schedule: clock.setTimer});
+  assert.equal(shows, 1); assert.equal(lastShown, first); assert.equal(recoveries, 1);
+  assert.equal([...clock.pending.values()][0]!.ms, 25000);
+  clock.fire(); await settle();
+  assert.equal(shows, 1, '304 unchanged must not re-call show');
+  assert.equal(recoveries, 2);
+  assert.equal([...clock.pending.values()][0]!.ms, 25000);
+  clock.fire(); await settle();
+  assert.equal(shows, 2, 'a changed document calls show again');
+  assert.equal(lastShown, second);
+  abort.abort();
+});
 test('late text reads and scheduled retries cannot cross a playback or cancellation boundary', async () => {
   const clock = timers(), abort = new AbortController();let resolve!: (value: {unchanged: false; document: string; etag: string}) => void, current = true, shown = 0;
   const pending = revalidateTextSubtitles({signal: abort.signal, current: () => current, read: () => new Promise(done => {resolve = done;}),

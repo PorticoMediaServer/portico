@@ -1,5 +1,4 @@
 import {readServerSystem} from '../../../../packages/client-core/src/query/connection-operations.ts';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {routeOrigin, assertFirstContactIdentity} from '@core/route-identity.ts';
 import {knownServerRoutes} from '@core/app-sessions.ts';
 import {connectPairedServer, inspectDirectServer} from '@core/server-connections.ts';

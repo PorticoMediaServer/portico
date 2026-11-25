@@ -6,7 +6,7 @@ import {useLocation} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
 import {readingDuration} from '@core/reading-manifest-facts.ts';
-import {createReadingPublication, type ReaderContentsTarget} from '@portico/reader-core';
+import {createReadingPublication, isReaderComicFormat, type ReaderContentsTarget} from '@portico/reader-core';
 import {stageContentsTarget, retireContentsTarget} from './contents-handoff';
 import {ReaderContents, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
 import type {ReadingItem, ReadingManifest, ReadingProgress, ReadingSession} from '@portico/client-core';
@@ -256,7 +256,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     ...(author ? [{label: t('filter.field.author'), values: [{text: author, ...(openAuthor ? {onPress: openAuthor} : {})}]}] : []),
     ...(manifest.metadata.language ? [{label: t('next.selection.language'), values: [{text: manifest.metadata.language}]}] : []),
     ...(metadata.wordCount !== undefined ? [{label: t('next.reader.wordsLabel'), values: [{text: defaultI18n.number(metadata.wordCount)}]}] : []),
-    ...(manifest.format === 'cbz' && manifest.pageNames?.length ? [{label: t('next.reader.pagesStrip'), values: [{text: defaultI18n.number(manifest.pageNames.length)}]}] : []),
+    ...(isReaderComicFormat(manifest.format) && manifest.pageNames?.length ? [{label: t('next.reader.pagesStrip'), values: [{text: defaultI18n.number(manifest.pageNames.length)}]}] : []),
   ];
   const tabbed = width < 1024 && !!(detail.targets?.length || marksText) && about.length > 0;
   const aboutBlock = about.length ? <div><PanelHeading title={t('title.aboutThisBook')}/><AboutTable rows={about}/></div> : undefined;
@@ -309,7 +309,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     </Dialog>
     {editing && canEdit && <ReadMetadata context={context} reading={captured.context} sourceId={manifest.sourceId} format={manifest.format} itemId={eligibility.itemId} anchor={editorAnchor} onClose={() => {if (!current(original)) return; setEditing(false); refresh(original);}}/>}
     {author && added.moreBy?.length ? <Shelf className={styles.moreBy} heading={t('home.row.moreByAuthor', {name: author})} platform={phone ? 'phone-web' : 'desktop'} itemWidth={cardWidth}
-      items={added.moreBy} getKey={item => item.id} renderItem={item => <CoverCard artwork={context.artwork.foreground(item.coverUrl, cardWidth * 2, 2 / 3)} kind={manifest.format === 'cbz' ? 'comic' : 'book'}
+      items={added.moreBy} getKey={item => item.id} renderItem={item => <CoverCard artwork={context.artwork.foreground(item.coverUrl, cardWidth * 2, 2 / 3)} kind={isReaderComicFormat(manifest.format) ? 'comic' : 'book'}
         model={{title: item.title, caption: []}} context="shelf" density="shelf" visible generated={{title: item.title, glyph: Array.from(item.title)[0] ?? '', tint: generatedCoverTint(item.title)}}
         disabled={!item.inventoryAvailable} playLabel={t('next.reader.read')}
         onNavigate={() => {if (context.isCurrent()) void router.navigate({to: '/item/$itemId', params: {itemId: item.id}}).catch(error => errorSink.current(error));}}

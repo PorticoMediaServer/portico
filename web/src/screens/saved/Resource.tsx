@@ -8,7 +8,7 @@ import {historyPeriods, resourceContentManual, type ResourceContentQuery} from '
 import {episodeLabel} from '@portico/client-core/kit-model';
 import {shapeFor} from '@core/presentation/card-shape.ts';
 import {AmbientArt, Artwork, CoverMosaic, type ArtworkSource} from '../../kit/artwork';
-import {Button, Chip, Select, Switch} from '../../kit/controls';
+import {Button, Chip, Switch} from '../../kit/controls';
 import {FiltersButton, SortMenu, ViewToggle} from '../../kit/browse';
 import {Dialog, Menu, MenuRow, Popover} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
@@ -119,7 +119,7 @@ export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
             ...(actions.includes('delete') ? [{id: 'delete-separator', separator: true} as const, {id: 'delete', label: t(kind === 'playlist' ? 'web.saved.deletePlaylist' : kind === 'view' ? 'web.saved.deleteView' : 'web.saved.deleteCollection'), icon: 'i-trash' as const, destructive: true, disabled: busy, onSelect: () => setDialog('delete')}] : []),
           ]} />;
   const goSaved = () => effects.selectRoute({view: kind === 'playlist' ? 'playlists' : kind === 'view' ? 'views' : 'collections'});
-  return <main className={styles.page} data-resource-order>
+  return <div className={styles.page} data-resource-order>
     <span className={styles.orderAnnouncement} aria-live="polite" aria-atomic="true"><span key={announcement.sequence}>{announcement.text}</span></span>
     {!!ambient.length && <AmbientArt sources={ambient} treatment={phone ? 'library-phone' : 'library'} className={phone ? undefined : styles.resourceAmbient}/>}
     {/* collections-4 and collections-11: the list on the title frame. Its cover is the mosaic of what it holds; Saved is the
@@ -185,7 +185,7 @@ export function SavedResourceScreen({bindings}: {bindings: SavedViewBindings}) {
       }}>{t(dialog === 'rename' ? 'action.save' : kind === 'playlist' ? 'web.saved.deletePlaylistAction' : kind === 'view' ? 'web.saved.deleteViewAction' : 'web.saved.deleteCollectionAction')}</Button></>}>
       {dialog === 'rename' && <ResourceFields nameRef={nameInput} name={name} summary={summary} onNameChange={setName} onSummaryChange={setSummary} nameMaxLength={isPlaylist ? 200 : 400} summaryMaxLength={isPlaylist ? 4000 : 8000} disabled={busy} summaryDisabled={isPlaylist && !actions.includes('summary')} />}
     </SavedDialog>
-  </main>;
+  </div>;
 }
 
 /** collections.html: the page's sort chip (its own order first) and Filters. A temporary
@@ -366,8 +366,9 @@ function HistoryRow({bindings, entry, media, source, paintOnly = false}: {bindin
   const left = !entry.completed && duration !== undefined && duration > position ? Math.round((duration - position) / 60) : undefined;
   const remaining = left === undefined ? undefined : left >= 60 ? t(left % 60 ? 'next.kit.duration.hoursMinutes' : 'next.kit.duration.hours', {hours: Math.floor(left / 60), minutes: left % 60}) : t('next.kit.duration.minutes', {minutes: left});
   const square = shapeFor(media.kind) === 'square';
-  return <div className={styles.historyRow} data-shape={square ? 'square' : 'wide'}>
-    <button className={styles.historyArt} data-shape={square ? 'square' : 'wide'} disabled={paintOnly} onClick={paintOnly ? undefined : () => {if (bindings.operations.current && bindings.runtime.personal.getSnapshot().entries.includes(entry)) bindings.effects.openEntry(media);}} aria-label={title}>
+  const open = paintOnly ? undefined : () => {if (bindings.operations.current && bindings.runtime.personal.getSnapshot().entries.includes(entry)) bindings.effects.openEntry(media);};
+  return <div className={styles.historyRow} data-shape={square ? 'square' : 'wide'} onClick={open}>
+    <button type="button" className={styles.historyArt} data-shape={square ? 'square' : 'wide'} disabled={paintOnly} onClick={event => {event.stopPropagation(); open?.();}} aria-label={title}>
       {square ? <><span className={styles.historyBackdrop}><Artwork source={source} alt="" /></span><span className={styles.historyCover}><Artwork source={source} alt="" /></span></> : <Artwork source={source} alt="" />}
     </button>
     <div className={styles.historyCopy}><b>{title}</b>{subtitles.length ? <small>{subtitles.map((part, index) => <span key={`${index}:${part}`}>{part}</span>)}</small> : null}</div>

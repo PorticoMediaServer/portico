@@ -16,5 +16,5 @@ test('a changed Advanced row with no readable value is named alone, never "Label
 test('Intros and credits: Find, the stats strip with a gap, Review, then Advanced last (desktop-settings 8)', () => {
   const intros = read('../src/screens/settings/server-intros/ServerIntros.tsx');
   assert.ok(intros.indexOf('{modeRows}') < intros.indexOf('<StatTiles') && intros.indexOf('<StatTiles') < intros.indexOf('segments.review') && intros.indexOf('segments.review') < intros.indexOf('{advancedRows &&'));
-  assert.match(read('../src/screens/settings/Settings.route.tsx'), /advancedRows=\{renderRows\(\{advanced: selected\.section\.advanced\}\)\}/);
+  assert.match(read('../src/screens/settings/route-sections/server-media-ops.tsx'), /advancedRows=\{renderRows\(\{advanced: selected\.section\.advanced\}\)\}/);
 });

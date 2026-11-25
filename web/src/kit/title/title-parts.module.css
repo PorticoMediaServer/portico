@@ -5,9 +5,13 @@
 .facts [data-fact=kind],.facts [data-fact=content-rating] { padding: 3px 9px; border-radius: 6px; border: 1px solid color-mix(in srgb,var(--color-text) 28%,transparent); font-size: var(--type-tag-size); line-height: normal; font-weight: var(--type-tag-weight); color: var(--color-text); }
 .searchHero { width: 100%; position: relative; height: 380px; border-radius: 18px; overflow: hidden; background: var(--color-raised); display: flex; align-items: center; }
 .searchHero > :first-child { position: absolute; inset: 0; }
-.searchCopy { position: relative; padding-left: 56px; width: 640px; max-width: 100%; }
+.searchCopy { position: relative; z-index: 1; padding-left: 56px; width: 640px; max-width: 100%; }
 .searchKind { font-size: 15px; font-weight: 600; color: var(--color-accent-strong); margin: 0 0 12px; }
 .searchCopy h3 { font-size: 68px; line-height: 1; font-weight: 800; letter-spacing: -.04em; margin: 0 0 16px; }
+.searchTitleLink { color: inherit; text-decoration: none; border: 0; padding: 0; margin: 0; background: none; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; border-radius: 6px; transition: opacity var(--motion-quick) var(--ease-out); }
+@media (hover: hover) { .searchTitleLink:hover { opacity: .86; } }
+.searchTitleLink:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 6px; }
+.searchBackdropLink { position: absolute; inset: 0; z-index: 0; cursor: pointer; }
 .searchSynopsis { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 24px; }
 .searchHero [data-foreground-art] { transition: transform 600ms var(--ease-out); }
 .searchHero:hover [data-foreground-art] { transform: scale(1.02); }
@@ -32,6 +36,7 @@
   .credits { margin-top: 28px; }
   .caret { left: 80px; }
 }
-@media(prefers-reduced-motion:reduce) { .searchHero [data-foreground-art] { transition: none; transform: none; } }
+@media(prefers-reduced-motion:reduce) { .searchHero [data-foreground-art] { transition: none; transform: none; } .searchTitleLink { transition: none; } }
 
 :global([data-reduce-motion="true"]) .searchHero [data-foreground-art] { transition: none; transform: none; }
+:global([data-reduce-motion="true"]) .searchTitleLink { transition: none; }

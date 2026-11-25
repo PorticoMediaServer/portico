@@ -1,9 +1,10 @@
 import type {SavedCatalogueSelection} from './catalogue-selection';
 import {CatalogueSelectionEntry, useCatalogueSelectionActive} from '../browse/document-selection';
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
-import {defaultI18n} from '@i18n';
+import {defaultI18n, type I18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import type {ContentEntry} from '@core/library-content.ts';
-import type {SavedEntry, SavedListFilter, SavedProjection, SavedRoute, SavedService} from '@core/saved.ts';
+import type {SavedEntry, SavedListFilter, SavedProjection, SavedService} from '@core/saved.ts';
 import type {PlaylistListFilter} from '@core/saved.ts';
 import type {PersonalResource, PersonalResourceEntry, PersonalSavedService} from '@core/personal-saved.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
@@ -13,7 +14,7 @@ import {Button, Chip, Switch} from '../../kit/controls';
 import {FiltersButton, SortMenu, ViewToggle} from '../../kit/browse';
 import {BrowseFrame} from '../../kit/frames';
 import {MenuRow, Popover} from '../../kit/overlays';
-import {PlaylistMosaic, PosterCard, SquareCard, NewPlaylistCard, type CardSelection} from '../../kit/cards';
+import {PlaylistMosaic, PosterCard, NewPlaylistCard, type CardSelection} from '../../kit/cards';
 import {CoverMosaic, type ArtworkSource} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {WindowedGrid, shellBottomClearance} from '../../kit/layout';
@@ -42,7 +43,6 @@ import {createSavedRetryAdmission, retireSavedRetryAdmission, savedRetryCurrent,
 import {useSavedViewOperations} from './use-view-operations.ts';
 import styles from './saved.module.css';
 
-const t = defaultI18n.t;
 export type SavedSelection = Readonly<{
   toolbar: ReactNode;
   card(service: SavedService, sectionId: string, entry: SavedEntry): CardSelection | undefined;
@@ -80,7 +80,8 @@ export const savedEmptyIcons = {watchlist: 'i-bookmark', favorites: 'i-heart', p
 const tabLabels = {watchlist: 'saved.tab.watchlist', favorites: 'saved.tab.favorites', playlists: 'saved.tab.playlists', collections: 'saved.tab.collections', views: 'saved.tab.savedViews', history: 'saved.tab.history', downloads: 'downloads.title'} as const;
 
 export function SavedScreen(bindings: SavedBindings) {
-  const {runtime, route, presentation, effects} = bindings;
+  const {t} = useI18n() ?? defaultI18n;
+  const {runtime, route, effects} = bindings;
   const viewKey = savedViewKey(runtime.scope, route), operations = useSavedViewOperations(runtime.operations, viewKey);
   // `home` is the phone directory; every reader below uses its canonical My List.
   const readerRoute = useMemo(() => savedReaderRoute(route), [route]), phone = useShellWidth() < 600;
@@ -113,6 +114,11 @@ export function SavedScreen(bindings: SavedBindings) {
   }, [runtime, readerRoute]);
   useQuietRefresh('saved', refresh, () => runtime.operations.current, {dependencies: [dependsOn.personal(), dependsOn.progress(), dependsOn.content(), dependsOn.settings('preferences')], everyMs: 0});
   const localSnapshot = useSyncExternalStore(bindings.localDownloads?.subscribe ?? noSubscribe, bindings.localDownloads?.getSnapshot ?? noLocalSnapshot, noLocalSnapshot);
+  const canCreatePlaylist = useSyncExternalStore(
+    phone && readerRoute.view === 'playlists' ? runtime.saved.subscribe : noSubscribe,
+    () => phone && readerRoute.view === 'playlists' ? runtime.saved.getSnapshot().projection?.actions?.includes('create_playlist') === true : false,
+    () => false,
+  );
   const localUsable = !!bindings.localDownloads && sameSavedDownloadsScope(bindings.localDownloads.scope, runtime.scope) && !!localSnapshot?.available;
   useEffect(() => {
     if (localUsable && effects.saveReadyPreparation) runtime.installReadyDownloads(effects.saveReadyPreparation, effects.reportError);
@@ -122,21 +128,21 @@ export function SavedScreen(bindings: SavedBindings) {
   if (route.view === 'playlist' || route.view === 'resource') return <SavedResourceScreen key={viewKey} bindings={viewBindings} />;
   // At phone width the home route is the drawn directory (phone-web frame 6);
   // desktop and tablet keep today's tabbed page with My List active.
-  if (phone && route.view === 'home') return <main className={styles.page}><BrowseFrame header={{title: t('saved.title')}}>
+  if (phone && route.view === 'home') return <div className={styles.page}><BrowseFrame header={{title: t('saved.title')}}>
     <SavedPhoneDirectory runtime={runtime} downloadsOffered={bindings.downloadsOffered || localUsable} artwork={bindings.artwork} select={effects.selectRoute} openEntry={effects.openEntry} pins={bindings.pins} />
-  </BrowseFrame></main>;
+  </BrowseFrame></div>;
   const dataBindings = readerRoute === route ? viewBindings : {...viewBindings, route: readerRoute};
   const active = readerRoute.view;
   const tabs = (Object.keys(tabLabels) as (keyof typeof tabLabels)[]).filter(tab => tab !== 'downloads' || bindings.downloadsOffered || localUsable);
   const server = <ServerDownloads key={viewKey} service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} />;
   // BrowseFrame owns the header: Saved with its tabs from 600; at phone width a pushed list's own title, Back to Saved and its
   // one action. The window owns the backdrop.
-  const phoneAction = active === 'playlists' && runtime.saved.getSnapshot().projection?.actions?.includes('create_playlist')
+  const phoneAction = active === 'playlists' && canCreatePlaylist
     ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newPlaylist')} onClick={() => setCreating({viewKey, kind: 'playlist'})} />
     : active === 'collections' ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newCollection')} onClick={() => setCreating({viewKey, kind: 'collection'})} /> : undefined;
   const header = phone ? active in tabLabels ? {title: t(tabLabels[active as keyof typeof tabLabels]), back: {label: t('saved.title'), onPress: () => effects.selectRoute({view: 'home'})}, trailing: phoneAction} : {title: t('saved.title')}
     : {title: t('saved.title'), tabs: {value: active, onValueChange: (value: string) => { if (value in tabLabels) effects.selectRoute({view: value as keyof typeof tabLabels}); }, items: tabs.map(tab => ({value: tab, label: t(tabLabels[tab])}))}};
-  return <main className={styles.page}><BrowseFrame header={header}>
+  return <div className={styles.page}><BrowseFrame header={header}>
     {route.view === 'downloads' ? localUsable && bindings.localDownloads
       ? <LocalDownloads key={viewKey} port={bindings.localDownloads} operations={operations} effects={effects} server={<ServerDownloads service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} embedded managed={!!effects.saveReadyPreparation} />} /> : server
       : route.view === 'history' ? <SavedHistory key={viewKey} bindings={dataBindings} />
@@ -144,13 +150,14 @@ export function SavedScreen(bindings: SavedBindings) {
           : <SavedLists key={viewKey} {...dataBindings} onCreate={() => setCreating({viewKey, kind: 'playlist'})} />}
   </BrowseFrame>
     <CreateResourceDialog key={`create:${viewKey}`} kind={creating?.viewKey === viewKey ? creating.kind : undefined} bindings={viewBindings} close={() => setCreating(undefined)} />
-  </main>;
+  </div>;
 }
 const noSubscribe = () => () => {};
 const noLocalSnapshot = () => undefined;
 
 function SavedLists(bindings: SavedViewBindings & {onCreate: () => void}) {
-  const {runtime, route, presentation, effects, artwork} = bindings;
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
+  const {runtime, route, effects} = bindings;
   const first = route.view === 'watchlist' || route.view === 'favorites' ? runtime.posters : runtime.saved;
   const primary = useSyncExternalStore(first.subscribe, first.getSnapshot, first.getSnapshot), squares = useSyncExternalStore(runtime.squares.subscribe, runtime.squares.getSnapshot, runtime.squares.getSnapshot);
   const routeMatches = route.view === 'watchlist' || route.view === 'favorites'
@@ -255,12 +262,12 @@ function SavedLists(bindings: SavedViewBindings & {onCreate: () => void}) {
     {list === 'playlists'
       ? <div className={styles.toolbar}>
           {projection?.sorts.length ? <SortMenu variant="saved" sorts={projection.sorts.map(sort => ({...sort, defaultDirection: sort.directions[0] ?? 'asc', expensive: false, applicableKinds: []}))}
-            value={savedSortSelection(route, projection)} label={playlistSortName}
+            value={savedSortSelection(route, projection)} label={sort => playlistSortName(sort, i18n)}
             onValueChange={value => { if (route.view === 'playlists') effects.selectRoute({...route, sort: value.field, direction: value.direction}); }} /> : null}
           {projection?.filters.length ? <>{projection.sorts.length ? <span className={styles.separator} aria-hidden="true"/> : null}
             {projection.filters.map(filter => {
               const selected = 'filter' in route ? route.filter ?? 'all' : 'all';
-              return <div key={filter.id} className={styles.playlistFilters} role="group" aria-label={defaultI18n.has(filter.labelKey) ? t(filter.labelKey) : t('playlists.filter')}>
+              return <div key={filter.id} className={styles.playlistFilters} role="group" aria-label={i18n.has(filter.labelKey) ? t(filter.labelKey) : t('playlists.filter')}>
                 {/* The options are ids ("all", "mine", "shared") with no counts behind them: they read as their names, with no number. */}
                 {filter.options.map(option => <Chip key={option.id} variant="quick" selected={selected === option.id}
                   onClick={() => { if (route.view === 'playlists') effects.selectRoute({...route, filter: selected === option.id ? 'all' : option.id as PlaylistListFilter}); }}>{option.id === 'all' ? t('next.controls.all') : t('playlists.filter.option', {group: option.id})}</Chip>)}
@@ -282,16 +289,16 @@ function SavedLists(bindings: SavedViewBindings & {onCreate: () => void}) {
 
 /** The catalogue names the server's saved sorts; an unknown one keeps the fallback. */
 const savedSortKeys = {title: 'web.saved.sort.title', added: 'web.saved.sort.added', updated: 'web.saved.sort.recent', year: 'web.saved.sort.year', duration: 'web.saved.sort.duration', progress: 'web.saved.sort.progress'} as const;
-function savedSortName(sort: Readonly<{id: string; labelKey: string}>): string {
+function savedSortName(sort: Readonly<{id: string; labelKey: string}>, i18n: I18n): string {
   const key = savedSortKeys[sort.id as keyof typeof savedSortKeys];
-  return key ? t(key) : defaultI18n.has(sort.labelKey) ? t(sort.labelKey) : t('web.saved.sort.other');
+  return key ? i18n.t(key) : i18n.has(sort.labelKey) ? i18n.t(sort.labelKey) : i18n.t('web.saved.sort.other');
 }
 /** The playlist directory's own orders are the catalogue's playlist words: Name,
  * Date created, Last changed and Number of items (collections.html 1 and 14a). */
 const playlistSortFields = {title: 'title', created: 'created', updated: 'updated', count: 'count'} as const;
-function playlistSortName(sort: Readonly<{id: string; labelKey: string}>): string {
+function playlistSortName(sort: Readonly<{id: string; labelKey: string}>, i18n: I18n): string {
   const field = playlistSortFields[sort.id as keyof typeof playlistSortFields];
-  return field ? t('playlists.sort', {field}) : defaultI18n.has(sort.labelKey) ? t(sort.labelKey) : t('web.saved.sort.other');
+  return field ? i18n.t('playlists.sort', {field}) : i18n.has(sort.labelKey) ? i18n.t(sort.labelKey) : i18n.t('web.saved.sort.other');
 }
 /** The saved list's own order, as the server published it. */
 function savedSortSelection(route: SavedViewBindings['route'], projection: SavedProjection | null) {
@@ -306,12 +313,13 @@ function savedSortSelection(route: SavedViewBindings['route'], projection: Saved
  * contract does not publish (Watched, Favorites as a quick filter) are absent
  * rather than faked; the Filters menu carries the same published options. */
 function SavedListToolbar({bindings, projection, total}: {bindings: SavedViewBindings; projection: SavedProjection | null; total: number | undefined}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
   const {route, effects, presentation} = bindings;
   const listRoute = route.view === 'watchlist' || route.view === 'favorites' ? route : undefined;
   const filter = listRoute?.filter ?? 'all', [open, setOpen] = useState(false);
   const filters = projection?.filters ?? [], quick = filters.flatMap(entry => entry.options.filter(option => option.id !== 'all'));
   const sorts = projection?.sorts ?? [], sort = savedSortSelection(route, projection);
-  const sortLabel = (value: Readonly<{id: string; labelKey: string}>) => savedSortName(value);
+  const sortLabel = (value: Readonly<{id: string; labelKey: string}>) => savedSortName(value, i18n);
   return <div className={styles.toolbar}>
     {filters.length ? <>
       <Popover open={open} onOpenChange={setOpen} title={t('next.browse.filters')} accessibilityLabel={t('next.browse.filters')} placement="bottom-start" width={260}
@@ -332,6 +340,7 @@ function SavedListToolbar({bindings, projection, total}: {bindings: SavedViewBin
 }
 
 export function SavedSection(bindings: SavedViewBindings & {service: SavedService; section: SavedProjection['sections'][number]; heading?: Readonly<{label: string; count?: number}>; onMore?: (entry: SavedEntry, anchor: HTMLButtonElement) => void; orderHandle?: (entryId: string, title: string) => ReactNode; heldEntryId?: string}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
   const {service, section, artwork, effects, presentation, selection} = bindings;
   const collection = useMemo(() => savedSectionWindow(service, section.id), [service, section.id]);
   const cleanup = useRef<(() => void) | undefined>(undefined);
@@ -357,8 +366,8 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
   const rows = Math.ceil(section.entries.length / columns);
   const height = Math.max(rowHeight, Math.min(window.innerHeight - (root.current ? shellBottomClearance(root.current) : 0), rows * rowHeight + Math.max(0, rows - 1) * 16));
   return <section className={styles.savedSection} ref={root}>
-    {bindings.heading && <div className={styles.sectionHeading}><h2>{bindings.heading.label}</h2>{bindings.heading.count !== undefined && <span>{defaultI18n.number(bindings.heading.count)}</span>}</div>}
-    <WindowedGrid collection={collection} pinnedIndex={bindings.heldEntryId ? section.entries.findIndex(entry => entry.id === bindings.heldEntryId) : undefined} label={bindings.heading?.label ?? serverTextLabel(defaultI18n, section.heading)} height={height} cardWidth={oneColumn ? Math.max(1, width) : presentation.cardWidth} rowHeight={rowHeight} rowGap={oneColumn ? 0 : 16} gap={phoneRows ? 0 : 16} reducedMotion={presentation.reducedMotion} onVisibleRange={onVisibleRange}
+    {bindings.heading && <div className={styles.sectionHeading}><h2>{bindings.heading.label}</h2>{bindings.heading.count !== undefined && <span>{i18n.number(bindings.heading.count)}</span>}</div>}
+    <WindowedGrid collection={collection} pinnedIndex={bindings.heldEntryId ? section.entries.findIndex(entry => entry.id === bindings.heldEntryId) : undefined} label={bindings.heading?.label ?? serverTextLabel(i18n, section.heading)} height={height} cardWidth={oneColumn ? Math.max(1, width) : presentation.cardWidth} rowHeight={rowHeight} rowGap={oneColumn ? 0 : 16} gap={phoneRows ? 0 : 16} reducedMotion={presentation.reducedMotion} onVisibleRange={onVisibleRange}
       renderPlaceholder={() => phoneRows ? <Skeleton width={Math.max(1, width)} height={72} /> : <Skeleton width={presentation.cardWidth} height={presentation.cardWidth / ratio} />}
       renderItem={(entry, context) => {
         const cardSelection = selection?.card(service, section.id, entry), media = mediaEntry(entry);
@@ -368,7 +377,7 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
           const pinned = 'pinned' in entry && entry.pinned === true;
           const lastChanged = 'lastChanged' in entry && typeof entry.lastChanged === 'string' ? entry.lastChanged : undefined;
           const covers = (entry.artworkPaths ?? []).map(path => artwork.foreground(path, phoneRows ? 64 : presentation.cardWidth, 1)).filter((source): source is ArtworkSource => !!source);
-          const changed = playlistChangedLabel(lastChanged);
+          const changed = playlistChangedLabel(lastChanged, i18n);
           if (phoneRows) return <PlaylistRow first={context.index === 0} title={entry.title} count={entry.count} pinned={pinned} lastChanged={lastChanged} covers={covers} open={() => effects.selectRoute({view: 'playlist', playlistId: entry.id})} />;
           const caption = [
             ...(entry.count !== undefined ? [{id: 'count', role: 'value' as const, text: t('web.saved.items', {count: entry.count})}] : []),
@@ -379,7 +388,7 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
         if (!media) return <StateView title={t('card.unavailable')} />;
         const selectable = bindings.catalogueSelection?.member(media);
         return <CatalogueSelectionEntry selection={selectable ? bindings.catalogueSelection : undefined} entry={selectable ?? media} position={selectable ? bindings.catalogueSelection!.position(selectable) : context.index}>{documentSelection => {
-        const common = {model: savedCardModel(media, {t, locale: defaultI18n.region.formatLocale}), artwork: artwork.foreground(media.posterUrl, presentation.cardWidth * devicePixelRatio, ratio),
+        const common = {model: savedCardModel(media, {t, locale: i18n.region.formatLocale}), artwork: artwork.foreground(media.posterUrl, presentation.cardWidth * devicePixelRatio, ratio),
           selection: documentSelection ?? cardSelection, context: 'grid' as const, watched: media.watched, onNavigate: () => effects.openEntry(media),
           onPlay: media.playback && media.available !== false && !media.missing ? () => { void bindings.operations.run(signal => effects.playEntry(media, signal)).catch(effects.reportError); } : undefined,
           onMore: bindings.onMore ? (anchor: HTMLButtonElement) => bindings.onMore!(entry, anchor)
@@ -387,7 +396,7 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
         if (resourceRows) return <ResourceRow {...common} entryId={entry.id} media={media} artwork={artwork} handle={bindings.orderHandle?.(entry.id, common.model.title)}
           ordinal={section.start + context.index + 1} library={bindings.libraries?.find(library => library.id === media.libraryId)?.name}/>;
         if (presentation.view === 'list') return <div className={styles.mediaListRow}><PosterCard {...common} /></div>;
-        return <BrowseEntryCard entry={media} artwork={artwork} env={{t, locale: defaultI18n.region.formatLocale}} width={presentation.cardWidth} mixed visible order={context.index} group={`saved:${section.id}`} backdrops={presentation.backdrops}
+        return <BrowseEntryCard entry={media} artwork={artwork} env={{t, locale: i18n.region.formatLocale}} width={presentation.cardWidth} mixed visible order={context.index} group={`saved:${section.id}`} backdrops={presentation.backdrops}
           actions={{onOpen: common.onNavigate, onPlay: common.onPlay, onMore: common.onMore, selection: documentSelection ?? cardSelection}} />;
         }}</CatalogueSelectionEntry>;
       }} />
@@ -395,19 +404,25 @@ export function SavedSection(bindings: SavedViewBindings & {service: SavedServic
   </section>;
 }
 /** collections.html 1 and 14a name a playlist's own last change by day. */
-const playlistChangedDay = new Intl.DateTimeFormat(defaultI18n.region.uiLocale, {month: 'short', day: 'numeric'});
-function playlistChangedLabel(value: string | undefined): string | undefined {
+const playlistChangedDays = new Map<string, Intl.DateTimeFormat>();
+function playlistChangedDayFor(locale: string): Intl.DateTimeFormat {
+  let formatter = playlistChangedDays.get(locale);
+  if (!formatter) { formatter = new Intl.DateTimeFormat(locale, {month: 'short', day: 'numeric'}); playlistChangedDays.set(locale, formatter); }
+  return formatter;
+}
+function playlistChangedLabel(value: string | undefined, i18n: I18n): string | undefined {
   if (!value) return undefined;
   const changed = new Date(value); if (!Number.isFinite(changed.getTime())) return undefined;
   const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()), day = new Date(changed.getFullYear(), changed.getMonth(), changed.getDate());
-  return day.getTime() === today.getTime() ? t('saved.today') : playlistChangedDay.format(day);
+  return day.getTime() === today.getTime() ? i18n.t('saved.today') : playlistChangedDayFor(i18n.region.uiLocale).format(day);
 }
 /** collections.html 14a: a playlist at phone width is one row, its 2 by 2 mosaic
  * on the left, the name, its count, its own last change and this viewer's pin
  * beside it, and the chevron on the right. The rows sit in individual virtual
  * cells, so each draws its own inset divider and the first one leaves it out. */
 function PlaylistRow({first, title, count, pinned, lastChanged, covers, open}: {first: boolean; title: string; count: number | undefined; pinned: boolean; lastChanged: string | undefined; covers: readonly ArtworkSource[]; open: () => void}) {
-  const changed = playlistChangedLabel(lastChanged);
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
+  const changed = playlistChangedLabel(lastChanged, i18n);
   return <button type="button" className={styles.playlistRow} data-first={first || undefined} onClick={open}>
     <span className={styles.playlistRowArt}><CoverMosaic covers={covers} shape="square" alt="" /></span>
     <span className={styles.playlistRowCopy}><b>{title}</b><small>{count !== undefined && <span>{t('web.saved.items', {count})}</span>}{changed && <span>{changed}</span>}</small></span>
@@ -420,6 +435,7 @@ function mediaEntry(entry: SavedEntry): ContentEntry | undefined {
 }
 
 function PersonalResources(bindings: SavedViewBindings & {onCreate: () => void}) {
+  const {t} = useI18n() ?? defaultI18n;
   const service = bindings.runtime.personal, snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot, service.getSnapshot), kind = bindings.route.view === 'views' ? 'views' : 'collections';
   const summary = useSyncExternalStore(bindings.runtime.summary.subscribe, bindings.runtime.summary.getSnapshot, bindings.runtime.summary.getSnapshot);
   const phone = useShellWidth() < 600;
@@ -440,12 +456,13 @@ function PersonalResources(bindings: SavedViewBindings & {onCreate: () => void})
  * A collection names who can see it: everyone on the server, only you, or the
  * owner's share. A saved view marks its place on Home. */
 function PersonalResourceRow({resource, bindings}: {resource: PersonalResource; bindings: SavedViewBindings}) {
+  const {t} = useI18n() ?? defaultI18n;
   const covers = (resource.artworkPaths ?? []).map(path => bindings.artwork.foreground(path, 64, 1)).filter((source): source is ArtworkSource => !!source);
   const collection = resource.kind === 'collection', shared = collection && resource.role !== 'owner', visible = collection && resource.visibility === 'server';
   return <button type="button" className={styles.resourceRow} onClick={() => bindings.effects.selectRoute({view: 'resource', resourceId: resource.id})}>
     <span className={styles.resourceRowArt}><CoverMosaic covers={covers} shape="square" alt="" /></span>
     <span className={styles.resourceRowCopy}><b>{resource.name}</b>
-      <small>{collection ? t('lib.count', {count: resource.entryCount, pivot: 'collections'}) : t('lib.count', {count: resource.entryCount, pivot: 'other'})}</small>
+      <small>{t('web.saved.items', {count: resource.entryCount})}</small>
       {shared ? <small className={styles.resourceRowNote}><Icon name="i-people" size={13}/>{t('web.saved.sharedByOwner')}</small>
         : collection ? <small className={visible ? styles.resourceRowVisible : styles.resourceRowNote}><Icon name={visible ? 'i-people' : 'i-lock'} size={13}/>{t(visible ? 'web.saved.visibleToEveryone' : 'web.saved.onlyYou')}</small>
           : resource.onHome ? <small className={styles.resourceRowVisible}><Icon name="i-home" size={13}/>{s('next.saved.onHome')}</small> : null}
@@ -454,12 +471,14 @@ function PersonalResourceRow({resource, bindings}: {resource: PersonalResource; 
   </button>;
 }
 function PersonalResourceTile({resource, bindings}: {resource: PersonalResource; bindings: SavedViewBindings}) {
+  const {t} = useI18n() ?? defaultI18n;
   const covers = (resource.artworkPaths ?? []).map(path => bindings.artwork.foreground(path, bindings.presentation.cardWidth, 1)).filter((source): source is ArtworkSource => !!source);
   return <PlaylistMosaic covers={covers} model={{title: resource.name, caption: [{id: 'count', role: 'value', text: t('web.saved.items', {count: resource.entryCount})}]}}
     context="grid" onNavigate={() => bindings.effects.selectRoute({view: 'resource', resourceId: resource.id})} />;
 }
 
 function CreateResourceDialog({kind, bindings, close}: {kind: 'playlist' | 'collection' | undefined; bindings: SavedViewBindings; close: () => void}) {
+  const {t} = useI18n() ?? defaultI18n;
   const [name, setName] = useState(''), [summary, setSummary] = useState(''), [shared, setShared] = useState(false), [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => { setName(''); setSummary(''); setShared(false); }, [kind]);

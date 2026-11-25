@@ -98,9 +98,9 @@ test('the Messages viewer shows an administrator whether a detail window is open
 });
 
 test('Settings builds the page for owners and administrators, and passes log settings and Playback problems only with their parts', () => {
-  const route = readFileSync(new URL('../src/screens/settings/Settings.route.tsx', import.meta.url), 'utf8');
-  assert.match(route, /route\.section === 'troubleshooting' && \(role === 'owner' \|\| role === 'admin'\)[^\n]*createTroubleshootingSurfaces\(\{tier: role,/);
-  assert.match(route, /troubleshooting\?\.render\(troubleshooting\.parts\.has\('logSettings'\) && <MessageOptions>/);
+  const mediaOps = readFileSync(new URL('../src/screens/settings/route-sections/server-media-ops.tsx', import.meta.url), 'utf8');
+  assert.match(mediaOps, /activeServerSection\(route, 'troubleshooting', gate\)\n\s*\? createTroubleshootingSurfaces\(\{\n\s*tier: role/);
+  assert.match(mediaOps, /troubleshooting\?\.render\(\n\s*troubleshooting\.parts\.has\('logSettings'\) && <MessageOptions>/);
   const controller = readFileSync(new URL('../src/screens/settings/controller.ts', import.meta.url), 'utf8');
   assert.match(controller, /if \(section\.id === 'troubleshooting'\) return this\.options\.capabilities\.manageServer && this\.options\.role !== 'member' && troubleshootingParts\(this\.options\.role\)\.size > 0;/);
   const bindings = readFileSync(new URL('../src/screens/settings/bindings.ts', import.meta.url), 'utf8');

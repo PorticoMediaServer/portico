@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ReadingSession} from '@portico/client-core';
+import {isReaderComicFormat} from '@portico/reader-core';
 import {Button} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays';
 import {Skeleton} from '../../kit/states';
@@ -38,7 +39,7 @@ export function ReadCoverPages({reading, context, itemId, sourceId, upload, busy
     const off = bindings.authority.subscribe(() => {if (active && opening.isCurrent()) setFailed('failed');});
     void bindings.open({itemId, sourceId}).then(value => {
       if (!active || !opening.isCurrent() || !bindings.authority.isCurrent()) return;
-      if (value.manifest.format !== 'cbz' || !value.manifest.pageNames?.length) throw new Error('invalid_cover_source');
+      if (!isReaderComicFormat(value.manifest.format) || !value.manifest.pageNames?.length) throw new Error('invalid_cover_source');
       setSession(value);
     }).catch(error => {if (active && opening.isCurrent()) {const kind = readFailureKind(error); setFailed(kind); if (readFailureReported(kind)) context.effects.reportError(error);}});
     return () => {opening.controller.signal.removeEventListener('abort', stop); off(); stop();};
@@ -61,8 +62,8 @@ function Pages({session, context, opening, upload, busy, onChosen}: {session: Re
       for (let index = start; index < end; index++) {
         if (!opening.isCurrent()) return;
         const preview = await coverPagePreview(session, index, signal);
+        if (signal.aborted || !opening.isCurrent()) {if (preview.url) URL.revokeObjectURL(preview.url); return;}
         if (preview.url) urls.push(preview.url);
-        if (signal.aborted || !opening.isCurrent()) return;
         setPages(previous => [...previous, preview]);
       }
     })().catch(error => {if (!signal.aborted && opening.isCurrent()) {setFailed(true); context.effects.reportError(error);}});

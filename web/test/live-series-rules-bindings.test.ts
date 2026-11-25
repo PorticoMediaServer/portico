@@ -14,7 +14,7 @@ const nextRule = (number: number, patch: Record<string, unknown> = {}) => ({id: 
 const status = (status: number) => Object.assign(new Error('unit request rejected'), {status});
 type Call = {path: string; method: string; body: unknown};
 
-function setup(options: {total?: number; answer?: (call: Call) => unknown; noPreview?: boolean} = {}) {
+function setup(options: {total?: number; answer?: (call: Call) => unknown; noPreview?: boolean; everyone?: boolean; everyonesRecordings?: boolean} = {}) {
   const rows = Array.from({length: options.total ?? 1}, (_, index) => nextRule(index + 1));
   const calls: Call[] = [];
   let active = true;
@@ -25,7 +25,7 @@ function setup(options: {total?: number; answer?: (call: Call) => unknown; noPre
     if (answer !== undefined) return answer as T;
     const url = new URL(path, 'http://unit.invalid');
     if (url.pathname === '/v1/dvr') return {rules: rows.length, groups: 0, upcoming: 8, recorded: 20, unwatched: 5, conflicts: 1, freeBytes: 412e9, hoursLeft: 230, keepRule: 'until-space-needed',
-      folderOk: true, canRecord: true} as T;
+      folderOk: true, canRecord: true, ...(options.everyonesRecordings !== undefined ? {everyonesRecordings: options.everyonesRecordings} : {})} as T;
     if (url.pathname === '/v1/live/channels') return {items: [], sources: [{id: 'lsr_1', name: 'Stored provider', kind: 'live', channels: 14, favorites: 0, groups: [],
       guideThrough: '2026-10-27T00:00:00Z'}]} as T;
     if (url.pathname === '/v1/dvr/recordings') return {items: []} as T;
@@ -44,7 +44,7 @@ function setup(options: {total?: number; answer?: (call: Call) => unknown; noPre
   }};
   const context = withQueries({api, scope: {serverId, viewerId: 'viewer'}, isCurrent: () => active,
     identity: {serverName: 'Stored server'}, effects: {reportError() {}}}) as unknown as ScreenContext;
-  const binding = createSeriesRulesBindings(context, {timezone: 'UTC', locale: 'en-US', now: () => Date.parse('2026-10-24T12:00:00Z')});
+  const binding = createSeriesRulesBindings(context, {timezone: 'UTC', locale: 'en-US', now: () => Date.parse('2026-10-24T12:00:00Z'), ...(options.everyone ? {everyone: true} : {})});
   const sent = () => calls.filter(call => call.method !== 'GET').map(call => [call.method, call.path, call.body]);
   return {binding, calls, rows, sent, authority: (value: boolean) => {active = value;}};
 }
@@ -149,4 +149,15 @@ test('complex existing channel filters remain unselected and untouched; title ru
   assert.deepEqual(editedRuleConfig(rule, settings).allowedChannels, [id(7), id(8)]);assert.equal(editedRuleConfig(rule, settings).options.afterSeconds, 7);
   const title = {...rule, config: {...config, matchKind: 'title' as const, title: 'Stored title', seriesId: '', channelId}};
   assert.equal(ruleSettings(title).channelLocked, true);assert.throws(() => editedRuleConfig(title, {...ruleSettings(title), channel: 'any'}));
+});
+
+test('everyone scope forwards scope=everyone to GET /v1/dvr/rules and GET /v1/dvr', async () => {
+  const f = setup({everyone: true, everyonesRecordings: true});
+  try {
+    await f.binding.load();
+    const urls = f.calls.map(call => new URL(call.path, 'http://unit.invalid'));
+    assert.ok(urls.some(url => url.pathname === '/v1/dvr/rules' && url.searchParams.get('scope') === 'everyone'));
+    assert.ok(urls.some(url => url.pathname === '/v1/dvr' && url.searchParams.get('scope') === 'everyone'));
+    assert.equal(f.binding.getSnapshot().view?.everyonesRecordings, true);
+  } finally {f.binding.dispose();}
 });

@@ -8,15 +8,17 @@ import {Banner, Dialog} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from '../browse/screen-context';
 import {ScreenProblem} from '../detail/ScreenProblem';
-import type {ScreenContext} from '../detail/context';
 import {SeriesRules} from './SeriesRules';
 import type {SeriesRulesBindings} from './series-rules-bindings';
 import {useSeriesRulesLease, type SeriesRulesLease} from './useSeriesRulesLease';
 import type {RuleSettings, SeriesRule} from './series-rules-model';
 import {parseLiveScreenSearch} from './route-search';
+import {leaveRecordingsPage, type RecordingsNavigation} from './recordings-history';
 import styles from '../../kit/dvr/rules.module.css';
 
 const t = defaultI18n.t;
+const recordingsNav: RecordingsNavigation = {state: () => router.state.location.state, back: () => router.history.back(),
+  navigate: ({state, ...options}) => router.navigate({to: '/live', ...options, ...(state ? {state: state as never} : {})})};
 function MoreRules({binding, cursor}: {binding: SeriesRulesBindings; cursor: string}) {
   const element = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -30,7 +32,7 @@ function MoreRules({binding, cursor}: {binding: SeriesRulesBindings; cursor: str
 type RuleDeleteRequest = {token: string; rule: SeriesRule; resolve: (success: boolean) => void; dispatched: boolean; live: boolean; operation: {live: boolean}};
 type RuleDeleteOpening = {id: string; request: RuleDeleteRequest; live: boolean};
 
-function BoundRules({lease, onView}: {lease: SeriesRulesLease; onView?: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void}) {
+function BoundRules({lease, everyone, onView, onScope, onGuide: leaveGuide}: {lease: SeriesRulesLease; everyone: boolean; onView?: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide?: () => void}) {
   const binding = lease.binding, context = lease.context;
   const state = useSyncExternalStore(binding.subscribe, binding.getSnapshot, binding.getSnapshot);
   const search = parseLiveScreenSearch(useSearch({from: '/live'}));
@@ -75,7 +77,11 @@ function BoundRules({lease, onView}: {lease: SeriesRulesLease; onView?: (view: '
       return false;
     });
   }, [binding, context, lease]);
-  const onGuide = () => {if (lease.current()) void router.navigate({to: '/live', search: {...search, tab: 'guide'}}).catch(error => {if (lease.current()) context.effects.reportError(error);});};
+  const onGuide = () => {
+    if (!lease.current()) return;
+    if (leaveGuide) { leaveGuide(); return; }
+    void leaveRecordingsPage(recordingsNav, search).catch(error => {if (lease.current()) context.effects.reportError(error);});
+  };
   const dismissDelete = (opening: RuleDeleteOpening) => {
     if (!opening.live || deleteOwner.current !== opening.request) return;
     const request = opening.request;
@@ -112,6 +118,8 @@ function BoundRules({lease, onView}: {lease: SeriesRulesLease; onView?: (view: '
   if (!state.view) return state.error ? <ScreenProblem context={context} error={state.error} retry={() => {if (lease.current()) void binding.load().catch(() => {});}}/>
     : <Skeleton width="100%" height={114}/>;
   const busy = state.mutating || state.phase === 'loading' || state.loadingMore;
+  const surfaceError = !deleteOpening && (state.error || state.previewError) ? dvrMessage(state.error ?? state.previewError) : undefined;
+  const retryLoad = !deleteOpening && state.error !== undefined ? () => {if (lease.current()) void binding.load().catch(() => {});} : undefined;
   return <><SeriesRules view={state.view} onGuide={onGuide} busy={busy} onSave={onSave} onDraft={onDraft}
     onDelete={rule => new Promise<boolean>(resolve => {
       if (!lease.current() || deleteOwner.current) {resolve(false);return;}
@@ -120,10 +128,13 @@ function BoundRules({lease, onView}: {lease: SeriesRulesLease; onView?: (view: '
       setFuture('keep');setDeleteRequest(request);
     })} preview={state.preview}
     {...(onView ? {onView: view => {if (lease.current()) onView(view);}} : {})}
-    error={state.error || state.previewError ? dvrMessage(state.error ?? state.previewError) : undefined}
+    toolbar={onScope && state.view.everyonesRecordings !== false ? <Segmented aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
+      onValueChange={value => {if (lease.current() && (value === 'mine' || value === 'everyone')) onScope(value === 'everyone');}}
+      items={[{value: 'mine', label: t('next.live.mine')}, {value: 'everyone', label: t('next.live.everyones')}]}/> : undefined}
+    error={surfaceError}
+    onRetry={retryLoad}
     tail={<>{state.nextCursor && !state.error && <MoreRules binding={binding} cursor={state.nextCursor}/>}
-      {state.error !== undefined && <Banner action={{label: t('next.states.tryAgain'), onAction: () => {if (lease.current()) void binding.load().catch(() => {});}}}>{dvrMessage(state.error)}</Banner>}
-      {!state.view.rules.length && <StateView title={t('web.dvr.empty.rules')} body={t('web.dvr.empty.rulesBody')} primary={{id: 'guide', label: t('web.dvr.openGuide'), onPress: onGuide}}/>}</>}/>
+      {!state.view.rules.length && state.error === undefined && <StateView title={t('web.dvr.empty.rules')} body={t('web.dvr.empty.rulesBody')} primary={{id: 'guide', label: t('web.dvr.openGuide'), onPress: onGuide}}/>}</>}/>
     <Dialog footerDismisses open={!!deleteOpening} onOpenChange={open => {if (!open && deleteOpening) dismissDelete(deleteOpening);}}
       title={t('web.dvr.deleteRuleTitle', {name: deleteOpening?.request.rule.title ?? ''})} description={t('web.dvr.deleteRuleBody')} width={440}
       footer={<><Button variant="glass" disabled={busy || !deleteOpening?.live} onClick={() => {if (deleteOpening) dismissDelete(deleteOpening);}}>{t('action.cancel')}</Button>
@@ -135,13 +146,13 @@ function BoundRules({lease, onView}: {lease: SeriesRulesLease; onView?: (view: '
 
 /** No fixture imports or independent transport. This is mounted only by the
  * authenticated Live route and retires every DVR request with that scope. */
-export function SeriesRulesEntry({captured, onView}: {captured: ProtectedLibraryScreen; onView?: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void}) {
+export function SeriesRulesEntry({captured, everyone = false, onView, onScope, onGuide}: {captured: ProtectedLibraryScreen; everyone?: boolean; onView?: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide?: () => void}) {
   const pathname = useLocation({select: location => location.pathname});
   const context = useCommittedLibraryScreenContext(captured, pathname, () => router.state.location.pathname === pathname);
   const routeCurrent = () => {
     const search = router.state.location.search as unknown as Record<string, unknown>;
-    return router.state.location.pathname === pathname && search.tab === 'recordings' && (search.dvr ?? 'upcoming') === 'rules';
+    return router.state.location.pathname === pathname && search.tab === 'recordings' && (search.dvr ?? 'upcoming') === 'rules' && (search.scope === 'everyone') === everyone;
   };
-  const lease = useSeriesRulesLease(context, routeCurrent);
-  return lease ? <BoundRules key={lease.id} lease={lease} {...(onView ? {onView} : {})}/> : <Skeleton width="100%" height={114}/>;
+  const lease = useSeriesRulesLease(context, routeCurrent, everyone);
+  return lease ? <BoundRules key={lease.id} lease={lease} everyone={everyone} {...(onView ? {onView} : {})} {...(onScope ? {onScope} : {})} {...(onGuide ? {onGuide} : {})}/> : <Skeleton width="100%" height={114}/>;
 }

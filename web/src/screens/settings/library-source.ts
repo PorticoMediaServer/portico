@@ -1,5 +1,5 @@
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
-import type {LibraryAdminDocument, LibrarySettings} from '@core/administration.ts';
+import type {LibraryAdminDocument} from '@core/administration.ts';
 import {defaultI18n} from '@i18n';
 import {LibraryManagementService} from '@core/library-management.ts';
 import type {ContentScope, LibraryContentApi} from '@core/library-content.ts';

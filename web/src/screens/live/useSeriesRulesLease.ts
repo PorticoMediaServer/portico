@@ -7,6 +7,8 @@ import {createSeriesRulesBindings, type SeriesRulesBindings} from './series-rule
 export type SeriesRulesLease = {
   id: string;
   context: ScreenContext;
+  /** Everyone's rules rather than this profile's own. */
+  everyone: boolean;
   live: boolean;
   /** The exact rules route witness and this opening's own live flag. */
   current: () => boolean;
@@ -17,7 +19,7 @@ export type SeriesRulesLease = {
  * own the binding and its request life; layout retirement retires them before
  * abort, so replay or a same-path destination change cannot revive the old
  * binding before its cleanup. */
-export function useSeriesRulesLease(context: ScreenContext | undefined, routeCurrent: () => boolean): SeriesRulesLease | undefined {
+export function useSeriesRulesLease(context: ScreenContext | undefined, routeCurrent: () => boolean, everyone = false): SeriesRulesLease | undefined {
   const [published, publish] = useState<SeriesRulesLease>();
   // The route witness belongs to this exact opening: keep the one this effect ran
   // with instead of recreating the binding whenever the route hands a new closure.
@@ -30,13 +32,13 @@ export function useSeriesRulesLease(context: ScreenContext | undefined, routeCur
     const current = () => !!held && held.live && context.isCurrent() && routeCurrent();
     const screen: ScreenContext = forwardIdentity(context, {isCurrent: current});
     const binding = createSeriesRulesBindings(screen, {locale: defaultI18n.region.formatLocale,
-      timezone: defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone});
-    const lease: SeriesRulesLease = {id: crypto.randomUUID(), context, live: true, current, binding};
+      timezone: defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, everyone});
+    const lease: SeriesRulesLease = {id: crypto.randomUUID(), context, everyone, live: true, current, binding};
     held = lease;
     publish(lease);
     void binding.load().catch(() => {});
     return () => {lease.live = false;binding.dispose();};
     // routeCurrent is captured by this exact rules opening.
-  }, [context]);
-  return published?.live && published.context === context && published.current() ? published : undefined;
+  }, [context, everyone]);
+  return published?.live && published.context === context && published.everyone === everyone && published.current() ? published : undefined;
 }

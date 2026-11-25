@@ -39,6 +39,13 @@ type Removal = Readonly<{server: DirectoryItem}>;
 /** Hosted refused because the server's claim is no longer the one this row showed. */
 const changed = (error: unknown) => error instanceof ApiError && (error.status === 409 || error.status === 412);
 
+/** Return address for `/sign-in?next=...` when `/servers` is opened signed out: preserves query
+ * parameters and chooser intents (`#join`, `#setup`, `#local`) without leaking handoff fragments. */
+export function serversSignInReturnPath(search = location.search, hash = location.hash): string {
+  const safeHash = chooserIntent(hash) ? hash : '';
+  return '/servers' + search + safeHash;
+}
+
 /** connect 1-31 at web.getportico.tv: the Portico Account's own servers, opened here. The
  * chosen server's sign-in, profile and PIN run in this page, and Home follows on this same
  * address. The browser is never sent to a server's address unless the person presses the one
@@ -53,7 +60,7 @@ export function HostedServersScreen() {
     if (signedIn) void porticoAccountHolder.who().then(value => {if (live) setWho(value);}, failure => {if (live) setError(failure);});
     return () => {live = false;};
   }, [signedIn, attempt]);
-  if (!signedIn) return <Replace to={'/sign-in?next=' + encodeURIComponent('/servers' + location.search)} />;
+  if (!signedIn) return <Replace to={'/sign-in?next=' + encodeURIComponent(serversSignInReturnPath())} />;
   if (error) return <DocumentBootReady><ServicesAuthStage><HostedError error={error} /><Button variant="primary" onClick={() => setAttempt(value => value + 1)}>{t('next.states.tryAgain')}</Button></ServicesAuthStage></DocumentBootReady>;
   if (!who) return <ServicesAuthStage><></></ServicesAuthStage>;
   return <HostedChooser key={who.id} who={who} />;
@@ -140,7 +147,7 @@ function BoundServers({who, onEmpty}: {who: Account; onEmpty: () => void}) {
         if (asked) void flow.open(asked, flow.getSnapshot());
       } catch (failure) {if (current()) setError(failure);}
     })();
-    return () => {live = false; controller.abort(); flow?.getSnapshot().admitted?.dispose(); flow?.dispose();};
+    return () => {live = false; controller.abort(); access.dispose?.(); flow?.getSnapshot().admitted?.dispose(); flow?.dispose();};
   }, [scope, attempt]);
   if (error) return <DocumentBootReady><ServicesAuthStage><HostedError error={error} /><Button variant="primary" onClick={() => setAttempt(value => value + 1)}>{t('next.states.tryAgain')}</Button></ServicesAuthStage></DocumentBootReady>;
   if (!loaded) return <ServicesAuthStage><></></ServicesAuthStage>;

@@ -1,6 +1,7 @@
 import {createSettingsOpen, SettingsOpenContext} from './quiet-refresh';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import {settingsRowIndex, settingsSectionTab, settingsSpec, type SettingsHolder, type SettingsSectionTab, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {SettingsNav, SettingsProfileCard, ShortcutTiles, type SettingsSearchGroup} from '../../kit/shell/SettingsSurfaces';
 import type {ProfileIdentity, ShellAction} from '../../kit/shell';
@@ -22,7 +23,6 @@ import {useWebAction} from '../../route-registry-view';
 import kitStyles from '../../kit/settings/settings.module.css';
 import styles from './settings.module.css';
 
-const t = defaultI18n.t;
 const noPresentation = () => () => {};
 const emptyPresentation = () => undefined;
 export type SettingsContext = Readonly<{section: SettingsSection; panelId?: string; tabId?: string; recordId?: string;
@@ -66,11 +66,16 @@ export type SettingsBindings = Readonly<{
 }>;
 
 export type SettingsPhoneLead = Readonly<{profile: ProfileIdentity; description: string; shortcuts: readonly ShellAction[]}>;
-export function SettingsScreen({bindings, route, navigate, openDetail = false, phoneLead}: {bindings: SettingsBindings; route: SettingsRoute; navigate: (route: SettingsRoute) => void;
+export function SettingsScreen({bindings, route, navigate, openDetail = false, phoneLead, pageFailure, actionError}: {bindings: SettingsBindings; route: SettingsRoute; navigate: (route: SettingsRoute) => void;
   /** At phone width: the profile card and the quick tiles over the list. */
   phoneLead?: SettingsPhoneLead;
   /** A link that names a scope or section asks for that page, not the compact list. */
-  openDetail?: boolean}) {
+  openDetail?: boolean;
+  /** Fatal page-level failure supplied by the route host (replaces page body, including tabbed sections). */
+  pageFailure?: ReactNode;
+  /** Non-fatal inline action error shown inside the page without unmounting controls. */
+  actionError?: ReactNode}) {
+  const {t} = useI18n() ?? defaultI18n;
   useSyncExternalStore(bindings.presentation?.subscribe ?? noPresentation, bindings.presentation?.getSnapshot ?? emptyPresentation, emptyPresentation);
   const width = useShellWidth(), compact = width < 600, feedback = useWebAction('feedback');
   const [quietOpen]=useState(createSettingsOpen);
@@ -166,7 +171,8 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false, p
   const page = <SettingsPageFrame title={libraryPage ? String(libraryTitle) : t(section.title)} status={snapshot.saveState} action={done} server={server}
     back={libraryPage ? {label: t(section.title), onPress: closeLibrary} : {label: t('next.shell.settings'), onPress: () => {setPanel(undefined); void router.navigate({to: '/settings'});}}}
     header={libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : undefined}>
-    {libraryPage && panelSpec?.tabs ? <Tabs aria-label={libraryTitle} value={panel?.tab ?? panelSpec.tabs[0]?.id} onValueChange={value => setPanel(current => current && {...current, tab: value})}
+    {!pageFailure && actionError}
+    {pageFailure ? pageFailure : libraryPage && panelSpec?.tabs ? <Tabs aria-label={libraryTitle} value={panel?.tab ?? panelSpec.tabs[0]?.id} onValueChange={value => setPanel(current => current && {...current, tab: value})}
       phone={compact} items={panelSpec.tabs.map(item => ({value: item.id, label: t(item.title), panel: <>{bindings.panelIntro?.({...panelContext, tabId: item.id})}{rows(item, {...panelContext, tabId: item.id})}</>}))}/> : fact ? <ConfigurationFact fact={fact} /> : snapshot.error ? <SettingsPageFailure retry={() => {void bindings.load(section);}} home={bindings.openHome} error={snapshot.error}
       server={section.scope === 'server' ? {name: bindings.serverName, openMySettings: () => go('account/profile')} : undefined} /> : snapshot.loading ? <p role="status">{t('next.settings.loading')}</p> : (section.tabs ? <Tabs aria-label={t(section.title)} value={pageTab} phone={compact} onValueChange={value => setPageTabs(current => ({...current, [sectionKey]: value}))}
         items={section.tabs.map(tab => ({value: tab.id, label: t(tab.title), panel: bindings.section?.({...context, pageTab: tab.id}, openPanel, holder => rows(holder, context)) ?? rows(tabHolder(section, tab), context)}))} />
@@ -190,6 +196,7 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false, p
 }
 
 function ConfigurationFact({fact}: {fact: SettingsConfigurationMatch}) {
+  const {t} = useI18n() ?? defaultI18n;
   const value = (value: unknown) => value === null ? t('next.settings.notSet') : typeof value === 'string' ? value : JSON.stringify(value);
   return <section className={kitStyles.configurationNote} aria-label={fact.label}><Icon name="i-info" size={20} /><span>{fact.label}{fact.label ? '. ' : ''}{t('next.settings.configOnly.before')}{' '}<code>{fact.key}</code>{' = '}<code>{value(fact.default)}</code>{t('next.settings.configOnly.after')}</span></section>;
 }

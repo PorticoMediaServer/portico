@@ -9,6 +9,7 @@ import {Button, TextField} from '../../../kit/controls';
 import {Segmented} from '../../../kit/controls/Choices';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {SettingsAction} from '../../../kit/settings';
+import {isFatalSettingsError} from '../controller';
 import styles from './server.module.css';
 const t = defaultI18n.t;
 type Api = Pick<HttpLocalApi, 'request'>;
@@ -44,7 +45,8 @@ export function GeneralMessage({api, isCurrent, reportError, disabled, label}: T
         setSent(true); setOpen(false); setTitle(''); setBody('');
       }, error => {
         if (!alive.current) return;
-        setFailed(true); reportError(error);
+        setFailed(true);
+        if (isFatalSettingsError(error)) reportError(error);
       })
       .finally(() => {if (alive.current) setBusy(false);});
   };
@@ -54,7 +56,7 @@ export function GeneralMessage({api, isCurrent, reportError, disabled, label}: T
     <div className={styles.generalTool}>
       <SettingsAction appearance="glass" disabled={disabled || busy} onClick={start}>{label}</SettingsAction>
       {sent && <span role="status" className={styles.storageNote}>{t('server.broadcast.sent')}</span>}
-      {failed && <span role="alert" className={styles.backupFailure}>{t('error.unavailable')}</span>}
+      {!open && failed && <span role="alert" className={styles.backupFailure}>{t('error.unavailable')}</span>}
     </div>
     <Dialog footerDismisses open={open} title={t('server.messageEveryone')} description={t('web.broadcast.lede')} onOpenChange={value => {if (!value) close();}}
       footer={<><Button size="compact" variant="glass" disabled={busy} onClick={close}>{t('action.cancel')}</Button>
@@ -72,6 +74,7 @@ export function GeneralMessage({api, isCurrent, reportError, disabled, label}: T
         <Segmented aria-label={t('web.broadcast.importance')} value={severity} disabled={busy} onValueChange={value => setSeverity(value as typeof severity)}
           items={[{value: 'info', label: t('web.broadcast.info')}, {value: 'warning', label: t('web.broadcast.notice')}, {value: 'critical', label: t('web.broadcast.urgent')}]}/>
         {problemText && <p className={styles.composerProblem} role="alert">{problemText}</p>}
+        {failed && <p className={styles.composerProblem} role="alert">{t('error.unavailable')}</p>}
       </div>
     </Dialog>
   </>;
@@ -93,19 +96,21 @@ export function GeneralRestart({api, isCurrent, reportError, disabled, label, co
       setState('waiting'); setOpen(false);
     }, error => {
       if (!alive.current) return;
-      setState('failed'); reportError(error);
+      setState('failed');
+      if (isFatalSettingsError(error)) reportError(error);
     }).finally(() => {if (alive.current) setBusy(false);});
   };
   return <>
     <div className={styles.generalTool}>
-      <SettingsAction appearance="danger" disabled={disabled || busy} onClick={() => {if (!disabled && isCurrent()) setOpen(true);}}>{label}</SettingsAction>
+      <SettingsAction appearance="danger" disabled={disabled || busy} onClick={() => {if (!disabled && isCurrent()) {setState('idle'); setOpen(true);}}}>{label}</SettingsAction>
       {state === 'waiting' && <span role="status" className={styles.storageNote}>{t('web.maintenance.restartingTitle')}</span>}
-      {state === 'failed' && <span role="alert" className={styles.backupFailure}>{t('server.restart.failed')}</span>}
+      {!open && state === 'failed' && <span role="alert" className={styles.backupFailure}>{t('server.restart.failed')}</span>}
     </div>
     <Dialog footerDismisses open={open} title={t('server.restart.title')} onOpenChange={value => {if (!value) close();}}
       footer={<><Button size="compact" variant="glass" disabled={busy} onClick={close}>{t('action.cancel')}</Button>
         <Button size="compact" variant="primary" loading={busy} disabled={busy} onClick={restart}>{t('web.maintenance.serverRestart')}</Button></>}>
       <p>{confirm ?? t('server.restart.body')}</p>
+      {state === 'failed' && <p className={styles.composerProblem} role="alert">{t('server.restart.failed')}</p>}
     </Dialog>
   </>;
 }

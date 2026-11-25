@@ -1,7 +1,6 @@
 import type {ContentEntry, ContentView} from '@core/library-content.ts';
 import {holderViewOf} from '@core/items.ts';
-import type {TitleFile} from '@core/detail.ts';
-import {cardText, titleFactParts, type CardSubject, type TextEnvironment, type FileFacts, type TitleFacts, type FactPart} from '@core/presentation/kit-model';
+import {cardText, titleFactParts, type CardSubject, type TextEnvironment, type TitleFacts, type FactPart} from '@core/presentation/kit-model';
 
 /** A title with a page of its own in its library (the one its card opens: a show, a season, an artist, an album, an
  * audiobook, a book series, a collection) goes there when opened by its address, instead of drawing one title's page.

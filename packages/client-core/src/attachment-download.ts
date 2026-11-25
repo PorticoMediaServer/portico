@@ -64,18 +64,19 @@ export function createAttachmentDownloadPort(api: Pick<HttpLocalApi, 'request' |
     const run = async () => {
       const target = captured.target;
       const check = () => assert(captured.signal, captured.current);
+      function terminal(error: Error): never {if (perTarget?.get(quality) === captured) perTarget.delete(quality); throw error;}
       const combined = AbortSignal.any([lifetime, captured.signal]);
       try {
         check();
         if (!captured.submitted) {
           const view = await options(target, captured.signal, captured.current);
-          if (!view.policy.allowDownloads || !view.options.some(row => row.quality === quality && row.available)) throw new Error('download-quality-unavailable');
+          if (!view.policy.allowDownloads || !view.options.some(row => row.quality === quality && row.available)) terminal(new Error('download-quality-unavailable'));
           check(); captured.submitted = true;
         }
         if (!captured.downloadId) {
           const download = await askForDownload(api, captured.body, combined);
           check();
-          if (!download.id || download.target.id !== target.itemId || download.quality !== quality) throw new Error('download-preparation-mismatch');
+          if (!download.id || download.target.id !== target.itemId || download.quality !== quality) terminal(new Error('download-preparation-mismatch'));
           captured.downloadId = download.id;
         }
         const downloadId = captured.downloadId;
@@ -85,21 +86,21 @@ export function createAttachmentDownloadPort(api: Pick<HttpLocalApi, 'request' |
           check();
           const title = download.items?.find(item => item.itemId === target.itemId);
           if (download.id !== downloadId || download.target.id !== target.itemId || download.quality !== quality || !title)
-            throw new Error('download-preparation-mismatch');
+            terminal(new Error('download-preparation-mismatch'));
           if (title.state === 'ready' || title.state === 'received') break;
-          if (title.state !== 'waiting' && title.state !== 'preparing') throw new Error('download-not-ready');
-          if (Date.now() - started > 300000) throw new Error('download-preparation-pending');
+          if (title.state !== 'waiting' && title.state !== 'preparing') terminal(new Error('download-not-ready'));
+          if (Date.now() - started > 300000) terminal(new Error('download-preparation-pending'));
           await pause(combined); check();
         }
         const downloaded = await readDownloadedItem(api, downloadId, target.itemId, combined);
         check();
         if (downloaded.item.id !== target.itemId || downloaded.item.libraryId !== target.libraryId || downloaded.quality !== quality)
-          throw new Error('download-grant-mismatch');
-        if (downloaded.files.length > 1) throw new Error(downloadReasonMessage('several_files'));
+          terminal(new Error('download-grant-mismatch'));
+        if (downloaded.files.length > 1) terminal(new Error(downloadReasonMessage('several_files')));
         const file = downloaded.files[0];
-        if (!file) throw new Error('download-not-ready');
+        if (!file) terminal(new Error('download-not-ready'));
         handoff(browserAttachmentAddress(file.url), `${downloaded.item.title}.${file.container ?? 'bin'}`, check);
-        perTarget.delete(quality);
+        if (perTarget.get(quality) === captured) perTarget.delete(quality);
       } finally {captured.flight = undefined;}
     };
     // Install the flight before any producer callback can yield or publish.

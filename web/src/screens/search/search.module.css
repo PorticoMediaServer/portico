@@ -12,6 +12,8 @@
 
 
 .results { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 52px 40px; padding: 0 var(--g); }
+.topActions { display: flex; flex-wrap: wrap; gap: var(--space-px-12); align-items: center; margin-top: var(--space-px-24); }
+.topActions > div { margin-top: 0; }
 
 .empty { width: 100%; display: flex; flex-direction: column; gap: 48px; }
 /* The page already stands its sections at the gutter: the kit's Recent searches takes no gutter of its own here. */

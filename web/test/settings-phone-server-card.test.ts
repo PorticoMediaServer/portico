@@ -11,7 +11,7 @@ test('a server page\'s header carries 24a\'s phone card: "Server", the name, and
   // An owner-only page (General, Backups…): "Owner only".
   const owner = renderToStaticMarkup(createElement(ServerHeader, {serverName: 'Portico demo', viewerRole: 'owner', audience: 'owner', health: 'normal'}));
   assert.match(owner, /class="[^"]*phoneCard[^"]*"><span[^>]*data-size="34"[^>]*>.*<\/span><div><small>Server<\/small><b>Portico demo<\/b><\/div><span[^>]*data-size="phone"[^>]*>Owner only<\/span><\/div>/);
-  // A page shared with administrators (Dashboard, Libraries, People) says so for the owner and for an administrator.
+  // A page shared with administrators (Dashboard, History, People) says so for the owner and for an administrator.
   for (const props of [{viewerRole: 'owner', audience: 'administrators'}, {viewerRole: 'administrator', audience: 'administrators'}] as const) {
     const shared = renderToStaticMarkup(createElement(ServerHeader, {serverName: 'Portico demo', ...props}));
     assert.match(shared, /<b>Portico demo<\/b><\/div><span[^>]*data-size="phone"[^>]*>Owner and administrators<\/span>/);
@@ -23,7 +23,7 @@ test('the audience comes from the settings bindings, the one list the desktop pi
   const bindings = readFileSync(new URL('../src/screens/settings/bindings.ts', import.meta.url), 'utf8');
   const settings = readFileSync(new URL('../src/screens/settings/Settings.tsx', import.meta.url), 'utf8');
   // Troubleshooting is shared when administrators have any part of it (troubleshooting/parts.ts, from routes.ts).
-  assert.match(bindings, /audience: section => \['dashboard', 'history', 'libraries', 'people'\]\.includes\(section\.id\) \|\| section\.id === 'troubleshooting' && troubleshootingParts\('admin'\)\.size > 0 \? 'administrators' : 'owner',/);
+  assert.match(bindings, /audience: section => \['dashboard', 'history', 'people'\]\.includes\(section\.id\) \|\| section\.id === 'troubleshooting' && troubleshootingParts\('admin'\)\.size > 0 \? 'administrators' : 'owner',/);
   assert.match(settings, /const audience = bindings\.audience\(section\);/);
   assert.match(settings, /<ServerHeader serverName=\{bindings\.serverName\} viewerRole="owner" audience=\{audience\}/);
 });

@@ -1,6 +1,7 @@
 import {throwSignalAborted as throwIfAborted} from '../abort.ts';
 import {releaseQuietlyAsync} from '@portico/client-core';
 import {abortScope} from '../abort.ts';
+import {createNonceStyle} from '../style-nonce.ts';
 import type {ReaderAdapter,ReaderDocument,ReaderLocation,ReaderMark} from '../ports.ts';
 import {colours as highlightColours} from '../epub/display.ts';
 import {mountFixed,type FixedPreferences} from './fixed-view.ts';
@@ -61,7 +62,7 @@ export function createPdfAdapter<P extends FixedPreferences>(options:PdfOptions=
       const publication:ReaderDocument<P>={id:source.id,revision:source.revision,format:'pdf',metadata:{...title?{title}:{},...author?{author}:{},...language?{language}:{},...direction?{direction}:{},pageCount:engine.document.numPages},toc,
         async mount(mountOptions){
           if(closed)throw new PdfInputError('closed');
-          const owner=mountOptions.container.ownerDocument,style=owner.createElement('style');style.textContent=textCss;mountOptions.container.append(style);
+          const owner=mountOptions.container.ownerDocument,style=createNonceStyle(owner,textCss);mountOptions.container.append(style);
           const life=new AbortController(),scope=abortScope([mountOptions.signal,engine.signal,life.signal]),combined=scope.signal;
           let fixed:Awaited<ReturnType<ReaderDocument<P>['mount']>>;
           // Saved highlights (10-reading rule 22): each page's rectangles, in units of the page,

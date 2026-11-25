@@ -26,6 +26,7 @@ import type {ReaderChapterMark} from '../../kit/reader/ReaderChrome';
 import fixedStyles from './fixed-page.module.css';
 import {ReaderMatchNavigation} from './ReaderMatchNavigation';
 import {ReaderBrowserHint} from './ReaderBrowserHint';
+import {isImplicitJump, jumpBackPlace, nextJumpBack, sameReaderPlace, type ReaderJumpBack, type ReaderJumpKind} from './jump-back';
 import {Menu, ToastHost, type ToastData} from '../../kit/overlays';
 import {ReaderTitleItems, ReaderVersionDialog, useReaderTitleMark, type ReaderTitle} from './ReaderTitleMenu';
 import {readingDuration} from '@core/reading-manifest-facts.ts';
@@ -150,6 +151,59 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   };
   const anchor = useRef<HTMLButtonElement>(null);
   const contentsError = useRef(reportError); contentsError.current = reportError;
+  const [jumpBack, setJumpBack] = useState<ReaderJumpBack | null>(null);
+  const jumpIdRef = useRef(0);
+  const lastLocationRef = useRef<Readonly<{sourceId?: string; sourceRevision?: string; location: ReaderLocation}> | null>(null);
+  const pendingJumpRef = useRef<Readonly<{from: ReaderLocation; kind: ReaderJumpKind}> | null>(null);
+  const suppressJumpRef = useRef(false);
+  const normalTurnUntilRef = useRef(0);
+  const markNormalTurn = useCallback(() => {
+    pendingJumpRef.current = null;
+    normalTurnUntilRef.current = Date.now() + 1500;
+  }, []);
+  const recordJump = useCallback((from: ReaderLocation | null | undefined, kind: ReaderJumpKind = 'jump') => {
+    if (!from) return;
+    pendingJumpRef.current = {from, kind};
+  }, []);
+  useEffect(() => controller.subscribeSurfaceInput(input => {
+    if (input.kind === 'turned') markNormalTurn();
+  }), [controller, markNormalTurn]);
+  useEffect(() => {
+    lastLocationRef.current = null;
+    pendingJumpRef.current = null;
+    suppressJumpRef.current = false;
+    setJumpBack(null);
+  }, [publication.source.id, publication.source.revision]);
+  useEffect(() => {
+    if (snapshot.status !== 'ready' || !snapshot.location || snapshot.sourceId !== publication.source.id || snapshot.sourceRevision !== publication.source.revision) return;
+    const next = snapshot.location, previous = lastLocationRef.current;
+    const sameSource = previous?.sourceId === snapshot.sourceId && previous?.sourceRevision === snapshot.sourceRevision;
+    lastLocationRef.current = {sourceId: snapshot.sourceId, sourceRevision: snapshot.sourceRevision, location: next};
+    if (suppressJumpRef.current) {suppressJumpRef.current = false; pendingJumpRef.current = null; return;}
+    const pending = pendingJumpRef.current;
+    if (pending) {
+      if (!sameReaderPlace(pending.from, next)) {
+        pendingJumpRef.current = null;
+        setJumpBack(current => nextJumpBack(current, pending.from, pending.kind, ++jumpIdRef.current));
+      }
+      return;
+    }
+    if (sameSource && previous && Date.now() > normalTurnUntilRef.current && isImplicitJump(previous.location, next)) {
+      setJumpBack(current => nextJumpBack(current, previous.location, 'link', ++jumpIdRef.current));
+    }
+  }, [snapshot.status, snapshot.location, snapshot.sourceId, snapshot.sourceRevision, publication.source.id, publication.source.revision]);
+  const returnToPreviousLocation = useCallback(() => {
+    const target = jumpBack?.location, current = controller.getSnapshot();
+    setJumpBack(null);
+    if (!target || !active || !authority.isCurrent() || publication.signal.aborted || current.status !== 'ready'
+      || current.sourceId !== publication.source.id || current.sourceRevision !== publication.source.revision) return;
+    suppressJumpRef.current = true;
+    pendingJumpRef.current = null;
+    void controller.navigate({kind: 'location', location: target}).catch(error => {
+      suppressJumpRef.current = false;
+      if (authority.isCurrent()) reportError(error);
+    });
+  }, [jumpBack, controller, active, authority, publication, reportError]);
   useEffect(() => {
     const target = book.contentsTarget;
     if (!target) return;
@@ -160,7 +214,9 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       try {
         const current = publication.contentsTarget(target.index);
         if (current.sourceId !== target.sourceId || current.sourceRevision !== target.sourceRevision) throw new Error('source_changed');
+        suppressJumpRef.current = true;
         void controller.navigateContents(current, operation.signal).catch(error => {
+          suppressJumpRef.current = false;
           if (!operation.signal.aborted && authority.isCurrent()) contentsError.current(error);
         });
       } catch (error) {if (authority.isCurrent()) contentsError.current(error);}
@@ -177,9 +233,10 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
     const apply = () => {
       if (applied || operation.signal.aborted || controller.getSnapshot().status !== 'ready' || !authority.isCurrent()) return;
       applied = true;
+      suppressJumpRef.current = true;
       void controller.navigate({kind: 'progression', value: near}, operation.signal)
         .then(() => {if (!operation.signal.aborted && authority.isCurrent()) setNearNotice({id: 'near', message: t('next.reader.openedNear')});})
-        .catch(error => {if (!operation.signal.aborted && authority.isCurrent()) contentsError.current(error);})
+        .catch(error => {suppressJumpRef.current = false; if (!operation.signal.aborted && authority.isCurrent()) contentsError.current(error);})
         .finally(() => {if (!operation.signal.aborted) landed?.();});
     };
     const off = controller.subscribe(apply); apply();
@@ -188,11 +245,12 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const engineError = useCallback((code: ReaderErrorCode) => reportError({code}), [reportError]);
   const layout = readerBookPresentation(width, environment, height), {presentation} = layout;
   const compactDocument = publication.format === 'pdf' && presentation === 'phone';
-  useEffect(() => {if (!active) {setPanel(undefined); setFixedMenu(undefined);}}, [active]);
+  useEffect(() => {if (!active) {setPanel(undefined); setFixedMenu(undefined); pendingJumpRef.current = null; suppressJumpRef.current = false; setJumpBack(null);}}, [active]);
   const navigate = (location: ReaderLocation) => {
     const current = controller.getSnapshot();
     if (!active || !authority.isCurrent() || publication.signal.aborted || current.status !== 'ready'
       || current.sourceId !== publication.source.id || current.sourceRevision !== publication.source.revision) return;
+    if (current.location && !sameReaderPlace(current.location, location)) recordJump(current.location, 'jump');
     void controller.navigate({kind: 'location', location}).catch(reportError);
     if (presentation === 'phone') setPanel(undefined);
   };
@@ -223,6 +281,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       || publication.signal.aborted || current.status !== 'ready' || current.sourceId !== publication.source.id
       || current.sourceRevision !== publication.source.revision) return;
     const operation = {}; searchMove.current = operation;
+    if (current.location && !sameReaderPlace(current.location, hit.location)) recordJump(current.location, 'jump');
     void controller.navigateSearchResult(hit, scope.abort.signal).then(() => {
       const accepted = controller.getSnapshot();
       if (searchScopeRef.current !== scope || scope.abort.signal.aborted || searchMove.current !== operation || queryRef.current !== query || !activeRef.current || !authority.isCurrent() || publication.signal.aborted
@@ -259,10 +318,10 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       ...(notes.service ? [{id:'bookmarks',label:t('next.reader.bookmarks')},{id:'highlights',label:t('next.reader.highlights')}] : [])]}
     selected={annotationPane ?? (fixed && !snapshot.toc.length ? 'pages' : fixedPane === 'pages' ? 'pages' : 'contents')}
     onSelect={selected => {if (selected === 'bookmarks' || selected === 'highlights' || selected === 'pages' || selected === 'contents') setFixedPane(selected);}} onClose={() => setPanel(undefined)} footer={(environment === 'web' || !!saveHighlights) && annotationPane === 'highlights' && notes.service ? <ReaderHighlightsExport key={publication.source.id + publication.source.revision} service={notes.service} signal={listSignal} nativeSave={environment === 'native' ? saveHighlights : undefined} title={publication.metadata.title} author={publication.metadata.author} reportError={reportError}/> : undefined}>
-    {annotationPane && notes.service ? <ReaderAnnotationList key={fixedPane} placed={placed} signal={listSignal} kind={annotationPane === 'bookmarks' ? 'bookmark' : 'highlight'} service={notes.service} state={notes.state} controller={controller} reportError={reportError}/>
+    {annotationPane && notes.service ? <ReaderAnnotationList key={fixedPane} placed={placed} signal={listSignal} kind={annotationPane === 'bookmarks' ? 'bookmark' : 'highlight'} service={notes.service} state={notes.state} controller={controller} reportError={reportError} onJump={from => recordJump(from, 'jump')}/>
       : !fixed || snapshot.toc.length > 0 && fixedPane === 'contents' ? snapshot.toc.length > 0 || snapshot.status !== 'ready' ? <ReaderContents entries={contents(snapshot.toc)}/>
         : <ReaderPanelEmpty>{t('next.reader.contentsEmpty')}</ReaderPanelEmpty>
-        : <FixedPagesPanel controller={controller} authority={authority} format={publication.format} reportError={engineError} onNavigate={() => {if (presentation === 'phone') setPanel(undefined);}}/>}
+        : <FixedPagesPanel controller={controller} authority={authority} format={publication.format} reportError={engineError} onJump={recordJump} onNavigate={() => {if (presentation === 'phone') setPanel(undefined);}}/>}
   </ReaderPanel>
     : panel === 'search' ? <ReaderPanel label={t('next.reader.search')} returnFocusRef={anchor} tabs={[{id: 'search', label: t('next.reader.search')}]}
       selected="search" onSelect={() => {}} onClose={() => setPanel(undefined)}><ReaderSearch query={query} onQuery={changeQuery} hits={searchHits} current={currentHit} loading={searching}
@@ -283,8 +342,13 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
         scale={{min: 1, max: 7, step: 1, ticks: [1, 2, 3, 4, 5, 6, 7]}} presentation={presentation} popover={layout.displayPopover} label={t('next.reader.display')}
         open onOpenChange={open => {if (!open) setPanel(undefined);}} anchorRef={anchor} reportError={code => reportError({code})}
         onOpenSettings={() => {setPanel(undefined); onOpenSettings();}}/> : undefined;
+  const activeToast: ToastData | null = jumpBack
+    ? {id: `jump-back-${jumpBack.id}`, message: t('next.reader.returnToPlace', {place: jumpBackPlace(jumpBack.location, page => t('next.reader.pageLabel', {page}), value => defaultI18n.percent(value), value => defaultI18n.number(value))}),
+      action: {label: t('next.reader.goBack'), icon: 'i-left', onAction: returnToPreviousLocation}, durationMs: 10_000}
+    : nearNotice;
   return <><ReadReader<ReadingPreferences> controller={controller} source={publication.source} format={publication.format} initialLocation={book.location} crease={crease}
     metadata={publication.metadata} signal={publication.signal} authority={authority} reportError={engineError} onBack={onBack}
+    onBeforeTurn={markNormalTurn} onBeforeSeek={from => recordJump(from, 'scrub')}
     state={state => state.status === 'error' ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')}/> : <Skeleton height="100%"/>}
     presentation={value => ({copy: {back: t('next.reader.back'), previous: t('next.reader.previous'), next: t('next.reader.next'), progress: t('next.reader.position'), showControls: t('next.reader.hintShowControls')},
       holdOpen: fixedMenu !== undefined, presentation,
@@ -298,14 +362,14 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       remainingInBook: value.location && book.estimatedSeconds ? t('next.reader.leftInBook', {duration: defaultI18n.duration(readingDuration(book.estimatedSeconds * (1 - value.location.progression)))}) : undefined,
       searchNavigation: active && value.status === 'ready' && value.sourceId === publication.source.id && value.sourceRevision === publication.source.revision && presentation === 'phone' && currentHit && visibleHits.some(hit => hit.id === currentHit)
         ? <ReaderMatchNavigation query={query} onStep={stepSearch} onClose={() => changeQuery('')}/> : undefined, panel: panelContent, panelReflows: layout.panelReflows(panel),
-      fixedPageFooter: comic ? <ComicPageFooter controller={controller} authority={authority} format={publication.format} reportError={engineError} crease={crease} presentation={presentation}/>
-        : compactDocument ? <FixedPageFooter controller={controller} authority={authority} format={publication.format} reportError={engineError}
+      fixedPageFooter: comic ? <ComicPageFooter controller={controller} authority={authority} format={publication.format} reportError={engineError} onJump={recordJump} crease={crease} presentation={presentation}/>
+        : compactDocument ? <FixedPageFooter controller={controller} authority={authority} format={publication.format} reportError={engineError} onJump={recordJump}
         pages={readerPagePosition(value.location, value.metadata?.pageCount)} chapters={readerChapterMarks(value.toc, value.location ?? undefined)}
         onPages={() => {setFixedPane('pages'); setPanel('contents');}} onContents={() => {setFixedPane('contents'); setPanel('contents');}}
         onFit={element => {zoomAnchor.current = element; setFixedMenu(fixedMenu === 'zoom' ? undefined : 'zoom');}}/> : undefined,
       fixedPageZoom: publication.format === 'pdf' && value.location && value.location.format !== 'epub' && value.location.viewport
         ? <FixedPageZoom controller={controller} authority={authority} format={publication.format} reportError={engineError} viewport={value.location.viewport} presentation={presentation}/> : undefined,
-      fixedPageStrip: publication.format === 'pdf' && !compactDocument ? <FixedPageStrip controller={controller} authority={authority} format={publication.format} reportError={engineError}/> : undefined,
+      fixedPageStrip: publication.format === 'pdf' && !compactDocument ? <FixedPageStrip controller={controller} authority={authority} format={publication.format} reportError={engineError} onJump={recordJump}/> : undefined,
       onPanelDismiss: () => setPanel(undefined), actions: readerToolbarOrder([
         ...(compactDocument ? [{id: 'search', label: t('next.reader.search'), icon: 'i-search' as const, expanded: panel === 'search', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'search' ? undefined : 'search');}}] : []),
         ...(notes.service ? [{id:'bookmark',label:t('next.reader.addBookmark'),icon:'i-bookmark' as const,
@@ -334,7 +398,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
           onPress: (element: HTMLButtonElement) => {const root = element.closest<HTMLElement>('[data-reader-root]'); void (document.fullscreenElement ? document.exitFullscreen() : root?.requestFullscreen())?.catch(reportError);}}] : []),
       ], publication.format === 'epub' ? 'epub' : comic ? 'comic' : 'pdf')})}/>
     {active && <ReaderAnnotationActions service={notes.service} snapshot={snapshot} controller={controller} onSearch={!comic ? text => {changeQuery(text);setPanel('search');} : undefined} reportError={reportError}/>}
-    {active && <ToastHost toast={nearNotice} onDismiss={() => setNearNotice(null)}/>}
+    {active && <ToastHost toast={activeToast} onDismiss={id => {if (id.startsWith('jump-back-')) setJumpBack(null); else setNearNotice(null);}}/>}
     {active && environment === 'web' && snapshot.status === 'ready' && <ReaderBrowserHint visible={presentation === 'phone' && !panel && !fixedMenu && !currentHit && snapshot.selection === null && !hint}/>}
     {active && fixed && <FixedPageMenus controller={controller} authority={authority} format={publication.format} reportError={engineError}
       open={fixedMenu} onOpenChange={setFixedMenu} anchorRef={zoomAnchor} directionRef={directionAnchor} moreRef={moreAnchor}

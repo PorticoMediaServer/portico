@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {bindWebAccountEntry, isAccountEntryPath} from '../src/route-registry-lifecycle.ts';
+import {bindWebAccountEntry, isAccountEntryPath, isHostedServicesSuspendedPath} from '../src/route-registry-lifecycle.ts';
 import {createEntryDestinationStore, localDeviceDestination, profileSettingsDestination, type WebEntryDestination} from '../src/route-registry-destination.ts';
 import {ShellBootstrap, type ShellAssembler, type ShellBootstrapSnapshot} from '../src/shell/bootstrap.ts';
 import type {SelectedViewerRecord} from '@core/viewer-selection.ts';
@@ -107,4 +107,41 @@ test('a local device intent stores only a fixed destination, never the fragment 
   store.rememberLocalDevice();assert.deepEqual([...stored.values()], ['local-device']);
   store.rememberProfileSettings();store.clearLocalDevice();assert.deepEqual(store.take(), profileSettingsDestination);
   store.rememberLocalDevice();assert.deepEqual(store.take(), localDeviceDestination);assert.equal(stored.size, 0);
+});
+
+test('Hosted Services paths keep ShellBootstrap suspended across in-page transitions without spurious wakes', () => {
+  const hostedPaths = ['/sign-in', '/sign-up', '/sign-up/confirm', '/reset', '/approve', '/approve/req_123', '/account', '/tv', '/join', '/servers/return', '/app/account-return'];
+  for (const path of hostedPaths) {
+    assert.equal(isHostedServicesSuspendedPath(path, true), true, path);
+    assert.equal(isHostedServicesSuspendedPath(path, false), false, path);
+    assert.equal(isAccountEntryPath(path, true), true, path);
+    if (path !== '/account') assert.equal(isAccountEntryPath(path, false), true, path);
+  }
+  assert.equal(isAccountEntryPath('/account', false), false, 'local server /account stays an in-app alias');
+
+  let starts = 0, suspends = 0, resumes = 0;
+  const bootstrap = {
+    ...admission(),
+    start: async () => { starts++; },
+    suspendForAccountEntry: () => { suspends++; },
+    resumeAfterAccountEntry: async () => { resumes++; },
+  };
+  const nav = navigation('/servers');
+  const close = bindWebAccountEntry(nav.router, bootstrap, createEntryDestinationStore(), true);
+  assert.equal(suspends, 1);
+  assert.equal(starts, 0);
+  // Moving across every Hosted Services page keeps ShellBootstrap suspended without waking it.
+  for (const nextPath of ['/account', '/sign-in', '/sign-up', '/sign-up/confirm', '/reset', '/approve', '/approve/abc', '/tv', '/join', '/servers/return', '/servers']) {
+    nav.go(nextPath);
+  }
+  assert.equal(resumes, 0, 'in-page transitions between Hosted Services pages never wake ShellBootstrap');
+  assert.equal(suspends, 1, 'no redundant suspend calls while already suspended');
+  // Leaving Hosted Services for a server route wakes ShellBootstrap; returning suspends it again.
+  nav.go('/');
+  assert.equal(resumes, 1);
+  nav.go('/account');
+  assert.equal(suspends, 2);
+  nav.go('/tv');
+  assert.equal(resumes, 1);
+  close();
 });

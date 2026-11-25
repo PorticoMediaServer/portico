@@ -24,9 +24,17 @@ function validatePage(page:ComicPage,index:number):void{
   const observed=rasterInfo(page.bytes);
   if(observed.mime!==page.image.mime||observed.width!==page.image.width||observed.height!==page.image.height)throw new ComicInputError('image_invalid');
 }
+async function decodeBitmap(blob:Blob):Promise<ImageBitmap>{
+  // Decode raw encoded dimensions matching rasterInfo's SOF header so 90°/270° EXIF-rotated JPEGs match.
+  try{return await createImageBitmap(blob,{imageOrientation:'none'});}
+  catch(error){
+    if(error instanceof TypeError||error instanceof DOMException&&error.name==='NotSupportedError')return createImageBitmap(blob);
+    throw error;
+  }
+}
 async function bitmapFor(page:ComicPage,signal:AbortSignal):Promise<ImageBitmap>{
   checkAbort(signal);validatePage(page,page.index);
-  const bitmap=await createImageBitmap(new Blob([page.bytes as Uint8Array<ArrayBuffer>],{type:page.image.mime}));
+  const bitmap=await decodeBitmap(new Blob([page.bytes as Uint8Array<ArrayBuffer>],{type:page.image.mime}));
   if(signal.aborted){bitmap.close();throw abortReason(signal);}
   if(bitmap.width!==page.image.width||bitmap.height!==page.image.height){bitmap.close();throw new ComicInputError('image_invalid');}return bitmap;
 }

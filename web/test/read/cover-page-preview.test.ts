@@ -21,3 +21,17 @@ test('RD-2 (#699): any other page failure, or one after the picker closed, still
   const rejected = Object.assign(new Error('reading_member_unreadable'), {code: 'reading_member_unreadable', status: 422});
   await assert.rejects(coverPagePreview(session(rejected), 0, closed.signal), rejected);
 });
+
+test('coverPagePreview does not allocate a blob URL when aborted before or during page fetch', async () => {
+  const originalCreate = URL.createObjectURL;
+  let created = 0;
+  URL.createObjectURL = ((...args: Parameters<typeof URL.createObjectURL>) => {created++; return originalCreate(...args);}) as typeof URL.createObjectURL;
+  try {
+    const aborted = new AbortController();
+    const slowSession = {async page(index: number) {aborted.abort(new DOMException('Aborted', 'AbortError')); return {index, name: 'p.png', mime: 'image/png', bytes: png};}} as never;
+    await assert.rejects(coverPagePreview(slowSession, 0, aborted.signal), {name: 'AbortError'});
+    assert.equal(created, 0);
+  } finally {
+    URL.createObjectURL = originalCreate;
+  }
+});

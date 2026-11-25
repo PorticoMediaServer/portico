@@ -24,7 +24,7 @@ export function PlayerStillWatching({episode, title, busy = false, onContinue, o
       {onReplay && <Button variant="glass" size="small" icon="i-restart" disabled={busy} onClick={onReplay}>{t('player.post.replay')}</Button>}
       <Button variant="glass" size="small" disabled={busy} onClick={onClose}>{t('player.post.close')}</Button>
     </>}>
-    <p className={styles.next}><MetadataFacts parts={[t('player.post.upNext'), episode && <b>{episode}</b>, <b>{title}</b>]} /></p>
+    <p className={styles.next}><MetadataFacts parts={[t('player.post.upNext'), episode && <b key="episode">{episode}</b>, <b key="title">{title}</b>]} /></p>
     <p>{t('player.post.pausedAfterEpisodes')}</p>
   </Dialog>;
 }

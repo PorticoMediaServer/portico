@@ -1,4 +1,4 @@
-import {Reader, ZipReader, type Entry, type FileEntry} from '@zip.js/zip.js';
+import {Reader, ZipReader, type FileEntry} from '@zip.js/zip.js';
 import {releaseQuietly} from '@portico/client-core';
 import type {ReaderSource} from '../ports.ts';
 import {readRange} from '../source.ts';

@@ -18,8 +18,15 @@ const loader = registerHooks({load(url, context, next) {
   if (url.endsWith('/kit/artwork/index.ts')) return module("export const Artwork='artwork',AmbientArt='ambient',ArtworkGlow='artwork-glow',WholeArtwork='whole-artwork',GeneratedCover='generated-cover',useCoverAspect=()=>({aspect:undefined,onReady:()=>{}}),wholeCoverBox=()=>undefined;");
   if (url.endsWith('/kit/states/index.ts')) return module("export const StateView='state';");
   if (url.endsWith('/kit/Icon.tsx')) return module("export const Icon='icon';");
+  if (url.endsWith('/AudiobookListening.tsx') || url.endsWith('/LyricsPanel.tsx')) {
+    const source = transformTsx(url).replace(/from\s+["']react["']/g, 'from "virtual:presenter-react"');
+    return module(source);
+  }
   if (url.endsWith('.tsx')) return module(transformTsx(url));
   return next(url, context);
+}, resolve(specifier, context, next) {
+  if (specifier === 'virtual:presenter-react') return {url: 'data:text/javascript,export const useState=i=>[typeof i==="function"?i():i,()=>{}],useEffect=()=>{},useRef=v=>({current:v});', shortCircuit: true};
+  return next(specifier, context);
 }});
 const {AudiobookListening} = await import('../src/screens/watch/listening/AudiobookListening.tsx');
 const {LyricsPanel} = await import('../src/screens/watch/listening/LyricsPanel.tsx');

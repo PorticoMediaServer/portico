@@ -32,11 +32,16 @@ import {bulkAccessWithLibraries, type BulkLibraryChoice} from './people-bulk-acc
 import type {PeopleDevicesApi} from './people-devices-source';
 import {PeopleDevices} from './PeopleDevices';
 import {PeopleInvitationCard} from './PeopleInvitationCard';
+import {isFatalSettingsError, settingsFatalReason} from './controller';
 
 const invitationStates = ['pending', 'accepted', 'revoked', 'expired'] as const;
 const invitationState = (value: string) => invitationStates.find(state => state === value);
 
 const t = defaultI18n.t, section = settingsSpec.find(section => section.scope === 'server' && section.id === 'people')!;
+function peopleErrorText(error: unknown): string {
+  const code = error && typeof error === 'object' ? (error as {code?: unknown}).code : undefined;
+  return t(code === 'factor_setup_required' ? 'error.factorSetupRequired' : 'next.states.pageFailedBody');
+}
 const table = section.groups![0].rows[0].control, personSpec = section.panels!.person;
 /** The generated person panel stays untouched. This local clone adds the admitted
  * reset action to the first Account tab's Sign-in group, before Turn off account. */
@@ -99,7 +104,8 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   const [formOpen, setFormOpen] = useState(false), [choices, setChoices] = useState<InviteChoices>(defaultInviteChoices);
   /** The drawn ladder is whole days on the server and hours in the dialog. */
   const openedChoices = (): InviteChoices => {
-    const hours = bindings.inviteExpiryHours?.(), role = bindings.inviteRole?.();
+    const hours = bindings.inviteExpiryHours?.(), rawRole = bindings.inviteRole?.();
+    const role = rawRole === 'admin' || (rawRole as string | undefined) === 'administrator' ? 'admin' : rawRole === 'member' ? 'member' : undefined;
     return Object.freeze({...defaultInviteChoices,
       ...(hours && Number.isFinite(hours) && hours > 0 ? {expiresInHours: hours} : {}),
       ...(role ? {role} : {})});
@@ -139,8 +145,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
       setInvitationVersion(value => value + 1);
     } catch (error) {
       if (!currentForm()) return;
-      const status = (error as {status?: number})?.status;
-      if (status === 401 || status === 403) { owner.retire(); formActive.current = false; inviteLife.current.abort(); failure(error); return; }
+      if (isFatalSettingsError(error)) { owner.retire(); formActive.current = false; inviteLife.current.abort(); failure(error); return; }
       owner.failed(error); setFormError(error); setRetained(owner.pending);
     } finally { if (currentForm()) setFormBusy(false); }
   };
@@ -174,8 +179,9 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   useEffect(() => {const activeRequests = requests.current;mounted.current = true;return () => {mounted.current = false;for (const request of activeRequests) request.abort();activeRequests.clear();};}, []);
   const failure = useCallback((error: unknown): boolean => {
     if (!mounted.current || !bindings.authority.isCurrent()) return true;
-    const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
-    if (status === 401 || status === 403) {
+    const fatal = settingsFatalReason(error);
+    if (fatal === 'pin') {bindings.reportError(error); return true;}
+    if (fatal === 'authority') {
       if (retired.current) return true;
       retired.current = true;++generation.current;client.dispose();
       for (const request of requests.current) request.abort();requests.current.clear();
@@ -183,7 +189,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
       bindings.authority.onAuthorityChanged();return true;
     }
     setError(error);return false;
-  }, [bindings.authority, client]);
+  }, [bindings, client]);
   const admitQuery = useCallback((next: TableQuery) => {
     if (!mounted.current || !bindings.authority.isCurrent() || retired.current || next === quiet.current.query) return;
     ++quietSerial.current;++generation.current;queryRead.current?.abort();pagingRead.current?.abort();pagingRead.current = undefined;
@@ -261,7 +267,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   const run = async (action: () => Promise<void>) => {
     if (!live || denied || !bindings.authority.isCurrent() || saving) return; ++quietSerial.current;quiet.current={...quiet.current,saving:true};setSaving(true); setSaved(false); setError(undefined);
     try {await action(); if (mounted.current && bindings.authority.isCurrent() && !retired.current) {setSaved(true); setRefresh(value => value + 1);}}
-    catch (error) {if (!failure(error)) bindings.reportError(error);}
+    catch (error) {failure(error);}
     finally {if (mounted.current) setSaving(false);}
   };
   const canEdit = live && !denied && bindings.authority.isCurrent() && !!person && person.accountId !== bindings.actor.accountId && managesTier(bindings.actor.role, person.role);
@@ -369,6 +375,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     <SettingsGroup title={t(section.groups![0].title!)} plain actions={<>{bindings.addAccount && <Button size="small" variant="glass"
       onClick={event => {if (!bindings.authority.isCurrent()) return; addOpener.current = event.currentTarget; setAddOpen(true);}}>{t('web.people.addAccount')}</Button>}<Button size="small" variant="primary" icon="i-plus" iconSize={20} disabled={!bindings.invite && !bindings.invitations}
       onClick={event => { if (!bindings.authority.isCurrent()) return; if (bindings.invite) bindings.invite(event.currentTarget); else void openInvite(event.currentTarget); }}>{t(table.addLabel!)}</Button></>}>
+    {Boolean(error) && page && !personId && <p role="alert">{peopleErrorText(error)}</p>}
     {error && !page && !personId ? <SettingsPageFailure retry={() => setRefresh(value => value + 1)} home={bindings.openHome} /> : <SettingsTable phoneCards ref={tableRef} height={table.height}
       label={t(section.title)} rows={(page?.items ?? []).map(row => peopleTableRow(row, bindings.actor))} columns={table.columns!.map(column => ({id: column.id!, label: t(column.label), kind: column.kind as 'main', sortable: column.sort, width: column.width}))}
       query={query} onQueryChange={admitQuery} filters={table.filters!.map(filter => ({id: filter.id, label: t(filter.label), showAllValue: false,
@@ -392,7 +399,7 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
     {advancedRows}
     {personId && <SettingsPanel open onClose={() => {if (resetView && !resetView.leave()) return; admitPerson();}} title={person?.username ?? personRow?.username ?? t(section.title)} audience={t(bindings.actor.role === 'owner' ? 'next.shell.serverVisibility.ownerShared' : 'next.shell.serverVisibility.administrator')}
       returnFocusRef={opener} selectedTab={tab} onTabChange={next => {if (next === tab) return; if (resetView && !resetView.leave()) return; setTab(next);}} saveState={saving ? 'saving' : saved ? 'saved' : undefined}
-      error={error ? t('next.states.pageFailedBody') : undefined} tabs={personPanel.tabs!.filter(tab => tab.id !== 'devices' || bindings.devices && devicesShown).map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
+      error={error ? peopleErrorText(error) : undefined} tabs={personPanel.tabs!.filter(tab => tab.id !== 'devices' || bindings.devices && devicesShown).map(tab => ({id: tab.id, title: t(tab.title), content: !person ? <p role="status">{t('next.settings.loading')}</p> : tab.id === 'devices' && bindings.devices ? <PeopleDevices key={person.accountId} accountId={person.accountId} api={bindings.devices} isCurrent={bindings.authority.isCurrent} canSignOut={canEdit} onError={failure} /> : <SettingsRows holder={tab} state={state} change={change} reset={() => {}} advancedOpen={advanced} onAdvancedChange={setAdvanced}
         renderSpecial={special} />
       }))} />}
     {resetView?.sheet && <MemberResetCodeSheet {...resetView.sheet} />}
@@ -411,8 +418,8 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
         change={(row, value) => setBulk(before => {if (row.id === 'bulk.maxStreams') return bindings.streamLimits?.patchBulk(before, value) ?? before; const next = {...before}; if (row.id === 'bulk.awayAccess') {if (value === 'keep') delete next.allowRemote; else next.allowRemote = value === 'allowed';} else {if (value === 'keep') delete next.maxContentRating; else next.maxContentRating = value === 'none' ? '' : String(value);} return next;})} renderSpecial={() => null} />
     </SettingsPanel>}
     {command && command.action !== 'access' && <Dialog footerDismisses open title={t('next.settings.confirmPeople', {count: command.rows.length})} onOpenChange={open => {if (!open && !saving) {setCommand(undefined); setBulk(undefined);}}}
-      returnFocusRef={confirmOpener} footer={<><Button disabled={saving} onClick={() => {setCommand(undefined); setBulk(undefined);}}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={applyCommand}>{t('next.settings.apply')}</Button></>}>
-      <p>{t(command.action === 'remove' ? table.select!.bulk[2].confirm! : table.select!.bulk[1].confirm!)}</p>
+      returnFocusRef={confirmOpener} footer={<><Button disabled={saving} onClick={() => {setCommand(undefined); setBulk(undefined);}}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={applyCommand}>{t(command.action === 'enable' ? 'next.settings.turnOn' : 'next.settings.apply')}</Button></>}>
+      <p>{t(command.action === 'remove' ? table.select!.bulk[2].confirm! : command.action === 'enable' ? 'next.settings.letBackInBody' : table.select!.bulk[1].confirm!)}</p>
     </Dialog>}
     {letBackIn && <Dialog footerDismisses open title={t('next.settings.letBackInTitle', {name: letBackIn.username})} onOpenChange={open => {if (!open && !saving) setLetBackIn(undefined);}} returnFocusRef={letBackInOpener}
       footer={<><Button disabled={saving} onClick={() => setLetBackIn(undefined)}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={() => {const person = letBackIn; void run(async () => {await client.letBackIn(person); setLetBackIn(undefined);});}}>{t('next.settings.letBackIn')}</Button></>}>

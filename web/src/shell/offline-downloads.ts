@@ -33,19 +33,43 @@ export type OfflineDownloadsPort = Readonly<{
 }>;
 
 let installed: OfflineDownloadsPort | undefined;
+const listeners = new Set<() => void>();
+
+function notify(): void {
+  for (const listener of [...listeners]) {
+    try { listener(); } catch { /* One subscriber cannot block others or keep a retired port live. */ }
+  }
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+function getSnapshot(): OfflineDownloadsPort | undefined {
+  return installed;
+}
+
+function getServerSnapshot(): OfflineDownloadsPort | undefined {
+  return undefined;
+}
 
 /** Install (or clear) the launch-page port; returns its removal. */
 export function installOfflineDownloads(next: OfflineDownloadsPort | undefined): () => void {
-  installed = next;
-  return () => { if (installed === next) installed = undefined; };
+  if (installed !== next) {
+    installed = next;
+    notify();
+  }
+  return () => {
+    if (installed === next) {
+      installed = undefined;
+      notify();
+    }
+  };
 }
 
 export function useOfflineDownloads(): OfflineDownloadsPort | undefined {
-  return useSyncExternalStore(
-    listener => installed ? installed.subscribe(listener) : () => {},
-    () => installed,
-    () => undefined,
-  );
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 export const emptyOfflineDownloads = Object.freeze({phase: 'loading' as const, items: Object.freeze([]) as readonly OfflineDownloadRow[]});
@@ -54,5 +78,6 @@ export const emptyOfflineDownloads = Object.freeze({phase: 'loading' as const, i
 export function clearOfflineDownloads(): void {
   const port = installed;
   installed = undefined;
+  if (port !== undefined) notify();
   try { port?.retire?.(); } catch { /* nothing left to retire */ }
 }

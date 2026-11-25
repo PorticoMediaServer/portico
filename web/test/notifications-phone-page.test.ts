@@ -13,10 +13,11 @@ test('at phone width /notifications is phone-app 21: the bar with Mark all read,
   assert.match(route, /section=\{\{audience: 'account-admin', view, title: <>\{t\('notifications\.audience\.admin'\)\}<span>\{t\('next\.shell\.ownerOnly'\)\}<\/span><\/>\}\}/);
 });
 
-test('the Server section is its own inbox, for owners only, made on the page and disposed with it; Mark all read reads both', () => {
+test('the Server section is its own scoped inbox, for owners only, made on the page and disposed with it; Mark all read reads both', () => {
   assert.match(route, /const owner = context\.facts\.identity\.viewer\.role === 'owner' && sharedState\.audiences\.includes\('account-admin'\);/);
-  assert.match(route, /const server = useMemo\(\(\) => owner \? new InboxService\(context\.api, undefined, \{queries: context\.freshness\.queries\}\) : undefined, \[owner, context\]\);/);
-  assert.match(route, /useEffect\(\(\) => \(\) => \{server\?\.dispose\(\);\}, \[server\]\);/);
+  assert.match(route, /const notificationScope = createNotificationScope\(context\.notificationScope \?\? context\.api, \{serverId: context\.facts\.identity\.viewer\.serverId, signal: lifetime\.signal, isCurrent\}\);/);
+  assert.match(route, /const service = new InboxService\(notificationScope, undefined, \{queries: context\.freshness\.queries, cacheApi: notificationScope\}\);/);
+  assert.match(route, /return \(\) => \{lifetime\.abort\(\); service\.dispose\(\); notificationScope\.dispose\(\);\};/);
   assert.match(route, /for \(const \[inbox, snapshot\] of \[\[shared, sharedState\], \[server, serverState\]\] as const\)/);
   // A section's feed follows the inbox it was given, so the change hint refreshes the Server inbox too.
   assert.match(route, /service = given \?\? context\.inbox/);

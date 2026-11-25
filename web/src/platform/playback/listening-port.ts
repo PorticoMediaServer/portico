@@ -5,7 +5,7 @@ import type {QueuePlaylistSave} from '@core/playback-v1/queue.ts';
 import type {V1PlaybackTarget, V1QueuePolicyIntent} from '@core/playback-v1/v1-queue-player.ts';
 import type {PlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import type {WebQueueListPort, WebQueueListSnapshot} from './queue-list.ts';
-import {createQueueEditOpening, type WebQueueEditOpening} from './queue-edit-adapter.ts';
+import type {WebQueueEditOpening} from './queue-edit-adapter.ts';
 
 /** The caller's own view lifetime. It stays part of every command's currentness and
  * signal from admission through the awaited IO, progress and final return. */

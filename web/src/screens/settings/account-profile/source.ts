@@ -1,6 +1,5 @@
 import {readDirectAccount} from '../../../../../packages/client-core/src/query/connection-operations.ts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
-import {routePath} from '../../../../../packages/contracts/src/routes.ts';
 import {CodedError} from '@core/server-messages.ts';
 import {IdentityClient, type IdentityUpload} from '@core/identity-client.ts';
 import type {ProfileAvatar} from '@core/identity-restrictions.ts';

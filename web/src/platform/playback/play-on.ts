@@ -123,7 +123,10 @@ export class PlayOnController {
   constructor(private readonly options: PlayOnControllerOptions) {
     this.state = Object.freeze({cast: options.sender.getSnapshot(), airPlayAvailable: options.airPlay?.available() === true, panel: null, disposed: false});
     this.detach.push(options.sender.subscribe(this.senderChanged), options.runtime.subscribe(this.runtimeChanged), options.sender.prepareOnIdle());
-    if (options.airPlay) this.detach.push(options.airPlay.subscribe(() => this.publish({airPlayAvailable: options.airPlay!.available()})));
+    if (options.airPlay) this.detach.push(options.airPlay.subscribe(() => {
+      const airPlayAvailable = options.airPlay!.available() === true;
+      if (airPlayAvailable !== this.state.airPlayAvailable) this.publish({airPlayAvailable});
+    }));
     this.detach.push(options.runtime.bindRemoteRetention({
       retainsMedia: () => !this.disposed && (!!this.state.remote || this.state.cast.transferPending === true || options.sender.retainsMedia?.() === true),
       subscribe: listener => {

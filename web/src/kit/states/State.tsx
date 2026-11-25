@@ -88,9 +88,11 @@ export function StateSteps({steps}: {steps: readonly StateStep[]}) {
 }
 
 export type StateDetails = Readonly<{open: boolean; onOpenChange: (open: boolean) => void; content: ReactNode; label?: ReactNode}>;
+export type StateHeadingLevel = 'h1' | 'h2' | 'h3';
 export type StateContentProps = Readonly<{
   /** Catalogue or presentError output only; never an Error or server message. */
   title: ReactNode;
+  headingLevel?: StateHeadingLevel;
   body?: ReactNode;
   icon?: IconName;
   tone?: StateTone;
@@ -109,13 +111,14 @@ export type StateContentProps = Readonly<{
 function Action({action, variant, compact}: {action: StateAction; variant: 'primary' | 'glass' | 'text'; compact?: boolean}) {
   return <Button variant={variant} size={compact ? 'small' : 'hero'} icon={action.iconPosition === 'end' ? undefined : action.icon} disabled={action.disabled} loading={action.loading} aria-label={action.accessibilityLabel} onClick={action.onPress}>{action.iconPosition === 'end' && action.icon ? <span className={styles.trailingAction}>{action.label}<Icon name={action.icon} size={18}/></span> : action.label}</Button>;
 }
-function StateContent({title, body, icon, tone = 'neutral', eyebrow, retry, alive, primary, secondary, links, details, help, afterActions, children, compact = false, panelDetails = false, detailsTriggerRef}: StateContentProps & {compact?: boolean; panelDetails?: boolean; detailsTriggerRef?: RefObject<HTMLButtonElement | null>}) {
+function StateContent({title, headingLevel = 'h1', body, icon, tone = 'neutral', eyebrow, retry, alive, primary, secondary, links, details, help, afterActions, children, compact = false, panelDetails = false, detailsTriggerRef}: StateContentProps & {compact?: boolean; panelDetails?: boolean; detailsTriggerRef?: RefObject<HTMLButtonElement | null>}) {
   const titleId = useId();
   const detailsId = useId();
+  const Heading = headingLevel;
   return <section className={styles.content} aria-labelledby={titleId} data-tone={tone}>
     {eyebrow && <div className={styles.eyebrow}>{eyebrow}</div>}
     {icon && <div className={styles.stateIcon}><Icon name={icon} size={compact ? 22 : 28}/></div>}
-    <h1 id={titleId}>{title}</h1>
+    <Heading id={titleId} className={styles.title}>{title}</Heading>
     {body && <p className={styles.body}>{body}</p>}
     {retry && <div className={styles.alive} aria-live="polite"><CountdownRing progress={retry.progress}/><strong>{retry.label}</strong>{retry.detail && <span className={styles.retryDetail}>{retry.detail}</span>}</div>}
     {alive && <div className={styles.alive}>{alive}</div>}
@@ -169,9 +172,10 @@ export function StateLayout({backdrop = {kind: 'colour'}, variant = 'page', chro
 }
 
 export type StateViewProps = StateContentProps & Readonly<{variant?: 'inline' | 'scan' | 'search' | 'compact' | 'page' | 'empty'; className?: string; style?: CSSProperties}>;
-export function StateView({variant = 'inline', className, style, ...content}: StateViewProps) {
+export function StateView({variant = 'inline', headingLevel, className, style, ...content}: StateViewProps) {
+  const level = headingLevel ?? (variant === 'page' ? 'h1' : 'h2');
   return <div className={[styles.inline, styles[variant], className].filter(Boolean).join(' ')} style={style} role={variant === 'scan' ? 'status' : undefined}>
     {variant === 'scan' && <div className={styles.ghosts} aria-hidden="true"><span/><span/><span/></div>}
-    <StateContent {...content} compact={variant === 'compact'}/>
+    <StateContent {...content} headingLevel={level} compact={variant === 'compact'}/>
   </div>;
 }

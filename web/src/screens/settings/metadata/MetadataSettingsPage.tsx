@@ -1,5 +1,6 @@
 import {refreshAllMetadata} from '@core/server-admin/metadata-refresh.ts';
-import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react';
+import {useBlocker} from '@tanstack/react-router';
 import {defaultI18n, type MessageId} from '@i18n';
 import {artworkLimitBytes, artworkLimitText, metadataSettingsService, openSubtitlesSummary, type ArtworkMaxEdge, type ArtworkPreference, type ArtworkLanguage, type MetadataAdvanced, type MetadataSettings, type MetadataSettingsChange, type MetadataLibraryChange, type MetadataLibrarySettings} from '@core/metadata-settings.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
@@ -9,6 +10,7 @@ import {Button, Select, Switch, TextField} from '../../../kit/controls';
 import {SettingsAdvanced, SettingsGroup} from '../../../kit/settings';
 import {Dialog} from '../../../kit/overlays';
 import {Skeleton} from '../../../kit/states';
+import {handleProfilePinManage, isProfilePinManageError} from '../pin-manage';
 import {MetadataLibraries} from './MetadataLibraries';
 import styles from './metadata-settings.module.css';
 import {SettingsRow} from '../../../kit/shell/SettingsSurfaces';
@@ -23,10 +25,30 @@ const draftFor = (document: MetadataSettings): Draft => ({artworkLanguage: docum
 const advancedKeys = ['refreshPolicy', 'fallbackLanguage', 'animeTitles'] as const;
 const secretValue = (draft: SecretDraft): string | undefined => draft.remove ? '' : draft.value.trim() || undefined;
 const terminal = (error: unknown): boolean => {
-  if (!error || typeof error !== 'object') return false;
+  if (!error || typeof error !== 'object' || isProfilePinManageError(error)) return false;
   const value = error as {status?: number; statusCode?: number; code?: string};
   return value.status === 401 || value.status === 403 || value.statusCode === 401 || value.statusCode === 403 || ['unauthorized', 'forbidden', 'not_permitted'].includes(value.code ?? '');
 };
+function metadataDraftDiff(document: MetadataSettings, draft: Draft) {
+  const hasLimit = document.localArtworkLimitBytes !== undefined;
+  const bytes = hasLimit ? artworkLimitBytes(draft.limit) : undefined;
+  const limitProblem = hasLimit && bytes === undefined;
+  const subtitleChanges = {
+    ...(secretValue(draft.subtitleKey) !== undefined ? {openSubtitlesApiKey: secretValue(draft.subtitleKey)} : {}),
+    ...(draft.subtitleUser !== document.openSubtitlesUsername ? {openSubtitlesUsername: draft.subtitleUser.trim()} : {}),
+    ...(draft.subtitlePassword ? {openSubtitlesPassword: draft.subtitlePassword} : {}),
+  };
+  const advancedChanges: Partial<MetadataSettingsChange> = {
+    ...Object.fromEntries(advancedKeys.filter(key => draft.advanced && document.advanced && draft.advanced[key] !== document.advanced[key]).map(key => [key, draft.advanced![key]])),
+    ...(secretValue(draft.acoustid) !== undefined ? {acoustidKey: secretValue(draft.acoustid)} : {}),
+  };
+  const advancedCount = Object.keys(advancedChanges).length;
+  const dirty = advancedCount > 0 || draft.artworkLanguage !== document.artworkLanguage || draft.artworkPreference !== document.artworkPreference || draft.onlineLookups !== document.onlineLookups || draft.defaultLanguage !== document.defaultLanguage || draft.defaultRegion !== document.defaultRegion || bytes !== document.localArtworkLimitBytes || draft.adult !== document.includeAdult || draft.edge !== document.artworkMaxEdge || secretValue(draft.tmdb) !== undefined || secretValue(draft.tvdb) !== undefined || Object.keys(subtitleChanges).length > 0 || Object.keys(draft.libraries).length > 0;
+  const pendingCount = Number(draft.artworkLanguage !== document.artworkLanguage) + Number(draft.artworkPreference !== document.artworkPreference) + Number(draft.onlineLookups !== document.onlineLookups) + Number(draft.defaultLanguage !== document.defaultLanguage) + Number(draft.defaultRegion !== document.defaultRegion) + Number(bytes !== document.localArtworkLimitBytes) + Number(draft.adult !== document.includeAdult) + Number(draft.edge !== document.artworkMaxEdge)
+    + Number(secretValue(draft.tmdb) !== undefined) + Number(secretValue(draft.tvdb) !== undefined) + Object.keys(subtitleChanges).length
+    + Object.values(draft.libraries).reduce((count, change) => count + Object.keys(change).length - 2, 0) + advancedCount;
+  return {hasLimit, bytes, limitProblem, subtitleChanges, advancedChanges, dirty, pendingCount};
+}
 /** The Advanced summary names only what differs from the spec defaults, among the fields the server has. */
 function advancedSummary(advanced: MetadataAdvanced): string[] {
   const parts: string[] = [];
@@ -47,8 +69,8 @@ type Owned = {service: ReturnType<typeof metadataSettingsService>; current: () =
 /** Only fields with real metadata-settings producers are offered. Credentials are local,
  * write-only drafts; neither a failed read nor a revision conflict silently resends them. */
 /** `recommendations`: the spec's Recommendations group (the title dataset switch), rendered by the generic runtime rows. */
-export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendations}: {api: LibraryContentApi; isCurrent: () => boolean; onLibraries: () => void; recommendations?: ReactNode}) {
-  const active = useRef<{api: LibraryContentApi; isCurrent: () => boolean}>({api, isCurrent}); active.current = {api, isCurrent};
+export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendations, reportError}: {api: LibraryContentApi; isCurrent: () => boolean; onLibraries: () => void; recommendations?: ReactNode; reportError?: (error: unknown) => void}) {
+  const active = useRef<{api: LibraryContentApi; isCurrent: () => boolean; reportError?: (error: unknown) => void}>({api, isCurrent, reportError}); active.current = {api, isCurrent, reportError};
   const [owned, setOwned] = useState<Owned>(), [document, setDocument] = useState<MetadataSettings>(), [draft, setDraft] = useState<Draft>();
   const [busy, setBusy] = useState(false), [error, setError] = useState<string>(), [denied, setDenied] = useState(false), [reload, setReload] = useState(0);
   const flight = useRef(false), refreshTrigger = useRef<HTMLButtonElement>(null);
@@ -64,7 +86,11 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
         const result = await api.request<T>(path, method, body, lifetime.signal);
         if (!current()) throw retired();
         return result;
-      } catch (problem) {if (terminal(problem) && current()) clear(); throw problem;}
+      } catch (problem) {
+        if (current() && handleProfilePinManage(problem, active.current.reportError)) throw problem;
+        if (terminal(problem) && current()) clear();
+        throw problem;
+      }
     };
     const service = metadataSettingsService(request);
     const scope = {service, current, refreshAll: () => refreshAllMetadata({request}, lifetime.signal)}; setOwned(scope); setDenied(false); setDocument(undefined); setDraft(undefined); setError(undefined); setRefreshStarted(false); setBusy(true); flight.current = true;
@@ -74,9 +100,14 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
     return () => {live = false; lifetime.abort(); flight.current = false;};
   }, [api, isCurrent, reload]);
   const current = () => !denied && !!owned?.current();
+  const diff = document && draft ? metadataDraftDiff(document, draft) : undefined;
+  const unsaved = Boolean(!denied && isCurrent() && owned?.current() && diff?.dirty);
+  const unsavedRef = useRef(unsaved); unsavedRef.current = unsaved;
+  const shouldBlock = useCallback(() => unsavedRef.current, []);
+  const leaveBlocker = useBlocker({shouldBlockFn: shouldBlock, enableBeforeUnload: unsaved, disabled: !unsaved, withResolver: true});
   if (!isCurrent() || denied) return <p role="alert">{t('next.remoteSources.error.forbidden')}</p>;
   const problem = error && <p role="alert">{error}</p>;
-  if (!document || !draft || !owned || !owned.current()) return busy ? <div aria-busy="true"><Skeleton quiet height={72}/><Skeleton quiet height={96}/><Skeleton quiet height={96}/></div>
+  if (!document || !draft || !diff || !owned || !owned.current()) return busy ? <div aria-busy="true"><Skeleton quiet height={72}/><Skeleton quiet height={96}/><Skeleton quiet height={96}/></div>
     : <>{problem}<Button size="small" onClick={() => setReload(value => value + 1)}>{t('action.tryAgain')}</Button></>;
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {if (!flight.current && current()) {setDraft({...draft, [key]: value}); setError(undefined);}};
   const setLibrary = (row: MetadataLibrarySettings, patch: Partial<Omit<MetadataLibraryChange, 'id' | 'expectedRevision'>>) => {
@@ -93,23 +124,7 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
     setError(undefined);
   };
   // The artwork limit is a row only on a server that has one; elsewhere nothing about it is sent.
-  const hasLimit = document.localArtworkLimitBytes !== undefined;
-  const bytes = hasLimit ? artworkLimitBytes(draft.limit) : undefined;
-  const limitProblem = hasLimit && bytes === undefined;
-  const subtitleChanges = {
-    ...(secretValue(draft.subtitleKey) !== undefined ? {openSubtitlesApiKey: secretValue(draft.subtitleKey)} : {}),
-    ...(draft.subtitleUser !== document.openSubtitlesUsername ? {openSubtitlesUsername: draft.subtitleUser.trim()} : {}),
-    ...(draft.subtitlePassword ? {openSubtitlesPassword: draft.subtitlePassword} : {}),
-  };
-  const advancedChanges: Partial<MetadataSettingsChange> = {
-    ...Object.fromEntries(advancedKeys.filter(key => draft.advanced && document.advanced && draft.advanced[key] !== document.advanced[key]).map(key => [key, draft.advanced![key]])),
-    ...(secretValue(draft.acoustid) !== undefined ? {acoustidKey: secretValue(draft.acoustid)} : {}),
-  };
-  const advancedCount = Object.keys(advancedChanges).length;
-  const dirty = advancedCount > 0 || draft.artworkLanguage !== document.artworkLanguage || draft.artworkPreference !== document.artworkPreference || draft.onlineLookups !== document.onlineLookups || draft.defaultLanguage !== document.defaultLanguage || draft.defaultRegion !== document.defaultRegion || bytes !== document.localArtworkLimitBytes || draft.adult !== document.includeAdult || draft.edge !== document.artworkMaxEdge || secretValue(draft.tmdb) !== undefined || secretValue(draft.tvdb) !== undefined || Object.keys(subtitleChanges).length > 0 || Object.keys(draft.libraries).length > 0;
-  const pendingCount = Number(draft.artworkLanguage !== document.artworkLanguage) + Number(draft.artworkPreference !== document.artworkPreference) + Number(draft.onlineLookups !== document.onlineLookups) + Number(draft.defaultLanguage !== document.defaultLanguage) + Number(draft.defaultRegion !== document.defaultRegion) + Number(bytes !== document.localArtworkLimitBytes) + Number(draft.adult !== document.includeAdult) + Number(draft.edge !== document.artworkMaxEdge)
-    + Number(secretValue(draft.tmdb) !== undefined) + Number(secretValue(draft.tvdb) !== undefined) + Object.keys(subtitleChanges).length
-    + Object.values(draft.libraries).reduce((count, change) => count + Object.keys(change).length - 2, 0) + advancedCount;
+  const {hasLimit, bytes, limitProblem, subtitleChanges, advancedChanges, dirty, pendingCount} = diff;
   const save = async () => {
     if (flight.current || !current() || limitProblem || !dirty) return;
     flight.current = true; setBusy(true); setError(undefined);
@@ -201,7 +216,7 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
     {recommendations}
     {/* Refresh all is an action; stored Advanced settings require a published field. */}
     {(() => {
-      const advanced = document.advanced, extra = draft.advanced;
+      const advanced = document.advanced;
       const languages = advanced?.fallbackLanguage !== undefined || advanced?.animeTitles !== undefined;
       const artwork = hasLimit || document.artworkMaxEdge !== undefined;
       const music = advanced?.acoustidKeyConfigured !== undefined;
@@ -235,6 +250,9 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
     <Dialog footerDismisses open={confirmRefresh} size="sm" role="alertdialog" returnFocusRef={refreshTrigger} onOpenChange={open => {if (!open) setConfirmRefresh(false);}} title={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.label')}
       description={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.confirm')}
       footer={<><Button size="small" variant="text" disabled={busy} onClick={() => setConfirmRefresh(false)}>{t('action.cancel')}</Button><Button size="small" variant="primary" disabled={busy} onClick={() => {void refreshAll();}}>{t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.label')}</Button></>}>{null}</Dialog>
+    <Dialog footerDismisses open={leaveBlocker.status === 'blocked'} size="sm" role="alertdialog" onOpenChange={open => {if (!open) leaveBlocker.reset?.();}} title={t('settings.save.unsaved')}
+      description={t('web.metadata.pendingCount', {count: pendingCount})}
+      footer={<><Button size="small" variant="text" onClick={() => leaveBlocker.reset?.()}>{t('action.cancel')}</Button><Button size="small" variant="primary" onClick={() => leaveBlocker.proceed?.()}>{t('metadata.settings.discard')}</Button></>}>{null}</Dialog>
     {dirty ? <div className={styles.saveBar}><span className={styles.pending}>{t('web.metadata.pendingCount', {count: pendingCount})}</span><Button size="small" variant="text" disabled={busy} onClick={() => {if (current()) {setDraft(draftFor(document)); setError(undefined);}}}>{t('metadata.settings.discard')}</Button>
       <Button size="small" variant="primary" disabled={busy || limitProblem} onClick={() => {void save();}}>{t('web.metadata.saveChanges')}</Button></div> : null}
     {error ? <Button size="small" variant="text" disabled={busy} onClick={() => {if (current()) setReload(value => value + 1);}}>{t('action.refresh')}</Button> : null}

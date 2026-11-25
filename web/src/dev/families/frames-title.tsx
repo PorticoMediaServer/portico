@@ -44,8 +44,6 @@ const viewersAlso = [['pool/movies/oppenheimer.jpg', 'Oppenheimer', '2023'], ['p
   ['pool/movies/spider-man-across-the-spider-verse.jpg', 'Spider-Man: Across the Spider-Verse', '2023'], ['pool/movies/fight-club.jpg', 'Fight Club', '1999'], ['pool/movies/alien.jpg', 'Alien', '1979']] as const;
 const moreLikeInsideOut = [['pool/movies/toy-story.jpg', 'Toy Story', '1995'], ['pool/movies/monsters-inc.jpg', 'Monsters, Inc.', '2001'], ['pool/movies/wall-e.jpg', 'WALL·E', '2008'], ['pool/movies/incredibles-2.jpg', 'Incredibles 2', '2018'],
   ['pool/movies/spirited-away.jpg', 'Spirited Away', '2001'], ['pool/movies/how-to-train-your-dragon.jpg', 'How to Train Your Dragon', '2010'], ['pool/movies/moana.jpg', 'Moana', '2016']] as const;
-const moreLikeShow = [['pool/tv/severance.jpg', 'Severance', '2022'], ['pool/tv/silo.jpg', 'Silo', '2023'], ['pool/tv/stranger-things.jpg', 'Stranger Things', '2016'], ['pool/tv/the-walking-dead.jpg', 'The Walking Dead', '2010'],
-  ['pool/tv/slow-horses.jpg', 'Slow Horses', '2022'], ['pool/tv/the-mandalorian.jpg', 'The Mandalorian', '2019'], ['pool/tv/breaking-bad.jpg', 'Breaking Bad', '2008']] as const;
 
 const tabs = (value: string, onValueChange: (value: string) => void, show = false) => ({value, onValueChange, items: [
   ...(show ? [{value: 'episodes', label: f('episodes')}] : []), {value: 'more', label: f('moreLikeThis')}, {value: 'details', label: f('details')}]});

@@ -55,10 +55,10 @@ export function HomeCustomizeDialog({controller, createSavedViews, isCurrent, co
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot), compact = useShellWidth() < 600;
   const root = useRef<HTMLOListElement>(null), reload = useRef<HTMLButtonElement>(null), lift = useRef<Lift | undefined>(undefined);
-  const [moving, setMoving] = useState<Lift>(), [picking, setPicking] = useState(false), [resetting, setResetting] = useState(false);
-  const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), draft = state.draft, busy = !!state.pending;
+  const [moving, setMoving] = useState<Lift>(), [picking, setPicking] = useState(false), [resetting, setResetting] = useState(false), [rebasing, setRebasing] = useState(false);
+  const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), mounted = useRef(true), draft = state.draft, busy = !!state.pending || rebasing;
   useEffect(() => {if (state.conflict) reload.current?.focus();}, [state.conflict]);
-  useEffect(() => () => {if (press.current) clearTimeout(press.current);}, []);
+  useEffect(() => () => {mounted.current = false; if (press.current) clearTimeout(press.current);}, []);
   const finish = (cancel: boolean) => {
     if (press.current) clearTimeout(press.current);press.current = undefined;
     const current = lift.current;
@@ -82,6 +82,39 @@ export function HomeCustomizeDialog({controller, createSavedViews, isCurrent, co
   };
   const save = async () => {if (await controller.save()) onClose();};
   const cancel = () => {finish(true);onClose();};
+  const keepEditing = async () => {
+    if (!draft || busy || !isCurrent()) return;
+    const saved = draft;
+    finish(false);
+    setRebasing(true);
+    try {
+      await controller.load();
+      if (!mounted.current || !isCurrent()) return;
+      const latest = controller.getSnapshot();
+      if (latest.phase !== 'ready' || !latest.draft) return;
+      for (const resource of saved.added.values()) controller.add(resource);
+      for (const id of latest.draft.order) {
+        if (homeViewResourceId(id) && saved.view.rows.some(row => row.id === id) && !saved.order.includes(id)) controller.remove(id);
+      }
+      const afterViews = controller.getSnapshot().draft;
+      if (afterViews) {
+        const desiredMovable = saved.order.filter(id => afterViews.order.includes(id) && homeDraftCanMove(afterViews, id));
+        const movableSlots = afterViews.order.flatMap((id, index) => homeDraftCanMove(afterViews, id) ? [index] : []);
+        for (let index = 0; index < desiredMovable.length && index < movableSlots.length; index++) {
+          controller.move(desiredMovable[index]!, movableSlots[index]!);
+        }
+        const afterMove = controller.getSnapshot().draft;
+        if (afterMove) {
+          for (const id of saved.order) {
+            if (afterMove.order.includes(id) && homeDraftCanHide(afterMove, id)) controller.show(id, !saved.hidden.has(id));
+          }
+        }
+      }
+      root.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    } finally {
+      if (mounted.current) setRebasing(false);
+    }
+  };
   const showRow = (id: string, index: number, floating = false) => {
     if (!draft) return null;
     const row = homeDraftRow(draft, id), title = label(draft, id), savedView = !!homeViewResourceId(id);
@@ -108,7 +141,7 @@ export function HomeCustomizeDialog({controller, createSavedViews, isCurrent, co
       footer={picking ? <Button variant="glass" onClick={() => setPicking(false)}>{t('action.cancel')}</Button> : <><Button variant="text" className={styles.reset} disabled={busy || state.phase !== 'ready'} onClick={() => setResetting(true)}>{t('action.resetToDefault')}</Button><span className={styles.spacer}/>
         {!compact && <Button variant="glass" disabled={busy} onClick={cancel}>{t('action.cancel')}</Button>}<Button variant="primary" loading={state.pending === 'save'} disabled={busy || state.phase !== 'ready' || state.conflict || !isCurrent()} onClick={() => {void save();}}>{t('action.save')}</Button></>}>
       {picking && draft ? <SavedViewPicker create={createSavedViews} isCurrent={isCurrent} exclude={draft.order} copy={copy} onPick={resource => {if (isCurrent()) {controller.add(resource);setPicking(false);}}}/> : <>
-        {state.conflict && <div className={styles.notice} role="alert"><Icon name="i-warn" size={22}/><div><b>{t('next.home.layoutChangedTitle')}</b><p>{copy.conflictBody}</p><div className={styles.noticeActions}><Button ref={reload} variant="primary" size="small" onClick={() => {finish(true);void controller.load();}}>{copy.reloadLayout}</Button><Button variant="glass" size="small" onClick={() => root.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()}>{copy.keepEditing}</Button></div></div></div>}
+        {state.conflict && <div className={styles.notice} role="alert"><Icon name="i-warn" size={22}/><div><b>{t('next.home.layoutChangedTitle')}</b><p>{copy.conflictBody}</p><div className={styles.noticeActions}><Button ref={reload} variant="primary" size="small" disabled={busy} onClick={() => {finish(true);void controller.load();}}>{copy.reloadLayout}</Button><Button variant="glass" size="small" disabled={busy} onClick={() => {void keepEditing();}}>{copy.keepEditing}</Button></div></div></div>}
         {error && <div className={styles.notice} role="alert"><Icon name="i-warn" size={22}/><div><b>{error.title}</b><p>{state.phase === 'load-error' ? copy.loadFailedBody : error.body}</p>{state.phase === 'load-error' && <Button size="small" variant="primary" onClick={() => {void controller.load();}}>{t('action.tryAgain')}</Button>}</div></div>}
         {state.phase === 'loading' && <div className={styles.loading}>{Array.from({length: 6}, (_, index) => <Skeleton key={index} height={compact ? 54 : 56}/>)}</div>}
         {draft && <ol ref={root} className={styles.rows} aria-label={t('home.customize.action')}>{draft.order.map((id, index) => <li key={id} data-home-layout-row={id} className={styles.row} data-hidden={draft.hidden.has(id) || undefined} data-slot={moving?.pointer !== undefined && moving.id === id || undefined}

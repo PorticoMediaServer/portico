@@ -5,9 +5,8 @@ import {Banner, SidePanel} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import {LiveFrame} from '../../kit/frames';
 import {usePhone} from '../../kit/overlays/shared';
-import {PickChip} from './PickChip';
 import {RuleCard, RuleDecoration, RuleField, RuleGap} from '../../kit/dvr/RuleCard';
-import {createRulesState, matchingAirings, matchingCount, rulesReducer, type RuleAiring, type SeriesRule, type SeriesRulesView, type RuleSettings} from './series-rules-model';
+import {RULE_KEEP_OPTIONS, RULE_PADDING_OPTIONS, createRulesState, matchingAirings, matchingCount, rulesReducer, type RuleAiring, type SeriesRule, type SeriesRulesView, type RuleSettings} from './series-rules-model';
 import styles from '../../kit/dvr/rules.module.css';
 import live from './live.module.css';
 const t = defaultI18n.t;
@@ -20,7 +19,7 @@ function nextLine(rule: SeriesRule): string {
   return next ? rule.conflict ? t('next.live.nextConflict', {time: next.time}) : rule.showNextChannel ? t('next.live.nextOn', {time: next.time, channel: next.channel}) : t('next.live.next', {time: next.time}) : rule.next;
 }
 /** Entirely local, typed presentation boundary. No server or platform services. */
-export type SeriesRulesProps = Readonly<{view: SeriesRulesView; navigation?: ReactNode; busy?: boolean; error?: string; tail?: ReactNode;
+export type SeriesRulesProps = Readonly<{view: SeriesRulesView; navigation?: ReactNode; busy?: boolean; error?: string; onRetry?: () => void; toolbar?: ReactNode; tail?: ReactNode;
   onGuide?: () => void; onView?: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void;
   onSave: (rule: SeriesRule, settings: RuleSettings) => Promise<boolean>; onDelete: (rule: SeriesRule) => Promise<boolean>;
   onDraft?: (rule: SeriesRule | undefined, settings: RuleSettings | undefined) => void;
@@ -40,7 +39,6 @@ export function RecordingsFrame({views, view, onView, conflicts, onGuide, facts,
       {value: 'guide', label: t('channels.tabGuide')}, {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.conflictNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>},
     ]}/>;
   return <LiveFrame title={sub ? t('recordings.title') : t('next.home.shell.live')} back={sub ? {label: t('next.home.shell.live'), onPress: onGuide!} : undefined}
-    switcher={!sub && <PickChip label={t('channels.source')} pill={phone} value="all" options={[{value: 'all', label: t('channels.all')}]} onChange={() => {}}/>}
     facts={facts} tabs={tabs}
     chips={!phone && <>{views.map(item => <Chip key={item.id} variant="search" selected={item.id === view} count={item.count} onClick={onView ? () => onView(item.id) : undefined}>{item.label}</Chip>)}
       {(toolbar || storage) && <span className={live.guideToolbarGap}/>}{toolbar}{storage}</>}
@@ -49,7 +47,7 @@ export function RecordingsFrame({views, view, onView, conflicts, onGuide, facts,
     {children}
   </LiveFrame>;
 }
-export function SeriesRules({view, navigation, busy = false, error, tail, onGuide, onView, onSave, onDelete, onDraft, preview}: SeriesRulesProps) {
+export function SeriesRules({view, navigation, busy = false, error, onRetry, toolbar, tail, onGuide, onView, onSave, onDelete, onDraft, preview}: SeriesRulesProps) {
   const [state, dispatch] = useReducer(rulesReducer, view, createRulesState);
   useEffect(() => dispatch({type: 'replace', view}), [view]);
   const opener = useRef<HTMLButtonElement | null>(null);
@@ -78,8 +76,9 @@ export function SeriesRules({view, navigation, busy = false, error, tail, onGuid
   };
   return <>{navigation}<RecordingsFrame views={views} view="rules" onView={onView} conflicts={view.conflictCount} onGuide={onGuide}
     facts={view.sourceName || view.channelCount !== undefined || view.guideThrough !== undefined ? <span className={live.guideSource}>{view.sourceName && <strong>{view.sourceName}</strong>}{view.channelCount !== undefined && <span>{t('player.info.channels', {count: view.channelCount})}</span>}{view.guideThrough !== undefined && <span>{t('next.live.guideThrough', {day: view.guideThrough})}</span>}</span> : undefined}
+    toolbar={toolbar}
     storage={view.storage && <span className={styles.storageLine}>{t('next.live.storageFree', {amount: view.storage.free})} · {t('next.live.storageLeft', {hours: view.storage.hoursLeft})}</span>}>
-    <div className={styles.body}><div className={styles.rules}>{state.rules.map(rule => <RuleCard key={rule.id} title={rule.title} glyph={rule.glyph} tone={rule.tone}
+    <div className={styles.body}>{error && !selected && <Banner action={onRetry ? {label: t('next.states.tryAgain'), onAction: onRetry} : undefined}>{error}</Banner>}<div className={styles.rules}>{state.rules.map(rule => <RuleCard key={rule.id} title={rule.title} glyph={rule.glyph} tone={rule.tone}
       selected={selected?.id === rule.id} paused={!rule.settings.enabled} disabled={busy} options={[t(rule.settings.episodes === 'all' ? 'guide.allEpisodes' : 'guide.newOnly'), rule.settings.channel === 'any' ? t('guide.anyChannel') : rule.settings.channel === 'this' ? rule.channelName : undefined, keepLabel(rule.settings.keep)].filter((value): value is string => value !== undefined)}
       next={nextLine(rule)} conflict={rule.conflict}
       state={t(rule.settings.enabled ? 'recordings.on' : 'recordings.paused')} upcoming={rule.settings.enabled && matchingCount(rule) !== undefined ? t('next.live.upcomingCount', {count: matchingCount(rule)!}) : undefined}
@@ -95,8 +94,8 @@ export function SeriesRules({view, navigation, busy = false, error, tail, onGuid
         <div className={styles.toggleRow}><span><label htmlFor="series-rule-enabled">{t(draft.enabled ? 'next.live.ruleOn' : 'recordings.paused')}</label><small id="series-rule-help">{t('next.live.pauseHelp')}</small></span><Switch id="series-rule-enabled" aria-describedby="series-rule-help" disabled={busy} checked={draft.enabled} onCheckedChange={enabled => patch({enabled})}/></div>
         <div className={styles.form}><RuleField label={t('guide.record')}><Segmented className={styles.segmented} aria-label={t('guide.record')} disabled={busy} value={draft.episodes} onValueChange={value => {if (value === 'all' || value === 'new') patch({episodes: value});}} items={[{value: 'new', label: t('web.dvr.newEpisodes')}, {value: 'all', label: t('guide.allEpisodes')}]}/></RuleField>
           <RuleField label={t('guide.channelColumn')}><Segmented className={styles.segmented} aria-label={t('guide.channelColumn')} disabled={busy} value={draft.channel ?? ''} onValueChange={value => {if (value === 'this' || value === 'any') patch({channel: value});}} items={[{value: 'this', label: t('guide.thisChannel')}, {value: 'any', label: t('guide.anyChannel'), disabled: draft.channelLocked}]}/></RuleField>
-          <RuleField label={t('recordings.keepLabel')}><Select className={`${styles.select} ${live.editorSelect}`} aria-label={t('recordings.keepLabel')} disabled={busy} value={draft.keep} options={[...new Set(['all', '1', '3', draft.keep])].map(value => ({value, label: keepLabel(value)}))} onValueChange={value => {if (value === 'all' || Number.isSafeInteger(Number(value)) && Number(value) > 0 && Number(value) <= 100000) patch({keep: value});}}/></RuleField>
-          {(['startEarly', 'endLate'] as const).map(field => <RuleField key={field} label={t(field === 'startEarly' ? 'recordings.startEarly' : 'recordings.endLate')}><Select className={`${styles.select} ${live.editorSelect}`} aria-label={t(field === 'startEarly' ? 'recordings.startEarly' : 'recordings.endLate')} disabled={busy} value={String(draft[field])} options={[...new Set([0, 2, draft[field]])].map(value => ({value: String(value), label: minutes(value)}))} onValueChange={value => patch({[field]: Number(value)})}/></RuleField>)}
+          <RuleField label={t('recordings.keepLabel')}><Select className={`${styles.select} ${live.editorSelect}`} aria-label={t('recordings.keepLabel')} disabled={busy} value={draft.keep} options={[...new Set<string>([...RULE_KEEP_OPTIONS, draft.keep])].map(value => ({value, label: keepLabel(value)}))} onValueChange={value => {if (value === 'all' || Number.isSafeInteger(Number(value)) && Number(value) > 0 && Number(value) <= 100000) patch({keep: value});}}/></RuleField>
+          {(['startEarly', 'endLate'] as const).map(field => <RuleField key={field} label={t(field === 'startEarly' ? 'recordings.startEarly' : 'recordings.endLate')}><Select className={`${styles.select} ${live.editorSelect}`} aria-label={t(field === 'startEarly' ? 'recordings.startEarly' : 'recordings.endLate')} disabled={busy} value={String(draft[field])} options={[...new Set<number>([...RULE_PADDING_OPTIONS, draft[field]])].sort((left, right) => left - right).map(value => ({value: String(value), label: minutes(value)}))} onValueChange={value => {const parsed = Number(value); if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 360) patch({[field]: parsed});}}/></RuleField>)}
         </div>{airings.length > 0 && <h3 className={styles.comingUp}>{t('next.live.comingUp')}</h3>}<div>{airings.map(airing => <div className={styles.airing} key={airing.id}><span className={styles.at}>{airing.time}</span><div><b>{airing.episode && <>{airing.episode}<RuleGap/></>}{airing.title}</b><small>{airing.isNew && <span className={styles.newFlag}>{t('guide.new')}</span>}{airing.day}{airing.channel && <><RuleGap/>{airing.channel}</>}</small></div>{airing.scheduled && <span className={styles.recordDot} role="img" aria-label={t('dvr.state.scheduled')}/>}</div>)}</div>
       </>}
     </SidePanel>

@@ -51,5 +51,5 @@ export function ServicesApp({history, arrival}: {history?: RouterHistory; arriva
     if (isServicesPath(new URL(to, location.origin).pathname)) { if (replace) router.history.replace(to); else router.history.push(to); }
     else if (replace) location.replace(to); else location.assign(to);
   }), [history, router]);
-  return <><IconSprite /><RouterProvider router={router} /></>;
+  return <>{!history && <IconSprite />}<RouterProvider router={router} /></>;
 }

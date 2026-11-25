@@ -15,9 +15,9 @@ export function ProfileSignOut({serverName, isCurrent, signOut}: {serverName: st
   };
   return <>
     <Button ref={trigger} size="small" variant="glass" className={styles.danger} onClick={() => {if (isCurrent()) setOpen(true);}}>{t('accounts.signOut.server')}</Button>
-    <Dialog footerDismisses children={null} open={open} returnFocusRef={trigger} size="sm" title={t('accounts.signOut.namedServer', {server: serverName})}
+    <Dialog footerDismisses open={open} returnFocusRef={trigger} size="sm" title={t('accounts.signOut.namedServer', {server: serverName})}
       description={t('accounts.signOut.serverConfirmation', {server: serverName})}
       onOpenChange={value => {if (isCurrent() && !submitted.current) setOpen(value);}}
-      footer={<><Button size="small" onClick={() => setOpen(false)}>{t('action.cancel')}</Button><Button size="small" variant="glass" className={styles.danger} onClick={confirm}>{t('accounts.signOut.server')}</Button></>} />
+      footer={<><Button size="small" onClick={() => setOpen(false)}>{t('action.cancel')}</Button><Button size="small" variant="glass" className={styles.danger} onClick={confirm}>{t('accounts.signOut.server')}</Button></>}>{null}</Dialog>
   </>;
 }

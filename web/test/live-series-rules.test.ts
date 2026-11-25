@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createRulesState, matchingAirings, matchingCount, rulesReducer} from '../src/screens/live/series-rules-model';
+import {readFileSync} from 'node:fs';
+import {RULE_KEEP_OPTIONS, RULE_PADDING_OPTIONS, createRulesState, matchingAirings, matchingCount, rulesReducer} from '../src/screens/live/series-rules-model';
 import {seriesRulesFixture as view} from '../src/dev/families/live-rules.fixture';
 
 test('the frame starts with the Clockmakers draft and three matching airings', () => {
@@ -49,4 +50,20 @@ test('delete removes only the selected rule and an inactive editor ignores chang
   assert.deepEqual(state.rules.map(rule => rule.id), ['world', 'football', 'wild']);
   assert.equal(rulesReducer(state, {type: 'change', patch: {enabled: false}}), state);
   assert.equal(view.rules.length, 4);
+});
+
+test('SeriesRules and ProgrammePanel share keep/padding choices, omit the no-op switcher, use leaveRecordingsPage, and deduplicate error banners', () => {
+  const rulesSource = readFileSync(new URL('../src/screens/live/SeriesRules.tsx', import.meta.url), 'utf8');
+  const entrySource = readFileSync(new URL('../src/screens/live/SeriesRulesEntry.tsx', import.meta.url), 'utf8');
+  const panelSource = readFileSync(new URL('../src/screens/live/ProgrammePanel.tsx', import.meta.url), 'utf8');
+  assert.deepEqual([...RULE_KEEP_OPTIONS], ['all', '1', '3', '5', '10', '20']);
+  assert.deepEqual([...RULE_PADDING_OPTIONS], [0, 1, 2, 5, 10, 15]);
+  assert.match(rulesSource, /RULE_KEEP_OPTIONS/);
+  assert.match(rulesSource, /RULE_PADDING_OPTIONS/);
+  assert.match(panelSource, /RULE_KEEP_OPTIONS/);
+  assert.match(panelSource, /RULE_PADDING_OPTIONS/);
+  assert.doesNotMatch(rulesSource, /switcher=/, 'no-op source switcher removed from RecordingsFrame');
+  assert.match(entrySource, /leaveRecordingsPage/);
+  assert.match(entrySource, /!deleteOpening && \(state\.error \|\| state\.previewError\)/, 'error banner suppressed outside delete dialog while delete dialog is open');
+  assert.match(rulesSource, /\{error && !selected && <Banner/, 'page error banner suppressed while rule editor side panel is open');
 });

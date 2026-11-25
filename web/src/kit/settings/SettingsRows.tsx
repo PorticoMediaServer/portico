@@ -1,10 +1,10 @@
 import {Fragment, type HTMLAttributes, type ReactNode, type SyntheticEvent} from 'react';
-import {defaultI18n, type MessageId} from '@i18n';
+import {defaultI18n} from '@i18n';
 import type {SettingsGroup as GroupSpec, SettingsHolder, SettingsOption, SettingsRow as RowSpec, SettingsValue} from '@core/presentation/settings-spec.ts';
 import {settingsRowIndex} from '@core/presentation/settings-spec.ts';
 import {browserSettingsEnvironment, settingsRowVisible, type SettingsEnvironment} from '@core/presentation/settings-visibility.ts';
 import {ChoiceMatrix, MatchText, SettingsRow} from '../shell/SettingsSurfaces';
-import {Button, RichSelect, Segmented, Switch, TextField} from '../controls';
+import {RichSelect, Segmented, Switch} from '../controls';
 import {SettingNumber} from './SettingNumber';
 import {SettingText} from './SettingText';
 import {SettingsAdvanced, SettingsGroup} from './SettingsGroups';

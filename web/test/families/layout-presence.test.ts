@@ -282,3 +282,35 @@ test('a captured owner handoff runs before removed controls become inert', t => 
   const next = f.render(['b']);assert.equal(calls, 1);assert.equal(f.node('a').inert, true);assert.ok(next.leaving.has('a'));
   f.advance(180);assert.equal(calls, 1, 'a retirement tick cannot repeat the original focus handoff');
 });
+
+test('unchanged keys in the same scope take one commit with zero layout reads', t => {
+  const f = fixture(t), scope = {};
+  f.render(['a', 'b', 'c'], false, {maxRetained: 40, scope});
+  let rectReads = 0, renderCount = 0;
+  for (const child of f.root.children) {
+    const original = child.getBoundingClientRect.bind(child);
+    child.getBoundingClientRect = () => { rectReads++; return original(); };
+  }
+  const freshItems = ['a', 'b', 'c'];
+  const result = f.hooks.render(() => {
+    renderCount++;
+    return useLayoutPresence(freshItems, getKey, false, 180, 320, {maxRetained: 40, scope});
+  }, () => {});
+  assert.equal(renderCount, 1, 'no synchronous second commit for same-key scroll/refresh');
+  assert.equal(rectReads, 0, 'zero getBoundingClientRect calls for same-key scroll/refresh');
+  assert.strictEqual(result.present, freshItems);
+  assert.equal(result.ready, true);
+});
+
+test('scope replacement skips clip and child layout measurements', t => {
+  const f = fixture(t), scopeA = {}, scopeB = {};
+  f.render(['a', 'b'], false, {maxRetained: 40, visibleOnly: true, scope: scopeA});
+  let rectReads = 0;
+  for (const child of f.root.children) {
+    const original = child.getBoundingClientRect.bind(child);
+    child.getBoundingClientRect = () => { rectReads++; return original(); };
+  }
+  const result = f.render(['c', 'd'], false, {maxRetained: 40, visibleOnly: true, scope: scopeB});
+  assert.equal(rectReads, 0, 'scope change performs zero child rect reads');
+  assert.deepEqual(result.present, ['c', 'd']);
+});

@@ -1,9 +1,10 @@
 import {useShellFacts} from '../../shell/fact-hooks';
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {useRouterState} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {noticeWords, type Notification, type NotificationAction} from '@core/notifications.ts';
 import {InboxService, type InboxAction, type InboxView} from '@core/inbox.ts';
+import {createNotificationScope} from '@core/notification-scope.ts';
 import type {NotificationAudience} from '@core/notifications.ts';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
@@ -48,8 +49,17 @@ function PhoneNotifications({captured}: {captured: Captured}) {
   const {context} = captured, shared = context.inbox, sharedState = useSyncExternalStore(shared.subscribe, shared.getSnapshot);
   const [view, setView] = useState<InboxView>('unread');
   const owner = context.facts.identity.viewer.role === 'owner' && sharedState.audiences.includes('account-admin');
-  const server = useMemo(() => owner ? new InboxService(context.api, undefined, {queries: context.freshness.queries}) : undefined, [owner, context]);
-  useEffect(() => () => {server?.dispose();}, [server]);
+  const [serverEntry, setServerEntry] = useState<Readonly<{context: typeof context; service: InboxService}>>();
+  useLayoutEffect(() => {
+    if (!owner) {setServerEntry(undefined); return;}
+    const lifetime = new AbortController();
+    const isCurrent = () => !lifetime.signal.aborted && context.isCurrent();
+    const notificationScope = createNotificationScope(context.notificationScope ?? context.api, {serverId: context.facts.identity.viewer.serverId, signal: lifetime.signal, isCurrent});
+    const service = new InboxService(notificationScope, undefined, {queries: context.freshness.queries, cacheApi: notificationScope});
+    setServerEntry({context, service});
+    return () => {lifetime.abort(); service.dispose(); notificationScope.dispose();};
+  }, [owner, context]);
+  const server = owner && serverEntry?.context === context ? serverEntry.service : undefined;
   const serverState = useSyncExternalStore(server?.subscribe ?? noSubscribe, server?.getSnapshot ?? noSnapshot);
   // Each inbox takes the press itself: a busy one (a view switch still reading, a change out) holds
   // it until it is free rather than dropping it, and one with no page it may change refuses it.

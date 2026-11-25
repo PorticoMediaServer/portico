@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {useCoarsePointer} from '../../kit/theme';
-import {defaultI18n} from '@i18n';
+import {defaultI18n, type I18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import type {BrowseNode, BrowseSortSelection} from '@core/browse.ts';
 import type {Library} from '@core/index.ts';
 import {browseNameId} from '@core/presentation/browse-toolbar.ts';
@@ -66,15 +67,17 @@ export type LibraryBindings = Readonly<{
   unmatchedHelp?: string;
 }>;
 export type LibraryBrowseBindings = Omit<LibraryBindings, 'libraries' | 'tabs' | 'onLibrary' | 'onLibraries' | 'onPivot' | 'libraryMenu'>;
-const t = defaultI18n.t;
 const noSelectionSubscribe = () => () => {};
 const kindShape = (kind: string): 'square' | 'poster' => ['music', 'audiobook'].includes(kind) ? 'square' : 'poster';
 const noSelectionSnapshot = () => undefined;
-export const browseLabels: BrowseLabels = {
-  field: value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has);return id && defaultI18n.has(id) ? t(id) : value.labelKey;},
-  sort: value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has);return id && defaultI18n.has(id) ? t(id) : value.labelKey;},
-  quick: value => defaultI18n.has(value.labelKey) ? t(value.labelKey) : value.labelKey,
-};
+function makeBrowseLabels(i18n: I18n): BrowseLabels {
+  return {
+    field: value => {const id = browseNameId(value.id, value.labelKey, i18n.has);return id && i18n.has(id) ? i18n.t(id) : value.labelKey;},
+    sort: value => {const id = browseNameId(value.id, value.labelKey, i18n.has);return id && i18n.has(id) ? i18n.t(id) : i18n.has(value.labelKey) ? i18n.t(value.labelKey) : value.labelKey;},
+    quick: value => i18n.has(value.labelKey) ? i18n.t(value.labelKey) : value.labelKey,
+  };
+}
+export const browseLabels: BrowseLabels = makeBrowseLabels(defaultI18n);
 /** A library tab's grid on the library frame (`BrowseFrame`): the library's header, its toolbar, the grid and Filters. Until
  *  its grid has come from the viewer's cache (`controller` absent) the frame draws the header over the grid's loading boxes. */
 export function LibraryScreen(props: Omit<LibraryBindings, 'controller'> & {controller?: LibraryBindings['controller']}) {
@@ -84,6 +87,7 @@ export function LibraryScreen(props: Omit<LibraryBindings, 'controller'> & {cont
   return <LoadedLibraryScreen {...props} controller={controller}/>;
 }
 function LoadedLibraryScreen(bindings: LibraryBindings) {
+  const {t} = useI18n() ?? defaultI18n;
   const {controller} = bindings;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const header = useLibraryHeader(bindings);
@@ -105,6 +109,7 @@ type LibraryHeaderInputs = Pick<LibraryBindings, 'library' | 'libraries' | 'pivo
 /** A library's header regions for `BrowseFrame`: its name is the switcher, ‹ Libraries on a phone, ⋯, the tabs, the counts and
  *  its wash. One place builds them; `LibraryIdentity` draws the same header for the library pages not yet on the frame. */
 export function useLibraryHeader({library, libraries, pivot, tabs, onPivot, onLibrary, onLibraries, libraryMenu, appearance: base, preferences, libraryViewOverride, artwork, wash, counts, action}: LibraryHeaderInputs): BrowseHeaderProps {
+  const {t} = useI18n() ?? defaultI18n;
   const appearance = browsePresentation(base, preferences, libraryViewOverride);
   return {title: library.name, back: {label: t('next.browse.libraries'), onPress: onLibraries}, counts, trailing: action, menu: libraryMenu,
     switcher: <LibrarySwitcher libraries={libraries} value={library.id} onValueChange={onLibrary} compact={useShellWidth() < 600}/>,
@@ -125,7 +130,10 @@ export type LibraryBrowseFrameBindings = LibraryBrowseBindings & Readonly<{
   help?: ReactNode;
 }>;
 export function LibraryBrowse(bindings: LibraryBrowseFrameBindings) {
-  const {controller, library, env, selection, reportError} = bindings;
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
+  const labels = useMemo(() => makeBrowseLabels(i18n), [i18n]);
+  const {controller, library, env: bindingEnv, selection, reportError} = bindings;
+  const env = useMemo(() => i18n === defaultI18n ? bindingEnv : {t: i18n.t, locale: i18n.region.formatLocale}, [i18n, bindingEnv]);
   const appearance = browsePresentation(bindings.appearance, bindings.preferences, bindings.libraryViewOverride);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const snapshot = useSyncExternalStore(controller.collection.subscribe, controller.collection.getSnapshot, controller.collection.getSnapshot);
@@ -154,18 +162,19 @@ export function LibraryBrowse(bindings: LibraryBrowseFrameBindings) {
   const views = (pivot?.supportedViews ?? []).filter((view): view is BrowsePresentation['view'] => view === 'grid' || view === 'list');
   const view = views.find(view => view === appearance.view) ?? views[0];
   if (!view) return <BrowseFrame header={bindings.header}/>;
-  const chips = model.applied.flatMap((node, index) => 'field' in node ? [{id: String(index), parts: appliedFilterParts(node, id => {const field = state.capabilities!.fields.find(field => field.id === id);return field ? browseLabels.field(field) : id;}, env,
+  const chips = model.applied.flatMap((node, index) => 'field' in node ? [{id: String(index), parts: appliedFilterParts(node, id => {const field = state.capabilities!.fields.find(field => field.id === id);return field ? labels.field(field) : id;}, env,
     value => filterValueName(value) ?? (namedFilterFields.has(node.field) ? '' : String(value)))}] : []);
   const setPredicates = (nodes: readonly BrowseNode[]) => {try {controller.setQuery(nodes, undefined, state);} catch (error) {bindings.reportError(error);}};
   // The retained count describes the same accepted generation still painted by
   // the collection. A pending replacement cannot use it as its new match count.
   const resultCount = snapshot.total === undefined ? undefined : t(snapshot.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: snapshot.total, pivot: controller.source.pivot});
+  const resultTotal = snapshot.refreshing || snapshot.status !== 'ready' || snapshot.totalIsLowerBound ? undefined : snapshot.total;
   const filterCount = snapshot.refreshing || snapshot.status !== 'ready' ? undefined : resultCount;
   // A grid of one kind takes that kind's card shape: the scope chip chosen, the only kind a mixed row holds, or the one library
   // a row or tab belongs to. A mixed row keeps the server's shape (posters for All).
   const one = oneKind ?? (library.kind || undefined);
   const shape = bindings.pivot === 'collections' || bindings.shape === 'collection' ? 'collection' : one ? kindShape(one) : bindings.shape ?? 'poster';
-  const toolbar = <BrowseToolbar model={model} labels={browseLabels} platform={compact ? 'phone' : 'desktop'} resultCount={resultCount} accepted={snapshot} acceptedSource={controller.collection} topInset={compact ? 94 : width < 1024 || coarse ? 0 : 76} sticky
+  const toolbar = <BrowseToolbar model={model} labels={labels} platform={compact ? 'phone' : 'desktop'} resultCount={resultCount} resultTotal={resultTotal} accepted={snapshot} acceptedSource={controller.collection} topInset={compact ? 94 : width < 1024 || coarse ? 0 : 76} sticky
       onQuickChange={(id, checked) => {const quick = [...model.quick, ...model.filterQuick].find(quick => quick.id === id);if (quick) setPredicates(checked ? [...state.predicates, quick.query] : state.predicates.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query)));}}
       onFilters={() => setFiltersOpen(true)} filtersOpen={filtersOpen} onSortChange={sort}
       onReshuffle={() => sort({...model.sort, seed: crypto.getRandomValues(new Uint32Array(1))[0]})}
@@ -176,10 +185,10 @@ export function LibraryBrowse(bindings: LibraryBrowseFrameBindings) {
       onRemoveFilter={id => setPredicates(state.predicates.filter(node => node !== model.applied[Number(id)]))} onClearFilters={() => setPredicates([])} selection={selection.toolbar} selectionActive={selectionActive}/>;
   const grid = <BrowseResults controller={controller} label={library.name} view={view} cardWidth={appearance.cardWidth} shape={shape} artwork={bindings.artwork} env={env} backdrops={appearance.backdrops}
       reducedMotion={bindings.preferences?.reducedMotion ?? bindings.reducedMotion} actions={cardActions} familyForEntry={bindings.familyForEntry} onVisibleRange={selection.registerWindow} onSort={sort}
-      empty={state.predicates.length ? <BrowseFilteredEmpty controller={controller} model={model} labels={browseLabels} predicates={state.predicates}
+      empty={state.predicates.length ? <BrowseFilteredEmpty controller={controller} model={model} labels={labels} predicates={state.predicates}
         library={library.name} onDrop={setPredicates} onClear={() => setPredicates([])}/> : bindings.empty}/>;
   return <LibraryFrame header={bindings.header} toolbar={toolbar} grid={grid} help={bindings.help} cardMenu={cardMenu}
-    filters={{controller, model, labels: browseLabels, compact, open: filtersOpen, resultCount: filterCount, canSaveView: bindings.canSaveView, onSaveView: bindings.onSaveView, onClose: () => setFiltersOpen(false), reportError: bindings.reportError}}/>;
+    filters={{controller, model, labels, compact, open: filtersOpen, resultCount: filterCount, canSaveView: bindings.canSaveView, onSaveView: bindings.onSaveView, onClose: () => setFiltersOpen(false), reportError: bindings.reportError}}/>;
 }
 
 /** The frame for a loaded grid: its Filters region is the library's own (`useLibraryFilters`), so it runs once the model is known. */

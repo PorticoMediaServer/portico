@@ -162,7 +162,7 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
     ...(total === undefined ? [] : [{id: 'albums', role: 'supplement' as const, text: t('lib.count', {count: total, pivot: 'albums'})}]),
   ];
   const details: [string, string][] = [];
-  if (artist.artistType) details.push([t('title.albumType'), artist.artistType]);
+  if (artist.artistType) details.push([t('filter.field.entityKind'), artist.artistType === 'Person' ? t('title.kind', {kind: 'person'}) : artist.artistType]);
   if (artist.genres?.length) details.push([t('title.genres'), artist.genres.filter(Boolean).join(', ')]);
   const hasDetails = !!artist.overview || details.length > 0;
   // The artist on the title frame (desktop-listen artist; phone-app r5): the round cover at the right, Artist, the facts,

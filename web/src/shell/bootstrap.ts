@@ -12,28 +12,28 @@ import {selectedViewerRecord} from '@core/viewer-selection.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {appearancePreferences, regionPreferences} from '@core/preference-effects.ts';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
-import {notOnThisServer} from '@core/query/server-api.ts';
 import {parseDirectSnapshot, profileRememberMarker, resumeRememberedProfile, type DirectSnapshot} from '@core/profile-management.ts';
 import {HomeService} from '@core/home-service.ts';
 import {createShellFactOwner, attachShellFactFeed, bindShellFactWake, shellAccount, type ShellFactWitnesses} from './facts';
 import type {ShellFactsSource} from './fact-source';
 import {InboxService} from '@core/inbox.ts';
-import {createNotificationScope} from '@core/notification-scope.ts';
+import {createNotificationScope, type ScopedNotifications} from '@core/notification-scope.ts';
 import {EventsClient} from '@core/playback-v1/events.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {runEventFeed} from '@core/event-feed.ts';
 import {fetchGuideSourceSummaries} from '@core/guide/directory.ts';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 import {browserViewerStorage} from '../platform/viewer-selection-storage';
 import {browserServerDisplay} from '../platform/server-display';
 import {motionTier} from '../platform/motion-tier';
 import {RouteError} from '@core/route-identity.ts';
 import {negotiateServer,parseServerSignIn} from '@core/sign-in.ts';
 import {defaultI18n} from '@i18n';
+import {setServiceI18n} from '@core/presentation/service-text.ts';
+import {shellLanguage} from './settings';
 import {lastKnownShell, rememberShell} from './last-known';
 import {settingsReturnAuthority} from './settings-return';
 import {browserAppSessionActions,type BrowserAppSessionActions} from '../platform/app-sessions';
-import {mountBrowserOutbox, browserAppSessions, browserConnectionEnvironment, restoreBrowserConnection, trackBrowserConnection, forgetBrowserConnection} from '../platform/server-connections';
+import {mountBrowserOutbox, browserAppSessions, browserConnectionEnvironment, restoreBrowserConnection, trackBrowserConnection} from '../platform/server-connections';
 import {displayableTransportCode, launchFailure, retryDelayMs, savedSignInUnusable, serverIsStarting} from './connection-retry';
 import {bootRecoveryDeadline, bootRecoveryDelay, documentStartedAt} from './boot-state';
 import {browserEventStream, browserFeedEnvironment} from '../platform/event-feed';
@@ -48,7 +48,7 @@ import {restoreAfterAccountEnd} from '../platform/portico-account-end';
 export type ShellFacts = Readonly<{identity: ShellIdentity; preferences: PreferenceSnapshot; serverName: string}>;
 export type ShellAssemblyContext = Readonly<{
   api: HttpLocalApi; session: () => LocalSession; auth: LocalSessionRefresher; events: EventsClient;
-  freshness: FreshnessRuntime; home: HomeService; inbox: InboxService; artwork: ShellArtwork;
+  freshness: FreshnessRuntime; home: HomeService; inbox: InboxService; notificationScope?: ScopedNotifications; artwork: ShellArtwork;
   libraryRouteProof?: LibraryRouteProof; libraryRouteSignal?: AbortSignal;
   facts: ShellFacts; factsSource?: ShellFactsSource; homeAuthority?: () => void;
   /** Read the library directory again now (an inline Try again after it did not answer). */
@@ -132,9 +132,11 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
       return undefined;
     }),
     readDirectAccount(api, signal).then(raw => parseDirectSnapshot(raw, {authority:'local',accountId:session.viewer.accountId,serverId:session.viewer.serverId})), readServerSystem(api, signal).then(parseServerSignIn),
+    // A flaky or unavailable Live TV guide source never stops app boot; only abort or auth refusal does.
     fetchGuideSourceSummaries(api, session.viewer.serverId, Intl.DateTimeFormat().resolvedOptions().timeZone, signal).catch(error => {
-      if ((error as {status?: number}).status === 403 || notOnThisServer(error)) return undefined;
-      throw error;
+      const e = error as {status?: unknown; code?: unknown} | null;
+      if (signal.aborted || e?.status === 401 || e?.code === 'profile_pin_reentry') throw error;
+      return undefined;
     }),
   ]);
   if (system.id !== session.viewer.serverId) throw new RouteError('identity_mismatch', 'The server identity changed.');
@@ -142,15 +144,38 @@ export async function readShellIdentity(api: HttpLocalApi, session: LocalSession
   return {libraries: libraries?.items ?? [], ...(libraries ? {} : {librariesUnavailable: true as const}), direct: profile, profile: shellAccount(profile, session.viewer.profileId), system, guide, liveAvailable: !!guide?.sources.length};
 }
 async function readFacts(api: HttpLocalApi, session: LocalSession, preferences: PreferencesReader, inbox: InboxService, signal: AbortSignal): Promise<{facts: ShellFacts; witnesses: ShellFactWitnesses}> {
-  const [read, settings] = await Promise.all([readShellIdentity(api, session, signal), preferences.preferences('web', signal)]);
-  const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read;
-  rememberShell(session.sessionFamilyId, system.name);
-  await inbox.load();
-  signal.throwIfAborted();
-  return {witnesses: {system: read.system, direct: read.direct, guide: read.guide && {viewerFence:read.guide.viewerFence, revision:read.guide.revision}}, facts: {identity: {viewer: session.viewer, libraries, ...(librariesUnavailable ? {librariesUnavailable: true as const} : {}), serverName: system.name, serverVersion: system.version, serverApiVersion: system.apiVersion, signIn:system.signIn, ...profile,
-    // desktop-search #menu: the server, then how this account signs in ("Portico demo · Server account").
-    accountFacts:[{id:'server',role:'context',text:system.name},{id:'sign-in',role:'context',text:defaultI18n.t(system.signIn==='portico'?'account.portico':'web.shell.localAccount')}],
-    liveAvailable, unread: inbox.getSnapshot().unread, showNotificationDot: settings.effective['notifications.badges'] === true}, preferences: settings, serverName: system.name}};
+  if (signal.aborted) { inbox.dispose(); signal.throwIfAborted(); }
+  const onAbort = () => inbox.dispose();
+  signal.addEventListener('abort', onAbort, {once: true});
+  let committed = false;
+  try {
+    const [read, settings] = await Promise.all([
+      readShellIdentity(api, session, signal),
+      preferences.preferences('web', signal),
+      inbox.load(),
+    ]);
+    signal.throwIfAborted();
+    const {libraries, profile, system, liveAvailable} = read, librariesUnavailable = 'librariesUnavailable' in read;
+    rememberShell(session.sessionFamilyId, system.name);
+    committed = true;
+    return {witnesses: {system: read.system, direct: read.direct, guide: read.guide && {viewerFence:read.guide.viewerFence, revision:read.guide.revision}}, facts: {identity: {viewer: session.viewer, libraries, ...(librariesUnavailable ? {librariesUnavailable: true as const} : {}), serverName: system.name, serverVersion: system.version, serverApiVersion: system.apiVersion, signIn:system.signIn, ...profile,
+      // desktop-search #menu: the server, then how this account signs in ("Portico demo · Server account").
+      accountFacts:[{id:'server',role:'context',text:system.name},{id:'sign-in',role:'context',text:defaultI18n.t(system.signIn==='portico'?'account.portico':'web.shell.localAccount')}],
+      liveAvailable, unread: inbox.getSnapshot().unread, showNotificationDot: settings.effective['notifications.badges'] === true}, preferences: settings, serverName: system.name}};
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+    if (!committed) { try { inbox.dispose(); } catch { /* Best-effort retire on failed or aborted boot. */ } }
+  }
+}
+
+function bootTransportCategory(error: unknown): 'unreachable' | 'offline' | 'timeout' | 'other' {
+  const category = launchFailure(error, globalThis.navigator?.onLine);
+  if (category !== 'other') return category;
+  const status = (error as {status?: unknown} | null)?.status;
+  if (typeof status === 'number' && status >= 500 && status < 600 && status !== 507) {
+    return globalThis.navigator?.onLine === false ? 'offline' : 'unreachable';
+  }
+  return 'other';
 }
 
 /** Restores only genuine protected state. No credentials or business data appear in source. */
@@ -221,7 +246,7 @@ export class ShellBootstrap {
       this.started = true;
       this.clearWait(); this.launch = undefined; this.publish({phase: 'restoring', startedAt: this.startedAt});
     }
-    else if (this.failure && this.state.phase === 'unreachable') this.publish({phase: 'unreachable', unreachable: {...this.state.unreachable!, retrying: true}});
+    else if (this.state.phase === 'unreachable' && this.state.unreachable) this.publish({phase: 'unreachable', unreachable: {...this.state.unreachable, retrying: true}});
     const epoch = this.epoch, controller = this.controller = new AbortController();
     const current = () => this.epoch === epoch && !controller.signal.aborted;
     const task = this.restore(epoch, controller.signal, current).then(() => { if (current()) this.clearWait(); }).catch(error => {
@@ -233,7 +258,7 @@ export class ShellBootstrap {
         this.clearWait(); this.fence(); this.publish({phase: 'choose-profile', ...(focus ? {focus} : {})}); return;
       }
       if (serverIsStarting(error)) {this.waitAfterFailure(error, 'starting');return;}
-      const category = this.transportError === error ? launchFailure(error, globalThis.navigator?.onLine) : 'other';
+      const category = this.transportError === error ? bootTransportCategory(error) : 'other';
       if (category !== 'other') { this.waitAfterFailure(error, category); return; }
       // A saved sign-in from a server that was reset or replaced, or one the server ended or now
       // refuses, is not a broken page: sign-in comes next. Only an ended family is removed; the
@@ -251,6 +276,7 @@ export class ShellBootstrap {
 
   /** Failures and retries stay on the drawn page; the saved credential is untouched. */
   private waitAfterFailure(error: unknown, category: 'unreachable' | 'offline' | 'timeout' | 'starting') {
+    this.retire?.(); this.retire = undefined;
     const now = Date.now();
     const attempt = (this.failure?.attempt ?? 0) + 1;
     const firstFailureAt = this.failure?.firstFailureAt ?? now;
@@ -324,10 +350,14 @@ export class ShellBootstrap {
     });
   }
 
-  /** A retry from the drawn page asks now and restarts the countdown. */
+  /** A retry from the drawn page asks now and restarts the countdown, aborting any hung attempt. */
   retryNow = (): Promise<void> => {
     if (this.disposed) return Promise.resolve();
     if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = undefined; }
+    if (this.running) {
+      this.fence();
+      this.running = undefined;
+    }
     return this.start(true);
   };
 
@@ -356,9 +386,8 @@ export class ShellBootstrap {
     // Read the marker before restoration can renew a session that was idle.
     const entry = store && !admittedProfile(savedViewer.serverId) ? await store.selected() : undefined;
     if (!isCurrent()) return;
-    let restored: Awaited<ReturnType<typeof restoreBrowserConnection>>;
-    try { restored = await this.environment.restore(selected.session); }
-    catch (error) { this.transportError = error; throw error; }
+    const serverCall = <T,>(work: Promise<T>): Promise<T> => work.catch(error => { this.transportError = error; throw error; });
+    const restored = await serverCall(this.environment.restore(selected.session));
     if (!isCurrent()) { restored?.api.getRouteConnection()?.dispose(); return; }
     if (!restored) { this.publish({phase: 'signed-out'}); return; }
     const {api} = restored;
@@ -370,14 +399,15 @@ export class ShellBootstrap {
     const held = {serverId: session.viewer.serverId, familyId: session.sessionFamilyId, profileId: session.viewer.profileId};
     if (!tabAdmits(held)) {
       try {
-        const direct = parseDirectSnapshot(await readDirectAccount(api, signal),
+        const rawDirect = await serverCall(readDirectAccount(api, signal));
+        const direct = parseDirectSnapshot(rawDirect,
           {authority: 'local', accountId: session.viewer.accountId, serverId: held.serverId});
         if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
         const marker = entry?.connection.pin.serverId === held.serverId && entry.remembered?.profileId === held.profileId ? entry.remembered : undefined;
-        const resumed = await resumeRememberedProfile(api, restored.session, direct, marker, signal);
+        const resumed = await serverCall(resumeRememberedProfile(api, restored.session, direct, marker, signal));
         if (!isCurrent()) {api.getRouteConnection()?.dispose(); return;}
         if (store && resumed && resumed !== restored.session) {
-          await saveResumedProfile(api, restored.session, resumed, store.connectionStorage(held.serverId), signal);
+          await serverCall(saveResumedProfile(api, restored.session, resumed, store.connectionStorage(held.serverId), signal));
           session = selectedViewerRecord(api.baseUrl, resumed).session;
         }
         if (marker?.familyId === held.familyId) {
@@ -453,7 +483,7 @@ export class ShellBootstrap {
     // What this profile may see changed on the server: everything read for it is thrown away and read again.
     cleanups.push(events.on(accessChangedEvent, () => {if (isCurrent()) this.restart();}));
     // The feed's position before anything below is read: what changes meanwhile is replayed as hints.
-    const primed = await events.prime(signal);
+    const primed = await serverCall(events.prime(signal));
     if (!isCurrent()) return;
     // The viewer's role is part of its cache's scope (App.tsx keys the same cache the same way).
     const freshness = freshnessFor(api, viewerQueryScope(session.viewer));
@@ -475,7 +505,7 @@ export class ShellBootstrap {
     cleanups.push(libraryRouteProof.dispose);
     const home = new HomeService(api), inbox = new InboxService(notificationScope, undefined, {queries: freshness.queries, cacheApi: notificationScope});
     cleanups.push(() => home.dispose(), () => inbox.dispose());
-    const {facts: initialFacts, witnesses} = await readFacts(api, session, preferences, inbox, signal);
+    const {facts: initialFacts, witnesses} = await serverCall(readFacts(api, session, preferences, inbox, signal));
     if (!isCurrent()) return;
     factOwner = createShellFactOwner({api, session: () => session, auth, preferences, hub: freshness.hub,
       initial: initialFacts, witnesses, libraryRouteProof, isCurrent, retire: () => {if (isCurrent()) this.restart();}});
@@ -488,6 +518,13 @@ export class ShellBootstrap {
     }
     const factsSource = factOwner.source;
     const facts = () => factsSource.getSnapshot();
+    const applyRegionLanguage = (next: PreferenceSnapshot) => {
+      const language = shellLanguage(next);
+      if (globalThis.document?.documentElement) globalThis.document.documentElement.lang = language.locale;
+      setServiceI18n(language);
+      api.setAppLanguage?.(language.locale);
+    };
+    applyRegionLanguage(facts().preferences);
     freshness.hub.attach(events);
     const authorityKey = shellArtworkAuthorityKey(session, epoch);
     const artwork = authenticatedArtwork({api, auth, identity: {serverId: session.viewer.serverId, viewerId: viewerId(session), authorityKey}, currentToken: () => session.accessToken, isCurrent});
@@ -498,7 +535,7 @@ export class ShellBootstrap {
     const saved=(await (this.environment.actions?.()??browserAppSessionActions()).store.read()).servers;
     const savedServers=await display.choices(saved.map(value=>({pin:value.connection.pin,origin:value.connection.logicalOrigin,signIn:value.signIn})),signal);
     if (!isCurrent()) return;
-    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, isCurrent, signOut,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
+    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, notificationScope, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, isCurrent, signOut,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
     const assembly = await this.assemble(context);
     if (!isCurrent()) { assembly.dispose(); return; }
     cleanups.push(() => assembly.dispose());
@@ -516,7 +553,8 @@ export class ShellBootstrap {
     cleanups.push(preferences.subscribe(() => {
       const next = preferences.getSnapshot('web'); if (!next || !isCurrent()) return;
       const key = JSON.stringify(regionPreferences(next));
-      if (key !== regionKey) { regionKey = key; restart(); } else publishBinding();
+      if (key !== regionKey) { regionKey = key; applyRegionLanguage(next); }
+      publishBinding();
     }));
     // Classified hints reach their canonical interests through hub.attach above,
     // retaining revision/address dedupe rather than invalidating a second time.

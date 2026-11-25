@@ -26,10 +26,10 @@ export function ProfileForgetDevices({source, isCurrent, onFailure}: {
   };
   return <>
     <Button ref={trigger} size="small" variant="glass" disabled={state.busy} onClick={() => {if (isCurrent()) setTarget(selected);}}>{t('profile.forgetDevices')}</Button>
-    {target && <Dialog footerDismisses children={null} open size="sm" returnFocusRef={trigger} title={t('profile.forgetDevices')}
+    {target && <Dialog footerDismisses open size="sm" returnFocusRef={trigger} title={t('profile.forgetDevices')}
       description={t('next.settingsSpec.account.profile.groups.2.rows.0.children.1.control.confirm')}
       dismissOnOutsidePress={!state.busy} dismissOnBack={!state.busy} showCloseButton={!state.busy} onOpenChange={open => {if (!open && !pending.current) setTarget(undefined);}}
       footer={<><Button size="small" disabled={state.busy} onClick={() => {if (!pending.current) setTarget(undefined);}}>{t('action.cancel')}</Button>
-        <Button size="small" variant="primary" loading={state.busy} onClick={() => {void submit();}}>{t('profile.forgetDevices')}</Button></>} />}
+        <Button size="small" variant="primary" loading={state.busy} onClick={() => {void submit();}}>{t('profile.forgetDevices')}</Button></>}>{null}</Dialog>}
   </>;
 }

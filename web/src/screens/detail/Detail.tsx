@@ -1,6 +1,6 @@
 import {refreshCatalogueMetadata} from '@core/query/catalogue-actions.ts';
 import {t, locale, environment as env} from './text';
-import {cloneElement, useId, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode, type RefObject} from 'react';
+import {cloneElement, useId, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode, type RefObject} from 'react';
 import type {DetailProjection} from '@core/detail.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import type {DownloadOptionsView} from '@core/downloads.ts';
@@ -22,7 +22,7 @@ import {serviceI18n, serviceText} from '@core/presentation/service-text.ts';
 import {titleFactParts, type FactPart} from '@core/presentation/kit-model';
 import {episodeCode} from '@core/presentation/card-caption.ts';
 import {preferenceValue} from '@core/preferences.ts';
-import {AmbientArt, Artwork, PersonCircle, type AmbientArtProps} from '../../kit/artwork';
+import {AmbientArt, Artwork, type AmbientArtProps} from '../../kit/artwork';
 import {Button, ResumeButton, Select, Tabs} from '../../kit/controls';
 import {Lockup, Shelf} from '../../kit/layout';
 import {CollectionBanner, PosterCard, SquareCard} from '../../kit/cards';
@@ -465,12 +465,12 @@ export function TitleDetails({binding, data}: {binding: DetailBindings; data: De
   const rows: (readonly [string, ReactNode])[] = [
     [t('title.releaseDate'), calendarDate(facts?.releaseDate, locale())],
     ...(!phone ? [[t('library.column.runtime'), titleFactParts({durationSeconds: item.duration}, env).find(part => part.id === 'duration')?.text] as const] : []),
-    [t('title.genres'), metadata.genres.length ? <GenreNames names={metadata.genres.map(value => value.name)} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} /> : undefined],
+    [t('title.genres'), metadata.genres.length ? <GenreNames key="genres" names={metadata.genres.map(value => value.name)} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} /> : undefined],
     ...(!phone ? [[t('next.show.rated'), facts?.contentRating] as const] : []),
     [t('title.ratings'), ratings || undefined],
     ...(!phone ? [
-      [t('title.directedByLabel'), directors.length ? <CreditNames binding={binding} data={data} credits={directors} /> : undefined] as const,
-      [t('title.writtenByLabel'), writers.length ? <CreditNames binding={binding} data={data} credits={writers} /> : undefined] as const,
+      [t('title.directedByLabel'), directors.length ? <CreditNames key="directors" binding={binding} data={data} credits={directors} /> : undefined] as const,
+      [t('title.writtenByLabel'), writers.length ? <CreditNames key="writers" binding={binding} data={data} credits={writers} /> : undefined] as const,
     ] : []),
     [t('title.studio'), facts?.studio], [t('title.network'), facts?.network], [t('title.country'), facts?.country], [t('title.edition'), facts?.edition],
     ...(!phone ? [

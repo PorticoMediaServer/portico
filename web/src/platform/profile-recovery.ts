@@ -85,15 +85,33 @@ export class BrowserProfileRecovery {
   dispose() {this.disposed = true; this.source = undefined; this.listeners.clear(); this.flow.dispose();}
 }
 
+const PORTICO_HOSTED_ORIGIN = 'https://web.getportico.tv';
+
+function isTrustedHostedOrigin(): boolean {
+  if (typeof location === 'undefined' || location.origin !== PORTICO_HOSTED_ORIGIN) return false;
+  if (typeof location.protocol === 'string' && location.protocol !== 'https:') return false;
+  if (typeof location.hostname === 'string' && location.hostname !== 'web.getportico.tv') return false;
+  if (typeof location.port === 'string' && location.port !== '') return false;
+  if (typeof location.href === 'string') {
+    try { if (new URL(location.href).origin !== PORTICO_HOSTED_ORIGIN) return false; } catch { return false; }
+  }
+  return true;
+}
+
 /** The browser account held for this one recovery attempt. No local recovery calls this. */
 export async function browserPorticoPINProof(): Promise<PorticoPINProofSource> {
   // Only web.getportico.tv holds a Portico Account; a server's own address never uses the account client.
-  if (location.origin !== 'https://web.getportico.tv') throw new CodedError('portico_account_elsewhere', 'Reset this PIN at web.getportico.tv.');
+  if (!isTrustedHostedOrigin()) throw new CodedError('portico_account_elsewhere', 'Reset this PIN at web.getportico.tv.');
   const signIns = accountSession.signIns(), who = await porticoAccountHolder.who();
-  const isCurrent = () => accountSession.signedIn() && accountSession.signIns() === signIns;
+  const isCurrent = () => isTrustedHostedOrigin() && accountSession.signedIn() && accountSession.signIns() === signIns;
   return {accountId: who.id, isCurrent,
     identity: (serverId, challenge, proof, signal) => account.serverPINIdentity(serverId, challenge, proof, signal),
     // Google or Apple in a pop-up (`pin-provider-popup.ts`), so this page and its proof stay open.
     providerIdentity: (serverId, challenge, provider, twoStepCode, signal) => providerPINIdentity(account, provider, {serverId, challenge}, twoStepCode,
-      {accountOrigin: location.origin, current: isCurrent, signal, crypto: webRouteCrypto, browser: (url, flowId) => openProviderPopup(url, flowId, window, signal)})};
+      {accountOrigin: PORTICO_HOSTED_ORIGIN, current: isCurrent, signal, crypto: webRouteCrypto, browser: (url, flowId) => {
+        let parsed: URL;
+        try { parsed = new URL(url); } catch { throw new CodedError('invalid_response', 'The sign-in address is not valid.'); }
+        if (parsed.protocol !== 'https:') throw new CodedError('invalid_response', 'The sign-in address is not HTTPS.');
+        return openProviderPopup(parsed.toString(), flowId, window, signal);
+      }})};
 }

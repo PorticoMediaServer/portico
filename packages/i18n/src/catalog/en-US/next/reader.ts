@@ -183,4 +183,6 @@ export const readerMessages = {
   'next.reader.openInReader': 'Open in reader',
   'next.reader.leftInBook': '{duration} left in the book',
   'next.reader.bookDetails': 'Book details',
+  'next.reader.returnToPlace': 'Return to {place}',
+  'next.reader.goBack': 'Go back',
 } as const satisfies Record<`next.reader.${string}`, string>;

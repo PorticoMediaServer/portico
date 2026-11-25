@@ -22,8 +22,8 @@ const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot};
 const menu = (format: string) => renderToStaticMarkup(createElement(FixedPageMenus, {controller, authority: {isCurrent: () => true}, reportError: () => {}, format,
   open: 'direction', onOpenChange: () => {}, anchorRef: {current: null}, directionRef: {current: null}, moreRef: {current: null}} as never));
 
-test('CBZ and CBR both offer the reading direction choices, Vertical scroll among them', () => {
-  for (const format of ['cbz', 'cbr']) {
+test('CBZ, CBR and CB7 all offer the reading direction choices, Vertical scroll among them', () => {
+  for (const format of ['cbz', 'cbr', 'cb7']) {
     const html = menu(format);
     assert.match(html, /aria-label="Reading direction"/, format);
     assert.deepEqual([...html.matchAll(/aria-checked="(true|false)">([^<]+)</g)].slice(-4).map(m => [m[2], m[1]]),

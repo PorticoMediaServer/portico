@@ -1,5 +1,5 @@
 import {useSelectionRangePreview} from './selection-range';
-import {useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties, type MouseEvent, type RefObject} from 'react';
+import {useId, useLayoutEffect, useRef, type ReactNode, type CSSProperties, type MouseEvent, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
 import type {FactPart} from '@portico/client-core/kit-model';
 import {Icon} from '../Icon';

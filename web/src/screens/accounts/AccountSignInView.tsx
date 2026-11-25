@@ -6,7 +6,6 @@ import {moveOfferDays} from '@core/sign-in.ts';
 import type {TakeAccountMove} from '../../route-registry-arrival';
 import type {TakeAccountReturn} from '../../route-registry-return';
 import {router} from '../../router';
-import {profileSettingsDestination} from '../../route-registry-destination';
 import {hasTwoStepSetup} from '../../platform/two-step-continuation';
 import type {BrowserAccountEntry} from '../../platform/account-entry';
 import {browserAppSessions} from '../../platform/server-connections';

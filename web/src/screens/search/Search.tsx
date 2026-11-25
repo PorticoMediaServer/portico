@@ -4,7 +4,7 @@ import {generatedCoverTint} from '@design';
 import {useCardInteractionAdmission} from '../../kit/cards/use-interaction-admission';
 import type {SearchSelection} from './selection';
 import {SelectionCircle} from '../../kit/selection';
-import {t, locale} from '../detail/text';
+import {t as fallbackT, locale as fallbackLocale} from '../detail/text';
 import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import {searchDependencies, searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult} from '@core/search.ts';
@@ -38,7 +38,8 @@ import {ResultRow, SearchHistory} from '../../kit/search';
 import {nowNext} from '@core/guide/index.ts';
 import {channelTint, type FactPart} from '@portico/client-core/kit-model';
 import {clockText, durationText} from '@core/presentation/kit-model/text.ts';
-import {defaultI18n} from '@i18n';
+import {defaultI18n, type I18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import {formatSignalText, musicFormatBadges} from '@core/music-signal.ts';
 import {AllResultsRow} from './AllResultsRow';
 import {entryPlayable} from '@core/library-content.ts';
@@ -46,14 +47,20 @@ import {entryPlayable} from '@core/library-content.ts';
 type ChipId = SearchGroup | 'all';
 const keyOf = (entry: SearchEntry) => JSON.stringify(['libraryId' in entry ? entry.libraryId : '', entry.kind, entry.id]);
 const groupOrder = new Map<string, number>(SEARCH_CHIPS.map((chip, index) => [chip.id, index]));
-const searchTimezone = () => defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-const onNowTime = (at: number) => new Intl.DateTimeFormat(locale(), {hour: 'numeric', minute: '2-digit', timeZone: searchTimezone()}).format(new Date(at));
-function onNowProgramme(card: SearchOnNowCard, now: number) {
+type SearchText = Readonly<{t: I18n['t']; locale: string; number: I18n['number']; timeZone?: string}>;
+function useSearchI18n(): SearchText {
+  const live = useI18n();
+  if (live) return {t: live.t, locale: live.region.formatLocale, number: live.number, timeZone: live.region.timeZone};
+  return {t: fallbackT, locale: fallbackLocale() ?? 'en-US', number: defaultI18n.number, timeZone: defaultI18n.region?.timeZone};
+}
+const searchTimezone = (text: SearchText) => text.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+const onNowTime = (at: number, text: SearchText) => new Intl.DateTimeFormat(text.locale, {hour: 'numeric', minute: '2-digit', timeZone: searchTimezone(text)}).format(new Date(at));
+function onNowProgramme(card: SearchOnNowCard, now: number, text: SearchText) {
   const current = nowNext(card.programmes, now), programme = current.now;
-  if (!programme) return {title: t('guide.noInformation'), facts: [] as readonly FactPart[]};
+  if (!programme) return {title: text.t('guide.noInformation'), facts: [] as readonly FactPart[]};
   const facts: FactPart[] = [];
   if (programme.subtitle) facts.push({id: 'programme-subtitle', role: 'context', text: programme.subtitle});
-  facts.push({id: 'ends', role: 'context', text: t('guide.ends', {time: onNowTime(programme.end)})});
+  facts.push({id: 'ends', role: 'context', text: text.t('guide.ends', {time: onNowTime(programme.end, text)})});
   return {title: programme.title, facts, progress: current.progress, live: programme.flags?.live === true};
 }
 /** The settled search the address holds: what Back and a link return to. */
@@ -62,6 +69,7 @@ export type SearchScreenProps = {binding: SearchBindings; selection?: SearchSele
 const NO_ADDRESS: SearchAddress = {q: ''};
 
 export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle, onOpenLive}: SearchScreenProps) {
+  const searchI18n = useSearchI18n(), {t, locale: formatLocale} = searchI18n;
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const selectionEpoch = selection?.epoch();
   const compact = useShellWidth() < 600;
@@ -83,14 +91,21 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
   const history = useQuery({...binding.history, enabled: remember});
   const recent = remember && history.data ? history.data.entries.slice(0, 8).map(item => item.q) : [];
   // The address this screen last settled on. Another address (Back, a link) replaces what is typed.
-  const settled = useRef<SearchAddress>(address), asked = useRef<string | undefined>(undefined);
+  const settled = useRef<SearchAddress>(address), asked = useRef<string | undefined>(undefined), debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (address.q === settled.current.q && address.group === settled.current.group) return;
     settled.current = {q: address.q, ...(address.group ? {group: address.group} : {})}; setText(address.q); setChip(address.group ?? 'all');
   }, [address.q, address.group]);
   const submit = (record = false) => {
     if (!context.isCurrent()) return;
-    void binding.select(problem ? '' : text.trim(), {...(group ? {group} : {}), ...(record && remember ? {record: true} : {})}).catch(context.effects.reportError);
+    if (debounce.current !== undefined) { clearTimeout(debounce.current); debounce.current = undefined; }
+    const next: SearchAddress = {q: problem ? '' : text.trim(), ...(group ? {group} : {})};
+    asked.current = JSON.stringify([next.q, next.group]);
+    if (next.q !== settled.current.q || next.group !== settled.current.group) {
+      settled.current = next;
+      onSettle?.(next);
+    }
+    void binding.select(next.q, {...(group ? {group} : {}), ...(record && remember ? {record: true} : {})}).catch(context.effects.reportError);
   };
   useEffect(() => {
     if (snapshot.query?.q === text.trim() && snapshot.query?.group === group) return;
@@ -102,8 +117,9 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
     if (next.q === address.q && next.group === address.group) { run(); return; }
     // Withdraw the old query immediately, including during the debounce.
     asked.current = undefined; service.cancel();
-    const timer = setTimeout(run, 260);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { debounce.current = undefined; run(); }, 260);
+    debounce.current = timer;
+    return () => { clearTimeout(timer); if (debounce.current === timer) debounce.current = undefined; };
   }, [binding, service, text, group, problem, context.effects.reportError, snapshot.query?.q, snapshot.query?.group, address.q, address.group, onSettle]);
   useEffect(() => { input.current?.focus(); }, [binding]);
   useEffect(() => {
@@ -146,7 +162,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
   const recentBlock = <SearchHistory compact={compact} title={t('web.search.recent')} clear={{label: t('web.search.clearRecent'), onPress: () => {clearRecentHistory?.();}}}
     items={recent.map(query => ({query, onPress: () => {if (context.isCurrent()) {setText(query);setChip('all');committed.current = '';}},
       ...(removeRecent ? {remove: {label: t('web.search.removeRecent', {query}), onPress: () => removeRecent(query)}} : {})}))}/>;
-  const videoKinds = new Intl.ListFormat(locale(), {style: 'long', type: 'conjunction'}).format([
+  const videoKinds = new Intl.ListFormat(formatLocale, {style: 'long', type: 'conjunction'}).format([
     t('web.libraryKind.plural', {kind: 'movie'}), t('web.libraryKind.plural', {kind: 'tv'}), t('web.libraryKind.plural', {kind: 'anime'})]);
   const liveSourceCount = new Set(onNow.cards.map(card => card.channel.sourceId)).size;
   const genreTiles = <div className={styles.genres}>{genres.genres.flatMap((genre, index) => {
@@ -177,7 +193,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
           ...(card.channel.mark ? {mark: {...card.channel.mark, sourceId: card.channel.sourceId, id: card.channel.id}} : {})}}
         tint={card.channel.mark ? channelTint(card.channel.mark.seed) : undefined}
         logo={card.channel.logoUrl ? context.artwork.foreground(card.channel.logoUrl, 68, 1) : undefined}
-        programme={onNowProgramme(card, now)} onNavigate={() => onOpenLive?.(card.channel.sourceId)} />)}</div>
+        programme={onNowProgramme(card, now, searchI18n)} onNavigate={() => onOpenLive?.(card.channel.sourceId)} />)}</div>
     </section>}
   </div>;
   const searching = !!text.trim(), selecting = !!selection?.isActive();
@@ -204,7 +220,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
         onClick={() => runScreenCommand(context, () => { context.effects.openHome?.(); })}>{t('action.cancel')}</Button>}
       scopes={!selecting && chips}
       notice={failed.length > 0 && <WaitingNotice icon="i-clock" action={{id: 'retry', label: t('next.states.tryAgain'), onAction: () => { void service.refresh(); }}}>
-        {t('web.search.partial', {groups: new Intl.ListFormat(locale(), {style: 'long', type: 'conjunction'}).format(failed.map(value => t(searchGroupLabel(value.id))))})}</WaitingNotice>}
+        {t('web.search.partial', {groups: new Intl.ListFormat(formatLocale, {style: 'long', type: 'conjunction'}).format(failed.map(value => t(searchGroupLabel(value.id))))})}</WaitingNotice>}
       none={empty ? {title: t(group ? 'web.search.nothingIn' : 'web.search.noMatches', group ? {group: t(searchGroupLabel(group))} : {query: text.trim()}), body: group ? undefined : t('web.search.noMatchesBody'),
         action: group ? <Button variant="primary" size="compact" onClick={() => setChip('all')}>{t('web.search.everything')}</Button> : undefined} : undefined}>
       <SearchResultStatus identity={`${snapshot.generation}:${text.trim()}:${group ?? ''}`} count={snapshot.phase === 'ready' && showing ? searchResultCount(groups) : undefined}/>
@@ -231,6 +247,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
 }
 
 function SearchLoading() {
+  const {t} = useSearchI18n();
   const elapsed = useLoadingClock();
   return <div className={styles.skeleton} role="status" aria-label={t('next.states.loading')}>{elapsed >= 300 && Array.from({length: 7}, (_, index) => <Skeleton className={styles.skeletonBlock} sheen={index === 2} key={index} />)}{elapsed >= 8000 && <Banner variant="quiet">{t('next.states.stillLoading')}</Banner>}</div>;
 }
@@ -239,9 +256,12 @@ function SearchLoading() {
 export const SearchTitleMenu = createContext<((anchor: HTMLElement, subject: TitleMenuSubject) => void) | undefined>(undefined);
 const noSelectionSubscription = () => () => {};
 const noSelectionSnapshot = () => 0;
+const emptyLiveCards = new Map<string, never>();
+const noLiveSnapshot = () => emptyLiveCards;
 export function SearchResult({entry, binding, selection, selectionVisible = true, position = 0, onCommit, albumArt, row = false}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; selectionVisible?: boolean; position?: number; onCommit: () => void; albumArt?: string;
   /** A phone's All view lists a group's first results as rows (final3-mobileweb-02). */
   row?: boolean}) {
+  const {t, locale: formatLocale} = useSearchI18n();
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const epoch = selection?.epoch();
   useLayoutEffect(() => {if (selection && selectionVisible && 'libraryId' in entry) return selection.register(entry, position);}, [selection, entry, position, epoch, selectionVisible]);
@@ -249,7 +269,8 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   const picked = useCardInteractionAdmission(selectionVisible && 'libraryId' in entry ? selection?.card(entry) : undefined, interactionRoot, !selectionVisible);
   const range = useSelectionRangePreview(picked);
   const {context} = binding, open = () => runScreenCommand(context, () => { binding.open(entry); onCommit(); });
-  const liveCards = useSyncExternalStore(binding.live.subscribe, binding.live.getSnapshot, binding.live.getSnapshot);
+  const channel = entry.kind === 'channel';
+  const liveCards = useSyncExternalStore(channel ? binding.live.subscribe : noSelectionSubscription, channel ? binding.live.getSnapshot : noLiveSnapshot, channel ? binding.live.getSnapshot : noLiveSnapshot);
   const openMenu = useContext(SearchTitleMenu), more = useResultMore(binding, entry, picked, openMenu, onCommit);
   const art = context.artwork.foreground(entry.posterUrl, 380, 2 / 3);
   if (entry.kind === 'channel') {
@@ -260,7 +281,7 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   }
   if (!('libraryId' in entry)) return <CircleCard context="search" model={{title: entry.title, caption: entry.subtitle ? [{id: 'caption', text: entry.subtitle, role: 'context'}] : []}} covers={art ? [art] : []}
     initials={nameInitials(entry.title)} onNavigate={open} />;
-  const model = entryCard(entry, {t, locale: locale()}, 'search'), playable = entryPlayable(entry);
+  const model = entryCard(entry, {t, locale: formatLocale}, 'search'), playable = entryPlayable(entry);
   const props = {model, selection: picked, context: 'search' as const, watched: entry.watched, isNew: entry.new, onNavigate: open, onMore: more,
     onPlay: playable ? () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); } : undefined};
   if (row && entry.kind !== 'song' && entry.kind !== 'artist') {
@@ -308,6 +329,7 @@ function useResultMore(binding: SearchBindings, entry: SearchEntry, picked: Card
 /** Desktop-search frame 3: a full-width Songs answer is the Music library's list, with
  * the entry's own artist, album, plays and length. Selection keeps the same row model. */
 export function SongTableRow({entry, binding, selection, position = 0, onCommit}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; position?: number; onCommit: () => void}) {
+  const {t, number} = useSearchI18n();
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const epoch = selection?.epoch();
   // A search answer can also carry a person or a channel, which have no library entry:
@@ -332,7 +354,7 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
     else open();
   };
   return <div ref={interactionRoot} className={styles.songTableRow} data-selected={picked?.checked || undefined} data-preview={picked?.preview || undefined} {...range}>
-    <span className={styles.songIndex}><button type="button" className={styles.songIndexPlay} onClick={activate} aria-label={t('next.browse.play', {title})}><span>{defaultI18n.number(position + 1)}</span><Icon name="i-play" size={16}/></button></span>
+    <span className={styles.songIndex}><button type="button" className={styles.songIndexPlay} onClick={activate} aria-label={t('next.browse.play', {title})}><span>{number(position + 1)}</span><Icon name="i-play" size={16}/></button></span>
     <span className={styles.songTitle}>{picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}
     <button type="button" className={styles.songTitleCell} {...hold.handlers} onBlur={() => hold.cancel()} onClick={event => {if (hold.consumeClick()) {event.preventDefault(); return;} activate(event);}} aria-label={title}><Artwork source={context.artwork.foreground(song.posterUrl, 88, 1)} alt="" />
       <span className={styles.songTitleText}><b>{title}</b>
@@ -342,13 +364,15 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
       </span></button></span>
     <span className={styles.songArtist}>{song.artist?.name}</span>
     <span className={styles.songAlbum}>{song.album?.name}</span>
-    <span className={styles.songPlays}>{song.plays === undefined ? undefined : defaultI18n.number(song.plays)}</span>
+    <span className={styles.songPlays}>{song.plays === undefined ? undefined : number(song.plays)}</span>
     <span className={styles.songLength}>{clockText(song.duration)}</span>
     {more && <Button className={styles.songMore} variant="icon" size="small" icon="i-more" iconOnly aria-haspopup="menu" aria-label={t('next.browse.moreFor', {title})} onClick={event => more(event.currentTarget)} />}
   </div>;
 }
 
 function SearchGroupWindow({binding, group, result, selection, onCommit}: {binding: SearchBindings; selection?: SearchSelection; group: SearchGroup; result?: SearchGroupResult; onCommit: () => void}) {
+  const {t} = useSearchI18n();
+  const shellWidth = useShellWidth(), compact = shellWidth < 600, tablet = shellWidth < 1024;
   const window = useMemo(() => appendedWindow<SearchEntry>(keyOf), []);
   const entries = useRef<readonly SearchEntry[]>([]), key = useRef(''), [, redraw] = useState(0);
   const snapshot = binding.service.getSnapshot(), queryKey = JSON.stringify([snapshot.query?.q, group, snapshot.data?.scope.viewerFence, snapshot.data?.revision]);
@@ -361,11 +385,15 @@ function SearchGroupWindow({binding, group, result, selection, onCommit}: {bindi
     window.set(entries.current); redraw(value => value + 1);
   }, [window, result, queryKey, snapshot.phase, snapshot.pagination.cursor]);
   useEffect(() => () => window.dispose(), [window]);
-  const songs = group === 'songs';
+  const songs = group === 'songs', live = group === 'live-tv', episodes = group === 'episodes';
+  const square = group === 'albums' || group === 'artists' || group === 'people';
+  const gap = compact ? 12 : 16;
+  const cardWidth = episodes ? (compact ? Math.max(240, shellWidth - 40) : tablet ? 262 : 316) : live ? (compact ? Math.max(240, shellWidth - 40) : 300) : compact ? (square ? 112 : 100) : 174;
+  const rowHeight = songs ? 58 : live ? 128 : episodes ? Math.round(cardWidth * 9 / 16) + 108 : square ? Math.round(cardWidth) + 56 : Math.round(cardWidth * 1.5) + 58;
   return <section className={styles.single}><h2>{t(searchGroupLabel(group))}{songs && result?.totalCountExact && <span className={styles.resultTotal}>{t('web.search.results', {count: result.totalCount})}</span>}</h2>
     {songs && <div className={styles.songColumns} aria-hidden="true"><span>{t('next.browse.number')}</span><span>{t('next.browse.title')}</span><span>{t('next.browse.artist')}</span><span>{t('next.browse.album')}</span><span>{t('next.browse.plays')}</span><span>{t('next.browse.duration')}</span></div>}
     <WindowedGrid collection={window.collection} label={t(searchGroupLabel(group))}
-    cardWidth={group === 'episodes' ? 316 : 174} fullWidth={songs} rowHeight={group === 'songs' ? 58 : group === 'episodes' ? 285 : 320} height="calc(100vh - 270px)" gap={16}
+    cardWidth={cardWidth} fullWidth={songs || (compact && (episodes || live))} rowHeight={rowHeight} height="calc(100vh - 270px)" gap={gap}
     // Desktop-search frame 3 draws the Songs table as contiguous rows, like the Music library's.
     {...(songs ? {rowGap: 0} : {})}
     renderItem={(entry, item) => songs ? <SongTableRow entry={entry} binding={binding} selection={selection} position={item.index} onCommit={onCommit} /> : <SearchResult entry={entry} binding={binding} selection={selection} position={item.index} onCommit={onCommit} />} renderPlaceholder={index => <span className={styles.placeholder} key={index} />}

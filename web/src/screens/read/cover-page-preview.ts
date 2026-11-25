@@ -11,7 +11,10 @@ export type CoverPagePreview = Readonly<{index: number; url?: string}>;
 export async function coverPagePreview(session: Pick<ReadingSession, 'page'>, index: number, signal: AbortSignal): Promise<CoverPagePreview> {
   try {
     const image = await session.page(index, {width: 180, signal});
-    return Object.freeze({index, url: URL.createObjectURL(new Blob([image.bytes.slice() as Uint8Array<ArrayBuffer>], {type: image.mime}))});
+    if (signal.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+    const url = URL.createObjectURL(new Blob([image.bytes.slice() as Uint8Array<ArrayBuffer>], {type: image.mime}));
+    if (signal.aborted) {URL.revokeObjectURL(url); throw signal.reason ?? new DOMException('Aborted', 'AbortError');}
+    return Object.freeze({index, url});
   } catch (error) {
     if (!memberUnreadable(error) || signal.aborted) throw error;
     return Object.freeze({index});

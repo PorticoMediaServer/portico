@@ -3,8 +3,16 @@ import {defineWebScreen} from '../../route-registry';
 import {router} from '../../router';
 import {currentWebEnvironment} from '../../platform/environment';
 
+export const HELP_DOCS_URL = 'https://getportico.tv/docs/';
+
 /** The drawn Help action is an external destination, not a new in-app page. */
-function HelpScreen() {useEffect(() => {location.replace('https://getportico.tv/docs/');}, []); return null;}
+function HelpScreen() {
+  useEffect(() => {
+    window.open(HELP_DOCS_URL, '_blank', 'noopener,noreferrer');
+    void router.navigate({to: '/', replace: true});
+  }, []);
+  return null;
+}
 /** Server-local account controls are the existing Profile & account section. */
 // At web.getportico.tv /account is the Portico Account itself, drawn by the account pages; this
 // alias never runs there, even for the moment the router keeps it while leaving (H14).

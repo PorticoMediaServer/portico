@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import {Button} from '../controls';
 import {BottomSheet, Popover} from '../overlays';
 import {usePhone} from '../overlays/shared';
-import {Icon, type IconName} from '../Icon';
+import type {IconName} from '../Icon';
 import {selectionText as text} from './copy';
 import {selectionCountText} from './presentation';
 import type {SelectionMediaKind, SelectionSurface, SelectionTypeCount} from './types';

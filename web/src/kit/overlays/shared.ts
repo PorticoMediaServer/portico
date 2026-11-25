@@ -75,18 +75,13 @@ export function useOverlayKeys(open: boolean, onOpenChange: OverlayChange, escap
   return () => stack.at(-1) === identity.current;
 }
 
-/** The document's last input: `keyboard` after a key, `pointer` after a press. An overlay's opening focus draws its ring
- * only after a key (overlays.module.css), so a pointer-opened menu shows none at rest. */
-let inputWatched = false;
-function watchInput() {
-  if (inputWatched || typeof document === 'undefined') return;
-  inputWatched = true;
-  const root = document.documentElement;
-  document.addEventListener('keydown', event => { if (!event.metaKey && !event.ctrlKey && !event.altKey) root.dataset.input = 'keyboard'; }, true);
-  document.addEventListener('pointerdown', () => { root.dataset.input = 'pointer'; }, true);
+export function isPermittedOutsideOverlay(event: Event): boolean {
+  const original = (event as CustomEvent<{originalEvent?: Event}>).detail?.originalEvent;
+  const target = original?.target ?? event.target;
+  return typeof Element !== 'undefined' && target instanceof Element && !!target.closest('[data-toast-host]');
 }
+
 export function useSurfaceFocus(open: boolean, initialFocusRef?: RefObject<HTMLElement | null>, returnFocusRef?: RefObject<HTMLElement | null>) {
-  watchInput();
   const opener = useRef<HTMLElement | null>(null);
   const returnTarget = useRef(returnFocusRef);
   useLayoutEffect(() => {returnTarget.current = returnFocusRef;}, [returnFocusRef]);

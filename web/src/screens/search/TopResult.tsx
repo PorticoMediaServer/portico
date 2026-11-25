@@ -14,7 +14,19 @@ import {TitleActions} from '../detail/Detail';
 import {t, environment} from '../detail/text';
 import type {SearchBindings} from './bindings';
 import detailStyles from '../detail/detail.module.css';
+import styles from './search.module.css';
 import {runScreenCommand} from '../detail/context';
+import {router} from '../../router';
+import {screenEntryDestination} from '../browse/navigation';
+
+function entryHref(entry: SearchEntry): string | undefined {
+  try {
+    const built = router.buildLocation(screenEntryDestination(entry) as never);
+    return typeof built?.publicHref === 'string' && built.publicHref ? built.publicHref : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function TopResult({binding, result, fallbackArtwork, compact, onOpen}: {binding: SearchBindings; result: TopSearchResult; fallbackArtwork?: string; compact?: boolean; onOpen?: () => void}) {
   const entry = result.entry, title = binding.topTitle, show = binding.topShow;
@@ -43,6 +55,7 @@ export function TopResult({binding, result, fallbackArtwork, compact, onOpen}: {
   const kind = topResultKindLabel(result.group), allFacts = kind ? [{id: 'kind', role: 'context' as const, text: t(kind)}, ...facts] : facts;
   const next = series?.nextUp, code = next && episodeCode(next, t), action = primary.data?.actions.find(value => value.enabled && value.playback && value.id !== 'start_over');
   const showPlay = () => runScreenCommand(binding.context, () => { if (series && primary.data && action) { show.current(series); return show.primary.play(primary.data, action.id); } });
+  const open = onOpen ?? (() => runScreenCommand(binding.context, () => binding.open(entry)));
   // Frame 4's phone top result: one card with the title's own background, the artist's
   // circle when it has one, its real facts, and a Play only where a title really plays.
   if (compact) {
@@ -58,13 +71,17 @@ export function TopResult({binding, result, fallbackArtwork, compact, onOpen}: {
     const background = source ? binding.context.artwork.foreground(source, 640, 3 / 2) : undefined;
     const ring = artist && source ? binding.context.artwork.foreground(source, 240, 1) : undefined;
     return <TopResultCard eyebrow={t('search.topResult')} title={phoneTitle} facts={<TitleFactsLine parts={allFacts} />} background={background}
-      ring={artist ? {source: ring, initials} : undefined} onOpen={onOpen ?? (() => runScreenCommand(binding.context, () => binding.open(entry)))}
+      ring={artist ? {source: ring, initials} : undefined} onOpen={open}
       play={play && {label: t('next.controls.play'), onPress: play}} />;
   }
+  const href = entryHref(entry);
+  const details = <Button onClick={open}>{t('next.layout.details')}</Button>;
   return <SearchResultHero title={media?.displayTitle ?? entry.title} eyebrow={t('search.topResult')} facts={<TitleFactsLine parts={allFacts} />} synopsis={movie?.item.overview ?? series?.show.overview ?? media?.overview}
+    href={href} onOpen={open}
     artwork={<AmbientArt treatment="title" source={preferenceValue<boolean>(preferences, 'appearance.showBackdrops') ? binding.context.artwork.ambient(source) : undefined} foreground={preferenceValue<boolean>(preferences, 'appearance.showBackdrops') ? binding.context.artwork.foreground(source, 1600, 16 / 9) : undefined} foregroundFrameStyle={{left: '30%', width: '70%', height: '100%'}} position="50% 6%" />}
-    actions={movie ? <TitleActions binding={title} data={movie} topResult /> : series ? <div className={detailStyles.actions}>
+    actions={movie ? <div className={styles.topActions}><TitleActions binding={title} data={movie} topResult />{details}</div> : series ? <div className={detailStyles.actions}>
       {action && <Button variant="primary" icon="i-play" onClick={showPlay}>{code ? t((next?.progressSeconds ?? 0) > 0 ? 'title.resumeEpisode' : 'title.playEpisode', {code}) : t('next.controls.play')}</Button>}
       {personal && <Button disabled={busy} icon={personal.watchlisted ? 'i-check' : 'i-plus'} aria-pressed={personal.watchlisted} onClick={() => { void show.setMyList(series, !personal.watchlisted).catch(binding.context.effects.reportError); }}>{t('next.controls.myList')}</Button>}
-    </div> : <div className={detailStyles.actions}><Button onClick={() => binding.open(entry as SearchEntry)}>{t('next.layout.details')}</Button></div>} />;
+      {details}
+    </div> : <div className={detailStyles.actions}>{details}</div>} />;
 }

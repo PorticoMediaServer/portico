@@ -1,4 +1,4 @@
-import type {HTMLAttributes, ReactNode} from 'react';
+import type {HTMLAttributes, MouseEvent, ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import {Button} from '../controls';
 import {Artwork, type ArtworkSource} from '../artwork';
@@ -23,9 +23,23 @@ export function TitleFactsLine({parts, genres, lead}: {parts: readonly FactPart[
   return <div className={styles.facts}>{lead && <span data-fact="lead">{lead}</span>}{parts.map(part => <span key={part.id} data-fact={part.id} data-role={part.role}>{part.id === 'genres' && genres ? genres : part.text}</span>)}</div>;
 }
 /** Artwork-led Top result, desktop-search frame 4. Its heading scale is specific to this frame. */
-export function SearchResultHero({title, eyebrow, artwork, facts, synopsis, actions}: {title: string; eyebrow: string; artwork: ReactNode; facts: ReactNode; synopsis?: string; actions: ReactNode}) {
+export function SearchResultHero({title, eyebrow, artwork, facts, synopsis, actions, href, onOpen}: {
+  title: string; eyebrow: string; artwork: ReactNode; facts: ReactNode; synopsis?: string; actions: ReactNode;
+  href?: string; onOpen?: () => void;
+}) {
+  const open = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!onOpen || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onOpen();
+  };
+  const heading = href ? <a className={styles.searchTitleLink} href={href} onClick={open}>{title}</a>
+    : onOpen ? <button type="button" className={styles.searchTitleLink} onClick={onOpen}>{title}</button>
+    : title;
   return <section className={styles.searchHero} aria-label={eyebrow}>
-    {artwork}<div className={styles.searchCopy}><p className={styles.searchKind}>{eyebrow}</p><h3>{title}</h3>{facts}{synopsis && <TitleProse variant="hero" className={styles.searchSynopsis}>{synopsis}</TitleProse>}{actions}</div>
+    {artwork}
+    <div className={styles.searchCopy}><p className={styles.searchKind}>{eyebrow}</p><h3>{heading}</h3>{facts}{synopsis && <TitleProse variant="hero" className={styles.searchSynopsis} markup={synopsis} />}{actions}</div>
+    {href ? <a className={styles.searchBackdropLink} href={href} aria-hidden="true" tabIndex={-1} onClick={open} />
+      : onOpen ? <span className={styles.searchBackdropLink} aria-hidden="true" onClick={onOpen} /> : null}
   </section>;
 }
 /** An episode opens inline under its row, on the page background. Never an overlay. */
@@ -37,7 +51,7 @@ export function EpisodeDetailsLayout({title, artwork, backdrop, context, facts, 
     <span className={styles.caret} aria-hidden="true" />
     <Button className={styles.close} variant="icon" icon="i-x" iconOnly aria-label={defaultI18n.t('action.close')} onClick={onClose} />
     <div className={styles.side}><div className={styles.still} data-backdrop={backdrop || undefined}><Artwork source={artwork} alt="" /></div>{adjacent}</div>
-    <div className={styles.main}><div className={styles.context}>{context}</div><h3>{title}</h3>{facts}{synopsis && <TitleProse>{synopsis}</TitleProse>}{actions}</div>
+    <div className={styles.main}><div className={styles.context}>{context}</div><h3>{title}</h3>{facts}{synopsis && <TitleProse markup={synopsis} />}{actions}</div>
     {credits && <div className={styles.credits}>{credits}</div>}
   </section>;
 }

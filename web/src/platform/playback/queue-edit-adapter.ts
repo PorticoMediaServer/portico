@@ -135,10 +135,6 @@ export function createQueueEditOpening(input: WebQueueEditInput): WebQueueEditOp
     publish({phase: 'ready', page, busy: false, error: undefined});
     return page;
   };
-  const fail = (message: string, code: string) => {
-    if (disposed) return;
-    publish({busy: false, error: Object.freeze({code, message})});
-  };
   const own = (shown: WebQueueEditPage) => {
     const receipt = issued.get(shown);
     if (!receipt || receipt.opening !== opening || state.page !== shown || !resident.includes(shown)) stale();

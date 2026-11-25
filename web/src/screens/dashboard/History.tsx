@@ -10,6 +10,8 @@ import {mediaLabel, ReadFeedback, t} from './shared';
 import styles from './dashboard.module.css';
 /** How a play was delivered, in the words Now playing uses (console rule 16). */
 const deliveryWords: Readonly<Record<string, MessageId>> = {original: 'next.dashboard.original', repackaged: 'next.dashboard.copy', converted: 'next.dashboard.converted'};
+const historyChanges: readonly string[] = ['playback.history', 'stream.resync'];
+const noHistoryChanges: readonly string[] = [];
 export function HistoryScreen({bindings: b, embedded = false}: {bindings: DashboardBindings; embedded?: boolean}) {
   const current = useDashboardAuthority(b);
   if (!current || !b.isMainProfile() || b.role === 'member') return null;
@@ -28,7 +30,7 @@ function HistoryTable({bindings: b}: {bindings: DashboardBindings}) {
   useEffect(() => {if (query === settledQuery) return; const timer = setTimeout(() => settle(query), query.search === settledQuery.search ? 0 : 250); return () => clearTimeout(timer);}, [query, settledQuery]);
   const filters: DashboardFilters = useMemo(() => ({period: settledQuery.filters.range as PlayHistoryPeriod, ...(settledQuery.filters.media === 'all' ? {} : {media: settledQuery.filters.media}), ...(settledQuery.filters.person === 'all' ? {} : {accountId: settledQuery.filters.person}), search: settledQuery.search}), [settledQuery]);
   const load = useCallback((signal: AbortSignal, fresh: boolean) => b.read.plays(filters, cursor, signal, fresh), [b, filters, cursor]);
-  const state = useDashboardRead(b, load, true, cursor ? 0 : 30000);
+  const state = useDashboardRead(b, load, true, cursor ? 0 : 30000, cursor ? noHistoryChanges : historyChanges);
   useEffect(() => {
     const page = state.value; if (!page || page === seen.current) return; seen.current = page;
     setResults(previous => {
@@ -38,7 +40,6 @@ function HistoryTable({bindings: b}: {bindings: DashboardBindings}) {
   }, [state.value, cursor, b.context, settledQuery]);
   const people = useDashboardAccounts(b);
   const failed = state.failed || people.failed;
-  useEffect(() => {const reset = () => setCursor(''); const offs = ['session.updated', 'playback.history'].map(type => b.events?.on(type, reset)); offs.push(b.events?.onResync?.(reset)); return () => offs.forEach(off => off?.());}, [b, setCursor]);
   const tableRows = useMemo(() => rows.map((entry): SettingsTableRow => {
     const artwork = b.artwork(entry.image, 400, entry.kind === 'song' || entry.kind === 'audiobook_file' ? 1 : 2 / 3);
     return {id: entry.id, label: entry.title, cells: {

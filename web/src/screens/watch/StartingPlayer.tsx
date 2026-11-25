@@ -29,7 +29,10 @@ export function StartingPlayer({starting, artwork, environment}: {starting: WebP
   useLayoutEffect(() => {
     restore.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     root.current?.querySelector<HTMLButtonElement>('button')?.focus({preventScroll: true});
-    return () => {if (restore.current?.isConnected && !document.querySelector('[data-watch-expanded]')) restore.current.focus({preventScroll: true});};
+    return () => {
+      const expandedSurface = document.querySelector('[data-watch-screen]:not([hidden]):not([inert]),[data-watch-music]:not([inert]),[data-watch-audiobook]');
+      if (restore.current?.isConnected && !expandedSurface) restore.current.focus({preventScroll: true});
+    };
   }, [starting.key]);
   return <div ref={root} className={styles.player} role="dialog" aria-modal="true" aria-label={identity.title} aria-busy="true"
     onKeyDown={event => {if (event.key === 'Escape') {event.preventDefault(); starting.stop();}}}>

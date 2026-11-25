@@ -1,5 +1,5 @@
 import {MetadataFacts} from '../../../../kit/MetadataFacts';
-import {useLayoutEffect, useMemo, useEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {useLayoutEffect, useMemo, useEffect, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {defaultI18n, type MessageId} from '@i18n';
 import {Tabs as TabsPrimitive} from 'radix-ui';
 import type {AppReport as ClientReport, OwnerRecord} from '@core/server-admin/owner-app-logs.ts';
@@ -42,6 +42,7 @@ export function ReportsPanel(props: ReportsPanelProps) {
   const state = useSyncExternalStore(props.subscribe, props.source.getSnapshot, props.source.getSnapshot);
   const [reading, setReading] = useState<{source: SettingsReportsSource; report: ClientReport}>(), [confirm, setConfirm] = useState<{source: SettingsReportsSource; report: ClientReport}>();
   const confirmation = useRef<typeof confirm>(undefined), owner = useRef(props.source);
+  const readOpener = useRef<HTMLElement | null>(null), deleteOpener = useRef<HTMLElement | null>(null);
   if (owner.current !== props.source) {owner.current = props.source;confirmation.current = undefined;}
   useLayoutEffect(() => {return () => {confirmation.current = undefined;};}, [props.source]);
   const closeConfirmation = () => {confirmation.current = undefined;setConfirm(undefined);};
@@ -57,15 +58,15 @@ export function ReportsPanel(props: ReportsPanelProps) {
       <div className={styles.panelHead}><h3>{t('web.diagnostics.clientReports')}</h3></div>
       <p className={styles.lede}>{t('server.reports.lede')}</p>
       {state.reports.length ? <ul className={styles.rows}>
-        {state.reports.map(report => <ReportRow key={report.id} report={report} source={props.source} disabled={state.phase === 'loading'} onRead={() => setReading({source: props.source, report})} onDelete={() => {const next = {source: props.source, report};confirmation.current = next;setConfirm(next);}} />)}
+        {state.reports.map(report => <ReportRow key={report.id} report={report} source={props.source} disabled={state.phase === 'loading'} onRead={opener => {readOpener.current = opener; setReading({source: props.source, report});}} onDelete={opener => {deleteOpener.current = opener; const next = {source: props.source, report};confirmation.current = next;setConfirm(next);}} />)}
       </ul> : <p className={styles.none}>{t('server.reports.none')}</p>}
       {state.next && <div className={styles.pager}><Button variant="glass" size="small" onClick={() => {void props.source.more();}}>{t('server.showMore')}</Button></div>}
     </section>
     {state.setAside && state.setAside.items.length > 0 && <SetAside failures={state.setAside.items} more={!!state.setAside.next} onCheck={() => {void props.source.checkSetAside();}} onMore={() => {void props.source.checkSetAside(true);}} />}
     {state.records && <Records records={state.records.items} lane={state.records.lane} next={state.records.next} onLane={lane => {void props.source.selectLane(lane);}}
       onOlder={() => {void props.source.moreRecords();}} onLatest={() => {void props.source.latestRecords();}} />}
-    {reading?.source === props.source && <ReadReport key={reading.report.id} report={reading.report} source={props.source} onClose={() => setReading(undefined)} />}
-    {confirm?.source === props.source && confirmation.current === confirm && <Dialog footerDismisses open onOpenChange={open => {if (!open) closeConfirmation();}} title={t('server.reports.deleteTitle')}
+    {reading?.source === props.source && <ReadReport key={reading.report.id} report={reading.report} source={props.source} returnFocusRef={readOpener} onClose={() => setReading(undefined)} />}
+    {confirm?.source === props.source && confirmation.current === confirm && <Dialog footerDismisses open onOpenChange={open => {if (!open) closeConfirmation();}} title={t('server.reports.deleteTitle')} returnFocusRef={deleteOpener}
       footer={<><Button size="small" onClick={closeConfirmation}>{t('next.settings.cancel')}</Button><SettingsAction size="small" appearance="danger"
         onClick={() => {if (confirmation.current !== confirm || owner.current !== props.source) return;const selected = confirm.report;closeConfirmation();void props.source.remove(selected.id, selected);}}>{t('web.diagnostics.clientReportDelete')}</SettingsAction></>}>
       <p>{t('server.reports.deleteBody')}</p>
@@ -87,15 +88,24 @@ function useReportDownload(source: SettingsReportsSource, report: ClientReport, 
       const value = await source.read(report.id, request.signal, report);
       if (!current()) return;
       const url = URL.createObjectURL(new Blob([JSON.stringify(value)], {type: 'application/json'}));
-      const link = document.createElement('a');link.href = url;link.download = 'portico-client-report.json';
-      try {if (current()) {document.body.appendChild(link);link.click();}} finally {link.remove();URL.revokeObjectURL(url);}
+      let clicked = false;
+      try {
+        if (current()) {
+          const link = document.createElement('a');
+          link.href = url; link.download = 'portico-client-report.json';
+          document.body.appendChild(link);
+          try {link.click(); clicked = true;} finally {link.remove();}
+        }
+      } catch (error) {URL.revokeObjectURL(url); throw error;}
+      if (clicked) setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      else URL.revokeObjectURL(url);
     } catch {if (current()) setFailed(true);}
     finally {if (life.request === request) life.request = undefined;}
   };
   return {download, failed};
 }
 
-function ReportRow({report, source, disabled, onRead, onDelete}: Readonly<{report: ClientReport; source: SettingsReportsSource; disabled: boolean; onRead: () => void; onDelete: () => void}>) {
+function ReportRow({report, source, disabled, onRead, onDelete}: Readonly<{report: ClientReport; source: SettingsReportsSource; disabled: boolean; onRead: (opener: HTMLElement | null) => void; onDelete: (opener: HTMLElement | null) => void}>) {
   const [open, setOpen] = useState<object>(), active = useRef<object | undefined>(undefined), anchor = useRef<HTMLButtonElement>(null);
   const {download, failed} = useReportDownload(source, report);
   const title = sender(report), whenText = defaultI18n.dateTime(report.createdAt);
@@ -105,17 +115,17 @@ function ReportRow({report, source, disabled, onRead, onDelete}: Readonly<{repor
   return <li className={styles.reportRow}>
     <Icon name={senderIcon(String((report.context as Record<string,unknown>|undefined)?.platform??''))} size={20} />
     <div className={styles.reportText}><b>{title}</b><small>{whenText}</small>{failed && <small role="alert">{t('next.states.pageFailedBody')}</small>}</div>
-    <Button variant="glass" size="small" disabled={disabled} onClick={() => {if (source.listed(report)) onRead();}}>{t('server.reports.read')}</Button>
+    <Button variant="glass" size="small" disabled={disabled} onClick={event => {if (source.listed(report)) onRead(event.currentTarget);}}>{t('server.reports.read')}</Button>
     <Button ref={anchor} size="small" variant="icon" icon="i-more" iconOnly aria-label={t('next.home.moreFor', {title})} disabled={disabled} onClick={() => {if (open) close();else if (source.listed(report)) {const next = {};active.current = next;setOpen(next);}}} />
     <Menu open={!!open && !disabled} onOpenChange={value => {if (!value) close();}} anchorRef={anchor} title={title} returnFocusRef={anchor} items={[
       {id: 'download', icon: 'i-download', label: t('web.diagnostics.clientReportDownload'), onSelect: () => choose(() => {void download();})},
-      {id: 'delete', icon: 'i-trash', destructive: true, label: t('web.diagnostics.clientReportDelete'), onSelect: () => choose(onDelete)},
+      {id: 'delete', icon: 'i-trash', destructive: true, label: t('web.diagnostics.clientReportDelete'), onSelect: () => choose(() => onDelete(anchor.current))},
     ]} />
   </li>;
 }
 
 /** One report's own log, retained only by its exact open dialog. */
-function ReadReport({report, source, onClose}: Readonly<{report: ClientReport; source: SettingsReportsSource; onClose: () => void}>) {
+function ReadReport({report, source, returnFocusRef, onClose}: Readonly<{report: ClientReport; source: SettingsReportsSource; returnFocusRef: RefObject<HTMLElement | null>; onClose: () => void}>) {
   const [body, setBody] = useState<string>(), [failed, setFailed] = useState(false), done = useRef<HTMLButtonElement>(null);
   const life = useMemo<{request?: AbortController}>(() => { /* Preserve the original ownership/invalidation keys. */ void source; void report; return ({}); }, [source, report]);
   useLayoutEffect(() => {const request = new AbortController();life.request = request;return () => {request.abort();if (life.request === request) life.request = undefined;};}, [life]);
@@ -129,7 +139,7 @@ function ReadReport({report, source, onClose}: Readonly<{report: ClientReport; s
       .catch(() => {if (life.request === request && !request.signal.aborted) setFailed(true);});
   }, [report, source, life]);
   const text = failed ? t('next.states.pageFailedBody') : body === undefined ? t('next.settings.loading') : body || t('server.reports.empty');
-  return <Dialog footerDismisses open onOpenChange={open => {if (!open) close();}} size="lg" title={t('server.reports.title')} initialFocusRef={done} returnFocusRef={done}
+  return <Dialog footerDismisses open onOpenChange={open => {if (!open) close();}} size="lg" title={t('server.reports.title')} initialFocusRef={done} returnFocusRef={returnFocusRef}
     footer={<><Button size="small" disabled={!current()} onClick={() => {void download();}}>{t('web.diagnostics.clientReportDownload')}</Button><Button ref={done} size="small" onClick={close}>{t('next.settings.done')}</Button></>}>
     <p className={styles.reportMeta}><MetadataFacts parts={[sender(report), defaultI18n.dateTime(report.createdAt)]} /></p>
     {downloadFailed && <p role="alert" className={styles.failure}>{t('next.states.pageFailedBody')}</p>}

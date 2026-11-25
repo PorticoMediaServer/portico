@@ -1,16 +1,13 @@
 import {readConnectionFacts} from '@core/query/connection-operations.ts';
-import {clockOrigin, observeResponseClock} from '@core/server-clock.ts';
 import {IndexedDBOutboxStore} from './outbox-store';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {RouteConnection,sessionRoute} from '@core/route-connection';
 import {RouteError} from '@core/route-identity';
-import {restoreNativeSession,forgetNativeSession,savedConnectionDamaged,type RememberedServer,type ServerConnectionStorage,type ConnectionEnvironment} from '@core/server-connections';
+import {restoreNativeSession,forgetNativeSession,savedConnectionDamaged,type ConnectionEnvironment} from '@core/server-connections';
 import {AppSessionStore, type AppSessionRecord, type NewServerConnection} from '@core/app-sessions.ts';
 import {browserDiscoveryProvider} from './discovery-provider';
 import {currentWebEnvironment} from './environment';
 import {DEFAULT_INSECURE_CONNECTIONS,type ConnectionPolicy} from '@core/connection-policy.ts';
-import {routeJSON} from '@core/route-identity';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 export {installBrowserDiscoveryProvider} from './discovery-provider';
 
 /** Version 1 is encrypted with a non-exportable key. Version 2 is plain JSON, used where the
@@ -25,8 +22,8 @@ export class BrowserProtectedStore<RecordType> {
  constructor(private readonly databaseName='portico.server-connections.v1', private readonly maximumBytes=192000, private readonly encryptedOnly=false){}
  private requireEncryption(){if(this.encryptedOnly&&!canEncrypt())throw new RouteError('secure_context_required','This continuation requires protected browser storage.');}
  private async transaction<T>(mode:IDBTransactionMode,work:(store:IDBObjectStore,done:(v:T)=>void,failed:(error:unknown)=>void)=>void):Promise<T>{
-  return new Promise((resolve,reject)=>{let db:IDBDatabase|undefined,tx:IDBTransaction|undefined,done=false,value:T;const finish=(error?:unknown)=>{if(done)return;done=true;clearTimeout(timer);db?.close();error?reject(new Error('The saved server connection could not be read or written.')):resolve(value);};const timer=setTimeout(()=>{try{tx?.abort();}catch{}finish(new Error());},5000);
-   const request=indexedDB.open(this.databaseName,1);request.onupgradeneeded=()=>request.result.createObjectStore('vault');request.onerror=()=>finish(request.error);request.onblocked=()=>finish(new Error());request.onsuccess=()=>{db=request.result;if(done){db.close();return;}try{tx=db.transaction('vault',mode,mode==='readwrite'?{durability:'strict'}:undefined);if(mode==='readwrite'&&tx.durability!=='strict')throw new Error();tx.oncomplete=()=>finish();tx.onabort=()=>finish(tx?.error??new Error('The saved server transaction was aborted.')); tx.onerror=()=>finish(tx?.error??new Error('The saved server transaction failed.'));work(tx.objectStore('vault'),v=>{value=v;},error=>{try{tx?.abort();}catch{}finish(error??new Error());});}catch(e){try{tx?.abort();}catch{}finish(e);}};
+  return new Promise((resolve,reject)=>{let db:IDBDatabase|undefined,tx:IDBTransaction|undefined,done=false,value:T;const finish=(error?:unknown)=>{if(done)return;done=true;clearTimeout(timer);db?.close();if(error)reject(new Error('The saved server connection could not be read or written.'));else resolve(value);};const timer=setTimeout(()=>{try{tx?.abort();}catch{}finish(new Error());},5000);
+   const request=indexedDB.open(this.databaseName,1);request.onupgradeneeded=()=>request.result.createObjectStore('vault');request.onerror=()=>finish(request.error);request.onblocked=()=>finish(new Error());request.onsuccess=()=>{db=request.result;if(done){db.close();return;}try{tx=db.transaction('vault',mode,mode==='readwrite'?{durability:'strict'}:undefined);if(mode==='readwrite'&&tx.durability!==undefined&&tx.durability!=='strict')throw new Error();tx.oncomplete=()=>finish();tx.onabort=()=>finish(tx?.error??new Error('The saved server transaction was aborted.')); tx.onerror=()=>finish(tx?.error??new Error('The saved server transaction failed.'));work(tx.objectStore('vault'),v=>{value=v;},error=>{try{tx?.abort();}catch{}finish(error??new Error());});}catch(e){try{tx?.abort();}catch{}finish(e);}};
   });
  }
  private exclusive<T>(work:()=>Promise<T>):Promise<T>{return navigator.locks.request(this.databaseName+':selected',{signal:AbortSignal.timeout(15000)},work);}

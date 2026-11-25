@@ -69,6 +69,7 @@ export class ListeningOwner {
   private initialChapters = false;
   private rates: readonly number[] = Object.freeze([]);
   private sleep: ListeningSleepChoice = 0;
+  private sleepEndsAtMs?: number;
   private pendingPanel?: ListeningPanel;
   private returnFocus?: HTMLElement;
   private dockPanel = false;
@@ -140,12 +141,12 @@ export class ListeningOwner {
     if (!this.current()) return;
     if (!this.read().dock.local?.expanded) this.retireView();
     else if(this.dockToken){this.dockToken=undefined;this.publish({dockOpening:null});}
-    let rates:readonly number[]=Object.freeze([]),sleep:ListeningSleepChoice=0;
-    try{rates=this.offeredSpeeds(this.fence);const timer=this.readSleep(this.fence);sleep=!timer?0:'end' in timer?timer.end:timer.minutes;}catch{/* An unavailable source offers no options. */}
+    let rates:readonly number[]=Object.freeze([]),sleep:ListeningSleepChoice=0,sleepEndsAtMs:number|undefined;
+    try{rates=this.offeredSpeeds(this.fence);const timer=this.readSleep(this.fence);sleep=!timer?0:'end' in timer?timer.end:timer.minutes;sleepEndsAtMs=timer&&'endsAt' in timer&&Number.isFinite(timer.endsAt)?timer.endsAt:undefined;}catch{/* An unavailable source offers no options. */}
     if(!this.current())return;
     const settingsAvailable=this.settings?.isCurrent()===true;
     if(!this.current())return;
-    const optionsChanged=rates.join(',')!==this.rates.join(',')||sleep!==this.sleep;this.rates=rates;this.sleep=sleep;
+    const optionsChanged=rates.join(',')!==this.rates.join(',')||sleep!==this.sleep||sleepEndsAtMs!==this.sleepEndsAtMs;this.rates=rates;this.sleep=sleep;this.sleepEndsAtMs=sleepEndsAtMs;
     const chapters = this.port?.chapters.getSnapshot() ?? null, lyrics = this.port?.lyrics.getSnapshot() ?? null;
     const queue = this.port?.queue?.list.getSnapshot() ?? null;
     if (!this.current()) return;
@@ -282,6 +283,7 @@ export class ListeningOwner {
     if (!this.admit(shown,panel) || !this.matches(snapshot) || !this.speeds().includes(rate) || !this.admit(shown,panel)) stale();this.writeSpeed(this.fence, rate);
   }
   sleepChoice() {return this.sleep;}
+  sleepEndsAt() {return this.state.current ? this.sleepEndsAtMs : undefined;}
   sleepChoices() {return listeningSleepChoices(this.kind);}
   /** The choices to show for what is playing now: a book known to have no chapters (neither the whole book's list nor
    * this part's) offers End of this book without End of this chapter, which could only fail. The owner still accepts

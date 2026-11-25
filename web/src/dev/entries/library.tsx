@@ -24,7 +24,6 @@
  */
 import {FreshnessProvider, freshnessFor} from '../../platform/freshness';
 import {viewerQueryScope} from '@core/query/viewer-queries.ts';
-import {defaultI18n} from '@i18n';
 import type {BrowseNode, BrowseSortSelection} from '@core/browse.ts';
 import type {HttpLocalApi, Library, LocalSession, Viewer} from '@core/index.ts';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
@@ -37,10 +36,7 @@ export type LibraryRecord = Readonly<{kind: string; at: number; value?: unknown}
 export type LibraryState = 'grid' | 'list' | 'big' | 'sort' | 'filters' | 'empty' | 'collections';
 
 const libraryId = 'movies', serverId = 'specimen-server', revisionToken = 'browse-r46-library';
-const revision = {catalog: 1, viewer: 1};
 const allKinds = ['movie', 'collection'];
-const dated = ['movie', 'collection'];
-const kindOf = (id: string): 'movie' | 'collection' => id === 'collections' ? 'collection' : 'movie';
 
 /* ---------- what the frame's states ask the library for ---------- */
 const predicate = (field: string, operator: string, value: unknown): BrowseNode => Object.freeze({variant: 'predicate', field, operator, value}) as BrowseNode;

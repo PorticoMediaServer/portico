@@ -70,7 +70,7 @@ async function mountRead(options: {canGoBack?: boolean; phone?: boolean; open?: 
     '@design': {generatedCoverTint: () => ({first: '#111', second: '#222'})},
     '@core/index.ts': {ApiError: class ApiError extends Error {}},
     '../../../../packages/contracts/src/routes.ts': {encodedRoutePath: (path: string) => path},
-    '@portico/reader-core': {createReadingPublication: async () => ({contentsTarget: (index: number) => ({index}), dispose() {}})},
+    '@portico/reader-core': {createReadingPublication: async () => ({contentsTarget: (index: number) => ({index}), dispose() {}}), isReaderComicFormat: (format: string) => format === 'cbz' || format === 'cbr' || format === 'cb7'},
     './contents-handoff': {stageContentsTarget: () => {}, retireContentsTarget: () => {}},
     '../../kit/reader/ReaderPanel': {ReaderContents: 'ReaderContents'},
     './save-file': {saveReadingFile: async () => {}},

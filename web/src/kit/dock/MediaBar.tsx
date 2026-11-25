@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, type PointerEvent} from 'react';
 import {springTiming, springs} from '@design';
 import {Menu} from '../overlays';
 import {Control, Identity, Progress, StartingStop, TerminalActions, Transport, useDockActions} from './parts';

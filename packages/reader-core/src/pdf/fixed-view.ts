@@ -1,6 +1,7 @@
 import {throwSignalAborted as throwIfAborted} from '../abort.ts';
 import {releaseQuietlyAsync} from '@portico/client-core';
 import {abortScope,abortReason} from '../abort.ts';
+import {createNonceStyle} from '../style-nonce.ts';
 import type {ReaderDocument,ReaderFixedViewport,ReaderLocation,ReaderView} from '../ports.ts';
 import {planFixedLayout, fixedVisualPanes, validReaderCrease} from '../layout.ts';
 import {pageGesture,settleFrames} from '../epub/page-motion.ts';
@@ -40,7 +41,7 @@ export function fixedPageViewport(input:FixedPageViewportInput):ReaderFixedViewp
 /** Both fixed formats use the common spread planner and their own real page renderer. */
 export async function mountFixed<P extends FixedPreferences>(format:'pdf'|'cbz'|'cbr'|'cb7',pageCount:number,fileDirection:'ltr'|'rtl'|'vertical',load:FixedPageLoader,options:Parameters<ReaderDocument<P>['mount']>[0]):Promise<ReaderView<P>>{
   const document=options.container.ownerDocument,host=document.createElement('div');
-  const paneStyle=document.createElement('style');paneStyle.textContent='[data-reader-fixed] [data-reader-page]{scrollbar-width:none}[data-reader-fixed] [data-reader-page]::-webkit-scrollbar{display:none}';document.head.append(paneStyle);
+  const paneStyle=createNonceStyle(document,'[data-reader-fixed] [data-reader-page]{scrollbar-width:none}[data-reader-fixed] [data-reader-page]::-webkit-scrollbar{display:none}');document.head.append(paneStyle);
   host.tabIndex=0;host.setAttribute('role','document');
   host.dataset.readerFixed=format;Object.assign(host.style,{position:'relative',display:'flex',width:'100%',height:'100%',overflow:'auto',overscrollBehavior:'contain',touchAction:'none'});
   let preferences=options.preferences,viewport=options.viewport,page=0,closed=false,version=0,mutation=0,rendering=0,scrolling=false;

@@ -1,5 +1,6 @@
 import {useScreenIdentity} from '../detail/context';
 import {serverNow} from '@core/server-clock.ts';
+import {HOUR_MS, localDayStart} from '@core/guide/time.ts';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
 import {useLocation} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
@@ -33,20 +34,58 @@ const statePill = (state: RecordingState) => t(({scheduled: 'dvr.state.scheduled
   completed: 'dvr.state.completed', 'incomplete-playable': 'dvr.state.incompletePlayable', failed: 'dvr.state.failed', cancelled: 'dvr.state.cancelled', skipped: 'next.live.skipped',
   'pending-delete': 'dvr.state.pendingDelete', deleted: 'dvr.state.deleted'} as const)[state]);
 
-function timeOf(value: string) { return new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {hour: 'numeric', minute: '2-digit', timeZone: defaultI18n.region.timeZone ?? undefined}).format(Date.parse(value)); }
-function dayOf(value: string, now: number) {
-  const at = Date.parse(value);
-  return new Date(at).toDateString() === new Date(now).toDateString() ? t('guide.today')
-    : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', month: 'short', day: 'numeric'}).format(at);
+function recordingsTimeZone(timeZone?: string): string {
+  return timeZone ?? defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
-function dateOf(value: string) { return new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', month: 'long', day: 'numeric'}).format(Date.parse(value)); }
-function timeRange(start: string, end: string) {
-  const from = timeOf(start), to = timeOf(end);
+function timeOf(value: string, timeZone?: string) {
+  return new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {hour: 'numeric', minute: '2-digit', timeZone: recordingsTimeZone(timeZone)}).format(Date.parse(value));
+}
+export function dayOf(value: string, now: number, timeZone?: string) {
+  const tz = recordingsTimeZone(timeZone);
+  const at = Date.parse(value);
+  return localDayStart(at, tz) === localDayStart(now, tz) ? t('guide.today')
+    : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', month: 'short', day: 'numeric', timeZone: tz}).format(at);
+}
+export function dateOf(value: string | number, timeZone?: string) {
+  const at = typeof value === 'number' ? value : Date.parse(value);
+  return new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', month: 'long', day: 'numeric', timeZone: recordingsTimeZone(timeZone)}).format(at);
+}
+export type UpcomingDayGroup = Readonly<{key: string; heading: string; detail?: string; recordings: readonly Recording[]}>;
+/** Group upcoming recordings by local calendar day in `timeZone` so future days never collapse into "Later today". */
+export function groupUpcomingByDay(recordings: readonly Recording[], now: number, timeZone?: string): readonly UpcomingDayGroup[] {
+  const tz = recordingsTimeZone(timeZone);
+  const todayStart = localDayStart(now, tz);
+  const tomorrowStart = localDayStart(todayStart + 26 * HOUR_MS, tz);
+  const nowYear = new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {year: 'numeric', timeZone: tz}).format(now);
+  const buckets = new Map<number, Recording[]>();
+  const unknown: Recording[] = [];
+  for (const recording of recordings) {
+    const at = Date.parse(recording.start);
+    if (!Number.isFinite(at)) { unknown.push(recording); continue; }
+    const dayStart = localDayStart(at, tz);
+    let list = buckets.get(dayStart);
+    if (!list) { list = []; buckets.set(dayStart, list); }
+    list.push(recording);
+  }
+  const ordered = [...buckets.entries()].sort(([left], [right]) => left - right);
+  const groups: UpcomingDayGroup[] = ordered.map(([dayStart, items]) => {
+    if (dayStart === todayStart) return {key: String(dayStart), heading: t('next.live.laterToday'), detail: dateOf(dayStart, tz), recordings: items};
+    if (dayStart === tomorrowStart) return {key: String(dayStart), heading: t('guide.tomorrow'), detail: dateOf(dayStart, tz), recordings: items};
+    const dayYear = new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {year: 'numeric', timeZone: tz}).format(dayStart);
+    const heading = new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: tz}).format(dayStart);
+    const detail = new Intl.DateTimeFormat(defaultI18n.region.formatLocale, dayYear !== nowYear ? {month: 'long', day: 'numeric', year: 'numeric', timeZone: tz} : {month: 'long', day: 'numeric', timeZone: tz}).format(dayStart);
+    return {key: String(dayStart), heading, detail, recordings: items};
+  });
+  if (unknown.length > 0) groups.push({key: 'other', heading: t('recordings.upcoming'), recordings: unknown});
+  return groups;
+}
+function timeRange(start: string, end: string, timeZone?: string) {
+  const from = timeOf(start, timeZone), to = timeOf(end, timeZone);
   const meridiem = from.match(/ (AM|PM)$/i)?.[1];
   const same = meridiem !== undefined && meridiem === to.match(/ (AM|PM)$/i)?.[1];
   return t('guide.cellTime', {start: same ? from.slice(0, -(meridiem.length + 1)) : from, end: to});
 }
-function rangeOf(recording: Recording) { return timeRange(recording.start, recording.end); }
+function rangeOf(recording: Recording, timeZone?: string) { return timeRange(recording.start, recording.end, timeZone); }
 /** Whether this viewer may change any profile's recording: the owner and administrators may; anyone else only their own.
  * The server sends no per-row "can change" fact, so a member is offered no changes in Everyone's (their own are in Mine). */
 function changesEveryones(context: ScreenContext) { return context.identity?.viewer.role === 'owner' || context.identity?.viewer.role === 'admin'; }
@@ -166,7 +205,7 @@ function ConflictDialog({context, opening, current, consume, controller, onClose
   controller: RecordingsController; onClose: (opening: Opening<ConflictRequest>) => void;
 }) {
   const recording = opening.target.recording;
-  const [detail, setDetail] = useState<RecordingDetail | undefined>(opening.target.detail);
+  const [, setDetail] = useState<RecordingDetail | undefined>(opening.target.detail);
   const [busy, setBusy] = useState<'raise' | 'skip'>();
   const [error, setError] = useState<string>();
   const [publishedOperation, publishOperation] = useState<ConflictOperation>();
@@ -232,6 +271,7 @@ export function UpcomingView({context, controller, snapshot, now, onResolve, con
   const conflicted = recordings.filter(recording => recording.state === 'conflicted');
   const current = recordings.filter(recording => ['recording', 'preparing', 'finalizing'].includes(recording.state) && recording.state !== 'conflicted');
   const later = recordings.filter(recording => ['scheduled', 'waiting-source', 'waiting-guide'].includes(recording.state));
+  const laterDays = groupUpcomingByDay(later, now);
   const [shown, setShown] = useState<Recording>();
   const closeShown = (target: Recording | undefined) => setShown(current => current === target ? undefined : current);
   return <div className={styles.recBody}>
@@ -239,9 +279,9 @@ export function UpcomingView({context, controller, snapshot, now, onResolve, con
       {conflicted.map(recording => <ConflictBox key={recording.id} context={context} recording={recording} detail={conflictDetails?.[recording.id]} {...(mayChange(recording, canChange) ? {onResolve: (detail?: RecordingDetail) => onResolve(recording, detail)} : {})} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
     {current.length > 0 && <section className={styles.recSection}><h2>{t('next.live.recordingNow')}</h2>
       {current.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} refusal={refusal(recording)}/>)}</section>}
-    {later.length > 0 && <section className={styles.recSection}><h2>{t('next.live.laterToday')}<span>{dateOf(later[0]!.start)}</span></h2>
-      {later.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
-    {!conflicted.length && !current.length && !later.length && <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneScheduled')} body={t('recordings.noneScheduledBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
+    {laterDays.map(group => <section key={group.key} className={styles.recSection}><h2>{group.heading}{group.detail && <span>{group.detail}</span>}</h2>
+      {group.recordings.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>)}
+    {!conflicted.length && !current.length && !later.length && !snapshot.error && <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneScheduled')} body={t('recordings.noneScheduledBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
     <Dialog footerDismisses open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
       footer={<Button variant="glass" onClick={() => closeShown(shown)}>{t('next.overlays.close')}</Button>}>{shown && <p className={`${styles.dialogText} ${styles.dialogFacts}`}><span>{recordingStateLabel(shown.state)}</span>{shown.reason && <span>{recordingReason(shown.reason)}</span>}</p>}</Dialog>
@@ -260,7 +300,7 @@ export function RecordedView({context, controller, current, snapshot, everyone =
       <RecordingArt recording={group.recording} large={true} badges={<>{group.unwatched > 0 && <em className={styles.recArtCount}>{group.unwatched}</em>}{group.kept > 0 && <em>{t('recordings.kept')}</em>}{group.exceptions > 0 && <em>{t('dvr.state.incomplete')}</em>}</>}/>
       <span className={styles.recordedCopy}><b>{group.title}</b><small>{group.recording.channel?.name}</small>
         <small>{group.unwatched ? t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched}) : t('recordings.showCount', {count: group.recordings})}</small></span>
-    </button>)}</div> : <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
+    </button>)}</div> : !snapshot.error && <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
     {open && <RecordedGroupPanel key={open.key} context={context} current={current} group={open.key} title={open.title} sort={sort} everyone={everyone} onClose={() => setOpen(value => value === open ? undefined : value)}/>}
   </div>;
@@ -335,7 +375,7 @@ export function HistoryView({snapshot, now, controller, onGuide}: {controller: R
   const closeShown = (target: Recording | undefined) => setShown(current => current === target ? undefined : current);
   return <div className={styles.recBody}>{recordings.length
     ? recordings.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onDetails={() => setShown(recording)}/>)
-    : <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
+    : !snapshot.error && <StateView variant="empty" icon="i-rec-ring" title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')} primary={onGuide ? {id: 'guide', label: t('next.states.openGuide'), onPress: onGuide} : undefined}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
     <Dialog footerDismisses open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
       footer={<Button variant="glass" onClick={() => closeShown(shown)}>{t('next.overlays.close')}</Button>}>{shown && <p className={`${styles.dialogText} ${styles.dialogFacts}`}><span>{recordingStateLabel(shown.state)}</span>{shown.reason && <span>{recordingReason(shown.reason)}</span>}</p>}</Dialog>
@@ -361,7 +401,20 @@ function StorageView({snapshot, tuners}: {snapshot: ReturnType<RecordingsControl
 function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGuide}: {context: ScreenContext; view: RecordingsView; everyone: boolean; routeCurrent: () => boolean;
   onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide: () => void}) {
   const [attempt, setAttempt] = useState(0);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => serverNow());
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = () => {
+      timer = setTimeout(() => {
+        if (!active) return;
+        setNow(serverNow());
+        tick();
+      }, 30_000);
+    };
+    tick();
+    return () => {active = false; clearTimeout(timer);};
+  }, []);
   useScreenIdentity(context);
   const lease = useRecordingsLease(context, view, attempt, routeCurrent, everyone);
   const snapshot = useSyncExternalStore(lease?.controller.subscribe ?? noSubscribe, lease?.controller.getSnapshot ?? noSnapshot, lease?.controller.getSnapshot ?? noSnapshot);
@@ -376,7 +429,7 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
   const [conflictRequest, setConflictRequest] = useState<ConflictRequest>();
   const {opening: conflictOpening, consume: consumeConflict} = useCommittedOpening(conflictRequest);
   useLayoutEffect(() => {setConflictRequest(undefined);}, [lease?.id]);
-  const retry = () => {if (!lease?.current()) return;setNow(Date.now());setAttempt(value => value + 1);};
+  const retry = () => {if (!lease?.current()) return;setNow(serverNow());setAttempt(value => value + 1);};
   const goView = (next: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => {if (lease?.current()) onView(next);};
   const goGuide = () => {if (lease?.current()) onGuide();};
   const openConflict = (recording: Recording, detail?: RecordingDetail) => {
@@ -389,8 +442,11 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
   };
   if (!lease || !snapshot) return null;
   const loading = snapshot.phase === 'loading' || snapshot.phase === 'idle';
+  const hasViewData = view === 'recorded' ? snapshot.groups !== null
+    : view === 'storage' ? snapshot.storage !== null
+      : snapshot.page !== null;
   const body = loading ? <p role="status">{t('recordings.loading')}</p>
-    : snapshot.error && !snapshot.page && !snapshot.storage ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: retry}}/>
+    : snapshot.error && !hasViewData ? <StateView title={t('next.states.pageFailed')} body={snapshot.error || t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: retry}}/>
       : view === 'upcoming' ? <UpcomingView context={context} controller={lease.controller} snapshot={snapshot} now={now} onResolve={openConflict} canChange={!everyone || changesEveryones(context)} onGuide={goGuide}/>
         : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot} everyone={everyone} onGuide={goGuide}/>
           : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller} onGuide={goGuide}/>
@@ -403,7 +459,7 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
       onScope && summary?.everyonesRecordings !== false && (view === 'upcoming' || view === 'recorded' || view === 'history') && <Segmented aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
         onValueChange={value => {if (lease.current() && (value === 'mine' || value === 'everyone')) onScope(value === 'everyone');}}
         items={[{value: 'mine', label: t('next.live.mine')}, {value: 'everyone', label: t('next.live.everyones')}]}/>}>
-    {snapshot.error && <Banner className={styles.recordingsBanner} action={{label: t('next.states.tryAgain'), onAction: retry}}>{snapshot.error}</Banner>}
+    {snapshot.error && hasViewData && <Banner className={styles.recordingsBanner} action={{label: t('next.states.tryAgain'), onAction: retry}}>{snapshot.error}</Banner>}
     {body}
     {conflictOpening && <ConflictDialog key={conflictOpening.id} context={context} opening={conflictOpening} current={lease.current} consume={consumeConflict}
       controller={lease.controller} onClose={dismissConflict}/>}

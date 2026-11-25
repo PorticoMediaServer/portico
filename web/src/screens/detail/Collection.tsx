@@ -76,8 +76,10 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
     if (to < 0 || to >= ids.length) return before;
     [ids[index], ids[to]] = [ids[to]!, ids[index]!]; return ids;
   });
+  const hasMore = snapshot.appended.some(section => Boolean(section.nextCursor));
+  const canReorder = !hasMore && films.length > 1;
   const saveOrder = () => {
-    if (!orderIds || saving) return;
+    if (!orderIds || saving || !canReorder || !current()) return;
     setSaving(true);
     void edit({order: orderIds}).then(() => {if (life.current()) setOrdering(undefined);}, report).finally(() => setSaving(false));
   };
@@ -85,17 +87,19 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
   const started = (film: ContentEntry) => !film.watched && (film.progressSeconds ?? 0) > 0;
   // Up next: the film in progress, or else the first one not yet watched once an earlier one has been (desktop-detail f8).
   const next = films.find(started) ?? (films.some(film => film.watched) ? films.find(film => !film.watched) : undefined);
-  const watched = films.filter(film => film.watched).length;
+  const sectionTotal = snapshot.appended.reduce((sum, section) => sum + (section.totalCount ?? section.entries.length), 0);
+  const count = collection.count ?? (hasMore && sectionTotal > films.length ? sectionTotal : films.length);
+  const watched = collection.watchedCount ?? (hasMore ? 0 : films.filter(film => film.watched).length);
   const years = films.flatMap(film => film.year && film.year > 0 ? [film.year] : []);
-  const first = years.length ? Math.min(...years) : undefined, last = years.length ? Math.max(...years) : undefined;
+  const first = collection.yearMin ?? (years.length ? Math.min(...years) : undefined);
+  const last = collection.yearMax ?? (years.length ? Math.max(...years) : undefined);
   const yearsText = first === undefined || last === undefined ? undefined : first === last ? year(first) : t('next.detail.seasonYears', {first, last});
   const runtime = films.reduce((total, film) => total + (film.duration ?? 0), 0);
-  const count = collection.count ?? films.length;
   const facts: FactPart[] = [
     {id: 'films', role: 'identity', text: t('next.browse.filmCount', {count})},
     ...(yearsText ? [{id: 'years', role: 'supplement' as const, text: yearsText}] : []),
-    ...(runtime > 0 ? [{id: 'duration', role: 'supplement' as const, text: durationText(runtime, t) ?? ''}] : []),
-    ...(watched > 0 ? [{id: 'watched', role: 'status' as const, text: t('title.seasonProgress', {watched, total: films.length})}] : []),
+    ...(!hasMore && runtime > 0 ? [{id: 'duration', role: 'supplement' as const, text: durationText(runtime, t) ?? ''}] : []),
+    ...(watched > 0 && count > 0 ? [{id: 'watched', role: 'status' as const, text: t('title.seasonProgress', {watched, total: count})}] : []),
   ];
   const play = (film: ContentEntry) => runScreenCommand(context, () => {
     if (!current() || !playable(film) || !films.includes(film)) return;
@@ -118,7 +122,7 @@ export function CollectionScreen({context, libraryId, collectionId, onOpen, onBa
       {owner && <OwnerCard title={t('next.collection.ownerTitle')} mark={t('next.overlays.ownerOnly')} body={t('next.collection.ownerBody')} actions={[
         {icon: 'i-edit', label: t('next.collection.rename'), onPress: () => {if (current()) setEditing('rename');}},
         {icon: 'i-plus', label: t('next.collection.addFilm'), onPress: () => {if (current()) setEditing('add');}},
-        {icon: 'i-sort', label: t('next.collection.changeOrder'), onPress: () => {if (current() && films.length > 1) setOrdering(films.map(film => film.id));}},
+        ...(canReorder ? [{icon: 'i-sort' as const, label: t('next.collection.changeOrder'), onPress: () => {if (current() && canReorder) setOrdering(films.map(film => film.id));}}] : []),
       ]} />}
     </div>}>
     <PanelBlock label={t('next.detail.filmsInOrder')}>

@@ -50,7 +50,7 @@ function identity(username?: string, profileName = 'Evening profile'): ShellIden
 }
 function render(value: ShellIdentity, signOut = () => {}, feedback?: () => void) {
   captured.length = 0;
-  renderToStaticMarkup(createElement(Shell, {identity: value, OwnerActivity: () => null, dockVisible: false, onSignOut: signOut, onFeedback: feedback, children: null}));
+  renderToStaticMarkup(createElement(Shell, {identity: value, OwnerActivity: () => null, dockVisible: false, onSignOut: signOut, onFeedback: feedback}, null));
   assert.equal(captured.length, 1);
   return captured[0];
 }
@@ -115,4 +115,49 @@ test('a Portico Account viewer gets one sign-out in the avatar menu, for this se
   assert.doesNotMatch(surfaces, /accounts\.signOut\.portico/);
   // The Portico Account's sign-out stays where the account is managed.
   assert.match(readFileSync(new URL('../src/screens/accounts/Servers.route.tsx', import.meta.url), 'utf8'), /signOutBrowserPorticoAccount\(\)/);
+});
+
+test('profile management, local sign-in switch, and Help open the right destinations', () => {
+  navigated.length = 0;
+  const menu = render(identity('owner'));
+  menu.actions.manageProfiles?.();
+  assert.deepEqual(navigated.pop(), {to: '/settings', search: {scope: 'account', section: 'profile'}});
+  menu.actions.addProfile?.();
+  assert.deepEqual(navigated.pop(), {to: '/settings', search: {scope: 'account', section: 'profile'}});
+
+  const opened: unknown[][] = [];
+  const prevWindow = (globalThis as {window?: unknown}).window;
+  const prevLocation = (globalThis as {location?: unknown}).location;
+  const prevSecure = (globalThis as {isSecureContext?: unknown}).isSecureContext;
+  const fakeLocation = {protocol: 'https:', hostname: 'portico.example'};
+  Object.defineProperty(globalThis, 'window', {configurable: true, value: {open: (...args: unknown[]) => { opened.push(args); return null; }, isSecureContext: true, location: fakeLocation, matchMedia: () => ({matches: false, addEventListener() {}, removeEventListener() {}})}});
+  Object.defineProperty(globalThis, 'location', {configurable: true, value: fakeLocation});
+  Object.defineProperty(globalThis, 'isSecureContext', {configurable: true, value: true});
+  try {
+    const beforeNav = navigated.length;
+    menu.actions.help();
+    assert.equal(navigated.length, beforeNav);
+    assert.deepEqual(opened, [['https://getportico.tv/docs/', '_blank', 'noopener,noreferrer']]);
+
+    const hostedOwner = render({...identity('owner'), signIn: 'portico'});
+    hostedOwner.actions.switchToLocalSignIn?.();
+    assert.deepEqual(navigated.pop(), {to: '/settings', search: {scope: 'server', section: 'signin'}});
+  } finally {
+    if (prevWindow === undefined) delete (globalThis as {window?: unknown}).window;
+    else Object.defineProperty(globalThis, 'window', {configurable: true, value: prevWindow});
+    if (prevLocation === undefined) delete (globalThis as {location?: unknown}).location;
+    else Object.defineProperty(globalThis, 'location', {configurable: true, value: prevLocation});
+    if (prevSecure === undefined) delete (globalThis as {isSecureContext?: unknown}).isSecureContext;
+    else Object.defineProperty(globalThis, 'isSecureContext', {configurable: true, value: prevSecure});
+  }
+
+  const shellSrc = readFileSync(new URL('../src/shell/Shell.tsx', import.meta.url), 'utf8');
+  assert.match(shellSrc, /setBellOpen\(false\);\s*\}, \[pathname, navigation\]/);
+  assert.match(shellSrc, /accounts\.profiles\.cancel/);
+  assert.match(shellSrc, /onClick=\{\(\)=>\{profileProof\.current=undefined;profileRequest\.current\?\.abort\(\);setProfileChoice\(undefined\);setProfilePin\(''\);setProfileError\(undefined\);\}\}/);
+  assert.match(shellSrc, /<HostedServerOpening selection=\{hostedSelection\} cancel=\{\(\) => setHostedSelection\(undefined\)\} onComplete=\{completeHosted\} \/>/);
+
+  const supportSrc = readFileSync(new URL('../src/screens/account/Support.route.tsx', import.meta.url), 'utf8');
+  assert.match(supportSrc, /window\.open\(HELP_DOCS_URL, '_blank', 'noopener,noreferrer'\)/);
+  assert.doesNotMatch(supportSrc, /location\.replace\(/);
 });

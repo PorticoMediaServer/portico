@@ -9,16 +9,30 @@ export type PorticoServerAccess = Readonly<{
   isCurrent: () => boolean;
   observe: (changed: () => void) => () => void;
   identity: (serverId: string, challenge: string, signal?: AbortSignal) => Promise<SignInNote>;
+  dispose?: () => void;
 }>;
 
-/** Bound to one account on this page: signing out (here or in another tab) ends it. */
+/** Bound to one account sign-in on this page: signing out or starting another sign-in (here or in
+ * another tab) ends it. Call `dispose` when finished to release the session listener. */
 export function porticoServerAccess(accountId: string, origin = location.origin): PorticoServerAccess {
-  let ended = false;
-  const off = accountSession.subscribe(() => {if (!accountSession.signedIn()) {ended = true; off();}});
+  const signIns = accountSession.signIns();
+  let ended = !accountSession.signedIn();
+  let off: (() => void) | undefined;
+  const retire = () => {
+    ended = true;
+    off?.();
+    off = undefined;
+  };
+  if (!ended) {
+    off = accountSession.subscribe(() => {
+      if (!accountSession.signedIn() || accountSession.signIns() !== signIns) retire();
+    });
+  }
   return Object.freeze({
     origin, accountId,
-    isCurrent: () => !ended && accountSession.signedIn(),
-    observe: (changed: () => void) => accountSession.subscribe(changed),
+    isCurrent: () => !ended && accountSession.signedIn() && accountSession.signIns() === signIns,
+    observe: (changed: () => void) => ended ? () => {} : accountSession.subscribe(changed),
     identity: (serverId: string, challenge: string, signal?: AbortSignal) => account.serverIdentity(serverId, challenge, signal),
+    dispose: retire,
   });
 }

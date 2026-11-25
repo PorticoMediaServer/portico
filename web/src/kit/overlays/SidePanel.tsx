@@ -3,7 +3,7 @@ import {useCallback, useId, useLayoutEffect, useRef} from 'react';
 import {createPortal} from 'react-dom';
 import {defaultI18n} from '@i18n';
 import {Button} from '../controls/Button';
-import {classes, focusElement, focusable, useOverlayKeys, usePresence, useSurfaceMotion} from './shared';
+import {classes, focusElement, focusable, isPermittedOutsideOverlay, useOverlayKeys, usePresence, useSurfaceMotion} from './shared';
 import type {OverlayStyle, OverlaySurfaceProps} from './types';
 import styles from './overlays.module.css';
 
@@ -24,7 +24,7 @@ export function SidePanel({open, onOpenChange, title, children, description, foo
     const returnTarget = configuration.current.returnFocusRef?.current ?? opener.current;
     focusElement(configuration.current.initialFocusRef?.current ?? (panel.current ? focusable(panel.current)[0] ?? panel.current : null));
     const pointer = (event: PointerEvent) => {
-      if (!configuration.current.isTop() || !configuration.current.closeOnOutsidePress || panel.current?.contains(event.target as Node)) return;
+      if (!configuration.current.isTop() || !configuration.current.closeOnOutsidePress || panel.current?.contains(event.target as Node) || isPermittedOutsideOverlay(event)) return;
       outside.current = true; configuration.current.onOpenChange(false, 'outside');
     };
     document.addEventListener('pointerdown', pointer);
@@ -34,7 +34,7 @@ export function SidePanel({open, onOpenChange, title, children, description, foo
     };
   }, [open]);
   if (!present || !portalTarget) return null;
-  return createPortal(<aside ref={ref} className={classes(styles.sidePanel, className)} role="region" tabIndex={-1}
+  return createPortal(<aside ref={ref} inert={!open || undefined} className={classes(styles.sidePanel, className)} role="region" tabIndex={-1}
     aria-label={accessibilityLabel} aria-labelledby={accessibilityLabel ? undefined : `${id}-title`} aria-describedby={description === undefined ? undefined : `${id}-description`}
     data-state={open ? 'open' : 'closed'} data-testid={testID} style={{'--overlay-top': `${topInset}px`, '--overlay-width': `${width}px`} as OverlayStyle}>
     <header className={styles.panelHeader}><div><h2 id={`${id}-title`} className={styles.panelTitle}>{title}</h2>{description !== undefined && <div id={`${id}-description`} className={styles.panelDescription}>{description}</div>}</div>

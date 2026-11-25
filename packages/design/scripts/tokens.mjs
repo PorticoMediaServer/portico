@@ -1,10 +1,11 @@
 // Canonical CSS projection for web. Run from any working directory.
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
-import {dirname, resolve} from 'node:path';
+import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
+import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {colors, profileArtColors, spacing, spacingGrid, radii, platformRadii, motion, easings, springs, springTiming, reducedMotion, layout, layers, targets, typography, fixedTypeMetrics, watchEndType, componentSpec, frameSpec, formScale, emphasis, toastCards, toastPill, popoverWidth} from '../src/index.ts';
 
 export const tokenCssPath = fileURLToPath(new URL('../../../web/src/kit/tokens.css', import.meta.url));
+const webSrcDir = fileURLToPath(new URL('../../../web/src', import.meta.url));
 const kebab = value => value.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase());
 const rem = px => `${Number((px / 16).toFixed(6))}rem`;
 // A length is a finite number; anything else is a fault in a table, so the script stops instead of writing `[object Object]px`.
@@ -12,6 +13,54 @@ const px = value => {if (!Number.isFinite(value)) throw new Error(`tokens.mjs: n
 const ms = value => `${value}ms`;
 const scalar = value => String(value);
 const rgba = (color, alpha) => `rgba(${[1, 3, 5].map(i => parseInt(colors[color].slice(i, i + 2), 16)).join(', ')}, ${alpha})`;
+
+/** Collect every CSS custom property referenced in web/src (excluding the generated tokens.css).
+ * Returns null when web/src is absent (e.g., isolated design-package temp-dir tests). */
+function collectWebTokenReferences() {
+  if (!existsSync(webSrcDir)) return null;
+  const refs = new Set();
+  let scanned = 0;
+  const walk = dir => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.(?:tsx?|css|html)$/.test(name) && full !== tokenCssPath) {
+        scanned++;
+        const text = readFileSync(full, 'utf8');
+        for (const match of text.matchAll(/--[A-Za-z0-9_-]+/g)) refs.add(match[0]);
+      }
+    }
+  };
+  walk(webSrcDir);
+  return scanned > 0 ? refs : null;
+}
+
+const CANONICAL_SPEC_TOKENS = new Set([
+  '--spec-focus-scale-card-tv',
+  '--spec-hero-mask-left-opaque-at',
+]);
+
+const ROW_SUBTITLE_TOKENS = new Set([
+  '--type-row-subtitle-size',
+  '--type-row-subtitle-line',
+  '--type-row-subtitle-weight',
+  '--type-row-subtitle-tracking',
+  '--type-row-subtitle-transform',
+]);
+
+const CANONICAL_TYPE_SCALE_TOKENS = new Set([
+  ...Object.keys(formScale.type.phone).flatMap(role => {
+    const prefix = `--type-${kebab(role)}`;
+    return [`${prefix}-size`, `${prefix}-line`, `${prefix}-weight`, `${prefix}-tracking`, `${prefix}-transform`];
+  }),
+  ...Object.keys(watchEndType).map(role => `--type-watch-end-${kebab(role)}`),
+]);
+
+const CANONICAL_COLOR_TOKENS = new Set(Object.keys(colors).map(name => `--color-${kebab(name)}`));
+
+const declName = line => line.slice(0, line.indexOf(': '));
+const declValue = line => line.slice(line.indexOf(': ') + 2);
+const varRefs = value => [...value.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)].map(match => match[1]);
 
 /** One form's type roles (R2), each with the colour of its level of emphasis (R3). */
 function typeTokens(form) {
@@ -38,7 +87,7 @@ function specValue(value, path) {
   if (typeof value === 'number') {
     const key = path.findLast(part => !['web', 'phone', 'tablet', 'tv'].includes(part));
     if (/Ms$/.test(key)) return ms(value);
-    if (/alpha|opacity|fraction|scale|saturation|aspect|At$/i.test(key) || path.some(part => ['scale', 'aspect'].includes(part)) || ['halfDetent', 'maxHeight', 'at', 'maxVisibleRows', 'lines', 'titleLines', 'bodyLines', 'dotAnimated'].includes(key) || path.includes('lines')) return scalar(value);
+    if (/alpha|opacity|fraction|scale|saturation|brightness|aspect|At$/i.test(key) || path.some(part => ['scale', 'aspect'].includes(part)) || ['halfDetent', 'maxHeight', 'at', 'maxVisibleRows', 'lines', 'titleLines', 'bodyLines', 'dotAnimated'].includes(key) || path.includes('lines')) return scalar(value);
     return px(value);
   }
   if (typeof value === 'boolean') return value ? '1' : '0';
@@ -163,7 +212,7 @@ export function renderTokens() {
     return [`--spring-${name}-duration: ${ms(timing.durationMs)}`, `--spring-${name}-easing: ${timing.css}`,
       ...Object.entries(spring).map(([key, value]) => `--spring-${name}-${key}: ${value}`)];
   });
-  const root = [...entries(fixedTypeMetrics, 'type-fixed', scalar), ...entries(colors, 'color', scalar), ...entries(profileArtColors, 'profile-art', scalar), ...entries(spacing, 'space', px),
+  const rawRoot = [...entries(fixedTypeMetrics, 'type-fixed', scalar), ...entries(colors, 'color', scalar), ...entries(profileArtColors, 'profile-art', scalar), ...entries(spacing, 'space', px),
     ...spacingGrid.map(value => `--space-px-${value}: ${px(value)}`), ...entries(radii, 'radius', px),
     ...Object.entries(platformRadii).flatMap(([platform, values]) => entries(values, `radius-${platform}`, px)),
     ...entries(motion, 'motion', ms), ...entries(easings, 'ease', scalar), ...springEntries,
@@ -173,12 +222,60 @@ export function renderTokens() {
     '--text-transform: none', `--glass-fill: ${rgba('text', componentSpec.button.glass.alpha)}`, `--glass-hover-fill: ${rgba('text', componentSpec.button.glass.hoverAlpha)}`,
     `--glass-blur: ${px(componentSpec.button.glass.blur)}`, ...flattenSpec(componentSpec), ...emphasisTokens(), ...platformTokens('phone'), ...frameConstants(), ...frameTokens('phone', true),
   ];
+  const rawMedium = [...platformTokens('medium'), `--page-gutter: ${px(layout.gutter.tablet)}`, ...frameTokens('medium', true)];
+  const rawDesktop = [...platformTokens('web'), '--page-gutter: clamp(32px, calc(7.6923076923vw - 46.7692307692px), 64px)', ...frameTokens('expanded', true)];
+  const rawTv = [...platformTokens('tv'), `--page-gutter: ${px(layout.gutter.tv)}`, ...frameTokens('tv', false)];
+  const webRefs = collectWebTokenReferences();
+  let root = rawRoot, medium = rawMedium, desktop = rawDesktop, tv = rawTv;
+  if (webRefs) {
+    const rootValues = new Map(rawRoot.map(line => [declName(line), declValue(line)]));
+    medium = rawMedium.filter(line => {
+      const name = declName(line);
+      return ROW_SUBTITLE_TOKENS.has(name) || webRefs.has(name) && declValue(line) !== rootValues.get(name);
+    });
+    const afterMedium = new Map(rootValues);
+    for (const line of medium) afterMedium.set(declName(line), declValue(line));
+    desktop = rawDesktop.filter(line => {
+      const name = declName(line);
+      return CANONICAL_TYPE_SCALE_TOKENS.has(name) || webRefs.has(name) && declValue(line) !== afterMedium.get(name);
+    });
+    const afterDesktop = new Map(afterMedium);
+    for (const line of desktop) afterDesktop.set(declName(line), declValue(line));
+    tv = rawTv.filter(line => {
+      const name = declName(line);
+      if (CANONICAL_TYPE_SCALE_TOKENS.has(name)) return true;
+      const value = declValue(line);
+      return webRefs.has(name) && (value !== rootValues.get(name) || value !== afterMedium.get(name) || value !== afterDesktop.get(name));
+    });
+    const requiredInRoot = new Set([
+      ...webRefs,
+      ...CANONICAL_COLOR_TOKENS,
+      ...CANONICAL_TYPE_SCALE_TOKENS,
+      ...CANONICAL_SPEC_TOKENS,
+      '--motion-standard', '--ease-out', '--motion-reduced', '--motion-reduced-easing',
+    ]);
+    for (const line of [...medium, ...desktop, ...tv]) {
+      for (const ref of varRefs(declValue(line))) requiredInRoot.add(ref);
+    }
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const line of rawRoot) {
+        const name = declName(line);
+        if (!requiredInRoot.has(name)) continue;
+        for (const ref of varRefs(declValue(line))) {
+          if (!requiredInRoot.has(ref)) {requiredInRoot.add(ref); changed = true;}
+        }
+      }
+    }
+    root = rawRoot.filter(line => requiredInRoot.has(declName(line)));
+  }
   const reduced = [`.portico-motion`, `[data-portico-motion]`].join(', ');
   return `/* Canonical projection of packages/design. Run node packages/design/scripts/tokens.mjs. */\n` +
     block(':root', root) + '\n\n' +
-    `@media (min-width: ${layout.breakpoint.phone}px) {\n${block(':root', [...platformTokens('medium'), `--page-gutter: ${px(layout.gutter.tablet)}`, ...frameTokens('medium', true)])}\n}\n\n` +
-    `@media (min-width: ${layout.breakpoint.desktop}px) {\n${block(':root', [...platformTokens('web'), '--page-gutter: clamp(32px, calc(7.6923076923vw - 46.7692307692px), 64px)', ...frameTokens('expanded', true)])}\n}\n\n` +
-    block('[data-platform="tv"]', [...platformTokens('tv'), `--page-gutter: ${px(layout.gutter.tv)}`, ...frameTokens('tv', false)]) + '\n\n' +
+    `@media (min-width: ${layout.breakpoint.phone}px) {\n${block(':root', medium)}\n}\n\n` +
+    `@media (min-width: ${layout.breakpoint.desktop}px) {\n${block(':root', desktop)}\n}\n\n` +
+    block('[data-platform="tv"]', tv) + '\n\n' +
     // Consumers opt their moving layers into this contract; static geometry is unaffected.
     block(reduced, ['transition-property: transform, opacity', 'transition-duration: var(--portico-motion-duration, var(--motion-standard))', 'transition-timing-function: var(--portico-motion-easing, var(--ease-out))']) + '\n\n' +
     `@media (prefers-reduced-motion: reduce) {\n${block(':root', ['--portico-motion-duration: var(--motion-reduced)', '--portico-motion-easing: var(--motion-reduced-easing)'])}\n${block(`${reduced}, .portico-motion::before, .portico-motion::after`, ['transition-property: opacity !important', 'transition-duration: var(--motion-reduced) !important', 'transition-timing-function: var(--motion-reduced-easing) !important', 'animation: none !important'])}\n${block('.portico-motion:not([data-motion-gesture]), [data-portico-motion]:not([data-motion-gesture])', ['transform: none !important'])}\n}\n\n` +
@@ -199,8 +296,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       process.exitCode = 1;
     } else console.log('web/src/kit/tokens.css matches the canonical design tokens.');
   } else {
+    const css = renderTokens();
     mkdirSync(dirname(tokenCssPath), {recursive: true});
-    writeFileSync(tokenCssPath, renderTokens());
+    writeFileSync(tokenCssPath, css);
     console.log('Wrote web/src/kit/tokens.css.');
   }
 }

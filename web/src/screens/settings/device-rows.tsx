@@ -1,5 +1,5 @@
 import {router} from '../../router';
-import {useRef, useState} from 'react';
+import {useRef, useState, type Ref} from 'react';
 import {Licences} from '../../kit/states/Licences';
 import {defaultI18n} from '@i18n';
 import type {SettingsRow} from '@core/presentation/settings-spec.ts';
@@ -10,8 +10,8 @@ import {LinkTvDialog} from './LinkTvDialog';
 import type {HttpLocalApi} from '@core/index.ts';
 
 /** The drawn Device link control: accent text with the frame's 16px trailing chevron. */
-function DeviceLink({label, onClick}: {label: string; onClick: () => void}) {
-  return <Button variant="text" size="small" style={{color: 'var(--color-accent-strong)'}} onClick={onClick}>
+function DeviceLink({label, onClick, buttonRef}: {label: string; onClick: () => void; buttonRef?: Ref<HTMLButtonElement>}) {
+  return <Button ref={buttonRef} variant="text" size="small" style={{color: 'var(--color-accent-strong)'}} onClick={onClick}>
     <span style={{display: 'inline-flex', alignItems: 'center', gap: 4}}>{label}<Icon name="i-right" size={16} /></span>
   </Button>;
 }
@@ -22,7 +22,7 @@ export function DeviceRowControl({row, onSwitchServer, api}: {row: SettingsRow; 
   const linkReturn = useRef<HTMLButtonElement>(null);
   if (row.id === 'device.appVersion') return <DeviceLink label={defaultI18n.t('settings.about')} onClick={() => {void router.navigate({to: '/about'});}}/>;
   if (row.id === 'device.licenses') return <><DeviceLink label={defaultI18n.t(row.control.label ?? row.label)} onClick={() => setLicensesOpen(true)}/><Licences open={licensesOpen} onOpenChange={setLicensesOpen}/></>;
-  if (row.id === 'device.linkTv' && api) return <><DeviceLink label={defaultI18n.t('next.settingsSpec.account.device.groups.0.rows.1.control.label')} onClick={() => setLinkOpen(true)}/><LinkTvDialog open={linkOpen} onOpenChange={setLinkOpen} api={api} returnFocusRef={linkReturn}/></>;
+  if (row.id === 'device.linkTv' && api) return <><DeviceLink buttonRef={linkReturn} label={defaultI18n.t('next.settingsSpec.account.device.groups.0.rows.1.control.label')} onClick={() => setLinkOpen(true)}/><LinkTvDialog open={linkOpen} onOpenChange={setLinkOpen} api={api} returnFocusRef={linkReturn}/></>;
   if (row.id === 'device.server') return <DeviceLink label={defaultI18n.t('next.settingsSpec.account.device.groups.3.rows.0.control.label')} onClick={onSwitchServer}/>;
   if (row.id === 'device.help') return <DeviceLink label={deviceHelpAddress} onClick={() => window.open(deviceHelpURL, '_blank', 'noopener,noreferrer')}/>;
   return null;

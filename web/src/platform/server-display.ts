@@ -4,7 +4,6 @@ import type {HttpLocalApi} from '@core/index.ts';
 import type {ServerPin} from '@core/route-identity.ts';
 import {parseServerSignIn} from '@core/sign-in.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 
 type StoragePort = Pick<Storage, 'getItem' | 'setItem'>;
 export type ServerDisplaySource = Readonly<{pin:ServerPin;origin:string;signIn:SignInKind}>;

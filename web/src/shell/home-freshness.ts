@@ -8,7 +8,11 @@ export const homeDependencies = [dependsOn.libraries, dependsOn.content(), depen
 
 export class HomeReadNotAnswered extends Error {
   readonly retryable = true;
-  constructor() {super('Home read was not adopted.'); this.name = 'HomeReadNotAnswered';}
+  readonly code = 'network';
+  constructor(cause?: unknown) {
+    super('Home read was not adopted.', cause === undefined ? undefined : {cause});
+    this.name = 'HomeReadNotAnswered';
+  }
 }
 
 /** Shell owns this display registration and the service; the route only opens/closes it. */
@@ -17,7 +21,8 @@ export function createShellHomeDocument(hub: FreshnessHub, service: HomeService)
     hasContent: () => !!service.getSnapshot().document,
     revalidate: async context => {
       const result = await service.refresh(context);
-      if (result !== 'adopted') throw new HomeReadNotAnswered();
+      if (result === 'not-answered') throw new HomeReadNotAnswered(service.getSnapshot().error);
+      if (result !== 'adopted') throw Object.assign(new Error('Home read was superseded.'), {name: 'HomeReadSuperseded', retryable: true});
     },
     recover: async context => {
       if (context.signal.aborted) throw new HomeReadNotAnswered();

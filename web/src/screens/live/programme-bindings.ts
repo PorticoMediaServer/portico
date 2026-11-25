@@ -3,6 +3,7 @@ import {bookRecording, endRecording, markChannel, readProgramme, readReminders a
   type DvrRecording} from '@core/live-tv.ts';
 import type {DvrRuleSave} from '../../../../packages/contracts/src/next/api.ts';
 import type {GuideChannelRow, GuideProgram} from '@core/guide/index.ts';
+import {localDayStart} from '@core/guide/time.ts';
 import {defaultI18n} from '@i18n';
 import {replaceReminders} from './reminders';
 import {screenLifetime, type ScreenContext} from '../detail/context';
@@ -77,7 +78,7 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
   const airing = (id: string, start: number, end: number, channelId: string, told: AiringEpisode = {}): PreviewAiring => {
     const episode = told.season !== undefined && told.episode !== undefined ? defaultI18n.t('downloads.title.episode', {season: told.season, episode: told.episode}) : undefined;
     return Object.freeze({id, start, time: time(start), range: defaultI18n.t('guide.cellTime', {start: time(start), end: time(end)}),
-      day: new Date(start).toDateString() === new Date(now()).toDateString() ? defaultI18n.t('guide.today') : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(start),
+      day: localDayStart(start, env.timezone) === localDayStart(now(), env.timezone) ? defaultI18n.t('guide.today') : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(start),
       // An airing is called by the episode the server names for it, or by the programme's title; never by this episode's name.
       title: told.episodeTitle || told.title || programme?.title || '', ...(episode ? {episode} : {}), channelId});
   };
@@ -96,7 +97,7 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
         assert();
         canRecord = detail.canRecord && row.recordAvailable;
         // Each reminder names its own channel (the server sends the channel's name).
-        if (reminders) replaceReminders(reminders.items.map(item => ({programId: item.programme, channelId: item.channel, title: item.title, channelName: item.channel, start: Date.parse(item.startsAt)})));
+        if (reminders) replaceReminders(context.scope, reminders.items.map(item => ({programId: item.programme, channelId: item.channel, title: item.title, channelName: item.channel, start: Date.parse(item.startsAt)})));
         // More airings are the programme's own other airings, as the server listed them.
         const airings = (detail.airings as readonly (typeof detail.airings[number] & AiringEpisode & {channelId?: string})[])
           .map(one => airing(one.id, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channelId || one.channel, one))

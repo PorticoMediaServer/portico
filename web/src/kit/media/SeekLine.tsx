@@ -1,4 +1,4 @@
-import {useLayoutEffect, useRef, type InputHTMLAttributes, type ReactNode, type Ref} from 'react';
+import {useLayoutEffect, useRef, type ChangeEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref} from 'react';
 import styles from './seek-line.module.css';
 
 /** A place on the line, as fractions of its length. The reader draws a chapter as a tick at its
@@ -30,13 +30,54 @@ export type SeekLineProps = Readonly<{
 const pct = (value: number) => `${Math.min(1, Math.max(0, value)) * 100}%`;
 const cx = (...names: readonly (string | false | undefined)[]) => names.filter(Boolean).join(' ');
 
+/** Compute the target position for a keyboard step on a player SeekLine (5s arrows, 10s with Shift, 30s PageUp/PageDown). */
+export function seekLineKeyboardValue(key: string, shiftKey: boolean, value: number, min: number, max: number): number | null {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+  const arrow = shiftKey ? 10 : 5;
+  let next: number | undefined;
+  if (key === 'ArrowLeft' || key === 'ArrowDown') next = value - arrow;
+  else if (key === 'ArrowRight' || key === 'ArrowUp') next = value + arrow;
+  else if (key === 'PageDown') next = value - 30;
+  else if (key === 'PageUp') next = value + 30;
+  else if (key === 'Home') next = min;
+  else if (key === 'End') next = max;
+  if (next === undefined) return null;
+  return Math.min(max, Math.max(min, next));
+}
+
 /** One seek line for the player and the reader: the bar, its fill, its marks, the buffered and hovered
  * stretches, and the range input that moves it. Each keeps its own look through the variant. */
 export function SeekLine({variant, value, marks = [], buffered = [], hover = null, hoverLabel, overlay, input, inputRef, dir, className, barClassName}: SeekLineProps) {
   const player = variant === 'player', label = useRef<HTMLSpanElement>(null);
   // The label's ends are clamped by its own drawn width, so a long time ("1:23:45") never overhangs either end of the line.
   useLayoutEffect(() => { const node = label.current; if (node) node.style.setProperty('--seek-label-half', `${Math.ceil(node.offsetWidth / 2)}px`); }, [hoverLabel]);
-  const range = input ? <input ref={inputRef} type="range" {...input} /> : null;
+  const playerInput = input && player ? (() => {
+    const min = Number(input.min ?? 0), max = Number(input.max ?? 1);
+    const numericStep = Number(input.step);
+    const step = input.step === undefined || (Number.isFinite(numericStep) && numericStep < 1 && max - min >= 1) ? 1 : input.step;
+    const numericValue = typeof input.value === 'number' ? input.value : Number(input.value);
+    const ariaValueNow = input['aria-valuenow'] ?? (Number.isFinite(numericValue) ? Math.round(numericValue) : undefined);
+    const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+      input.onKeyDown?.(event);
+      if (event.defaultPrevented || input.disabled) return;
+      const current = Number.isFinite(event.currentTarget.valueAsNumber) ? event.currentTarget.valueAsNumber : numericValue;
+      const next = seekLineKeyboardValue(event.key, event.shiftKey, current, min, max);
+      if (next === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const el = event.currentTarget;
+      const setter = typeof HTMLInputElement !== 'undefined' ? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set : undefined;
+      if (setter) {
+        setter.call(el, String(next));
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+      } else if (input.onChange) {
+        el.value = String(next);
+        input.onChange({...event, target: el, currentTarget: el} as unknown as ChangeEvent<HTMLInputElement>);
+      }
+    };
+    return {...input, step, 'aria-valuenow': ariaValueNow, onKeyDown};
+  })() : input;
+  const range = playerInput ? <input ref={inputRef} type="range" {...playerInput} /> : null;
   return <div className={cx(player ? styles.player : styles.reader, className)} dir={dir}>
     <span className={cx(player ? styles.playerBar : styles.readerBar, barClassName)}>
       {buffered.map((stretch, index) => <span key={index} className={styles.buffered} aria-hidden="true" style={{insetInlineStart: pct(stretch.start), width: pct(stretch.end - stretch.start)}} />)}

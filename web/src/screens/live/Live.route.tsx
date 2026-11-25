@@ -4,7 +4,7 @@ import {liveGuideStale, liveServerWideNotice} from '@core/presentation/live-avai
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
-import {clampGuideStart, guideDayMenu, guideNowStart, guideRange, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
+import {clampGuideStart, guideDayMenu, guideNowStart, guideRange, localDayStart, legacyChannel, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {dayPrimeTime} from '@core/channel-guide.ts';
 import {liveChannel, liveGuideChannel} from '@core/guide/next-source.ts';
 import type {GuideSourceSummaries, GuideSourceSummary} from '@core/guide/directory.ts';
@@ -29,7 +29,8 @@ import {parseLiveScreenSearch, type LiveScreenSearch} from './route-search';
 import {liveProgramWindow} from './program-window';
 import {useGuideViewPreference} from './guide-view-preference';
 import {LiveOnNow} from './OnNow';
-import {GuideScreen, type GuideRowData} from './GuideScreen';
+import {GuideScreen, channelKey, type GuideRowData} from './GuideScreen';
+import {startReminderScheduler} from './reminders';
 import {guideChannelEditorDestination, guideChannelMenuEntries} from './channel-menu';
 import {useLiveLease, type LiveLease} from './useLiveLease';
 import type {RowWitness, SelectionAdmission} from './row-witness';
@@ -37,7 +38,7 @@ import styles from './live.module.css';
 
 const t = defaultI18n.t;
 const liveDependencies = [dependsOn.list('guide'), dependsOn.list('liveSources'), dependsOn.list('libraryChannels'), dependsOn.list('myRecordings'), dependsOn.personal(), dependsOn.event('stream.resync')];
-type Selected = Readonly<{lease: LiveLease; channel: GuideChannelRow; programme?: GuideProgram; admission: SelectionAdmission}>;
+type Selected = Readonly<{lease: LiveLease; channel: GuideChannelRow; programme?: GuideProgram; admission: SelectionAdmission; openSeries?: boolean}>;
 type ReadAttempt = Readonly<{current: () => boolean; retire: () => void}>;
 type CommittedSelection = {selection: Selected; live: boolean; admission: SelectionAdmission};
 const noSubscribe = () => () => {};
@@ -91,7 +92,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   const timezone = defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const owner = context.identity?.viewer.role === 'owner';
   const key = JSON.stringify({kind: search.kind ?? 'all', sourceId: search.sourceId ?? '', timezone, group: search.group, favorites: search.favorites,
-    search: search.q, sort: search.sort ?? 'number', ...(owner && search.hidden ? {includeServerHidden: true} : {})} satisfies LegacyGuideOptions);
+    search: search.q, sort: search.sort === 'name' ? 'name' : 'number', ...(owner && search.hidden ? {includeServerHidden: true} : {})} satisfies LegacyGuideOptions);
   const runtime = captured.binding.playback?.runtime, routeCurrent = () => router.state.location.pathname === pathname;
   const [reopen, setReopen] = useState(0);
   const lease = useLiveLease(context, key, pathname, routeCurrent, runtime, reopen);
@@ -230,6 +231,18 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   };
   const [visibilityToast, setVisibilityToast] = useState<{lease: LiveLease; toast: ToastData}>();
   const visibilityBusy = useRef(false);
+  useEffect(() => {
+    if (!lease) return;
+    return startReminderScheduler(context.scope, reminder => {
+      if (!lease.live || !lease.life.current() || !lease.routeCurrent()) return;
+      const message = t('guide.reminder', {title: reminder.title, channel: reminder.channelName});
+      if (context.effects.notify) {
+        context.effects.notify(message);
+      } else {
+        setVisibilityToast({lease, toast: {id: crypto.randomUUID(), message}});
+      }
+    });
+  }, [lease, context]);
   const channelHidden = (channel: GuideChannelRow, hidden: boolean, witness?: RowWitness, expected?: Readonly<{revision: number; hidden: boolean}>) => {
     if (!lease || !owner || visibilityBusy.current || !lease.life.current() || !lease.routeCurrent() || (!expected && (!witness || witness.row !== channel || !witness.current()))) return;
     visibilityBusy.current = true;setPreferenceBusy(lease);
@@ -318,6 +331,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
           onTabChange={() => {if (context.isCurrent()) void enterRecordings(JSON.parse(searchKey), 'upcoming').catch(context.effects.reportError);}}
           chips={chips}
           onPlay={onPlay}
+          onRecord={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, ...(programme ? {programme} : {}), admission: witness, openSeries: true});}}
           onNow={width >= 1024 && hasSources ? <LiveOnNow owner={lease.bindings} now={now} timezone={timezone} artwork={context.artwork} reducedMotion={appearance.reducedMotion}
             onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}
             onPlay={onPlay}/> : undefined}
@@ -327,8 +341,8 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
               description: new Intl.DateTimeFormat(defaultI18n.region.formatLocale, day === today || index > 0 && days[index - 1] === today ? {weekday: 'short', month: 'short', day: 'numeric', timeZone: timezone} : {month: 'short', day: 'numeric', timeZone: timezone}).format(day)})),
             onChange: value => {const day = days.find(day => String(day) === value);if (day === undefined) return;
               if (day === today) setStart(guideNowStart(serverNow(), spanMs, range)); else moveTo(dayPrimeTime(day, timezone));}}}
-          sort={{value: search.sort ?? 'number', options: [{value: 'number', label: t('channels.sortNumber')}, {value: 'name', label: t('channels.sortName')}, {value: 'favorites', label: t('channels.favorites')}],
-            onChange: sort => {if (sort === 'number' || sort === 'name' || sort === 'favorites') navigate({sort});}}}
+          sort={{value: search.sort === 'name' ? 'name' : 'number', options: [{value: 'number', label: t('channels.sortNumber')}, {value: 'name', label: t('channels.sortName')}],
+            onChange: sort => {if (sort === 'number' || sort === 'name') navigate({sort});}}}
           notice={guideNotice}
           problem={snapshot.channelsError ? <StateView variant="page" title={t('guide.tileFailed')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => {if (lease.life.current()) lease.bindings.store.retry();}}}/> : undefined}
           empty={noChannels ? <StateView variant="page" title={t('channels.noSourcesTitle')} body={t('web.live.noSourcesOwner')}
@@ -338,7 +352,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
           time={{earlier: t('guide.earlier'), now: t('guide.now'), later: t('guide.later'), onEarlier: () => moveTo(start - 2 * 60 * 60_000), onNow: () => setStart(guideNowStart(serverNow(), spanMs, range)), onLater: () => moveTo(start + 2 * 60 * 60_000)}}
           span={{start, end, now, scale, column, rowHeight, timezone}}
           rows={rows} total={total}
-          selected={currentSelection ? {channelId: currentSelection.selection.channel.id, ...(currentSelection.selection.programme ? {programmeId: currentSelection.selection.programme.id} : {})} : undefined}
+          selected={currentSelection ? {channelKey: channelKey(currentSelection.selection.channel), channelId: currentSelection.selection.channel.id, ...(currentSelection.selection.programme ? {programmeId: currentSelection.selection.programme.id} : {})} : undefined}
           onSelect={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, ...(programme ? {programme} : {}), admission: witness});}}
           channelMenu={(channel, witness) => guideChannelMenuEntries(channel, {owner, busy: preferenceBusy === lease,
             onFavorite: row => channelPreference(row, witness, {favorite: !row.favorite, hidden: legacyChannel(row)?.hidden ?? liveChannel(row)?.hidden ?? false}),
@@ -346,7 +360,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
             onEdit: editChannel})}
           onVisibleWindow={onVisibleWindow} onRetry={() => {if (lease.life.current()) lease.bindings.store.retry();}}/>}
     {currentSelection && <ProgrammePanel key={JSON.stringify([currentSelection.selection.lease.id, currentSelection.selection.channel.sourceId, currentSelection.selection.channel.id, currentSelection.selection.programme?.id, currentSelection.selection.programme?.start])} context={lease.screen} admission={currentSelection.admission} channel={currentSelection.selection.channel} programme={currentSelection.selection.programme}
-      now={now} timezone={timezone} open onClose={() => closeSelection(currentSelection.selection)}
+      now={now} timezone={timezone} open initialSeriesOpen={currentSelection.selection.openSeries} onClose={() => closeSelection(currentSelection.selection)}
       onWatch={onPlay ? () => onPlay(currentSelection.selection.channel, currentSelection.admission) : undefined} onChanged={onChanged} onViewRecordings={() => openRecordings(currentSelection.selection)}/>}
   <ToastHost toast={visibilityToast?.lease === lease && lease?.life.current() && lease.routeCurrent() ? visibilityToast.toast : null} onDismiss={() => setVisibilityToast(undefined)}/></>;
 }
@@ -363,13 +377,14 @@ function LiveRouteScreen() {
   if (!captured) return null;
   if (search.tab !== 'recordings') return <BoundLive captured={captured}/>;
   const view = search.dvr ?? 'upcoming';
-  if (view === 'rules') return <SeriesRulesEntry captured={captured} onView={openView}/>;
-  const shown = view === 'recorded' || view === 'history' || view === 'storage' ? view : 'upcoming';
+  const everyone = search.scope === 'everyone';
   // Everyone's recordings, or this profile's own: kept in the address, so it holds across the tabs.
-  const openScope = (everyone: boolean) => {
+  const openScope = (nextEveryone: boolean) => {
     const {scope: _scope, ...rest} = search;
-    if (captured) void enterRecordings(everyone ? {...rest, scope: 'everyone'} : rest, shown).catch(() => {});
+    if (captured) void enterRecordings(nextEveryone ? {...rest, scope: 'everyone'} : rest, view).catch(() => {});
   };
-  return <RecordingsScreen captured={captured} view={shown} everyone={search.scope === 'everyone'} onView={openView} onScope={openScope} onGuide={openGuide}/>;
+  if (view === 'rules') return <SeriesRulesEntry captured={captured} everyone={everyone} onView={openView} onScope={openScope} onGuide={openGuide}/>;
+  const shown = view === 'recorded' || view === 'history' || view === 'storage' ? view : 'upcoming';
+  return <RecordingsScreen captured={captured} view={shown} everyone={everyone} onView={openView} onScope={openScope} onGuide={openGuide}/>;
 }
 export default defineWebScreen({id: 'live', component: LiveRouteScreen, validateSearch: parseLiveScreenSearch});

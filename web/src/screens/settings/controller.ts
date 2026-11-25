@@ -26,6 +26,7 @@ import {DashboardDataClient} from '@core/admin/dashboard.ts';
 import {notOnThisServer} from '@core/query/server-api.ts';
 import {configurationFieldEligible, settingsRowEligible, type SettingsEligibility} from './eligibility';
 import {settingsRowVisible, settingsSectionVisible, type SettingsEnvironment} from '@core/presentation/settings-visibility.ts';
+import {settingsRoute, type SettingsRoute} from '../../kit/settings/search';
 import type {SettingsDevicePort} from '../../platform/settings-platform';
 import {canWriteDeviceSettings, readDeviceSettingsBinding, writeDeviceSettingsBinding} from './device-bindings';
 import {settingsPresetOptions} from './preset-options';
@@ -105,6 +106,67 @@ function settingsRowErrorText(error: unknown): string {
   const code = error && typeof error === 'object' ? (error as {code?: unknown}).code : undefined;
   return defaultI18n.t(code === 'factor_setup_required' ? 'error.factorSetupRequired' : 'next.states.pageFailedBody');
 }
+const ownerRefusalCodes = new Set(['forbidden', 'not_permitted', 'owner_required']);
+/** Why a Settings error ends the viewer's ability to keep using this page (`pin` for a management PIN prompt,
+ * `authority` for signed-out or lost role). Non-fatal row/mutation errors (e.g. `factor_setup_required`, conflicts, 5xx)
+ * return `undefined` so they stay inline and the page remains usable. */
+export function settingsFatalReason(error: unknown): 'pin' | 'authority' | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const {status, code} = error as {status?: unknown; code?: unknown};
+  if (code === 'profile_pin_manage') return 'pin';
+  if (status === 401) return 'authority';
+  if (typeof code !== 'string') return status === 403 ? 'authority' : undefined;
+  return ownerRefusalCodes.has(code) || status === 403 && code === 'unauthorized' ? 'authority' : undefined;
+}
+export function isFatalSettingsError(error: unknown): boolean {
+  return settingsFatalReason(error) !== undefined;
+}
+export type SettingsSectionAccess = Readonly<{
+  role: 'owner' | 'admin' | 'member';
+  mainProfile: boolean;
+  capabilities: Readonly<{manageServer: boolean; managePeople: boolean; manageSignIn: boolean}>;
+  environment: SettingsEnvironment;
+}>;
+export type ResolvedSettingsLocation =
+  | Readonly<{unauthorized: true; rawScope: 'server'; rawSection?: string}>
+  | Readonly<{unauthorized: false; route: SettingsRoute}>;
+function checkSectionVisible(this: Readonly<{options: SettingsSectionAccess}>, section: SettingsSection): boolean {
+  if (!settingsSectionVisible(section, this.options.environment)) return false;
+  if (section.scope === 'account') return true;
+  if (!this.options.mainProfile) return false;
+  if (section.id === 'people') return this.options.capabilities.managePeople;
+  if (section.id === 'signin') return this.options.capabilities.manageSignIn;
+  if (section.id === 'remote-sources') return this.options.capabilities.manageServer && this.options.role === 'owner' && this.options.environment.signIn === 'local';
+  // Troubleshooting is shared with administrators when any of its parts is theirs (parts.ts).
+  if (section.id === 'troubleshooting') return this.options.capabilities.manageServer && this.options.role !== 'member' && troubleshootingParts(this.options.role).size > 0;
+  // An administrator sees the Dashboard (Now playing) and Play history (console rule 1).
+  return this.options.capabilities.manageServer && (this.options.role === 'owner' || section.id === 'dashboard' || section.id === 'history');
+}
+export function settingsSectionPermitted(section: SettingsSection, access: SettingsSectionAccess): boolean {
+  return checkSectionVisible.call({options: access}, section);
+}
+export function resolveSettingsLocation(
+  location: Readonly<{pathname: string; searchStr: string}>,
+  access: SettingsSectionAccess,
+): ResolvedSettingsLocation {
+  const raw: Record<string, unknown> = location.pathname === '/dashboard'
+    ? {scope: 'server', section: 'dashboard'}
+    : Object.fromEntries(new URLSearchParams(location.searchStr));
+  const permitted = (section: SettingsSection) => settingsSectionPermitted(section, access);
+  if (raw.scope === 'server') {
+    const requested = typeof raw.section === 'string'
+      ? settingsSpec.find(section => section.scope === 'server' && section.id === raw.section)
+      : undefined;
+    const environmentOnly = requested !== undefined && (
+      !settingsSectionVisible(requested, access.environment) ||
+      requested.id === 'remote-sources' && access.mainProfile && access.capabilities.manageServer && access.role === 'owner'
+    );
+    if (requested ? !permitted(requested) && !environmentOnly : !settingsSpec.some(section => section.scope === 'server' && permitted(section))) {
+      return {unauthorized: true, rawScope: 'server', ...(requested ? {rawSection: requested.id} : {})};
+    }
+  }
+  return {unauthorized: false, route: settingsRoute(raw, permitted)};
+}
 export class SettingsController {
   private readonly options: SettingsControllerOptions;
   private readonly preferencesReader: PreferencesReader;
@@ -153,7 +215,8 @@ export class SettingsController {
   constructor(options: SettingsControllerOptions) {
     this.options = options; this.preferences = options.preferences;
     this.sectionReads = new SettingsSectionReads(this.current, () => {for (const listener of this.listeners) listener();});
-    const libraryCurrent = () => this.current() && options.mainProfile && options.capabilities.manageServer && options.role !== 'member';
+    this.owner = options.role === 'owner' && options.mainProfile && options.capabilities.manageServer;
+    const libraryCurrent = () => this.current() && this.owner;
     this.library = new SettingsLibrarySource(options.api, libraryCurrent, () => {
       const document = this.library.getSnapshot().document, config = this.folders.getSnapshot().config;
       if (document && config?.libraryId === document.libraryId && config.revision < document.revision) void this.folders.refresh();
@@ -166,7 +229,6 @@ export class SettingsController {
       if (config && document?.libraryId === config.libraryId && document.revision < config.revision) void this.library.refreshSettings();
       this.publish({});
     }, () => {});
-    this.owner = options.role === 'owner' && options.mainProfile && options.capabilities.manageServer;
     this.backups = new ServerBackupSource(options.api, () => this.current() && this.owner, () => this.publish({}));
     this.preferencesReader = options.reader;
     this.offPreferences = options.reader.subscribe(() => {const snapshot = options.reader.getSnapshot('web');if (snapshot && this.current()) {this.preferences = snapshot;this.publish({});}});
@@ -208,18 +270,7 @@ export class SettingsController {
     if (!this.current()) return;
     this.sectionReads.update(patch);
   }
-  sectionVisible = (section: SettingsSection) => {
-    if (!settingsSectionVisible(section, this.options.environment)) return false;
-    if (section.scope === 'account') return true;
-    if (!this.options.mainProfile) return false;
-    if (section.id === 'people') return this.options.capabilities.managePeople;
-    if (section.id === 'signin') return this.options.capabilities.manageSignIn;
-    if (section.id === 'remote-sources') return this.options.capabilities.manageServer && this.options.role === 'owner' && this.options.environment.signIn === 'local';
-    // Troubleshooting is shared with administrators when any of its parts is theirs (parts.ts).
-    if (section.id === 'troubleshooting') return this.options.capabilities.manageServer && this.options.role !== 'member' && troubleshootingParts(this.options.role).size > 0;
-    // An administrator sees the Dashboard (Now playing) and Play history (console rule 1), and libraries.
-    return this.options.capabilities.manageServer && (this.options.role === 'owner' || section.id === 'dashboard' || section.id === 'history' || section.id === 'libraries');
-  };
+  sectionVisible = (section: SettingsSection) => checkSectionVisible.call({options: this.options}, section);
   eligible = (row: SettingsRow, context?: SettingsContext): boolean => {
     const location = settingsRowIndex.get(row.id);
     if (!location || !this.current() || !settingsRowVisible(row, {...this.options.environment, role: this.options.role})) return false;
@@ -450,7 +501,7 @@ export class SettingsController {
       if ([...patches.keys()].some(id => id !== 'device')) await this.readConfiguration();
       this.publish({saveState: 'saved'});
     } catch (error) {
-      if (this.current()) {this.rowErrors.set(row.id, error); this.publish({saveState: undefined}); if (!settingsSaveConflict(error)) this.options.reportError(error);}
+      if (this.current()) {this.rowErrors.set(row.id, error); this.publish({saveState: undefined}); if (isFatalSettingsError(error)) this.options.reportError(error);}
     } finally {this.writing = false; this.publish({});}
   };
   /** Sign-in › Advanced: the applicable policy values with the configuration's read revision. A revision

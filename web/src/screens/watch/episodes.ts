@@ -9,7 +9,7 @@ import type {ShowWorkspaceData} from '@core/show-workspace.ts';
  * is not drawn, and "Up next" comes from the queue's own next entry, never from adjacency.
  */
 export type {PlayerEpisodeSeason as WatchEpisodeSeason, PlayerEpisodeRow as WatchEpisodeRow, PlayerEpisodeList as WatchEpisodes} from '../../kit/player/panel-types';
-import type {PlayerEpisodeSeason as WatchEpisodeSeason, PlayerEpisodeRow as WatchEpisodeRow, PlayerEpisodeList as WatchEpisodes} from '../../kit/player/panel-types';
+import type {PlayerEpisodeRow as WatchEpisodeRow, PlayerEpisodeList as WatchEpisodes} from '../../kit/player/panel-types';
 export type WatchEpisodesInput = Readonly<{
   data: ShowWorkspaceData;
   queue: QueuePlaybackView | null;

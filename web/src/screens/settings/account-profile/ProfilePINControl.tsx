@@ -4,6 +4,7 @@ import type {ManagedProfile} from '@core/profile-management.ts';
 import {AuthCodeBoxes} from '../../../kit/accounts/AuthStage';
 import {Button} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
+import {handleProfilePinManage} from '../pin-manage';
 import type {ProfileSettingsSource} from './source';
 import styles from './profile.module.css';
 const t = defaultI18n.t;
@@ -11,7 +12,7 @@ export type ProfilePINRequest = Readonly<{source: ProfileSettingsSource; target:
 
 /** Manager set/change/remove only. Forgot PIN retains separate reauthentication. */
 export function ProfilePINDialog({request: intent, isCurrent, onClose, onFailure}: {
-  request: ProfilePINRequest; isCurrent: () => boolean; onClose: () => void; onFailure: () => void;
+  request: ProfilePINRequest; isCurrent: () => boolean; onClose: () => void; onFailure: (error?: unknown) => void;
 }) {
   const {source, target, remove} = intent;
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
@@ -30,8 +31,12 @@ export function ProfilePINDialog({request: intent, isCurrent, onClose, onFailure
     try {
       await source.setPIN(target, value);
       if (live.current && isCurrent()) {if (remove) onClose();else setDone(true);}
-    } catch {
-      if (live.current && isCurrent()) {onClose();if (!source.getSnapshot().error) onFailure();}
+    } catch (error) {
+      if (live.current && isCurrent()) {
+        onClose();
+        if (handleProfilePinManage(error, onFailure)) return;
+        if (!source.getSnapshot().error) onFailure(error);
+      }
     } finally {request.current = false;}
   };
   if (!permitted) return null;

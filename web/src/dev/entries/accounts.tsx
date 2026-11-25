@@ -49,7 +49,7 @@ function Specimen() {
     '18-portico-elsewhere': {phase: 'elsewhere'},
   } as const;
   if (frame in portico) return <ProfilePINRecovery profileName="Alex" username="demo" phase="portico" portico={portico[frame as keyof typeof portico]}
-    onPassword={() => record('password')} onPorticoPassword={(password, code) => record('portico-password', {code})} onPorticoRetry={() => record('retry')}
+    onPassword={() => record('password')} onPorticoPassword={(_password, code) => record('portico-password', {code})} onPorticoRetry={() => record('retry')}
     onPorticoElsewhere={() => record('elsewhere')} onSetPassword={() => record('set-password')} onCode={() => record('code')} onPIN={() => record('pin')}
     onClose={() => record('close')} onOpen={() => record('open')} />;
   if (frame === '4b') return <PorticoServerSignIn serverName="Portico demo" onContinue={() => record('portico')} onRecovery={() => record('recovery')} onMoveCode={() => record('move-code')} />;

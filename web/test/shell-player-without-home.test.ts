@@ -60,3 +60,56 @@ test('P1: the shell builds its player from the session, never from the Home docu
   assert.match(assembly, /try \{playerResource = createPlayer\(\);/);
   assert.doesNotMatch(assembly.slice(assembly.indexOf('const createPlayer'), assembly.indexOf('try {playerResource')), /context\.home|document\./, 'player construction reads nothing from Home');
 });
+
+test('runtime timeupdate ticks do not fire shell assembly changed() when dock visibility and busy are unchanged', async t => {
+  const {assembly} = await shell('never');
+  t.after(() => assembly.dispose());
+  const runtime = assembly.getBinding().playback!.runtime as any;
+  let bindingChanges = 0, busyChanges = 0;
+  assembly.subscribe(() => { bindingChanges++; });
+  assembly.onBusy(() => { busyChanges++; });
+
+  const base = runtime.getSnapshot();
+  let currentSnapshot = base;
+  runtime.getSnapshot = () => currentSnapshot;
+  const notify = () => { for (const listener of [...runtime.listeners]) listener(); };
+
+  // Repeated idle notifications produce zero shell changes.
+  for (let i = 0; i < 4; i++) notify();
+  assert.equal(bindingChanges, 0);
+  assert.equal(busyChanges, 0);
+
+  // Starting expanded video flips busy (not dockVisible).
+  currentSnapshot = {...base, playback: {...base.playback, intent: 'playing'}, dock: {...base.dock, local: {expanded: true}}};
+  notify();
+  assert.equal(bindingChanges, 0, 'expanded video has no dock so shell binding need not re-render');
+  assert.equal(busyChanges, 1);
+
+  // 4 Hz timeupdate ticks while playing fire neither subscribe nor onBusy.
+  for (let i = 0; i < 10; i++) {
+    currentSnapshot = {...currentSnapshot, sequence: i + 10};
+    notify();
+  }
+  assert.equal(bindingChanges, 0);
+  assert.equal(busyChanges, 1);
+
+  // Collapsing to dock flips dockVisible -> fires subscribe once.
+  currentSnapshot = {...currentSnapshot, dock: {...base.dock, local: {expanded: false}}};
+  notify();
+  assert.equal(bindingChanges, 1);
+  assert.equal(busyChanges, 1);
+
+  // More timeupdate ticks in dock fire nothing.
+  for (let i = 0; i < 10; i++) {
+    currentSnapshot = {...currentSnapshot, sequence: i + 30};
+    notify();
+  }
+  assert.equal(bindingChanges, 1);
+  assert.equal(busyChanges, 1);
+
+  // Pausing flips busy without firing bindingChanges.
+  currentSnapshot = {...currentSnapshot, playback: {...base.playback, intent: 'paused'}};
+  notify();
+  assert.equal(bindingChanges, 1);
+  assert.equal(busyChanges, 2);
+});

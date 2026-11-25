@@ -36,6 +36,6 @@ test('Edit pins sits at the right of the Libraries title (4d) and in every libra
   // Beside the title on a phone only; desktop keeps Edit pins in the library ⋯ (owner-metadata).
   assert.match(route, /const editPins = width < 600 && <Button/);
   assert.match(library, /\{\.\.\.\(editPins \? \{onEditPins: editPins\} : \{\}\)\}/);
-  assert.equal(library.match(/const pins = usePinEditor\(context\);/g)?.length, 2);
+  assert.equal(library.match(/const pins = usePinEditor\(context, \(\) => \{if \(captured\.context\.isCurrent\(\)\) captured\.context\.retryLibraries\?\.\(\);\}\);/g)?.length, 2);
   assert.equal(library.match(/copyLibraryLink, pins\.open\)/g)?.length, 2);
 });

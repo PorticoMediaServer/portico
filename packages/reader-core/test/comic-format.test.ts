@@ -150,3 +150,42 @@ for(const format of ['cbr','cb7'] as const)test(`${format.toUpperCase()} adapter
   try{assert.equal(adapter.format,format);assert.equal(document.format,format);assert.equal((await document.page!(0,{width:320,signal:signal()})).mime,'image/png');assert.deepEqual(input.reads,[]);}
   finally{await document.dispose();}
 });
+
+test('comic bitmap decoding passes imageOrientation none and falls back safely when options are unsupported',async()=>{
+  const prevBitmap=Object.getOwnPropertyDescriptor(globalThis,'createImageBitmap');
+  const prevOffscreen=Object.getOwnPropertyDescriptor(globalThis,'OffscreenCanvas');
+  // 2x1 PNG larger than preview width isn't needed if width < image width; build a 64x32 PNG header matching rasterInfo.
+  const widePng=Buffer.from(png);widePng.writeUInt32BE(64,16);widePng.writeUInt32BE(32,20);
+  const calls:unknown[][]=[];
+  let failOptions=false;
+  Object.defineProperty(globalThis,'createImageBitmap',{configurable:true,value:async(...args:unknown[])=>{
+    calls.push(args);
+    if(failOptions&&args.length>1)throw new TypeError('options unsupported');
+    return {width:64,height:32,close(){}};
+  }});
+  Object.defineProperty(globalThis,'OffscreenCanvas',{configurable:true,value:class {
+    width:number;height:number;
+    constructor(width:number,height:number){this.width=width;this.height=height;}
+    getContext(){return {imageSmoothingEnabled:true,imageSmoothingQuality:'high',drawImage(){}};}
+    async convertToBlob(){return new Blob([png],{type:'image/png'});}
+  }});
+  try{
+    const input={id:'exif-comic',revision:'v1',size:100};
+    const adapter=createComicAdapter({pages:async()=>({id:input.id,revision:input.revision,pageCount:1,metadata:{},
+      async page(index){return {index,name:'p1.png',bytes:widePng,image:rasterInfo(widePng)};},dispose(){}})});
+    const document=await adapter.open({source:input,signal:signal()});
+    try{
+      await document.page!(0,{width:32,signal:signal()});
+      assert.equal(calls.length,1);
+      assert.deepEqual(calls[0][1],{imageOrientation:'none'});
+      failOptions=true;calls.length=0;
+      await document.page!(0,{width:32,signal:signal()});
+      assert.equal(calls.length,2);
+      assert.deepEqual(calls[0][1],{imageOrientation:'none'});
+      assert.equal(calls[1].length,1);
+    }finally{await document.dispose();}
+  }finally{
+    if(prevBitmap)Object.defineProperty(globalThis,'createImageBitmap',prevBitmap);else Reflect.deleteProperty(globalThis,'createImageBitmap');
+    if(prevOffscreen)Object.defineProperty(globalThis,'OffscreenCanvas',prevOffscreen);else Reflect.deleteProperty(globalThis,'OffscreenCanvas');
+  }
+});

@@ -122,3 +122,40 @@ test('a position poll during Play here still stops the original device, while re
   f.controller.dispose();
  }
 });
+
+test('unchanged AirPlay availability notifications do not publish new snapshots', () => {
+  const airPlayListeners = new Set<() => void>();
+  let available = false;
+  const cast = {phase: 'off', available: false, audioTracks: [], textTracks: []} as never;
+  const sender = {getSnapshot: () => cast, subscribe: () => () => {}, prepareOnIdle: () => () => {}, prepareForPlayer: async () => {},
+    start: async () => false, cancelConnecting: () => {}, play: () => {}, pause: () => {}, toggle: () => {}, seek: () => {},
+    setAudioTrack: () => {}, setSubtitleTrack: () => {}, answerTakeover: () => {}, stop: () => {}, dismiss: () => {}, dispose: () => {}} as never;
+  const runtime = {getSnapshot: () => ({disposed: false}), subscribe: () => () => {}, stop: async () => {}, play: async () => {},
+    bindRemoteRetention: () => () => {}} as never;
+  const controller = new PlayOnController({
+    sender, runtime,
+    airPlay: {available: () => available, subscribe: l => { airPlayListeners.add(l); return () => { airPlayListeners.delete(l); }; }, showPicker: () => {}},
+    isCurrent: () => true, reportError: error => { throw error; },
+  });
+  let notifications = 0;
+  controller.subscribe(() => { notifications++; });
+  const initial = controller.getSnapshot();
+  for (let i = 0; i < 5; i++) for (const l of [...airPlayListeners]) l();
+  assert.equal(notifications, 0, 'repeated notifications with unchanged availability do not publish');
+  assert.equal(controller.getSnapshot(), initial);
+
+  available = true;
+  for (const l of [...airPlayListeners]) l();
+  assert.equal(notifications, 1);
+  assert.equal(controller.getSnapshot().airPlayAvailable, true);
+  const becameAvailable = controller.getSnapshot();
+  for (let i = 0; i < 5; i++) for (const l of [...airPlayListeners]) l();
+  assert.equal(notifications, 1, 'repeated notifications while true do not publish');
+  assert.equal(controller.getSnapshot(), becameAvailable);
+
+  available = false;
+  for (const l of [...airPlayListeners]) l();
+  assert.equal(notifications, 2);
+  assert.equal(controller.getSnapshot().airPlayAvailable, false);
+  controller.dispose();
+});

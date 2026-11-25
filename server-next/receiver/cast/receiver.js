@@ -12,7 +12,7 @@
  const copy=key=>window.porticoCastText?.t('cast.receiver.'+key)||'';
  let credential, controller, stamp, pending, playing, metadata, timer, renewal, serial=Promise.resolve(), sequence=0;
  const stopsKey='portico.cast.stops.v1',stopRecords=new Map(),stopCommands=new Map();
- const persistStops=()=>localStorage.setItem(stopsKey,JSON.stringify([...stopRecords.values()]));
+ const persistStops=()=>{try{localStorage.setItem(stopsKey,JSON.stringify([...stopRecords.values()]));}catch{}};
  let installation;try{installation=localStorage.getItem('portico.cast.installation');}catch{}
  if(!/^[a-f0-9]{32}$/.test(installation||'')){installation=id();try{localStorage.setItem('portico.cast.installation',installation);}catch{}}
  const send=(sender,body)=>{try{context?.sendCustomMessage(namespace,sender,body);}catch{}};
@@ -47,8 +47,13 @@
   if(!sender||sender!==controller)return;
   if(!playing){send(sender,{type:'status',controller:stamp,itemId:'',paused:true});return;}
   const audio=manager.getAudioTracksManager(),text=manager.getTextTracksManager();
-  const tracks=values=>(values||[]).slice(0,32).map(t=>({id:t.trackId,language:t.language||'',name:t.name||''}));
-  send(sender,{type:'status',controller:stamp,...(playing.requestId?{attemptId:playing.requestId}:{}),occurrence:identity().occurrence,itemId:playing.session.itemId,versionId:playing.session.versionId,positionSeconds:position(),durationSeconds:Math.max(0,Number(manager.getDurationSec?.())||0),paused:manager.getPlayerState()!=='PLAYING',clockKnown:true,audioTracks:tracks(audio.getTracks()),textTracks:tracks(text.getTracks())});
+  const rawAudioId=audio?.getActiveId?.()??audio?.getActiveTrack?.()?.trackId;
+  const activeAudioId=Number.isSafeInteger(rawAudioId)?rawAudioId:Number.isSafeInteger(playing.activeAudioTrackId)?playing.activeAudioTrackId:null;
+  const rawTextIds=text?.getActiveIds?.()??text?.getActiveTracks?.()?.map(t=>t?.trackId);
+  const activeTextIds=Array.isArray(rawTextIds)?rawTextIds.filter(Number.isSafeInteger):Array.isArray(playing.activeTextTrackIds)?playing.activeTextTrackIds:[];
+  const activeTextId=activeTextIds.length?activeTextIds[0]:null;
+  const tracks=(values,active)=>(values||[]).slice(0,32).map(t=>({id:t.trackId,language:t.language||'',name:t.name||'',...(active(t.trackId)?{active:true}:{})}));
+  send(sender,{type:'status',controller:stamp,...(playing.requestId?{attemptId:playing.requestId}:{}),occurrence:identity().occurrence,itemId:playing.session.itemId,versionId:playing.session.versionId,positionSeconds:position(),durationSeconds:Math.max(0,Number(manager.getDurationSec?.())||0),paused:manager.getPlayerState()!=='PLAYING',clockKnown:true,audioTracks:tracks(audio?.getTracks(),trackId=>trackId===activeAudioId),textTracks:tracks(text?.getTracks(),trackId=>activeTextIds.includes(trackId)),activeAudioTrackId:activeAudioId,activeTextTrackId:activeTextId});
  }
  function draw(){if(!playing)return;view('playing',{meta:metadata,state:manager.getPlayerState().toLowerCase(),positionSeconds:position(),durationSeconds:manager.getDurationSec?.(),remoteKeysAvailable:true});}
  function command(type,fields){const value=Object.assign({type,requestId:++sequence},fields);local.add(value);manager.sendLocalMediaRequest(value);}
@@ -63,7 +68,7 @@
    if(!response.ok||!/^image\/(png|jpeg|webp|avif|gif)$/.test(kind)||Number(response.headers.get('Content-Length'))>256<<10)return;
    const blob=await response.blob();if(blob.size>256<<10)return;
    const image=await new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>resolve('');reader.readAsDataURL(blob);});
-   if(current(owner)&&typeof image==='string'){view('artwork',image,['song','track','album','audiobook'].includes(metadata?.kind));owner.image=image;}
+   if(current(owner)&&typeof image==='string'&&image){view('artwork',image,['song','track','album','audiobook','audiobook_file','chapter'].includes(metadata?.kind));owner.image=image;}
   }catch{}finally{clearTimeout(timeout);}
  }
  async function adopt(owner,session){
@@ -78,14 +83,20 @@
   if(p.mode==='stream')media.hlsSegmentFormat=media.hlsVideoSegmentFormat=container==='fmp4_hls'?'FMP4':'TS';
   if(metadata?.title)media.metadata={metadataType:session.kind==='audio'?3:0,title:metadata.title,...(metadata.subtitle?{subtitle:metadata.subtitle}:{})};
   const load={media,currentTime:Math.max(0,p.startPositionMs||0)/1000,autoplay:session.state!=='paused'};
-  const sub=(p.subtitles||[]).find(s=>s.trackId===p.subtitle?.trackId&&s.format==='webvtt');
-  if(sub){media.tracks=[{trackId:1,type:'TEXT',subtype:'SUBTITLES',trackContentId:owner.auth.origin+mediaPath(sub.url),trackContentType:'text/vtt'}];load.activeTrackIds=[1];}
+  const vtts=(p.subtitles||[]).filter(s=>s&&s.format==='webvtt'&&validId(s.trackId)).slice(0,32);
+  owner.subtitleTrackIds=new Map();owner.activeAudioTrackId=undefined;owner.activeTextTrackIds=[];
+  if(vtts.length){
+   media.tracks=vtts.map((s,index)=>{const cafId=index+1;owner.subtitleTrackIds.set(cafId,s.trackId);return {trackId:cafId,type:'TEXT',subtype:'SUBTITLES',trackContentId:owner.auth.origin+mediaPath(s.url),trackContentType:'text/vtt',...(typeof s.language==='string'&&s.language?{language:s.language}:{}),...(typeof s.title==='string'&&s.title?{name:s.title}:{})};});
+   const activeSub=vtts.findIndex(s=>s.trackId===p.subtitle?.trackId);
+   if(activeSub>=0){load.activeTrackIds=[activeSub+1];owner.activeTextTrackIds=[activeSub+1];}
+  }
   owner.contentId=contentId;owner.adopted=false;local.add(load);await manager.load(load);
   if(!current(owner))return;
   owner.adopted=true;draw();schedule(owner,0);
  }
  async function plainStop(owner,at){
   if(!owner||owner.stopped)return;
+  owner.cancelReady?.();
   const key=owner.auth.origin+'|'+owner.auth.session.sessionId+'|'+owner.session.id;
   owner.stopBody ||= Number.isFinite(at)?{positionMs:Math.round(Math.max(0,at)*1000)}:{};
   const record=stopRecords.get(key)||{auth:owner.auth,session:{id:owner.session.id},stopBody:owner.stopBody,due:Date.now()};
@@ -105,7 +116,8 @@
  async function stop(owner=playing){
   if(!owner||owner.stopped)return;
   const at=current(owner)?position():undefined;
-  if(current(owner)){playing=undefined;clearTimeout(timer);command('STOP');view('idle');status();}
+  if(current(owner)){playing=undefined;clearTimeout(timer);owner.cancelReady?.();command('STOP');view('idle');status();}
+  else owner.cancelReady?.();
   await plainStop(owner,at);
   if(owner.auth!==credential)void request(owner.auth,'/v1/auth/session','DELETE').catch(()=>{});
  }
@@ -118,16 +130,18 @@
   try{
    const answer=await api(owner.auth,'/v1/playback/sessions/'+encodeURIComponent(owner.session.id)+'/progress','PUT',{state:status,positionMs:Math.round(position()*1000),playClockMs:Math.floor(owner.played)});
    if(!current(owner))return;
-   if(answer.value?.state==='ended'){playing=undefined;command('STOP');view('idle');return;}
+   if(answer.value?.state==='ended'){playing=undefined;clearTimeout(timer);owner.cancelReady?.();command('STOP');view('idle');return;}
    if(answer.value?.generation&&answer.value.generation!==owner.session.presentation.generation){const next=await api(owner.auth,'/v1/playback/sessions/'+encodeURIComponent(owner.session.id));if(current(owner))await adopt(owner,next.value);}
-  }catch(error){if(current(owner)&&(error.status===401||error.status===403||error.status===404)){playing=undefined;command('STOP');view('error','unavailable');return;}}
+  }catch(error){if(current(owner)&&(error.status===401||error.status===403||error.status===404)){playing=undefined;clearTimeout(timer);owner.cancelReady?.();command('STOP');view('error','unavailable');return;}}
   if(current(owner)){draw();statusToController();schedule(owner,owner.session.lease?.reportEveryMs||10000);}
  }
  const statusToController=()=>status();
  async function change(owner,body){
   if(!current(owner))return;
   const answer=await api(owner.auth,'/v1/playback/sessions/'+encodeURIComponent(owner.session.id),'PATCH',{...body,positionMs:Math.round(position()*1000)});
-  if(current(owner)&&answer.value.presentation.generation!==owner.session.presentation.generation)await adopt(owner,answer.value);
+  if(!current(owner))return;
+  if(answer.value?.presentation?.generation!==owner.session.presentation.generation)await adopt(owner,answer.value);
+  else if(answer.value?.presentation)owner.session=answer.value;
  }
  async function startSession(auth,body,stillCurrent){
   const key=id(),until=Date.now()+30000;let answer;
@@ -160,7 +174,11 @@
   const answer=await startSession(auth,body,()=>auth===credential&&sender===controller);
   const owner={auth,session:answer.value,played:0,requestId:message.requestId};
   try{if(previous)await stop(previous);playing=owner;await adopt(owner,answer.value);void artwork(owner,message.artworkPath);if(!current(owner)||sender!==controller)throw Error('controller_retired');
-   if(manager.getPlayerState()!=='PLAYING'){await new Promise((resolve,reject)=>{owner.onPlaying=resolve;setTimeout(()=>reject(Error('playback_not_ready')),10000);});}
+   if(manager.getPlayerState()!=='PLAYING'){
+    let readyTimer;
+    try{await new Promise((resolve,reject)=>{readyTimer=setTimeout(()=>reject(Error('playback_not_ready')),10000);owner.onPlaying=resolve;owner.cancelReady=reason=>reject(reason||Error('controller_retired'));});}
+    finally{clearTimeout(readyTimer);owner.onPlaying=undefined;owner.cancelReady=undefined;}
+   }
    if(!current(owner)||sender!==controller)throw Error('controller_retired');
    await report(owner,'playing');
    send(sender,{type:'loaded',requestId:message.requestId,itemId:answer.value.itemId});status(sender);
@@ -181,9 +199,13 @@
     const body={queue:{queueId:queue.queueId,entryId:next.value.current.entryId},startFrom:'beginning'};
     const answer=await startSession(owner.auth,body,()=>current(owner));
     const successor={auth:owner.auth,session:answer.value,played:0};
-    await plainStop(owner);if(!current(owner)){await plainStop(successor);return;}
-    try{const item=await api(owner.auth,'/v1/items/'+encodeURIComponent(answer.value.itemId));metadata={title:item.value.title,kind:item.value.kind};successor.artworkPath=item.value.images?.poster||item.value.posterUrl;}catch{metadata=undefined;}
-    playing=successor;try{await adopt(successor,answer.value);void artwork(successor,successor.artworkPath);}catch(error){await stop(successor);throw error;}status();return;
+    try{await plainStop(owner);}catch(error){await plainStop(successor).catch(()=>{});throw error;}
+    if(!current(owner)){await plainStop(successor).catch(()=>{});return;}
+    let nextMeta;
+    try{const item=await api(owner.auth,'/v1/items/'+encodeURIComponent(answer.value.itemId));nextMeta={title:item.value.title,kind:item.value.kind};successor.artworkPath=item.value.images?.poster||item.value.posterUrl;}catch{nextMeta=undefined;}
+    if(!current(owner)){await plainStop(successor).catch(()=>{});return;}
+    metadata=nextMeta;
+    playing=successor;try{await adopt(successor,answer.value);void artwork(successor,successor.artworkPath);}catch(error){await stop(successor).catch(()=>{});throw error;}status();return;
    }
   }
   await stop(owner);
@@ -215,6 +237,12 @@
   await install(candidate,sender);
  }
  async function answerTakeover(allow){const held=pending;if(!held)return;pending=undefined;clearTimeout(held.timer);view('takeover',null);if(allow)await install(held.candidate,held.sender);else{await request(held.candidate,'/v1/auth/session','DELETE').catch(()=>{});send(held.sender,{type:'pair-failed',code:'tv_busy'});}}
+ function serverTrackId(track,mapped,fallback){
+  if(validId(mapped))return mapped;
+  if(validId(track?.customData?.trackId))return track.customData.trackId;
+  if(validId(track?.trackContentId))return track.trackContentId;
+  return validId(fallback)?fallback:undefined;
+ }
  async function receive(event){
   let message=event.data;if(typeof message==='string'){if(message.length>65536)return;try{message=JSON.parse(message);}catch{return;}}
   if(!message||typeof message!=='object')return;
@@ -232,8 +260,30 @@
    case 'play':command('PLAY');break;
    case 'pause':command('PAUSE');break;
    case 'seek':if(playing&&Number.isFinite(message.positionSeconds))await change(playing,{seek:{positionMs:Math.round(Math.max(0,message.positionSeconds)*1000),id:id()}});break;
-   case 'audio':manager.getAudioTracksManager().setActiveById(message.trackId);break;
-   case 'subtitles':manager.getTextTracksManager().setActiveByIds(message.trackIds||[]);break;
+   case 'audio':{
+    if(!playing||!Number.isSafeInteger(message.trackId))break;
+    const audioManager=manager.getAudioTracksManager();
+    try{audioManager.setActiveById(message.trackId);}catch{}
+    playing.activeAudioTrackId=message.trackId;
+    const track=(audioManager.getTracks?.()||[]).find(t=>t.trackId===message.trackId);
+    const trackId=serverTrackId(track,undefined,String(message.trackId));
+    if(trackId)await change(playing,{audio:{trackId}}).catch(()=>{});
+    break;
+   }
+   case 'subtitles':{
+    if(!playing)break;
+    const ids=Array.isArray(message.trackIds)?message.trackIds.filter(Number.isSafeInteger):[];
+    const textManager=manager.getTextTracksManager();
+    try{textManager.setActiveByIds(ids);}catch{}
+    playing.activeTextTrackIds=ids;
+    if(!ids.length){await change(playing,{subtitles:{trackId:null}}).catch(()=>{});}
+    else{
+     const track=(textManager.getTracks?.()||[]).find(t=>t.trackId===ids[0]);
+     const trackId=serverTrackId(track,playing.subtitleTrackIds?.get(ids[0]),String(ids[0]));
+     if(trackId)await change(playing,{subtitles:{trackId}}).catch(()=>{});
+    }
+    break;
+   }
    case 'stop':{const target=identity(),owner=playing;if(!target||!validId(message.requestId))break;const held={target,confirmed:false};stopCommands.set(message.requestId,held);while(stopCommands.size>32)stopCommands.delete(stopCommands.keys().next().value);owner.onStopped=()=>{held.confirmed=true;for(const [requestId,value]of stopCommands)if(value===held)send(sender,{type:'stopped',requestId,target});};await stop(owner);break;}
   }
   draw();status();
@@ -337,11 +387,11 @@
  // Public Cast status uses opaque deck ids, never a grant-bearing media address.
  for(const type of ['MEDIA_STATUS','CLOUD_STATUS'])if(types[type])manager.setMessageInterceptor(types[type],()=>({type,playerState:playing?manager.getPlayerState():'IDLE',...(playing?{media:{contentId:playing.contentId,...(metadata?.title?{metadata:{metadataType:playing.session.kind==='audio'?3:0,title:metadata.title}}:{})}}:{})}));
  context.addCustomMessageListener(namespace,event=>serially(()=>receive(event)).catch(()=>{const kind=event.data?.type;if(kind==='seek')view('notice',copy('notice.seekFailed'));else if(kind==='stop')view('notice',copy('notice.stopFailed'));else view('error','unavailable');}));
- for(const type of ['PLAYING','PAUSE','BUFFERING'])if(events[type])manager.addEventListener(events[type],()=>{if(playing){if(type==='PLAYING'){playing.onPlaying?.();playing.onPlaying=undefined;}draw();void report(playing).catch(()=>{});}});
+ for(const type of ['PLAYING','PAUSE','BUFFERING'])if(events[type])manager.addEventListener(events[type],()=>{if(playing){if(type==='PLAYING'){const ready=playing.onPlaying;playing.onPlaying=undefined;ready?.();}draw();void report(playing).catch(()=>{});}});
  if(events.MEDIA_FINISHED)manager.addEventListener(events.MEDIA_FINISHED,event=>{const owner=playing,media=manager.getMediaInformation(),element=document.getElementById('player');if(event?.endedReason!==cast.framework.events.EndedReason.END_OF_STREAM||!owner?.adopted||owner.finished||media?.contentId!==owner.contentId||element?.ended!==true)return;owner.finished=true;void serially(async()=>{if(!current(owner))return;await finished(owner);}).catch(()=>{void stop(owner).catch(()=>{});view('error','unavailable');});});
- if(events.ERROR)manager.addEventListener(events.ERROR,event=>{const owner=playing,generation=owner?.session.presentation.generation;if(!owner||owner.recovering)return;owner.recovering=true;const code=[103,301,311,312].includes(Number(event?.detailedErrorCode))?'network_error':'decode_error';void serially(()=>current(owner)&&owner.session.presentation.generation===generation?change(owner,{failure:{code}}):undefined).catch(()=>{view('error','decode');void stop(owner).catch(()=>{});}).finally(()=>{owner.recovering=false;});});
+ if(events.ERROR)manager.addEventListener(events.ERROR,event=>{const owner=playing,generation=owner?.session.presentation.generation;if(!owner||owner.recovering)return;const code=[103,301,311,312].includes(Number(event?.detailedErrorCode))?'network_error':'decode_error';if(owner.cancelReady){owner.cancelReady(Error(code));return;}owner.recovering=true;void serially(()=>current(owner)&&owner.session.presentation.generation===generation?change(owner,{failure:{code}}):undefined).catch(()=>{view('error','decode');void stop(owner).catch(()=>{});}).finally(()=>{owner.recovering=false;});});
  document.addEventListener('keydown',event=>{if(!pending)return;if(event.key==='Enter')void serially(()=>answerTakeover(true));if(event.key==='Escape'||event.key==='Backspace')void serially(()=>answerTakeover(false));});
- window.addEventListener('unload',()=>{clearTimeout(timer);});
+ window.addEventListener('unload',()=>{clearTimeout(timer);playing?.cancelReady?.();});
  try{const saved=JSON.parse(localStorage.getItem(stopsKey)||'[]');if(Array.isArray(saved)&&saved.length<=32)for(const record of saved){if(!validId(record.session?.id)||!record.auth?.session?.accessToken||!record.auth.session.refreshToken||origin(record.auth.origin)!==record.auth.origin||!Number.isFinite(record.due))continue;const key=record.auth.origin+'|'+record.auth.session.sessionId+'|'+record.session.id;stopRecords.set(key,record);setTimeout(()=>{void plainStop(record).catch(()=>{});},Math.max(0,record.due-Date.now()));}}catch{}
  view('idle');context.start({disableIdleTimeout:true});
 })();

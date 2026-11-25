@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
+import {useMemo, useState, useSyncExternalStore, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
 import {Button} from '../../../kit/controls';
 import {DeviceEqualizer, type EqualizerPort} from '../../../kit/media';

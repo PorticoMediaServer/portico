@@ -69,10 +69,13 @@ export type ToastHostProps = {toast: ToastData | null; onDismiss: (id: string, r
 /** Controlled single occupant: callers replace `toast`; no global queue or business state. */
 export function ToastHost({toast, onDismiss, bottomInset, className, toastClassName, testID, placement}: ToastHostProps) {
   const portalTarget = useOverlayPortalTarget();
+  const present = usePresence(toast !== null, 160);
   const current = useRef(toast), last = useRef(toast), dismiss = useRef(onDismiss), host = useRef<HTMLDivElement | null>(null);
   const replacement = useRef<Animation | null>(null), reduced = useReducedMotion(host);
   const clock = useRef<{pause: (source: string) => void; resume: (source: string) => void} | null>(null);
-  current.current = toast; dismiss.current = onDismiss; if (toast) last.current = toast;
+  current.current = toast; dismiss.current = onDismiss;
+  if (toast) last.current = toast;
+  else if (!present) last.current = null;
   const id = toast?.id, hasAction = !!toast?.action;
   const duration = toast?.durationMs !== undefined && Number.isFinite(toast.durationMs) && toast.durationMs > 0 ? toast.durationMs : hasAction ? 8000 : 4000;
   useEffect(() => {
@@ -97,9 +100,22 @@ export function ToastHost({toast, onDismiss, bottomInset, className, toastClassN
     if (id && host.current) replacement.current = host.current.animate([{opacity: 0}, {opacity: 1}], {duration: reduced ? 160 : 180, easing: 'linear'});
     return () => replacement.current?.cancel();
   }, [id, reduced]);
-  const value = toast ?? last.current;
-  if (!value || !portalTarget) return null;
-  return createPortal(<div ref={host} className={classes(styles.toastHost, className)} data-testid={testID} data-shape={value.action ? 'card' : 'pill'} data-placement={placement} style={bottomInset === undefined ? undefined : {'--overlay-toast-bottom': `${bottomInset}px`} as OverlayStyle}
+  useEffect(() => {
+    const node = host.current;
+    if (!present || !node || !toast) return;
+    // Modal dialogs apply aria-hidden/inert to siblings; keep live notices interactive and announced above them.
+    const unmask = () => {
+      if (node.getAttribute('aria-hidden') === 'true') node.removeAttribute('aria-hidden');
+      if (node.hasAttribute('inert')) node.removeAttribute('inert');
+    };
+    unmask();
+    const observer = new MutationObserver(unmask);
+    observer.observe(node, {attributes: true, attributeFilter: ['aria-hidden', 'inert']});
+    return () => observer.disconnect();
+  }, [present, toast]);
+  const value = toast ?? (present ? last.current : null);
+  if (!present || !value || !portalTarget) return null;
+  return createPortal(<div ref={host} className={classes(styles.toastHost, className)} data-toast-host="" data-state={toast ? 'open' : 'closed'} data-testid={testID} data-shape={value.action ? 'card' : 'pill'} data-placement={placement} style={bottomInset === undefined ? undefined : {'--overlay-toast-bottom': `${bottomInset}px`} as OverlayStyle}
     onPointerEnter={() => clock.current?.pause('hover')} onPointerLeave={() => clock.current?.resume('hover')} onPointerDown={() => clock.current?.pause('touch')} onPointerUp={() => clock.current?.resume('touch')} onPointerCancel={() => clock.current?.resume('touch')}
     onFocusCapture={() => clock.current?.pause('focus')} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) clock.current?.resume('focus'); }}>
     <Toast {...value} className={toastClassName} open={toast !== null} onOpenChange={(open, reason) => { if (!open && current.current?.id === value.id) dismiss.current(value.id, reason); }} />

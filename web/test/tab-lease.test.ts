@@ -106,3 +106,46 @@ test('leaving the page releases a held lease at once', async () => {
   tab.leave();
   assert.equal(b.store.size, 0);
 });
+
+test('an already-aborted signal rejects immediately without registering listeners or writing a lease', async () => {
+  const b = browser();
+  const base = b.tab();
+  let changeListeners = 0, timersScheduled = 0, writes = 0;
+  const env: LeaseEnvironment = {
+    ...base,
+    write: (key, value) => { writes++; base.write(key, value); },
+    onChange: (key, listener) => { changeListeners++; const off = base.onChange(key, listener); return () => { changeListeners--; off(); }; },
+    setTimer: (run, ms) => { timersScheduled++; return base.setTimer(run, ms); },
+  };
+  const stop = new AbortController();
+  stop.abort();
+  let workCalled = false;
+  await assert.rejects(
+    leaseLock(env)('events.viewer', stop.signal, async () => { workCalled = true; }),
+    (error: Error) => error.name === 'AbortError',
+  );
+  assert.equal(workCalled, false);
+  assert.equal(changeListeners, 0, 'no storage listener leaked');
+  assert.equal(timersScheduled, 0, 'no timer scheduled');
+  assert.equal(writes, 0, 'no lease written');
+  assert.equal(b.store.size, 0);
+});
+
+test('aborting during settle cleans up the claimed lease and listeners immediately', async () => {
+  const b = browser();
+  const base = b.tab();
+  let changeListeners = 0;
+  const env: LeaseEnvironment = {
+    ...base,
+    onChange: (key, listener) => { changeListeners++; const off = base.onChange(key, listener); return () => { changeListeners--; off(); }; },
+  };
+  const stop = new AbortController();
+  let workCalled = false;
+  const pending = leaseLock(env, {settleMs: 500})('events.viewer', stop.signal, async () => { workCalled = true; });
+  assert.equal(b.store.size, 1, 'lease claimed during settle');
+  stop.abort();
+  await assert.rejects(pending, (error: Error) => error.name === 'AbortError');
+  assert.equal(workCalled, false);
+  assert.equal(changeListeners, 0, 'storage listener removed');
+  assert.equal(b.store.size, 0, 'claimed lease released');
+});

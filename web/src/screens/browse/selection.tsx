@@ -5,7 +5,6 @@ import {withRequestRaw, type RequestRaw} from '@core/home-selection/list-destina
 import {QuerySelectionEditorSurface} from './QuerySelectionEditorSurface';
 import {LibraryPickerSurface, type LibraryPickerOptions} from './LibraryPickerSurface';
 import type {EntryActionPorts, EntryDestination} from '../../shell/entry-actions';
-import type {SelectionItem} from '@core/selection-model/index.ts';
 import {LibraryDeleteSurface, type LibraryDeleteOptions} from './LibraryDeleteSurface';
 import {SelectionEditorSurface, type LibraryEditorSession} from './SelectionEditorSurface';
 import type {SelectionEditorOptions} from './selection-editor';
@@ -355,9 +354,23 @@ export function createLibrarySelection({playSelection, owner, descriptor, wholeS
     }
     finally {if (progressValue?.operation === operation) {progressValue = undefined; for (const listener of progressListeners) listener();}}
   };
+  const rowIndexCache = new WeakMap<readonly LibraryPlayRow[], Readonly<{byEntry: Map<BrowseMember['entry'], LibraryPlayRow>; byPosition: Map<number, LibraryPlayRow>}>>();
   const snapshot = () => playSelection.getSnapshot(), rowFor = (member: Pick<BrowseMember, 'entry'>, index: number) => {
     const rows = snapshot().rows;
-    return rows.find(row => row.entry === member.entry) ?? rows.find(row => row.position === index && row.entry.id === member.entry.id && row.entry.kind === member.entry.kind && row.entry.libraryId === member.entry.libraryId);
+    let indexed = rowIndexCache.get(rows);
+    if (!indexed) {
+      const byEntry = new Map<BrowseMember['entry'], LibraryPlayRow>(), byPosition = new Map<number, LibraryPlayRow>();
+      for (const row of rows) {
+        if (!byEntry.has(row.entry)) byEntry.set(row.entry, row);
+        if (!byPosition.has(row.position)) byPosition.set(row.position, row);
+      }
+      indexed = {byEntry, byPosition};
+      rowIndexCache.set(rows, indexed);
+    }
+    const direct = indexed.byEntry.get(member.entry);
+    if (direct) return direct;
+    const byPos = indexed.byPosition.get(index);
+    return byPos && byPos.entry.id === member.entry.id && byPos.entry.kind === member.entry.kind && byPos.entry.libraryId === member.entry.libraryId ? byPos : undefined;
   };
   const run = (work: () => void) => {
     try {
@@ -390,7 +403,10 @@ export function createLibrarySelection({playSelection, owner, descriptor, wholeS
       if (next?.first !== visibleValue?.first || next?.last !== visibleValue?.last) {visibleValue = next; for (const listener of visibleListeners) listener();}
       // Empty layout observations are not selection commands or server errors.
       if (!next) return;
-      void playSelection.registerWindow(first, last).catch(reportError);
+      void playSelection.registerWindow(first, last).catch(error => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        reportError(error);
+      });
     },
     personal, queue, addToPlaylist, addToCollection,
     dispose: () => {closeDelete();closeEditor();closePicker();},

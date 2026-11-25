@@ -11,6 +11,26 @@ import styles from './settings.module.css';
 
 const t = defaultI18n.t;
 export type ServerFolderPickerProps = Readonly<{open: boolean; onClose: () => void; api: LibraryContentApi; initialPath?: string; onChoose: (paths: readonly string[]) => void; multiple?: boolean; purpose?: 'folder' | 'backup'; returnFocusRef?: React.RefObject<HTMLElement | null>}>;
+/** Splits a browsed server path into clickable breadcrumbs, preserving POSIX roots, Windows drives, and Windows UNC roots (`\\server\share`). */
+export function folderPickerBreadcrumbs(path: string, separator: string): readonly Readonly<{label: string; full: string}>[] {
+  if (!path) return [];
+  const segments = path.split(separator).filter(Boolean);
+  if (!segments.length) return [];
+  if (separator === '\\' && path.startsWith('\\\\')) {
+    if (segments.length === 1) return [{label: `\\\\${segments[0]}`, full: `\\\\${segments[0]}`}];
+    const root = `\\\\${segments[0]}\\${segments[1]}`;
+    const crumbs = [{label: root, full: root}];
+    for (let index = 2; index < segments.length; index++) {
+      crumbs.push({label: segments[index]!, full: `${root}\\${segments.slice(2, index + 1).join('\\')}`});
+    }
+    return crumbs;
+  }
+  const leading = path.startsWith(separator) ? separator : '';
+  return segments.map((segment, index) => ({
+    label: segment,
+    full: leading + segments.slice(0, index + 1).join(separator) + (separator === '\\' && index === 0 ? '\\' : ''),
+  }));
+}
 /** The same bounded explorer serves folders and the drawn single backup file/folder picker. */
 export function ServerFolderPicker(props: ServerFolderPickerProps) {
  const {onChoose, onClose} = props;
@@ -46,15 +66,12 @@ function BackupFolderPicker({open, onClose, api, initialPath = '', onChoose, mul
     if (file && !page.entries.some(entry => entry.path === file && entry.kind === 'file' && entry.readable && !entry.symlink && /\.(?:db|pba)$/i.test(entry.name))) return;
     onChoose(many && selected.length ? selected : [file ?? page.path]);close();
   };
-  const segments = page?.path.split(page.separator).filter(Boolean) ?? [];
+  const crumbs = page ? folderPickerBreadcrumbs(page.path, page.separator) : [];
   const entries = page?.entries.filter(entry => entry.kind === 'directory' || backup && entry.kind === 'file' && /\.(?:db|pba)$/i.test(entry.name)) ?? [];
   return <Dialog footerDismisses open={open} onOpenChange={value => {if (!value) close();}} title={t(backup ? 'web.maintenance.chooseBackupTitle' : many ? 'next.settings.chooseFolders' : 'next.settings.chooseFolder')} description={backup ? t('web.maintenance.chooseBackupLede') : undefined} size="lg" width={backup ? 636 : 720} returnFocusRef={returnFocusRef} bodyClassName={backup ? styles.backupPickerBody : styles.folderBody} className={backup ? styles.backupPicker : undefined} headerClassName={backup ? styles.backupPickerHeader : undefined} footerClassName={backup ? styles.backupPickerFooter : undefined} showCloseButton={!backup}
     footer={<><Button size="compact" onClick={close}>{t('next.settings.cancel')}</Button><Button size="compact" variant="primary" disabled={!page?.path || busy || failed} onClick={choose}>{t(backup ? 'web.maintenance.useBackupSource' : many && selected.length ? 'next.settings.chooseSelected' : 'next.settings.chooseThisFolder', {count: selected.length})}</Button></>}>
     {!backup && <form className={styles.folderPath} onSubmit={event => {event.preventDefault(); void load(typedServerPath(path), hidden);}}><TextField aria-label={t('next.settings.folderPath')} value={path} onChange={event => setPath(event.currentTarget.value)} /><Button type="submit" size="xs" disabled={busy}>{t('next.settings.go')}</Button></form>}
-    <nav className={styles.crumbs} aria-label={t('next.settings.folderBreadcrumbs')}>{backup && <Button className={styles.backupPickerUp} size="xs" variant="icon" iconOnly icon="i-left" aria-label={t('next.settings.up')} disabled={!page?.parent || busy} onClick={() => {void load(page!.parent, hidden);}} />}<div className={backup ? styles.backupPickerCrumbs : styles.folderCrumbs}><Button size="xs" variant="text" disabled={busy} onClick={() => {void load('', hidden);}}>{backup ? page?.separator ?? '/' : t('next.settings.roots')}</Button>{segments.map((segment, index) => {
-      const full = (page!.path.startsWith(page!.separator) ? page!.separator : '') + segments.slice(0, index + 1).join(page!.separator) + (page!.separator === '\\' && index === 0 ? '\\' : '');
-      return <Fragment key={full}>{backup && <Icon name="i-right" size={14} />}<Button size="xs" variant="text" disabled={busy} onClick={() => {void load(full, hidden);}}>{segment}</Button></Fragment>;
-    })}</div></nav>
+    <nav className={styles.crumbs} aria-label={t('next.settings.folderBreadcrumbs')}>{backup && <Button className={styles.backupPickerUp} size="xs" variant="icon" iconOnly icon="i-left" aria-label={t('next.settings.up')} disabled={!page?.parent || busy} onClick={() => {void load(page!.parent, hidden);}} />}<div className={backup ? styles.backupPickerCrumbs : styles.folderCrumbs}><Button size="xs" variant="text" disabled={busy} onClick={() => {void load('', hidden);}}>{backup ? page?.separator ?? '/' : t('next.settings.roots')}</Button>{crumbs.map(crumb => <Fragment key={crumb.full}>{backup && <Icon name="i-right" size={14} />}<Button size="xs" variant="text" disabled={busy} onClick={() => {void load(crumb.full, hidden);}}>{crumb.label}</Button></Fragment>)}</div></nav>
     {!backup && <div className={styles.folderTools}><Button size="xs" disabled={!page?.parent || busy} icon="i-arrow-up" onClick={() => {void load(page!.parent, hidden);}}>{t('next.settings.up')}</Button><label><input type="checkbox" checked={hidden} onChange={event => {setHidden(event.currentTarget.checked); void load(page?.path ?? path, event.currentTarget.checked);}} />{t('next.settings.hiddenFolders')}</label></div>}
     {failed ? <div className={styles.folderNotice} role="alert">{t('next.settings.folderFailed')}<Button size="xs" onClick={() => {void load(page?.path ?? path, hidden);}}>{t('next.states.tryAgain')}</Button></div> : <div className={styles.folderEntries} aria-busy={busy}>
       {!page?.path && page?.roots.map(root => <button type="button" key={root.path} disabled={busy} onClick={() => {void load(root.path, hidden);}}><Icon name="i-folder" size={22} /><span>{root.name}<small>{root.path}</small></span><Icon name="i-right" size={18} /></button>)}

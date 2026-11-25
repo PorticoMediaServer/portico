@@ -12,7 +12,7 @@ import {SettingsGroup} from '../../../kit/settings/SettingsGroups';
 import {SettingsRow} from '../../../kit/shell/SettingsSurfaces';
 import {AuthCodeBoxes} from '../../../kit/accounts';
 import {HostedError, ServicesQuiet} from '../../../kit/accounts/ServicesAuth';
-import {ServicesAuthenticator, ServicesQuietLink, ServicesRecoveryCodes} from '../../../kit/accounts/ServicesWorkspace';
+import {ServicesAuthenticator, ServicesRecoveryCodes} from '../../../kit/accounts/ServicesWorkspace';
 import {browserAccountOrigin} from '../../../platform/account-origin';
 import {accountSecurityUIURL} from '../../../platform/account-security-policy';
 import {HostedSecurityAction} from './HostedSecurityAction';
@@ -76,6 +76,7 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
  const scope=document?.canManage&&document.capabilities.manageAccount&&account&&!account.disabled?
   JSON.stringify([document.serverId,session().sessionFamilyId,account.id,account.role,account.hostedAccountId??'',profiles.getSnapshot().inUseId]):'';
  const active=useRef<Opening|undefined>(undefined),localIntentRef=useRef<LocalIntent|undefined>(undefined);
+ const dialogTrigger=useRef<HTMLElement|null>(null);
  const [opening,setOpening]=useState<Opening>(),[factor,setFactor]=useState<TwoFactorState>();
  const [task,setTask]=useState<Task>();
  const [enrolment,setEnrolment]=useState<TwoFactorEnrolment>(),[codes,setCodes]=useState<readonly string[]>();
@@ -121,6 +122,8 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
  const close=()=>{if(!held||held.busy||!intentCurrent(intent))return;intent!.live=false;intent!.enrolPassword=undefined;localIntentRef.current=undefined;setTask(undefined);setEnrolment(undefined);setCodes(undefined);clearSecrets();setError(undefined);};
  const open=(value:Task)=>{
   if(!held||held.busy||localIntentRef.current||codes)return;
+  const activeElement=globalThis.document?.activeElement;
+  dialogTrigger.current=activeElement&&typeof(activeElement as HTMLElement).focus==='function'?activeElement as HTMLElement:null;
   clearSecrets();setError(undefined);
   localIntentRef.current={owner:held,task:value,live:true};setTask(value);
  };
@@ -178,12 +181,28 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
   {mfa&&<SettingsRow id="profile.recoveryCodes" dependent label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.label')} help={remaining===undefined?undefined:t('web.hostedSecurity.codesLeft',{count:remaining})}>
    <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.control.label')} disabled={!available||busy} onOpen={()=>open('codes')}/>
   </SettingsRow>}
-  {held&&intentCurrent(intent)&&(task||codes)&&<Dialog footerDismisses open title={title} showCloseButton={false} onOpenChange={value=>{if(!value)close();}}
+  {held&&intentCurrent(intent)&&(task||codes)&&<Dialog footerDismisses open title={title} showCloseButton={false} returnFocusRef={dialogTrigger} onOpenChange={value=>{if(!value)close();}}
    footer={codes?<Button variant="primary" onClick={close}>{t('action.done')}</Button>:<><Button disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button variant="primary" disabled={!ready} loading={busy} onClick={()=>void submit()}>{t(task==='password'?'account.changePasswordTitle':'action.continue')}</Button></>}>
    {error?<HostedError error={error}/>:null}
    {codes?<><ServicesQuiet>{t('services.security.codesBody')}</ServicesQuiet><ServicesRecoveryCodes codes={codes}
     onCopy={()=>{if(intentCurrent(intent))void navigator.clipboard.writeText(codes.join('\n')).catch(failure=>{if(intentCurrent(intent))setError(failure);});}}
-    onDownload={()=>{if(!intentCurrent(intent))return;let url:string|undefined;try{url=URL.createObjectURL(new Blob([codes.join('\n')],{type:'text/plain;charset=utf-8'}));const link=globalThis.document.createElement('a');link.href=url;link.download='portico-recovery-codes.txt';if(intentCurrent(intent))link.click();}catch(failure){if(intentCurrent(intent))setError(failure);}finally{if(url)URL.revokeObjectURL(url);}}}/></>:
+    onDownload={()=>{
+     if(!intentCurrent(intent))return;
+     let url:string|undefined;
+     try{
+      url=URL.createObjectURL(new Blob([codes.join('\n')],{type:'text/plain;charset=utf-8'}));
+      if(!intentCurrent(intent)){URL.revokeObjectURL(url);return;}
+      const link=globalThis.document.createElement('a');
+      link.href=url;link.download='portico-recovery-codes.txt';
+      link.click();
+      // The browser owns the received bytes after the click; defer revocation like save-file.ts.
+      const created=url;
+      setTimeout(()=>URL.revokeObjectURL(created),60_000);
+     }catch(failure){
+      if(url)URL.revokeObjectURL(url);
+      if(intentCurrent(intent))setError(failure);
+     }
+    }}/></>:
     task==='password'?<><ServicesQuiet>{t('web.hostedSecurity.othersSignedOut')}</ServicesQuiet><AccountPasswordFields currentPassword={password} newPassword={next} code={code} twoFactor={factor?.enabled===true} disabled={busy}
      onCurrentPasswordChange={guardField(setPassword)} onNewPasswordChange={guardField(setNext)} onCodeChange={guardField(setCode)}/></>:
     task==='enrol'?<div className={styles.fields}>{enrolment?<><ServicesQuiet>{t('web.hostedSecurity.enterKey')}</ServicesQuiet><ServicesAuthenticator secret={enrolment.secret} uri={enrolment.uri} onCopy={()=>{if(intentCurrent(intent))void navigator.clipboard.writeText(enrolment.secret).catch(failure=>{if(intentCurrent(intent))setError(failure);});}} onError={failure=>{if(intentCurrent(intent))setError(failure);}}/>

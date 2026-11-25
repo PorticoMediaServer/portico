@@ -25,6 +25,26 @@ import {useBrowseController} from './browse-cache';
 import {queryKeys} from '@core/query/keys.ts';
 import {entryPlayable} from '@core/library-content.ts';
 
+const HOME_ROW_CACHE_LIMIT = 24;
+const homeRowCache = new WeakMap<ScreenContext['queries'], Map<string, HomeRow>>();
+function readCachedHomeRow(queries: ScreenContext['queries'], key: string): HomeRow | undefined {
+  const entries = homeRowCache.get(queries);
+  const cached = entries?.get(key);
+  if (cached && entries) {entries.delete(key); entries.set(key, cached);}
+  return cached;
+}
+function writeCachedHomeRow(queries: ScreenContext['queries'], key: string, row: HomeRow) {
+  let entries = homeRowCache.get(queries);
+  if (!entries) {entries = new Map(); homeRowCache.set(queries, entries);}
+  entries.delete(key);
+  entries.set(key, row);
+  while (entries.size > HOME_ROW_CACHE_LIMIT) {
+    const oldest = entries.keys().next().value;
+    if (oldest === undefined) break;
+    entries.delete(oldest);
+  }
+}
+
 function LoadedHomeRow({captured, context, row}: {captured: ProtectedLibraryScreen; context: ScreenContext; row: HomeRow}) {
   const width = useShellWidth();
   // Frame 47's toolbar changes are this page's real state, so its own address carries
@@ -104,7 +124,7 @@ function CommittedHomeRow({captured, context, row, owner, controller, routed, pr
     canSaveView: false, empty: undefined,
     // Frame #seeall draws one quick toggle and names the row's own order "Best match";
     // the scope chips take the viewer's library names ("TV Shows"), not the kind's generic name.
-    sortLabel: defaultI18n.t('next.browse.bestMatch'), quickIds: ['unwatched'],
+    ...(!controllerQuery || controllerQuery.sorts[0]?.field === bestMatch[0]?.field ? {sortLabel: defaultI18n.t('next.browse.bestMatch')} : {}), quickIds: ['unwatched'],
     scopeLabel: kind => context.identity?.libraries.find(library => library.kind === kind)?.name ?? kind,
     familyForEntry: entry => context.identity?.libraries.find(library => library.id === entry.libraryId)?.kind,
     scopeLibraries: context.identity?.libraries,
@@ -152,20 +172,28 @@ function BoundHomeRow({captured, rowId, libraryId}: {captured: ProtectedLibraryS
 function ContextHomeRow({captured, rowId, libraryId, context}: {captured: ProtectedLibraryScreen; rowId: string; libraryId?: string; context: ScreenContext}) {
   const width = useShellWidth(), elapsed = useLoadingClock();
   const pathname = useLocation({select: location => location.pathname}), [attempt, setAttempt] = useState(0);
+  const cacheKey = JSON.stringify([rowId, libraryId ?? '']);
+  const cachedRow = attempt === 0 ? readCachedHomeRow(context.queries, cacheKey) : undefined;
   type Opening = Readonly<{context: ScreenContext; rowId: string; attempt: number; life: ReturnType<typeof screenLifetime>}>;
   const [snapshot, publish] = useState<Readonly<{opening: Opening; row?: HomeRow; failure?: unknown}>>();
   useLayoutEffect(() => {
     const life = screenLifetime(context), opening: Opening = {context, rowId, attempt, life};
     const current = () => life.current() && router.state.location.pathname === pathname;
+    const hit = attempt === 0 ? readCachedHomeRow(context.queries, cacheKey) : undefined;
+    if (hit) {publish({opening, row: hit}); return life.dispose;}
     publish({opening});
-    void fetchHomeRow(life.api, rowId, {limit: 1, library: libraryId}, life.signal()).then(row => {if (current()) publish({opening, row: {...row, libraryId: libraryId ?? row.libraryId}});})
-      .catch(failure => {if (current()) publish({opening, failure});});
+    void fetchHomeRow(life.api, rowId, {limit: 1, library: libraryId}, life.signal()).then(row => {
+      const resolved = {...row, libraryId: libraryId ?? row.libraryId};
+      writeCachedHomeRow(context.queries, cacheKey, resolved);
+      if (current()) publish({opening, row: resolved});
+    }).catch(failure => {if (current()) publish({opening, failure});});
     return life.dispose;
-  }, [context, rowId, libraryId, attempt, pathname]);
+  }, [context, rowId, libraryId, attempt, pathname, cacheKey]);
   const offered = snapshot?.opening.context === context && snapshot.opening.rowId === rowId && snapshot.opening.attempt === attempt
     && snapshot.opening.life.current() ? snapshot : undefined;
+  const row = offered?.row ?? cachedRow;
   return offered?.failure ? <ScreenProblem context={context} error={offered.failure} retry={() => {if (offered.opening.life.current()) setAttempt(value => value + 1);}}/>
-    : offered?.row ? <LoadedHomeRow captured={captured} context={context} row={offered.row}/>
+    : row ? <LoadedHomeRow captured={captured} context={context} row={row}/>
       : <GridSkeleton elapsedMs={elapsed} window={{width, height: window.innerHeight, scrollTop: 0}} itemCount={1}/>;
 }
 function HomeRowRouteScreen() {

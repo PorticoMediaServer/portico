@@ -101,7 +101,7 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
         remember={remember} onRememberChange={!canRemember ? undefined : value => {if (viewCurrent() && !activeRecovery.current && !binding.getSnapshot().busy) setRemember(value);}}
         // A tick on the picker remembers a profile without a PIN at once, and carries to a PIN profile's page, where it applies after a correct PIN.
         onSelect={profile => {if (!viewCurrent() || selectedNow.current !== selection || activeRecovery.current || binding.getSnapshot().busy) return; if (profile.pinRequired) {const selected = {id: profile.id}; selectedNow.current = selected; setSelection(selected);} else void binding.chooseProfile(profile.id, '', canRemember && remember);}} />}
-    {selected && recovery && <Recovery binding={binding} flow={recovery.flow} current={() => openingCurrent(recovery)} profileName={selected.name} username={snapshot.account.username} serverId={server.id}
+    {selected && recovery && <Recovery flow={recovery.flow} current={() => openingCurrent(recovery)} profileName={selected.name} username={snapshot.account.username} serverId={server.id}
       onClose={() => retire(recovery)} onOpen={pin => {
         if (!openingCurrent(recovery) || recovery.completing || recovery.flow.getSnapshot().phase !== 'done') return;
         recovery.completing = true; setRecovery(undefined);
@@ -110,8 +110,8 @@ export function AccountProfilesView({binding, onSwitchServer, focusProfileId}: {
   </>;
 }
 
-function Recovery({binding, flow, current, profileName, username, serverId, onClose, onOpen}: {
-  binding: ProfilePickerViewBinding; flow: ProfileRecoveryView; current: () => boolean; profileName: string; username: DirectSnapshot['account']['username'];
+function Recovery({flow, current, profileName, username, serverId, onClose, onOpen}: {
+  flow: ProfileRecoveryView; current: () => boolean; profileName: string; username: DirectSnapshot['account']['username'];
   serverId: string; onClose: () => void; onOpen: (pin: string) => void;
 }) {
   const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot);

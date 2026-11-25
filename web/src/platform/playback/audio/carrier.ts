@@ -27,19 +27,30 @@ export class MediaCarrier {
   private element: CarrierElement | null = null;
   private stream: MediaStreamAudioDestinationNode | null = null;
   private controlGain: GainNode | null = null;
-  private ours = false;
+  private oursPause = false;
+  private oursPlay = false;
   private disposed = false;
   private playAttempt = 0;
   private readonly onPause: () => void;
+  private readonly onPlay?: () => void;
   private readonly paused = () => {
     // The page's own pause is not news; any other while carrying is the system's or the viewer's.
-    if (this.ours || this.disposed || !this.element?.paused) return;
+    if (this.disposed || !this.element?.paused) return;
+    this.oursPlay = false;
+    if (this.oursPause) return;
     this.onPause();
+  };
+  private readonly played = () => {
+    // An outside play (media key, headset, lock screen) clears any page-pause flag and notifies.
+    if (this.disposed || !this.element || this.element.paused) return;
+    this.oursPause = false;
+    if (this.oursPlay) { this.oursPlay = false; return; }
+    this.onPlay?.();
   };
 
   /** `output` is the engine's last node; speakers use its clock, while the element owns controls. */
-  constructor(context: StreamContext, output: AudioNode, onPause: () => void, make: () => CarrierElement | null = defaultElement) {
-    this.context = context; this.output = output; this.onPause = onPause;
+  constructor(context: StreamContext, output: AudioNode, onPause: () => void, make: () => CarrierElement | null = defaultElement, onPlay?: () => void) {
+    this.context = context; this.output = output; this.onPause = onPause; this.onPlay = onPlay;
     let element: CarrierElement | null = null, stream: MediaStreamAudioDestinationNode | null = null;
     try {
       // MediaStreamAudioDestination defaults to stereo. Surround uses the real endpoint.
@@ -65,6 +76,7 @@ export class MediaCarrier {
       this.element = element; this.stream = stream;
       output.connect(this.controlGain);
       element.addEventListener('pause', this.paused);
+      element.addEventListener('play', this.played);
     }
   }
 
@@ -82,7 +94,8 @@ export class MediaCarrier {
   play(onRefused?: (error: unknown) => void): void {
     const element = this.element;
     if (!element || !element.paused) return;
-    this.ours = false;
+    this.oursPause = false;
+    this.oursPlay = true;
     const attempt = ++this.playAttempt;
     void element.play().catch(error => {
       if (this.disposed || this.element !== element || attempt !== this.playAttempt) return;
@@ -96,7 +109,8 @@ export class MediaCarrier {
     ++this.playAttempt;
     const element = this.element;
     if (!element || element.paused) return;
-    this.ours = true;
+    this.oursPlay = false;
+    this.oursPause = true;
     // HTML pause events arrive asynchronously; keep this intent until play is requested.
     element.pause();
   }
@@ -120,7 +134,9 @@ export class MediaCarrier {
     if (!element) return;
     this.element = null;
     element.removeEventListener('pause', this.paused);
-    this.ours = true;
+    element.removeEventListener('play', this.played);
+    this.oursPlay = false;
+    this.oursPause = true;
     try { element.pause(); } catch { /* gone */ }
     element.srcObject = null;
     if (this.controlGain) { try { this.output.disconnect(this.controlGain); } catch { /* already */ } }

@@ -145,24 +145,28 @@ export function readDvbString(data: Uint8Array, from: number, to: number, bitsPe
       const code = bits.read(4);
       if (code) { put(code, 1); continue; }
       if (!bits.read(1)) { const run = bits.read(3); if (!run) break; put(0, run + 2); }
-      else if (!bits.read(1)) { const run = bits.read(2) + 4; put(bits.read(4), run); }
       else {
-        const kind = bits.read(2);
-        if (kind === 0) put(0, 1); else if (kind === 1) put(0, 2);
-        else if (kind === 2) { const run = bits.read(4) + 9; put(bits.read(4), run); }
-        else { const run = bits.read(8) + 25; put(bits.read(4), run); }
+        if (!bits.read(1)) { const run = bits.read(2) + 4; put(bits.read(4), run); }
+        else {
+          const kind = bits.read(2);
+          if (kind === 0) put(0, 1); else if (kind === 1) put(0, 2);
+          else if (kind === 2) { const run = bits.read(4) + 9; put(bits.read(4), run); }
+          else { const run = bits.read(8) + 25; put(bits.read(4), run); }
+        }
       }
     } else {
       const code = bits.read(2);
       if (code) { put(code, 1); continue; }
       if (bits.read(1)) { const run = bits.read(3) + 3; put(bits.read(2), run); }
-      else if (bits.read(1)) put(0, 1);
       else {
-        const kind = bits.read(2);
-        if (kind === 0) break;
-        if (kind === 1) put(0, 2);
-        else if (kind === 2) { const run = bits.read(4) + 12; put(bits.read(2), run); }
-        else { const run = bits.read(8) + 29; put(bits.read(2), run); }
+        if (bits.read(1)) put(0, 1);
+        else {
+          const kind = bits.read(2);
+          if (kind === 0) break;
+          if (kind === 1) put(0, 2);
+          else if (kind === 2) { const run = bits.read(4) + 12; put(bits.read(2), run); }
+          else { const run = bits.read(8) + 29; put(bits.read(2), run); }
+        }
       }
     }
   }

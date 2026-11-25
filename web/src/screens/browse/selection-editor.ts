@@ -45,7 +45,7 @@ export function editorPreviewRequest(target: BrowseTarget): BulkMetadataPreviewR
   return catalogueSelectionPreviewRequest(target.displayItems.map(pick => pick.item));
 }
 
-export function createSelectionEditor({api, events, requestId, isCurrent, serverId, signal: lifetime}: SelectionEditorOptions) {
+export function createSelectionEditor({api, requestId, isCurrent, serverId, signal: lifetime}: SelectionEditorOptions) {
   // J-12 (walk, 2 Nov): each answer is checked against the fence its own domain issues, never another surface's. The
   // bulk preview issues the editing fence and every later bulk answer must match it; the metadata reads that name an
   // aggregate's title must match each other. The page's own Home fence exists only while Home is the current document,

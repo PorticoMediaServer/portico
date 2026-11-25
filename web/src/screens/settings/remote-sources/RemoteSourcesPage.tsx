@@ -211,17 +211,50 @@ export function AddSourceDialog({api, open, returnFocusRef, isCurrent, onClose, 
 /** The preset and its limits (rules 11, 12): choosing a preset starts its limits, which stay editable. */
 function ReadingFields({name, preset, limits, disabled, onPreset, onLimits}: Readonly<{name: string; preset: RemotePreset; limits: RemoteLimits; disabled: boolean;
   onPreset: (preset: RemotePreset) => void; onLimits: (limits: RemoteLimits) => void}>) {
-  const number = (value: string, fallback: number) => {const parsed = Number.parseInt(value, 10); return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;};
+  const [connectionsDraft, setConnectionsDraft] = useState(String(limits.connections));
+  const [perSecondDraft, setPerSecondDraft] = useState(String(limits.perSecond));
+  const lastCommitted = useRef(limits);
+  useEffect(() => {
+    if (lastCommitted.current.connections !== limits.connections) setConnectionsDraft(String(limits.connections));
+    if (lastCommitted.current.perSecond !== limits.perSecond) setPerSecondDraft(String(limits.perSecond));
+    lastCommitted.current = limits;
+  }, [limits]);
+  const parsePositiveInt = (value: string): number | undefined => {
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) return undefined;
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+  };
   return <div className={styles.fields}>
     <RadioGroup.Root className={styles.whatCards} aria-label={t('next.remoteSources.howTreated')} value={preset} disabled={disabled} onValueChange={value => onPreset(value as RemotePreset)}>
       {remotePresets.map(option => <RadioGroup.Item key={option.id} value={option.id} className={styles.whatCard} data-picked={preset === option.id || undefined}>
         <span className={styles.choiceRadio} aria-hidden="true"/><b>{t(presetLabel(option.id))}</b></RadioGroup.Item>)}
     </RadioGroup.Root>
-    <TextField label={t('next.remoteSources.connections')} inputMode="numeric" value={String(limits.connections)} disabled={disabled}
-      onChange={event => onLimits({...limits, connections: number(event.currentTarget.value, limits.connections)})}/>
+    <TextField label={t('next.remoteSources.connections')} inputMode="numeric" value={connectionsDraft} disabled={disabled}
+      onChange={event => {
+        const next = event.currentTarget.value;
+        setConnectionsDraft(next);
+        const parsed = parsePositiveInt(next);
+        if (parsed !== undefined) {
+          const updated = {...limits, connections: parsed};
+          lastCommitted.current = updated;
+          onLimits(updated);
+        }
+      }}
+      onBlur={() => {if (parsePositiveInt(connectionsDraft) === undefined) setConnectionsDraft(String(limits.connections));}}/>
     <p className={styles.muted}>{t('next.remoteSources.connectionsHelp', {name})}</p>
-    <TextField label={t('next.remoteSources.perSecond')} inputMode="numeric" value={String(limits.perSecond)} disabled={disabled}
-      onChange={event => onLimits({...limits, perSecond: number(event.currentTarget.value, limits.perSecond)})}/>
+    <TextField label={t('next.remoteSources.perSecond')} inputMode="numeric" value={perSecondDraft} disabled={disabled}
+      onChange={event => {
+        const next = event.currentTarget.value;
+        setPerSecondDraft(next);
+        const parsed = parsePositiveInt(next);
+        if (parsed !== undefined) {
+          const updated = {...limits, perSecond: parsed};
+          lastCommitted.current = updated;
+          onLimits(updated);
+        }
+      }}
+      onBlur={() => {if (parsePositiveInt(perSecondDraft) === undefined) setPerSecondDraft(String(limits.perSecond));}}/>
   </div>;
 }
 
@@ -230,36 +263,55 @@ function FolderStep({api, source, isCurrent, onDone}: Readonly<{api: ServerReque
   const [path, setPath] = useState(''), [folders, setFolders] = useState<readonly RemoteFolder[]>(), [libraries, setLibraries] = useState<readonly AdminLibrary[]>([]);
   const [target, setTarget] = useState(''), [newName, setNewName] = useState(source.name), [newKind, setNewKind] = useState('movies');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const addRequest = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => {addRequest.current?.abort();}, []);
   useEffect(() => {
+    const controller = new AbortController();
     setFolders(undefined);
-    void remoteSourceFolders(api, source.id, path).then(list => {if (isCurrent()) setFolders(list);}, failure => {if (isCurrent()) setError(remoteErrorText(failure));});
+    setError('');
+    void remoteSourceFolders(api, source.id, path, controller.signal).then(
+      list => {if (!controller.signal.aborted && isCurrent()) setFolders(list);},
+      failure => {if (!controller.signal.aborted && isCurrent()) setError(remoteErrorText(failure));},
+    );
+    return () => {controller.abort();};
     // isCurrent is read when the answer arrives; a new one each render must not read again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, source.id, path]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {void listAdminLibraries(api).then(list => {if (isCurrent()) setLibraries(list);}, () => {});}, [api]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void listAdminLibraries(api, controller.signal).then(
+      list => {if (!controller.signal.aborted && isCurrent()) setLibraries(list);},
+      () => {},
+    );
+    return () => {controller.abort();};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
   const add = () => {
     if (busy) return;
+    addRequest.current?.abort();
+    const controller = new AbortController();
+    addRequest.current = controller;
     setBusy(true); setError('');
     const folder = {source: source.id, path};
-    void (target ? addRemoteFolderToLibrary(api, target, folder) : createLibraryOnRemoteFolder(api, {name: newName, kind: newKind}, folder))
-      .then(() => {if (isCurrent()) onDone();}, failure => {if (isCurrent()) setError(remoteErrorText(failure));}).finally(() => {if (isCurrent()) setBusy(false);});
+    void (target ? addRemoteFolderToLibrary(api, target, folder, controller.signal) : createLibraryOnRemoteFolder(api, {name: newName, kind: newKind}, folder, controller.signal))
+      .then(() => {if (!controller.signal.aborted && isCurrent()) onDone();}, failure => {if (!controller.signal.aborted && isCurrent()) setError(remoteErrorText(failure));})
+      .finally(() => {if (addRequest.current === controller) addRequest.current = undefined; if (!controller.signal.aborted && isCurrent()) setBusy(false);});
   };
   const up = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
   return <div className={styles.fields}>
     {error && <p className={styles.error} role="alert">{error}</p>}
     <p className={styles.muted}>{t('next.remoteSources.foldersNote')}</p>
     <p><b>{t('next.remoteSources.folderPath')}</b> /{path}</p>
-    {path && <Button size="xs" variant="text" onClick={() => setPath(up)}>{t('next.remoteSources.back')}</Button>}
+    {path && <Button size="xs" variant="text" onClick={() => {setError(''); setPath(up);}}>{t('next.remoteSources.back')}</Button>}
     {folders === undefined && !error && <p className={styles.muted} role="status">{t('next.remoteSources.folderListing')}</p>}
-    {folders?.map(folder => <Button key={folder.path} size="small" variant="glass" icon="i-folder" onClick={() => setPath(folder.path)}>{folder.name}</Button>)}
-    <RadioGroup.Root className={styles.remoteKinds} aria-label={t('next.remoteSources.foldersSection')} value={target} onValueChange={setTarget}>
+    {folders?.map(folder => <Button key={folder.path} size="small" variant="glass" icon="i-folder" onClick={() => {setError(''); setPath(folder.path);}}>{folder.name}</Button>)}
+    <RadioGroup.Root className={styles.remoteKinds} aria-label={t('next.remoteSources.foldersSection')} value={target} onValueChange={value => {setError(''); setTarget(value);}}>
       {libraries.map(library => <RadioGroup.Item key={library.id} value={library.id} className={styles.whatCard} data-picked={target === library.id || undefined}>
         <span className={styles.choiceRadio} aria-hidden="true"/><b>{library.name}</b></RadioGroup.Item>)}
       <RadioGroup.Item value="" className={styles.whatCard} data-picked={target === '' || undefined}><span className={styles.choiceRadio} aria-hidden="true"/><b>{t('next.remoteSources.newLibrary')}</b></RadioGroup.Item>
     </RadioGroup.Root>
-    {!target && <><TextField label={t('next.remoteSources.libraryName')} value={newName} onChange={event => setNewName(event.currentTarget.value)}/>
-      <RadioGroup.Root className={styles.remoteKinds} aria-label={t('next.remoteSources.libraryKind')} value={newKind} onValueChange={setNewKind}>
+    {!target && <><TextField label={t('next.remoteSources.libraryName')} value={newName} onChange={event => {setError(''); setNewName(event.currentTarget.value);}}/>
+      <RadioGroup.Root className={styles.remoteKinds} aria-label={t('next.remoteSources.libraryKind')} value={newKind} onValueChange={value => {setError(''); setNewKind(value);}}>
         {(['movies', 'shows', 'anime', 'music', 'audiobooks', 'books', 'comics'] as const).map((kind, index) => <RadioGroup.Item key={kind} value={kind} className={styles.whatCard} data-picked={newKind === kind || undefined}>
           <span className={styles.choiceRadio} aria-hidden="true"/><b>{t(`next.settingsSpec.server.libraries.panels.newLibrary.tabs.0.groups.0.rows.1.control.options.${index}.label` as MessageId)}</b></RadioGroup.Item>)}
       </RadioGroup.Root></>}

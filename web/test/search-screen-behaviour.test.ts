@@ -305,3 +305,13 @@ test('a typed query does not load idle initial genre or On now collections', asy
   const f = await mount(context, {text: 'harbor', liveAvailable: true, genres: {phase: 'idle', genres: []}, onNow: {phase: 'idle', cards: [], sourceNames: []}});
   assert.equal(f.calls.some(call => ['genres', 'onNow'].includes(call.name)), false);
 });
+
+test('fast Enter syncs the URL query immediately without waiting for or duplicating the debounce timer', async context => {
+  const f = await mount(context, {text: 'harbor'});
+  one(f.flat(), 'TextField').props.onChange({currentTarget: {value: 'dune'}}); f.flat();
+  one(f.flat(), 'form').props.onSubmit({preventDefault() {}});
+  assert.deepEqual(f.calls.filter(call => call.name === 'settle').map(call => call.args[0]), [{q: 'dune'}]);
+  assert.deepEqual(selects(f).map((call: any) => call.args), [['dune', {record: true}]]);
+  context.mock.timers.tick(260); await f.settle();
+  assert.equal(selects(f).length, 1, 'debounced timer is cancelled after explicit Enter submit');
+});

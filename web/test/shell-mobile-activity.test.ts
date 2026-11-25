@@ -53,7 +53,7 @@ function identity(role: string): ShellIdentity {
 function render(role: string, width = 390, pathname = '/') {
   Object.assign(state, {width, pathname, menus: [], navigated: []});
   let mounts = 0;
-  const html = renderToStaticMarkup(createElement(Shell, {identity: identity(role), OwnerActivity: () => { mounts++; return createElement('span', {}, 'Owner-only reads'); }, dockVisible: false, onSignOut() {}, children: null}));
+  const html = renderToStaticMarkup(createElement(Shell, {identity: identity(role), OwnerActivity: () => { mounts++; return createElement('span', {}, 'Owner-only reads'); }, dockVisible: false, onSignOut() {}}, null));
   return {html, mounts, menu: state.menus[0]};
 }
 function elements(node: ReactNode): ReactElement<{children?: ReactNode}>[] {
@@ -124,12 +124,14 @@ test('compact Home keeps its account action and tab navigation without a private
   assert.match(html, /<nav[^>]*class="tabbar"[^>]*>.*href="\/search".*>Libraries<\/span>.*href="\/saved"/s);
   assert.doesNotMatch(html, /phoneActivity|i-activity|aria-label="Server activity"|data-nav-activity|Owner-only reads/);
 });
-test('desktop retains only its existing real owner Activity component and non-Home mobile routes add no header glyph', () => {
+test('desktop retains only its existing real owner Activity component and non-Home mobile routes keep the account menu without an Activity glyph', () => {
   assert.equal(render('owner', 1024).mounts, 1);
   for (const role of ['admin', 'administrator', 'member']) assert.equal(render(role, 1440).mounts, 0);
   for (const path of ['/search', '/libraries', '/dashboard']) {
     const {html, mounts} = render('owner', 390, path);
-    assert.equal(mounts, 0); assert.doesNotMatch(html, /phoneHeader|phoneActivity|i-activity/);
+    assert.equal(mounts, 0);
+    assert.doesNotMatch(html, /phoneActivity|i-activity/);
+    assert.match(html, /class="phoneHeader".*aria-label="Actual profile, account menu"/s);
   }
 });
 test('E-web-21: the switcher names the main profile as the Main profile to assistive tech, and only that profile', () => {

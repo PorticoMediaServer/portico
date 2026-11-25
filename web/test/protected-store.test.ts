@@ -142,3 +142,28 @@ test('encrypted-only pending vault cannot downgrade to HTTP plaintext storage', 
   await assert.rejects(async () => store.change(() => ({pending: 'never-written'})), {code: 'secure_context_required'});
   assert.equal(db.data.size, 0);
 });
+
+test('vault writes succeed when IDBTransaction.durability is undefined (Firefox 113-125) and still refuse relaxed durability', async t => {
+  const {db, store} = await vault(t);
+  let reportedDurability: string | undefined = undefined;
+  const open = db.indexedDB.open;
+  db.indexedDB.open = () => {
+    const r = open();
+    const wrap = () => {
+      const database = r.result;
+      const transaction = database.transaction;
+      database.transaction = (name: string, mode: string, options?: {durability?: string}) => {
+        const tx = transaction(name, mode, options);
+        tx.durability = reportedDurability;
+        return tx;
+      };
+    };
+    return new Proxy(r, {set: (target, key, value) => { target[key] = key === 'onsuccess' ? () => { wrap(); value(); } : value; return true; }});
+  };
+  await store.change(() => record('firefox-115'));
+  assert.deepEqual(await store.read(), record('firefox-115'));
+  reportedDurability = 'relaxed';
+  await assert.rejects(store.change(() => record('downgraded')));
+  reportedDurability = undefined;
+  assert.deepEqual(await store.read(), record('firefox-115'));
+});
