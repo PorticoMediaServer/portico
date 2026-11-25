@@ -75,27 +75,42 @@ export function useHome({runtime, authority, active = true, heroObscured = false
     try {return sameAuthority(authority, runtime.getSnapshot().authority);}
     catch (error) {if (error instanceof Error && error.name === 'AbortError') return false; throw error;}
   }, [authority, runtime]);
-  const readLibraries = new Set(runtime.getSnapshot().libraries.filter(library => library.kind === 'books').map(library => library.id));
-  const rows = document ? platformRows(document, 'phone', readLibraries).filter(homeRowHasContent) : [];
+  const libraries = runtime.getSnapshot().libraries;
+  const readLibraryKey = JSON.stringify(libraries.filter(library => library.kind === 'books').map(library => library.id));
+  const readLibraries = useMemo(() => new Set(JSON.parse(readLibraryKey) as string[]), [readLibraryKey]);
+  const platformHomeRows = useMemo(() => document ? platformRows(document, 'phone', readLibraries) : [], [document, readLibraries]);
+  const rows = useMemo(() => platformHomeRows.filter(homeRowHasContent), [platformHomeRows]);
   // The server publishes every row as a deferred descriptor with its real title and shape; a row whose preview has not
   // arrived yet is drawn as a bounded skeleton (no card, count or focus target).
-  const pendingRows = document ? platformRows(document, 'phone', readLibraries).filter(row => row.deferred === true && !homeRowHasContent(row)).slice(0, 2) : [];
+  const pendingRows = useMemo(() => platformHomeRows.filter(row => row.deferred === true && !homeRowHasContent(row)).slice(0, 2), [platformHomeRows]);
   const layoutKey = `${width}:${height}:${dimensions.fontScale}:${theme.textScale}:${cardScale}`;
-  const models = rows.map(row => {
+  const layoutKeyRef = useRef(layoutKey);
+  layoutKeyRef.current = layoutKey;
+  const baseModels = useMemo(() => rows.map(row => {
     const presentation = homeRowPresentation(row);
     const metrics = homeRowMetrics(theme, row, {ranked: presentation.cards.some(card => card.rank !== undefined), cardScale});
-    return {row, presentation, ...metrics, slotHeight: measured.layout === layoutKey ? measured.boxes.get(row.id)?.height ?? metrics.estimate : metrics.estimate};
-  });
+    const title = serverTextLabel(labels, presentation.title);
+    const subtitle = serverTextLabel(labels, presentation.subtitle) || undefined;
+    return {row, presentation, title, subtitle, ...metrics};
+  }), [cardScale, labels, rows, theme]);
+  const models = useMemo(() => baseModels.map(model => ({
+    ...model,
+    slotHeight: measured.layout === layoutKey ? measured.boxes.get(model.row.id)?.height ?? model.estimate : model.estimate,
+  })), [baseModels, layoutKey, measured]);
+  const modelsById = useMemo(() => new Map(models.map(model => [model.row.id, model])), [models]);
+  const sourceById = useMemo(() => new Map((document?.rows ?? []).map(row => [row.id, row])), [document]);
   const noHero = !document?.spotlight.length;
   const heroBlock = noHero ? phoneHeaderGeometry(insets.top, false).height : heroHeight;
-  let rowY = rowsTop ?? heroBlock;
-  const boxes: readonly HomeRowBox[] = models.map(({row, slotHeight, gap}) => {
-    rowY += gap;
-    const box = measured.layout === layoutKey ? measured.boxes.get(row.id) : undefined;
-    const placed = {id: row.id, y: box ? box.y + (rowsTop ?? 0) : rowY, height: slotHeight};
-    rowY = placed.y + slotHeight;
-    return placed;
-  });
+  const boxes: readonly HomeRowBox[] = useMemo(() => {
+    let rowY = rowsTop ?? heroBlock;
+    return models.map(({row, slotHeight, gap}) => {
+      rowY += gap;
+      const box = measured.layout === layoutKey ? measured.boxes.get(row.id) : undefined;
+      const placed = {id: row.id, y: box ? box.y + (rowsTop ?? 0) : rowY, height: slotHeight};
+      rowY = placed.y + slotHeight;
+      return placed;
+    });
+  }, [heroBlock, layoutKey, measured, models, rowsTop]);
   const boxesRef = useRef(boxes), scrollBoxes = useSharedValue<readonly HomeRowBox[]>([]), reportedRange = useSharedValue('');
   boxesRef.current = boxes;
   const mounted = homeMountedRows(rows.length, visibleRange[0], visibleRange[1], []);
@@ -157,10 +172,19 @@ export function useHome({runtime, authority, active = true, heroObscured = false
     reason: serverTextLabel(labels, model.reason.text), facts: homeTitleFactParts(model.entry, runtime.text),
     target: model.primary?.entry, primaryLabel: model.primary ? t(model.primary.label.key, model.primary.label.params) : undefined,
   })) : [], [document, form, runtime.text, labels, t]);
-  const guarded = (run: () => void) => {if (current()) run();};
+  const guarded = useCallback((run: () => void) => {if (current()) run();}, [current]);
+  const makeSeeAll = useCallback((row: HomeRow, title: string) => row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined, [guarded, runtime]);
+  const rowHandlers = useRef(new Map<string, {
+    onLayout: ViewProps['onLayout'];
+    rangeDeps?: readonly [HomeRow, HomeRow | undefined, number, boolean, typeof current, NativeShellRuntime];
+    onRange?: (first: number, last: number) => void;
+    onVisibleKeys?: (keys: readonly string[]) => void;
+    seeAllDeps?: readonly [HomeRow['seeAll'], string, typeof makeSeeAll];
+    seeAll?: () => void;
+  }>());
 
   return {
-    theme, t, labels, ids, cardFocusId, width, current, document, rows, pendingRows, librariesUnavailable, loadingElapsed, cachedAtMount: cachedAtMount.current,
+    theme, t, labels, ids, cardFocusId, width, current, document, rows, pendingRows, models, boxes, librariesUnavailable, loadingElapsed, cachedAtMount: cachedAtMount.current,
     visible: active && foreground, showBackdrops, heroHeight, heroBlock, noHero, heroActive, heroVisible: active && foreground && heroVisible,
     candidates, activeIndex, setActiveIndex, mixesReady: mixes?.phase === 'ready' && mixes.rows.length > 0,
     error: snapshot.error,
@@ -187,37 +211,58 @@ export function useHome({runtime, authority, active = true, heroObscured = false
     },
     liveCardWidth: theme.spec.card.live.width.phone,
     customize: () => guarded(runtime.actions.customize),
-    seeAll: (row: HomeRow, title: string) => row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined,
-    rowTitle: (row: HomeRow) => serverTextLabel(labels, homeRowPresentation(row).title),
-    rowSubtitle: (row: HomeRow) => serverTextLabel(labels, homeRowPresentation(row).subtitle),
+    seeAll: makeSeeAll,
+    rowTitle: (row: HomeRow) => modelsById.get(row.id)?.title ?? serverTextLabel(labels, homeRowPresentation(row).title),
+    rowSubtitle: (row: HomeRow) => {
+      const cached = modelsById.get(row.id);
+      return cached ? cached.subtitle ?? '' : serverTextLabel(labels, homeRowPresentation(row).subtitle);
+    },
     /** One drawn row: whether it is mounted and on screen, its card sizes, the frame's measured box and its window. */
     row: (index: number) => {
-      const model = models[index]!, {row} = model, source = document?.rows.find(value => value.id === row.id);
+      const model = models[index]!, {row, title} = model, source = sourceById.get(row.id);
       const shown = active && foreground && (visibleRows.has(row.id) || !rowPositions.current.has(row.id) && index === 0);
       let scrollMemory = shelfOffsets.get(row.id);
       if (!scrollMemory) {scrollMemory = {offset: 0}; shelfOffsets.set(row.id, scrollMemory);}
-      const onRange = (first: number, last: number) => {
-        if (!current() || !source) return;
-        const keys = ranges.current.get(row.id)?.keys; ranges.current.set(row.id, {first, last, keys});
-        runtime.setHomeWindow(source, index, first, last, shown, undefined, undefined, keys);
-        if (shown && pageAtVisibleEnd(row, last, 3)) void runtime.home.more(row.id);
-      };
-      const onVisibleKeys = (keys: readonly string[]) => {
-        if (!current() || !source) return;
-        const before = ranges.current.get(row.id) ?? {first: 0, last: -1};
-        ranges.current.set(row.id, {...before, keys}); runtime.setHomeWindow(source, index, before.first, before.last, shown, undefined, undefined, keys);
-      };
-      const onLayout: ViewProps['onLayout'] = event => {
-        const box = event.nativeEvent.layout;
-        rowPositions.current.set(row.id, box);
-        setMeasured(before => {
-          const at = before.layout === layoutKey ? before.boxes.get(row.id) : undefined;
-          if (at?.y === box.y && at.height === box.height) return before;
-          const next = new Map(before.layout === layoutKey ? before.boxes : []); next.set(row.id, {y: box.y, height: box.height});
-          return {layout: layoutKey, boxes: next};
-        });
-      };
-      return {...model, source, mounted: mounted.has(index), shown, scrollMemory, onRange, onVisibleKeys, onLayout};
+      let handlers = rowHandlers.current.get(row.id);
+      if (!handlers) {
+        const rowId = row.id;
+        handlers = {
+          onLayout: event => {
+            const box = event.nativeEvent.layout;
+            rowPositions.current.set(rowId, box);
+            const activeLayoutKey = layoutKeyRef.current;
+            setMeasured(before => {
+              const at = before.layout === activeLayoutKey ? before.boxes.get(rowId) : undefined;
+              if (at?.y === box.y && at.height === box.height) return before;
+              const next = new Map(before.layout === activeLayoutKey ? before.boxes : []); next.set(rowId, {y: box.y, height: box.height});
+              return {layout: activeLayoutKey, boxes: next};
+            });
+          },
+        };
+        rowHandlers.current.set(row.id, handlers);
+      }
+      const rangeDeps = [row, source, index, shown, current, runtime] as const;
+      if (!handlers.rangeDeps || rangeDeps.some((value, at) => !Object.is(value, handlers!.rangeDeps![at]))) {
+        handlers.rangeDeps = rangeDeps;
+        handlers.onRange = (first: number, last: number) => {
+          if (!current() || !source) return;
+          const keys = ranges.current.get(row.id)?.keys; ranges.current.set(row.id, {first, last, keys});
+          runtime.setHomeWindow(source, index, first, last, shown, undefined, undefined, keys);
+          if (shown && pageAtVisibleEnd(row, last, 3)) void runtime.home.more(row.id);
+        };
+        handlers.onVisibleKeys = (keys: readonly string[]) => {
+          if (!current() || !source) return;
+          const before = ranges.current.get(row.id) ?? {first: 0, last: -1};
+          ranges.current.set(row.id, {...before, keys}); runtime.setHomeWindow(source, index, before.first, before.last, shown, undefined, undefined, keys);
+        };
+      }
+      const seeAllDeps = [row.seeAll, title, makeSeeAll] as const;
+      if (!handlers.seeAllDeps || seeAllDeps.some((value, at) => !Object.is(value, handlers!.seeAllDeps![at]))) {
+        handlers.seeAllDeps = seeAllDeps;
+        handlers.seeAll = makeSeeAll(row, title);
+      }
+      return {...model, source, mounted: mounted.has(index), shown, scrollMemory, seeAll: handlers.seeAll,
+        onRange: handlers.onRange!, onVisibleKeys: handlers.onVisibleKeys!, onLayout: handlers.onLayout};
     },
     setRowsTop,
     /** The frame's scroller: the row window's scroll handler and offset, pull to refresh, and room for the tab bar. */

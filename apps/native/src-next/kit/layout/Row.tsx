@@ -102,10 +102,11 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
   const publishOffset = useCallback((value: number) => {if (scrollMemory) scrollMemory.offset = value; setOffset(value);}, [scrollMemory]);
   const registry = useOptionalFocusRegistry();
   const regionId = focus?.id;
-  const subscribe = useCallback((listener: () => void) => regionId && registry ? registry.subscribeRegion(regionId, listener) : () => {}, [regionId, registry]);
-  const getSnapshot = useCallback(() => regionId && registry ? registry.regionSnapshot(regionId) : 0, [regionId, registry]);
-  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const owned = focus ? !!registry?.isRegionActive(focus.id) : focused !== undefined;
+  const trackFocusRegion = theme.isTV && !!regionId && !!registry;
+  const subscribe = useCallback((listener: () => void) => trackFocusRegion ? registry.subscribeRegion(regionId, listener) : noop, [regionId, registry, trackFocusRegion]);
+  const getSnapshot = useCallback(() => trackFocusRegion ? registry.regionSnapshot(regionId) : 0, [regionId, registry, trackFocusRegion]);
+  useSyncExternalStore(trackFocusRegion ? subscribe : noSubscription, trackFocusRegion ? getSnapshot : zeroSnapshot, trackFocusRegion ? getSnapshot : zeroSnapshot);
+  const owned = theme.isTV && focus ? !!registry?.isRegionActive(focus.id) : focused !== undefined;
   const previous = useRef<{regionId?: string; index: ReturnType<typeof indexRowSlots<T>>} | undefined>(undefined);
   const fulfilledId = paging?.fulfilled?.waitingId, fulfilledItem = paging?.fulfilled?.firstItemId;
   const waitingId = paging?.waitingId, waitingItem = paging?.waitingItem, hasMore = paging?.hasMore, failed = paging?.failed;
@@ -297,5 +298,7 @@ function RowRegion({focus, order, entry, enabled, children}: {focus?: RowProps<u
   return focus ? <FocusRegion {...focus} orientation="horizontal" order={order} entry={entry ?? order[0]} {...(enabled === false ? {enabled: false} : {})}>{children}</FocusRegion> : <>{children}</>;
 }
 const noop = () => {};
+const noSubscription = () => noop;
+const zeroSnapshot = () => 0;
 export type {RowPage} from './row-state';
 export {Row as Shelf};

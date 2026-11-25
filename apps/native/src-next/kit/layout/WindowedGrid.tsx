@@ -151,11 +151,20 @@ function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativ
   }, [collection, columns, getKey, height, initialIndex, measuredOffset, moveAnchor, onScrollOffset, paddingTop, snapshot.generation, stickyOffset, stride, total, viewport.height, viewport.width]);
   const reported = useSharedValue('');
   const scrollOffset = anchor.offset;
+  const reportScroll = useCallback((y: number) => {
+    setScroll(y);
+    onScrollOffset?.(y);
+  }, [onScrollOffset]);
+  const reportOffsetEnd = useCallback((event: {nativeEvent: {contentOffset: {y: number}}}) => {
+    const y = event.nativeEvent.contentOffset.y;
+    scrollOffset.value = y;
+    onScrollOffset?.(y);
+  }, [onScrollOffset, scrollOffset]);
   const onScroll = useAnimatedScrollHandler(event => {
-    scrollOffset.value = event.contentOffset.y;
-    if (onScrollOffset) runOnJS(onScrollOffset)(event.contentOffset.y);
-    const y = event.contentOffset.y, next = `${Math.floor((y + stickyOffset - paddingTop) / stride)}:${Math.ceil((y + viewport.height - paddingTop) / stride)}`;
-    if (reported.value !== next) {reported.value = next; runOnJS(setScroll)(y);}
+    const y = event.contentOffset.y;
+    scrollOffset.value = y;
+    const next = `${Math.floor((y + stickyOffset - paddingTop) / stride)}:${Math.ceil((y + viewport.height - paddingTop) / stride)}`;
+    if (reported.value !== next) {reported.value = next; runOnJS(reportScroll)(y);}
   });
   const indices: number[] = [];
   for (let index = firstMounted; index <= lastMounted; index++) indices.push(index);
@@ -171,6 +180,8 @@ function Grid<T>({collection, getKey, renderItem, renderPlaceholder, renderNativ
   return <Animated.ScrollView ref={anchor.scrollRef} testID={testID} style={[style, ringRoom ? {marginTop: -ringRoom} : undefined, anchor.scrollStyle]} refreshControl={theme.isTV ? undefined : refreshControl}
     stickyHeaderIndices={stickyHeader ? [header ? 1 : 0] : undefined}
     onLayout={event => {captureBeforeLayout(); setViewport(event.nativeEvent.layout);}} onScroll={onScroll} scrollEventThrottle={16}
+    onScrollEndDrag={onScrollOffset ? reportOffsetEnd : undefined}
+    onMomentumScrollEnd={onScrollOffset ? reportOffsetEnd : undefined}
     onScrollBeginDrag={anchor.stop} onTouchStart={anchor.stop} scrollAnimationEnabled={false} removeClippedSubviews={false}>
     {header && <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>{header}</View>}
     {stickyHeader && <View onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>{stickyHeader}</View>}

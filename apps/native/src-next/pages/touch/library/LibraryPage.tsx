@@ -65,12 +65,12 @@ function LibraryCatalogue(props: LibraryProps & {
     resultCount={undefined} resultTotal={grid.data.total} onQuickChange={destination.setQuick} onSortChange={grid.setSort} onReshuffle={grid.reshuffle}
     applied={grid.appliedChips} onRemoveFilter={grid.remove} onClearFilters={grid.clear}
     selection={grid.selected?.active && grid.selection?.render(path => path && <Artwork source={runtime.artwork(path)}/>)}
-    view={{value: grid.view.value, onValueChange: grid.onValueChange}}/>
+    view={grid.viewControl ?? {value: grid.view.value, onValueChange: grid.onValueChange}}/>
     {grid.data.status === 'error' && <StateView {...runtime.error(grid.data.error, destination.retry, 'library')}/>}</>;
   return <BrowseFrame testID="library-frame" header={header!} toolbar={toolbar} filters={filters}
     alphabet={alphabet && grid.data.positionIndex && grid.data.total !== undefined ? <AlphabetRail positionIndex={grid.data.positionIndex}
       total={grid.data.total} firstVisible={grid.range.first} lastVisible={grid.range.last} testID="library-alphabet"
-      onJump={index => grid.grid.current?.scrollToIndex(index)}/> : undefined}
+      onJump={grid.onJump}/> : undefined}
     grid={grid.filteredEmpty ? <FilteredEmpty onClearFilters={grid.clear}/> : <BrowseGrid key={grid.view.revision} gridRef={grid.grid}
       testID={list ? 'library-list' : 'library-grid'} shape={list ? 'list' : grid.shape} alphabet={alphabet}
       collection={grid.collection} getKey={nativeLibraryEntryKey} selection={grid.selected}

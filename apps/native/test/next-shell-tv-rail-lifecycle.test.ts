@@ -128,8 +128,12 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     await act(() => rail().props.onNavigate({kind: 'home'}));
     assert.deepEqual(navigations, [], 'OK on the current rail item does not recreate the destination');
     assert.deepEqual(tops, [{kind: 'home'}]);
-    await act(() => rail().props.onNavigate({kind: 'saved'}));
+    await act(() => {registry.didFocus({regionId: ids.rail, childId: 'saved'}); rail().props.onNavigate({kind: 'saved'});});
     assert.deepEqual(navigations, [{kind: 'saved'}]);
+    const beforeTimer = requests.length;
+    await act(async () => {snapshot = {...snapshot, destination: {kind: 'saved'}, homeVisible: false}; await sessionHost!.rerender(); t.mock.timers.tick(800);});
+    assert.equal(requests.length, beforeTimer, 'no 700ms enterNext timer hijacks focus after rail selection');
+    await act(async () => {snapshot = {...snapshot, destination: {kind: 'home'}, homeVisible: true}; await sessionHost!.rerender();});
     // The player opening over the page keeps the page's focus as the page layer's opener and gives it back on close.
     registry.didFocus(row);
     await act(async () => {snapshot = {...snapshot, mediaExpanded: true}; await sessionHost!.rerender();});

@@ -58,23 +58,46 @@ export function useLibrary(props: LibraryProps, tv = false) {
   const closeFilters = useCallback(() => {draft.current?.dispose();}, []);
   useEffect(() => closeFilters, [closeFilters, destination, state.tab.id]);
   useEffect(() => {if (!active.visible) closeFilters();}, [active.visible, closeFilters]);
-  const openFilters = () => {
+  const openFilters = useCallback(() => {
     closeFilters();
     const next = destination.createFilters();
     draft.current = next;
     setGeneration(value => value + 1);
     setFilters(next);
-  };
+  }, [closeFilters, destination]);
 
-  const choices = libraries.filter(library => !tv || !hiddenReadingLibraryOnTV(library.kind)).map(library => {
+  const choices = useMemo(() => libraries.filter(library => !tv || !hiddenReadingLibraryOnTV(library.kind)).map(library => {
     const summary = summaries.libraries.find(value => value.id === library.id)?.summary;
     return {id: library.id, name: library.name, count: summary && libraryCounts(summary.counts).map(part => part.text).join(' · ')};
-  });
+  }), [libraries, summaries.libraries, tv]);
   const artwork = summaries.libraries.find(library => library.id === state.library.id)?.summary.latestArtwork;
   const canSave = !!state.sort && nativeLibraryCanSave(state, {predicates: state.predicates, sort: state.sort});
-  const save = () => {
+  const save = useCallback(() => {
     if (state.sort && nativeLibraryCanSave(state, {predicates: state.predicates, sort: state.sort})) actions.saveView(destination, {predicates: state.predicates, sort: state.sort});
-  };
+  }, [actions, destination, state]);
+  const saveControl = useMemo(() => ({canSave, onSave: save}), [canSave, save]);
+  const retrySummaries = useCallback(() => {void directory.load().catch(runtime.reportError);}, [directory, runtime]);
+  const tabItems = useMemo(() => libraryTabs(state.library.kind).map(tab => ({value: tab.id, label: t(tab.label)})), [state.library.kind]);
+  const onTabChange = useCallback((id: string) => {
+    if (activation.getSnapshot().visible) void destination.load(id as LibraryTabId).catch(runtime.reportError);
+  }, [activation, destination, runtime]);
+  const tabs = useMemo(() => ({items: tabItems, value: state.tab.id, onValueChange: onTabChange}), [onTabChange, state.tab.id, tabItems]);
+  const onSeeAllProp = props.onSeeAll;
+  const rows = useMemo(() => state.discover.appended.filter(section => section.entries.length).map(section => {
+    const title = serverTextLabel(defaultI18n, section.heading);
+    const target: HomeSeeAll | undefined = section.seeAll && ('rowId' in section.seeAll
+      ? {type: 'row', rowId: section.seeAll.rowId, libraryId: state.library.id}
+      : {type: 'library', libraryId: state.library.id, ...section.seeAll});
+    // The row is as tall as the cards it draws: LibraryCard takes each card's shape from the shared rule (shapeFor), so a
+    // music row the server calls "poster" still draws square cards and must not reserve a poster's height.
+    const first = section.entries[0];
+    const drawn = first && shapeFor(first.kind, 'grid', state.library.kind as ShapeFamily) === 'square' && section.shape !== 'landscape' ? 'square' as const : section.shape;
+    return {...section, shape: drawn, title, onSeeAll: target && (() => {
+      if (activation.getSnapshot().visible) onSeeAllProp(target, title);
+    }), onVisibleRange: (_first: number, last: number) => {
+      if (activation.getSnapshot().visible && section.nextCursor && last >= section.entries.length - 10) void destination.nextDiscover(section.id).catch(runtime.reportError);
+    }};
+  }), [activation, destination, onSeeAllProp, runtime, state.discover.appended, state.library.id, state.library.kind]);
   const markAll = () => {
     const data = state.collection?.getSnapshot();
     if (data?.total === undefined || !actions.markAll) return;
@@ -101,28 +124,13 @@ export function useLibrary(props: LibraryProps, tv = false) {
     filters, generation, openFilters, emptyState,
     failure: state.phase === 'error' ? browseFailure(runtime.error(state.error, destination.retry, 'library')) : undefined,
     summaryError: summaries.phase === 'error',
-    retrySummaries: () => {void directory.load().catch(runtime.reportError);},
-    tabs: {items: libraryTabs(state.library.kind).map(tab => ({value: tab.id, label: t(tab.label)})), value: state.tab.id,
-      onValueChange: (id: string) => {if (activation.getSnapshot().visible) void destination.load(id as LibraryTabId).catch(runtime.reportError);}},
+    retrySummaries,
+    tabs,
     menu: tv ? undefined : {...runtime.libraryMenu(state.library), canSaveView: canSave,
       onSaveView: save, onMarkAll: actions.markAll && state.collection ? markAll : undefined,
       shareActions: shareLinkActions(runtime.shareScope?.(), 'library', {libraryId: state.library.id}, {notice: runtime.notice, report: runtime.reportError})},
-    save, canSave,
-    rows: state.discover.appended.filter(section => section.entries.length).map(section => {
-      const title = serverTextLabel(defaultI18n, section.heading);
-      const target: HomeSeeAll | undefined = section.seeAll && ('rowId' in section.seeAll
-        ? {type: 'row', rowId: section.seeAll.rowId, libraryId: state.library.id}
-        : {type: 'library', libraryId: state.library.id, ...section.seeAll});
-      // The row is as tall as the cards it draws: LibraryCard takes each card's shape from the shared rule (shapeFor), so a
-      // music row the server calls "poster" still draws square cards and must not reserve a poster's height.
-      const first = section.entries[0];
-      const drawn = first && shapeFor(first.kind, 'grid', state.library.kind as ShapeFamily) === 'square' && section.shape !== 'landscape' ? 'square' as const : section.shape;
-      return {...section, shape: drawn, title, onSeeAll: target && (() => {
-        if (activation.getSnapshot().visible) props.onSeeAll(target, title);
-      }), onVisibleRange: (_first: number, last: number) => {
-        if (activation.getSnapshot().visible && section.nextCursor && last >= section.entries.length - 10) void destination.nextDiscover(section.id).catch(runtime.reportError);
-      }};
-    }),
+    save, canSave, saveControl,
+    rows,
   };
 }
 
@@ -164,24 +172,49 @@ export function useLibraryGrid(props: NativeLibraryScreenProps, source: NativeLi
     offset.current = value;
     destination.remember(lastRange.current.first, value);
   }, [destination, view.revision]);
-  const onValueChange = (value: 'grid' | 'list') => {
-    if (!activation.getSnapshot().visible || view.value === value) return;
+  const viewValue = view.value;
+  const onValueChange = useCallback((value: 'grid' | 'list') => {
+    if (!activation.getSnapshot().visible || viewValue === value) return;
     offset.current = 0;
     setView({value, anchor: lastRange.current.first, revision: ++revision.current});
-  };
-  const model = browseToolbarModel(source.capabilities!, source.library.kind, source.predicates, source.sort!, {...runtime.text, owner, textEntry: !tv});
-  const base = source.tab.fixedFilter ?? [];
-  const filters = source.predicates.filter(node => !base.some(fixed => JSON.stringify(fixed) === JSON.stringify(node)));
-  const applied = model.applied.filter(node => filters.some(filter => JSON.stringify(node) === JSON.stringify(filter)));
-  const appliedChips = libraryAppliedFilters(applied, source.capabilities!, props.labels);
-  const shape = source.tab.shows === 'genres' ? 'genre' : ['music', 'audiobook'].includes(source.library.kind) ? 'square' : 'poster';
-  const clear = () => destination.setQuery(base as readonly BrowseNode[]);
-  const setSort = (sort: NonNullable<NativeLibrarySnapshot['sort']>) => destination.setQuery(source.predicates, sort);
-  return {grid, data, collection, selected, selection, refresh, range, view, onValueChange, onVisibleRange, onScrollOffset, top, offset,
-    initialIndex: view.revision ? view.anchor : initialIndex, hasAlphabet: libraryAlphabetRail(data.positionIndex, data.total, source.sort),
-    model: {...model, applied: filters}, appliedChips, shape: shape as 'genre' | 'square' | 'poster', clear, setSort,
-    remove: (id: string) => destination.setQuery(source.predicates.filter(node => JSON.stringify(node) !== id)),
-    reshuffle: () => setSort({...source.sort!, seed: Math.floor(Math.random() * 4294967296)}),
+  }, [activation, viewValue]);
+  const viewControl = useMemo(() => ({value: viewValue, onValueChange}), [onValueChange, viewValue]);
+  const onJump = useCallback((index: number) => grid.current?.scrollToIndex(index), []);
+  const {capabilities, predicates, sort} = source;
+  const libraryKind = source.library.kind;
+  const fixedFilter = source.tab.fixedFilter;
+  const runtimeText = runtime.text;
+  const labelsProp = props.labels;
+  const toolbarBase = useMemo(
+    () => browseToolbarModel(capabilities!, libraryKind, predicates, sort!, {...runtimeText, owner, textEntry: !tv}),
+    [capabilities, libraryKind, owner, predicates, runtimeText, sort, tv],
+  );
+  const filters = useMemo(() => {
+    const base = fixedFilter ?? [];
+    if (base.length === 0) return predicates;
+    const fixedKeys = new Set(base.map(fixed => JSON.stringify(fixed)));
+    return predicates.filter(node => !fixedKeys.has(JSON.stringify(node)));
+  }, [fixedFilter, predicates]);
+  const model = useMemo(() => ({...toolbarBase, applied: filters}), [filters, toolbarBase]);
+  const applied = useMemo(() => {
+    if (filters.length === 0) return [];
+    const filterKeys = new Set(filters.map(filter => JSON.stringify(filter)));
+    return toolbarBase.applied.filter(node => filterKeys.has(JSON.stringify(node)));
+  }, [filters, toolbarBase.applied]);
+  const appliedChips = useMemo(
+    () => libraryAppliedFilters(applied, capabilities!, labelsProp),
+    [applied, capabilities, labelsProp],
+  );
+  const shape = source.tab.shows === 'genres' ? 'genre' : ['music', 'audiobook'].includes(libraryKind) ? 'square' : 'poster';
+  const clear = useCallback(() => destination.setQuery((fixedFilter ?? []) as readonly BrowseNode[]), [destination, fixedFilter]);
+  const setSort = useCallback((nextSort: NonNullable<NativeLibrarySnapshot['sort']>) => destination.setQuery(predicates, nextSort), [destination, predicates]);
+  const remove = useCallback((id: string) => destination.setQuery(predicates.filter(node => JSON.stringify(node) !== id)), [destination, predicates]);
+  const reshuffle = useCallback(() => setSort({...sort!, seed: Math.floor(Math.random() * 4294967296)}), [setSort, sort]);
+  return {grid, data, collection, selected, selection, refresh, range, view, viewControl, onValueChange, onVisibleRange, onScrollOffset, onJump, top, offset,
+    initialIndex: view.revision ? view.anchor : initialIndex, hasAlphabet: libraryAlphabetRail(data.positionIndex, data.total, sort),
+    model, appliedChips, shape: shape as 'genre' | 'square' | 'poster', clear, setSort,
+    remove,
+    reshuffle,
     filteredEmpty: data.status === 'ready' && data.total === 0 && filters.length > 0,
   };
 }
@@ -230,23 +263,32 @@ export function useTVLibraryGrid(props: LibraryProps, view: ReturnType<typeof us
   const inViewKey = inView && nativeLibraryEntryKey(inView);
   const regionEntry = inViewKey ? registry.entityAddress(regionId, inViewKey)?.childId ?? inViewKey : address ? address.childId : undefined;
   const alphabetId = `${regionId}.alphabet`, alphabet = grid.hasAlphabet;
+  const toolbar = useMemo(
+    () => ({id: toolbarId, enabled: active.visible && !selected, edges: {left: ids.rail, up: tabs, down: applied ? appliedId : regionId}}),
+    [active.visible, applied, appliedId, ids.rail, regionId, selected, tabs, toolbarId],
+  );
+  const appliedRegion = useMemo(
+    () => ({id: appliedId, enabled: active.visible, edges: {left: ids.rail, up: toolbarId, down: regionId}}),
+    [active.visible, appliedId, ids.rail, regionId, toolbarId],
+  );
+  const onItemFocus = useCallback((item: ContentEntry, index: number) => {
+    if (!resource || !activation.getSnapshot().visible) return;
+    let memory = rememberedTVResource.get(runtime);
+    if (!memory) {memory = new Map(); rememberedTVResource.set(runtime, memory);}
+    memory.delete(regionId);
+    memory.set(regionId, {key: nativeLibraryEntryKey(item), index});
+    if (memory.size > 64) memory.delete(memory.keys().next().value!);
+  }, [activation, regionId, resource, runtime]);
   return {...grid,
     count: count && unfiltered ? view.t('title.shownOfTotal', {shown: defaultI18n.number(grid.data.total!), total: view.t(unfiltered.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: unfiltered.total, pivot: source.tab.pivot ?? 'other'})}) : count,
     initialIndex: restore ? startingIndex : grid.initialIndex,
-    toolbar: {id: toolbarId, enabled: active.visible && !selected, edges: {left: ids.rail, up: tabs, down: applied ? appliedId : regionId}},
-    applied: {id: appliedId, enabled: active.visible, edges: {left: ids.rail, up: toolbarId, down: regionId}},
+    toolbar,
+    applied: appliedRegion,
     region: {id: regionId, entry: regionEntry, enabled: active.visible,
       edges: {left: ids.rail, up: applied ? appliedId : toolbarId, ...alphabet ? {right: alphabetId} : {}}, screenStart: {regionId: toolbarId, childId: 'sort'}, count: grid.data.total},
     alphabet: alphabet ? {id: alphabetId, enabled: active.visible && !selected, edges: {left: regionId}} : undefined,
-    onJump: (index: number) => grid.grid.current?.scrollToIndex(index),
-    onItemFocus: (item: ContentEntry, index: number) => {
-      if (!resource || !activation.getSnapshot().visible) return;
-      let memory = rememberedTVResource.get(runtime);
-      if (!memory) {memory = new Map(); rememberedTVResource.set(runtime, memory);}
-      memory.delete(regionId);
-      memory.set(regionId, {key: nativeLibraryEntryKey(item), index});
-      if (memory.size > 64) memory.delete(memory.keys().next().value!);
-    },
+    onJump: grid.onJump,
+    onItemFocus,
   };
 }
 
