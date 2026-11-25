@@ -201,18 +201,21 @@ export class DestinationErrorBoundary extends Component<DestinationErrorProps, D
     this.mounted = true;
     // StrictMode's simulated unmount retires the first mount's token. The replay gets its own fresh
     // admission here, so the committed page is live while every closure captured before it stays dead.
+    // oxlint-disable-next-line react/no-did-mount-set-state
     if (this.state.failed && this.state.failure?.current !== true) this.setState({failed: true, failure: {current: true}});
   }
   componentWillUnmount() {
     // Synchronously retire the mounted opening. Props and state stay equal after unmount, so a saved
     // original Home or Retry must be refused by the mount flag and its dead failure token.
     this.mounted = false;
-    if (this.state.failure) this.state.failure.current = false;
+    const {failure} = this.state;
+    if (failure) failure.current = false;
   }
   componentDidCatch(_error: Error, _info: ErrorInfo) { /* The presenter is the report; nothing else is replaced. */ }
   componentDidUpdate(previous: DestinationErrorProps) {
     // A new witness is a new recovery lifetime: a same-href fresh entry, an actual entry change or
     // a scope replacement must not leave the failed destination latched.
+    // oxlint-disable-next-line react/no-did-update-set-state
     if (previous.witness !== this.props.witness && this.state.failed) this.setState({failed: false});
   }
   render() {

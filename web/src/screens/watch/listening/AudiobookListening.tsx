@@ -21,7 +21,7 @@ const t = defaultI18n.t;
 
 /** Authored audiobook view of an existing local host. It mounts no media,
  * service, timer or runtime. Source-bearing callbacks carry the drawn witness. */
-export function AudiobookListening({snapshot, title, subtitle, subtitleParts = [], cover, ambient, chapters, speedChoices, sleepChoices, sleepChoice, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
+export function AudiobookListening({snapshot, title, subtitleParts = [], cover, ambient, chapters, speedChoices, sleepChoices, sleepChoice, skips, phone = false, sourceLabel, onShowPanel,canPlayOn,
   onIntent, onSpeed, onSleep, onChapter, onChapterPage, onChapterRetry, onCollapse, aside, notice}: Readonly<{
   snapshot: WebPlaybackRuntimeSnapshot; title: string; subtitle: ReactNode;
   /** The byline as words, for the frame (the author, then who reads it). */ subtitleParts?: readonly string[]; cover?: ArtworkSource; ambient?: AmbientArtSource;

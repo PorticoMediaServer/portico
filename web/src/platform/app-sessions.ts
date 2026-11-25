@@ -8,7 +8,6 @@ import {rememberNativeSession, restoreNativeSession, type ConnectionEnvironment,
 import {browserAppSessions, browserConnectionEnvironment} from './server-connections';
 import {porticoAccountHolder} from './portico-account-holder';
 import {installationIdentity} from '@core/installation.ts';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 import {admitProfile, forgetTabServer} from './tab-session-gate';
 
 /** Browser account actions share the canonical protected record. The caller retires its mounted

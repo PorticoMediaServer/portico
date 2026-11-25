@@ -44,7 +44,7 @@ function PreviewDependents({preview, concise = false}: {preview: DeletePreview; 
 
 /** No destructive callback can fire without the actual preview and its exact typed confirmation. */
 export function DeleteMediaDialog(props: DeleteMediaDialogProps) {
-  const {owner, selectionCount, preview, confirmation, onConfirmationChange, removeFiles, onRemoveFilesChange, onDelete, busy = false, error, result, ownerTag, artwork, targetFacts, ...surface} = props;
+  const {owner, selectionCount, preview, confirmation, onConfirmationChange, removeFiles, onRemoveFilesChange: _onRemoveFilesChange, onDelete, busy = false, error, result, ownerTag, artwork, targetFacts, ...surface} = props;
   const input = useRef<HTMLInputElement | null>(null), phone = usePhone();
   if (!owner) return null;
   const target = preview?.targets[0], tooMany = selectionCount > 200;

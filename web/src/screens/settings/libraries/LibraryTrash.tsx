@@ -16,7 +16,7 @@ export function LibraryTrash({libraryId, api, isCurrent, label}: Readonly<{
   libraryId: string; api: ServerRequester; isCurrent: () => boolean; label: string;
 }>) {
   const [open, setOpen] = useState(false), [trash, setTrash] = useState<Trash>(), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false);
-  const [days, setDays] = useState(''), [confirming, setConfirming] = useState(false), [typed, setTyped] = useState(''), [removed, setRemoved] = useState<number>();
+  const [confirming, setConfirming] = useState(false), [typed, setTyped] = useState(''), [removed, setRemoved] = useState<number>();
   const lifetime = useRef<AbortController | undefined>(undefined);
   const live = (capture: AbortController | undefined): capture is AbortController => !!capture && lifetime.current === capture && !capture.signal.aborted && isCurrent();
   const load = async (capture: AbortController) => {

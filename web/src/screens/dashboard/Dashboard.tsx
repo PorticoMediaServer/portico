@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react';
+import {useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react';
 import {ApiError} from '@core/http.ts';
 import {dataFolderConfirmText} from '@core/admin/data-folder.ts';
 import {dashboardAlertWords} from '@core/admin/dashboard-alert-words.ts';

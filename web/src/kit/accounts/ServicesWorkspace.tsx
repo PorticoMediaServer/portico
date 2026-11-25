@@ -79,7 +79,7 @@ export function ServicesWorkspaceActions({children}: {children: ReactNode}) {
   const slots = useContext(WorkspaceSlots);
   return <>{slots.heading && createPortal(children, slots.heading)}{slots.phone && createPortal(children, slots.phone)}</>;
 }
-export function ServicesWorkspace({header, account, section, onSection, onSignOut, description, actions, phoneActions, unread = 0, shown, children}: {
+export function ServicesWorkspace({header, account, section, onSection, onSignOut, description, actions, phoneActions, shown, children}: {
   /** The sections this workspace offers; all of them when absent. */
   shown?: readonly ServicesSection[];
   header: ReactNode; account: {name: string; email?: string; initial: string}; section: ServicesSection;

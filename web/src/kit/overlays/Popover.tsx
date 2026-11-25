@@ -1,5 +1,5 @@
 import {useOverlayPortalTarget} from './portal-target';
-import {Fragment, createContext, forwardRef, useCallback, useContext, useId, useEffect, useLayoutEffect, useMemo, useRef, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode} from 'react';
+import {Fragment, createContext, forwardRef, useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode} from 'react';
 import {Popover as RadixPopover} from 'radix-ui';
 import {Icon, type IconName} from '../Icon';
 import {BottomSheet} from './BottomSheet';

@@ -9,7 +9,7 @@ import {titleFixtureMessages} from '../../../../packages/i18n/src/catalog/en-US/
 import {defineGalleryFamily, type GalleryCase} from '../gallery-registry';
 import {AmbientArt, ChannelMark} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
-import {CircleCard, EpisodeTile, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard, WideCard} from '../../kit/cards';
+import {CircleCard, EpisodeTile, GenreTile, LiveCard, PosterCard, QuickTile, ResumeCard, SquareCard} from '../../kit/cards';
 import {BrowseToolbar, LibraryMenu, LibrarySwitcher, SongRow} from '../../kit/browse';
 import {Button, Chip, Segmented, Switch, Tabs, TextField} from '../../kit/controls';
 import {RecordingStorage} from '../../kit/dvr/RecordingStorage';

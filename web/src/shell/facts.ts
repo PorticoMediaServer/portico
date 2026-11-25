@@ -11,7 +11,6 @@ import {parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
 import {fetchGuideSourceSummaries, type GuideSourceSummaries} from '@core/guide/directory.ts';
 import {notOnThisServer} from '@core/query/server-api.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 import type {ShellFacts} from './bootstrap';
 import {createShellFactsSource} from './fact-source';
 

@@ -68,7 +68,7 @@ const isCancelled = (failure: unknown) => failure instanceof DOMException && fai
  * signal and authority epoch before and after it settles. */
 export function createRecordingsController(input: RecordingsControllerOptions) {
   // Captured once: a later caller cannot swap the API, the server or the receipt source.
-  const {api: sourceApi, serverId, signal, isCurrent} = input;
+  const {api: sourceApi, signal, isCurrent} = input;
   const life = new AbortController();
   const listeners = new Set<() => void>();
   /** The one armed command: its mutation HTTP may only leave while this exact

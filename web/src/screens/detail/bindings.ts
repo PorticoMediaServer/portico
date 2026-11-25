@@ -1,5 +1,5 @@
 import {FileInfoSession} from '@core/file-info-session.ts';
-import {DetailService, readCreditPage, type DetailProjection, type DetailSnapshot, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
+import {DetailService, readCreditPage, type DetailProjection, type DetailTarget, type PersonalIntent} from '@core/detail.ts';
 import type {FileInfoFileRow} from '@core/file-info-pages.ts';
 import {readListeningSimilar} from '@core/library-content.ts';
 import type {ListeningViewerScope} from '@core/listening.ts';

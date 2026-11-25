@@ -12,7 +12,7 @@ import {SettingsGroup} from '../../../kit/settings/SettingsGroups';
 import {SettingsRow} from '../../../kit/shell/SettingsSurfaces';
 import {AuthCodeBoxes} from '../../../kit/accounts';
 import {HostedError, ServicesQuiet} from '../../../kit/accounts/ServicesAuth';
-import {ServicesAuthenticator, ServicesQuietLink, ServicesRecoveryCodes} from '../../../kit/accounts/ServicesWorkspace';
+import {ServicesAuthenticator, ServicesRecoveryCodes} from '../../../kit/accounts/ServicesWorkspace';
 import {browserAccountOrigin} from '../../../platform/account-origin';
 import {accountSecurityUIURL} from '../../../platform/account-security-policy';
 import {HostedSecurityAction} from './HostedSecurityAction';

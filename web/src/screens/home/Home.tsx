@@ -252,7 +252,6 @@ function HomeRowView({onNear, ...props}: HomeRowProps & {onNear: (rowId: string,
   return <div ref={interest.ref} className={styles.rowSlot} data-home-row={props.row.id} data-deferred={deferred || undefined}><HomeRowContents {...props} nowMs={props.row.live ? nowMs : props.nowMs} onRange={onRange} /></div>;
 }
 function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRange, focusScope, ...bindings}: HomeRowProps & {onRange: (first: number, last: number) => void}) {
-  const env = {t, locale: bindings.time.locale};
   const phone = platform !== 'desktop';
   // The On now row's drawn trailing link is "Guide", not "See all", and it stays visible
   // beside the heading instead of waiting for the row's hover (mock.html#home).
@@ -284,7 +283,7 @@ function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRang
   // A deferred row draws its heading and the shelf's one pending card until its titles arrive (HomeService.demand).
   if (!row.entries.length && !row.deferred) return null;
   return <PagedShelf {...header} focusScope={focusScope} items={row.entries} hasMore={!!row.nextCursor || !!row.deferred} continuation={row.nextCursor} onMore={row.deferred ? noMore : onMore} cardWidth={cardWidth} artworkRatio={books ? cardWidth / (180 * scale) : ranked ? cardWidth / ((platform === 'desktop' ? 255 : 174) * scale) : wide ? 16 / 9 : square ? 1 : 2 / 3} getKey={entry => entry.id} reducedMotion={bindings.reducedMotion} onVisibleRange={onRange}
-    renderItem={(entry, context) => books ? <VisibleBookCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} {...bindings} /> : <VisibleCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} platform={platform} layout={layout} {...bindings} />} />;
+    renderItem={(entry, context) => books ? <VisibleBookCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} {...bindings} /> : <VisibleCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} layout={layout} {...bindings} />} />;
 }
 
 function VisibleCollection({row, rowIndex, artwork, effects, selection, time, appearance}: HomePresentation & {row: HomeRow; rowIndex: number}) {
@@ -298,7 +297,7 @@ function VisibleCollection({row, rowIndex, artwork, effects, selection, time, ap
     actionLabel={t('next.home.openCollection')} actionVariant="glass" onAction={open} onNavigate={open} /></div>;
 }
 
-function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, effects, selection, time, appearance}: HomePresentation & {entry: ContentEntry; row: HomeRow; rowIndex: number; index: number; platform: LayoutPlatform; layout: ReturnType<typeof homeLayout>}) {
+function VisibleCard({entry, row, rowIndex, index, layout, artwork, effects, selection, time, appearance}: HomePresentation & {entry: ContentEntry; row: HomeRow; rowIndex: number; index: number; layout: ReturnType<typeof homeLayout>}) {
   const interest = useVisible(), wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
   const scale = cardScale(appearance), width = (wide ? layout.wide : square ? layout.square : layout.poster) * scale;
   const resume = row.resumes?.find(value => value.entryId === entry.id)?.target ?? entry;

@@ -1,6 +1,5 @@
 import {localPlaybackScope, sameLocalScope, type LocalPlaybackScope} from '../../../../packages/player-core/src/index.ts';
-import type {LocalPlayerLoadContext} from '@core/playback-v1/local-port.ts';
-import {captureLocalQueue, WebLocalQueue, type WebLocalQueuePreparation, type WebLocalQueueResource, type WebLocalQueueSnapshot} from './local-queue.ts';
+import {captureLocalQueue, WebLocalQueue, type WebLocalQueueResource, type WebLocalQueueSnapshot} from './local-queue.ts';
 import {PlayerSlot, type PlaybackMediaPort} from './web-playback.ts';
 import type {HlsModule, VideoLike, WebMediaPlayerOptions} from './web-media-player.ts';
 

@@ -1,5 +1,5 @@
 import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
-import {ShowWorkspaceService, type ShowWorkspaceData, type ShowWorkspaceRoute, type ShowWorkspaceSnapshot, type WorkspaceShow} from '@core/show-workspace.ts';
+import {ShowWorkspaceService, type ShowWorkspaceData, type ShowWorkspaceRoute, type WorkspaceShow} from '@core/show-workspace.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import {createDetailBindings} from './bindings';
 import {screenLifetime, type ScreenContext} from './context';
@@ -36,7 +36,7 @@ export function createShowBindings(context: ScreenContext) {
   let playbackRequest: AbortController | undefined;
   const listeners = new Set<() => void>(), publish = () => { for (const listener of listeners) listener(); };
   /** After marking a whole show or season: say so, and offer Undo for as long as the server will take it back. */
-  const offerUndo = (data: ShowWorkspaceData, kind: ContainerKind, id: string, title: string, watched: boolean, result: ContainerState) => {
+  const offerUndo = (_data: ShowWorkspaceData, kind: ContainerKind, id: string, title: string, watched: boolean, result: ContainerState) => {
     const token = result.undoToken;
     context.effects.notify?.(defaultI18n.t(watched ? 'watched.markedTitle' : 'watched.unmarkedTitle', {title}), token ? {label: defaultI18n.t('action.undo'), onAction: () => {
       if (!life.current()) return;

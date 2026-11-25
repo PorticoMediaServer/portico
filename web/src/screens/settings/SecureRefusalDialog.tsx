@@ -60,11 +60,11 @@ export function SecureRefusalDialog({open, onOpenChange}: {open: boolean; onOpen
     onOpenChange(false);
     target.open();
   };
-  return <Dialog footerDismisses children={null} open={open} onOpenChange={value => {if (!value) dismiss();}}
+  return <Dialog footerDismisses open={open} onOpenChange={value => {if (!value) dismiss();}}
     title={t('accounts.ownerSwitch.secureTitle')}
     description={t('accounts.ownerSwitch.secureBody', {localUrl: 'http://localhost:32500'})}
     footer={<>
       <Button variant="glass" onClick={dismiss}>{t('action.cancel')}</Button>
       {drawn && <Button variant="primary" onClick={openSecure}>{t('accounts.ownerSwitch.openSecure')}</Button>}
-    </>}/>;
+    </>}>{null}</Dialog>;
 }

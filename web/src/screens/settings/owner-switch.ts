@@ -2,11 +2,9 @@ import {revokeCurrentSession} from '../../../../packages/client-core/src/query/c
 import {AccountMoveClient, type AccountMove, type MoveClientOptions, type OwnerSwitchApproval, type OwnerSwitchPreview} from '@core/account-move.ts';
 import type {PreviousOwner} from '@core/portico-servers.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
-import type {DirectSignIn} from '@core/profile-management.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
 import {passwordStrength} from '@core/password-strength.ts';
 import {LocalMoveCustody} from '../../platform/local-move';
-import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {RouteError, routeOrigin} from '@core/route-identity.ts';
 import {ownerSwitchContextAllowed} from '../../platform/secure-pending';
 

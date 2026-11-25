@@ -201,7 +201,7 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
     {recommendations}
     {/* Refresh all is an action; stored Advanced settings require a published field. */}
     {(() => {
-      const advanced = document.advanced, extra = draft.advanced;
+      const advanced = document.advanced;
       const languages = advanced?.fallbackLanguage !== undefined || advanced?.animeTitles !== undefined;
       const artwork = hasLimit || document.artworkMaxEdge !== undefined;
       const music = advanced?.acoustidKeyConfigured !== undefined;

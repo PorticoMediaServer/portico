@@ -10,7 +10,6 @@ import {loadGalleryInputs} from 'virtual:portico-kit-families';
 import {Button, Tabs} from '../../kit/controls';
 import {Artwork, AmbientArt, createArtworkRuntime, type ArtworkSource, type AmbientArtSource} from '../../kit/artwork';
 import {Popover} from '../../kit/overlays';
-import {OwnerTag} from '../../kit/shell';
 import {SelectionCircle} from '../../kit/selection';
 import {BrowseToolbar, FilterBuilder, FilteredEmpty, LibraryHeader, LibrarySwitcher, SongRow, SortMenu, StickyBrowseHeader, TrackTable, FieldTile,
   type BrowseLabels, type BrowsePlatform, type FilterFieldChange, type FilterFieldState, type TrackRowData} from '../../kit/browse';

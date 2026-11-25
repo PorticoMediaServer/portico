@@ -42,7 +42,7 @@ export function PlayerEndCard({card, canReplay, onReplay, onClose, reportError, 
     <div className={styles.left}>
       <p className={styles.kicker}>{t('player.post.finished')}</p>
       <h2 className={styles.title}>{card.title}</h2>
-      {layout === 'phone' && (card.year !== undefined || card.genres?.length) && <div className={styles.meta}><MetadataFacts parts={[card.year !== undefined && <strong>{card.year}</strong>, card.genres?.length ? card.genres.join(', ') : null]} /></div>}
+      {layout === 'phone' && (card.year !== undefined || card.genres?.length) && <div className={styles.meta}><MetadataFacts parts={[card.year !== undefined && <strong key="year">{card.year}</strong>, card.genres?.length ? card.genres.join(', ') : null]} /></div>}
       {card.rating && <div className={styles.rate}>
         <span>{stored == null ? t('player.rateThis') : t('player.rated', {stars: t('title.stars', {count: stored})})}</span>
         <div className={styles.stars} role="radiogroup" aria-label={t('player.rateThis')} onMouseLeave={() => setHover(null)}>

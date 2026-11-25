@@ -3,7 +3,7 @@ import {CatalogueSelectionEntry, useCatalogueSelectionActive} from '../browse/do
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ContentEntry} from '@core/library-content.ts';
-import type {SavedEntry, SavedListFilter, SavedProjection, SavedRoute, SavedService} from '@core/saved.ts';
+import type {SavedEntry, SavedListFilter, SavedProjection, SavedService} from '@core/saved.ts';
 import type {PlaylistListFilter} from '@core/saved.ts';
 import type {PersonalResource, PersonalResourceEntry, PersonalSavedService} from '@core/personal-saved.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
@@ -13,7 +13,7 @@ import {Button, Chip, Switch} from '../../kit/controls';
 import {FiltersButton, SortMenu, ViewToggle} from '../../kit/browse';
 import {BrowseFrame} from '../../kit/frames';
 import {MenuRow, Popover} from '../../kit/overlays';
-import {PlaylistMosaic, PosterCard, SquareCard, NewPlaylistCard, type CardSelection} from '../../kit/cards';
+import {PlaylistMosaic, PosterCard, NewPlaylistCard, type CardSelection} from '../../kit/cards';
 import {CoverMosaic, type ArtworkSource} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {WindowedGrid, shellBottomClearance} from '../../kit/layout';
@@ -80,7 +80,7 @@ export const savedEmptyIcons = {watchlist: 'i-bookmark', favorites: 'i-heart', p
 const tabLabels = {watchlist: 'saved.tab.watchlist', favorites: 'saved.tab.favorites', playlists: 'saved.tab.playlists', collections: 'saved.tab.collections', views: 'saved.tab.savedViews', history: 'saved.tab.history', downloads: 'downloads.title'} as const;
 
 export function SavedScreen(bindings: SavedBindings) {
-  const {runtime, route, presentation, effects} = bindings;
+  const {runtime, route, effects} = bindings;
   const viewKey = savedViewKey(runtime.scope, route), operations = useSavedViewOperations(runtime.operations, viewKey);
   // `home` is the phone directory; every reader below uses its canonical My List.
   const readerRoute = useMemo(() => savedReaderRoute(route), [route]), phone = useShellWidth() < 600;
@@ -150,7 +150,7 @@ const noSubscribe = () => () => {};
 const noLocalSnapshot = () => undefined;
 
 function SavedLists(bindings: SavedViewBindings & {onCreate: () => void}) {
-  const {runtime, route, presentation, effects, artwork} = bindings;
+  const {runtime, route, effects} = bindings;
   const first = route.view === 'watchlist' || route.view === 'favorites' ? runtime.posters : runtime.saved;
   const primary = useSyncExternalStore(first.subscribe, first.getSnapshot, first.getSnapshot), squares = useSyncExternalStore(runtime.squares.subscribe, runtime.squares.getSnapshot, runtime.squares.getSnapshot);
   const routeMatches = route.view === 'watchlist' || route.view === 'favorites'

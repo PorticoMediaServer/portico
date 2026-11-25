@@ -57,15 +57,13 @@ export function SetupScreen(props: SetupScreenProps) {
   return <div className={styles.host}>
     {view.kind === 'library'
       ? <FirstLibrary controller={controller} library={library} setLibrary={setLibrary} serverName={serverName} folders={props.libraryFolders} busy={busy}/>
-      : <Stage view={view} controller={controller} form={form} setForm={setForm} name={name} mode={mode} library={library} setLibrary={setLibrary} wantLocal={wantLocal}
-        serverName={serverName} folders={props.libraryFolders}/>}
+      : <Stage view={view} controller={controller} form={form} setForm={setForm} name={name} mode={mode} wantLocal={wantLocal}/>}
     {showSteps ? <SetupSteps steps={steps} label={t('web.setup.stepsLabel')}/> : null}
   </div>;
 }
 
-function Stage({view, controller, form, setForm, name, mode, library, setLibrary, serverName, folders, wantLocal}: {view: SetupView; controller: SetupController; form: Form; wantLocal: {current: boolean};
-  setForm: (update: (old: Form) => Form) => void; name: string; mode: 'hosted' | 'local'; library: Library; setLibrary: (update: (old: Library) => Library) => void;
-  serverName: string; folders?: LibraryContentApi}) {
+function Stage({view, controller, form, setForm, name, mode, wantLocal}: {view: SetupView; controller: SetupController; form: Form; wantLocal: {current: boolean};
+  setForm: (update: (old: Form) => Form) => void; name: string; mode: 'hosted' | 'local'}) {
   const back = <Button variant="glass" size="hero" onClick={controller.back}>{t('action.back')}</Button>;
   const offer = setupStartOverOffer(view);
   const startOver = (primary: boolean) => offer.offer ? <StartOver confirm={offer.confirm} primary={primary} onStart={controller.startOver}/> : null;

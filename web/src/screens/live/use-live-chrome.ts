@@ -3,7 +3,6 @@ import {forwardIdentity} from '../detail/context';
 import {subscribeFacts} from '../../shell/fact-source';
 import {subscribePresentation, useShellFacts} from '../../shell/fact-hooks';
 import {useLayoutEffect, useRef, useState} from 'react';
-import {defaultI18n} from '@i18n';
 import type {Recording} from '@core/dvr.ts';
 import type {ChannelReference} from '@core/index.ts';
 import {channelTimeline} from '@core/playback/channel-timeline.ts';
@@ -160,7 +159,7 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
   if (!chrome || !read || !action || !runtime || !snapshot || !expanded || !fence || !linear || !presentation || !fenceKey) return undefined;
 
   const currentFence = action.fence;
-  const shownChannel = !!liveFacts ? asChromeChannel(liveFacts.current) : undefined;
+  const shownChannel = liveFacts ? asChromeChannel(liveFacts.current) : undefined;
   const currentGuide = liveFacts?.rows.find(row => row.id === currentFence.channelId);
   // What is on the channel now is the guide's: the session names no guide programme.
   const guideProgramme = liveFacts?.programmes.get(currentFence.channelId);

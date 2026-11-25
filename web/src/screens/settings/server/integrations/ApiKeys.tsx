@@ -27,7 +27,7 @@ type Props = Readonly<{api:ApiAccessTransport; source: SettingsApiKeysSource; we
 type IntegrationsTab = 'keys' | 'webhooks' | 'assistants';
 const tabForRow = (row: string | null): IntegrationsTab => row === 'integrations.webhooks' ? 'webhooks' : row?.startsWith('integrations.assistant') ? 'assistants' : 'keys';
 
-export function IntegrationsPage({api, source, webhooks, baseUrl, isCurrent, reportError, otherRows, advancedRows}: Props) {
+export function IntegrationsPage({source, webhooks, baseUrl, isCurrent, reportError, otherRows, advancedRows}: Props) {
   const requestedRow = useRouterState({select: state => new URLSearchParams(state.location.searchStr).get('row')});
   const [tab, setTab] = useState<IntegrationsTab>(() => tabForRow(requestedRow));
   useEffect(() => {setTab(tabForRow(requestedRow));}, [requestedRow]);

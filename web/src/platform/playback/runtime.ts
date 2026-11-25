@@ -2034,10 +2034,6 @@ export class WebShellPlaybackRuntime {
       if (lifetime.signal.aborted || !lifetime.isCurrent()) return false;
       return internal();
     };
-    const call = <T>(work: (signal: AbortSignal) => Promise<T>, command?: AbortSignal): Promise<T> => {
-      if (!reprove()) return Promise.reject(new Error('stale_listening_port'));
-      return work(combined(command)).then(value => {if (!reprove()) throw new Error('stale_listening_port'); return value;});
-    };
     const bindCommand = (command: WebListeningLifetime) => ({signal: combined(command.signal),
       isCurrent: () => !command.signal.aborted && command.isCurrent() && reprove()});
     /** Caller, runtime, stack, source and queue retirement all retire this record. */

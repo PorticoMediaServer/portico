@@ -26,11 +26,6 @@ const viewerFence = 'specimen-viewer-fence';
 const revision = {catalog: 1, viewer: 1};
 
 /* ---------- the drawn page: 49 films, 16 shows and 7 anime, in the frame's order ---------- */
-const datedKinds = ['movie', 'episode', 'show', 'season', 'album', 'song', 'book', 'audiobook_file'];
-const releasedKinds = ['movie', 'episode', 'show', 'season', 'album', 'book'];
-const videoArtKinds = ['movie', 'episode', 'show', 'season', 'collection'];
-const playedKinds = ['movie', 'episode', 'show', 'season', 'collection', 'song', 'album', 'artist', 'audiobook_file', 'book'];
-const airedKinds = ['show', 'season'];
 
 type Kind = 'movie' | 'show';
 type LibraryId = 'movies' | 'tv' | 'anime';

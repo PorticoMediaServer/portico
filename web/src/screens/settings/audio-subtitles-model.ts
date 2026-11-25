@@ -16,7 +16,7 @@ export function appLanguageCode(appLocale: string): string {
   return appLocale.split('-')[0]!.toLowerCase();
 }
 /** The drawn picker entry: the special codes keep their authored labels. */
-export function preferredLanguageName(code: string, kind: PreferredLanguageKind, uiLocale: string, appLocale: string): string {
+export function preferredLanguageName(code: string, kind: PreferredLanguageKind, uiLocale: string, _appLocale: string): string {
   if (code === '@original') return kind === 'audio' ? defaultI18n.t('next.settingsSpec.account.audio-subtitles.groups.0.rows.0.control.items.1.label') : code;
   if (code === '@appLanguage') return defaultI18n.t('next.settingsSpec.account.audio-subtitles.groups.0.rows.0.control.items.0.label');
   return languageName(code, lookup, uiLocale);

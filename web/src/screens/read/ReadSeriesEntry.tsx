@@ -1,6 +1,6 @@
 import {useRouteLibrary} from '../browse/route-library';
 import {forwardIdentity, runScreenCommand} from '../detail/context';
-import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
 import {useLocation} from '@tanstack/react-router';

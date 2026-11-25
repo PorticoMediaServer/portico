@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref} from 'react';
+import {useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref} from 'react';
 import {defaultI18n} from '@i18n';
 import {Button, Select, TextField} from '../controls';
 import {Icon} from '../Icon';
@@ -44,7 +44,7 @@ function Cell({value, kind}: {value?: SettingsTableCell; kind?: SettingsTableCol
 /** Real paged data in, bounded DOM out. It never sorts a partial server page locally. */
 export function SettingsTable({label, rows, columns, query, onQueryChange, phoneCards = false, filters = [], searchLabel, countLabel, emptyLabel, loading = false, height = 560,
   matchedCount, offset = 0, hasMore, onLoadMore, selected, onSelectionChange, bulkActions = [], rowAction, rowActions, actions, ref}: SettingsTableProps) {
-  const id = useId(), root = useRef<HTMLDivElement>(null), search = useRef<HTMLInputElement>(null), all = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null), search = useRef<HTMLInputElement>(null), all = useRef<HTMLInputElement>(null);
   const [viewport, setViewport] = useState({top: 0, height}), [focused, setFocused] = useState<string | undefined>();
   const pending = useRef<{id: string; slot: number} | undefined>(undefined), before = useRef(rows.map(row => row.id));
   const restoreSearch = useRef(false), autoMore = useRef<string | undefined>(undefined);

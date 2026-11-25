@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {useViewerQueries} from '../../platform/freshness';
 import {VersionDeletionOpening, versionDeletionConfirm, type VersionDeletionState} from './version-deletion';
 import {bytesText} from '@core/presentation/kit-model/technical.ts';
@@ -121,7 +121,7 @@ function SplitVersion({binding, data, manage, onClose, returnFocusRef}: Props) {
   </Dialog>;
 }
 
-function MergeTitle({binding, data, manage, onClose, returnFocusRef}: Props) {
+function MergeTitle({binding, data, onClose, returnFocusRef}: Props) {
   const queries = useViewerQueries();
   const search = useMemo(() => createSearchBindings(binding.context, queries), [binding, queries]);
   useEffect(() => () => search.dispose(), [search]);

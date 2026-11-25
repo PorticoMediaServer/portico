@@ -8,7 +8,7 @@ import {historyPeriods, resourceContentManual, type ResourceContentQuery} from '
 import {episodeLabel} from '@portico/client-core/kit-model';
 import {shapeFor} from '@core/presentation/card-shape.ts';
 import {AmbientArt, Artwork, CoverMosaic, type ArtworkSource} from '../../kit/artwork';
-import {Button, Chip, Select, Switch} from '../../kit/controls';
+import {Button, Chip, Switch} from '../../kit/controls';
 import {FiltersButton, SortMenu, ViewToggle} from '../../kit/browse';
 import {Dialog, Menu, MenuRow, Popover} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';

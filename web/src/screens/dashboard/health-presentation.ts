@@ -1,5 +1,4 @@
 import type {MetricName, TelemetryPoint, TelemetryReading} from '@core/telemetry.ts';
-import {defaultI18n} from '@i18n';
 import {LOAD_TILES, loadValue} from '@core/server-admin/dashboard.ts';
 
 const warmingUp = 'Waiting for a second reading before a rate can be reported.';

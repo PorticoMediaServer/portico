@@ -36,9 +36,9 @@ export function ProfileDevices({source, isCurrent, onFailure, signOut}: {source:
         <Button size="xs" variant="glass" disabled={state.busy} onClick={event => {if (!live.current || !isCurrent() || pending.current) return;trigger.current = event.currentTarget;active.current = device;setTarget(device);}}>{t('accounts.signOut.server')}</Button>
       </li>)}
     </ul>
-    {target && <Dialog footerDismisses open children={null} size="sm" returnFocusRef={trigger} title={t('confirm.signOutDevice.title', {device: target.name})}
+    {target && <Dialog footerDismisses open size="sm" returnFocusRef={trigger} title={t('confirm.signOutDevice.title', {device: target.name})}
       description={t('next.settingsSpec.account.profile.groups.6.rows.0.control.itemAction.confirm')} dismissOnOutsidePress={!state.busy} dismissOnBack={!state.busy} showCloseButton={!state.busy}
       onOpenChange={value => {if (!value && !pending.current) close();}} footer={<><Button size="small" disabled={state.busy} onClick={close}>{t('action.cancel')}</Button>
-        <Button size="small" variant="primary" loading={state.busy} onClick={() => {void run(target);}}>{t('accounts.signOut.server')}</Button></>} />}
+        <Button size="small" variant="primary" loading={state.busy} onClick={() => {void run(target);}}>{t('accounts.signOut.server')}</Button></>}>{null}</Dialog>}
   </>;
 }

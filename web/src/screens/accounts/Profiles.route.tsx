@@ -3,7 +3,6 @@ import {useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {defineWebScreen} from '../../route-registry';
 import {router} from '../../router';
-import {profileSettingsDestination} from '../../route-registry-destination';
 import {hasTwoStepSetup} from '../../platform/two-step-continuation';
 import {createBrowserAccountEntry, type BrowserAccountEntry} from '../../platform/account-entry';
 import {AuthActions, AuthError, AuthStage} from '../../kit/accounts';

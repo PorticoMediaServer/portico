@@ -8,7 +8,6 @@ import {Banner, Dialog} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from '../browse/screen-context';
 import {ScreenProblem} from '../detail/ScreenProblem';
-import type {ScreenContext} from '../detail/context';
 import {SeriesRules} from './SeriesRules';
 import type {SeriesRulesBindings} from './series-rules-bindings';
 import {useSeriesRulesLease, type SeriesRulesLease} from './useSeriesRulesLease';

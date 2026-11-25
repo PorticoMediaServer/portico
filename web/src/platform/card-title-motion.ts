@@ -197,7 +197,7 @@ function originalPhysicalArtwork(held: Original): boolean {
 /** Reverse only to the actual original physical node. A remounted or recycled
  * card has no such receipt and uses the ordinary Back path. */
 export function originalArtworkReverseAvailable(claim: SourceArtClaim): boolean {
-  const held = claims.get(claim), art = claim.art;
+  const held = claims.get(claim);
   if (!held || !destinationCurrent(held) || reduced(held.document) || !held.intent.sourceCurrent() || !owns(held)) return false;
   return originalPhysicalArtwork(held);
 }

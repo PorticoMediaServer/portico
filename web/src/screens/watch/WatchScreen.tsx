@@ -30,7 +30,6 @@ import {WatchDockPanelOpening, type WatchDockPanel} from './dock-panel-opening';
 import {PlayerEndCard as WatchEndCardView} from '../../kit/player/EndCard';
 import {PlayerLive} from '../../kit/player/PlayerLive';
 import {LivePage} from '../../kit/player/LivePage';
-import type {LiveChromePort} from '../live/live-chrome-types';
 import {WatchPromptFocus, type PromptFocusHost} from './prompt-focus';
 import {bufferedSegments} from './buffered-ranges';
 

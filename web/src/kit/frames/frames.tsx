@@ -2,15 +2,12 @@ import type {ReactNode, RefObject} from 'react';
 import {defaultI18n} from '@i18n';
 import {overlayForm, popoverWidth, type OverlayTask} from '@design';
 import {AuthError, AuthKicker, AuthStage} from '../accounts';
-import type {ArtworkSource} from '../artwork';
-import {Button, Tabs, type ChoiceItem} from '../controls';
+import {Button} from '../controls';
 import type {IconName} from '../Icon';
 import {BottomSheet, Dialog, Popover, SidePanel, useFrameForm, type OverlayChange} from '../overlays';
-import {usePhone} from '../overlays/shared';
-import {Skeleton, StateLayout, type StateAction, type StateDetails, type StateRetry, type StateTone} from '../states';
+import {StateLayout, type StateAction, type StateDetails, type StateRetry, type StateTone} from '../states';
 import {SettingsNavLead} from '../shell/SettingsSurfaces';
 import {Icon} from '../Icon';
-import {ArtBox} from './parts';
 import styles from './frames.module.css';
 
 /** The screen frames on the web (design/ui-v1 `system-frames.html`), with the native frames' names and props.

@@ -5,7 +5,6 @@ import {withRequestRaw, type RequestRaw} from '@core/home-selection/list-destina
 import {QuerySelectionEditorSurface} from './QuerySelectionEditorSurface';
 import {LibraryPickerSurface, type LibraryPickerOptions} from './LibraryPickerSurface';
 import type {EntryActionPorts, EntryDestination} from '../../shell/entry-actions';
-import type {SelectionItem} from '@core/selection-model/index.ts';
 import {LibraryDeleteSurface, type LibraryDeleteOptions} from './LibraryDeleteSurface';
 import {SelectionEditorSurface, type LibraryEditorSession} from './SelectionEditorSurface';
 import type {SelectionEditorOptions} from './selection-editor';

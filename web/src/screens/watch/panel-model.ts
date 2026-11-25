@@ -3,7 +3,7 @@ import type {QualityChoice} from '@core/playback-v1/choices.ts';
 import {audioStreamIndex,fixedQuality,isQualityChoice,qualityChoiceOf} from '@core/playback-v1/choices.ts';
 import {videoTrackName,videoTrackWords} from '@core/video-track-labels.ts';
 import {subtitleReason} from '@core/subtitles.ts';
-import {sameFence,type QueuePlaybackFence} from '../../../../packages/player-core/src/index.ts';
+import {sameFence} from '../../../../packages/player-core/src/index.ts';
 import type {I18n} from '@i18n';
 import type {SubtitlePreferences} from '@core/preference-effects.ts';
 import type {TrackChoice} from '../../kit/media';

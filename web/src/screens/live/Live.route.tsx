@@ -4,7 +4,7 @@ import {liveGuideStale, liveServerWideNotice} from '@core/presentation/live-avai
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
-import {clampGuideStart, guideDayMenu, guideNowStart, guideRange, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
+import {clampGuideStart, guideDayMenu, guideNowStart, guideRange, localDayStart, legacyChannel, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {dayPrimeTime} from '@core/channel-guide.ts';
 import {liveChannel, liveGuideChannel} from '@core/guide/next-source.ts';
 import type {GuideSourceSummaries, GuideSourceSummary} from '@core/guide/directory.ts';

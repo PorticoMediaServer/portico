@@ -23,7 +23,10 @@ export function nextTableSort(sort: TableSort, by: string): TableSort {
 }
 export function selectTableRows(selected: ReadonlySet<string>, ids: readonly string[], checked: boolean): ReadonlySet<string> {
   const next = new Set(selected);
-  for (const id of ids) checked ? next.add(id) : next.delete(id);
+  for (const id of ids) {
+    if (checked) next.add(id);
+    else next.delete(id);
+  }
   return next;
 }
 /** A disappearing row returns focus to its neighbour, then to the search field. */

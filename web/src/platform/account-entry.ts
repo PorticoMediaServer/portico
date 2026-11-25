@@ -1,4 +1,3 @@
-import {createHostedDirectoryReadPort} from '@core/query/hosted-directory-source.ts';
 import {readDirectAccount, readServerSystem, revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {acceptServerInvitation, previewServerInvitation} from '@core/invitation-join.ts';
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
@@ -7,7 +6,6 @@ import {firstAnswering, serverAddressCandidates} from '@core/server-address.ts';
 import {DEFAULT_INSECURE_CONNECTIONS} from '@core/connection-policy.ts';
 import {currentServedServerOrigin,savedServerIsThisPage} from './served-origin';
 import {ServerSignInProbe, negotiateServer, parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
-import {NeedsNewerAppError} from '@core/needs-newer-app.ts';
 import {directSignIn, directSignInContinuation, shouldRetireAccountSession, completeDirectSignInChallenge, changeRequiredPassword, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '@core/profile-management.ts';
 import {inspectDirectServer, connectPairedServer, rememberNativeSession, type ConnectionEnvironment, type RememberedServer} from '@core/server-connections.ts';
 import {assertFirstContactIdentity, RouteError, sameServerPin, type ServerPin} from '@core/route-identity.ts';
@@ -24,7 +22,6 @@ import {requestOwnerResetFile, enterOwnerResetSession, redeemMemberResetCode, fi
 import {MemberAccountMoveClient, type MoveCodePreview, type MoveCodeLink} from '@core/account-move.ts';
 import {IdentityClient, type TwoFactorEnrolment} from '@core/identity-client.ts';
 import {CodedError, unreadableServerResponse} from '@core/server-messages.ts';
-import {routePath} from '../../../packages/contracts/src/routes.ts';
 import type {PreviewInvitationResponse} from '../../../packages/contracts/src/types.ts';
 import {browserAppSessions, browserConnectionEnvironment, restoreBrowserConnection, observeBrowserSessionChanges} from './server-connections';
 import {browserAppSessionActions, type BrowserAppSessionActions} from './app-sessions';

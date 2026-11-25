@@ -5,7 +5,7 @@ import {summarizeSelection} from '@core/selection-model/index.ts';
 import {presentError} from '@core/presentation/errors.ts';
 import {homeEntryCapabilities} from '@core/home-selection.ts';
 import {Artwork} from '../kit/artwork';
-import {Button, Select} from '../kit/controls';
+import {Button} from '../kit/controls';
 import {Banner, Dialog, Menu, ToastHost, type ToastData} from '../kit/overlays';
 import {BulkEditor, DeleteMediaDialog, MixedEditExplainer, PhoneActionBar, SelectionBar} from '../kit/selection';
 import {OwnerTag, ServerAudienceTag, ServerMark, type EditorAudience} from '../kit/shell';

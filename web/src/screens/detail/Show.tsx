@@ -22,8 +22,8 @@ import styles from './show.module.css';
 import detail from './detail.module.css';
 import {dependsOn, titlesWithPersonalState} from '@core/freshness-hub.ts';
 import {useFreshDocument} from '../../platform/freshness';
-import {EpisodeDetailsLayout, TitleProse, TitleFactsLine} from '../../kit/title/TitleParts';
-import {TitlePeople, ShowPeople, CreditNames} from './People';
+import {EpisodeDetailsLayout, TitleFactsLine} from '../../kit/title/TitleParts';
+import {ShowPeople, CreditNames} from './People';
 import {TitleTabs} from './TitleTabs';
 import {ScreenProblem} from './ScreenProblem';
 import {runScreenCommand} from './context';
@@ -162,7 +162,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const facts = titlePageFacts({year: show.year, seasonCount: data.seasonTotalCount, genres: show.genres, contentRating: show.contentRating}, env);
   // phone-player 4: under the playing video, the episode stays on one line.
   const episodeLine = compact ? watchEpisodeLine(watch?.subject, env) : [];
-  const starring = showPeople(show.credits).cast.slice(0, 4), [starringBefore, starringAfter] = t('title.starring', {names: '\uFFF0'}).split('\uFFF0');
+  const starring = showPeople(show.credits).cast.slice(0, 4), [starringBefore] = t('title.starring', {names: '\uFFF0'}).split('\uFFF0');
   const titleFacts = <TitleFactsLine parts={facts} genres={<GenreNames names={show.genres ?? []} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} />} />;
   // Phone frames always list episodes; retain the desktop choice across rotation.
   const episodeLayout = phone ? 'list' : layout, columns = 4;
@@ -301,11 +301,11 @@ export function ShowDetails({binding, data}: {binding: ShowBindings; data: ShowW
   const rows: (readonly [string, ReactNode])[] = [
     [t('next.show.firstAired'), calendarDate(facts.firstAired, locale())],
     [t('next.show.status'), facts.status],
-    [t('title.network'), facts.network ? <button type="button" className={styles.personLink} onClick={() => runScreenCommand(binding.context, () => binding.browseFacet(data, 'network', facts.network!))}>{facts.network}</button> : undefined],
-    [t('title.studio'), facts.studio ? <button type="button" className={styles.personLink} onClick={() => runScreenCommand(binding.context, () => binding.browseFacet(data, 'studio', facts.studio!))}>{facts.studio}</button> : undefined],
+    [t('title.network'), facts.network ? <button key="network" type="button" className={styles.personLink} onClick={() => runScreenCommand(binding.context, () => binding.browseFacet(data, 'network', facts.network!))}>{facts.network}</button> : undefined],
+    [t('title.studio'), facts.studio ? <button key="studio" type="button" className={styles.personLink} onClick={() => runScreenCommand(binding.context, () => binding.browseFacet(data, 'studio', facts.studio!))}>{facts.studio}</button> : undefined],
     [t('title.country'), facts.country],
-    [t('title.genres'), facts.genres.length ? <GenreNames names={facts.genres} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} /> : undefined],
-    [t('next.show.createdBy'), facts.creators.length ? <ShowPersonLinks credits={facts.creators} binding={binding} data={data} /> : undefined],
+    [t('title.genres'), facts.genres.length ? <GenreNames key="genres" names={facts.genres} onOpen={binding.context.effects.openBrowse ? genre => runScreenCommand(binding.context, () => binding.browseGenre(data, genre)) : undefined} /> : undefined],
+    [t('next.show.createdBy'), facts.creators.length ? <ShowPersonLinks key="creators" credits={facts.creators} binding={binding} data={data} /> : undefined],
     [t('next.show.rated'), facts.rating],
     [t('next.selection.language'), facts.language],
     [t('next.show.onThisServer'), onServer],

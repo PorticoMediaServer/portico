@@ -200,7 +200,6 @@ function Field({spec, field, draft, set, requiredTitle = false}: {requiredTitle?
   const id = useId();
   const value = draft?.value ?? field?.value ?? '', locked = draft?.locked ?? field?.locked ?? false, error = fieldError(spec, value, [], requiredTitle);
   const changed = draft !== undefined && (draft.value !== (field?.value ?? '') || draft.locked !== (field?.locked ?? false));
-  const numeric = spec.type === 'integer' || spec.type === 'number';
   const meter = metadataFieldMeter(spec);
   const hint = meter === 'range' ? spec.min !== undefined && spec.max !== undefined ? t('web.metadata.numericBounds', {min: spec.min, max: spec.max}) : spec.min !== undefined ? t('web.metadata.numericMinimum', {min: spec.min}) : t('web.metadata.numericMaximum', {max: spec.max!}) : meter === 'count' ? t('web.metadata.characterCount', {count: Array.from(value).length, max: spec.maxLength!}) : '';
   const origin = sourceWords(field?.source), label = fieldLabel(spec), from = metadataFieldSource(field?.source), provider = from?.kind === 'provider' ? from.provider : undefined;

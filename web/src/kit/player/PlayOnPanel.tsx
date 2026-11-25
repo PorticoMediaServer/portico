@@ -2,7 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExtern
 import {defaultI18n} from '@i18n';
 import {Icon} from '../Icon';
 import {BottomSheet, Popover} from '../overlays';
-import type {PlayOnController, PlayOnLinkPreview, PlayOnLinkPort, PlayOnReceiver, PlayOnReceiversPort} from '../../platform/playback/play-on';
+import type {PlayOnController, PlayOnLinkPreview, PlayOnReceiver, PlayOnReceiversPort} from '../../platform/playback/play-on';
 import type {CastPlayerTranslate, PlayOnPanelProps} from './types';
 import styles from './cast-player.module.css';
 

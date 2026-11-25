@@ -166,7 +166,7 @@ function ConflictDialog({context, opening, current, consume, controller, onClose
   controller: RecordingsController; onClose: (opening: Opening<ConflictRequest>) => void;
 }) {
   const recording = opening.target.recording;
-  const [detail, setDetail] = useState<RecordingDetail | undefined>(opening.target.detail);
+  const [, setDetail] = useState<RecordingDetail | undefined>(opening.target.detail);
   const [busy, setBusy] = useState<'raise' | 'skip'>();
   const [error, setError] = useState<string>();
   const [publishedOperation, publishOperation] = useState<ConflictOperation>();
