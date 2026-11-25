@@ -154,7 +154,7 @@ function RecentTile({entry, index, section, actions, artwork, nowPlayingAlbumId,
     <button type="button" className={styles.tile} data-playing={playing || undefined} {...hold.handlers}
       onBlur={() => hold.cancel()}
       onKeyDown={event => { if (event.key !== 'Escape') return; hold.cancel(); if (action.selection?.active) { event.preventDefault(); event.stopPropagation(); action.selection.onExit(); } }}
-      onClick={event => { if (hold.consumeClick()) {event.preventDefault(); return;} action.onOpen(); }}>
+      onClick={event => { if (hold.consumeClick()) {event.preventDefault(); return;} if (action.selection?.active) {action.selection.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'}); return;} action.onOpen(); }}>
       <span className={styles.art}>{art && <Artwork source={art} alt="" />}</span>
       <span className={styles.copy}><span className={styles.title}>{playing && <span className={styles.levels} role="img" aria-label={defaultI18n.t('next.browse.playing')}><i/><i/><i/></span>}{title}</span>
         <small className={styles.artist}>{entry.artist?.name ?? (entry.kind === 'radio' ? defaultI18n.t('music.radio') : undefined)}</small></span>

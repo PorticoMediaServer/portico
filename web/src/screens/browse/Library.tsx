@@ -72,7 +72,7 @@ const kindShape = (kind: string): 'square' | 'poster' => ['music', 'audiobook'].
 const noSelectionSnapshot = () => undefined;
 export const browseLabels: BrowseLabels = {
   field: value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has);return id && defaultI18n.has(id) ? t(id) : value.labelKey;},
-  sort: value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has);return id && defaultI18n.has(id) ? t(id) : value.labelKey;},
+  sort: value => {const id = browseNameId(value.id, value.labelKey, defaultI18n.has);return id && defaultI18n.has(id) ? t(id) : defaultI18n.has(value.labelKey) ? t(value.labelKey) : value.labelKey;},
   quick: value => defaultI18n.has(value.labelKey) ? t(value.labelKey) : value.labelKey,
 };
 /** A library tab's grid on the library frame (`BrowseFrame`): the library's header, its toolbar, the grid and Filters. Until
@@ -160,12 +160,13 @@ export function LibraryBrowse(bindings: LibraryBrowseFrameBindings) {
   // The retained count describes the same accepted generation still painted by
   // the collection. A pending replacement cannot use it as its new match count.
   const resultCount = snapshot.total === undefined ? undefined : t(snapshot.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: snapshot.total, pivot: controller.source.pivot});
+  const resultTotal = snapshot.refreshing || snapshot.status !== 'ready' || snapshot.totalIsLowerBound ? undefined : snapshot.total;
   const filterCount = snapshot.refreshing || snapshot.status !== 'ready' ? undefined : resultCount;
   // A grid of one kind takes that kind's card shape: the scope chip chosen, the only kind a mixed row holds, or the one library
   // a row or tab belongs to. A mixed row keeps the server's shape (posters for All).
   const one = oneKind ?? (library.kind || undefined);
   const shape = bindings.pivot === 'collections' || bindings.shape === 'collection' ? 'collection' : one ? kindShape(one) : bindings.shape ?? 'poster';
-  const toolbar = <BrowseToolbar model={model} labels={browseLabels} platform={compact ? 'phone' : 'desktop'} resultCount={resultCount} accepted={snapshot} acceptedSource={controller.collection} topInset={compact ? 94 : width < 1024 || coarse ? 0 : 76} sticky
+  const toolbar = <BrowseToolbar model={model} labels={browseLabels} platform={compact ? 'phone' : 'desktop'} resultCount={resultCount} resultTotal={resultTotal} accepted={snapshot} acceptedSource={controller.collection} topInset={compact ? 94 : width < 1024 || coarse ? 0 : 76} sticky
       onQuickChange={(id, checked) => {const quick = [...model.quick, ...model.filterQuick].find(quick => quick.id === id);if (quick) setPredicates(checked ? [...state.predicates, quick.query] : state.predicates.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query)));}}
       onFilters={() => setFiltersOpen(true)} filtersOpen={filtersOpen} onSortChange={sort}
       onReshuffle={() => sort({...model.sort, seed: crypto.getRandomValues(new Uint32Array(1))[0]})}

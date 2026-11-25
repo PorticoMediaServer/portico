@@ -1,5 +1,5 @@
 import {RouterProvider} from '@tanstack/react-router';
-import {useEffect, useSyncExternalStore} from 'react';
+import {lazy, Suspense, useEffect, useSyncExternalStore} from 'react';
 import {IconSprite} from './kit/Icon';
 import {FreshnessProvider} from './platform/freshness';
 import {viewerQueryScope} from '@core/query/viewer-queries.ts';
@@ -15,9 +15,16 @@ import {ShellBindingsProvider, type ShellBindings} from './shell/bindings';
 import {bindShellRouteMotion} from './shell/route-motion';
 import {ShellBootstrapState} from './shell/BootstrapState';
 import type {ShellBootstrap} from './shell/bootstrap';
-import {PlaybackHost} from './shell/Playback';
+import type {ShellPlaybackBinding} from './shell/Playback';
 import type {TakeAccountReturn} from './route-registry-return';
 import type {TakeAccountMove} from './route-registry-arrival';
+
+const LazyFallbackPlaybackHost = lazy(() => import('./shell/Playback').then(module => ({default: module.PlaybackHost})));
+function FallbackPlaybackHost(props: {binding: ShellPlaybackBinding | undefined}) {
+  if (!props.binding) return null;
+  return <Suspense fallback={null}><LazyFallbackPlaybackHost {...props} /></Suspense>;
+}
+
 export function App({binding, bootstrap, takeAccountReturn, takeAccountMove}: {binding?: ShellBindings; bootstrap?: ShellBootstrap; takeAccountReturn?: TakeAccountReturn; takeAccountMove?: TakeAccountMove} = {}) {
   // A failure in the app itself has no shell left to draw; keep the last-resort page outside every provider.
   return <LastResortBoundary>{bootstrap ? <RestoredApp bootstrap={bootstrap} takeAccountReturn={takeAccountReturn} takeAccountMove={takeAccountMove} /> : <BoundApp binding={binding} takeAccountReturn={takeAccountReturn} takeAccountMove={takeAccountMove} />}</LastResortBoundary>;
@@ -30,7 +37,7 @@ function RestoredApp({bootstrap, takeAccountReturn, takeAccountMove}: {bootstrap
 }
 function BoundApp({binding, context, bootstrap, takeAccountReturn, takeAccountMove}: {binding?: ShellBindings; context?: ShellAssemblyContext; bootstrap?: ShellBootstrap; takeAccountReturn?: TakeAccountReturn; takeAccountMove?: TakeAccountMove}) {
   useEffect(() => bindShellRouteMotion(router), []);
-  const MediaHost = webScreens.get('player')?.playbackHost ?? PlaybackHost;
+  const MediaHost = webScreens.get('player')?.playbackHost ?? FallbackPlaybackHost;
   const viewer = binding?.shell.identity.viewer;
   // The player host renders a retained title body, which reads freshness, from
   // outside every route. One provider covers the router and the host together;

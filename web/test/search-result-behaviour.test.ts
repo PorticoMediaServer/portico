@@ -85,6 +85,33 @@ test('channel uses live facts when present and retains fallback navigation other
   assert.deepEqual(fallback.calls, [{name: 'open', value: entry}, {name: 'commit'}]);
 });
 
+test('non-channel search result cards do not subscribe to binding.live', async () => {
+  const h = createRenderer();
+  let liveSubscriptions = 0, liveSnapshots = 0;
+  const range = await componentModule(new URL('../src/kit/cards/selection-range.ts', import.meta.url), {react: h.react});
+  const admission = await componentModule(new URL('../src/kit/cards/use-interaction-admission.ts', import.meta.url), {
+    react: h.react, './interaction-admission': {createCardInteractionBinding},
+  });
+  const binding = {
+    live: {
+      subscribe: () => { liveSubscriptions++; return () => {}; },
+      getSnapshot: () => { liveSnapshots++; return new Map(); },
+    },
+    open() {}, play: async () => {},
+    context: {artwork: {foreground: (path: string) => path}, effects: {reportError() {}}},
+  };
+  const app = await componentModule(new URL('../src/screens/search/Search.tsx', import.meta.url), {
+    react: h.react, '../detail/text': {t, locale: () => 'en-US'}, '../detail/context': {runScreenCommand},
+    '../../kit/cards/use-interaction-admission': admission,
+    '../detail/model': {entryCard: (value: any) => ({title: value.title})},
+    '../../kit/cards': {useSelectionRangePreview: range.useSelectionRangePreview, PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile', GenreTile: 'GenreTile', LiveCard: 'LiveCard'},
+    '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/Icon': {Icon: 'Icon'}, './search.module.css': {default: {}},
+  });
+  tree(h.render(() => app.SearchResult({entry: movie, binding, onCommit() {}})));
+  assert.equal(liveSubscriptions, 0);
+  assert.equal(liveSnapshots, 0);
+});
+
 test('failed navigation reports the error without committing history', async () => {
   const f = await mount(movie, {openFailure: true});
   one(f.flat(), 'PosterCard').props.onNavigate();

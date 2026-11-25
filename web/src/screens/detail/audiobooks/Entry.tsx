@@ -5,8 +5,6 @@ import {formatClock} from '@core/presentation/content.ts';
 import {ApiError} from '@core/index.ts';
 import type {ContentEntry, ContentProjection} from '@core/library-content.ts';
 import type {RelationPage} from '@core/relation-rows.ts';
-import {Menu, MenuItem} from '../../../kit/overlays';
-import {OwnerMetadataGroup} from '../OwnerMetadataGroup';
 import {Artwork, GeneratedCover, PersonCircle, WholeArtwork, nameInitials, type ArtworkSource} from '../../../kit/artwork';
 import {AboutTable, PanelBlock, PanelHeading, TitleFrame, type AboutValue, type TitleAction, type TitlePrimary} from '../../../kit/frames';
 import {generatedCoverTint} from '@design';
@@ -114,7 +112,6 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
     setBusy(undefined);
   };
   const refuse = (op: Operation) => (error: unknown) => { if (owns(op)) binding.context.effects.reportError(error); };
-  const [more, setMore] = useState<Readonly<{entry: ContentEntry; page: ContentProjection; anchor: HTMLElement}>>();
   const page = state.projection, entity = page?.entity;
   // The page's own read lifetime and operation are retired in layout, never after paint.
   const reads = useRef<{token: object} | undefined>(undefined);
@@ -126,7 +123,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
     };
     reads.current = {token};
     operation.current = undefined; setBusy(undefined);
-    setExpanded(false); setChaptersExpanded(false); setFinished(undefined); setWatchlisted(undefined); setFilters({narrator: false, series: false}); setMoreBooks(undefined); setMore(undefined);
+    setExpanded(false); setChaptersExpanded(false); setFinished(undefined); setWatchlisted(undefined); setFilters({narrator: false, series: false}); setMoreBooks(undefined);
     if (pageAtRender?.scope.view === 'book') {
       void binding.finished(pageAtRender).then(value => {if (live()) setFinished(value.watched);}, error => {if (live()) binding.context.effects.reportError(error);});
       // A server that does not offer the container flag withholds the button; a real failure reports.
@@ -173,19 +170,6 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
     || !!files && !files.nextCursor && files.entries.length > 0 && !files.entries.some(entry => entry.playback && entry.available !== false && !entry.missing));
   const label = book ? resume ? progress?.chapter ? t('title.resumeChapter', {chapter: t('next.kit.chapter', {number: progress.chapter.number})}) : t('entry.resume') : t('entry.play') : t('next.browse.resume', {title: primaryBook?.title ?? ''});
   const cover = entity.posterUrl ?? rows?.entries[0]?.posterUrl;
-  const leafMore = (entry: ContentEntry, anchor: HTMLElement) => {
-    binding.current(page);
-    if (entry.kind !== 'audiobook_file' || entry.available === false || entry.missing || !state.appended.some(section => section.entries.includes(entry))) return;
-    setMore({entry, page, anchor});
-  };
-  const localOwner = binding.context.identity?.viewer.authority === 'local' && binding.context.identity.viewer.role === 'owner';
-  const effects = binding.context.effects;
-  const hasLeafActions = !!(effects.addToPlaylist || effects.addToCollection || localOwner && (effects.deleteTitle || effects.editMetadata));
-  const invoke = (effect: typeof effects.addToPlaylist) => run(() => {
-    binding.current(page);
-    if (!more || more.page !== page || !effect || more.entry.available === false || more.entry.missing || !binding.service.getSnapshot().appended.some(section => section.entries.includes(more.entry))) return;
-    return effect({libraryId: page.scope.libraryId, itemId: more.entry.id, kind: more.entry.kind, title: more.entry.title}, more.anchor);
-  });
   const open = (entry: ContentEntry) => run(() => binding.open(page, entry));
   // The book, author or series on the title frame (desktop-listen book; phone-app 14): the cover (a circle for an author), the
   // series as the kicker, the author and narrators leading the facts, Resume chapter with the played line and Start over,
@@ -236,7 +220,7 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
     {state.error && <ScreenProblem context={binding.context} error={state.error} retry={() => {void binding.load().catch(binding.context.effects.reportError);}}/>}
     <PanelBlock label={t(book ? 'next.browse.chapters' : 'library.tab.books')}><div data-audiobook-panel data-audiobook-view={page.scope.view} data-layout={phone ? 'phone' : 'desktop'}>
     {rows && <section className={styles.rows}><div className={styles.sectionHead}><h2>{t(book ? 'next.browse.chapters' : 'library.tab.books')}</h2>{(phone || !book) && <span>{rows.totalCount}</span>}</div>
-      {(book && !chaptersExpanded ? rows.entries.slice(0, CHAPTER_PREVIEW) : rows.entries).map((entry, index) => book ? <div key={entry.id}><Chapter entry={entry} index={index} page={page} binding={binding}/>{entry.kind === 'audiobook_file' && hasLeafActions && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})} onClick={event => run(() => leafMore(entry, event.currentTarget))}/>}</div>
+      {(book && !chaptersExpanded ? rows.entries.slice(0, CHAPTER_PREVIEW) : rows.entries).map((entry, index) => book ? <Chapter key={entry.id} entry={entry} index={index} page={page} binding={binding}/>
         : <div className={styles.bookRow} key={entry.id}><button onClick={() => open(entry)}><span className={styles.thumb}><WholeArtwork source={binding.context.artwork.foreground(entry.posterUrl, 132, 1)} alt=""
           fallback={<GeneratedCover title={entry.title} author={entry.author} glyph={Array.from(entry.title.trim())[0] ?? ''} tint={generatedCoverTint(entry.title)}/>}/></span><span><b>{entry.displayTitle ?? entry.title}</b>{entry.narrators?.length ? <small>{t('next.kit.readBy', {name: serviceI18n().list(entry.narrators)})}</small> : null}{entry.bookProgress?.remainingMs !== undefined && <small>{t('title.resumeRemaining', {remaining: duration(entry.bookProgress.remainingMs / 1000)!})}</small>}</span></button>{onMore && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entry.title})} onClick={event => run(() => {binding.current(page);onMore(entry, event.currentTarget);})}/>}</div>)}
       {book && !chaptersExpanded && (rows.entries.length > CHAPTER_PREVIEW || !!rows.nextCursor) && <Chip variant="toolbar" trailingIcon="i-down" trailingSize={16} className={styles.showAll}
@@ -256,16 +240,6 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
       if (reads.current?.token !== moreBooks.token) throw new DOMException('Book page changed', 'AbortError');
       binding.current(moreBooks.page);
     }} />}
-    {more?.page === page && <Menu open onOpenChange={value => {if (!value) setMore(undefined);}} title={more.entry.title} anchorRef={{current: more.anchor}}>
-      {effects.addToPlaylist && <MenuItem onSelect={() => invoke(effects.addToPlaylist)}>{t('entry.addToPlaylist')}</MenuItem>}
-      {effects.addToCollection && <MenuItem onSelect={() => invoke(effects.addToCollection)}>{t('entry.addToCollection')}</MenuItem>}
-      {/* The drawn menus keep the owner's rows under their own heading, Delete last (tablet.html frame 7). */}
-      {localOwner && <OwnerMetadataGroup separated={!!(effects.addToPlaylist || effects.addToCollection)} context={binding.context} anchor={() => more.anchor}
-        guard={() => {binding.current(page); if (!binding.service.getSnapshot().appended.some(section => section.entries.includes(more.entry))) throw new DOMException('Audiobook page changed', 'AbortError');}}
-        target={more.entry.kind === 'audiobook_file' ? {libraryId: page.scope.libraryId, itemId: more.entry.id, kind: 'audiobook_file', title: more.entry.title} : undefined}>
-        {effects.deleteTitle && <MenuItem icon="i-trash" destructive onSelect={() => invoke(effects.deleteTitle)}>{t('entry.delete')}</MenuItem>}
-      </OwnerMetadataGroup>}
-    </Menu>}
   </>;
 }
 /** The ordinary TitleRow pager supplies visibility demand and the existing square-card shelf.

@@ -15,7 +15,7 @@ test('at phone width /notifications is phone-app 21: the bar with Mark all read,
 
 test('the Server section is its own scoped inbox, for owners only, made on the page and disposed with it; Mark all read reads both', () => {
   assert.match(route, /const owner = context\.facts\.identity\.viewer\.role === 'owner' && sharedState\.audiences\.includes\('account-admin'\);/);
-  assert.match(route, /const notificationScope = createNotificationScope\(notificationApi, \{serverId: context\.facts\.identity\.viewer\.serverId, signal: lifetime\.signal, isCurrent\}\);/);
+  assert.match(route, /const notificationScope = createNotificationScope\(context\.notificationScope \?\? context\.api, \{serverId: context\.facts\.identity\.viewer\.serverId, signal: lifetime\.signal, isCurrent\}\);/);
   assert.match(route, /const service = new InboxService\(notificationScope, undefined, \{queries: context\.freshness\.queries, cacheApi: notificationScope\}\);/);
   assert.match(route, /return \(\) => \{lifetime\.abort\(\); service\.dispose\(\); notificationScope\.dispose\(\);\};/);
   assert.match(route, /for \(const \[inbox, snapshot\] of \[\[shared, sharedState\], \[server, serverState\]\] as const\)/);

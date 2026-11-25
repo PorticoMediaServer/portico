@@ -7,7 +7,7 @@ import {timelineFacts, type TextEnvironment} from '@portico/client-core/kit-mode
 import {durationText} from '@core/presentation/kit-model/text.ts';
 import type {BrowseSortSelection} from '@core/browse.ts';
 import type {ContentEntry} from '@core/library-content.ts';
-import {AlphabetRail, WindowedGrid, fillHeightBelow, observeShellClearance, type WindowedGridHandle} from '../../kit/layout';
+import {AlphabetRail, WindowedGrid, fillHeightBelow, observeShellClearance, type GridItemContext, type WindowedGridHandle} from '../../kit/layout';
 import {Skeleton, StateView} from '../../kit/states';
 import {Artwork, GeneratedArt} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
@@ -19,6 +19,7 @@ import type {ShellArtwork} from '../../shell/artwork';
 import {useRetainedLayoutPaint} from '../../kit/layout/retained-paint';
 import {BrowseEntryCard, type BrowseItemActions} from './EntryCard';
 import type {BrowseController, BrowseMember} from './controller';
+import {browseScrollKey, getBrowseScrollIndex, setBrowseScrollIndex} from './scroll-position';
 import styles from './browse.module.css';
 
 export type BrowseResultsProps = Readonly<{
@@ -32,6 +33,23 @@ export type BrowseResultsProps = Readonly<{
   empty?: ReactNode;
 }>;
 const t = defaultI18n.t;
+const addedDateFormatters = new Map<string, Intl.DateTimeFormat>();
+function formatAddedDate(addedAt: string | undefined, locale: string | undefined): string | undefined {
+  if (!addedAt) return undefined;
+  const parsed = Date.parse(addedAt);
+  if (!Number.isFinite(parsed)) return undefined;
+  const key = locale ?? 'en-US';
+  let formatter = addedDateFormatters.get(key);
+  if (!formatter) {
+    if (addedDateFormatters.size >= 16) {
+      const oldest = addedDateFormatters.keys().next().value;
+      if (oldest !== undefined) addedDateFormatters.delete(oldest);
+    }
+    formatter = new Intl.DateTimeFormat(key, {month: 'short', day: 'numeric', year: 'numeric'});
+    addedDateFormatters.set(key, formatter);
+  }
+  return formatter.format(parsed);
+}
 // Frames #grid/#big draw the poster grid as `repeat(7, minmax(0, 1fr))`: the card fills its
 // column, so the painted width is the measured column at the reported Medium size, never a
 // fixed width that leaves the row short of the gutter.
@@ -62,7 +80,7 @@ const musicColumns: readonly BrowseColumn[] = [
   {id: 'added', label: 'library.column.added', sort: 'added'},
 ];
 export function BrowseResults(props: BrowseResultsProps) {
-  const {controller, view, shape, cardWidth, onVisibleRange} = props;
+  const {controller, view, shape, cardWidth, onVisibleRange, actions, artwork, env, familyForEntry, backdrops, onSort} = props;
   const root = useRef<HTMLDivElement>(null), grid = useRef<WindowedGridHandle>(null), phone = usePhone();
   const [size, setSize] = useState({width: 0, grid: 0, height: 600}), [visible, setVisible] = useState({first: -1, last: -1});
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
@@ -85,16 +103,40 @@ export function BrowseResults(props: BrowseResultsProps) {
     const stopClearance = observeShellClearance(element, read);
     return () => {observer.disconnect();stopClearance();window.removeEventListener('resize', read);};
   }, [failed]);
-  const range = useCallback((first: number, last: number) => {setVisible(before => before.first === first && before.last === last ? before : {first, last});onVisibleRange?.(first, last);}, [onVisibleRange]);
+  const scrollKey = useMemo(() => browseScrollKey(controller.source, state.predicates, state.sort, view), [controller.source, state.predicates, state.sort, view]);
+  const initialIndex = useMemo(() => getBrowseScrollIndex(scrollKey), [scrollKey]);
+  const pendingRestore = useRef<{key: string; index: number} | undefined>(undefined);
+  const lastScrollKey = useRef<string | undefined>(undefined);
+  if (lastScrollKey.current !== scrollKey) {
+    lastScrollKey.current = scrollKey;
+    pendingRestore.current = initialIndex !== undefined && initialIndex > 0 ? {key: scrollKey, index: initialIndex} : undefined;
+  }
+  const range = useCallback((first: number, last: number) => {
+    setVisible(before => before.first === first && before.last === last ? before : {first, last});
+    if (first >= 0) {
+      const pending = pendingRestore.current;
+      if (pending?.key === scrollKey) {
+        if (first > 0) {
+          pendingRestore.current = undefined;
+          setBrowseScrollIndex(scrollKey, first);
+        }
+      } else {
+        setBrowseScrollIndex(scrollKey, first);
+      }
+    }
+    onVisibleRange?.(first, last);
+  }, [onVisibleRange, scrollKey]);
   const anchors = Object.entries(snapshot.positionIndex ?? {}).map(([key, index]) => ({key, index}));
   const list = view === 'list', ratio = shape === 'poster' ? 2 / 3 : shape === 'collection' ? 16 / 9 : 1;
-  const musicLibrary = state.capabilities?.library.kind === 'music';
+  const libraryKind = state.capabilities?.library.kind;
+  const libraryId = controller.source.libraryId;
+  const musicLibrary = libraryKind === 'music';
   // The canonical Songs tab maps its pivot to 'songs' (library-tabs.ts); only that tab is the song table.
   const music = musicLibrary && controller.source.pivot === 'songs';
   const musicGenres = musicLibrary && controller.source.pivot === 'genres';
   // A music genre is the kit's genre tile, drawn at its own width (cards.module.css .musicGenre), as on Discover; two across on a phone.
   const musicGenreWidth = phone ? 160 : 250;
-  const reading = state.capabilities?.library.kind === 'book' || state.capabilities?.library.kind === 'comic';
+  const reading = libraryKind === 'book' || libraryKind === 'comic';
   const drawnColumns = reading ? readingColumns : music ? musicColumns : columns;
   // Frame #collections draws three 16:9 series tiles at 24px: a page of about ten groups reads as
   // banners, not as seven poster columns. Every other grid fills its columns to the gutter.
@@ -104,7 +146,18 @@ export function BrowseResults(props: BrowseResultsProps) {
   // keeps the tiles' column count at three when the grid derives it again from this width.
   const overflow = size.grid > 0 ? Math.max(0, size.width - size.grid) : 0;
   const tileWidth = size.grid > 0 ? (size.grid - 2 * gap) / 3 - .01 : cardWidth;
-  const rowHeight = list ? music ? 56 : 70 : (width: number) => musicGenres ? 152 : width / ratio + (shape === 'collection' ? 0 : gridCaption);
+  const rowHeight = useMemo(() => list ? (music ? 56 : 70) : (width: number) => musicGenres ? 152 : width / ratio + (shape === 'collection' ? 0 : gridCaption),
+    [list, music, musicGenres, ratio, shape]);
+  const renderPlaceholder = useCallback((_: number, width: number) =>
+    <Skeleton height={list ? 54 : musicGenres ? 152 : width / ratio} width={list ? '100%' : width}/>,
+  [list, musicGenres, ratio]);
+  const renderItem = useCallback((member: BrowseMember, context: GridItemContext) => list
+    ? <BrowseListRow member={member} index={context.index} artwork={artwork} env={env} actions={actions} reading={reading} music={music}/>
+    : <BrowseEntryCard entry={member.entry} actions={actions(member, context.index)} artwork={artwork} env={env}
+        width={context.width} family={familyForEntry?.(member.entry) ?? libraryKind} mixed={libraryId === '*'}
+        slot={shape === 'poster' || shape === 'square' ? shape : undefined} visible order={context.index}
+        group={libraryId} backdrops={backdrops}/>,
+  [list, artwork, env, actions, reading, music, familyForEntry, libraryKind, libraryId, shape, backdrops]);
   const gutter = {'--grid-overflow': `${overflow}px`} as CSSProperties;
   if (failed) return <StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: controller.retry}}/>;
   return <div className={styles.results} ref={root} data-view={view} data-music={music || undefined} data-reading={reading || undefined} data-shape={tiles ? 'collection' : undefined} data-empty={snapshot.total === 0 ? '' : undefined} style={gutter}>
@@ -112,18 +165,16 @@ export function BrowseResults(props: BrowseResultsProps) {
     {list && <div className={styles.listHead} role="row">{drawnColumns.map(column => {
       const field = column.sort ?? column.id, offered = state.capabilities?.sorts.find(sort => sort.id === field);
       return <div key={column.id} role="columnheader" className={column.id === 'pages' || column.id === 'added' || column.id === 'number' ? styles.listNumber : undefined} aria-sort={state.sort?.field === field ? state.sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
-        {offered ? <button type="button" onClick={() => props.onSort({field: offered.id, direction: state.sort?.field === offered.id && offered.directions.length > 1 ? state.sort.direction === 'asc' ? 'desc' : 'asc' : offered.defaultDirection})}>{t(column.label)}{state.sort?.field === field && <Icon name={state.sort.direction === 'asc' ? 'i-up' : 'i-down'} size={14}/>}</button> : t(column.label)}
+        {offered ? <button type="button" onClick={() => onSort({field: offered.id, direction: state.sort?.field === offered.id && offered.directions.length > 1 ? state.sort.direction === 'asc' ? 'desc' : 'asc' : offered.defaultDirection})}>{t(column.label)}{state.sort?.field === field && <Icon name={state.sort.direction === 'asc' ? 'i-up' : 'i-down'} size={14}/>}</button> : t(column.label)}
       </div>;
     })}{!reading && !music && <span aria-label={t('next.cards.watched')} role="columnheader"/>}<span/></div>}
     <WindowedGrid collection={controller.collection} ref={grid} label={props.label} height={size.height} retainRemovals paintScope={controller} empty={props.empty}
-      cardWidth={tiles ? tileWidth : musicGenres ? musicGenreWidth : cardWidth} fullWidth={list} fill={!list && !tiles} rowHeight={rowHeight} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
-      onVisibleRange={range} renderPlaceholder={(_, width) => <Skeleton height={list ? 54 : musicGenres ? 152 : width / ratio} width={list ? '100%' : width}/>}
-      renderItem={(member, context) => list ? <BrowseListRow {...props} member={member} index={context.index} reading={reading} music={music}/> : <BrowseEntryCard entry={member.entry} actions={props.actions(member, context.index)} artwork={props.artwork} env={props.env}
-        width={context.width} family={props.familyForEntry?.(member.entry) ?? state.capabilities?.library.kind} mixed={controller.source.libraryId === '*'} slot={shape === 'poster' || shape === 'square' ? shape : undefined} visible order={context.index} group={controller.source.libraryId} backdrops={props.backdrops}/>} />
+      initialIndex={initialIndex} cardWidth={tiles ? tileWidth : musicGenres ? musicGenreWidth : cardWidth} fullWidth={list} fill={!list && !tiles} rowHeight={rowHeight} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
+      onVisibleRange={range} renderPlaceholder={renderPlaceholder} renderItem={renderItem} />
     {state.sort?.field === 'title' && anchors.length > 0 && !tiles && <AlphabetRail anchors={anchors} visibleRange={visible} onJump={anchor => grid.current?.scrollToIndex(anchor.index)} platform={phone ? 'phone' : 'desktop'} className={styles.rail}/>}
   </div>;
 }
-function BrowseListRow({member, index, artwork, env, actions, reading, music}: BrowseResultsProps & {member: BrowseMember; index: number; reading: boolean; music: boolean}) {
+function BrowseListRow({member, index, artwork, env, actions, reading, music}: Pick<BrowseResultsProps, 'artwork' | 'env' | 'actions'> & {member: BrowseMember; index: number; reading: boolean; music: boolean}) {
   const interactionRoot = useRef<HTMLDivElement>(null), retained = useRetainedLayoutPaint();
   const source = useRef<'pointer' | 'keyboard'>('pointer');
   const committed = useRef<{member: BrowseMember; index: number; actions: BrowseResultsProps['actions']; value: BrowseItemActions} | undefined>(undefined);
@@ -145,7 +196,7 @@ function BrowseListRow({member, index, artwork, env, actions, reading, music}: B
   const art = useMemo(() => artwork.foreground(entry.posterUrl, music ? 42 * devicePixelRatio : 72 * devicePixelRatio, music ? 1 : 2 / 3, {group: entry.libraryId, order: index}), [artwork, entry.posterUrl, entry.libraryId, music, index]);
   if (!originalAction) return null;
   const action = {...originalAction, selection};
-  const added = entry.addedAt && Number.isFinite(Date.parse(entry.addedAt)) ? new Intl.DateTimeFormat(env.locale ?? 'en-US', {month: 'short', day: 'numeric', year: 'numeric'}).format(new Date(entry.addedAt)) : undefined;
+  const added = formatAddedDate(entry.addedAt, env.locale);
   const duration = durationText(entry.duration, env.t);
   const resolution = entry.resolution === '4k' ? t('quality.4k') : entry.resolution === '1080p' ? t('downloads.quality.1080p') : entry.resolution === '720p' ? t('downloads.quality.720p') : entry.resolution === 'sd' ? t('quality.sd') : undefined;
   const select = action.selection && <SelectionCircle selected={action.selection.checked} selecting={action.selection.active} onSelectedChange={(_next, intent) => {if (!retained) action.selection?.onToggle({range: intent.intent === 'range' || intent.shiftKey === true, source: source.current});}} onKeyDownCapture={() => {source.current = 'keyboard';}} onPointerDownCapture={() => {source.current = 'pointer';}} accessibilityLabel={t('next.selection.select')} variant="row"/>;

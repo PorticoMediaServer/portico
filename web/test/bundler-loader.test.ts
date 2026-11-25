@@ -24,20 +24,29 @@ const fixture = (t: test.TestContext, files: Record<string, string>) => {
   return {dir, url: (name = 'probe.tsx') => pathToFileURL(path.join(dir, name))};
 };
 
-test('route discovery expands the app’s two eager globs into its real screens', async () => {
+test('route discovery expands lazy screen globs and the eager action glob into the real registry', async () => {
   const code = transformTsx(pathToFileURL(path.join(root, 'src', 'route-registry-view.tsx')));
-  // Eager globs are static imports of the matching modules, never lazy loaders.
-  assert.equal([...code.matchAll(/^import \* as \S+ from "\.\/screens\/\S+\.route\.tsx";$/gm)].length, 23);
+  // Screen routes are lazy-loaded per route chunk; lightweight actions stay eager.
+  assert.equal([...code.matchAll(/import\("\.\/screens\/\S+\.route\.tsx"\)/g)].length, 23);
   assert.equal([...code.matchAll(/^import \* as \S+ from "\.\/screens\/\S+\.action\.tsx";$/gm)].length, 1);
-  assert.doesNotMatch(code, /import\(/);
+  assert.equal([...code.matchAll(/^import \* as \S+ from "\.\/screens\/\S+\.route\.tsx";$/gm)].length, 0);
   // The registry built from those modules is the app's whole destination set,
-  // each with a real component rather than a placeholder.
+  // with synchronous metadata/search validators and lazy route components.
   const {webScreens} = await import('../src/route-registry-view.tsx');
   assert.deepEqual(webScreens.missing(), []);
   for (const id of Object.keys(webScreenPaths)) {
     assert.equal(webScreens.get(id as keyof typeof webScreenPaths)?.id, id);
     assert.equal(typeof webScreens.get(id as keyof typeof webScreenPaths)?.component, 'function');
   }
+  assert.equal(webScreens.chrome('help'), 'standalone');
+  assert.equal(webScreens.chrome('player'), 'player');
+  assert.equal(webScreens.chrome('settings'), 'shell');
+  assert.equal(typeof webScreens.get('player')?.playbackHost, 'function');
+  assert.equal(typeof webScreens.get('notifications')?.shellPopover, 'function');
+  assert.deepEqual(webScreens.retainedHosts().map(host => host.id).sort(), ['read', 'saved']);
+  assert.deepEqual(webScreens.validateSearch('readingSearch', {q: 'dune'}), {q: 'dune'});
+  assert.deepEqual(webScreens.validateSearch('read', {sourceId: 'src_1'}), {sourceId: 'src_1'});
+  assert.deepEqual(webScreens.validateSearch('servers', {local: 'true', link: 'srv-1'}), {local: true, link: 'srv-1'});
   assert.deepEqual(webScreens.actions().map(action => action.id), ['feedback']);
 });
 

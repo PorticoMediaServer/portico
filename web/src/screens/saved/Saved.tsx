@@ -113,6 +113,11 @@ export function SavedScreen(bindings: SavedBindings) {
   }, [runtime, readerRoute]);
   useQuietRefresh('saved', refresh, () => runtime.operations.current, {dependencies: [dependsOn.personal(), dependsOn.progress(), dependsOn.content(), dependsOn.settings('preferences')], everyMs: 0});
   const localSnapshot = useSyncExternalStore(bindings.localDownloads?.subscribe ?? noSubscribe, bindings.localDownloads?.getSnapshot ?? noLocalSnapshot, noLocalSnapshot);
+  const canCreatePlaylist = useSyncExternalStore(
+    phone && readerRoute.view === 'playlists' ? runtime.saved.subscribe : noSubscribe,
+    () => phone && readerRoute.view === 'playlists' ? runtime.saved.getSnapshot().projection?.actions?.includes('create_playlist') === true : false,
+    () => false,
+  );
   const localUsable = !!bindings.localDownloads && sameSavedDownloadsScope(bindings.localDownloads.scope, runtime.scope) && !!localSnapshot?.available;
   useEffect(() => {
     if (localUsable && effects.saveReadyPreparation) runtime.installReadyDownloads(effects.saveReadyPreparation, effects.reportError);
@@ -122,21 +127,21 @@ export function SavedScreen(bindings: SavedBindings) {
   if (route.view === 'playlist' || route.view === 'resource') return <SavedResourceScreen key={viewKey} bindings={viewBindings} />;
   // At phone width the home route is the drawn directory (phone-web frame 6);
   // desktop and tablet keep today's tabbed page with My List active.
-  if (phone && route.view === 'home') return <main className={styles.page}><BrowseFrame header={{title: t('saved.title')}}>
+  if (phone && route.view === 'home') return <div className={styles.page}><BrowseFrame header={{title: t('saved.title')}}>
     <SavedPhoneDirectory runtime={runtime} downloadsOffered={bindings.downloadsOffered || localUsable} artwork={bindings.artwork} select={effects.selectRoute} openEntry={effects.openEntry} pins={bindings.pins} />
-  </BrowseFrame></main>;
+  </BrowseFrame></div>;
   const dataBindings = readerRoute === route ? viewBindings : {...viewBindings, route: readerRoute};
   const active = readerRoute.view;
   const tabs = (Object.keys(tabLabels) as (keyof typeof tabLabels)[]).filter(tab => tab !== 'downloads' || bindings.downloadsOffered || localUsable);
   const server = <ServerDownloads key={viewKey} service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} />;
   // BrowseFrame owns the header: Saved with its tabs from 600; at phone width a pushed list's own title, Back to Saved and its
   // one action. The window owns the backdrop.
-  const phoneAction = active === 'playlists' && runtime.saved.getSnapshot().projection?.actions?.includes('create_playlist')
+  const phoneAction = active === 'playlists' && canCreatePlaylist
     ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newPlaylist')} onClick={() => setCreating({viewKey, kind: 'playlist'})} />
     : active === 'collections' ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newCollection')} onClick={() => setCreating({viewKey, kind: 'collection'})} /> : undefined;
   const header = phone ? active in tabLabels ? {title: t(tabLabels[active as keyof typeof tabLabels]), back: {label: t('saved.title'), onPress: () => effects.selectRoute({view: 'home'})}, trailing: phoneAction} : {title: t('saved.title')}
     : {title: t('saved.title'), tabs: {value: active, onValueChange: (value: string) => { if (value in tabLabels) effects.selectRoute({view: value as keyof typeof tabLabels}); }, items: tabs.map(tab => ({value: tab, label: t(tabLabels[tab])}))}};
-  return <main className={styles.page}><BrowseFrame header={header}>
+  return <div className={styles.page}><BrowseFrame header={header}>
     {route.view === 'downloads' ? localUsable && bindings.localDownloads
       ? <LocalDownloads key={viewKey} port={bindings.localDownloads} operations={operations} effects={effects} server={<ServerDownloads service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} embedded managed={!!effects.saveReadyPreparation} />} /> : server
       : route.view === 'history' ? <SavedHistory key={viewKey} bindings={dataBindings} />
@@ -144,7 +149,7 @@ export function SavedScreen(bindings: SavedBindings) {
           : <SavedLists key={viewKey} {...dataBindings} onCreate={() => setCreating({viewKey, kind: 'playlist'})} />}
   </BrowseFrame>
     <CreateResourceDialog key={`create:${viewKey}`} kind={creating?.viewKey === viewKey ? creating.kind : undefined} bindings={viewBindings} close={() => setCreating(undefined)} />
-  </main>;
+  </div>;
 }
 const noSubscribe = () => () => {};
 const noLocalSnapshot = () => undefined;
@@ -445,7 +450,7 @@ function PersonalResourceRow({resource, bindings}: {resource: PersonalResource; 
   return <button type="button" className={styles.resourceRow} onClick={() => bindings.effects.selectRoute({view: 'resource', resourceId: resource.id})}>
     <span className={styles.resourceRowArt}><CoverMosaic covers={covers} shape="square" alt="" /></span>
     <span className={styles.resourceRowCopy}><b>{resource.name}</b>
-      <small>{collection ? t('lib.count', {count: resource.entryCount, pivot: 'collections'}) : t('lib.count', {count: resource.entryCount, pivot: 'other'})}</small>
+      <small>{t('web.saved.items', {count: resource.entryCount})}</small>
       {shared ? <small className={styles.resourceRowNote}><Icon name="i-people" size={13}/>{t('web.saved.sharedByOwner')}</small>
         : collection ? <small className={visible ? styles.resourceRowVisible : styles.resourceRowNote}><Icon name={visible ? 'i-people' : 'i-lock'} size={13}/>{t(visible ? 'web.saved.visibleToEveryone' : 'web.saved.onlyYou')}</small>
           : resource.onHome ? <small className={styles.resourceRowVisible}><Icon name="i-home" size={13}/>{s('next.saved.onHome')}</small> : null}

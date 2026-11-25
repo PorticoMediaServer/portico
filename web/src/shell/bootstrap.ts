@@ -17,7 +17,7 @@ import {HomeService} from '@core/home-service.ts';
 import {createShellFactOwner, attachShellFactFeed, bindShellFactWake, shellAccount, type ShellFactWitnesses} from './facts';
 import type {ShellFactsSource} from './fact-source';
 import {InboxService} from '@core/inbox.ts';
-import {createNotificationScope} from '@core/notification-scope.ts';
+import {createNotificationScope, type ScopedNotifications} from '@core/notification-scope.ts';
 import {EventsClient} from '@core/playback-v1/events.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {runEventFeed} from '@core/event-feed.ts';
@@ -46,7 +46,7 @@ import {restoreAfterAccountEnd} from '../platform/portico-account-end';
 export type ShellFacts = Readonly<{identity: ShellIdentity; preferences: PreferenceSnapshot; serverName: string}>;
 export type ShellAssemblyContext = Readonly<{
   api: HttpLocalApi; session: () => LocalSession; auth: LocalSessionRefresher; events: EventsClient;
-  freshness: FreshnessRuntime; home: HomeService; inbox: InboxService; artwork: ShellArtwork;
+  freshness: FreshnessRuntime; home: HomeService; inbox: InboxService; notificationScope?: ScopedNotifications; artwork: ShellArtwork;
   libraryRouteProof?: LibraryRouteProof; libraryRouteSignal?: AbortSignal;
   facts: ShellFacts; factsSource?: ShellFactsSource; homeAuthority?: () => void;
   /** Read the library directory again now (an inline Try again after it did not answer). */
@@ -526,7 +526,7 @@ export class ShellBootstrap {
     const saved=(await (this.environment.actions?.()??browserAppSessionActions()).store.read()).servers;
     const savedServers=await display.choices(saved.map(value=>({pin:value.connection.pin,origin:value.connection.logicalOrigin,signIn:value.signIn})),signal);
     if (!isCurrent()) return;
-    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, isCurrent, signOut,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
+    const context: ShellAssemblyContext = {api, session: () => session, auth, events, freshness, home, inbox, notificationScope, artwork, factsSource, libraryRouteProof: libraryRouteProof.source, homeAuthority: factOwner.authority, observeDirect: factOwner.observeDirect, retryLibraries: () => {if (isCurrent()) factOwner?.request('directory');}, get facts() {return facts();}, preferences, epoch, isCurrent, signOut,switchProfile,manageGate,switchServer:this.selectServer,get savedServers() {return savedServers.map(value => value.id === session.viewer.serverId ? {...value, label: facts().serverName} : value);}};
     const assembly = await this.assemble(context);
     if (!isCurrent()) { assembly.dispose(); return; }
     cleanups.push(() => assembly.dispose());

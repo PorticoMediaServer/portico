@@ -29,9 +29,9 @@ export function AlphabetRail({anchors, visibleRange, onJump, platform = 'desktop
   const jump = (key: string | undefined) => { const anchor = key === undefined ? undefined : available.get(key); if (anchor) { setBubble(anchor.key); onJump(anchor); } };
   const point = (y: number) => keys[railIndexAt(y, buttons.current.map(button => button?.getBoundingClientRect()))];
   return <nav ref={root} className={[styles.alphabet, className].filter(Boolean).join(' ')} style={style} data-platform={platform} aria-label={defaultI18n.t('next.layout.jumpToTitle')}
-    onPointerDown={event => { if (event.button !== 0) return; dragging.current = true; event.currentTarget.setPointerCapture(event.pointerId); jump(point(event.clientY)); event.preventDefault(); }}
+    onPointerDown={event => { if (event.button !== 0) return; dragging.current = true; try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* synthetic or uncapturable pointer */ } jump(point(event.clientY)); event.preventDefault(); }}
     onPointerMove={event => { const key = point(event.clientY); if (dragging.current) jump(key); else setBubble(key !== undefined && available.has(key) ? key : null); }}
-    onPointerUp={event => { dragging.current = false; event.currentTarget.releasePointerCapture(event.pointerId); setBubble(null); }}
+    onPointerUp={event => { dragging.current = false; if (event.currentTarget.hasPointerCapture?.(event.pointerId)) { try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ } } setBubble(null); }}
     onPointerCancel={() => { dragging.current = false; setBubble(null); }} onPointerLeave={() => { if (!dragging.current) setBubble(null); }}>
     {band && <span className={styles.band} style={{top: band.first * itemHeight, height: (band.last - band.first + 1) * itemHeight}} />}
     {keys.map((key, index) => <button type="button" key={key} ref={element => { buttons.current[index] = element; }} disabled={!available.has(key)} style={{height: itemHeight}} data-current={band && index === band.first || undefined} data-compact-hit-target

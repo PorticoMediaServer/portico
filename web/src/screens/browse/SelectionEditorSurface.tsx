@@ -69,7 +69,7 @@ export function SelectionEditorSurface({session, options, onKeepOnly, onClose}: 
   if (!kind) return null;
   return <BulkEditor open onOpenChange={open => {if (!open && !busy) close();}} returnFocusRef={anchor}
     selection={{count: preview.total, kind}} schema={preview.schema} singleItemFields={preview.singleItemFields} values={editorValues(preview)}
-    draft={draft} onDraftChange={value => {if (!busy && !error && !receipts.length) setDraft(value);}} onSave={value => {void save(value);}}
+    draft={draft} onDraftChange={value => {if (!busy && !receipts.length) {setError(false); setDraft(value);}}} onSave={value => {void save(value);}}
     onRetry={ids => {void retry(ids);}} targets={targets} result={editorResultView(receipts)} busy={busy}
     error={error ? defaultI18n.t('next.selection.editorUncertain') : undefined} ownerTag={<OwnerEditorTag/>}/>;
 }

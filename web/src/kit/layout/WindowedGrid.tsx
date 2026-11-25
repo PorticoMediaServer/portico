@@ -46,6 +46,7 @@ export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, labe
   initialIndex, pinnedIndex, onVisibleRange, onItemFocus, reducedMotion = false, retainRemovals = false, paintScope, empty, ref, className, style}: WindowedGridProps<T>) {
   const initialPosition = useRef<WindowedCollection<T> | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null), pendingFocus = useRef<number | null>(null), [viewport, setViewport] = useState({width: 0, height: 0, top: 0});
+  const [scrollCancel, setScrollCancel] = useState(0), leavingCount = useRef(0);
   const [focused, setFocused] = useState<string | null>(null), motion = useLayoutMotion(reducedMotion);
   const focusOwner = useMemo(() => { /* Preserve the original ownership/invalidation keys. */ void collection; void paintScope; return new RemovalFocusOwner(); }, [collection, paintScope]);
   useLayoutEffect(() => {pendingFocus.current = null;setFocused(null);}, [focusOwner]);
@@ -91,8 +92,8 @@ export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, labe
   }, [total, columns, pitch, rowHeight, logicalTop, usableHeight, maxPhysical, maxLogical, motion.reduced]);
   useLayoutEffect(() => {
     if (initialPosition.current === collection || initialIndex === undefined || !Number.isSafeInteger(initialIndex)
-      || initialIndex < 0 || snapshot.total === undefined || initialIndex >= snapshot.total || viewport.width <= 0 || viewport.height <= 0) return;
-    initialPosition.current = collection; jump(initialIndex);
+      || initialIndex < 0 || snapshot.total === undefined || snapshot.total <= 0 || viewport.width <= 0 || viewport.height <= 0) return;
+    initialPosition.current = collection; jump(Math.min(initialIndex, snapshot.total - 1));
   }, [collection, initialIndex, snapshot.total, viewport.width, viewport.height, jump]);
   useImperativeHandle(ref, () => ({scrollToIndex: (index, options) => jump(index, options?.focus)}), [jump]);
   useLayoutEffect(() => {
@@ -132,14 +133,18 @@ export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, labe
     return {key: slot.key, node, content};
   }), [contents, snapshot.total, columns, cardWidth, rowHeight, gap, pitch, logicalTop, viewport.top, stickyOffset]);
   const paintOwner = useMemo(() => ({collection, paintScope}), [collection, paintScope]);
-  // Scrolling, a different original source, or a layout replacement is not a removal animation.
-  const paintWindow = useMemo(() => ({owner: paintOwner, width: viewport.width, height: viewport.height, top: viewport.top, cardWidth, rowHeight, gap, rowGap, stickyOffset}),
-    [paintOwner, viewport.width, viewport.height, viewport.top, cardWidth, rowHeight, gap, rowGap, stickyOffset]);
+  // Scrolling across buffered windows, a different original source, or a layout replacement
+  // is not a removal animation; intra-window scroll pixels share the same quantized window.
+  const paintWindow = useMemo(() => ({owner: paintOwner, width: viewport.width, height: viewport.height,
+    first: range.first, last: range.last, renderFirst: range.renderFirst, renderLast: range.renderLast,
+    scrollCancel, cardWidth, rowHeight, gap, rowGap, stickyOffset}),
+    [paintOwner, viewport.width, viewport.height, range.first, range.last, range.renderFirst, range.renderLast, scrollCancel, cardWidth, rowHeight, gap, rowGap, stickyOffset]);
   const accepted = snapshot.status === 'ready' && !snapshot.refreshing && snapshot.total !== undefined;
   const previousAnswer = useRef<{window: object; generation: number; extent: number} | undefined>(undefined);
   const reduced = motion.reduced || reducedAt(root.current);
   const presence = useLayoutPresence(items, paintKey, reduced, 180, retainRemovals ? 320 : 0, {scope: paintWindow, maxRetained: retainRemovals ? 40 : 0, staggerMs: 40, visibleOnly: true,
     admitNew: retainRemovals && accepted && previousAnswer.current?.window === paintWindow && previousAnswer.current.generation !== snapshot.generation}, root);
+  leavingCount.current = presence.leaving.size;
   useGridExitPaint(presence.root, presence.exits, paintOwner, reduced);
   // Only the incoming slots fade. The old generation's outgoing paint has its own lease.
   // Waiting for the retained tree's live answer prevents consuming a generation before its DOM.
@@ -159,7 +164,12 @@ export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, labe
   }) : []), retainRemovals && presence.leaving.size ? viewport.top + viewport.height : 0);
   return <GridRemovalFocus owner={focusOwner} root={root} generation={snapshot.generation} accepted={accepted} keys={keys} viewport={viewport}>
     <div ref={root} tabIndex={-1} className={[styles.grid, className].filter(Boolean).join(' ')} style={{height, ...style}} role="list" aria-label={label} aria-busy={snapshot.status === 'loading'}
-    onScroll={event => { const element = event.currentTarget; setViewport({width: element.clientWidth, height: element.clientHeight, top: element.scrollTop}); }}
+    onScroll={event => {
+      const element = event.currentTarget;
+      if (leavingCount.current > 0) setScrollCancel(count => count + 1);
+      setViewport(previous => previous.width === element.clientWidth && previous.height === element.clientHeight && previous.top === element.scrollTop
+        ? previous : {width: element.clientWidth, height: element.clientHeight, top: element.scrollTop});
+    }}
     onBlurCapture={event => { const next = event.relatedTarget as HTMLElement | null; if (!next || !event.currentTarget.contains(next) || !next.closest('[data-item-id]')) setFocused(null); }}
     onKeyDown={event => {
       if ((event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')) return;

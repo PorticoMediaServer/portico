@@ -83,14 +83,21 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
   const history = useQuery({...binding.history, enabled: remember});
   const recent = remember && history.data ? history.data.entries.slice(0, 8).map(item => item.q) : [];
   // The address this screen last settled on. Another address (Back, a link) replaces what is typed.
-  const settled = useRef<SearchAddress>(address), asked = useRef<string | undefined>(undefined);
+  const settled = useRef<SearchAddress>(address), asked = useRef<string | undefined>(undefined), debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (address.q === settled.current.q && address.group === settled.current.group) return;
     settled.current = {q: address.q, ...(address.group ? {group: address.group} : {})}; setText(address.q); setChip(address.group ?? 'all');
   }, [address.q, address.group]);
   const submit = (record = false) => {
     if (!context.isCurrent()) return;
-    void binding.select(problem ? '' : text.trim(), {...(group ? {group} : {}), ...(record && remember ? {record: true} : {})}).catch(context.effects.reportError);
+    if (debounce.current !== undefined) { clearTimeout(debounce.current); debounce.current = undefined; }
+    const next: SearchAddress = {q: problem ? '' : text.trim(), ...(group ? {group} : {})};
+    asked.current = JSON.stringify([next.q, next.group]);
+    if (next.q !== settled.current.q || next.group !== settled.current.group) {
+      settled.current = next;
+      onSettle?.(next);
+    }
+    void binding.select(next.q, {...(group ? {group} : {}), ...(record && remember ? {record: true} : {})}).catch(context.effects.reportError);
   };
   useEffect(() => {
     if (snapshot.query?.q === text.trim() && snapshot.query?.group === group) return;
@@ -102,8 +109,9 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
     if (next.q === address.q && next.group === address.group) { run(); return; }
     // Withdraw the old query immediately, including during the debounce.
     asked.current = undefined; service.cancel();
-    const timer = setTimeout(run, 260);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { debounce.current = undefined; run(); }, 260);
+    debounce.current = timer;
+    return () => { clearTimeout(timer); if (debounce.current === timer) debounce.current = undefined; };
   }, [binding, service, text, group, problem, context.effects.reportError, snapshot.query?.q, snapshot.query?.group, address.q, address.group, onSettle]);
   useEffect(() => { input.current?.focus(); }, [binding]);
   useEffect(() => {
@@ -239,6 +247,8 @@ function SearchLoading() {
 export const SearchTitleMenu = createContext<((anchor: HTMLElement, subject: TitleMenuSubject) => void) | undefined>(undefined);
 const noSelectionSubscription = () => () => {};
 const noSelectionSnapshot = () => 0;
+const emptyLiveCards = new Map<string, never>();
+const noLiveSnapshot = () => emptyLiveCards;
 export function SearchResult({entry, binding, selection, selectionVisible = true, position = 0, onCommit, albumArt, row = false}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; selectionVisible?: boolean; position?: number; onCommit: () => void; albumArt?: string;
   /** A phone's All view lists a group's first results as rows (final3-mobileweb-02). */
   row?: boolean}) {
@@ -249,7 +259,8 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   const picked = useCardInteractionAdmission(selectionVisible && 'libraryId' in entry ? selection?.card(entry) : undefined, interactionRoot, !selectionVisible);
   const range = useSelectionRangePreview(picked);
   const {context} = binding, open = () => runScreenCommand(context, () => { binding.open(entry); onCommit(); });
-  const liveCards = useSyncExternalStore(binding.live.subscribe, binding.live.getSnapshot, binding.live.getSnapshot);
+  const channel = entry.kind === 'channel';
+  const liveCards = useSyncExternalStore(channel ? binding.live.subscribe : noSelectionSubscription, channel ? binding.live.getSnapshot : noLiveSnapshot, channel ? binding.live.getSnapshot : noLiveSnapshot);
   const openMenu = useContext(SearchTitleMenu), more = useResultMore(binding, entry, picked, openMenu, onCommit);
   const art = context.artwork.foreground(entry.posterUrl, 380, 2 / 3);
   if (entry.kind === 'channel') {
@@ -349,6 +360,7 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
 }
 
 function SearchGroupWindow({binding, group, result, selection, onCommit}: {binding: SearchBindings; selection?: SearchSelection; group: SearchGroup; result?: SearchGroupResult; onCommit: () => void}) {
+  const shellWidth = useShellWidth(), compact = shellWidth < 600, tablet = shellWidth < 1024;
   const window = useMemo(() => appendedWindow<SearchEntry>(keyOf), []);
   const entries = useRef<readonly SearchEntry[]>([]), key = useRef(''), [, redraw] = useState(0);
   const snapshot = binding.service.getSnapshot(), queryKey = JSON.stringify([snapshot.query?.q, group, snapshot.data?.scope.viewerFence, snapshot.data?.revision]);
@@ -361,11 +373,15 @@ function SearchGroupWindow({binding, group, result, selection, onCommit}: {bindi
     window.set(entries.current); redraw(value => value + 1);
   }, [window, result, queryKey, snapshot.phase, snapshot.pagination.cursor]);
   useEffect(() => () => window.dispose(), [window]);
-  const songs = group === 'songs';
+  const songs = group === 'songs', live = group === 'live-tv', episodes = group === 'episodes';
+  const square = group === 'albums' || group === 'audiobooks' || group === 'artists' || group === 'people';
+  const gap = compact ? 12 : 16;
+  const cardWidth = episodes ? (compact ? Math.max(240, shellWidth - 40) : tablet ? 262 : 316) : live ? (compact ? Math.max(240, shellWidth - 40) : 300) : compact ? (square ? 112 : 100) : 174;
+  const rowHeight = songs ? 58 : live ? 128 : episodes ? Math.round(cardWidth * 9 / 16) + 108 : square ? Math.round(cardWidth) + 56 : Math.round(cardWidth * 1.5) + 58;
   return <section className={styles.single}><h2>{t(searchGroupLabel(group))}{songs && result?.totalCountExact && <span className={styles.resultTotal}>{t('web.search.results', {count: result.totalCount})}</span>}</h2>
     {songs && <div className={styles.songColumns} aria-hidden="true"><span>{t('next.browse.number')}</span><span>{t('next.browse.title')}</span><span>{t('next.browse.artist')}</span><span>{t('next.browse.album')}</span><span>{t('next.browse.plays')}</span><span>{t('next.browse.duration')}</span></div>}
     <WindowedGrid collection={window.collection} label={t(searchGroupLabel(group))}
-    cardWidth={group === 'episodes' ? 316 : 174} fullWidth={songs} rowHeight={group === 'songs' ? 58 : group === 'episodes' ? 285 : 320} height="calc(100vh - 270px)" gap={16}
+    cardWidth={cardWidth} fullWidth={songs || (compact && (episodes || live))} rowHeight={rowHeight} height="calc(100vh - 270px)" gap={gap}
     // Desktop-search frame 3 draws the Songs table as contiguous rows, like the Music library's.
     {...(songs ? {rowGap: 0} : {})}
     renderItem={(entry, item) => songs ? <SongTableRow entry={entry} binding={binding} selection={selection} position={item.index} onCommit={onCommit} /> : <SearchResult entry={entry} binding={binding} selection={selection} position={item.index} onCommit={onCommit} />} renderPlaceholder={index => <span className={styles.placeholder} key={index} />}

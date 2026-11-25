@@ -54,12 +54,7 @@ function PhoneNotifications({captured}: {captured: Captured}) {
     if (!owner) {setServerEntry(undefined); return;}
     const lifetime = new AbortController();
     const isCurrent = () => !lifetime.signal.aborted && context.isCurrent();
-    const notificationApi = {request: <T,>(path: string, method?: string, body?: unknown, requestSignal?: AbortSignal) => {
-      const readSignal = requestSignal ? AbortSignal.any([requestSignal, lifetime.signal]) : lifetime.signal;
-      const request = () => context.api.request<T>(path, method, body, readSignal);
-      return !method || method === 'GET' ? context.events.resyncReads.run(readSignal, request) : request();
-    }};
-    const notificationScope = createNotificationScope(notificationApi, {serverId: context.facts.identity.viewer.serverId, signal: lifetime.signal, isCurrent});
+    const notificationScope = createNotificationScope(context.notificationScope ?? context.api, {serverId: context.facts.identity.viewer.serverId, signal: lifetime.signal, isCurrent});
     const service = new InboxService(notificationScope, undefined, {queries: context.freshness.queries, cacheApi: notificationScope});
     setServerEntry({context, service});
     return () => {lifetime.abort(); service.dispose(); notificationScope.dispose();};

@@ -11,6 +11,7 @@ import {Icon} from '../../kit/Icon';
 import {Button, TextField, TabsParts} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays/Dialog';
 import {providerName} from '@core/server-admin/attention-words.ts';
+import {presentError} from '@core/presentation/errors.ts';
 import {MetadataError} from './MetadataError';
 import styles from './metadata.module.css';
 import {Artwork as Picture} from '../../kit/artwork';
@@ -55,7 +56,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
   const state = useSyncExternalStore(service.subscribe, service.getSnapshot);
   const tabStrip = useRef<HTMLElement>(null);
   const [tab, setTab] = useState<Tab>(initialTab), [draft, setDraft] = useState<Draft>({}), [error, setError] = useState<unknown>();
-  useLayoutEffect(() => {void service.load(target); return () => service.cancel();}, [service, target]);
+  useLayoutEffect(() => {setDraft({}); setError(undefined); void service.load(target); return () => service.cancel();}, [service, target]);
   const data = state.data;
   const offered = tabsFor(data);
   const shown: Tab = offered.includes(tab) ? tab : 'general';
@@ -68,7 +69,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
   }, [opening]);
   const retireOpening = () => {if (openingLease?.opening === opening) {openingLease.live = false; openingLease.controller.abort();}};
   const openingCurrent = () => openingLease !== null && openingLease.live && openingLease.opening === opening && renderedOpening.current === opening;
-  const close = () => {if (!openingCurrent()) return; retireOpening(); onClose();};
+  const close = () => {if (!openingCurrent()) return; setDraft({}); setError(undefined); retireOpening(); onClose();};
   useEffect(() => {tabStrip.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: 'nearest', inline: 'nearest'});}, [shown]);
   const invalid = data ? Object.entries(draft).some(([name, value]) => {const spec = data.schema.find(row => row.field === name); return spec ? Boolean(fieldError(spec, value.value, value.values, target.kind !== 'season')) : false;}) : false;
   const changed = useMemo(() => {
@@ -87,7 +88,8 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
   const edit = async (fields: NonNullable<RepairCommand['fields']>) => {
     if (!data || service.getSnapshot().data !== data || service.getSnapshot().phase !== 'ready') return;
     setError(undefined);
-    await service.command({action: 'edit', fields}, data);
+    const saved = await service.command({action: 'edit', fields}, data);
+    if (saved) setDraft({});
   };
   const run = async (command: RepairCommand, caller?: RepairCaller) => {
     if (caller && (caller.signal.aborted || !caller.current())) return false;
@@ -95,6 +97,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
     setError(undefined);
     const saved = await service.command(command, data, caller);
     if (caller && (caller.signal.aborted || !caller.current())) return false;
+    if (saved && ['undo', 'lock_all', 'unlock_all', 'identify', 'keep_as_is', 'retry'].includes(command.action)) setDraft({});
     // The service's own answer is already shown above; only a failure it didn't publish is shown here (no second notice).
     if (!saved && !service.getSnapshot().error) setError(new Error(t('web.metadata.saveChanges')));
     return saved;
@@ -130,7 +133,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
     <TabsParts.Content value={shown} className={styles.editorBody}>
     {state.phase === 'loading' ? <p className={styles.working}>{t('web.metadata.loading')}</p> : null}
     {state.error ? <MetadataError error={state.error} /> : null}
-    {state.phase === 'uncertain' || state.phase === 'conflict' || state.phase === 'error' ? <Button size="small" onClick={() => {setError(undefined); void service.load(target);}}>{t('next.states.tryAgain')}</Button> : null}
+    {state.phase === 'uncertain' || state.phase === 'conflict' || state.phase === 'error' ? <Button size="small" onClick={() => {setDraft({}); setError(undefined); void service.load(target);}}>{t('next.states.tryAgain')}</Button> : null}
     {error ? <MetadataError error={error} /> : null}
     {state.phase === 'saving' ? <p className={styles.working}>{t('web.metadata.applying')}</p> : null}
     {data && state.phase !== 'loading' ? <>
@@ -158,7 +161,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
     {/* Frame 6: Save stays pinned under the scrolling fields. */}
     {data && state.phase !== 'loading' && (shown === 'general' || shown === 'tags') ? <footer className={styles.editorFooter}>
       <span className={styles.pending} data-changed={!!changed.length || undefined}>{t(changed.length ? 'web.metadata.pendingCount' : 'web.metadata.noChanges', {count: changed.length})}</span>
-      <div className={styles.editorActions}><Button onClick={onClose}>{t('action.cancel')}</Button>
+      <div className={styles.editorActions}><Button onClick={close}>{t('action.cancel')}</Button>
         <Button variant="primary" loading={state.phase === 'saving'} disabled={!changed.length || invalid || state.phase !== 'ready'} onClick={save}>
           {t('web.metadata.saveChanges')}</Button></div>
     </footer> : null}
@@ -178,7 +181,7 @@ function enumChoiceLabel(spec: RepairFieldSpec, value: string): string {
   }
 }
 
-function input(spec: RepairFieldSpec, value: string, set: (value: string) => void, accessibility: Readonly<{'aria-labelledby': string; 'aria-describedby': string; 'aria-invalid': boolean}>) {
+function input(spec: RepairFieldSpec, value: string, set: (value: string) => void, accessibility: Readonly<{id: string; 'aria-labelledby': string; 'aria-describedby': string; 'aria-invalid': boolean}>) {
   if (spec.type === 'enum' && spec.allowed) return <select {...accessibility} value={value} onChange={event => set(event.currentTarget.value)}>
     {spec.allowed.map(choice => <option key={choice} value={choice}>{enumChoiceLabel(spec, choice)}</option>)}</select>;
   // Frame 6: the language is chosen by name. The server takes any valid language tag,
@@ -205,17 +208,17 @@ function Field({spec, field, draft, set, requiredTitle = false}: {requiredTitle?
   const origin = sourceWords(field?.source), label = fieldLabel(spec), from = metadataFieldSource(field?.source), provider = from?.kind === 'provider' ? from.provider : undefined;
   // An empty field with no origin says what belongs there instead, where that needs saying.
   const said = origin || (spec.field === 'edition' && !value ? t('web.metadata.editionHint') : '');
-  return <label className={styles.field} data-wide={wideMetadataField(spec) || undefined} data-short={compactMetadataField(spec) || undefined} data-changed={changed || undefined}>
-    <span id={id + '-label'} className={styles.fieldLabel}>{label}
+  return <div className={styles.field} data-wide={wideMetadataField(spec) || undefined} data-short={compactMetadataField(spec) || undefined} data-changed={changed || undefined}>
+    <label id={id + '-label'} htmlFor={id + '-input'} className={styles.fieldLabel}>{label}
       {changed ? <em>{t('web.metadata.editorChanged')}</em> : null}
-    </span>
-    <span className={styles.fieldControl} data-invalid={!!error || undefined}>{input(spec, value, next => set({value: next, ...(spec.field === 'metadataLanguage' ? {locked: false} : {})}), {'aria-labelledby': id + '-label', 'aria-describedby': id + '-hint' + (error ? ' ' + id + '-error' : ''), 'aria-invalid': Boolean(error)})}
+    </label>
+    <span className={styles.fieldControl} data-invalid={!!error || undefined}>{input(spec, value, next => set({value: next, ...(spec.field === 'metadataLanguage' ? {locked: false} : {})}), {id: id + '-input', 'aria-labelledby': id + '-label', 'aria-describedby': id + '-hint' + (error ? ' ' + id + '-error' : ''), 'aria-invalid': Boolean(error)})}
       {spec.field !== 'metadataLanguage' ? <button type="button" className={styles.lock} aria-pressed={locked} title={t(locked ? 'web.metadata.lockedTip' : 'web.metadata.unlockedTip')} aria-label={t(locked ? 'web.metadata.unlockField' : 'web.metadata.lockField', {label})} onClick={() => set({locked: !locked})}>{locked ? <Icon name="i-lock" size={16}/> : <UnlockIcon size={16}/>}</button> : null}
     </span>
     {error ? <small id={id + '-error'} className={styles.fieldError} role="alert"><Icon name="i-warn" size={16}/>{error}</small> : null}
     <small id={id + '-hint'}>{said}{hint ? <span className={styles.fieldBounds}>{hint}</span> : null}</small>
     {field && field.automaticValue && field.automaticValue !== value ? <small className={styles.automatic}>{provider ? t('web.metadata.automaticValueFrom', {source: providerName(provider), value: field.automaticValue}) : t('web.metadata.automaticValue', {value: field.automaticValue})}<button type="button" onClick={() => set({value: field.automaticValue, locked: false})}>{t('web.metadata.useIt')}</button></small> : null}
-  </label>;
+  </div>;
 }
 
 function General({data, draft, set, requiredTitle}: {data: RepairData; draft: Draft; requiredTitle: boolean; set: (field: string, patch: Partial<MetadataFieldDraft>) => void}) {
@@ -287,7 +290,10 @@ function Artwork({data, busy, portraitCover, onUse, onLock, onFindMore, onRefetc
     if (!file || busy || !role || !onUpload) return;
     if (!['image/jpeg', 'image/png'].includes(file.type) || file.size < 1 || file.size > 10 * 1024 * 1024) {setUploadError(t('web.metadata.uploadImageLimit')); return;}
     setUploadError('');
-    try {await onUpload(role, file);} catch {setUploadError(t('web.metadata.uploadImageLimit'));}
+    try {await onUpload(role, file);} catch (caught) {
+      const presented = presentError(caught, 'detail', {operation: 'save', i18n: defaultI18n});
+      if (!presented.silent) setUploadError(presented.body);
+    }
   };
   const role = data.artworkRoles.includes(selected) ? selected : data.artworkRoles[0];
   const candidates = data.artwork.candidates.filter(candidate => candidate.role === role);

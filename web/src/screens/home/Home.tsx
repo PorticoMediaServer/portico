@@ -35,6 +35,7 @@ import type {HomeCustomizationBindings} from './customization';
 import {HomeCustomizeEntry} from './Customize';
 import type {MusicMixesBinding} from '../browse/music-mixes-binding';
 import {MusicMixesRow} from '../browse/MusicMixesRow';
+import {observeHomeIntersection, subscribePageVisibility} from './visibility';
 
 export type HomeSelection = Readonly<{
   /** The canonical selection owner supplies its real bar and controls. */
@@ -66,7 +67,7 @@ export type HomeEffects = Readonly<{
 export type HomeBindings = Readonly<{/** One quiet line above the rows, such as libraries that did not load. */notice?: ReactNode; service: HomeService; displayDocument?: FreshDocument; artwork: ShellArtwork; effects: HomeEffects; selection: HomeSelection; time: TimeEnvironment; reducedMotion: boolean; appearance?: ScreenAppearance; serverName?: string; customization?: HomeCustomizationBindings; musicMixes?: MusicMixesBinding; musicMixesMore?: ReactNode}>;
 type HomePresentation = Pick<HomeBindings, 'artwork' | 'effects' | 'selection' | 'time' | 'reducedMotion' | 'appearance'>;
 const t = defaultI18n.t;
-const pageSubscribe = (listener: () => void) => { document.addEventListener('visibilitychange', listener); return () => document.removeEventListener('visibilitychange', listener); };
+const pageSubscribe = (listener: () => void) => subscribePageVisibility(listener);
 /** The frame draws a long hero title at the long lockup size; no shorter drawn rule decides it (mock.html#home). */
 
 type HeroArtworkSlide = Readonly<{title: string; artwork: Readonly<{backdropUrl?: string; posterUrl?: string}>}>;
@@ -98,8 +99,7 @@ function useVisible() {
   const foreground = useSyncExternalStore(pageSubscribe, () => document.visibilityState !== 'hidden', () => false);
   useEffect(() => {
     const target = ref.current; if (!target) return;
-    const observer = new IntersectionObserver(entries => setIntersects(entries.some(entry => entry.isIntersecting)));
-    observer.observe(target); return () => observer.disconnect();
+    return observeHomeIntersection(target, setIntersects);
   }, []);
   return {ref, visible: intersects && foreground};
 }
@@ -147,8 +147,7 @@ export function HomeScreen(bindings: HomeBindings) {
       }
     };
     update(); globalThis.document.addEventListener('visibilitychange', update);
-    window.addEventListener('resize', update);
-    return () => { if (timer) clearTimeout(timer); globalThis.document.removeEventListener('visibilitychange', update); window.removeEventListener('resize', update); };
+    return () => { if (timer) clearTimeout(timer); globalThis.document.removeEventListener('visibilitychange', update); };
   }, [document, refreshLive]);
   const width = useShellWidth(), [started] = useState(Date.now), [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -245,9 +244,8 @@ function HomeRowView({onNear, ...props}: HomeRowProps & {onNear: (rowId: string,
   const deferred = !!row.deferred, rowId = row.id, slot = interest.ref;
   useEffect(() => {
     const target = slot.current; if (!deferred || !target) return;
-    const observer = new IntersectionObserver(entries => onNear(rowId, entries.some(entry => entry.isIntersecting)), {rootMargin: NEAR_MARGIN});
-    observer.observe(target);
-    return () => { observer.disconnect(); onNear(rowId, false); };
+    const stop = observeHomeIntersection(target, intersecting => onNear(rowId, intersecting), {rootMargin: NEAR_MARGIN});
+    return () => { stop(); onNear(rowId, false); };
   }, [deferred, rowId, onNear, slot]);
   return <div ref={interest.ref} className={styles.rowSlot} data-home-row={props.row.id} data-deferred={deferred || undefined}><HomeRowContents {...props} nowMs={props.row.live ? nowMs : props.nowMs} onRange={onRange} /></div>;
 }

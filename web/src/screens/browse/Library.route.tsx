@@ -139,7 +139,7 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   const scan = useLibraryScan(context, library, life, !(search.view === 'browse' || search.query));
   const [linkToast, setLinkToast, copyLibraryLink] = useCopyLibraryLink(library.id);
   // phone-app 4c: Edit pins in the library's ⋯.
-  const pins = usePinEditor(context);
+  const pins = usePinEditor(context, () => {if (captured.context.isCurrent()) captured.context.retryLibraries?.();});
   type Attempt = {context: ProtectedLibraryScreen['context']; screen: ScreenContext; life: typeof life; libraryId: string; kind: string; controller: AbortController; active: boolean; phase: 'loading' | 'error' | 'ready'};
   const [retry, setRetry] = useState(0), attempt = useRef<Attempt | null>(null);
   const [capabilitySnapshot, setCapabilities] = useState<Readonly<{attempt: Attempt; phase: 'loading' | 'error' | 'ready'; data?: BrowseCapabilities; error?: unknown}>>();
@@ -371,7 +371,7 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
   // O-161: the library's ⋯ copies its shareable address (this server's, on Hosted).
   const [linkToast, setLinkToast, copyLibraryLink] = useCopyLibraryLink(library.id);
   // phone-app 4c: Edit pins in the library's ⋯.
-  const pins = usePinEditor(context);
+  const pins = usePinEditor(context, () => {if (captured.context.isCurrent()) captured.context.retryLibraries?.();});
   const runtime = captured.binding.playback?.runtime;
   // Frame 7's Recently played mark belongs to the queue session this snapshot actually
   // describes: the current entry is the queue's own currentEntryId, and the published

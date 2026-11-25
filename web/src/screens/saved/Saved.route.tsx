@@ -151,7 +151,13 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
         const grant = await runtime.downloads.grant(preparation);
         active.throwIfAborted();if (!current()) throw new DOMException('Saved download changed', 'AbortError');
         if (grant.files && grant.files.length > 1) throw new Error(downloadReasonMessage('several_files'));
-        window.location.assign(browserAttachmentAddress(context.api.mediaUrl(grant.url)));
+        const anchor = document.createElement('a');
+        anchor.href = browserAttachmentAddress(context.api.mediaUrl(grant.url));
+        anchor.download = grant.artifact?.fileName || (preparation.title.title ? `${preparation.title.title}.${grant.artifact?.container || 'bin'}` : '');
+        anchor.rel = 'noreferrer';
+        anchor.referrerPolicy = 'no-referrer';
+        document.body.append(anchor);
+        try {anchor.click();} finally {anchor.remove();}
       },
       reportError,
       ...(native.saveReadyPreparation ? {saveReadyPreparation: native.saveReadyPreparation} : {}),

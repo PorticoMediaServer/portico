@@ -47,7 +47,7 @@ export function QuerySelectionEditorSurface({session, options, onClose}: {sessio
     anchorRef={anchor} returnFocusRef={anchor} onOpenChange={open => {if (!open) close();}} onKeepOnly={close}/>;
   return <BulkEditor open onOpenChange={open => {if (!open && !busy) close();}} returnFocusRef={anchor}
     selection={{count: preview.total, kind: target.summary.types[0].kind}} schema={preview.schema} singleItemFields={preview.singleItemFields}
-    values={editorValues(preview)} draft={draft} onDraftChange={value => {if (!busy && !error) setDraft(value);}}
+    values={editorValues(preview)} draft={draft} onDraftChange={value => {if (!busy) {setError(false); setDraft(value);}}}
     onSave={value => {void save(value);}} onRetry={() => {void save(draft);}} targets={[]} busy={busy} ownerTag={<OwnerEditorTag/>}
     description={progress ? t(progress.totalKnown ? 'next.selection.jobProgress' : 'next.selection.jobPreparing', {done: progress.done, total: progress.total}) : undefined}
     error={error ? t('next.selection.editorUncertain') : undefined}/>;
