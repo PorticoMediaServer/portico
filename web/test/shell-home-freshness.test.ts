@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {HomeService} from '@core/home-service.ts';
-import {FreshnessHub, dependsOn} from '@core/freshness-hub.ts';
+import {FreshnessHub} from '@core/freshness-hub.ts';
+import {serverDidNotAnswer} from '@core/no-answer.ts';
 import {clock} from './shell-facts-fixture.ts';
 import {createShellHomeDocument, HomeReadNotAnswered, watchShellHomePreferences} from '../src/shell/home-freshness.ts';
 
@@ -13,7 +14,30 @@ test('a display refresh that adopted nothing retains debt instead of resolving v
   const time=clock(),hub=new FreshnessHub({...time.env,gatherMs:0,settleMs:0,backoffMs:[60000],random:()=>0}),owner=createShellHomeDocument(hub,service as never);
   owner.document.setOpen(true);owner.document.invalidate();await time.advance(0);
   assert.equal(reads,1);assert.equal(owner.document.getState().stale,true);assert.equal(owner.document.getState().failures,1);
-  assert.equal(new HomeReadNotAnswered().retryable,true);owner.dispose();hub.dispose();
+  const err = new HomeReadNotAnswered();
+  assert.equal(err.retryable,true);
+  assert.equal(err.code,'network');
+  assert.equal(serverDidNotAnswer(err),true);
+  owner.dispose();hub.dispose();
+});
+
+test('sustained unanswered Home refreshes report unreachable to the hub, while superseded refreshes do not', async () => {
+  let outcome: 'not-answered' | 'superseded' = 'not-answered';
+  const service={getSnapshot:()=>({phase:'ready',document:manifest()}),subscribe:()=>()=>{},refresh:async()=>outcome};
+  const time=clock(),hub=new FreshnessHub({...time.env,gatherMs:0,settleMs:0,sustainedMs:15_000,backoffMs:[60_000],random:()=>0}),owner=createShellHomeDocument(hub,service as never);
+  owner.document.setOpen(true);owner.document.invalidate();await time.advance(0);
+  assert.equal(hub.getReachability(),'reachable');
+  await time.advance(15_000);
+  assert.equal(hub.getReachability(),'unreachable');
+  owner.dispose();hub.dispose();
+
+  outcome = 'superseded';
+  const time2=clock(),hub2=new FreshnessHub({...time2.env,gatherMs:0,settleMs:0,sustainedMs:15_000,backoffMs:[60_000],random:()=>0}),owner2=createShellHomeDocument(hub2,service as never);
+  owner2.document.setOpen(true);owner2.document.invalidate();await time2.advance(0);
+  await time2.advance(20_000);
+  assert.equal(owner2.document.getState().stale,true);
+  assert.equal(hub2.getReachability(),'reachable');
+  owner2.dispose();hub2.dispose();
 });
 
 test('first-load failure owes normal recovery without a hint, minute clock or forced reopen', async () => {

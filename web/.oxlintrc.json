@@ -5,6 +5,7 @@
   "rules": {
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "error",
+    "eslint/no-unused-vars": ["error", {"vars": "all", "args": "none", "ignoreRestSiblings": true}],
     "eslint/no-control-regex": "off",
     "react/refs": "off",
     "react/set-state-in-effect": "off",

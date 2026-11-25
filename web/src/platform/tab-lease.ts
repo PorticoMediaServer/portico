@@ -63,17 +63,21 @@ export function leaseLock(env: LeaseEnvironment, timing: Partial<LeaseTiming> = 
     const release = () => { try { if (mine()) env.remove(key); } catch { /* storage gone: the lease runs out */ } };
 
     const acquire = () => new Promise<void>((resolve, reject) => {
+      if (signal.aborted) { reject(abortReason(signal)); return; }
       let timer: unknown;
       let settling = false;
-      const stop = () => { if (timer !== undefined) env.clearTimer(timer); timer = undefined; offChange(); signal.removeEventListener('abort', aborted); };
-      const aborted = () => { stop(); if (settling) release(); reject(abortReason(signal)); };
-      const wait = (ms: number) => { if (timer !== undefined) env.clearTimer(timer); timer = env.setTimer(attempt, ms); };
+      let finished = false;
+      let offChange: (() => void) | undefined;
+      const stop = () => { if (timer !== undefined) env.clearTimer(timer); timer = undefined; offChange?.(); offChange = undefined; signal.removeEventListener('abort', aborted); };
+      const aborted = () => { if (finished) return; finished = true; stop(); if (settling) release(); reject(abortReason(signal)); };
+      const wait = (ms: number) => { if (finished) return; if (timer !== undefined) env.clearTimer(timer); timer = env.setTimer(attempt, ms); };
       function attempt() {
         timer = undefined;
-        if (signal.aborted) return;
+        if (finished) return;
+        if (signal.aborted) { aborted(); return; }
         if (settling) {
           settling = false;
-          if (mine()) { stop(); resolve(); return; }
+          if (mine()) { finished = true; stop(); resolve(); return; }
           wait(pollMs);
           return;
         }
@@ -81,16 +85,18 @@ export function leaseLock(env: LeaseEnvironment, timing: Partial<LeaseTiming> = 
         if (current && current.owner !== owner && current.until > env.now()) { wait(pollMs); return; }
         if (!claim()) { wait(pollMs); return; }
         settling = true;
+        if (signal.aborted) { aborted(); return; }
         wait(settleMs);
       }
       // A release or a change elsewhere is worth a look straight away (spread out a little, so
       // every waiting tab does not write in the same instant).
-      const offChange = env.onChange(key, () => { if (!settling) wait(Math.floor(env.random() * 50)); });
+      offChange = env.onChange(key, () => { if (!settling && !finished) wait(Math.floor(env.random() * 50)); });
       signal.addEventListener('abort', aborted, {once: true});
       attempt();
     });
 
     return acquire().then(async () => {
+      if (signal.aborted) { release(); throw abortReason(signal); }
       const held = new AbortController();
       let renewal: unknown;
       const renew = () => {

@@ -34,15 +34,15 @@ function BoundApp({binding, context, bootstrap, takeAccountReturn, takeAccountMo
   const viewer = binding?.shell.identity.viewer;
   // The player host renders a retained title body, which reads freshness, from
   // outside every route. One provider covers the router and the host together;
-  // a second provider would detach the first one's feed when either unmounts.
-  const content = <>
-    <IconSprite />
-    <div data-playback-route><ShellBindingsProvider value={binding}><RouterProvider router={router} /></ShellBindingsProvider></div>
-    <MediaHost binding={binding?.playback} />
-    <EntryActionHost />
-    <EntryMetadataHost />
-  </>;
+  // keeping it mounted in a stable tree position avoids remounting the router
+  // and media host when the session binding changes.
   return <WebScreenProvider value={{binding, context, bootstrap, takeAccountReturn, takeAccountMove}}>
-    {viewer && binding ? <FreshnessProvider key={binding.scopeKey} api={binding.api} events={binding.events} serverId={viewer.serverId} viewerId={viewerQueryScope(viewer).viewerId}>{content}</FreshnessProvider> : content}
+    <FreshnessProvider api={viewer && binding ? binding.api : undefined} events={viewer && binding ? binding.events : null} serverId={viewer?.serverId} viewerId={viewer ? viewerQueryScope(viewer).viewerId : undefined} runtime={viewer && binding ? context?.freshness : undefined}>
+      <IconSprite />
+      <div data-playback-route><ShellBindingsProvider value={binding}><RouterProvider router={router} /></ShellBindingsProvider></div>
+      <MediaHost binding={binding?.playback} />
+      <EntryActionHost />
+      <EntryMetadataHost />
+    </FreshnessProvider>
   </WebScreenProvider>;
 }

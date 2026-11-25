@@ -133,3 +133,27 @@ test('a library directory that times out never stops sign-in: the libraries are 
   assert.equal('librariesUnavailable' in settled, false, 'a real empty directory is just empty');
   await assert.rejects(readShellIdentity(api(() => {throw Object.assign(new Error('signed out'), {status: 401});}), directSession, new AbortController().signal), /signed out/);
 });
+
+test('a flaky Live TV guide source never aborts app boot, while 401 or abort still stops sign-in', async () => {
+  const api = (guide: () => unknown) => ({request: async (path: string) => {
+    if (path === '/v1/libraries') return {items: []};
+    if (accountPath(path)) return accountAnswer(path, directRecord());
+    if (path === '/v1/system') return systemAnswer({id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
+    if (path.startsWith('/v1/live/channels')) return guide();
+    throw new Error(`Unexpected shell read ${path}`);
+  }}) as unknown as HttpLocalApi;
+  for (const failure of [
+    Object.assign(new Error('server error'), {status: 500}),
+    Object.assign(new Error('unavailable'), {status: 503}),
+    new TypeError('Failed to fetch'),
+  ]) {
+    const identity = await readShellIdentity(api(() => { throw failure; }), directSession, new AbortController().signal);
+    assert.equal(identity.liveAvailable, false);
+    assert.equal(identity.guide, undefined);
+    assert.equal(identity.profile.profileName, 'Evening profile');
+  }
+  await assert.rejects(readShellIdentity(api(() => { throw Object.assign(new Error('unauthorized'), {status: 401}); }), directSession, new AbortController().signal), /unauthorized/);
+  const aborted = new AbortController();
+  aborted.abort(new DOMException('Aborted', 'AbortError'));
+  await assert.rejects(readShellIdentity(api(() => { throw aborted.signal.reason; }), directSession, aborted.signal), (e: Error) => e.name === 'AbortError');
+});

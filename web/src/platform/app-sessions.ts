@@ -78,9 +78,12 @@ export function browserAppSessionActions(){return actions??=new BrowserAppSessio
 /** Ends this browser's Portico Account: every server signed in with it here, then the account's
  * own sign-in (`porticoAccountHolder`). */
 export async function signOutBrowserPorticoAccount(){
- const saved=(await browserAppSessions().read()).servers.find(value=>value.signIn==='portico')?.connection.hosted;
+ const pageOrigin=typeof location!=='undefined'?location.origin:undefined;
+ const servers=(await browserAppSessions().read()).servers;
+ const saved=(pageOrigin?servers.find(value=>value.signIn==='portico'&&value.connection.hosted?.origin===pageOrigin):undefined)?.connection.hosted
+  ??servers.find(value=>value.signIn==='portico'&&value.connection.hosted)?.connection.hosted;
  const who=saved||!porticoAccountHolder.signedIn()?undefined:await porticoAccountHolder.who().catch(()=>undefined);
- const account=saved?{origin:saved.origin,accountId:saved.accountId}:who?{origin:location.origin,accountId:who.id}:undefined;
+ const account=saved?{origin:saved.origin,accountId:saved.accountId}:who&&pageOrigin?{origin:pageOrigin,accountId:who.id}:undefined;
  const signOutHere=async()=>{if(porticoAccountHolder.signedIn())await porticoAccountHolder.signOut();};
  if(!account){await signOutHere();return [];}
  return browserAppSessionActions().signOutPorticoAccount(account,signOutHere);

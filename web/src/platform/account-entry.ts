@@ -311,7 +311,7 @@ export class BrowserAccountEntry {
    if (!op.current() || revision !== selectionRevision) {await custody.retire();return false;}
    if (!custody.transfer()) return false;
    await this.accept(grant, api, revision, op);
-   return ['challenge', 'profiles', 'ready', 'change-password'].includes(this.getSnapshot().phase);
+   return ['challenge', 'profiles', 'ready', 'password-change', 'two-step-setup'].includes(this.getSnapshot().phase);
   } catch (error) {
    // retire() is idempotent and refuses after transfer, so accept's own cleanup wins.
    await custody.retire();

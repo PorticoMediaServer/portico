@@ -126,7 +126,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
   const lockSeconds = usePINLockSeconds(profileError), dialogText = profileDialogText(profileError, lockSeconds);
   const unlocking = profileChoice?.id === identity.viewer.profileId;
   const chooseProfile=async(profile:ProfileIdentity,pin='')=>{if(!onSwitchProfile || profileProof.current !== JSON.stringify([switchAuthorityKey(identity), profileTargetKey(profile)]))return;profileRequest.current?.abort();const controller=profileRequest.current=new AbortController();setProfileBusy(true);setProfileError(undefined);try{await onSwitchProfile(profile.id,pin,controller.signal);if(!controller.signal.aborted)setProfileChoice(undefined);}catch(error){if(!controller.signal.aborted)setProfileError(error);}finally{if(profileRequest.current===controller)setProfileBusy(false);}};
-  const home = pathname === '/', [accountOpen, setAccountOpen] = useState(false), [moreOpen, setMoreOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false), [moreOpen, setMoreOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false), bell = useRef<HTMLButtonElement>(null), closeBell = () => setBellOpen(false);
   const NotificationsPopover = webScreens.get('notifications')?.shellPopover;
   const [switchOpening, setSwitchOpening] = useState<SwitchProfileServerOpening>(), [hostedSelection, setHostedSelection] = useState<HostedSwitchSelection>();
@@ -183,7 +183,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
   useLayoutEffect(() => () => forgetTitleLibrary(), [viewerKey]);
   const opened = useSyncExternalStore(titleLibrary.subscribe, titleLibrary.getSnapshot, titleLibrary.getSnapshot);
   const activeLibrary = activeLibraryId(pathname, opened);
-  useEffect(() => { setAccountOpen(false); setMoreOpen(false); }, [pathname]);
+  useEffect(() => { setAccountOpen(false); setMoreOpen(false); setBellOpen(false); }, [pathname, navigation]);
   const openLibraries = () => {
     const id = rememberedLibrary(libraryMemory(), viewer, identity.libraries);
     if (id) void navigate({to: '/library/$libraryId', params: {libraryId: id}});
@@ -200,15 +200,15 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
   const account = <AccountMenu open={accountOpen} onOpenChange={setAccountOpen} current={current} primary={identity.primaryProfile === true}
     notificationCount={desktop ? undefined : identity.unread} notificationDot={!desktop && identity.showNotificationDot && identity.unread > 0}
     serverChoices={!desktop&&onSwitchServer?savedServers?.map(server=>({...server,onSelect:()=>{void onSwitchServer(server.id);}})):undefined} profiles={identity.profiles} accountFacts={identity.accountFacts} serverAction={serverAction} actions={{
-      ...(identity.canManageProfiles ? {manageProfiles: () => { void navigate({to: '/settings'}); }} : {}),
-      ...(identity.canManageProfiles ? {addProfile: () => { void navigate({to: '/settings'}); }} : {}),
+      ...(identity.canManageProfiles ? {manageProfiles: () => { void navigate({to: '/settings', search: {scope: 'account', section: 'profile'}}); }} : {}),
+      ...(identity.canManageProfiles ? {addProfile: () => { void navigate({to: '/settings', search: {scope: 'account', section: 'profile'}}); }} : {}),
       switchProfile: profile => {if(onSwitchProfile){offerProfile(profile);if(!profile.pinRequired)void chooseProfile(profile);}else{void navigate({to: '/profiles', search: {profileId: profile.id}});}},
       switchServer: () => {if (desktop) openSwitcher(); else void navigate({to: '/servers'});},
-      ...(identity.signIn === 'portico' && viewer.role === 'owner' && identity.capabilities?.manageServer === true && ownerSwitchContextAllowed() ? {switchToLocalSignIn: () => { void navigate({to: '/settings', search: {section: 'signin'}}); }} : {}),
+      ...(identity.signIn === 'portico' && viewer.role === 'owner' && identity.capabilities?.manageServer === true && ownerSwitchContextAllowed() ? {switchToLocalSignIn: () => { void navigate({to: '/settings', search: {scope: 'server', section: 'signin'}}); }} : {}),
       settings: () => { void navigate({to: '/settings'}); },
       ...(!desktop ? {notifications: () => { void navigate({to: '/notifications'}); }} : {}),
       watchTogether: () => { void navigate({to: '/watch-together'}); }, feedback: onFeedback,
-      help: () => { void navigate({to: '/help'}); }, signOut: onSignOut,
+      help: () => { window.open('https://getportico.tv/docs/', '_blank', 'noopener,noreferrer'); }, signOut: onSignOut,
       // Read when the menu draws: it opens only while this browser remembers the profile open now.
       ...(accountOpen && remembered?.profileId === viewer.profileId ? {forgetRememberedProfile: () => {
         void browserAppSessions().setRemembered(viewer.serverId, remembered.familyId, undefined, viewer.profileId).then(() => setRemembered(undefined)).catch(() => {});
@@ -220,7 +220,12 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
       notificationDot={compact && identity.showNotificationDot && identity.unread > 0} aria-label={t('next.home.shell.profileMenu', {name: identity.profileName})} />} />;
   const waiting = useSyncExternalStore(outbox?.subscribe ?? noSubscription, () => outbox?.waiting() ?? 0, () => 0);
   const pending = waiting > 0 ? <PendingChanges count={waiting} /> : undefined;
-  if (hostedSelection) return <HostedServerOpening selection={hostedSelection} cancel={() => setHostedSelection(undefined)} />;
+  const completeHosted = (serverId: string, twoStepSetupOwed: boolean) => {
+    setHostedSelection(undefined);
+    void navigate(twoStepSetupOwed ? {to: '/settings', search: {scope: 'account', section: 'profile'}, replace: true} : {to: '/', replace: true});
+    if (onSwitchServer) void onSwitchServer(serverId);
+  };
+  if (hostedSelection) return <HostedServerOpening selection={hostedSelection} cancel={() => setHostedSelection(undefined)} onComplete={completeHosted} />;
   const captionRenderer = windowChrome ?? chrome.renderer;
   return <div className={styles.shell} data-shell-root data-desktop={desktop} data-size-class={sizeClass} data-pointer={coarsePointer ? 'coarse' : 'fine'} data-navigation={navigation} data-has-dock={dockVisible} data-window-os={chrome.os} data-window-fullscreen={chrome.fullscreen}>
     <a className={styles.skip} href="#portico-content">{t('next.home.shell.skip')}</a>
@@ -267,10 +272,10 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
           {account}
         </div>
       </nav> : <>
-        {(home || pending) && <header className={styles.phoneHeader}><Link className={styles.brand} to="/" aria-label={t('next.platform.appName')}><img src={wordmark} alt="" /></Link><div className={styles.phoneTools}>
+        <header className={styles.phoneHeader}><Link className={styles.brand} to="/" aria-label={t('next.platform.appName')}><img src={wordmark} alt="" /></Link><div className={styles.phoneTools}>
           {pending}
           {account}
-        </div></header>}
+        </div></header>
         {phoneSelection ?? (screenSelectionPresent ? <PhoneSelectionSlot/> : <nav className={styles.tabbar} aria-label={t('next.home.shell.main')}>
           <Link to="/" activeOptions={{exact: true}} activeProps={{'aria-current': 'page'}}><Icon name="i-home" size={22} /><span>{t('next.home.shell.home')}</span></Link>
           <Link to="/search" search={{q: lastSearch.current}} activeOptions={{includeSearch: false}} activeProps={{'aria-current': 'page'}}><Icon name="i-search" size={22} /><span>{t('next.home.shell.search')}</span></Link>
@@ -284,7 +289,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
     {children}
     <Dialog footerDismisses open={!!profileChoice&&(profileChoice.pinRequired===true||!!profileError)} onOpenChange={open=>{if(!open){profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');setProfileError(undefined);}}} title={profileDisplay?.name??identity.profileName}
       description={unlocking ? t('error.profilePinManage') : undefined}
-      footer={<><Button variant="glass" onClick={()=>{profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');}}>{t('accounts.profiles.cancel')}</Button><Button disabled={!profileContinueEnabled(profileChoice?.pinRequired,profilePin,profileBusy)||lockSeconds>0} onClick={()=>{if(profileChoice)void chooseProfile(profileChoice,profilePin);}}>{t('accounts.profiles.continue')}</Button></>}>
+      footer={<><Button variant="glass" onClick={()=>{profileProof.current=undefined;profileRequest.current?.abort();setProfileChoice(undefined);setProfilePin('');setProfileError(undefined);}}>{t('accounts.profiles.cancel')}</Button><Button disabled={!profileContinueEnabled(profileChoice?.pinRequired,profilePin,profileBusy)||lockSeconds>0} onClick={()=>{if(profileChoice)void chooseProfile(profileChoice,profilePin);}}>{t('accounts.profiles.continue')}</Button></>}>
       {profileChoice?.pinRequired&&<TextField type="password" inputMode="numeric" maxLength={4} autoComplete="off" label={t('accounts.profiles.pinForProfile',{profile:profileDisplay?.name ?? profileChoice.name})} value={profilePin} onChange={event=>setProfilePin(event.currentTarget.value)} onKeyDown={event=>{if(profileChoice&&enterContinuesProfile({key:event.key,isComposing:event.nativeEvent.isComposing},profileChoice.pinRequired,profilePin,profileBusy)&&lockSeconds===0){event.preventDefault();void chooseProfile(profileChoice,profilePin);}}} error={dialogText.pin} />}
       {dialogText.failure&&<p role="alert">{dialogText.failure}</p>}
     </Dialog>

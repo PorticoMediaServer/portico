@@ -11,6 +11,7 @@ import {porticoAccountHolder, type ListedServers} from '../platform/portico-acco
 import type {PorticoServerAccess} from '../platform/portico-server-access';
 import type {HostedDirectoryServer} from '../platform/account-entry';
 import {createBrowserAccountEntry} from '../platform/account-entry';
+import {hasTwoStepSetup} from '../platform/two-step-continuation';
 import {AccountSignInView} from '../screens/accounts/AccountSignInView';
 import {AccountSignInForm} from '../screens/accounts/sign-in-form';
 
@@ -141,18 +142,32 @@ export function SwitchProfileServerHost({opening, close, presentation}: {opening
 
 /** Transfer a captured Hosted row to the existing canonical sign-in state
  * machine. It owns route proof, membership, challenges and profile selection. */
-export function HostedServerOpening({selection, cancel}: {selection: HostedSwitchSelection; cancel: () => void}) {
+export function HostedServerOpening({selection, cancel, onComplete}: {selection: HostedSwitchSelection; cancel: () => void; onComplete?: (serverId: string, twoStepSetupOwed: boolean) => void}) {
   type Owner = {selection: HostedSwitchSelection; live: boolean; entry: ReturnType<typeof createBrowserAccountEntry>; form: AccountSignInForm};
   const current = useRef<Owner | undefined>(undefined), [instance, setInstance] = useState<Owner>();
+  const complete = useRef(onComplete);
+  useLayoutEffect(() => {complete.current = onComplete;});
   useLayoutEffect(() => {
     const entry = createBrowserAccountEntry(), form = new AccountSignInForm(entry);
     const owner: Owner = {selection, live: true, entry, form};
+    let finished = false;
+    const checkReady = () => {
+      if (!owner.live || finished) return;
+      const state = entry.getSnapshot(), input = form.getSnapshot();
+      if (state.phase !== 'ready' || state.ownerResetSessionReady || state.setupCompleted || input.factor || input.busy) return;
+      if (state.memberMoveCompleted && !state.snapshot?.twoStepSetupRequired) return;
+      finished = true;
+      const twoStepOwed = !!(state.server && state.snapshot && hasTwoStepSetup(state.server.id, state.snapshot.account.id));
+      complete.current?.(selection.server.id, twoStepOwed);
+    };
+    const offEntry = entry.subscribe(checkReady), offForm = form.subscribe(checkReady);
     current.current = owner; setInstance(owner);
     void entry.openHostedServer(selection.server, selection.access, selection.revision);
     // Retire the exact operation during commit, before passive cleanup or a
     // held continuation can run. Strict replay creates another entry and form.
     return () => {
-      owner.live = false; if (current.current === owner) current.current = undefined;
+      owner.live = false; offEntry(); offForm();
+      if (current.current === owner) current.current = undefined;
       try {form.dispose();} finally {entry.dispose();}
     };
   }, [selection]);

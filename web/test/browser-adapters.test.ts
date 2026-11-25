@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
 import {browserEventStream, browserFeedEnvironment} from '../src/platform/event-feed.ts';
-import {bindBrowserFreshness, disposeFreshness, freshnessFor} from '../src/platform/freshness.ts';
+import {bindBrowserFreshness, disposeFreshness, freshnessFor, FreshnessProvider, useFreshness} from '../src/platform/freshness.ts';
 import type {HttpLocalApi} from '@core/index.ts';
 import {webEnvironment} from '../src/platform/environment.ts';
 
@@ -54,4 +57,21 @@ test('freshness pools are scoped to server/viewer and browser signals clean up',
 });
 test('hosted flags retain explicit workspace and app version, and no build id is served', () => {
   assert.deepEqual(webEnvironment({VITE_HOSTED_WEB: 'true', VITE_ACCOUNT_WORKSPACE: 'true', VITE_HOSTED_URL: 'https://accounts.example', VITE_APP_VERSION: 'test', VITE_CAST_APPLICATION_ID: 'cast'}, {hostname: 'custom.example', origin: 'https://custom.example'}), {hostedWeb: true, accountWorkspace: true, hostedUrl: 'https://accounts.example', appVersion: 'test', castApplicationId: 'cast'});
+});
+test('FreshnessProvider never disposes or replaces global freshness during render, and App keeps a stable provider tree', () => {
+  const api = {getRouteSnapshot: () => ({phase: 'ready'}), subscribeRoute: () => () => {}} as unknown as HttpLocalApi;
+  const active = freshnessFor(api, {serverId: 'server', viewerId: 'committed'});
+  function Reader() { return createElement('span', {}, useFreshness().scope); }
+  // Simulates a concurrent / StrictMode render for a new viewer that has not committed yet.
+  const html = renderToStaticMarkup(createElement(FreshnessProvider, {api, serverId: 'server', viewerId: 'pending', events: null}, createElement(Reader)));
+  assert.equal(html, '<span>server\npending</span>');
+  assert.equal(active.queries.isDisposed(), false, 'render must not dispose the committed viewer runtime');
+  assert.equal(freshnessFor(api, {serverId: 'server', viewerId: 'committed'}), active, 'global runtime stays untouched until effect commit');
+  // Without viewer credentials, FreshnessProvider stays mounted and provides undefined without crashing.
+  assert.equal(renderToStaticMarkup(createElement(FreshnessProvider, {}, createElement('span', {}, 'ready'))), '<span>ready</span>');
+  disposeFreshness(active);
+
+  const appSrc = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(appSrc, /<FreshnessProvider[^>]*key=/);
+  assert.doesNotMatch(appSrc, /\?\s*<FreshnessProvider/);
 });

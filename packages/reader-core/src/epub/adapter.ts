@@ -8,7 +8,7 @@ import {watchReaderMotion} from '../motion-policy.ts';
 import {abortScope} from '../abort.ts';
 import {createNonceStyle} from '../style-nonce.ts';
 import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, ReaderMount,
-  ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport, ReaderMark} from '../ports.ts';
+  ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderMark} from '../ports.ts';
 import {openEpubArchive, safeArchivePath} from './archive.ts';
 import {READER_EDGE, surfacePoint} from './surface-point.ts';
 import {resourceAssets} from './resources.ts';

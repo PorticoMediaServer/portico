@@ -158,3 +158,17 @@ test('the two-step code is asked after the provider returns; the refusals say wh
   assert.ok(page.some(node => node.type === 'PasswordField'), 'a password added meanwhile: the password form');
   assert.equal(page.find(node => node.type === 'AuthError').props.message, 'accounts.profiles.porticoPasswordExists');
 });
+
+test('browserPorticoPINProof refuses mismatched href/protocol/hostname/port even if origin matches', async () => {
+  for (const spoof of [
+    {origin: 'https://web.getportico.tv', href: 'https://evil.example/account'},
+    {origin: 'https://web.getportico.tv', protocol: 'http:'},
+    {origin: 'https://web.getportico.tv', hostname: 'evil.example'},
+    {origin: 'https://web.getportico.tv', port: '8443'},
+  ]) {
+    const w = await wrapper({hostedWeb: true});
+    Object.defineProperty(globalThis, 'location', {configurable: true, value: spoof});
+    await assert.rejects(w.module.browserPorticoPINProof(), {code: 'portico_account_elsewhere'});
+    assert.deepEqual(w.calls, []);
+  }
+});

@@ -16,20 +16,33 @@ import type {EventsClient} from '@core/playback-v1/events.ts';
  */
 export type FreshnessRuntime = {api: HttpLocalApi; scope: string; hub: FreshnessHub; queries: ViewerQueries};
 let runtime: FreshnessRuntime | undefined;
-export function freshnessFor(api: HttpLocalApi, scope: {viewerId: string; serverId: string}): FreshnessRuntime {
-  const key = scope.serverId + '\n' + scope.viewerId;
-  if (runtime && runtime.api === api && runtime.scope === key && !runtime.queries.isDisposed()) return runtime;
-  const old = runtime;
+function runtimeKey(scope: {viewerId: string; serverId: string}): string {
+  return scope.serverId + '\n' + scope.viewerId;
+}
+function createFreshnessRuntime(api: HttpLocalApi, scope: {viewerId: string; serverId: string}): FreshnessRuntime {
+  const key = runtimeKey(scope);
   const hub = new FreshnessHub();
   // Every write this API's server confirms moves what it changed, whoever made it.
-  runtime = {api, scope: key, hub, queries: createViewerQueries({scope, hub, api, writes: api.onConfirmedWrite})};
+  return {api, scope: key, hub, queries: createViewerQueries({scope, hub, api, writes: api.onConfirmedWrite})};
+}
+function peekFreshness(api: HttpLocalApi, scope: {viewerId: string; serverId: string}): FreshnessRuntime | undefined {
+  const key = runtimeKey(scope);
+  return runtime && runtime.api === api && runtime.scope === key && !runtime.queries.isDisposed() ? runtime : undefined;
+}
+function adoptFreshness(next: FreshnessRuntime): FreshnessRuntime {
+  if (runtime === next) return next;
+  const old = runtime;
+  runtime = next;
   if (old) {
     // The old viewer's documents go now; nothing may be shown or stored from them again.
     old.queries.dispose();
     // The hub after this render: screens still unmounting release their documents first.
     setTimeout(() => old.hub.dispose(), 0);
   }
-  return runtime;
+  return next;
+}
+export function freshnessFor(api: HttpLocalApi, scope: {viewerId: string; serverId: string}): FreshnessRuntime {
+  return peekFreshness(api, scope) ?? adoptFreshness(createFreshnessRuntime(api, scope));
 }
 
 /** Ends a viewer's runtime (the shell's session ended or restarted): its cache is emptied at once. */
@@ -78,9 +91,46 @@ export function bindBrowserFreshness(runtime: FreshnessRuntime, events: EventsCl
     for (const kind of kinds) browser.removeEventListener(kind, touch, options);
   };
 }
-export function FreshnessProvider({api, viewerId, serverId, events, children}: {api: HttpLocalApi; viewerId: string; serverId: string; events: EventsClient | null; children: ReactNode}) {
-  const value = useMemo(() => freshnessFor(api, {viewerId, serverId}), [api, viewerId, serverId]);
-  useEffect(() => bindBrowserFreshness(value, events), [value, events]);
+export type FreshnessProviderProps = Readonly<{
+  api?: HttpLocalApi;
+  viewerId?: string;
+  serverId?: string;
+  events?: EventsClient | null;
+  runtime?: FreshnessRuntime;
+  children: ReactNode;
+}>;
+export function FreshnessProvider({api, viewerId, serverId, events = null, runtime: given, children}: FreshnessProviderProps) {
+  const ownedRef = useRef<FreshnessRuntime | undefined>(undefined);
+  let value: FreshnessRuntime | undefined;
+  let owned = false;
+  if (given && !given.queries.isDisposed() && (!api || given.api === api) && (!viewerId || !serverId || given.scope === runtimeKey({viewerId, serverId}))) {
+    value = given;
+  } else if (api && viewerId && serverId) {
+    const existing = peekFreshness(api, {viewerId, serverId});
+    if (existing) {
+      value = existing;
+    } else {
+      const key = runtimeKey({viewerId, serverId});
+      if (ownedRef.current && ownedRef.current.api === api && ownedRef.current.scope === key && !ownedRef.current.queries.isDisposed()) {
+        value = ownedRef.current;
+      } else {
+        value = createFreshnessRuntime(api, {viewerId, serverId});
+        ownedRef.current = value;
+      }
+      owned = true;
+    }
+  }
+  useEffect(() => {
+    if (ownedRef.current && ownedRef.current !== value) {
+      const stale = ownedRef.current;
+      ownedRef.current = undefined;
+      disposeFreshness(stale);
+    }
+    if (!value) return;
+    if (owned) adoptFreshness(value);
+    const stop = bindBrowserFreshness(value, events);
+    return () => { stop(); };
+  }, [value, owned, events]);
   return createElement(FreshnessContext.Provider, {value}, children);
 }
 /** Whether the server has been out of reach for a while. It clears by itself. */

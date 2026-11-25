@@ -220,3 +220,88 @@ test('only allowlisted transport codes enter retained launch facts', async () =>
   assert.equal(second.unreachable?.code, undefined);
   bootstrap.dispose();
 });
+
+const fullSession = {
+  accessToken: 'access-launch-test',
+  expiresAt: '2099-01-01T00:00:00Z',
+  authorizationHorizon: '2099-02-01T00:00:00Z',
+  sessionFamilyId: 'family-a',
+  tokenGeneration: '1',
+  viewer: {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile', role: 'owner'},
+};
+const fullRecord = {version: 1, serverUrl: 'https://demo.getportico.local:32500', session: fullSession};
+const fullBootstrapped = (restore: () => Promise<unknown>) => new ShellBootstrap(async () => { throw new Error('unexpected assembly'); }, {
+  startedAt: Date.now(), selected: {read: async () => fullRecord as never}, restore: restore as never, actions: () => ({switchServer: async () => {}}) as never,
+});
+
+test('post-restore transport and 5xx errors classify as unreachable instead of trapping on error', async t => {
+  t.mock.timers.enable({apis: ['setTimeout', 'Date']});
+  for (const failure of [transport('route_unavailable'), Object.assign(new Error('bad gateway'), {status: 502}), Object.assign(new Error('unavailable'), {status: 503})]) {
+    let disposed = 0;
+    const api = {
+      baseUrl: 'https://demo.getportico.local:32500',
+      getRouteConnection: () => ({dispose: () => { disposed++; }}),
+      request: async () => { throw failure; },
+    };
+    const bootstrap = fullBootstrapped(async () => ({api, session: fullSession}));
+    t.after(() => bootstrap.dispose());
+    await bootstrap.start();
+    assert.equal(bootstrap.getSnapshot().phase, 'restoring');
+    assert.equal(bootstrap.getSnapshot().unreachable?.category, 'unreachable');
+    assert.equal(disposed, 1, 'failed post-restore connection is disposed');
+    t.mock.timers.tick(15000); await settle();
+    assert.equal(bootstrap.getSnapshot().phase, 'unreachable', 'reaches unreachable screen with Switch server');
+    bootstrap.dispose();
+  }
+});
+
+test('retryNow aborts a hung in-flight boot attempt and starts a fresh attempt immediately', async t => {
+  t.mock.timers.enable({apis: ['setTimeout', 'Date']});
+  const first = deferred<{api: unknown; session: unknown} | undefined>();
+  const signals: AbortSignal[] = [];
+  let calls = 0, lateDisposed = 0;
+  const bootstrap = fullBootstrapped(async () => {
+    calls++;
+    if (calls === 1) return first.promise;
+    return undefined;
+  });
+  // Also test aborting a hung post-restore request directly via AbortSignal.
+  const hungApi = {
+    baseUrl: 'https://demo.getportico.local:32500',
+    getRouteConnection: () => ({dispose: () => { lateDisposed++; }}),
+    request: async (_path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => {
+      if (signal) signals.push(signal);
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), {once: true});
+      });
+    },
+  };
+  let postCalls = 0;
+  const postBootstrap = fullBootstrapped(async () => {
+    postCalls++;
+    return postCalls === 1 ? {api: hungApi, session: fullSession} : undefined;
+  });
+  t.after(() => { bootstrap.dispose(); postBootstrap.dispose(); });
+
+  // Case 1: hung restore() call is fenced and replaced immediately by retryNow().
+  const pending = bootstrap.start();
+  await settle();
+  assert.equal(calls, 1);
+  await bootstrap.retryNow();
+  assert.equal(calls, 2, 'retryNow did not silently no-op on hung attempt');
+  assert.equal(bootstrap.getSnapshot().phase, 'signed-out');
+  first.resolve({api: {getRouteConnection: () => ({dispose: () => { lateDisposed++; }})}, session: fullSession});
+  await pending;
+  assert.equal(lateDisposed, 1, 'late hung restore connection is disposed');
+
+  // Case 2: hung post-restore request receives AbortSignal abort when retryNow() fires.
+  const postPending = postBootstrap.start();
+  await settle();
+  assert.equal(postCalls, 1);
+  assert.ok(signals.length >= 1 && !signals[0]!.aborted);
+  await postBootstrap.retryNow();
+  assert.equal(signals[0]!.aborted, true, 'hung request AbortSignal was aborted');
+  assert.equal(postCalls, 2);
+  assert.equal(postBootstrap.getSnapshot().phase, 'signed-out');
+  await postPending;
+});
