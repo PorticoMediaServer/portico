@@ -114,7 +114,7 @@ async function harness(fixture: Fixture) {
     '../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24).fill(1)}},
     '../../platform/reading-highlights-save': {readingHighlightsSavePort: () => ({})},
     '../downloads/device': {createNativeDownloadsDevice: () => ({dispose() {}, device: {open: async () => {}}})},
-    '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), publicationSource: () => ({sourceId: 'source'}), readingSession: async () => session}},
+    '../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), publicationSource: () => ({sourceId: 'source'}), readingSession: async () => session}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'},
     '../../kit/controls/Button': {Button: 'Button'},
     '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},

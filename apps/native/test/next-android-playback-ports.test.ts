@@ -17,8 +17,6 @@ const calls: {name: string; args: unknown[]; self: object}[] = [];
 class FakeRuntime {
   queue = {playEntry: () => {}};
   dock = {};
-  installSnapshotCapture = () => {};
-  isSnapshotSourceCurrent = () => true;
   refreshAuthority = async () => {};
   flush = async () => {};
   getSnapshot = () => ({fence: undefined, lease: undefined});
@@ -59,7 +57,6 @@ class FakeRuntime {
   restoreBookmark = () => {};
   open = () => {};
   dispose = () => {};
-  captureVideoSnapshot = () => {};
 }
 
 const viewer = {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile'};
@@ -75,7 +72,6 @@ const native = {
   UIManager: {hasViewManagerConfig: () => true},
   Dimensions: {get: () => ({width: 390, height: 844})},
   requireNativeComponent: () => 'PorticoPlayer',
-  findNodeHandle: () => 1,
 };
 const modules = {
   react: {...React, default: React},
@@ -90,8 +86,7 @@ const modules = {
   './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: FakeRuntime},
   './scope-http': {PlaybackScopeHttp: class {constructor() {}}},
   './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
-  '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
-  '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
+  '../offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
   './types': {},
 };
 

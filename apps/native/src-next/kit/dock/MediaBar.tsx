@@ -14,8 +14,6 @@ import {ListeningCoverLocalPaint, useListeningCoverSlot} from './ListeningCoverB
 import {BlurView} from '../../platform/native-blur';
 import {selectionHaptic} from '../../platform/haptics';
 import {DockHandover, DockPaintRow} from './DockHandover';
-import type {DockVideoExitPaint} from './video-exit-paint';
-import type {PlaybackFence} from '../../../../../packages/player-core/src';
 import {sameDockFence, commandAllowed, dockCommand, expandedDockMetrics, mediumDockMetrics, playbackPosition, progressOf, releaseAside, remoteSubtitle, seekBounds, seekTo, validRect} from './model';
 import {alpha, DockFacts, dockStyles as s, dockType} from './visual';
 import type {DockAction, DockRect, DockRenderProps, DockSlotAdmission, PlayerMorphController} from './types';
@@ -31,11 +29,10 @@ export type MediaBarProps = DockRenderProps & {
   isCurrent?: () => boolean;
   morph?: PlayerMorphController;
   menuOpen?: boolean;
-  takeVideoExit?: (fence: PlaybackFence) => DockVideoExitPaint | undefined;
 };
 
 /** This chrome has no video element, segment input, prompt slot, queue preview, or volume. */
-export function MediaBar({occupant, onAction, visible = true, onVideoSlot, slotAdmission, onMenuOpenChange, isCurrent, morph, menuOpen, takeVideoExit, style, testID}: MediaBarProps) {
+export function MediaBar({occupant, onAction, visible = true, onVideoSlot, slotAdmission, onMenuOpenChange, isCurrent, morph, menuOpen, style, testID}: MediaBarProps) {
   const theme = useTheme(), motion = useMotion(), t = defaultI18n.t;
   const bar = useRef<View>(null), art = useRef<View>(null), openerRef = useRef<View>(null), firstMenu = useRef<View>(null);
   const castButton = useRef<View>(null);
@@ -282,14 +279,6 @@ export function MediaBar({occupant, onAction, visible = true, onVideoSlot, slotA
   const scrubSize = Math.round(Math.max(dock.minScrub, Math.min(dock.scrubWidth, expandedWidth - 2 * (dock.sideLeft + dock.edgeGap + dock.bodyWidth))));
   const bodySize = Math.round(Math.max(dock.minBody, Math.min(dock.bodyWidth, (expandedWidth - scrubSize) / 2 - dock.sideLeft - dock.edgeGap)));
   const titleSize = expandedBar ? 15 : 14.5, subtitleSize = expandedBar ? 13 : 12.5;
-  const takeOriginalVideo = useCallback((original: PlaybackFence) => {
-    const paint = takeVideoExit?.(original);
-    if (paint && (active.value || localX.value !== 0 || localFade.value !== 1 || held.value !== 1 || morph?.dragging.value
-      || morph && (morph.dockX.value !== 0 || morph.dockFade.value !== 1 || (morph.dockTravelFade?.value ?? 1) !== 1))) {
-      void paint.release().catch(() => {}); return;
-    }
-    return paint;
-  }, [takeVideoExit, active, localX, localFade, held, morph]);
   const menuRows = [
     {id: 'open', icon: 'i-up' as const, label: t('next.dock.native.openPlayer'), action: 'expand' as const},
     ...(p.capabilities.cast ? [{id: 'cast', icon: 'i-cast' as const, label: t('next.dock.native.playOnMenu'), action: 'cast' as const}] : []),
@@ -367,7 +356,7 @@ export function MediaBar({occupant, onAction, visible = true, onVideoSlot, slotA
     <GestureDetector gesture={gestures}><Animated.View ref={bar} testID={testID} onLayout={onLayout} style={[{shadowColor: theme.colors.shadow, shadowOffset: {width: 0, height: menu ? 24 : 14}, shadowOpacity: .85, shadowRadius: 15}, animated, style]}>
       <View style={[expandedBar ? s.expanded : s.phone, !expandedBar && wide && s.video, !expandedBar && theme.platform === 'tablet' && s.medium, {paddingLeft: 0, paddingRight: 0, backgroundColor: alpha(theme.colors.raisedBright, .88), borderWidth: 1, borderColor: alpha(theme.colors.text, menu ? .12 : .07)}]}>
         <BlurView pointerEvents="none" style={s.fill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.raisedBright}/>
-        <DockHandover occupant={occupant} allowedTypes={dockPaintTypes} takeVideoExit={takeOriginalVideo} row={<DockPaintRow opener={opener} art={artPaint} words={wordsPaint}
+        <DockHandover occupant={occupant} allowedTypes={dockPaintTypes} row={<DockPaintRow opener={opener} art={artPaint} words={wordsPaint}
           controls={terminal ? undefined : mid} tools={tools} expanded={expandedBar} listeningFence={!video && !remote && playback.fence.kind !== 'cast-view' ? playback.fence : undefined} artWidth={artWidth}
           openerGap={expandedBar ? 12 : theme.platform === 'tablet' ? mediumDockMetrics.gap : wide ? 11 : 12}
           rowGap={expandedBar ? 0 : theme.platform === 'tablet' ? mediumDockMetrics.gap : 12} textStyle={s.text}

@@ -4,7 +4,7 @@ import {NativeEventEmitter, NativeModules, Platform, UIManager, type ViewProps} 
 import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
 import {PlaybackService} from '../../../../../packages/client-core/src';
 import type {LocalPlaybackFence} from '../../../../../packages/player-core/src';
-import type {OfflineEntry} from '../../../platform/offline-downloads';
+import type {OfflineEntry} from '../offline-downloads';
 import type {RememberedDownloadsViewer} from '../../shell/remembered-downloads-viewer';
 import {nativeDynamicRangeMatchingAvailable} from './dynamic-range-matching';
 import {chooseEngine, localRuleFacts, parseEngineFeatures, type EngineFeatures, type EngineKind} from './engine-choice';

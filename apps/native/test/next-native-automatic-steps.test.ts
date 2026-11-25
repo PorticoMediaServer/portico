@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {automaticSteps} from '../platform/automatic-video-quality.ts';
+import {automaticSteps} from '../src-next/platform/automatic-video-quality.ts';
 import {automaticSteps as nextSteps} from '../src-next/platform/playback/native-playback.ts';
 import type {QualityOption} from '../../../packages/client-core/src/playback-v1/quality.ts';
 import {parseOptions} from '../../../packages/client-core/src/playback-v1/types.ts';

@@ -75,7 +75,7 @@ async function fixture(main = true, pinRequired = false, pictures = false) {
     '../../../kit/states': {StateLayout: 'StateLayout', StateView: 'StateView'}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace', ProfilePicker: 'ProfilePicker'},
     '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
     '../../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../../kit/Icon': {Icon: 'Icon'},
-    '../../../../platform/offline-downloads': {}, '../../../kit/theme': {useTheme: () => ({colors, type, isTV: false})},
+    '../../../platform/offline-downloads': {}, '../../../kit/theme': {useTheme: () => ({colors, type, isTV: false})},
     './AccountEntryPage': {}, '../../../screens/accounts/downloads-entry': {}, '../../../screens/accounts/profile-pin-failure': {profilePinFailureText: () => undefined}, '../../../kit/accounts/PhonePINEntry': {}, '../../touch/accounts/ProfilePINPage': {}, '../../touch/accounts/ProfileSwitchPage': {ProfileSwitchPage: 'ProfileSwitchPage', ProfileSwitchStatus: 'ProfileSwitchStatus'}, '../../touch/accounts/ProfilesPage': {}, '../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, '../../touch/accounts/ProfileRecoveryPage': {}, '../../touch/accounts/ServerChooserPage': {}, './TrustedCertificatesPage': {}, '../../tv/accounts/ProfilesPage': {ProfilesPage: 'TVProfilesPage'}, '../../tv/accounts/ServerChooserPage': {}, '../../../screens/accounts/sign-out-downloads': {}, '../../../tv/auth': {},
   };
   const {ProfilesRoutePage: ProfileRoute} = await screenModule(new URL('../src-next/pages/shared/accounts/ProfilesRoutePage.tsx', import.meta.url), modules);

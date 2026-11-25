@@ -1,11 +1,11 @@
-import {downloadCopyReference, downloadPreparation, downloadedBundle} from '../../../packages/client-core/src/downloads-service';
-import {downloadedSubtitleText, keepDownloadsInStep, readDownload, removeDownloadedTitle, reportDownloadPlay} from '../../../packages/client-core/src/device-downloads';
-import {serverNow} from '../../../packages/client-core/src/server-clock';
+import {downloadCopyReference, downloadPreparation, downloadedBundle} from '../../../../packages/client-core/src/downloads-service';
+import {downloadedSubtitleText, keepDownloadsInStep, readDownload, removeDownloadedTitle, reportDownloadPlay} from '../../../../packages/client-core/src/device-downloads';
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {openDownloadedBook, nativePublicationReadsAvailable, type OfflineReadingSession} from './offline-reading';
-import {readingAnnotationBody, readingAnnotationEntry, readingPlacePosition, readingPlaceProgress, type ReadingLocation, type ReadingManifest, type ReadingProgress} from '../../../packages/client-core/src/reading';
-import {callServer} from '../../../packages/client-core/src/query/server-api';
-import {maxEditAgeMs} from '../../../packages/client-core/src/outbox-routes';
-import type {AnnotationChange} from '../../../packages/contracts/src/next/api';
+import {readingAnnotationBody, readingAnnotationEntry, readingPlacePosition, readingPlaceProgress, type ReadingLocation, type ReadingManifest, type ReadingProgress} from '../../../../packages/client-core/src/reading';
+import {callServer} from '../../../../packages/client-core/src/query/server-api';
+import {maxEditAgeMs} from '../../../../packages/client-core/src/outbox-routes';
+import type {AnnotationChange} from '../../../../packages/contracts/src/next/api';
 import {storedSubtitle, subtitleExtraFiles, subtitleExtraName, joinDownloadedVtt, type StoredSubtitle} from './offline-subtitle-files';
 import {receiptTime, serverReceiptFloor} from './receipt-clock';
 import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
@@ -13,10 +13,10 @@ import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
 import {
   DownloadsService, downloadTitleLines, downloadReasonMessage, getDownloadRequest, parseDownloadTitle,
   type DownloadBundle, type DownloadPreparation, type DownloadReceipt, type DownloadTitle,
-} from '../../../packages/client-core/src/index';
-import {serviceText} from '../../../packages/client-core/src/presentation/service-text';
-import {durationIntent} from '../../../packages/client-core/src/wire-units';
-import type {MessageId} from '../../../packages/i18n/src/index';
+} from '../../../../packages/client-core/src/index';
+import {serviceText} from '../../../../packages/client-core/src/presentation/service-text';
+import {durationIntent} from '../../../../packages/client-core/src/wire-units';
+import type {MessageId} from '../../../../packages/i18n/src/index';
 import type {LocalMedia, LocalProgress} from './local-playback';
 import {offlineCompletion} from './offline-completion';
 

@@ -12,9 +12,9 @@ import {device, NativeModules} from './react-native-stub.mjs';
 import type {DownloadsService} from '../../../packages/client-core/src/index';
 import {parseDownloadPreparation} from '../../../packages/client-core/src/downloads.ts';
 import {parseDownloadRequest} from '../../../packages/client-core/src/download-requests.ts';
-import {OfflineDownloads} from '../platform/offline-downloads.ts';
+import {OfflineDownloads} from '../src-next/platform/offline-downloads.ts';
 import {downloaded} from '../../../packages/client-core/test/helpers/downloads-next.ts';
-import type * as OfflineModule from '../platform/offline-downloads.ts';
+import type * as OfflineModule from '../src-next/platform/offline-downloads.ts';
 
 /** Files saved beside a download. */
 const nativeDownloads = NativeModules.PorticoDownloads as unknown as Record<string, any>;

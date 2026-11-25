@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {receiptTime, serverReceiptFloor} from '../platform/receipt-clock.ts';
+import {receiptTime, serverReceiptFloor} from '../src-next/platform/receipt-clock.ts';
 
 test('a clock turned back does not move a receipt\'s expiry: the floor holds the latest time seen', () => {
   const first = receiptTime({floorMs: 0}, Date.parse('2026-10-15T12:00:00Z'));

@@ -51,7 +51,7 @@ const shared = (back: Awaited<ReturnType<typeof backOwner>>) => ({
   '../../../kit/theme': {useTheme: () => theme}, '../../../kit/states': {StateLayout: 'Layout'},
   '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
   '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/Icon': {Icon: 'Icon'},
-  '../../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), remove: async () => {}}, offlineOwnerKey: () => 'owner'},
+  '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), remove: async () => {}}, offlineOwnerKey: () => 'owner'},
   '../../../screens/accounts/sign-out-downloads': {removeCapturedDownloads: async () => 0},
   '../../../tv/auth/code-retry': {useCodeRetry: () => {}}, '../../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
     TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required', TVWhosWatching: 'WhosWatching', TVProfileSwitchPage: 'SwitchPage'},

@@ -8,7 +8,6 @@ import type {LiveFrameProps} from '../frames';
 import {ConflictCard, RecordingRow as KitRecordingRow, RecordingCard, recordingGridColumns, RecordingFacts, RecordingList, RecordingResults, RecordingSection, RecordingSpaceFacts, RecordingStorageSummary, RecordingViewTabs, RuleCard} from './Recordings';
 import {Menu} from '../overlays';
 import {Quiet, StateView} from '../states';
-import {NewRuleSheet} from './NewRuleSheet';
 import {NativeLiveTabs} from './LiveTabs';
 import {keepLabel, ruleFacts, ruleKeep, ruleNext, ruleScope} from '../../screens/settings-live/recording-rule-presentation';
 
@@ -16,9 +15,9 @@ import {RecordingConfirm, RecordingDetails, RuleEditor} from './RecordingDialogs
 import {keptOrWatched, reasonLabels, sortLabels, stateLabels, storageFacts, viewLabels, type useRecordings, type RecordingsProps} from '../../pages/shared/live/useRecordings';
 
 export function recordingsFrame(props: RecordingsProps, model: ReturnType<typeof useRecordings>): LiveFrameProps {
-  const {controller, ports, runtime, onGuide, owner} = props;
+  const {controller, ports, runtime, onGuide} = props;
   const {theme, t, state, query, ids, tabs, body, bodyFocused, group, setGroup, menu, detail, rule, confirm, setConfirm,
-    newRule, setNewRule, sortOpen, setSortOpen, opener, cancel, list, alive, viewerOpening, overlay,
+    sortOpen, setSortOpen, opener, cancel, list, alive, viewerOpening, overlay,
     drawnCurrent, closeConfirm, retire, groups, rules, first, emptyGuide, entryRegion, enter, select, sort,
     selectSort, leaveGuide, back, open, close, askReady, run, play, askDelete, rowData, restartViewer, isEmpty, emptyTitle,
     emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent, availableViews} = model;
@@ -129,9 +128,6 @@ export function recordingsFrame(props: RecordingsProps, model: ReturnType<typeof
       {state.error !== undefined && <StateView testID="recordings-confirm-error" {...runtime.error(state.error, closeConfirm, 'live')}/>}
     </RecordingConfirm>
     {rule && <RuleEditor key={`${rule.id}:${rule.revision}`} rule={rule} controller={controller} runtime={runtime} opener={opener} isCurrent={ruleCurrent} onClose={closeRule}/>}
-    {/* TV viewers keep programme/series recording and rule editing; the administrative
-        new-rule sheet is not a TV surface and never mounts here. */}
-    {owner && !theme.isTV && <NewRuleSheet context={ports.context} runtime={runtime} open={newRule} onOpenChange={setNewRule} onSaved={() => {setNewRule(false); void controller.load({view: 'rules'});}}/>}
   </>;
   return {title: group?.title ?? t(expandedTouch ? 'search.chip.liveTV' : 'recordings.title'),
     back: theme.isTV || expandedTouch && !group ? undefined : {label: t(group ? 'recordings.title' : 'search.chip.liveTV'), onPress: group ? back : leaveGuide, testID: 'recordings-back'},

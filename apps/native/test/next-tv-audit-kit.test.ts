@@ -4,7 +4,7 @@ import test from 'node:test';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {createFocusRegistry} from '../src-next/kit/focus/registry.ts';
 import {createTVKeyAdapter} from '../src-next/platform/tv-key-adapter.ts';
-import {createDeviceEqualizer} from '../platform/equalizer-store.ts';
+import {createDeviceEqualizer} from '../src-next/platform/playback/equalizer-store.ts';
 import * as equalizerControls from '../src-next/screens/watch/equalizer-controls.ts';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];

@@ -3,7 +3,7 @@ import type {BookChaptersView} from '../../../../../packages/client-core/src/boo
 import type {V1QueueEditIntent, V1QueuedEntrySelection, V1QueuePolicyIntent} from '../../../../../packages/client-core/src/playback-v1/v1-queue-player';
 import type {ComponentType, RefObject} from 'react';
 import type {View} from 'react-native';
-import type {OfflineEntry} from '../../../platform/offline-downloads';
+import type {OfflineEntry} from '../offline-downloads';
 import type {NativeOfflinePlaybackDevice} from './offline-playback';
 import type {HttpLocalApi, LocalSession, PlaybackSnapshot} from '../../../../../packages/client-core/src/index';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
@@ -102,18 +102,8 @@ export type NativeOfflinePlaybackLifetime = Readonly<{signal: AbortSignal; isCur
 export type NativePlaybackBounds = Readonly<{x: number; y: number; width: number; height: number}>;
 export type NativePlaybackSurfaceProps = Readonly<{
   dockBounds?: NativePlaybackBounds; expandedBounds?: NativePlaybackBounds; docked: boolean; subtitlesVisible: boolean;
-  /** Composition only: a retained current-fence image may cover the live producer without unmounting it. */
+  /** Composition visibility for the live producer without unmounting it. */
   surfaceActive: boolean;
-}>;
-export type NativePlaybackVideoExitImage = Readonly<{
-  fence: PlaybackFence; image: Readonly<{uri: string; width: number; height: number}>;
-  signal: AbortSignal; paintCurrent(): boolean; subscribe(listener: () => void): () => void;
-  release(): Promise<void>;
-}>;
-export type NativePlaybackVideoSnapshot = Readonly<{
-  fence: PlaybackFence; image: Readonly<{uri: string; width: number; height: number}>; release: () => Promise<void>;
-  /** Claim only while the original mini video and captured page are current. Never re-captures. */
-  retainForExit?: () => Promise<NativePlaybackVideoExitImage | undefined>;
 }>;
 export type NativePlaybackSettings = Readonly<{
   passthroughFormats?: import('./passthrough-formats').PassthroughFormats;
@@ -253,7 +243,6 @@ export interface NativePlaybackAdapter {
   selectionPlayback: (isCurrent: (context: SelectionContext) => boolean) => HomeSelectionPlaybackPort;
   onTransition: (transition: DockTransition) => Promise<void>;
   Surface: ComponentType<NativePlaybackSurfaceProps>;
-  captureVideoSnapshot: (fence: PlaybackFence, options?: {signal?: AbortSignal}) => Promise<NativePlaybackVideoSnapshot>;
   toggle: (fence: PlaybackFence) => Promise<void>;
   replay: (fence: PlaybackFence) => Promise<void>;
   /** Retry the exact failed VOD output at its saved target, preserving choices and intent. */

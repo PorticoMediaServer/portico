@@ -17,8 +17,6 @@ const calls: {name: string; args: unknown[]; self: object}[] = [];
 class FakeRuntime {
   queue = {playEntry: function (this: object, ...args: unknown[]) {calls.push({name: 'queuePlay', args, self: this});}};
   dock = {};
-  installSnapshotCapture = () => {};
-  isSnapshotSourceCurrent = () => true;
   refreshAuthority = async () => {};
   flush = async () => {};
   getSnapshot = () => ({fence: undefined, lease: undefined});
@@ -63,7 +61,6 @@ class FakeRuntime {
   restoreBookmark = () => {};
   open = () => {};
   dispose = () => {};
-  captureVideoSnapshot = () => {};
 }
 
 const viewer = {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile'};
@@ -79,7 +76,6 @@ const native = {
   AppState: {addEventListener: () => ({remove() {}})},
   UIManager: {hasViewManagerConfig: () => true},
   requireNativeComponent: () => 'PorticoPlayer',
-  findNodeHandle: () => 1,
 };
 const theme = {colors: {ink: '#000'}, platform: 'phone'};
 const modules = {
@@ -94,8 +90,7 @@ const modules = {
   './NativeListeningAdapter': {NativeListeningV1Adapter: class {}},
   './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: FakeRuntime},
   './scope-http': {PlaybackScopeHttp: class {constructor() {}}},
-  '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
-  '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
+  '../offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
   './types': {},
   '../../kit/theme': {useTheme: () => theme},
 };

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {nativeDestinationLifetime} from '../src-next/screens/destinations/lifetime.ts';
 import {downloadEntryIdentity} from '../src-next/screens/downloads/presentation.ts';
-import {nativePublicationReadsAvailable} from '../platform/offline-reading.ts';
+import {nativePublicationReadsAvailable} from '../src-next/platform/offline-reading.ts';
 
 function events() {
   const listeners = new Set<() => void>();
@@ -25,7 +25,7 @@ async function fixture(installed = true) {
   const device = {getSnapshot: () => ({entries}), subscribe: rows.subscribe, playable: () => ''};
   const module = await screenModule(new URL('../src-next/screens/downloads/playback.ts', import.meta.url), {
     react: {default: {}}, '../destinations/lifetime': {nativeDestinationLifetime}, './presentation': {downloadEntryIdentity},
-    '../../../platform/offline-reading': {nativePublicationReadsAvailable},
+    '../../platform/offline-reading': {nativePublicationReadsAvailable},
   });
   return {module, context, device, entry, calls, navEvents, rows, authEvents,
     navigation: (route = {kind: 'downloads'}) => {nav = {route, revision: nav.revision + 1}; navEvents.emit();},

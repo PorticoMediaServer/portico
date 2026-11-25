@@ -10,8 +10,8 @@ test('Apple retained view receives only the runtime request counter and exact bi
   let state: any = {lease: '', fence: undefined}, captured: any;
   const commands: unknown[] = [], hosts: string[] = [];
   const runtime = {
-    getSnapshot: () => state, subscribe: () => () => {}, installSnapshotCapture() {}, attachSurface: () => () => {},
-    setSubtitleDisplay() {}, setSurfaceTag() {},
+    getSnapshot: () => state, subscribe: () => () => {}, attachSurface: () => () => {},
+    setSubtitleDisplay() {},
     queue: {playEntry: () => {assert.fail('unexpected queue.playEntry');}},
     prepareExternalPresentation: async (...args: unknown[]) => {commands.push(['prepare', ...args]);return binding;},
     requestPictureInPicture: async (...args: unknown[]) => {commands.push(['request', ...args]);return false;},
@@ -22,7 +22,7 @@ test('Apple retained view receives only the runtime request counter and exact bi
       NativeModules: {PorticoPlaybackModule: {}, PorticoRuntime: {playbackRequestId: () => 'request', getConstants: () => ({pictureInPictureSupported: true})}},
       NativeEventEmitter: class {addListener() {return {remove() {}};}},
       Platform: {OS: 'ios', isTV: false, Version: 27}, UIManager: {hasViewManagerConfig: () => true},
-      requireNativeComponent: (name: string) => {hosts.push(name);return name;}, findNodeHandle: () => 17,
+      requireNativeComponent: (name: string) => {hosts.push(name);return name;},
       AppState: {addEventListener: () => ({remove() {}})},
     },
     '../../../../../packages/client-core/src/playback-v1/options': {CapabilityPublisher: class {async publish() {}}},
@@ -34,8 +34,7 @@ test('Apple retained view receives only the runtime request counter and exact bi
     './NativeListeningAdapter': {},
     './native-surface': {nativePlaybackView: (name: string) => {hosts.push(name);return name;}}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
     './scope-http': {PlaybackScopeHttp: class {dispose() {}}},
-    '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
-    '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
+    '../offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
   });
   const adapter = createNativeShellPlaybackAdapter({
     appVersion: 'test', api: {}, session: () => ({viewer: {authority: 'local', profileId: 'profile'}}),

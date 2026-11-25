@@ -121,40 +121,12 @@ test('receiver sequence-only observations update live facts without replaying a 
   } finally {await r.close();}
 });
 
-test('only an offered original video file is painted, and retirement disposes that exact resource', async () => {
-  const r = await rig(), originalFence = fence('video');
-  let releases = 0, current = true; const listeners = new Set<() => void>(), claims: any[] = [];
-  const life = new AbortController();
-  const video = {fence: originalFence, windowBounds: {x: 24, y: 700, width: 80, height: 45}, image: {uri: 'file:///original', width: 1920, height: 1080},
-    signal: life.signal, paintCurrent: () => current, subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}, release: async () => {releases++;}};
-  await r.mount({occupant: occupant('video', 'video'), row: r.row('Video', 80), takeVideoExit: (original: any) => {claims.push(original); return video;}});
-  await r.update({occupant: occupant('audio'), row: r.row('Audio', 44)});
-  const entry = r.retiring()[0], outgoing = await r.mountRetiring(entry);
-  try {
-    assert.deepEqual(claims, [originalFence]);
-    assert.equal(entry.props.entry.video, video);
-    // The presenter clones the frozen row and paints the offered frame beside the
-    // row's own art, so the picture is the cloned art's Image, not the live tree.
-    const painted = [entry.props.entry.node.props.art.props.children]
-      .flatMap((node: any) => node.props.children as any[]);
-    const images = painted.filter((node: any) => node.type === 'Image');
-    assert.equal(images.length, 1, 'exactly the offered original frame is painted');
-    assert.equal(images[0].props.source.uri, 'file:///original');
-    await act(() => {current = false; for (const notify of [...listeners]) notify();});
-    assert.equal(outgoing.tree, null);
-    assert.equal(r.retiring().length, 0);
-  } finally {await outgoing.host.unmount(); await r.close(); await Promise.resolve();}
-  assert.equal(releases, 1);
-});
-
-
-test('missing original video permission skips old picture pixels while retaining inert words and controls', async () => {
+test('video handover skips old picture pixels while retaining inert words and controls', async () => {
   const r = await rig();
   await r.mount({occupant: occupant('video', 'video'), row: r.row('Video', 80)});
   await r.update({occupant: occupant('audio'), row: r.row('Audio', 44)});
   const entry = r.retiring()[0], outgoing = await r.mountRetiring(entry);
   try {
-    assert.equal(entry.props.entry.video, undefined);
     assert.equal(entry.props.entry.skipArt, true);
     assert.equal(outgoing.phase().hideArt, true);
     assert.equal(entry.props.entry.node.props.words.props.children, 'Video');

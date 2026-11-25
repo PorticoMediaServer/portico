@@ -104,7 +104,7 @@ test(`actual retained Read components cap guest residency and restore original s
   const {ReadNativeHost} = await readerFixtureModule('Host', {...stackSlotFixture,
     react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47})},
     '../../../../../packages/client-core/src': {preferenceValue, ReadingError}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../downloads/device': {createNativeDownloadsDevice: () => {throw new Error('unexpected offline device');}}, '../../../platform/offline-downloads': {offlineDownloads: {}},
+    '../downloads/device': {createNativeDownloadsDevice: () => {throw new Error('unexpected offline device');}}, '../../platform/offline-downloads': {offlineDownloads: {}},
     '../../kit/states': {LoadingPaint: ({children}: any) => children, SkeletonBlock: 'SkeletonBlock', StateView: 'StateView'},
     '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     './NativeReadingGuestHost': {NativeReadingGuestHost}, './reading-session-owner': {createReadingSessionOwner, closeReadingResource},

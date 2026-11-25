@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {offlineOwnerKey, type OfflineEntry} from '../platform/offline-downloads';
+import {offlineOwnerKey, type OfflineEntry} from '../src-next/platform/offline-downloads';
 import {capturedViewerIsCurrent, removeCapturedDownloads, removeCapturedServerDownloads, type SignOutCapturedSession} from '../src-next/screens/accounts/sign-out-downloads';
 
 const viewer = (profileId: string) => ({authority: 'local', serverId: 'server', accountId: 'account', profileId});

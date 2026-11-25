@@ -206,39 +206,22 @@ test('the native guide says once that it is stale or that the server cannot play
   assert.equal(find(tree, 'live-watch'), undefined);
 });
 
-test('programme text keeps whole words and drops an incomplete time range', async () => {
-  let parent = hooks(), child = hooks(), renderer = parent;
+test('programme text uses deterministic native truncation without hidden measurement text or timers', async () => {
   const {GuideProgrammeTitle} = await screenModule(new URL('../src-next/kit/live/GuideProgrammeTitle.tsx', import.meta.url), {
-    react: {...parent.react, useState: (initial: unknown) => renderer.react.useState(initial)}, 'react-native': {...native, StyleSheet: {flatten: (style: any) => style}},
+    react: hooks().react, 'react-native': native,
   });
-  const draw = (title: string, whole = false) => {
-    const props = {title, lines: 2, maxHeight: whole ? 22 : 44, whole, style: {}};
-    renderer = parent;
-    const tree = parent.render(() => GuideProgrammeTitle(props));
-    tree.props.onLayout({nativeEvent: {layout: {width: 65}}});
-    const wrapped = parent.render(() => GuideProgrammeTitle(props)).props.children[0];
-    renderer = child;
-    return child.render(() => wrapped.type(wrapped.props));
-  };
-  const measured = (tree: any, values: string[]) => {
-    nodes(tree).find(node => node.props?.onTextLayout).props.onTextLayout({nativeEvent: {
-      lines: values.map(text => ({text, width: 60, height: 20})),
-    }});
-  };
-  const visible = (tree: any) => nodes(tree).find(node => node.type === 'Text' && !node.props.onTextLayout)?.props.children.join('');
-  assert.equal(visible(draw('Market Watch')), '…');
-  measured(draw('Market Watch'), ['Market W', 'atch']);
-  measured(draw('Market Watch'), ['Market…']);
-  assert.equal(visible(draw('Market Watch')), 'Market…');
-  parent = hooks(); child = hooks();
-  measured(draw('2:30 PM – 3:00 PM', true), ['2:30 PM –', '3:00 PM']);
-  assert.equal(visible(draw('2:30 PM – 3:00 PM', true)), undefined);
-  // A sliver (a 45 s programme) is "…" at once, not measured: hundreds of them held every title back (Pixel, 21 Nov).
-  parent = hooks(); renderer = parent;
-  const sliver = {title: 'Night of the Living Dead', lines: 2, maxHeight: 44, whole: false, style: {fontSize: 14}};
-  parent.render(() => GuideProgrammeTitle(sliver)).props.onLayout({nativeEvent: {layout: {width: 12}}});
-  const drawn = parent.render(() => GuideProgrammeTitle(sliver));
-  const texts = nodes(drawn).filter(node => node.type === 'Text');
-  assert.equal(texts.length, 1); assert.equal([texts[0].props.children].flat().join(''), '…');
-  assert.ok(!nodes(drawn).some(node => typeof node.type === 'function'), 'no measuring text for a sliver');
+  const heights: number[] = [];
+  const tree = GuideProgrammeTitle({title: 'Market Watch', lines: 2, maxHeight: 44, style: {fontSize: 14}, onHeight: (value: number) => heights.push(value)});
+  const texts = nodes(tree).filter(node => node.type === 'Text');
+  assert.equal(texts.length, 1, 'renders a single Text element');
+  assert.equal(texts[0].props.numberOfLines, 2);
+  assert.equal(texts[0].props.ellipsizeMode, 'tail');
+  assert.equal(texts[0].props.textBreakStrategy, 'simple');
+  assert.equal(texts[0].props.android_hyphenationFrequency, 'none');
+  assert.equal(texts[0].props.onTextLayout, undefined, 'no hidden onTextLayout measurement pass');
+  assert.deepEqual(texts[0].props.style, [{fontSize: 14}, {maxHeight: 44}]);
+  assert.equal([texts[0].props.children].flat().join(''), 'Market Watch');
+  texts[0].props.onLayout({nativeEvent: {layout: {height: 36}}});
+  assert.deepEqual(heights, [36]);
+  assert.equal(GuideProgrammeTitle({title: '', lines: 2, style: {fontSize: 14}}), null, 'empty titles render nothing');
 });

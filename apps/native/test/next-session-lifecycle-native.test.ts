@@ -84,7 +84,7 @@ async function fixture(options: Options = {}) {
     '../../../../packages/client-core/src/server-connections': serverConnections,
     '../../../../packages/client-core/src/timer': timer,
     '../../../../packages/contracts/src/routes': {routePath: (name: string) => name},
-    '../../platform/offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'},
+    './offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'},
     '../screens/accounts/sign-out-downloads': {removeCapturedDownloads: async () => 0},
     '../shell/account-binding': {createNativeShellAccountBinding: () => account, profileSessionRole: () => 'owner'},
     './accounts': {nativeAccounts: {}}, './account-authority': {hostedUrl: 'https://hosted.test'},

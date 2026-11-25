@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeModules,device} from './react-native-stub.mjs';
-import {OfflineDownloads} from '../platform/offline-downloads';
+import {OfflineDownloads} from '../src-next/platform/offline-downloads';
 
 test('volume capacity is the native metric and is never synthesized from free space plus downloads', async () => {
   const native=NativeModules.PorticoDownloads, original=native.storage;
