@@ -72,6 +72,28 @@ test('TV first Select event plus its genuine picture press only reveals; second 
   } finally {await host.unmount(); controls.dispose();}
 });
 
+test('on TV, focus moving between the controls keeps them up; Apple TV swipes reach no key handler', async () => {
+  const controls = new NativeWatchControls(true), reveals: string[] = [];
+  const source = {fence, retired: false, dock: {local: {expanded: true}}, queue: {}, capabilities: {play: true, pause: true, seek: true}, playback: {intent: 'playing', positionSeconds: 17, duration: 100}};
+  const playback = {getSnapshot: () => source, toggle: async () => {}};
+  controls.source(fence, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false});
+  const reveal = controls.reveal.bind(controls);
+  controls.reveal = (value: any, deadline?: number) => {reveals.push('reveal'); return reveal(value, deadline);};
+  const host = createFabricHookHost(() => {NativeWatchChrome({source, controls, playback, text: {t: defaultI18n.t}, quality: 'Original', width: 1920, height: 1080, compact: false, skipBackSeconds: 10, skipForwardSeconds: 30, onMinimize() {}, onPanel() {}, reportError(error: unknown) {throw error;}});});
+  await host.mount();
+  try {
+    controls.key(fence); await host.flush();
+    assert.equal(controls.getSnapshot().visible, true);
+    const before = reveals.length;
+    focusRegistry.didFocus({regionId: 'watch-controls', childId: 'back'}); await host.flush();
+    focusRegistry.didFocus({regionId: 'watch-controls', childId: 'forward'}); await host.flush();
+    assert.equal(reveals.length - before, 2, 'each move within the controls extends their time');
+    focusRegistry.didFocus({regionId: 'watch-surface', childId: 'picture'}); await host.flush();
+    focusRegistry.didFocus({regionId: 'library-grid', childId: 'x'}); await host.flush();
+    assert.equal(reveals.length - before, 2, 'the picture and other pages do not');
+  } finally {await host.unmount(); controls.dispose();}
+});
+
 test('N3-2: the remote Play/Pause raises hidden controls without pausing, then toggles on Apple TV only', async () => {
   const platform = Platform as {OS: string; isTV: boolean}, before = {...platform};
   for (const os of ['ios', 'android']) {
