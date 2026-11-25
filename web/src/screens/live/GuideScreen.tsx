@@ -451,7 +451,7 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
                               {row.channel!.guide === 'none' && <span className={styles.guideCellDetail}>{t('guide.noGuideBody')}</span>}</>}
                           </div>
                         : <CellButton key={`cell:${cell.start}`} cell={cell} channel={row.channel!} witness={row.witness} now={now} timezone={timezone}
-                            selected={(selected?.channelKey !== undefined ? selected.channelKey === channelKey(row.channel!) : selected?.channelId === row.channel!.id) && (selected.programmeId === undefined || selected.programmeId === cell.program?.id)} onSelect={onSelect}/>)}
+                            selected={!!selected && (selected.channelKey !== undefined ? selected.channelKey === channelKey(row.channel!) : selected.channelId === row.channel!.id) && (selected.programmeId === undefined || selected.programmeId === cell.program?.id)} onSelect={onSelect}/>)}
                   </>}
               </div>
             </GuideRowFrame>)}
