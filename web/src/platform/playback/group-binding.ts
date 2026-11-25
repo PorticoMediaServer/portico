@@ -13,7 +13,7 @@ type Options = Readonly<{
 export function bindRuntimeGroup(options: Options) {
   let disposed = false, key = '', follower: GroupFollower | undefined, loading: AbortController | undefined, adopted: ReturnType<NonNullable<GroupPlayer['occurrence']>> = null;
   const active = () => {const state = options.service.getSnapshot();return !disposed && options.isCurrent() && (state.phase === 'live' || state.phase === 'reconnecting') ? state.group : undefined;};
-  const player: GroupPlayer = {...options.player, occurrence: () => adopted, load: (itemId, seconds, playing) => {
+  const player: GroupPlayer = {...options.player, occurrence: () => active() ? adopted : null, load: (itemId, seconds, playing) => {
     const group = active();if (!group || roomEntry(group)?.itemId !== itemId) return;
     loading?.abort();const life = new AbortController();loading = life;
     const entryId = group.clock.entryId!;
@@ -22,13 +22,14 @@ export function bindRuntimeGroup(options: Options) {
   }};
   const sync = () => {
     const group = active(), next = group ? `${group.id}:${group.clock.entryId}` : '';
-    if (next === key) return;key = next;loading?.abort();loading = undefined;follower?.stop();follower = undefined;
+    if (next === key) return;
+    key = next; adopted = null; loading?.abort(); loading = undefined; follower?.stop(); follower = undefined;
     if (group) {follower = new GroupFollower(options.service, player);follower.start();}
   };
   const off = options.service.subscribe(sync);sync();
   return {
     active, matches: (fence: PlaybackFence) => {const group = active();return fence.kind === 'queue' && !!group && roomEntry(group)?.itemId === fence.itemId && adopted?.groupId === group.id && adopted.entryId === group.clock.entryId!;},
-    dispose: () => {if (disposed) return;disposed = true;off();loading?.abort();follower?.stop();},
+    dispose: () => {if (disposed) return;disposed = true;key = '';adopted = null;off();loading?.abort();loading = undefined;follower?.stop();follower = undefined;},
   };
 }
 export type RuntimeGroupBinding = ReturnType<typeof bindRuntimeGroup>;

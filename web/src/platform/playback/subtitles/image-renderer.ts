@@ -56,6 +56,7 @@ export class ImageSubtitleRenderer implements DrawnSubtitleRenderer {
   private readonly frames = new Map<number, Drawable[]>();
   private readonly asked = new Set<number>();
   private disposed = false;
+  private cancelLoad?: () => void;
 
   constructor(options: ImageRendererOptions = {}) { this.options = options; }
 
@@ -73,14 +74,34 @@ export class ImageSubtitleRenderer implements DrawnSubtitleRenderer {
     const data = (whole ? file.bytes.buffer : file.bytes.slice().buffer) as ArrayBuffer;
     const worker = this.worker = (this.options.spawn ?? spawnWorker)();
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('The subtitle took too long to read.')), this.options.readyTimeoutMs ?? 60000);
-      context.signal.addEventListener('abort', () => reject(new Error('Subtitle loading was cancelled.')), {once: true});
-      worker.onerror = () => { clearTimeout(timer); if (this.track) { if (!this.disposed) context.failed(new Error('The subtitle reader stopped.')); } else reject(new Error('The subtitle reader could not start.')); };
+      let settled = false;
+      const finish = (outcome: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        context.signal.removeEventListener('abort', onAbort);
+        this.cancelLoad = undefined;
+        outcome();
+      };
+      const onAbort = () => finish(() => reject(new Error('Subtitle loading was cancelled.')));
+      const timer = setTimeout(() => finish(() => reject(new Error('The subtitle took too long to read.'))), this.options.readyTimeoutMs ?? 60000);
+      this.cancelLoad = onAbort;
+      context.signal.addEventListener('abort', onAbort, {once: true});
+      if (context.signal.aborted || this.disposed) { onAbort(); return; }
+      worker.onerror = () => {
+        if (this.track) { if (!this.disposed) context.failed(new Error('The subtitle reader stopped.')); }
+        else finish(() => reject(new Error('The subtitle reader could not start.')));
+      };
       worker.onmessage = event => {
         const reply = event.data;
-        if (reply.type === 'ready') { clearTimeout(timer); this.track = {width: reply.width, height: reply.height, starts: reply.starts, ends: reply.ends, forced: reply.forced ?? new Uint8Array(reply.starts.length)}; resolve(); }
-        else if (reply.type === 'failed') { clearTimeout(timer); const text = reply.code === 'no_pictures' ? defaultI18n.t('next.subtitles.image.noPictures') : defaultI18n.t('next.subtitles.image.unreadable'); if (this.track) { if (!this.disposed) context.failed(new Error(text)); } else reject(new Error(text)); }
-        else this.arrived(reply.index, reply.rects);
+        if (reply.type === 'ready') {
+          this.track = {width: reply.width, height: reply.height, starts: reply.starts, ends: reply.ends, forced: reply.forced ?? new Uint8Array(reply.starts.length)};
+          finish(resolve);
+        } else if (reply.type === 'failed') {
+          const text = reply.code === 'no_pictures' ? defaultI18n.t('next.subtitles.image.noPictures') : defaultI18n.t('next.subtitles.image.unreadable');
+          if (this.track) { if (!this.disposed) context.failed(new Error(text)); }
+          else finish(() => reject(new Error(text)));
+        } else this.arrived(reply.index, reply.rects);
       };
       worker.postMessage({type: 'load', kind: source.kind, data, ...(index === undefined ? {} : {index})}, [data]);
     }).catch(error => { this.dispose(); throw error; });
@@ -128,6 +149,7 @@ export class ImageSubtitleRenderer implements DrawnSubtitleRenderer {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.cancelLoad?.();
     try { this.worker?.terminate(); } catch { /* already gone */ }
     this.worker = null;
     for (const frame of this.frames.values()) for (const rect of frame) rect.close?.();

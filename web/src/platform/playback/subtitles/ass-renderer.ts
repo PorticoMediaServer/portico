@@ -34,6 +34,8 @@ export function loadLibass(): Promise<LibassConstructor> {
     const script = document.createElement('script');
     script.src = libassFiles.main();
     script.async = true;
+    const nonce = document.querySelector?.<HTMLMetaElement>('meta[name="portico-script-nonce"]')?.content;
+    if (nonce && nonce !== '__PORTICO_SCRIPT_NONCE__') script.nonce = nonce;
     script.onload = () => { if (scope.SubtitlesOctopus) resolve(scope.SubtitlesOctopus); else reject(new Error('The subtitle renderer did not start.')); };
     script.onerror = () => { script.remove(); reject(new Error('The subtitle renderer could not be loaded.')); };
     document.head.append(script);
@@ -62,6 +64,7 @@ export class StyledSubtitleRenderer implements DrawnSubtitleRenderer {
   private told: {time: number; at: number; paused: boolean; rate: number} | null = null;
   private ready = false;
   private disposed = false;
+  private cancelLoad?: () => void;
 
   constructor(options: StyledRendererOptions = {}) { this.options = options; }
 
@@ -75,17 +78,32 @@ export class StyledSubtitleRenderer implements DrawnSubtitleRenderer {
     if (context.signal.aborted || this.disposed) throw new Error('Subtitle loading was cancelled.');
     const fonts = [...(source.fonts ?? []).slice(0, subtitleFileLimits.fonts), ...(this.options.fallbackFonts ?? (t => fallbackFontsFor(t, script => (script === 'cjk' ? source.cjkFont : undefined))))(text)];
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('The subtitle renderer took too long to start.')), this.options.readyTimeoutMs ?? 45000);
-      context.signal.addEventListener('abort', () => reject(new Error('Subtitle loading was cancelled.')), {once: true});
+      let settled = false;
+      const finish = (outcome: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        context.signal.removeEventListener('abort', onAbort);
+        this.cancelLoad = undefined;
+        outcome();
+      };
+      const onAbort = () => finish(() => reject(new Error('Subtitle loading was cancelled.')));
+      const timer = setTimeout(() => finish(() => reject(new Error('The subtitle renderer took too long to start.'))), this.options.readyTimeoutMs ?? 45000);
+      this.cancelLoad = onAbort;
+      context.signal.addEventListener('abort', onAbort, {once: true});
+      if (context.signal.aborted || this.disposed) { onAbort(); return; }
       try {
         this.instance = new Engine({
           canvas: context.canvas, subContent: text, fonts, fallbackFont: libassFiles.defaultFont(), workerUrl: libassFiles.worker(),
           renderMode: 'wasm-blend', targetFps: 24, libassMemoryLimit: 40, libassGlyphLimit: 40,
-          onReady: () => { clearTimeout(timer); resolve(); },
+          onReady: () => finish(resolve),
           // Before it is ready this fails the load; afterwards it tells the player the subtitle stopped.
-          onError: error => { clearTimeout(timer); if (this.ready) { if (!this.disposed) context.failed(error); } else reject(error instanceof Error ? error : new Error('The subtitle renderer failed.')); },
+          onError: error => {
+            if (this.ready) { if (!this.disposed) context.failed(error); }
+            else finish(() => reject(error instanceof Error ? error : new Error('The subtitle renderer failed.')));
+          },
         });
-      } catch (error) { clearTimeout(timer); reject(error); }
+      } catch (error) { finish(() => reject(error)); }
     }).catch(error => { this.dispose(); throw error; });
     if (this.disposed) throw new Error('Subtitle loading was cancelled.');
     this.ready = true;
@@ -121,6 +139,7 @@ export class StyledSubtitleRenderer implements DrawnSubtitleRenderer {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.cancelLoad?.();
     const instance = this.instance;
     this.instance = null;
     try { instance?.dispose(); } catch { /* the worker is already gone */ }

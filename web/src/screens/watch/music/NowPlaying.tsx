@@ -103,6 +103,16 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
     receipt!.live = false; publishedEq.current = null; setEqReceipt(null); setEqOpen(false);
     if(listenOwner&&listenState)listenOwner.show(listenState,'queue');
   };
+  const radioController = useRef<AbortController | null>(null);
+  const latchedNotice = useRef<{runtime: typeof binding.runtime; identity: string; value: Readonly<{code: NonNullable<typeof snapshot.playback.listeningNotice>; sequence: number}>} | undefined>(undefined);
+  const noticeIdentity = `${fenceAt}:${snapshot.playback.intentId}:${playbackRun}`;
+  const noticeCode = snapshot.playback.listeningNotice;
+  if (!noticeCode) {
+    latchedNotice.current = undefined;
+  } else if (latchedNotice.current?.runtime !== binding.runtime || latchedNotice.current.identity !== noticeIdentity || latchedNotice.current.value.code !== noticeCode) {
+    latchedNotice.current = {runtime: binding.runtime, identity: noticeIdentity, value: Object.freeze({code: noticeCode, sequence: snapshot.sequence})};
+  }
+  useEffect(() => () => { radioController.current?.abort(); radioController.current = null; }, [binding.runtime, fenceAt, playbackRun, open]);
   const present = motion ? motion.present : open;
   if (!present || !presentation || !identity || isCurrent && !isCurrent()) return null;
   const send = (intent: WatchIntent) => { if (!open || motion?.scope && !motion.scope.current()) return;void dispatchWatch(binding.runtime, snapshot, intent).catch(binding.reportError); };
@@ -110,8 +120,7 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
   const can = (kind: string) => presentation.controls.includes(kind as never);
   const canSeek = can('seek') && !!bounds;
   const from = musicQueueOrigin(snapshot), nextTitle = phone ? musicQueueNext(snapshot) : undefined;
-  const code = snapshot.playback.listeningNotice;
-  const notice = code ? {code, sequence: snapshot.sequence} : undefined;
+  const notice = latchedNotice.current?.value;
   const listeningNotice = <ListeningNotice notice={notice} paused={snapshot.playback.intent === 'paused'}
     stopped={snapshot.disposed || snapshot.playback.phase === 'idle' || snapshot.playback.phase === 'ended'}
     errorShown={snapshot.playback.phase === 'error' || !!snapshot.playback.error || !!snapshot.problem}
@@ -156,7 +165,12 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
     {id: 'radio', label: t('music.startRadio'), onSelect: () => {
       setSongOpen(false);
       if (!stillPlaying()) return;
-      void binding.runtime.playFromQueue({container: {kind: 'radio', id: song.itemId}}, {signal: new AbortController().signal, isCurrent: () => !isCurrent || isCurrent()}).catch(binding.reportError);
+      radioController.current?.abort();
+      const controller = new AbortController();
+      radioController.current = controller;
+      void binding.runtime.playFromQueue({container: {kind: 'radio', id: song.itemId}}, {signal: controller.signal, isCurrent: () => !controller.signal.aborted && (!isCurrent || isCurrent())}).catch(error => {
+        if (!controller.signal.aborted) binding.reportError(error);
+      });
     }},
     ...(song.albumId && song.album ? [{id: 'album', label: t('music.goToArtist', {name: song.album}), onSelect: () => goTo('album', song.albumId!)}] : []),
     ...(song.artistId && song.artist ? [{id: 'artist', label: t('music.goToArtist', {name: song.artist}), onSelect: () => goTo('artist', song.artistId!)}] : []),
@@ -187,7 +201,7 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
           <SignalPath model={signal} translate={t} locale={environment.locale} layout={phone ? 'phone' : 'desktop'} open={open && signalOpen} onOpenChange={setSignalOpen} anchorRef={signalAnchor} /></>}
       </> : undefined}
       scrubber={<SeekLine variant="player" value={duration > 0 ? scrub / duration : 0}
-        input={{min: bounds?.start ?? 0, max: bounds?.end ?? Math.max(duration, 1), step: .1, value: scrub, disabled: !canSeek, 'aria-label': t('player.position'),
+        input={{min: bounds?.start ?? 0, max: bounds?.end ?? Math.max(duration, 1), step: 1, value: scrub, disabled: !canSeek, 'aria-label': t('player.position'),
           'aria-valuetext': t('player.clockOf', {position: watchClock(scrub), duration: watchClock(duration)}),
           onChange: event => {const value = event.currentTarget.valueAsNumber; if (canSeek && Number.isFinite(value)) seek(value);}}} />}
       times={{position: watchClock(scrub), end: phone ? `−${watchClock(Math.max(0, duration - scrub))}` : watchClock(duration)}}

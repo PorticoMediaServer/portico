@@ -1,3 +1,4 @@
+import {useState} from 'react';
 import {defaultI18n} from '@i18n';
 import {TrackChoices} from '../media';
 import {AmbientArt, Artwork} from '../artwork';
@@ -52,20 +53,57 @@ export function CastPlayer({controller, snapshot, visuals, phone, returnFocusRef
   </Dialog>;
 }
 
+type CastTrackEntry = Readonly<{id: number; language: string; name: string; active?: boolean}>;
+type CastTrackSnapshot = Readonly<{
+  audioTracks: readonly CastTrackEntry[];
+  textTracks: readonly CastTrackEntry[];
+  activeAudioTrackId?: number | null;
+  activeTextTrackId?: number | null;
+}>;
+type CastTrackOverride = Readonly<{
+  key: string;
+  audio?: Readonly<{id: number; from: number | null | undefined}>;
+  subtitle?: Readonly<{id: number | null; from: number | null | undefined}>;
+}>;
+
 export function CastTracks({controller, snapshot, returnFocusRef, reportError, t = defaultI18n.t}: CastPlayerProps) {
+  const [override, setOverride] = useState<CastTrackOverride | null>(null);
   const remote = snapshot.remote;
   if (!remote) return null;
   // The player's own track rows (kit TrackChoices), for a Cast device or one of the account's Portico devices, with the
   // ones in use checked where they are known.
   const portico = remote.kind === 'portico' ? remote.tracks : undefined;
+  const cast = snapshot.cast as CastTrackSnapshot;
+  const sessionKey = `${remote.id}:${remote.itemId ?? ''}`;
+  const activeOverride = override?.key === sessionKey ? override : undefined;
+  const reportedAudioId = cast.activeAudioTrackId !== undefined ? cast.activeAudioTrackId : cast.audioTracks.find(track => track.active)?.id;
+  const reportedSubtitleId = cast.activeTextTrackId !== undefined
+    ? cast.activeTextTrackId
+    : cast.textTracks.find(track => track.active)?.id ?? (cast.textTracks.some(track => typeof track.active === 'boolean') ? null : undefined);
+  const castAudioId = activeOverride?.audio && activeOverride.audio.from === reportedAudioId ? activeOverride.audio.id : reportedAudioId;
+  const castSubtitleId = activeOverride?.subtitle && activeOverride.subtitle.from === reportedSubtitleId ? activeOverride.subtitle.id : reportedSubtitleId;
   const row = (id: string, name: string, selected: boolean) => ({id, primary: name, fullName: name, selected});
-  const text = portico ? portico.subtitles.map(track => row(track.id, track.name, portico.subtitleId === track.id)) : snapshot.cast.textTracks.map(track => row(String(track.id), track.name || track.language, false));
-  const audio = portico ? portico.audio.map(track => row(track.id, track.name, portico.audioId === track.id)) : snapshot.cast.audioTracks.map(track => row(String(track.id), track.name || track.language, false));
-  const id = (value: string) => portico ? value : Number(value);
+  const text = portico
+    ? portico.subtitles.map(track => row(track.id, track.name, portico.subtitleId === track.id))
+    : cast.textTracks.map(track => row(String(track.id), track.name || track.language, castSubtitleId === track.id));
+  const audio = portico
+    ? portico.audio.map(track => row(track.id, track.name, portico.audioId === track.id))
+    : cast.audioTracks.map(track => row(String(track.id), track.name || track.language, castAudioId === track.id));
+  const subtitleOff = portico ? portico.subtitleId === null : castSubtitleId === null;
+  const selectSubtitle = (value: string) => {
+    const next = value === 'off' ? null : portico ? value : Number(value);
+    if (!portico) setOverride(current => ({...(current?.key === sessionKey ? current : {key: sessionKey}), subtitle: {id: next as number | null, from: reportedSubtitleId}}));
+    controller.subtitles(remote, next);
+  };
+  const selectAudio = (value: string) => {
+    const next = portico ? value : Number(value);
+    if (!portico) setOverride(current => ({...(current?.key === sessionKey ? current : {key: sessionKey}), audio: {id: next as number, from: reportedAudioId}}));
+    controller.audio(remote, next);
+  };
   return <Dialog open={snapshot.panel === 'tracks' && remote.phase === 'playing'} onOpenChange={() => controller.closePanel()} title={t('next.dock.subtitlesAudio')} returnFocusRef={returnFocusRef}>
     {!!text.length && <TrackChoices title={t('next.cast.subtitles')} reportError={reportError} t={t}
-      choices={[row('off', t('next.controls.off'), portico?.subtitleId === null), ...text]} onSelect={value => controller.subtitles(remote, value === 'off' ? null : id(value))} />}
-    {!!audio.length && <TrackChoices title={t('next.cast.audio')} reportError={reportError} t={t} choices={audio} onSelect={value => controller.audio(remote, id(value))} />}
+      choices={[row('off', t('next.controls.off'), subtitleOff), ...text]} onSelect={selectSubtitle} />}
+    {!!audio.length && <TrackChoices title={t('next.cast.audio')} reportError={reportError} t={t} choices={audio} onSelect={selectAudio} />}
   </Dialog>;
 }
 

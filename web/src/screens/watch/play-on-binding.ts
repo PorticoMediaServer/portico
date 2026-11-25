@@ -31,16 +31,6 @@ export function remotePictureKeepsCaptions(snapshot: WebPlaybackRuntimeSnapshot)
     &&(current.subtitleSelection==='off'||current.subtitleSelection==='disabled');
 }
 
-/** Page-drawn captions require the existing burn transition on actual wireless activation. */
-function airPlayCanReconcileCaptions(snapshot: WebPlaybackRuntimeSnapshot): boolean {
-  const fence = snapshot.fence, plan = snapshot.offers?.subtitlePlan, current = snapshot.offers?.current, session = snapshot.session;
-  return !!fence && fence.kind === 'queue' && !!plan && !!current && !!session && !snapshot.disposed
-    && current.sessionId === fence.sessionId && current.generation === fence.generation && current.sourceId === fence.sourceId
-    && session.id === fence.sessionId && session.presentation.generation === fence.generation
-    && plan.sessionId === fence.sessionId && plan.generation === fence.generation && plan.sourceId === fence.sourceId
-    && plan.mode === 'track' && (plan.renderer === 'client' || plan.renderer === 'external_text') && plan.selected?.enabled === true;
-}
-
 export type WatchPlaybackContext = Pick<ShellAssemblyContext, 'api' | 'freshness' | 'session' | 'isCurrent' | 'epoch'> & Partial<Pick<ShellAssemblyContext, 'preferences' | 'facts'>> & Readonly<{factsSource?: ShellFactsSource}>;
 /** Created only by the mounted persistent host. The same real video owns AirPlay. */
 export function createWatchPlayOn(context: WatchPlaybackContext, binding: WatchBindings, video: HTMLVideoElement, applicationId?: string) {
@@ -74,7 +64,7 @@ export function createWatchPlayOn(context: WatchPlaybackContext, binding: WatchB
       senderDeviceId:originalSession.deviceId,senderFamilyId:originalSession.sessionFamilyId}}:{}), serverOrigin: context.api.baseUrl, castApplicationId: applicationId,
     describe: async itemId => (await describe(itemId, 'identity')).title});
   const controller = new PlayOnController({sender, receivers, runtime: binding.runtime, airPlay: mediaAirPlayPort(video, undefined, {
-    isCurrent: () => {const shown = binding.runtime.getSnapshot();return isCurrent() && !!shown.fence && (remotePictureKeepsCaptions(shown) || airPlayCanReconcileCaptions(shown)) && binding.runtime.browserAirPlayReady(shown.fence);},
+    isCurrent: () => {const shown = binding.runtime.getSnapshot();return isCurrent() && !!shown.fence && remotePictureKeepsCaptions(shown) && binding.runtime.browserAirPlayReady(shown.fence);},
     subscribe: binding.runtime.subscribe,
   }), isCurrent, describeItem, reportError: binding.reportError});
   const offPresentation = subscribePresentation(context, () => {if (isCurrent()) receivers.refreshPresentation();});

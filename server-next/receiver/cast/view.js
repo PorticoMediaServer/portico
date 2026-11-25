@@ -72,7 +72,11 @@
     // elapsedMs is supplied only after an actual 202; no view-owned preparation timer.
     visible('loading-wait', ui.dataset.state === 'loading' && Number.isFinite(elapsedMs) && elapsedMs >= 15000);
   }
-  function showArtwork(url, square) { image = typeof url === 'string' ? url : ''; artwork('loading', image, square); }
+  function showArtwork(url, square) {
+    image = typeof url === 'string' ? url : '';
+    artwork('loading', image, square);
+    if (ui.dataset.state === 'playing') artwork('playing', image, true);
+  }
   function clock(value) {
     var sec = Math.max(0, Math.floor(value)), hours = Math.floor(sec / 3600);
     var minutes = Math.floor(sec / 60) % 60, seconds = String(sec % 60).padStart(2, '0');

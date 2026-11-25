@@ -7,7 +7,7 @@ import type {settingsPlatform} from '../../../platform/settings-platform';
 import type {SettingsBindings, SettingsContext, SettingsPageSnapshot} from '../Settings';
 import type {SettingsController} from '../controller';
 import type {QuietInput} from '../quiet-refresh';
-import type {WebPlaybackBinding} from '../../../route-registry-view';
+import type {ShellBindings} from '../../../shell/bindings';
 
 export type SettingsRouteRole = 'owner' | 'admin' | 'member';
 
@@ -41,7 +41,7 @@ export type SettingsRouteEnv = Readonly<{
   openSettingsRow: (target: {scope: 'account' | 'server'; section: string; row?: string}) => void;
   inputActivity: SettingsInputActivity;
   authorityListeners: Set<() => void>;
-  mediaRuntime: WebPlaybackBinding['runtime'] | undefined;
+  mediaRuntime: NonNullable<ShellBindings['playback']>['runtime'] | undefined;
   reportTimeZone: string;
   facts: readonly unknown[];
 }>;

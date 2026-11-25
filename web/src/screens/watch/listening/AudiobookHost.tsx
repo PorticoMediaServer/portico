@@ -25,7 +25,7 @@ export function AudiobookHost({binding, snapshot, expanded, phone, host, playOn}
   const panels=<ListeningPanels host={host!} snapshot={snapshot} reportError={binding.reportError} artwork={binding.artwork}/>;
   return <>
     <AudiobookListening snapshot={snapshot} title={identity.title} subtitle={identity.subtitle.map((part,index)=><span key={`${part.id}:${index}`}>{part.text}</span>)} subtitleParts={identity.subtitle.map(part=>part.text)} cover={cover} ambient={binding.artwork.ambient(p.posterUrl??p.backdropUrl)} chapters={state.chapters}
-      sourceLabel={musicQueueOrigin(snapshot)} speedChoices={owner.speeds()} sleepChoices={owner.sleepOffered()?owner.sleepChoicesShown(snapshot):[]} sleepChoice={owner.sleepChoice()} skips={binding.skips} phone={phone} canPlayOn={!!playOn}
+      sourceLabel={musicQueueOrigin(snapshot)} speedChoices={owner.speeds()} sleepChoices={owner.sleepOffered()?owner.sleepChoicesShown(snapshot):[]} sleepChoice={owner.sleepChoice()} sleepEndsAt={owner.sleepEndsAt()} skips={binding.skips} phone={phone} canPlayOn={!!playOn}
       onIntent={(shown,intent)=>run(()=>owner.dispatch(state,shown,intent))} onSpeed={(shown,rate)=>run(()=>owner.setSpeed(state,shown,rate))}
       onSleep={(shown,choice)=>run(()=>owner.setSleep(state,shown,choice))} onChapter={(shown,row)=>run(()=>owner.chapter(state,shown,row))}
       onChapterPage={(shown,direction)=>run(()=>owner.chapterPage(state,shown,direction))} onChapterRetry={shown=>run(()=>owner.chapterPage(state,shown,'retry'))}

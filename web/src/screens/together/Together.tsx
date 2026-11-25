@@ -26,6 +26,30 @@ export function TogetherScreen({binding}: {binding: TogetherBindings}) {
   const [authority, setAuthority] = useState<'host' | 'everyone'>('host'), [confirm, setConfirm] = useState<'leave' | 'end' | null>(null);
   const [menu, setMenu] = useState<string | null>(null), menuAnchor = useRef<HTMLButtonElement | null>(null), cancel = useRef<HTMLButtonElement | null>(null), trigger = useRef<HTMLButtonElement | null>(null);
   const inRoom = !!group && roomView && (room.phase === 'live' || room.phase === 'reconnecting'), queue = group?.queue;
+  const [, setCountdownTick] = useState(0);
+  const hostPresent = group?.host.present ?? true;
+  const hostPausesAt = group?.host.pausesAt;
+  const hostEndsAt = group?.host.endsAt;
+  const hostCountdownActive = inRoom && !hostPresent && !!(hostPausesAt || hostEndsAt);
+  useEffect(() => {
+    if (!hostCountdownActive) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      const now = binding.service.serverNow();
+      const pauseAt = Date.parse(hostPausesAt ?? '');
+      const endAt = Date.parse(hostEndsAt ?? '');
+      const target = Number.isFinite(pauseAt) && now < pauseAt ? pauseAt : endAt;
+      if (!Number.isFinite(target) || now >= target) return;
+      const remaining = target - now;
+      const delay = Math.min(1000, remaining % 1000 || 1000);
+      timer = setTimeout(() => {
+        setCountdownTick(value => value + 1);
+        schedule();
+      }, delay);
+    };
+    schedule();
+    return () => { if (timer !== undefined) clearTimeout(timer); };
+  }, [hostCountdownActive, hostPausesAt, hostEndsAt, binding]);
   const hostNotice = group ? togetherHostNotice(group, binding.service.serverNow()) : undefined;
   const currentEntry = queue?.find(entry => entry.entryId === group?.clock.entryId);
   const current = inRoom && currentEntry?.itemId && currentEntry?.available ? snapshot.items.get(currentEntry?.itemId) : undefined;
@@ -86,23 +110,23 @@ export function TogetherScreen({binding}: {binding: TogetherBindings}) {
             <div className={styles.actions}>{group.you.mayControl ? <Button variant="primary" icon={group.clock.playing && !group.clock.waitUntil ? 'i-pause' : 'i-play'} disabled={room.busy || !currentEntry?.itemId}
               onClick={() => act(() => binding.service.transport(group.clock.waitUntil ? 'goAhead' : group.clock.playing ? 'pause' : 'play'))}>{t(togetherPlayLabel(group))}</Button>
               : <span className={styles.hostControls}>{t('web.together.pill.hostControls')}</span>}
-              {!phone && <Button onClick={openPlayer} disabled={!currentPlayback}>{t('web.together.openPlayer')}</Button>}
+              <Button onClick={openPlayer} disabled={!currentPlayback}>{t('web.together.openPlayer')}</Button>
 </div>
-            {!phone && <p className={styles.readiness}>{group.clock.waitingFor === 0 ? t('web.together.allReady') : t('web.together.waiting', {ready: group.clock.ready, total: group.clock.ready + group.clock.waitingFor, count: group.clock.waitingFor})}</p>}
-            {!phone && <SectionCard label={`${t('web.together.queue')}${queue ? ` · ${t('web.person.titles', {count: queue.length})}` : ''}`}>{queue?.map((entry, index) => {const raw = !!entry.available && entry.itemId ? snapshot.items.get(entry.itemId) : undefined;
+            <p className={styles.readiness}>{group.clock.waitingFor === 0 ? t('web.together.allReady') : t('web.together.waiting', {ready: group.clock.ready, total: group.clock.ready + group.clock.waitingFor, count: group.clock.waitingFor})}</p>
+            <SectionCard label={`${t('web.together.queue')}${queue ? ` · ${t('web.person.titles', {count: queue.length})}` : ''}`}>{queue?.map((entry, index) => {const raw = !!entry.available && entry.itemId ? snapshot.items.get(entry.itemId) : undefined;
               const item = raw ? playbackIdentity(itemSubject(raw), 'full', binding.environment) : undefined;
               return <div className={styles.row} key={entry.entryId}><span className={styles.number}>{entry.entryId === group.clock.entryId ? <Icon name="i-play" size={16} /> : binding.number(index + 1)}</span>
                 <div className={styles.thumb}><Artwork source={binding.artwork.foreground(raw?.backdropUrl ?? raw?.posterUrl, 144, 16 / 9, {group: 'playback', priority: 'normal'})} alt="" /></div>
                 <span className={styles.rowText}><b>{!entry.available ? t('web.together.notAvailable') : item?.title}</b><small>{item?.subtitle.map(part => part.text).join(' ')}</small></span>
                 {entry.entryId === group.clock.entryId && <span className={styles.status}>{t('web.together.nowPlaying')}</span>}
                 <Button variant="icon" size="small" icon="i-more" iconOnly aria-label={defaultI18n.t('player.more')} onClick={event => {menuAnchor.current = event.currentTarget;setMenu(entry.entryId);}} />
-              </div>;})}{queue && !queue.length && <StateRow kind="empty" icon="i-queue" title={t('web.together.nothingChosen')} reason={t(group.you.mayControl ? 'web.together.emptyQueueHost' : 'web.together.emptyQueue')} />}</SectionCard>}
+              </div>;})}{queue && !queue.length && <StateRow kind="empty" icon="i-queue" title={t('web.together.nothingChosen')} reason={t(group.you.mayControl ? 'web.together.emptyQueueHost' : 'web.together.emptyQueue')} />}</SectionCard>
           </div>
           <div className={styles.column}>
             <SectionCard label={t('web.together.people', {count: group.members.length})}>{group.members.map(member => <div className={styles.row} key={member.id}>
               {member.private && member.id !== group.you.memberId ? <span className={styles.privateFace}><Icon name="i-person" size={18} /></span> : <ProfileFace initial={memberName(member).trim().slice(0, 1).toUpperCase()} art={member.id === group.you.memberId ? binding.profileArt : undefined} size={36} />}
               <span className={styles.rowText}><b>{member.id === group.you.memberId ? t('web.together.you', {name: memberName(member)}) : memberName(member)}</b>{(memberAlias(member) || member.host) && <small>{[memberAlias(member), member.host ? t('web.together.pill.host') : ''].filter(Boolean).join(' · ')}</small>}</span>
-              {!phone && togetherCanMakeHost(group, member) && <Button size="xs" onClick={() => act(() => binding.service.makeHost(member.id))}>{t('web.together.makeHost')}</Button>}
+              {togetherCanMakeHost(group, member) && <Button size="xs" onClick={() => act(() => binding.service.makeHost(member.id))}>{t('web.together.makeHost')}</Button>}
               <span className={styles.status} data-waiting={member.status !== 'in_step'}>{t(memberStatusKey(member))}</span>
             </div>)}</SectionCard>
             {togetherInviteVisible(group) && <SectionCard label={t('web.together.invite')}><div className={styles.code}>
@@ -113,8 +137,8 @@ export function TogetherScreen({binding}: {binding: TogetherBindings}) {
                   {!phone && shareButton}</div></>
                 : <Button size="small" onClick={() => act(() => binding.service.invite())}>{t('web.together.getCode')}</Button>}
             </div></SectionCard>}
-            {!phone && <div className={styles.actions}><Button variant="text" onClick={event => group.you.host ? ask('leave', event.currentTarget) : act(() => binding.service.leave())}>{t('web.together.leave')}</Button>
-              {group.you.host && <Button variant="text" onClick={event => ask('end', event.currentTarget)}>{t('web.together.endAll')}</Button>}</div>}
+            <div className={styles.actions}><Button variant="text" onClick={event => group.you.host ? ask('leave', event.currentTarget) : act(() => binding.service.leave())}>{t('web.together.leave')}</Button>
+              {group.you.host && <Button variant="text" onClick={event => ask('end', event.currentTarget)}>{t('web.together.endAll')}</Button>}</div>
           </div>
         </div> : <>
           {!phone && <SectionCard><SettingsRow label={<span className={styles.you}><ProfileFace initial={displayName.trim().slice(0, 1).toUpperCase()} art={binding.profileArt} size={36} />{t('web.together.yourName')}</span>} help={t('web.together.shownToOthers')}>

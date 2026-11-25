@@ -48,6 +48,52 @@ const endClock = (locale: string) => {
   return format;
 };
 
+/** Resolve the next subtitle selection for the `C` shortcut (null turns subtitles off; string enables a track; undefined does nothing). */
+export function watchSubtitleToggleTarget(snapshot: WatchScreenProps['snapshot'], rememberedId?: string): string | null | undefined {
+  const fence = snapshot.fence, plan = snapshot.offers?.subtitlePlan;
+  if (!fence || fence.kind !== 'queue' || !plan || plan.sessionId !== fence.sessionId || plan.generation !== fence.generation || plan.sourceId !== fence.sourceId) return undefined;
+  if (plan.mode === 'track') return plan.offAvailable ? null : undefined;
+  const candidates = plan.resources.filter(r => r.sourceId === fence.sourceId && !r.retired && r.enabled && r.discoveryId === undefined && Number.isSafeInteger(Number(r.offsetUs) / 1000));
+  if (!candidates.length) return undefined;
+  const preferred = (rememberedId ? candidates.find(r => r.id === rememberedId) : undefined)
+    ?? candidates.find(r => r.default)
+    ?? candidates[0];
+  return preferred?.id;
+}
+
+/** Resolve the next subtitle timing offset (ms) for `G` (-100ms) / `H` (+100ms), or null when timing cannot change. */
+export function watchSubtitleTimingNextMs(snapshot: WatchScreenProps['snapshot'], deltaMs: -100 | 100): number | null {
+  const fence = snapshot.fence, plan = snapshot.offers?.subtitlePlan;
+  if (!fence || fence.kind !== 'queue' || !plan || plan.sessionId !== fence.sessionId || plan.generation !== fence.generation || plan.sourceId !== fence.sourceId) return null;
+  if (plan.mode !== 'track' || !plan.selected?.enabled) return null;
+  const offsetUs = Number(plan.offsetUs);
+  if (!Number.isSafeInteger(offsetUs)) return null;
+  const baseMs = offsetUs / 1000;
+  if (!Number.isSafeInteger(baseMs)) return null;
+  const nextMs = baseMs + deltaMs;
+  return Number.isSafeInteger(nextMs) && Math.abs(nextMs) <= 600000 ? nextMs : null;
+}
+
+/** Resolve the PageUp (-1) / PageDown (+1) chapter or queue step intent. */
+export function watchChapterStepIntent(snapshot: WatchScreenProps['snapshot'], direction: -1 | 1): WatchIntent | null {
+  const p = snapshot.presentation;
+  if (!p) return null;
+  const enabled = (kind: string) => p.controls.includes(kind as never);
+  const chapters = videoChapters(snapshot.options?.chapters, p.durationSeconds, p.positionSeconds, number => String(number));
+  if (chapters.length > 0 && enabled('seek')) {
+    const idx = chapters.findIndex(chapter => chapter.current);
+    const target = direction < 0
+      ? (idx > 0 ? chapters[idx - 1]!.startSeconds : idx === 0 && p.positionSeconds > chapters[0]!.startSeconds ? chapters[0]!.startSeconds : undefined)
+      : (idx >= 0 && idx + 1 < chapters.length ? chapters[idx + 1]!.startSeconds : idx < 0 ? chapters.find(c => c.startSeconds > p.positionSeconds)?.startSeconds : undefined);
+    if (target !== undefined) {
+      const clamped = watchSeek(snapshot, target);
+      if (clamped !== null) return {kind: 'seek', seconds: clamped};
+    }
+  }
+  const fallback = direction < 0 ? 'previous' : 'next';
+  return enabled(fallback) ? {kind: fallback} : null;
+}
+
 /** Only drawn controls and geometry targets. The parent's MediaSurface remains its sole video. */
 export function WatchScreen({binding, snapshot, expanded, onCollapse, onControlsVisibleChange, publishDockPanels, dockPanelsCurrent, subscribeDockPanels, surfaceSlotRef, surfaces, live, windowPort, geometry, videoGesture}: WatchScreenProps) {
   const size = useSyncExternalStore(subscribeWindow, windowSize, serverSize).split(':').map(Number), width = size[0]!, height = size[1]!;
@@ -81,6 +127,12 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   const presentation = snapshot.presentation, fence = snapshot.fence;
   const playbackKey = settledPlaybackKey(fence?.playback);
   const settledPlayback = useRef<SettledPlayback | undefined>(undefined);
+  const lastSubtitle = useRef<{key: string; id: string} | null>(null);
+  if (fence?.kind === 'queue' && snapshot.offers?.subtitlePlan?.mode === 'track' && snapshot.offers.subtitlePlan.selected?.id
+    && snapshot.offers.subtitlePlan.sessionId === fence.sessionId && snapshot.offers.subtitlePlan.generation === fence.generation
+    && snapshot.offers.subtitlePlan.sourceId === fence.sourceId) {
+    lastSubtitle.current = {key: playbackKey, id: snapshot.offers.subtitlePlan.selected.id};
+  }
   const sourceKey = fence ? JSON.stringify(fence) : '';
   const valid = !snapshot.disposed && !!presentation && !!fence && sameFence(fence, presentation.fence)
     && snapshot.authority === binding.runtime.getSnapshot().authority && sameFence(binding.runtime.getSnapshot().fence, fence);
@@ -250,10 +302,41 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
     else if (key === 'arrowleft' || key === 'j' || key === 'arrowright' || key === 'l') {
       const back = key === 'arrowleft' || key === 'j', position = watchSeek(current.current.snapshot, p.positionSeconds + (back ? -binding.skips.back : binding.skips.forward));
       if (position !== null) intent = {kind: 'seek', seconds: position};
-    } else if (!coarsePointer && (key === 'arrowup' || key === 'arrowdown') && enabled('volume')) intent = {kind: 'volume', volume: Math.min(1, Math.max(0, p.volume + (key === 'arrowup' ? .05 : -.05)))};
+    } else if (liveChrome && !liveGuideOpen && (key === 'arrowup' || key === 'arrowdown')) {
+      event.preventDefault();
+      if (key === 'arrowup' ? liveChrome.up : liveChrome.down) effect(() => liveChrome.tune(key === 'arrowup' ? 1 : -1));
+      reveal(); return;
+    } else if (!liveChrome && !coarsePointer && (key === 'arrowup' || key === 'arrowdown') && enabled('volume')) intent = {kind: 'volume', volume: Math.min(1, Math.max(0, p.volume + (key === 'arrowup' ? .05 : -.05)))};
     else if (!coarsePointer && key === 'm' && enabled('volume')) intent = {kind: 'mute'};
     else if (event.shiftKey && (key === 'n' || key === 'p') && enabled(key === 'n' ? 'next' : 'previous')) intent = {kind: key === 'n' ? 'next' : 'previous'};
-    else if ((/^[0-9]$/.test(key) || key === 'home' || key === 'end') && enabled('seek')) {
+    else if (!liveChrome && (key === 'pageup' || key === 'pagedown')) {
+      const chapterIntent = watchChapterStepIntent(current.current.snapshot, key === 'pageup' ? -1 : 1);
+      if (chapterIntent) intent = chapterIntent;
+    } else if (key === 'c' && !event.shiftKey && fence?.kind === 'queue' && typeof current.current.binding.runtime.selectSubtitle === 'function') {
+      const remembered = lastSubtitle.current?.key === playbackKey ? lastSubtitle.current.id : undefined;
+      const target = watchSubtitleToggleTarget(current.current.snapshot, remembered);
+      if (target !== undefined) {
+        if (target === null && current.current.snapshot.offers?.subtitlePlan?.selected?.id) {
+          lastSubtitle.current = {key: playbackKey, id: current.current.snapshot.offers.subtitlePlan.selected.id};
+        }
+        event.preventDefault();
+        effect(() => current.current.binding.runtime.selectSubtitle(fence, target));
+        reveal(); return;
+      }
+    } else if (liveChrome && key === 'g' && !event.shiftKey) {
+      event.preventDefault();
+      const buttons = [...(root.current?.querySelectorAll<HTMLButtonElement>('[data-live-chrome] button[aria-expanded]') ?? [])];
+      const guideButton = buttons.find(button => button.textContent?.trim() === t('player.live.guide')) ?? buttons[0];
+      guideButton?.click();
+      reveal(); return;
+    } else if (!liveChrome && (key === 'g' || key === 'h') && !event.shiftKey && fence?.kind === 'queue' && typeof current.current.binding.runtime.setSubtitleOffset === 'function') {
+      const nextMs = watchSubtitleTimingNextMs(current.current.snapshot, key === 'g' ? -100 : 100);
+      if (nextMs !== null) {
+        event.preventDefault();
+        effect(() => current.current.binding.runtime.setSubtitleOffset(fence, nextMs));
+        reveal(); return;
+      }
+    } else if ((/^[0-9]$/.test(key) || key === 'home' || key === 'end') && enabled('seek')) {
       const bounds = watchSeekBounds(current.current.snapshot);
       if (bounds) intent = {kind: 'seek', seconds: key === 'home' ? bounds.start : key === 'end' ? bounds.end : bounds.start + (bounds.end - bounds.start) * Number(key) / 10};
     } else if (key === 'f') { event.preventDefault(); toggleFullscreen(); reveal(); return; }
@@ -470,7 +553,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
               percent={(previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100} /> : undefined}
             input={{tabIndex: 0, min: bounds?.start ?? 0,
               max: bounds?.end ?? (duration > 0 ? duration : 1),
-              step: .1,
+              step: 1,
               value: bounds ? Math.min(bounds.end, Math.max(bounds.start, drawnPosition)) : duration > 0 ? Math.min(duration, drawnPosition) : 0,
               disabled: !bounds,
               'aria-label': t('player.position'),

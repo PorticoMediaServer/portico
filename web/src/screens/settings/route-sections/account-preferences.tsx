@@ -32,7 +32,7 @@ export function createAccountPreferencesSection(env: SettingsRouteEnv): Settings
   };
 
   return {
-    directEngine: row => privacy.eligible(row),
+    directEngine: row => Boolean(privacy.eligible(row)),
     hasEngine: row => {
       if (privacy.eligible(row)) return true;
       if (row.id === 'music.eq') return musicEqualizerAvailable(platform);

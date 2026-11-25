@@ -105,17 +105,35 @@ export function PlayerOptions({model,context,i18n,reportError,openSettings,info}
  const sectionRows=(id:Section):readonly PlayerRadioChoice[] => id==='subtitles'?model.subtitles.map(row=>({id:row.id,label:row.primary,detail:row.secondary,selected:row.selected,enabled:!row.unavailable}))
   :id==='audio'?model.audio.map(row=>({id:row.id,label:row.primary,detail:row.secondary,selected:row.selected,enabled:!row.unavailable}))
   :id==='quality'?model.quality:[];
- const chooseAudio=(id:string)=>{setAudioFailed(undefined);return Promise.resolve(model.selectAudio(id)).catch(()=>{if(model.isCurrent())setAudioFailed(id);});};
- const audioFailure=audioFailed?<div className={styles.audioRetry} role="status"><span>{t('player.opt.audioChangeFailed')}</span><button type="button" onClick={()=>chooseAudio(audioFailed)}>{t('action.tryAgain')}</button></div>:null;
+ const invoke=(action:()=>void|Promise<void>)=>{try{void Promise.resolve(action()).catch(reportError);}catch(error){reportError(error);}};
+ const chooseAudio=(id:string)=>{setAudioFailed(undefined);try{return Promise.resolve(model.selectAudio(id)).catch(()=>{if(model.isCurrent())setAudioFailed(id);});}catch{if(model.isCurrent())setAudioFailed(id);return Promise.resolve();}};
+ const audioFailure=audioFailed?<div className={styles.audioRetry} role="status"><span>{t('player.opt.audioChangeFailed')}</span><button type="button" onClick={()=>{void chooseAudio(audioFailed);}}>{t('action.tryAgain')}</button></div>:null;
  const sectionSelect=(id:Section,value:string)=>id==='subtitles'?model.selectSubtitle(value):id==='audio'?chooseAudio(value):id==='quality'?model.selectQuality(value):model.selectSpeed(value);
  const sectionTitle=(id:Section)=>id==='subtitles'?t('player.opt.subtitles'):id==='audio'?t('player.opt.audio'):id==='quality'?t('player.opt.quality'):t('player.opt.speed');
+ const subtitleStyleBlock=model.subtitleStyle?<div data-section="style" className={styles.column}>
+  <h3>{t('player.opt.subtitleStyle')}</h3>
+  <p className={styles.styleLabel}>{t('settings.row.subtitleSize')}</p>
+  <Segmented className={styles.styleSegments} aria-label={t('settings.row.subtitleSize')} value={model.subtitleStyle.size}
+   items={SUBTITLE_SIZES.map(value=>({value,label:t(SIZE_LABEL[value])}))}
+   onValueChange={value=>{const next=SUBTITLE_SIZES.find(size=>size===value);if(next)invoke(()=>model.subtitleStyle?.set({size:next}));}}/>
+  <p className={styles.styleLabel}>{t('settings.row.subtitleBackground')}</p>
+  <Segmented className={styles.styleSegments} aria-label={t('settings.row.subtitleBackground')} value={model.subtitleStyle.background}
+   items={SUBTITLE_BACKGROUNDS.map(value=>({value,label:t(BACKGROUND_LABEL[value])}))}
+   onValueChange={value=>{const next=SUBTITLE_BACKGROUNDS.find(background=>background===value);if(next)invoke(()=>model.subtitleStyle?.set({background:next}));}}/>
+ </div>:null;
+ const subtitleExtras=<>
+  {model.subtitleTiming&&<TimingRow timing={model.subtitleTiming} reportError={reportError} t={t}/>}
+  {model.subtitleAdditions.length>0&&<div className={styles.additions}><TrackChoices title={t('player.opt.notAdded')} choices={model.subtitleAdditions} layout={context.layout} onSelect={model.selectSubtitle} onAdd={id=>model.selectSubtitle(id)} reportError={reportError} t={t}/></div>}
+  {model.subtitleForced&&<label className={styles.forcedRow}><span><b>{t('player.subtitles.forcedOnly')}</b><small>{t('player.subtitles.forcedOnlyHelp')}</small></span><Switch checked={model.subtitleForced.only} onCheckedChange={value=>invoke(()=>model.subtitleForced?.set(value))}/></label>}
+  {model.subtitleSearch&&<SubtitleSearch search={model.subtitleSearch} reportError={reportError} t={t}/>}
+ </>;
  const subPanel=section?<div ref={root} data-section={section} className={styles.subBody} onKeyDown={event=>{
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();context.show('options');}
  }}>{section==='speed'?<div className={styles.column}>
    <Segmented className={styles.speeds} aria-label={sectionTitle('speed')} value={model.speed.find(row=>row.selected)?.id??''}
     items={model.speed.map(row=>({value:row.id,label:row.label,disabled:!row.enabled}))}
-    onValueChange={id=>{try{model.selectSpeed(id);}catch(error){reportError(error);}}}/>
-   </div>:<><RadioRows rows={sectionRows(section)} select={id=>sectionSelect(section,id)} reportError={reportError} label={sectionTitle(section)}/>{section==='quality'&&model.qualityNotes.length>0&&<div className={styles.optionFoot}>{model.qualityNotes.map(note=><span key={note}>{note}</span>)}</div>}{section==='subtitles'&&model.subtitleSearch&&<SubtitleSearch search={model.subtitleSearch} reportError={reportError} t={t}/>}{section==='audio'&&<>{audioFailure}{model.audioNotes.length>0&&<div className={styles.optionFoot}>{model.audioNotes.map(note=><span key={note}>{note}</span>)}</div>}</>}</>}</div>:null;
+    onValueChange={id=>invoke(()=>model.selectSpeed(id))}/>
+   </div>:<><RadioRows rows={sectionRows(section)} select={id=>sectionSelect(section,id)} reportError={reportError} label={sectionTitle(section)}/>{section==='quality'&&model.qualityNotes.length>0&&<div className={styles.optionFoot}>{model.qualityNotes.map(note=><span key={note}>{note}</span>)}</div>}{section==='subtitles'&&<>{subtitleExtras}{subtitleStyleBlock}</>}{section==='audio'&&<>{audioFailure}{model.audioNotes.length>0&&<div className={styles.optionFoot}>{model.audioNotes.map(note=><span key={note}>{note}</span>)}</div>}</>}</>}</div>:null;
  // desktop-player f7: the sheet's own "Up next" row carries the queue's real remaining count.
  const remaining=context.snapshot.queueView?.remainingCount,upNext=typeof remaining==='number'&&Number.isInteger(remaining)&&remaining>0?i18n.number(remaining):undefined;
  const titleActions:readonly Readonly<{id:string;label:string;icon:IconName;action:()=>void|Promise<void>;value?:string}>[]=[
@@ -156,7 +174,7 @@ export function PlayerOptions({model,context,i18n,reportError,openSettings,info}
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();context.close();}
   else if(event.defaultPrevented&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))event.stopPropagation();
  }}>
-  {model.subtitles.length>0&&<div data-section="subtitles"><TrackChoices title={t('player.opt.subtitles')} choices={model.subtitles} layout={context.layout} onSelect={model.selectSubtitle} reportError={reportError} t={t}/>{model.subtitleTiming&&<TimingRow timing={model.subtitleTiming} reportError={reportError} t={t}/>}{model.subtitleAdditions.length>0&&<div className={styles.additions}><TrackChoices title={t('player.opt.notAdded')} choices={model.subtitleAdditions} layout={context.layout} onSelect={model.selectSubtitle} onAdd={id=>model.selectSubtitle(id)} reportError={reportError} t={t}/></div>}{model.subtitleForced&&<label className={styles.forcedRow}><span><b>{t('player.subtitles.forcedOnly')}</b><small>{t('player.subtitles.forcedOnlyHelp')}</small></span><Switch checked={model.subtitleForced.only} onCheckedChange={value=>{try{model.subtitleForced?.set(value);}catch(error){reportError(error);}}}/></label>}{model.subtitleSearch&&<SubtitleSearch search={model.subtitleSearch} reportError={reportError} t={t}/>}</div>}
+  {model.subtitles.length>0&&<div data-section="subtitles"><TrackChoices title={t('player.opt.subtitles')} choices={model.subtitles} layout={context.layout} onSelect={model.selectSubtitle} reportError={reportError} t={t}/>{subtitleExtras}</div>}
   {(model.audio.length>0||model.quality.length>0)&&<div>
    {model.audio.length>0&&<div data-section="audio"><TrackChoices title={t('player.opt.audio')} choices={model.audio} layout={context.layout} onSelect={chooseAudio} reportError={reportError} t={t}/>{audioFailure}{model.audioNotes.length>0&&<div className={styles.optionFoot}>{model.audioNotes.map(note=><span key={note}>{note}</span>)}</div>}</div>}
    {model.quality.length>0&&<div data-section="quality"><RadioColumn title={t('player.opt.quality')} rows={model.quality} select={model.selectQuality} reportError={reportError}/>{model.qualityNotes.length>0&&<div className={styles.optionFoot}>{model.qualityNotes.map(note=><span key={note}>{note}</span>)}</div>}</div>}
@@ -166,33 +184,23 @@ export function PlayerOptions({model,context,i18n,reportError,openSettings,info}
    <h3>{t('player.opt.speed')}<span>{model.speed.find(row=>row.selected)?.label}</span></h3>
    <Segmented className={styles.speeds} aria-label={t('player.opt.speed')} value={model.speed.find(row=>row.selected)?.id??''}
     items={model.speed.map(row=>({value:row.id,label:row.label,disabled:!row.enabled}))}
-    onValueChange={id=>{try{model.selectSpeed(id);}catch(error){reportError(error);}}}/>
+    onValueChange={id=>invoke(()=>model.selectSpeed(id))}/>
   </div>}
 
-  {model.subtitleStyle&&<div data-section="style" className={styles.column}>
-   <h3>{t('player.opt.subtitleStyle')}</h3>
-   <p className={styles.styleLabel}>{t('settings.row.subtitleSize')}</p>
-   <Segmented className={styles.styleSegments} aria-label={t('settings.row.subtitleSize')} value={model.subtitleStyle.size}
-    items={SUBTITLE_SIZES.map(value=>({value,label:t(SIZE_LABEL[value])}))}
-    onValueChange={value=>{const next=SUBTITLE_SIZES.find(size=>size===value);if(next)model.subtitleStyle?.set({size:next});}}/>
-   <p className={styles.styleLabel}>{t('settings.row.subtitleBackground')}</p>
-   <Segmented className={styles.styleSegments} aria-label={t('settings.row.subtitleBackground')} value={model.subtitleStyle.background}
-    items={SUBTITLE_BACKGROUNDS.map(value=>({value,label:t(BACKGROUND_LABEL[value])}))}
-    onValueChange={value=>{const next=SUBTITLE_BACKGROUNDS.find(background=>background===value);if(next)model.subtitleStyle?.set({background:next});}}/>
-  </div>}
+  {subtitleStyleBlock}
   {model.sleepTimer&&<div className={styles.sleepRow}>
    <button ref={node=>{sleepAnchor.current=node;}} type="button" className={styles.sleepButton} aria-haspopup="menu" aria-expanded={sleepOpen}
     onClick={()=>setSleepOpen(value=>!value)}><span>{t('player.opt.sleepTimer')}</span>
     <span className={styles.sleepValue}>{model.sleepTimer.minutes?t('player.opt.minutes',{count:model.sleepTimer.minutes}):t('player.opt.off')}<Icon name="i-down" size={16}/></span></button>
    <Menu open={sleepOpen} onOpenChange={setSleepOpen} title={t('player.opt.sleepTimer')} anchorRef={sleepAnchor} returnFocusRef={sleepAnchor} presentation="anchored" width={220}
     items={[0,15,30,45,60,90].map(minutes=>({id:String(minutes),label:minutes?t('player.opt.minutes',{count:minutes}):t('player.opt.off'),selected:model.sleepTimer?.minutes===minutes,
-     onSelect:()=>{try{model.sleepTimer?.set(minutes);}catch(error){reportError(error);}}}))}/>
+     onSelect:()=>invoke(()=>model.sleepTimer?.set(minutes))}))}/>
   </div>}
  </div>}
- </div><div className={styles.note}><Icon name="i-info" size={20}/><span><b>{t('player.opt.temporaryChanges')}</b>{' '}{t('player.opt.defaultsUnchanged')}</span><a href="/settings" onClick={event=>{if(event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();try{context.close();void Promise.resolve(openSettings()).catch(reportError);}catch(error){reportError(error);}}}>{t('next.reader.openSettings')}<Icon name="i-right" size={16}/></a></div></>;
+ </div><div className={styles.note}><Icon name="i-info" size={20}/><span><b>{t('player.opt.temporaryChanges')}</b>{' '}{t('player.opt.defaultsUnchanged')}</span><a href="/settings" onClick={event=>{if(event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();invoke(()=>{context.close();return openSettings();});}}>{t('next.reader.openSettings')}<Icon name="i-right" size={16}/></a></div></>;
  const phoneSleep=sleepOpen&&model.sleepTimer?<div ref={sleepRoot} className={styles.subBody} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeSleep();}}}>
   <RadioRows label={t('player.opt.sleepTimer')} rows={[0,15,30,45,60,90].map(minutes=>({id:String(minutes),label:minutes?t('player.opt.minutes',{count:minutes}):t('player.opt.off'),selected:model.sleepTimer?.minutes===minutes,enabled:true}))}
-   select={id=>{if(!model.isCurrent())return;model.sleepTimer?.set(Number(id));}} reportError={reportError}/>
+   select={id=>{if(!model.isCurrent())return;return model.sleepTimer?.set(Number(id));}} reportError={reportError}/>
  </div>:null;
  const phoneTitle=section||phoneSleep?<span className={styles.subHeader}><button type="button" className={styles.back} aria-label={t('next.dock.backToOptions')} onClick={()=>{if(phoneSleep)closeSleep();else context.show('options');}}><Icon name="i-left" size={20}/></button><span>{phoneSleep?t('player.opt.sleepTimer'):section?sectionTitle(section):''}</span></span>:t('next.dock.options');
  if(context.layout==='phone'&&context.landscape)return <Dialog open responsive={false} placement="right" width={356} className={styles.landscapeOptions} headerClassName={styles.landscapeHeader} title={phoneTitle}

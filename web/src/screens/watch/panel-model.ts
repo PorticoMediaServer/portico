@@ -107,10 +107,11 @@ export function watchPanelModel(runtime:WebShellPlaybackRuntime,snapshot:WebPlay
  // desktop-player f3: a search that cannot run stays visible with the server's own reason.
  const style=matched?readStyle?.(fence):undefined;
  const sleep=matched?readSleep?.(fence):undefined;
- const sleepTimer=matched&&writeSleep?Object.freeze({minutes:sleep&&'minutes' in sleep?sleep.minutes:0,set:(minutes:number)=>{check();writeSleep(fence,minutes);}}):undefined;
- const subtitleStyle=style&&writeStyle?Object.freeze({...style,set:(patch:Readonly<{size?:SubtitlePreferences['size'];background?:SubtitlePreferences['background']}>)=>{check();writeStyle(fence,patch);}}):undefined;
+ const safeCall=<T,>(run:()=>T):T=>{const result=run();if(result&&typeof (result as PromiseLike<unknown>).then==='function')void Promise.resolve(result).catch(()=>{});return result;};
+ const sleepTimer=matched&&writeSleep?Object.freeze({minutes:sleep&&'minutes' in sleep?sleep.minutes:0,set:(minutes:number)=>{check();return safeCall(()=>writeSleep(fence,minutes));}}):undefined;
+ const subtitleStyle=style&&writeStyle?Object.freeze({...style,set:(patch:Readonly<{size?:SubtitlePreferences['size'];background?:SubtitlePreferences['background']}>)=>{check();return safeCall(()=>writeStyle(fence,patch));}}):undefined;
  const forced=matched?readForced?.(fence):undefined;
- const subtitleForced=forced&&writeForced?Object.freeze({only:forced.only,set:(on:boolean)=>{check();writeForced(fence,on);}}):undefined;
+ const subtitleForced=forced&&writeForced?Object.freeze({only:forced.only,set:(on:boolean)=>{check();return safeCall(()=>writeForced(fence,on));}}):undefined;
  const provider=matched?readProvider?.(fence):undefined;
  const search=matched&&provider?readSearch?.(fence):undefined,language=i18n.locale.split('-')[0]||'en';
  const subtitleSearch=search&&provider?Object.freeze({...(!provider.enabled?{reason:subtitleReason(provider.reason,t)}:{}),busy:search.busy,searched:search.searched,canRetry:search.canRetry!==false,

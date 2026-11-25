@@ -86,6 +86,9 @@ export class WatchReceivers implements PlayOnReceiversPort {
       if (this.tracksFor !== key || !this.options.isCurrent()) return;
       this.tracksFor = undefined;
       if (value) {this.tracks = Object.freeze({key, value}); this.publish();} else this.tracksMissing = key;
+    }).catch(error => {
+      if (this.tracksFor === key) this.tracksFor = undefined;
+      if (this.options.isCurrent()) this.options.reportError?.(error);
     });
   }
 
@@ -134,12 +137,15 @@ export class WatchReceivers implements PlayOnReceiversPort {
     if (!target?.playing || !this.options.isCurrent() || this.flight) return false;
     return this.handoff.control(target, () => this.options.isCurrent());
   }
-  toggle = (): void => {const remote = this.remote; if (remote && !remote.stopped) void (remote.paused ? this.handoff.play() : this.handoff.pause()).then(this.publish);};
-  seek = (seconds: number): void => {if (this.remote && !this.remote.stopped) void this.handoff.seek(seconds).then(this.publish);};
-  next = (): void => {if (this.remote && !this.remote.stopped && this.remote.next) void this.handoff.next().then(this.publish);};
+  private reportCommandError = (error: unknown): void => {
+    if (this.options.isCurrent()) this.options.reportError?.(error);
+  };
+  toggle = (): void => {const remote = this.remote; if (remote && !remote.stopped) void (remote.paused ? this.handoff.play() : this.handoff.pause()).then(this.publish).catch(this.reportCommandError);};
+  seek = (seconds: number): void => {if (this.remote && !this.remote.stopped) void this.handoff.seek(seconds).then(this.publish).catch(this.reportCommandError);};
+  next = (): void => {if (this.remote && !this.remote.stopped && this.remote.next) void this.handoff.next().then(this.publish).catch(this.reportCommandError);};
   /** A choice the device carried out moves the check at once; the list itself is not read again. */
-  audio = (trackId: string): void => {if (this.remote && !this.remote.stopped) void this.handoff.audio(trackId).then(done => {if (done) this.publish();});};
-  subtitles = (trackId: string | null): void => {if (this.remote && !this.remote.stopped) void this.handoff.subtitles(trackId).then(done => {if (done) this.publish();});};
+  audio = (trackId: string): void => {if (this.remote && !this.remote.stopped) void this.handoff.audio(trackId).then(done => {if (done) this.publish();}).catch(this.reportCommandError);};
+  subtitles = (trackId: string | null): void => {if (this.remote && !this.remote.stopped) void this.handoff.subtitles(trackId).then(done => {if (done) this.publish();}).catch(this.reportCommandError);};
   /** What the last stop that failed says, in the server's words, shown on the bar until the device is stopped or dismissed. */
   private problem?: Readonly<{sessionId: string; text: string}>;
   private failedStop(sessionId: string): void {
@@ -153,7 +159,12 @@ export class WatchReceivers implements PlayOnReceiversPort {
     const {problem: _failed, ...shown} = remote;
     this.remote = Object.freeze({...shown, stopped: true, paused: true}); this.publish();
     // A refused stop leaves it playing there: the bar shows it playing again, and says why.
-    void this.handoff.stop().then(stopped => {if (!stopped && this.remote?.sessionId === remote.sessionId) {this.failedStop(remote.sessionId); this.remote = remote; this.publish();}});
+    void this.handoff.stop().then(stopped => {
+      if (!stopped && this.remote?.sessionId === remote.sessionId) {this.failedStop(remote.sessionId); this.remote = remote; this.publish();}
+    }).catch(error => {
+      if (this.remote?.sessionId === remote.sessionId) {this.failedStop(remote.sessionId); this.remote = remote; this.publish();}
+      this.reportCommandError(error);
+    });
   };
   dismiss = (): void => {this.remote = undefined; this.problem = undefined; this.handoff.release(); this.publish();};
   /** Play here, once this browser plays (rule 27): stops the device and lets the bar go. False when the device could not
