@@ -1,5 +1,5 @@
-import React from 'react';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
+import React, {useMemo} from 'react';
+import {createI18n, defaultI18n} from '../../../../../../packages/i18n/src';
 import {roomEntry, roomPositionMs, type GroupControl} from '../../../../../../packages/client-core/src/room-protocol';
 import {Button, Segmented, TextField} from '../../../kit/controls';
 import {SectionCard, SettingsPageFrame, SheetFrame} from '../../../kit/frames';
@@ -14,12 +14,11 @@ import {useTogetherLobby, useTogetherLobbyArt, type TogetherProps} from '../../s
 import {useTogetherRoom, type TogetherRoomProps} from '../../shared/together/useTogetherRoom';
 import {shareText} from '../../shared/together/share';
 
-const t = defaultI18n.t;
-
 /** Watch Together on a phone or tablet (states 27): from Settings, a page in the Settings sheet on a phone, on its own on a
  * tablet. The invitation to start or join with the groups you're in; Start a group and Join with a code as task sheets;
  * then the room, and the page that says a group ended. */
 export function TogetherPage(props: TogetherProps) {
+  const t = props.runtime.text?.t ?? defaultI18n.t;
   const theme = useTheme(), lobby = useTogetherLobby(props), {state, group, room, controller} = {...lobby, controller: props.controller};
   const back = props.onBack ? {label: t(room ? 'action.back' : 'next.shell.settings'), testID: 'together-page-back', onPress: lobby.back} : undefined;
   const page = room && group && state.phase === 'ended'
@@ -37,6 +36,7 @@ export function TogetherPage(props: TogetherProps) {
 
 function TogetherLobbyPage({lobby, back, controller, ports, runtime}: TogetherProps & {lobby: ReturnType<typeof useTogetherLobby>;
   back: React.ComponentProps<typeof SettingsPageFrame>['back']}) {
+  const t = runtime.text?.t ?? defaultI18n.t;
   const {state, form, sheet, busy, faces, name, setName, code, setCode, who, setWho, authority, setAuthority, codeFailure, viewCurrent} = lobby;
   const art = useTogetherLobbyArt({itemId: state.group && roomEntry(state.group)?.itemId, controller, ports, runtime});
   const submit = () => lobby.run(async () => {
@@ -86,7 +86,8 @@ function TogetherLobbyPage({lobby, back, controller, ports, runtime}: TogetherPr
 }
 
 function TogetherRoomPage({back, ...props}: TogetherRoomProps & {back: React.ComponentProps<typeof SettingsPageFrame>['back']}) {
-  const {controller, ports, runtime, isCurrent} = props;
+  const {controller, ports, runtime, isCurrent} = props, t = runtime.text?.t ?? defaultI18n.t;
+  const i18n = useMemo(() => runtime.text?.region ? createI18n(runtime.text.region) : defaultI18n, [runtime.text?.region]);
   const room = useTogetherRoom(props), {state, group, playback, items, clock, canControl, playing, members, profile, now, title, art} = room;
   const seconds = roomPositionMs(group, clock) / 1000;
   const invitation = group.invitation && Date.parse(group.invitation.expiresAt) > clock && group.invitation.joinsLeft > 0 ? group.invitation : undefined;
@@ -105,7 +106,7 @@ function TogetherRoomPage({back, ...props}: TogetherRoomProps & {back: React.Com
         action={{label: t('web.together.goAhead'), onPress: () => room.run(() => controller.transport('goAhead'))}}/></SectionCard>}
       <TogetherNowCard art={art} hostPresent={group.host.present} label={t(!group.host.present ? 'web.together.state.hostReconnecting' : !group.clock.entryId ? 'web.together.state.lobby'
         : group.clock.waitUntil ? 'web.together.state.waiting' : playing ? 'web.together.state.playing' : 'web.downloads.state.paused')} title={title} status={status.split(' · ').join('  ')}
-        position={now?.duration ? t('web.together.positionOf', {position: defaultI18n.clock(seconds), duration: defaultI18n.clock(now.duration)}) : undefined}
+        position={now?.duration ? t('web.together.positionOf', {position: i18n.clock(seconds), duration: i18n.clock(now.duration)}) : undefined}
         progress={now?.duration ? seconds / now.duration : undefined}/>
       {(canControl && !!group.clock.entryId || !!playback.fence && !!groupPort()?.matches?.(playback.fence)) && <TogetherActions testID="together-transport-actions">
         {canControl && group.clock.entryId && <Button focusId="transport" testID="together-transport" align="stretch" disabled={state.busy}
@@ -135,7 +136,7 @@ function TogetherRoomPage({back, ...props}: TogetherRoomProps & {back: React.Com
       </SectionCard>
       {group.you.host && <SectionCard plain label={t('web.together.invite')}>
         <TogetherInviteCode code={invitation ? `${invitation.code.slice(0, 4)} ${invitation.code.slice(4)}` : undefined}
-          note={invitation ? t('web.together.inviteHelpJoin', {uses: invitation.joinsLeft, time: defaultI18n.time(invitation.expiresAt)}) : undefined}>
+          note={invitation ? t('web.together.inviteHelpJoin', {uses: invitation.joinsLeft, time: i18n.time(invitation.expiresAt)}) : undefined}>
           {invitation && <Button variant="glass" size="small" icon="i-share" testID="together-share-code"
             onPress={() => {if (isCurrent() && controller.currentGroup(group)) void shareText(invitation.code).catch(runtime.reportError);}}>{t('web.together.shareCode')}</Button>}
           <Button variant="glass" size="small" testID="together-new-code" disabled={state.busy} onPress={() => room.run(() => controller.invite())}>

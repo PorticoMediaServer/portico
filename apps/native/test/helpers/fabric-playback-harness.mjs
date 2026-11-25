@@ -29,6 +29,7 @@ import * as shellModel from '../../src-next/shell/model.ts';
 import * as tvFocus from '../../src-next/shell/tv-focus.ts';
 import {createFocusRegistry} from '../../src-next/kit/focus/registry.ts';
 import * as capabilityReadiness from '../../src-next/platform/playback/capability-readiness.ts';
+import * as adapterReturn from '../../src-next/platform/playback/adapter-return.ts';
 const require = createRequire(import.meta.url);
 const React = require(join(dirname(require.resolve('react')), 'cjs/react.production.js'));
 
@@ -105,7 +106,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     '../../../../../packages/client-core/src/playback-v1/options': {CapabilityPublisher: class {async publish() {}}},
     '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: () => ({})},
     '../../../../../packages/client-core/src/presentation/service-text': {serviceText: key => key},
-    './dynamic-range-matching': dynamicRange, './capability-readiness': capabilityReadiness,
+    './dynamic-range-matching': dynamicRange, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
     './engine-choice': {chooseEngine() {}, parseEngineFeatures: () => ({})}, './engine-media': {planEngineOf() {}, requiredSubtitleRendering() {}},
     './capability-document': {deviceCapabilityDocument: () => ({})}, './NativeListeningAdapter': {},
     '../../../platform/offline-downloads': {offlineDownloads},

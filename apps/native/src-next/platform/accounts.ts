@@ -123,7 +123,15 @@ export class NativeAccounts {
     this.assertCurrent(); const selected = await nativeAppSessions.selected(); this.assertCurrent();
     const active = selected?.connection.pin.serverId === serverId && selected.connection.session.sessionFamilyId === familyId;
     this.fence(active);
-    try {const removed = await nativeAppSessions.signOutServer(serverId, familyId); await clearNativeAppLog(); await this.revoke(removed);}
+    try {
+      const removed = await nativeAppSessions.signOutServer(serverId, familyId);
+      await clearNativeAppLog();
+      for (const value of removed) {
+        const live = sessionRoute(value.connection.session.accessToken);
+        forgetSessionRoute(value.connection.session.accessToken);
+        void revokeInBackground(value.connection, live);
+      }
+    }
     finally {if (active) this.finishFence();}
   }
   /** Forget a changed server without contacting whatever now answers there. */

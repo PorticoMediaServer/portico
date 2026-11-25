@@ -10,7 +10,7 @@ import {systemScheduler, serverFloorFrom, wait, type Scheduler} from './timer.ts
 import {createUserAction, type UserAction} from './user-action.ts';
 import type {AuthoritySource, AuthorityTuple} from './session-authority.ts';
 import {initialLifecycle, nextLifecycle, type ConnectFailure, type ConnectedFacts, type HeldSignIn, type LifecycleEffect,
-  type LifecycleEvent, type LifecycleSnapshot, type SelectedFacts} from './session-lifecycle.ts';
+  type LifecycleEvent, type LifecycleSnapshot, type PickerProfile, type SelectedFacts} from './session-lifecycle.ts';
 
 
 /** One line per move: codes only, never ids, names, addresses or tokens. */
@@ -129,6 +129,15 @@ export class SessionLifecycle implements AuthoritySource {
   otherProfiles(): void {void this.dispatch({type: 'otherProfiles'});}
   switchProfile(): void {void this.dispatch({type: 'switchProfile'});}
   cancelSwitch(): void {void this.dispatch({type: 'cancelSwitch'});}
+  /** Refreshes the known profiles (and optionally remember/manage flags) while open, choosing, or entering a PIN. */
+  updateProfiles(profiles: readonly PickerProfile[], options?: Readonly<{rememberProfiles?: boolean; manageLocked?: boolean}>): void {
+    void this.dispatch({
+      type: 'profilesUpdated',
+      profiles,
+      ...(options?.rememberProfiles !== undefined ? {rememberProfiles: options.rememberProfiles} : {}),
+      ...(options?.manageLocked !== undefined ? {manageLocked: options.manageLocked} : {}),
+    });
+  }
   /** A request on the mounted shell answered profile_pin_reentry or profile_pin_manage, a terminal refresh refusal, or an identity failure. */
   report(event: Extract<LifecycleEvent, {type: 'gated' | 'profileMoved' | 'manageRefused' | 'signInEnded' | 'identityFailed' | 'networkLost'}>): void {void this.dispatch(event);}
 

@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useRef, useState} from 'react';
 import type {View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {AmbientArt, PersonCircle} from '../../../kit/artwork';
@@ -16,9 +16,7 @@ const t = defaultI18n.t;
  * the first. Focus starts on the biography's Read more (the old screen's start), else the first title they are known for,
  * so the head stays in view; after a filter (the page is drawn again for its read) it starts back on Filters. */
 export function PersonPage(props: PersonPageProps) {
-  const view = usePerson(props), filtersRef = useRef<View>(null), [filters, setFilters] = useState(false), {runtime, onBack} = props;
-  // The remote's Back leaves the page (the old screen's own registration: a person is a page over the destination).
-  useEffect(() => runtime.registerTVPageBack?.(() => {onBack(); return true;}), [runtime, onBack]);
+  const view = usePerson(props), filtersRef = useRef<View>(null), [filters, setFilters] = useState(false);
   const role = view.credits.choices.find(choice => choice.selected && choice.id !== 'select');
   const tools = <Chip ref={filtersRef} focusId="person-role-filter" testID="person-role-filter" selected={role?.id !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>;
   return <>

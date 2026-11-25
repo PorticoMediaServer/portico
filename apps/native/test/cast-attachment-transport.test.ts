@@ -34,3 +34,8 @@ test('outbound proof and Stop carry the original attachment through queued nativ
  assert.deepEqual(h.messages,[]);assert.deepEqual(h.ends,[]);
  await assert.rejects(h.castTransport.send({type:'status'}));h.castTransport.end(true);assert.equal(h.queued.length,0);
 });
+test('native PorticoCast.send resolving to false rejects instead of swallowing the failure',async()=>{
+ const native={available:async()=>true,current:async()=>({deviceName:'TV',attachmentId:A}),choose(){},send:async()=>false,end(){}};
+ const {castTransport}=await screenModule(new URL('../src-next/platform/play-on/cast-transport.ts',import.meta.url),{react:{default:{}},'react-native':{NativeEventEmitter:class{addListener(){return{remove(){}};}},NativeModules:{PorticoCast:native},Platform:{isTV:false}}});
+ await assert.rejects(castTransport.send({type:'status'},A),(error:any)=>error?.code==='cast_send_failed');
+});

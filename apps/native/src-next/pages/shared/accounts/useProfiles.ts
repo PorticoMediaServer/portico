@@ -9,7 +9,7 @@ import {HttpHostedApi} from '../../../../../../packages/client-core/src';
 import type {ProfileAvatar} from '../../../../../../packages/client-core/src/identity-restrictions';
 import {nativeAccounts} from '../../../platform/accounts';
 import {nativeAppSessions} from '../../../platform/app-session-storage';
-import {switchNativeProfile} from '../../../platform/native-session-lifecycle';
+import {nativeSessionLifecycle, switchNativeProfile} from '../../../platform/native-session-lifecycle';
 import {NativeProfileRecovery, temporaryRecoveryApi} from '../../../platform/profile-recovery';
 import {hostedUrl} from '../../../platform/account-authority';
 import {pickProfilePicture, profileAvatarUpload, profilePicturePickerAvailable, profilePictureSource} from '../../../platform/profile-avatars';
@@ -148,13 +148,40 @@ export function useProfiles({context, route, onBack, embedded = false}: Profiles
       setError(failure);
     }} finally {if (alive.current) setBusy(false);}
   };
+  const syncLifecycleProfiles = (
+    next: readonly ManagedProfile[],
+    options?: Readonly<{rememberProfiles?: boolean; manageLocked?: boolean}>,
+  ) => {
+    if (typeof nativeSessionLifecycle !== 'function') return;
+    const session = context.session();
+    if (!context.current() || !session) return;
+    const {lifecycle} = nativeSessionLifecycle();
+    const state = lifecycle.getSnapshot().state;
+    if (
+      (state.kind === 'ready' || state.kind === 'choosingProfile' || state.kind === 'enteringPin')
+      && state.server.serverId === context.account.serverId
+      && state.viewer.familyId === session.sessionFamilyId
+    ) {
+      lifecycle.updateProfiles(
+        next.map(value => ({id: value.id, name: value.name, primary: value.primary, pinRequired: value.pinRequired})),
+        options,
+      );
+    }
+  };
   // E-mobile-25: "This changed…" always comes with a way to read the list again.
   const refreshProfiles = async () => {
     if (busy || !context.current()) return; setBusy(true);
     try {
       const raw = await readDirectAccount(context.api);
       const account = parseDirectSnapshot(raw, {authority: 'local', serverId: context.account.serverId, accountId: context.account.account.id}, true);
-      if (alive.current) {setProfiles(account.profiles); setError(undefined);}
+      if (alive.current) {
+        setProfiles(account.profiles);
+        syncLifecycleProfiles(account.profiles, {
+          rememberProfiles: account.rememberProfiles === true,
+          manageLocked: account.managePinRequired === true,
+        });
+        setError(undefined);
+      }
     } catch (failure) {if (alive.current) setError(failure);} finally {if (alive.current) setBusy(false);}
   };
   const canRefresh = !!error && presentError(error, 'profiles').action === 'refresh';
@@ -195,6 +222,7 @@ export function useProfiles({context, route, onBack, embedded = false}: Profiles
       const next = await manager.list(controller.signal);
       if (!captured.current() || controller.signal.aborted) return false;
       setProfiles(next);
+      syncLifecycleProfiles(next);
       if (message) setNotice(message);
       return true;
     } catch (failure) {

@@ -275,7 +275,7 @@ export function useAccountEntry({downloads, incomingInvitation, onBack, onComple
     if (!activeRef.current) {
       retireOwnerRecoveryContact(); stopRetry();
       const opening = tvOpening.current;
-      if (stageRef.current === 'tv' && opening) {
+      if (Platform.isTV && stageRef.current === 'tv' && opening) {
         retireTVOpening(false, opening); stageRef.current = 'welcome'; setStage('welcome');
       }
     }

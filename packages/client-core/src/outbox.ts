@@ -92,7 +92,9 @@ export class Outbox {
    * A caller that gives up (`signal`) hears nothing more; a later refusal is then reported by `onDropped`.
    */
   async add(write: OutboxWrite, signal?: AbortSignal): Promise<OutboxAnswer> {
+    if (signal?.aborted) throw signal.reason ?? Object.assign(new Error('Aborted'), {name: 'AbortError'});
     await this.start();
+    if (signal?.aborted) throw signal.reason ?? Object.assign(new Error('Aborted'), {name: 'AbortError'});
     const first = this.callers.get(write.id);
     if (first) return first.promise; // a second tap while the first is still on its way
     if (this.entries.some(entry => entry.id === write.id)) { this.wake(); throw new OutboxWaiting(); }
@@ -103,7 +105,10 @@ export class Outbox {
     const promise = new Promise<OutboxAnswer>((yes, no) => { resolve = yes; reject = no; });
     const caller = {promise, resolve, reject};
     this.callers.set(entry.id, caller);
-    signal?.addEventListener('abort', () => { if (this.callers.get(entry.id) === caller) this.callers.delete(entry.id); reject(signal.reason); }, {once: true});
+    signal?.addEventListener('abort', () => {
+      if (this.callers.get(entry.id) === caller) this.callers.delete(entry.id);
+      reject(signal.reason ?? Object.assign(new Error('Aborted'), {name: 'AbortError'}));
+    }, {once: true});
     this.options.store.put(entry).then(() => {
       this.entries.push(entry);
       this.changed();

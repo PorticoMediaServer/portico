@@ -3,6 +3,9 @@ import {Platform, View} from 'react-native';
 import {getLiteEffects, subscribeLiteEffects} from './motion-policy';
 import {BlurView as NativeBlurView, type BlurViewProps} from '@react-native-community/blur';
 
+/** Default dark translucent glass tint when no fallback colour was authored. */
+export const DEFAULT_TRANSLUCENT_FALLBACK = 'rgba(12, 24, 34, 0.88)';
+
 /** Root§71 U-MOB-005: the three authored Apple strengths and the public material
  * each one names in the pinned dependency (`BlurViewProps.blurType` union of
  * @react-native-community/blur 4.4.1: ultraThinMaterialDark, thinMaterialDark,
@@ -21,26 +24,28 @@ export function appleMaterialFor(amount: number | undefined, style: string | und
   return amount === 18 ? APPLE_MATERIAL[18] : amount === 24 ? APPLE_MATERIAL[24] : amount === 30 ? APPLE_MATERIAL[30] : undefined;
 }
 
-/** Supported scope, stated plainly: the three material tiers exist only on
- * non-TV iOS. The pinned 4.4.1 bridge gates its system-material enum mappings
- * with !TARGET_OS_TV (ios/BlurView.mm:142), so a tvOS build cannot reach them and
- * silently falls back to its dark style (:169); tvOS therefore keeps the style it
- * was given, exactly as before. Android receives the original component and its
- * props unchanged, where blurAmount itself is the drawn value. On non-TV iOS the
- * three authored strengths select their own public material, so 18, 24 and 30 no
- * longer collapse into one dark style, while blurAmount stays passed through
- * because the pinned bridge still accepts it. Children, ref, style, layout,
- * pointer and native event props and the authored reducedTransparencyFallbackColor
- * are never rewritten. */
-const appleMaterialSupport = Platform.OS === 'ios' && Platform.isTV !== true;
+/** Supported scope, stated plainly:
+ * - Android renders a clean translucent dark surface `<View>` using
+ *   `reducedTransparencyFallbackColor` (or `DEFAULT_TRANSLUCENT_FALLBACK`), avoiding
+ *   `@react-native-community/blur`'s per-frame root capture on Android.
+ * - Apple platforms (iOS / iPadOS / tvOS) keep hardware `UIBlurEffect` unless the
+ *   `lite` performance tier is active.
+ * - On non-TV iOS the three authored strengths (18, 24, 30) select their own public
+ *   material (`ultraThinMaterialDark`, `thinMaterialDark`, `materialDark`); tvOS keeps
+ *   the caller's style because the pinned 4.4.1 bridge gates system-material enums
+ *   with `!TARGET_OS_TV` (`ios/BlurView.mm:142`). */
 export const BlurView = forwardRef<View, BlurViewProps>(function BlurView(props, ref) {
-  // Lite (performance) draws the authored fallback fill instead of a live blur.
+  // Lite (performance) and Android draw a translucent surface instead of a live blur.
   const lite = useSyncExternalStore(subscribeLiteEffects, getLiteEffects, getLiteEffects);
-  if (lite) return <View ref={ref} pointerEvents={props.pointerEvents} style={[props.style, {backgroundColor: (props as {reducedTransparencyFallbackColor?: string}).reducedTransparencyFallbackColor}]}>{props.children}</View>;
+  if (Platform.OS === 'android' || lite) {
+    const fallback = (props as {reducedTransparencyFallbackColor?: string}).reducedTransparencyFallbackColor || DEFAULT_TRANSLUCENT_FALLBACK;
+    return <View ref={ref} pointerEvents={props.pointerEvents} style={[props.style, {backgroundColor: fallback}]}>{props.children}</View>;
+  }
+  const appleMaterialSupport = Platform.OS === 'ios' && Platform.isTV !== true;
   const material = appleMaterialSupport ? appleMaterialFor(props.blurAmount, props.blurType) : undefined;
   // The union of the iOS and Android prop types is why the mapped object is cast
   // back to the exported props type: the material names are members of the iOS
-  // blurType union, and the Android branch must keep its original blurType.
+  // blurType union.
   const mapped = material ? ({...props, blurType: material} as BlurViewProps) : props;
   return <NativeBlurView {...mapped} ref={ref}/>;
 });

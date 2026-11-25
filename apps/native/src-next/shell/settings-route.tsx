@@ -34,7 +34,6 @@ function createComposition(context: NativeShellBootstrapContext) {
   let downloads: ReturnType<typeof createNativeSettingsDownloads> | undefined;
   try {if (!Platform.isTV) downloads = createNativeSettingsDownloads(context);} catch { /* No session/authority: the row stays out. */ }
   const ports = createNativeSettingsPorts(context, lifetime, route => context.navigation.open(route, context.authority()), downloads);
-  const unsubscribe = context.subscribePreferences(() => {if (lifetime.current()) settings.accept(context.preferences());});
   const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => (!method || method === 'GET') ? readEventState(context.events, next, () => context.api.request<T>(path, method, body, next)) : context.api.request<T>(path, method, body, next), signal)};
   // The Dashboard reads the rebuilt server: Now playing (all of it at once, so never a next page), the Dashboard read and
   // the data folder's storage.
@@ -46,7 +45,7 @@ function createComposition(context: NativeShellBootstrapContext) {
   const admission = (): NativeDashboardAdmission => nativeServerAdmission(context.account, lifetime);
   const dashboard = new NativeDashboardController(lifetime, admission, {sessions, status: () => status.status(lifetime.signal), storage: () => readServerStorage(api, lifetime.signal)});
   let disposed = false;
-  const dispose = () => {if (disposed) return; disposed = true; unsubscribe(); dashboard.dispose(); try {downloads?.dispose();} catch { /* Composition retirement is final. */ } lifetime.dispose();};
+  const dispose = () => {if (disposed) return; disposed = true; dashboard.dispose(); try {downloads?.dispose();} catch { /* Composition retirement is final. */ } settings.dispose(); lifetime.dispose();};
   return {
     settings: {
       render: (route, runtime) => {

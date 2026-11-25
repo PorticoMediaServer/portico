@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import * as capabilityReadiness from '../src-next/platform/playback/capability-readiness.ts';
+import * as adapterReturn from '../src-next/platform/playback/adapter-return.ts';
 
 test('Apple retained view receives only the runtime request counter and exact binding, including source retirement', async () => {
   const h = hooks();
@@ -28,7 +29,7 @@ test('Apple retained view receives only the runtime request counter and exact bi
     '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: () => ({})},
     '../../../../../packages/client-core/src/presentation/service-text': {serviceText: (key: string) => key},
     './engine-choice': {parseEngineFeatures: () => ({})},
-    './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness,
+    './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
     './capability-document.ios': {deviceCapabilityDocument: () => ({})},
     './NativeListeningAdapter': {},
     './native-surface': {nativePlaybackView: (name: string) => {hosts.push(name);return name;}}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},

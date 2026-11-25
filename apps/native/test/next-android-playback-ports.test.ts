@@ -5,6 +5,7 @@ import {screenModule} from './helpers/screen-harness.mjs';
 import type {NativeExternalPresentationLifetime} from '../src-next/platform/playback/types';
 import type {PlaybackFence} from '../../../packages/player-core/src';
 import * as capabilityReadiness from '../src-next/platform/playback/capability-readiness.ts';
+import * as adapterReturn from '../src-next/platform/playback/adapter-return.ts';
 
 // Contract source for BLK-PLAY-006: the generic (Android/phone) factory must
 // forward the already-installed external-presentation and Picture in Picture
@@ -32,6 +33,7 @@ class FakeRuntime {
   chooseQuality = () => {};
   setRate = () => {};
   setForcedOnly = () => {};
+  setSubtitleStyle = (...args: unknown[]) => {calls.push({name: 'setSubtitleStyle', args, self: this}); return true;};
   subtitleControls = () => ({});
   readSession = () => {};
   prepareExternalPresentation = (...args: unknown[]) => {calls.push({name: 'prepareExternalPresentation', args, self: this});};
@@ -63,11 +65,13 @@ class FakeRuntime {
 const viewer = {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile'};
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'f'.repeat(64)};
 const engineModule = {acquire: async () => ({lease: 'lease', instanceId: 'instance'}), command: async () => ({}), release: async () => {}, available: true, getConstants: () => ({pictureInPictureSupported: true})};
+let onAppState: ((state: string) => void) | undefined;
+let capabilityPublishes = 0;
 const native = {
-  Platform: {OS: 'android', isTV: false, Version: '34'},
+  Platform: {OS: 'android', isTV: false, Version: '34', constants: {}},
   NativeModules: {PorticoPlaybackModule: engineModule, PorticoMpvPlaybackModule: engineModule, PorticoRuntime: {playbackRequestId: () => 'request', getConstants: () => ({pictureInPictureSupported: true})}},
   NativeEventEmitter: class {addListener() {return {remove() {}};}},
-  AppState: {addEventListener: () => ({remove() {}})},
+  AppState: {addEventListener: (_: string, listener: (state: string) => void) => {onAppState = listener; return {remove() {onAppState = undefined;}}; }},
   UIManager: {hasViewManagerConfig: () => true},
   Dimensions: {get: () => ({width: 390, height: 844})},
   requireNativeComponent: () => 'PorticoPlayer',
@@ -76,7 +80,7 @@ const native = {
 const modules = {
   react: {...React, default: React},
   'react-native': native,
-  '../../../../../packages/client-core/src/playback-v1/options': {CapabilityPublisher: class {publish = async () => {}}},
+  '../../../../../packages/client-core/src/playback-v1/options': {CapabilityPublisher: class {publish = async () => {capabilityPublishes++;}}},
   '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: () => ({})},
   '../../../../../packages/client-core/src/presentation/service-text': {serviceText: (key: string) => key},
   './engine-choice': {chooseEngine: () => 'native', parseEngineFeatures: () => ({})},
@@ -85,7 +89,7 @@ const modules = {
   './NativeListeningAdapter': {NativeListeningV1Adapter: class {}},
   './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: FakeRuntime},
   './scope-http': {PlaybackScopeHttp: class {constructor() {}}},
-  './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness,
+  './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
   '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
   '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
   './types': {},
@@ -100,9 +104,18 @@ const options = {
 const adapter = createNativeShellPlaybackAdapter(options as never);
 const runtime = adapter.runtime as unknown as FakeRuntime;
 
-test('generic factory forwards the existing external request and Picture in Picture ports', () => {
+test('generic factory forwards the existing external request, subtitle style and Picture in Picture ports', () => {
   assert.strictEqual(adapter.prepareExternalPresentation, runtime.prepareExternalPresentation);
   assert.strictEqual(adapter.requestPictureInPicture, runtime.requestPictureInPicture);
+  assert.strictEqual(adapter.setSubtitleStyle, runtime.setSubtitleStyle);
+});
+
+test('generic factory republishes capabilities when AppState returns to active', async () => {
+  await new Promise(setImmediate);
+  const before = capabilityPublishes;
+  onAppState?.('active');
+  await new Promise(setImmediate);
+  assert.ok(capabilityPublishes > before);
 });
 
 test('forwarded request ports dispatch to the exact runtime fence and lifetime', () => {

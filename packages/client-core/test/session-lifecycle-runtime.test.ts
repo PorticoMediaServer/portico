@@ -754,3 +754,59 @@ test('Forget with nothing remembered is refused and calls no port', async () => 
   assert.ok(!ports.calls.some(call => call.startsWith('clearMarker')));
   life.dispose();
 });
+
+test('updateProfiles refreshes profiles and options in place and notifies subscribers without advancing generation', async () => {
+  const {life} = await launched({
+    readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+    connect: async () => ({profiles: PROFILES, rememberProfiles: true, manageLocked: false}),
+  });
+  const before = life.getSnapshot().generation;
+  let notifications = 0;
+  life.subscribe(() => {notifications++;});
+  const updated: readonly PickerProfile[] = [MAIN, {...KIDS, pinRequired: true}, {id: 'guest', name: 'Guest', primary: false, pinRequired: false}];
+  life.updateProfiles(updated, {rememberProfiles: false, manageLocked: true});
+  const s = state(life, 'ready');
+  assert.deepEqual(s.profiles, updated);
+  assert.equal(s.canRemember, false);
+  assert.equal(s.manageLocked, true);
+  assert.equal(life.getSnapshot().generation, before);
+  assert.equal(notifications, 1);
+  life.dispose();
+});
+
+test('gated background connect settling notifies subscribers while staying in enteringPin', async () => {
+  const pending = deferred<ConnectedFacts>();
+  let connects = 0;
+  const {life} = await launched({
+    readRecords: async () => ({outcome: 'ok', servers: 1, held: held({remembered: true})}),
+    connect: () => ++connects === 1 ? Promise.resolve({profiles: [MAIN], rememberProfiles: true}) : pending.promise,
+  });
+  assert.equal(kind(life), 'ready');
+  life.report({type: 'gated'}); await flush();
+  const enteringBefore = state(life, 'enteringPin');
+  assert.equal(enteringBefore.canRemember, true);
+  let notifications = 0;
+  life.subscribe(() => {notifications++;});
+  const refreshedMain: PickerProfile = {id: 'main', name: 'Main Updated', primary: true, pinRequired: true};
+  pending.resolve({profiles: [refreshedMain, KIDS], rememberProfiles: false});
+  await flush();
+  const enteringAfter = state(life, 'enteringPin');
+  assert.notEqual(enteringAfter, enteringBefore);
+  assert.equal(enteringAfter.profile.name, 'Main Updated');
+  assert.equal(enteringAfter.canRemember, false);
+  assert.equal(enteringAfter.profiles.length, 2);
+  assert.equal(notifications, 1);
+  life.dispose();
+});
+
+test('resume() from recordsLost re-reads records and recovers when the keystore answers', async () => {
+  let reads = 0;
+  const {life} = await launched({
+    readRecords: async () => ++reads === 1 ? {outcome: 'lost', servers: 0} : {outcome: 'ok', servers: 1, held: held()},
+  });
+  assert.equal(kind(life), 'recordsLost');
+  life.resume(); await flush();
+  assert.equal(reads, 2);
+  assert.equal(kind(life), 'choosingProfile');
+  life.dispose();
+});

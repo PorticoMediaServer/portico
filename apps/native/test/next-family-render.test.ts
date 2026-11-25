@@ -520,12 +520,13 @@ test('state icon glass excludes its Android foreground from root capture and ret
             assert.equal(blur, undefined, 'Android TV keeps the drawn translucent fill without video blur');
           } else {
             assert.ok(blur);
-            assert.equal(blur.type, 'BlurView', 'the actual material adapter retains the native blur host');
-            assert.equal(blur.props.blurAmount, 20);
-            assert.equal(blur.props.blurType, 'dark');
-            assert.equal(blur.props.overlayColor, os === 'android' ? `${state.theme.colors.text}1A` : undefined);
-            assert.equal(blur.props.reducedTransparencyFallbackColor, state.theme.colors.raised);
+            assert.equal(boundary!.props.blurAmount, 20);
+            assert.equal(boundary!.props.blurType, 'dark');
+            assert.equal(boundary!.props.overlayColor, os === 'android' ? `${state.theme.colors.text}1A` : undefined);
+            assert.equal(boundary!.props.reducedTransparencyFallbackColor, state.theme.colors.raised);
             if (androidGlass) {
+              assert.equal(blur.type, 'View', 'Android renders a translucent surface View instead of native BlurView');
+              assert.equal(blur.props.style[1].backgroundColor, state.theme.colors.raised);
               assert.equal(disk.props.children, boundary, 'Android must not capture any sibling foreground into its own blur');
               assert.equal(find(blur, Icon), icon, 'the native root capture excludes the BlurView subtree');
               const border = nodes(blur.props.children).find(node => node.props.style?.borderWidth === 1)!;
@@ -539,6 +540,11 @@ test('state icon glass excludes its Android foreground from root capture and ret
               assert.equal(layout.props.style.alignItems, 'center');
               assert.equal(layout.props.style.justifyContent, 'center');
             } else {
+              assert.equal(blur.type, 'BlurView', 'Apple retains the native UIBlurEffect host');
+              assert.equal(blur.props.blurAmount, 20);
+              assert.equal(blur.props.blurType, 'dark');
+              assert.equal(blur.props.overlayColor, undefined);
+              assert.equal(blur.props.reducedTransparencyFallbackColor, state.theme.colors.raised);
               assert.equal(nodes(blur.props.children).includes(icon), false, 'Apple retains its existing native material composition');
             }
           }

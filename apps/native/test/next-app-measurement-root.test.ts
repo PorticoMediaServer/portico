@@ -22,6 +22,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     plugins: [require.resolve('@babel/plugin-transform-modules-commonjs')],
   });
   const reportFirstFrame = () => {};
+  let detectLiteCalls = 0;
   const modules: Record<string, unknown> = {
     react: state.react,
     'react/jsx-runtime': {jsx, jsxs: jsx},
@@ -31,6 +32,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     './platform/keyboard': {KeyboardProvider: 'KeyboardProvider'},
     './kit/theme': {ThemeProvider: 'ThemeProvider', useTheme: () => ({colors: {ink: '#010203'}})},
     './shell/AppErrorBoundary': {AppErrorBoundary: 'AppErrorBoundary'}, './kit/shell/Layer': {Layer: 'Layer'}, './platform/boot-host': {reportFirstFrame},
+    './platform/motion-policy': {detectLiteEffects: () => {detectLiteCalls++; return Promise.resolve(false);}},
     './platform/server-clock-store': {}, './shell': {NativeShell: leaf}, './shell/RestoredShell': {RestoredShell: leaf}, './shell/settings-mount': {},
     './screens/watch': {registerNativeWatch: (factory: unknown) => {assert.equal(factory, leaf);}, createNativeWatchBindings: leaf},
     './dev/Kit': {KitHost: leaf}, './dev/public-measurement': {NativePublicMeasurementGate: leaf},
@@ -49,6 +51,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
   }, module.exports, module, dev);
   const App = module.exports.default;
   assert.ok(App);
+  assert.equal(detectLiteCalls, 1, 'App startup invokes hardware lite-effects detection once');
   // React's first layout, whatever it draws, hands over from the native boot layer.
   assert.equal((App({}) as unknown as {props: {onLayout?: unknown}}).props.onLayout, reportFirstFrame);
   const roots = nodes(App({})).filter(element => typeof element.type === 'function');

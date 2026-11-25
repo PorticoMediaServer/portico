@@ -84,7 +84,12 @@ export function useAlbum({controller, entry, runtime, actions, selection, openEn
   const albums = snapshot.similar.filter(value => value.kind === 'album' && value.libraryId);
   const retryRead = {label: t('action.tryAgain'), onPress: () => run(controller.load())};
   const tablet = isTabletForm(useTheme().form);
-  const date = (value: string | null | undefined) => value ? new Intl.DateTimeFormat(runtime.text.locale ?? 'en-US', {dateStyle: 'medium'}).format(new Date(value)) : undefined;
+  const date = (value: string | null | undefined) => {
+    if (!value) return undefined;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return undefined;
+    return new Intl.DateTimeFormat(runtime.text.locale ?? 'en-US', {dateStyle: 'medium'}).format(parsed);
+  };
   const details = tablet ? ([[t('title.year'), released], [t('title.releaseDate'), date(entry.releaseDate)], [t('title.label'), entry.label],
     [t('title.albumType'), entry.albumType], [t('title.genres'), entry.genres?.join(', ')], [t('title.added'), date(entry.addedAt)]] as const)
     .flatMap(([label, value]) => value ? [{label, values: [{text: value}]}] : []) : [];

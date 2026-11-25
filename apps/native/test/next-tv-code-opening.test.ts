@@ -719,3 +719,51 @@ test('when the Portico code opening itself fails, the card says why and the TV a
     t.mock.timers.tick(120_000); await settle(); assert.equal(attempts(), before + 1, 'nothing more once a code is showing');
   } finally {await entry.host.unmount(); f.cleanup();}
 });
+
+test('on non-TV devices, backgrounding does not abort stage === tv ("Use a code from another device")', async t => {
+  t.mock.timers.enable({apis: ['Date', 'setTimeout']});
+  const f = fixture(); f.poll('pending');
+  let appStateChange: (value: string) => void = () => {};
+  const modules: Record<string, unknown> = {
+    react: {...React, default: React},
+    'react-native': {Platform: {isTV: false}, AppState: {currentState: 'active', addEventListener: (_: string, listener: (value: string) => void) => {appStateChange = listener; return {remove() {}};}},
+      BackHandler: {addEventListener: () => ({remove() {}})},
+      TVEventControl: {enableTVMenuKey() {}, disableTVMenuKey() {}}, View: 'View', Text: 'Text', Image: 'Image', NativeModules: {}},
+    '../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../../../packages/client-core/src/route-identity': {routeOrigin},
+    '../../../../../../packages/client-core/src/server-address': serverAddress,
+    '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Fixture failure', category: 'unavailable'})},
+    '../../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
+    '../../../tv/auth/code-retry': await screenModule(new URL('../src-next/tv/auth/code-retry.ts', import.meta.url), {react: {...React, default: React},
+      '../../../../../packages/client-core/src/timer': await import('../../../packages/client-core/src/timer.ts')}),
+    '../../../platform/account-work': accountWork,
+    '../../../platform/accounts': {nativeAccounts: {accountCredentials: () => ({synchronize: async () => {}, getSnapshot: () => ({}), subscribe: () => () => {}})}},
+    '../../../platform/server-sign-in': {NativeServerSignIn: class {static parseInvitationEntry() {return undefined;}}},
+    '../../../platform/portico-sign-in': {NativePorticoSignIn: class {dispose() {}}},
+    '../../../platform/server-connections': {browseNearby: async () => []},
+    '../../../platform/tv-sign-in': {createNativePorticoTVSignIn: () => f.newService('portico')},
+    '../../../screens/accounts/directory-chooser': directoryChooser,
+    '../../../platform/tv-menu': {useTVMenuCapture() {}},
+    '../../../screens/accounts/tv-code-opening': tvCodeOpening,
+    '../../../screens/accounts/tv-approval-finalization': tvApproval,
+    '../../../screens/accounts/tv-approval-credentials': tvApprovalCredentials,
+    '../../../platform/negotiation': {negotiationRefusal: () => undefined},
+    '../../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}},
+    '../../../kit/navigation/back': {registerBack: () => () => {}},
+  };
+  const {useAccountEntry} = await screenModule(new URL('../src-next/pages/shared/accounts/useAccountEntry.ts', import.meta.url), new Proxy(modules, {get: (all, key: string) => all[key] ?? {}}));
+  let hook: any;
+  const host = createFabricHookHost(() => {hook = useAccountEntry({onComplete() {}});});
+  await act(() => host.mount());
+  try {
+    await act(() => {void hook.startTV('portico');});
+    t.mock.timers.tick(0); await settle();
+    assert.equal(hook.stage, 'tv');
+    assert.equal(hook.tvState.userCode, 'ABCD-EFGH');
+    await act(() => {appStateChange('background');});
+    await settle();
+    assert.equal(hook.stage, 'tv', 'phone/tablet stays on the code screen when switching apps');
+    assert.equal(hook.tvState.userCode, 'ABCD-EFGH');
+    assert.equal(f.calls.cancel, 0);
+  } finally {await host.unmount(); f.cleanup();}
+});

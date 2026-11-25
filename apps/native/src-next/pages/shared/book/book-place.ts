@@ -11,8 +11,10 @@ export type BookPlace = Readonly<{index: number; id: string; fraction?: number; 
 
 export function bookPlace(rows: readonly ContentEntry[], progress: ContentEntry['bookProgress']): BookPlace | undefined {
   if (!progress || !Number.isFinite(progress.partPositionMs)) return undefined;
-  const startMs = (row: ContentEntry | undefined) => row && row.playback?.itemId === progress.itemId && Number.isFinite(row.playback.startSeconds)
-    ? (row.playback.startSeconds ?? 0) * 1000 : undefined;
+  const startMs = (row: ContentEntry | undefined) => {
+    const start = row?.playback?.startSeconds ?? 0;
+    return row?.playback?.itemId === progress.itemId && Number.isFinite(start) ? start * 1000 : undefined;
+  };
   // Half a second of slack: a resume saved at a chapter's first frame still lands in that chapter.
   const index = rows.reduce((found, row, at) => {const start = startMs(row); return start !== undefined && start <= progress.partPositionMs + 500 ? at : found;}, -1);
   if (index < 0) return undefined;

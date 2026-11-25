@@ -59,7 +59,10 @@ function bandData(view: TitleView, band: Readonly<{season: string} | {episode: s
   const tv = view.episodes?.tv, opened = view.episodes?.list.opened;
   if (band && 'episode' in band) {
     if (!opened || opened.key !== band.episode) return undefined;
-    const [guests, ...lines] = opened.credits ?? [], first = guests?.people.slice(0, 3) ?? [];
+    const credits = opened.credits ?? [];
+    const guests = credits.find(credit => credit.kind === 'guests' || (!credit.kind && credit.label === t('next.watch.guestStars')));
+    const lines = credits.filter(credit => credit !== guests);
+    const first = guests?.people.slice(0, 3) ?? [];
     return {kind: 'episode', title: opened.title, facts: [...(opened.code ? [{id: 'code', text: opened.code, role: 'identity' as const}] : []), ...opened.facts], synopsis: opened.synopsis,
       state: opened.primary?.progress !== undefined ? {label: [opened.primary.label, opened.primary.remaining].filter(Boolean).join(', '), progress: opened.primary.progress} : undefined,
       guests: guests ? {label: guests.label, people: first, more: guests.people.length > first.length ? t('next.watch.andMore', {count: guests.people.length - first.length}) : undefined} : undefined,

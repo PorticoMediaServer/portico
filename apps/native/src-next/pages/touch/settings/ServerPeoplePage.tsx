@@ -1,6 +1,6 @@
-import React, {useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import type {SettingsPeopleQuery} from '../../../../../../packages/client-core/src/settings-people';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {createI18n, defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button, Select, Tabs, TextField} from '../../../kit/controls';
 import {PanelBlock, SectionCard, SettingsPageFrame, StateRow} from '../../../kit/frames';
 import {BottomSheet} from '../../../kit/overlays';
@@ -28,7 +28,7 @@ export function ServerPeoplePage({ports, runtime, retry, ...frame}: Props & Fram
 }
 
 function PeoplePanel({source, ports, runtime, retry}: Props & {source: NativePeopleSource; retry?: React.ReactNode}) {
-  const {t} = runtime.text, people = useServerPeople(source);
+  const {t} = runtime.text, i18n = useMemo(() => runtime.text.region ? createI18n(runtime.text.region) : defaultI18n, [runtime.text.region]), people = useServerPeople(source);
   const {state, loading, page, held, ownerControls} = people;
   const searchLabel = t('web.shell.search'), role = t('web.access.roleLabel'), status = t('web.general.status');
   const sort = t('web.filters.sortBy'), direction = t('builder.preset.order'), inviteStatus = t('web.access.invitationStatus');
@@ -51,7 +51,7 @@ function PeoplePanel({source, ports, runtime, retry}: Props & {source: NativePeo
         : <Button variant="glass" size="compact" icon="i-refresh" disabled={loading} onPress={people.refresh}>{t('action.refresh')}</Button>}
     </OverlayFootRow></PanelBlock>
     {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, people.refresh, 'server-console')}/>}
-    {page && <SettingsHelp>{defaultI18n.number(page.matchedCount)} {t(state.tab === 'people'
+    {page && <SettingsHelp>{i18n.number(page.matchedCount)} {t(state.tab === 'people'
       ? 'next.settingsSpec.server.people.groups.0.rows.0.control.noun.1' : 'next.settingsSpec.server.people.groups.1.rows.0.control.noun.1')}</SettingsHelp>}
     {loading && <SectionCard><StateRow kind="loading"/></SectionCard>}
   </>;
@@ -99,7 +99,7 @@ function PeoplePanel({source, ports, runtime, retry}: Props & {source: NativePeo
               item.effectiveMaxStreams === null ? t('settings.server.unlimited') : t('server.people.streams', {count: item.effectiveMaxStreams}),
               item.profileNames.filter(name => item.profileNames.length > 1 || name !== item.username).join(' · '),
               item.liveState === 'watching' ? t('next.settingsSpec.server.people.groups.0.rows.0.control.filters.1.options.1.label')
-                : item.liveState === 'listening' ? t('next.settings.listeningNow') : item.lastActiveAt ? defaultI18n.date(item.lastActiveAt) : '—',
+                : item.liveState === 'listening' ? t('next.settings.listeningNow') : item.lastActiveAt ? i18n.date(item.lastActiveAt) : '—',
             ].filter((part): part is string => !!part)}/>
           {ownerControls && item.status === 'left' && <PanelBlock>
             <Button testID={`people-let-back-in-${item.accountId}`} variant="glass" size="compact" disabled={loading}
@@ -108,7 +108,7 @@ function PeoplePanel({source, ports, runtime, retry}: Props & {source: NativePeo
         </SectionCard>
         : <SectionCard>
           <SettingsRow first label={item.notes || roleLabel(t, item.role)}
-            description={[roleLabel(t, item.role), invitationState(t, item.state), defaultI18n.date(item.expiresAt)]}/>
+            description={[roleLabel(t, item.role), invitationState(t, item.state), i18n.date(item.expiresAt)]}/>
           {ownerControls && item.state === 'pending' && <PanelBlock><OverlayFootRow layout="halves">
             <Button variant="glass" size="compact" disabled={loading} onPress={() => people.invite(item)}>{t('next.selection.edit')}</Button>
             <Button size="compact" variant="danger" disabled={loading} onPress={() => people.ask({action: 'revoke', invitation: item})}>{t('web.access.revoke')}</Button>

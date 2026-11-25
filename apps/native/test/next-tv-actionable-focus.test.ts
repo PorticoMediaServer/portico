@@ -658,6 +658,7 @@ test('actual Search registration keeps equal-value retained genre R1/R2 focus ro
     '../kit/focus': {CoveredLayer: 'CoveredLayer'}, './model': {authorityKey}});
   // The TV page's regions and sort come from its hook over the shared genre read.
   const shared = await screenModule(new URL('../src-next/pages/shared/search/useGenreBrowse.ts', import.meta.url), {react: b.react,
+    '../../../kit/theme': {useTheme: () => ({isTV: true})},
     '../../../../../../packages/client-core/src/presentation/browse-toolbar': direction, '../../../../../../packages/client-core/src/presentation/kit-model': {browseToolbarModel: () => toolbar},
     '../../../../../../packages/client-core/src/search-genres': genres, '../../../../../../packages/i18n/src': {defaultI18n}, '../library/useLibrary': {browseFailure: (value: unknown) => value}});
   const {useTVGenreBrowse} = await screenModule(new URL('../src-next/pages/shared/search/useTVGenreBrowse.ts', import.meta.url), {react: b.react, './useGenreBrowse': shared});

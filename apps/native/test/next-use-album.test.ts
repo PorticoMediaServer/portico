@@ -111,4 +111,6 @@ test('a tablet shows the Album kicker, Details and the song table\'s hearts; a p
   assert.deepEqual(tablet.view.songs.rows.map((row: any) => row.favorite), [true, false]);
   tablet.view.songs.onFavorite('s2'); assert.equal(tablet.calls.at(-1)?.[0], 'song-favorite');
   assert.equal(typeof tablet.view.playlist, 'function');
+  const invalidDates = await album({}, {entry: {...entry, releaseDate: 'not-a-date', addedAt: 'invalid'}}, 'expanded');
+  assert.deepEqual(invalidDates.view.details?.map((row: any) => row.label), [t('title.year'), t('title.genres')], 'invalid dates are omitted rather than throwing RangeError');
 });

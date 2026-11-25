@@ -66,11 +66,15 @@ export function useHomeRowFilters({controller, runtime, onClose}: {controller: N
   }
   const capability = (id: string) => capabilities.fields.find(value => value.id === id);
   const selectedCount = counts.find(count => count.id === (state.selectedKind ?? 'all'));
+  const showResultsLabel = selectedCount
+    ? t('next.browse.native.showResults', {results: selectedCount.totalIsLowerBound
+      ? t('lib.countAtLeast', {count: selectedCount.total, pivot: 'other'})
+      : t('count.titles', {count: selectedCount.total})})
+    : t('action.done');
   return {
     title: t('next.browse.native.filters'), focusPrefix: `home-row-filters:${controller.rowId}`, model, fields, open,
     labels: {field: (value: Label) => homeBrowseLabel(value, labels), sort: (value: Label) => homeBrowseLabel(value, labels), quick: (value: Label) => homeBrowseLabel(value, labels)},
-    showResults: selectedCount && !selectedCount.totalIsLowerBound ? {label: t('next.browse.native.showResults', {results: t('count.titles', {count: selectedCount.total})}),
-      onPress: () => {if (controller.setFilters(draft)) onClose();}} : undefined,
+    showResults: {label: showResultsLabel, onPress: () => {if (controller.setFilters(draft)) onClose();}},
     openChange: (id: string, next: boolean) => {setOpen(previous => next ? [...previous.filter(value => value !== id), id] : previous.filter(value => value !== id));
       const field = capability(id); if (next && field && filterControlOf(field, true) === 'values') void load(field, facets[id]?.search ?? '');},
     change: (id: string, value: Parameters<typeof nativeRowFilterChange>[1]) => {const field = capability(id); if (!field) return;

@@ -229,3 +229,53 @@ test(`outbox model: ${SEQUENCES} random sequences end with every edit applied on
     try { await sequence(seed); } catch (error) { throw new Error(`outbox model failed with OUTBOX_SEED=${seed}: ${(error as Error).message}`, {cause: error}); }
   }
 });
+
+test('Outbox.add rejects an already-aborted signal without storing or queuing the entry', async () => {
+  let puts = 0, sends = 0, lists = 0;
+  const outbox = new Outbox({
+    store: {
+      list: async () => { lists++; return []; },
+      put: async () => { puts++; },
+      delete: async () => {},
+    },
+    scope: () => scopeOf(PEOPLE[0]!),
+    send: async () => { sends++; return {status: 200}; },
+    onDropped: () => {},
+  });
+  try {
+    const preAborted = new AbortController();
+    preAborted.abort(Object.assign(new Error('already cancelled'), {name: 'AbortError'}));
+    await assert.rejects(
+      outbox.add({id: 'aborted-1', method: 'PUT', path: '/v1/items/x/personal-state', body: {}}, preAborted.signal),
+      /already cancelled/,
+    );
+    assert.equal(lists, 0);
+    assert.equal(puts, 0);
+    assert.equal(sends, 0);
+    assert.equal(outbox.waiting(), 0);
+
+    // Also abort while start() is still loading.
+    let finishList!: () => void;
+    const delayed = new Outbox({
+      store: {
+        list: () => new Promise<OutboxEntry[]>(resolve => { finishList = () => resolve([]); }),
+        put: async () => { puts++; },
+        delete: async () => {},
+      },
+      scope: () => scopeOf(PEOPLE[0]!),
+      send: async () => { sends++; return {status: 200}; },
+      onDropped: () => {},
+    });
+    const midAbort = new AbortController();
+    const pending = delayed.add({id: 'aborted-2', method: 'PUT', path: '/v1/items/x/personal-state', body: {}}, midAbort.signal);
+    midAbort.abort(new Error('cancelled during start'));
+    finishList();
+    await assert.rejects(pending, /cancelled during start/);
+    assert.equal(puts, 0);
+    assert.equal(sends, 0);
+    assert.equal(delayed.waiting(), 0);
+    delayed.dispose();
+  } finally {
+    outbox.dispose();
+  }
+});

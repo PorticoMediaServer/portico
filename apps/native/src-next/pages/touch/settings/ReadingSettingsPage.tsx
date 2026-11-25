@@ -1,5 +1,4 @@
 import React from 'react';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {changedFromDefault, readingSettingsProperty} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {readingPreferencesPatch} from '../../../../../../packages/client-core/src/preference-effects';
 import {Button, Segmented, Select, Switch} from '../../../kit/controls';
@@ -13,17 +12,22 @@ import {useReadingSettings} from '../../shared/settings/useReadingSettings';
 export function ReadingSettingsPage({source, runtime, current, onBack}: {
   source: NativeReadingSettingsPreferences; runtime: NativeShellRuntime; current: () => boolean; onBack: () => void;
 }) {
-  const t = defaultI18n.t;
+  const t = runtime.text.t;
   const {state, values, advanced, setAdvanced, change, groups} = useReadingSettings({source, runtime, current});
+  const sections = groups.map(group => ({
+    title: group.title,
+    rows: group.rows.flatMap(row => {
+      const property = readingSettingsProperty(row.id);
+      const field = property && row.key ? state.preferences.registry.fields.find(candidate => candidate.key === row.key) : undefined;
+      return property && field ? [{row, property, field}] : [];
+    }),
+  })).filter(section => section.rows.length > 0);
   return <SettingsPageFrame testID="native-reading-settings" title={t(nativeReadingSettingsSection.title)}
     back={{label: t('action.back'), onPress: onBack, testID: 'reading-settings-back'}}>
     {state.error !== undefined && <StateView {...runtime.error(state.error, () => {void source.refresh();})}/>}
-    {groups.map(group => <SectionCard key={group.title} label={group.title ? t(group.title) : undefined}>
-      {group.rows.map((row, index) => {
-        const property = readingSettingsProperty(row.id);
-        if (!property || !row.key) throw new Error('native_reading_settings_binding_missing');
-        const value = values[property], field = state.preferences.registry.fields.find(field => field.key === row.key);
-        if (!field) throw new Error('native_reading_preferences_unavailable');
+    {sections.map(group => <SectionCard key={group.title} label={group.title ? t(group.title) : undefined}>
+      {group.rows.map(({row, property, field}, index) => {
+        const value = values[property];
         const disabled = state.busy || !source.rowEnabled(row);
         const options = row.control.options?.map(option => {
           let allowed = !option.locked;

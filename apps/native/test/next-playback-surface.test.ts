@@ -8,6 +8,7 @@ import {playerPostureCrossFadeMs} from '../src-next/platform/layout/player-prese
 import {screenModule} from './helpers/screen-harness.mjs';
 import {offlineDownloads} from '../platform/offline-downloads.ts';
 import * as capabilityReadiness from '../src-next/platform/playback/capability-readiness.ts';
+import * as adapterReturn from '../src-next/platform/playback/adapter-return.ts';
 
 // Runs the real factory/Surface and PlayerMorph on the installed Fabric
 // renderer with controlled native hosts, external-store delivery and animation
@@ -64,7 +65,7 @@ async function surfaceFixture(os = 'android') {
     '../../../../../packages/client-core/src/playback-v1/options': {CapabilityPublisher: class {async publish() {}}},
     '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: () => ({})},
     '../../../../../packages/client-core/src/presentation/service-text': {serviceText: (key: string) => key},
-    './dynamic-range-matching': dynamicRange, './capability-readiness': capabilityReadiness,
+    './dynamic-range-matching': dynamicRange, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
     './engine-choice': {chooseEngine() {}, parseEngineFeatures: () => ({})},
     './engine-media': {planEngineOf() {}, requiredSubtitleRendering() {}},
     './capability-document': {deviceCapabilityDocument: () => ({})},

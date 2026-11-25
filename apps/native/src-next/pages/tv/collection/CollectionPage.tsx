@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import React, {useRef} from 'react';
 import type {View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {AmbientArt} from '../../../kit/artwork';
@@ -15,9 +15,7 @@ const t = defaultI18n.t;
  * watched and the sort. The head is the frame's short one, so the row shows whole on arrival; the frame folds the hero as
  * focus goes down to the row. */
 export function CollectionPage(props: CollectionPageProps) {
-  const view = useCollection(props), {runtime, onBack} = props, active = props.active !== false, sortRef = useRef<View>(null);
-  // The remote's Back leaves the page (the old screen's own registration), only while it is the page in front.
-  useEffect(() => active ? runtime.registerTVPageBack?.(() => {onBack(); return true;}) : undefined, [active, runtime, onBack]);
+  const view = useCollection(props), sortRef = useRef<View>(null);
   return <>
     <TitleFrame testID="native-collection" shortHead back={{label: t('action.back'), onPress: props.onBack, testID: 'collection-back'}}
       art={<AmbientArt treatment="title" source={view.ambient} foreground={view.backdrop}/>}

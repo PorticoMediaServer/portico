@@ -77,6 +77,7 @@ export function SearchPage(props: NativeSearchScreenProps) {
   </SearchSection> : undefined;
   const wide = form === 'expanded';
   const topEntry = wide ? undefined : top?.entry;
+  const topKey = top && topEntry ? nativeSearchEntryKey(top.group, topEntry) : undefined;
   const media = topEntry && topEntry.kind !== 'person' && topEntry.kind !== 'channel' ? topEntry as ContentEntry : undefined;
   const title = media?.displayTitle || topEntry?.title;
   const kind = top && topResultKindLabel(top.group);
@@ -118,7 +119,7 @@ export function SearchPage(props: NativeSearchScreenProps) {
           onMore={group.nextCursor && active.visible && state.search.phase === 'ready' && !paging?.loading && !paging?.error
             ? () => run(destination.next(group.id)) : undefined}/>;
       }
-      const entries = group.items.filter(entry => entry !== topEntry).slice(0, 3);
+      const entries = group.items.filter(entry => topKey === undefined || nativeSearchEntryKey(group.id, entry) !== topKey).slice(0, 3);
       if (!entries.length) return null;
       const more = !!group.nextCursor || group.totalCount > entries.length + (top?.group === group.id ? 1 : 0);
       return <SearchSection key={group.id} title={t(searchGroupLabel(group.id))}

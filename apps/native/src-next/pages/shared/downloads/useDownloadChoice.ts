@@ -1,6 +1,6 @@
-import {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
+import {useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Platform} from 'react-native';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {defaultI18n, type I18n} from '../../../../../../packages/i18n/src';
 import {downloadBytes, downloadReasonMessage, type DownloadOptionsView, type DownloadQualityChoice} from '../../../../../../packages/client-core/src/downloads';
 import type {DownloadEpisodes} from '../../../../../../packages/client-core/src/download-requests';
 import type {ContainerDownloadPolicy} from '../../../../../../packages/client-core/src/downloads-service';
@@ -17,6 +17,7 @@ import {linkNativeAbortSignals} from '../../../platform/abort-signals';
 import {containerDownloadBytes, downloadSheetMeaning, type ContainerDownloadOption} from '../../../screens/downloads/download-sheet-facts';
 import {downloadRequestLines} from '../../../screens/downloads/presentation';
 import {createDownloadAttempts, isDownloadQualityRequired, type DownloadAttempts} from '../../../screens/downloads/download-attempt';
+import {nativeRuntimeRegionText} from '../../../screens/settings/runtime-region';
 import {nativeRouteCrypto} from '../../../platform/server-connections';
 
 /** `attempts`: this opening's submits; the same choice retried keeps its operation id (identical body), a changed one gets a new id. */
@@ -25,7 +26,14 @@ const newOperationId = () => 'download_' + Array.from(nativeRouteCrypto.random(1
 const noSubscribe = (_listener: () => void) => () => {};
 
 export function useDownloadChoice({context, request}: {context: NativeShellBootstrapContext; request: NativeDownloadRequest}) {
-  const t = defaultI18n.t;
+  const regionText = useMemo(() => typeof context.preferences === 'function' && typeof context.current === 'function'
+    ? nativeRuntimeRegionText(context) : undefined, [context]);
+  useSyncExternalStore(typeof context.subscribePreferences === 'function' ? context.subscribePreferences : noSubscribe,
+    () => typeof context.preferences === 'function' && (!context.current || context.current()) ? context.preferences() : undefined);
+  const t = ((): I18n['t'] => {
+    if (!regionText) return defaultI18n.t;
+    try {return regionText.t;} catch {return defaultI18n.t;}
+  })();
   const [opening, setOpening] = useState<SheetOpening>();
   useLayoutEffect(() => {
     const original = createNativeDownloadOpening(context, request);
@@ -146,9 +154,9 @@ export function useDownloadChoice({context, request}: {context: NativeShellBoots
   const editable = !!opening?.current() && !busy;
   const changePolicy = (value: DownloadEpisodes) => {if (opening?.current() && !busy) setPolicy(value);};
   const changeKeepNext = (value: number) => {if (opening?.current() && !busy) setKeepNext(value);};
-  return {permit, close, choose, editable, policy, keepNext, changePolicy, changeKeepNext, options, episodic, done, acceptedSingle,
-    problem: error === undefined ? undefined : downloadError(error),
-    checking: !done && !container && !view && !selectionQualities && error === undefined,
+  return {t, permit, close, choose, editable, policy, keepNext, changePolicy, changeKeepNext, options, episodic, done, acceptedSingle,
+    problem: error === undefined ? undefined : downloadError(error, t),
+    checking: !done && (container ? !!deviceId && !choices : !view && !selectionQualities) && error === undefined,
     refused: blocked && view ? downloadReasonMessage(view.policy.reason) || t('downloads.offForProfile') : undefined,
     missingDevice: !!container && !deviceId,
     storage: storage == null ? undefined : t('downloads.spaceLeft', {size: downloadBytes(storage)}),
@@ -158,9 +166,9 @@ export function useDownloadChoice({context, request}: {context: NativeShellBoots
 export type DownloadQualityRow = Readonly<{quality: string; label: string; available: boolean; size?: string; notes?: readonly string[]; meta?: string}>;
 /** A real read failure keeps its catalogue wording; an unknown failure is not
  * dressed as a download refusal. */
-function downloadError(error: unknown) {
+function downloadError(error: unknown, t: I18n['t']) {
   const code = (error as {code?: unknown})?.code;
-  if (code === 'noDevice') return {title: defaultI18n.t('downloads.noDevice')};
-  if (typeof code === 'string' && code) return {title: defaultI18n.t('downloads.error.action'), body: downloadReasonMessage(code) || undefined};
-  return {title: defaultI18n.t('downloads.error.action'), body: error instanceof Error ? error.message : undefined};
+  if (code === 'noDevice') return {title: t('downloads.noDevice')};
+  if (typeof code === 'string' && code) return {title: t('downloads.error.action'), body: downloadReasonMessage(code) || undefined};
+  return {title: t('downloads.error.action'), body: error instanceof Error ? error.message : undefined};
 }

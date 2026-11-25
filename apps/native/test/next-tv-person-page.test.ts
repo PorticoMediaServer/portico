@@ -20,7 +20,9 @@ async function page(view: Record<string, unknown>, role = 'all') {
     '../../../kit/layout': {HeroMetadata: 'HeroMetadata', PosterRow: 'PosterRow'},
     '../../shared/person/usePerson': {usePerson: () => view},
   });
-  const node = PersonPage({role, focusScope: 'person:x', onBack: () => {}, runtime: {}}) as Node;
+  let registered = 0;
+  const node = PersonPage({role, focusScope: 'person:x', onBack: () => {}, runtime: {registerTVPageBack: () => {registered++;}}}) as Node;
+  assert.equal(registered, 0, 'PersonPage is a non-shell route and must not register a Home TVPageBack handler');
   const [frame, menu] = node.props.children as Node[];
   return {frame: frame!, menu: menu!, parts: (frame!.props.children.flat().filter(Boolean) as Node[])};
 }
