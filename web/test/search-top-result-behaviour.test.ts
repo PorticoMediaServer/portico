@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import {defaultI18n} from '@i18n';
 import {runScreenCommand} from '../src/screens/detail/context.ts';
 import {componentModule} from './helpers/component-harness.mjs';
-import {all, createRenderer, one, tree} from './helpers/interaction-harness.mjs';
+import {all, createRenderer, one, textOf, tree} from './helpers/interaction-harness.mjs';
 const t = (key: any, values?: any) => defaultI18n.t(key, values);
-async function mount(options: {kind?: 'movie' | 'show'; phase?: string; selectedId?: string; actions?: any[]; busy?: boolean} = {}) {
+async function mount(options: {kind?: 'movie' | 'show'; phase?: string; selectedId?: string; actions?: any[]; busy?: boolean; onOpen?: boolean; href?: string} = {}) {
   const h = createRenderer(), calls: {name: string; args: any[]}[] = [];
   const record = (name: string) => (...args: any[]) => { calls.push({name, args}); return Promise.resolve(); };
   const entry = {id: 'selected', libraryId: 'library', kind: options.kind ?? 'show', title: 'Result', displayTitle: 'Stored title'};
@@ -25,9 +25,13 @@ async function mount(options: {kind?: 'movie' | 'show'; phase?: string; selected
     '../../kit/artwork': {AmbientArt: 'AmbientArt'}, '../../kit/controls': {Button: 'Button'}, '../../kit/search': {TopResultCard: 'TopResultCard'},
     '../../kit/title/TitleParts': {SearchResultHero: 'SearchResultHero', TitleFactsLine: 'TitleFactsLine'},
     '../detail/Detail': {TitleActions: 'TitleActions'}, '../detail/text': {t, environment: {t, locale: 'en-US'}},
-    '../detail/detail.module.css': {default: {}}, '../detail/context': {runScreenCommand},
+    '../detail/detail.module.css': {default: {}}, './search.module.css': {default: {topActions: 'topActions'}},
+    '../detail/context': {runScreenCommand},
+    '../../router': {router: {buildLocation: () => options.href ? {publicHref: options.href} : undefined}},
+    '../browse/navigation': {screenEntryDestination: (target: any) => ({to: '/item/$itemId', params: {itemId: target.id}})},
   });
-  const flat = () => tree(h.render(() => app.TopResult({binding, result: {entry, group: entry.kind === 'show' ? 'shows' : 'movies'}})));
+  const onOpen = options.onOpen ? record('onOpen') : undefined;
+  const flat = () => tree(h.render(() => app.TopResult({binding, result: {entry, group: entry.kind === 'show' ? 'shows' : 'movies'}, onOpen})));
   return {calls, flat, entry, series, movie, primary, title};
 }
 
@@ -64,4 +68,28 @@ test('ready movie forwards its exact title binding and document to TitleActions'
   assert.equal(actions.props.binding, f.title);
   assert.equal(actions.props.data, f.movie);
   assert.equal(actions.props.topResult, true);
+});
+
+test('desktop ready show and movie pass href and onOpen to SearchResultHero and offer a Details action', async () => {
+  for (const kind of ['show', 'movie'] as const) {
+    const href = `/item/${kind}-selected`;
+    const f = await mount({kind, onOpen: true, href});
+    const rendered = f.flat();
+    const hero = one(rendered, 'SearchResultHero');
+    assert.equal(hero.props.href, href);
+    assert.equal(typeof hero.props.onOpen, 'function');
+    hero.props.onOpen();
+    const details = all(rendered, 'Button').find(button => textOf(button) === t('next.layout.details'));
+    assert.ok(details, `expected Details button for desktop ${kind} top result`);
+    details.props.onClick();
+    assert.equal(f.calls.filter(call => call.name === 'onOpen').length, 2);
+    assert.equal(f.calls.some(call => call.name === 'open'), false);
+  }
+});
+
+test('desktop fallback Details action uses onOpen when provided so search history commits', async () => {
+  const f = await mount({phase: 'loading', onOpen: true, href: '/item/selected'});
+  one(f.flat(), 'Button').props.onClick();
+  assert.equal(f.calls.filter(call => call.name === 'onOpen').length, 1);
+  assert.equal(f.calls.some(call => call.name === 'open'), false);
 });

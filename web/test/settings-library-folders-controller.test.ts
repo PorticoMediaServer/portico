@@ -18,7 +18,7 @@ function fixture(request: LibraryContentApi['request'], access: Partial<{role: '
   const api: LibraryContentApi = {requestRaw, request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {calls.push(path);return request<T>(path, method, body, signal);}};
   const preferences: PreferenceSnapshot = {deviceClass: 'web', registry: {revision: 'test', fields: []}, documents: [], effective: {}, effectiveSource: {}, clampedFields: [], registryRevision: 'test'};
   const reader = new PreferencesReader(api);
-  const controller = new SettingsController({api, serverId: 'server', viewerId: 'viewer', role: access.role ?? 'admin', mainProfile: access.mainProfile ?? true,
+  const controller = new SettingsController({api, serverId: 'server', viewerId: 'viewer', role: access.role ?? 'owner', mainProfile: access.mainProfile ?? true,
     capabilities: {manageServer: access.manageServer ?? true, managePeople: false, manageSignIn: false}, preferences, reader, isCurrent: () => current, reportError: error => {throw error;},
     environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => false, library: () => undefined},
     reading: {read: () => {throw new Error('Unexpected Reading read');}, patch: () => {throw new Error('Unexpected Reading write');}},
@@ -78,7 +78,7 @@ test('disposing or retiring the controller suppresses a held folder read', async
 
 const edit: SettingsLibraryFolderEdit = {path: '/media/new'};
 test('a denied controller gives its folder port no IO or authority', async () => {
-  for (const access of [{role: 'member' as const}, {manageServer: false}, {mainProfile: false}]) {
+  for (const access of [{role: 'admin' as const}, {role: 'member' as const}, {manageServer: false}, {mainProfile: false}]) {
     const f = fixture(async <T>(path: string) => document('selected') as T, access);
     try {
       await f.controller.folders.select('selected');

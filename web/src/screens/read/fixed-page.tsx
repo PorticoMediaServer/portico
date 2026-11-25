@@ -11,12 +11,13 @@ import type {ReaderChapterMark} from '../../kit/reader/ReaderChrome';
 import {loadReadPagePreview, type ReadPagePreview} from './preview';
 import type {ReaderMountAuthority} from './mount';
 import {fixedPageWindow} from './fixed-page-window';
+import type {ReaderJumpKind} from './jump-back';
 import styles from './fixed-page.module.css';
 
 const {t} = defaultI18n;
 
 type Fixed = Readonly<{controller: ReadingController; authority: ReaderMountAuthority; format: ReaderFormat;
-  reportError: (code: ReaderErrorCode) => void}>;
+  reportError: (code: ReaderErrorCode) => void; onJump?: (from: ReaderLocation, kind: ReaderJumpKind) => void}>;
 
 /** A page location in this book's own format: a CBR or CB7 page is never a CBZ location, which
  * the controller would refuse (RD-10 sweep). */
@@ -31,7 +32,7 @@ export function fixedPageZoomLabel(zoom: ReaderZoomState | null): string {
 }
 
 /** phone-read 9: fixed-page controls share the existing chrome's visibility. */
-export function FixedPageFooter({controller, authority, reportError, pages, chapters, onPages, onContents, onFit}: Fixed & Readonly<{
+export function FixedPageFooter({controller, authority, reportError, onJump, pages, chapters, onPages, onContents, onFit}: Fixed & Readonly<{
   pages?: string; chapters: readonly ReaderChapterMark[];
   onPages: () => void; onContents: () => void; onFit: (anchor: HTMLButtonElement) => void;
 }>) {
@@ -40,6 +41,7 @@ export function FixedPageFooter({controller, authority, reportError, pages, chap
   const ready = snapshot.status === 'ready';
   const seek = (value: number) => {
     if (!ready || !authority.isCurrent() || controller.getSnapshot() !== snapshot || !Number.isFinite(value) || value < 0 || value > 1) return;
+    if (snapshot.location && Math.abs(snapshot.location.progression - value) > 0.0001) onJump?.(snapshot.location, 'scrub');
     void controller.navigate({kind: 'progression', value}).catch(error => {if (authority.isCurrent()) reportError(readerErrorCode(error));});
   };
   return <div className={styles.footer}>
@@ -65,7 +67,7 @@ export function FixedPageFooter({controller, authority, reportError, pages, chap
  * visible window is rendered from the current document, so a 300-page PDF never opens
  * every page to build it, and no second archive or preview cache lives here.
  */
-export function FixedPageStrip({controller, authority, reportError, format}: Fixed) {
+export function FixedPageStrip({controller, authority, reportError, format, onJump}: Fixed) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const count = snapshot.metadata?.pageCount, location = snapshot.location;
   const current = location && location.format !== 'epub' ? location.page : undefined;
@@ -75,8 +77,9 @@ export function FixedPageStrip({controller, authority, reportError, format}: Fix
     {Array.from({length: last - first}, (_, offset) => first + offset).map(index => <PageThumb key={index} controller={controller} authority={authority} reportError={reportError}
       format={format} index={index} count={count} current={index === current} pageLabel={t('next.reader.pageLabel', {page: defaultI18n.number(index + 1)})}
       onSelect={() => {
-        const location: ReaderLocation = {format: pageFormat(format), page: index, progression: count === 1 ? 0 : index / (count - 1)};
-        void controller.navigate({kind: 'location', location}).catch(error => {
+        if (location && index !== current) onJump?.(location, 'jump');
+        const target: ReaderLocation = {format: pageFormat(format), page: index, progression: count === 1 ? 0 : index / (count - 1)};
+        void controller.navigate({kind: 'location', location: target}).catch(error => {
           if (authority.isCurrent()) reportError(readerErrorCode(error));
         });
       }}/>)}
@@ -97,19 +100,30 @@ function PageThumb({controller, authority, reportError, format, index, count, cu
 function PageImage({controller, authority, reportError, format, index, large = false, signal}: Fixed & Readonly<{
   index: number; large?: boolean; signal?: AbortSignal;
 }>) {
-  const [preview, setPreview] = useState<ReadPagePreview>();
+  type OwnedPreview = Readonly<{
+    controller: ReadingController; index: number; authority: ReaderMountAuthority;
+    reportError: (code: ReaderErrorCode) => void; large: boolean; signal?: AbortSignal; value: ReadPagePreview;
+  }>;
+  const [preview, setPreview] = useState<OwnedPreview>();
   useEffect(() => {
     const life = new AbortController();
     let loaded: ReadPagePreview | undefined, alive = true;
     void loadReadPagePreview({controller, index, width: large ? 180 : 96, authority, signal: signal ? AbortSignal.any([life.signal, signal]) : life.signal}).then(value => {
       if (!value) return;
       if (!alive || signal?.aborted) {value.dispose(); return;}
-      loaded = value; setPreview(value);
+      loaded = value; setPreview({controller, index, authority, reportError, large, signal, value});
     }).catch(error => {if (alive && authority.isCurrent() && !life.signal.aborted && !signal?.aborted) reportError(readerErrorCode(error));});
-    return () => {alive = false; life.abort(); loaded?.dispose();};
+    return () => {
+      alive = false; life.abort();
+      setPreview(current => current?.value === loaded ? undefined : current);
+      loaded?.dispose();
+    };
     // A preview belongs to one page of one authorized document.
   }, [controller, index, authority, reportError, large, signal]);
-  return preview ? <img src={preview.url} alt="" width={preview.width} height={preview.height} loading="lazy" decoding="async"/> : <span className={styles.blank} aria-hidden="true">{format.toUpperCase()}</span>;
+  // Drop stale preview immediately on render before effect cleanup revokes its blob URL.
+  const active = preview && preview.controller === controller && preview.index === index && preview.authority === authority
+    && preview.reportError === reportError && preview.large === large && preview.signal === signal ? preview.value : undefined;
+  return active ? <img src={active.url} alt="" width={active.width} height={active.height} loading="lazy" decoding="async"/> : <span className={styles.blank} aria-hidden="true">{format.toUpperCase()}</span>;
 }
 
 /** The zoom map reuses the authorized page preview of the page in view. */
@@ -121,7 +135,7 @@ export function FixedPageZoom({controller, authority, reportError, format, viewp
 }
 
 /** Comic pages use their clear-chrome footer, including the renderer's paired spreads. */
-export function ComicPageFooter({controller, authority, reportError, format, crease, presentation}: Fixed & Readonly<{
+export function ComicPageFooter({controller, authority, reportError, format, onJump, crease, presentation}: Fixed & Readonly<{
   crease?: ReaderCrease; presentation: 'desktop' | 'tablet' | 'phone';
 }>) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
@@ -149,9 +163,10 @@ export function ComicPageFooter({controller, authority, reportError, format, cre
     root.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: 'nearest', inline: 'center', behavior: 'instant'});
   }, [page, viewport, direction, snapshot.preferences.twoPages, snapshot.preferences.firstPageAlone]);
   const pageNumbers = (pages: readonly number[]) => pages.map(value => defaultI18n.number(value + 1)).join('–');
-  const navigate = (page: number) => {
+  const navigate = (page: number, kind: ReaderJumpKind = 'jump') => {
     const current = controller.getSnapshot();
     if (!position || !authority.isCurrent() || current.status !== 'ready' || current.sourceId !== snapshot.sourceId || current.sourceRevision !== snapshot.sourceRevision) return;
+    if (current.location && page !== position.page) onJump?.(current.location, kind);
     void controller.navigate({kind: 'location', location: {format: position.format, page, progression: position.count === 1 ? 0 : page / (position.count - 1)}}).catch(error => {
       if (authority.isCurrent()) reportError(readerErrorCode(error));
     });
@@ -171,7 +186,7 @@ export function ComicPageFooter({controller, authority, reportError, format, cre
           <span className={styles.comicTrack} aria-hidden="true"><i style={{width: `${position.progression * 100}%`}}/><b style={{insetInlineStart: `${position.progression * 100}%`}}/></span>
           <input type="range" min={0} max={Math.max(0, position.count - 1)} step={1} value={position.page} disabled={position.count < 2}
             aria-label={t('next.reader.position')} aria-valuetext={t('next.reader.pageOf', {page: pageNumbers(pageWindow?.current.pages ?? [position.page]), count: defaultI18n.number(position.count)})}
-            onChange={event => {const value = event.currentTarget.valueAsNumber; if (Number.isInteger(value) && value >= 0 && value < position.count) navigate(value);}}/>
+            onChange={event => {const value = event.currentTarget.valueAsNumber; if (Number.isInteger(value) && value >= 0 && value < position.count) navigate(value, 'scrub');}}/>
         </div>
         <span>{t('next.reader.pageCount', {count: position.count})}</span>
       </div>
@@ -188,7 +203,7 @@ export function FixedPagesPanel(props: Fixed & Readonly<{onNavigate?: () => void
   return <FixedPagesWindow key={JSON.stringify([snapshot.sourceId, snapshot.sourceRevision, count])} {...props}
     count={count} current={location.page} sourceId={snapshot.sourceId} sourceRevision={snapshot.sourceRevision}/>;
 }
-function FixedPagesWindow({controller, authority, reportError, format, count, current, sourceId, sourceRevision, onNavigate}: Fixed & Readonly<{
+function FixedPagesWindow({controller, authority, reportError, format, onJump, count, current, sourceId, sourceRevision, onNavigate}: Fixed & Readonly<{
   count: number; current: number; sourceId: string; sourceRevision: string; onNavigate?: () => void;
 }>) {
   const viewport = useRef<HTMLDivElement>(null);
@@ -226,6 +241,8 @@ function FixedPagesWindow({controller, authority, reportError, format, count, cu
   }, []);
   const navigate = (index: number) => {
     if (!life || lifeRef.current !== life || life.signal.aborted || !currentSource() || !Number.isSafeInteger(index) || index < 0 || index >= count) return;
+    const from = controller.getSnapshot().location;
+    if (from && index !== current) onJump?.(from, 'jump');
     const target: ReaderLocation = {format: pageFormat(format), page: index, progression: count === 1 ? 0 : index / (count - 1)};
     void controller.navigate({kind: 'location', location: target}, life.signal).then(() => {if (lifeRef.current === life && !life.signal.aborted && currentSource()) onNavigate?.();}).catch(error => {
       if (lifeRef.current === life && !life.signal.aborted && currentSource()) reportError(readerErrorCode(error));
@@ -275,7 +292,7 @@ export function FixedPageMenus({controller, authority, reportError, format, open
       <MenuItem disabled={snapshot.status !== 'ready' || !zoom} selected={preferences.twoPages} onSelect={() => override({twoPages: true})}>{t('next.reader.twoPages')}</MenuItem>
       </>}
     </Menu>
-    {(format === 'cbz' || format === 'cbr') && <Menu open={open === 'direction'} onOpenChange={value => onOpenChange(value ? 'direction' : undefined)} title={t('next.reader.direction')} anchorRef={directionRef}>
+    {isReaderComicFormat(format) && <Menu open={open === 'direction'} onOpenChange={value => onOpenChange(value ? 'direction' : undefined)} title={t('next.reader.direction')} anchorRef={directionRef}>
       {(['file', 'ltr', 'rtl', 'vertical'] as const).map(direction => <MenuItem key={direction} selected={preferences.comicDirection === direction}
         onSelect={() => override({comicDirection: direction})}>{t(direction === 'file' ? 'next.reader.directionFile' : direction === 'ltr' ? 'next.reader.directionLtr' : direction === 'rtl' ? 'next.reader.directionRtl' : 'next.reader.directionVertical')}</MenuItem>)}
     </Menu>}

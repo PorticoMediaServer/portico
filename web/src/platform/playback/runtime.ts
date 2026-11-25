@@ -1436,11 +1436,11 @@ export class WebShellPlaybackRuntime {
     const pending = stack.preplay;
     if (!pending || !this.current(stack) || !fence || fence.kind !== 'queue' || !playback.session) return;
     if (pending.progress.choice?.itemId !== playback.itemId || this.snapshot.session?.versionId !== pending.versionId) {stack.preplay = undefined;return;}
-    const subtitles = stack.subtitles?.getSnapshot(), plan = subtitles?.plan;
+    const subtitles = stack.subtitles?.getSnapshot(), plan = subtitles?.plan ?? this.snapshot.offers?.subtitlePlan;
     if (!plan || plan.sessionId !== fence.sessionId || plan.generation !== fence.generation || plan.sourceId !== fence.sourceId) return;
     const progress = advancePendingChoice(pending.progress, {
       sessionId: fence.sessionId, audio: {availability: 'unavailable'},
-      subtitles: {mode: plan.mode, selectedId: plan.selected?.id, busy: subtitles?.busy ?? true, resources: plan.resources},
+      subtitles: {mode: plan.mode, selectedId: plan.selected?.id, busy: subtitles?.busy ?? false, resources: plan.resources},
     }, {
       // Audio is already the verified start track, never a second asynchronous restart.
       selectRendition: () => {problem('playback_audio_unavailable');},
@@ -1752,6 +1752,10 @@ export class WebShellPlaybackRuntime {
       this.sync();
     } catch { /* no offer, no switch; the track still draws every line */ }
   }
+  private subtitleState(stack: Stack): SubtitleSnapshot {
+    const offered = this.offers(stack, stack.service.getSnapshot())?.subtitlePlan;
+    return stack.subtitles?.getSnapshot() ?? (offered ? {...emptySubtitle, plan: offered, suppressed: false} : emptySubtitle);
+  }
   private renderDrawnSubtitles(stack: Stack, plan: SubtitlePlan, original: SubtitleOriginal): void {
     const video = this.video;
     // An installed engine playing the picture draws its own subtitles; the page never draws over it.
@@ -1767,11 +1771,11 @@ export class WebShellPlaybackRuntime {
     const abort = new AbortController(); stack.drawnAbort = abort;
     const sessionKey = stack.sessionKey, run = this.playbackRun(), subtitles = stack.subtitles;
     const owns = () => {
-      const active = subtitles?.getSnapshot(), selected = active?.plan?.selected;
+      const active = this.subtitleState(stack), selected = active.plan?.selected;
       return this.current(stack) && !abort.signal.aborted && !stack.life.signal.aborted && stack.expanded
         && stack.sessionKey === sessionKey && this.playbackRun() === run && stack.subtitles === subtitles
-        && stack.drawnKey === key && stack.drawnEpoch === epoch && !active?.suppressed
-        && active?.plan?.sessionId === plan.sessionId && active.plan.generation === plan.generation
+        && stack.drawnKey === key && stack.drawnEpoch === epoch && !active.suppressed
+        && active.plan?.sessionId === plan.sessionId && active.plan.generation === plan.generation
         && active.plan.sourceId === plan.sourceId && active.plan.revision === plan.revision && active.plan.offsetUs === plan.offsetUs
         && selected?.id === plan.selected?.id && selected?.revision === plan.selected?.revision;
     };
@@ -1855,8 +1859,7 @@ export class WebShellPlaybackRuntime {
     this.clearRecordedSidecar(stack, 'text');
   }
   private renderSubtitles(stack: Stack): void {
-    const offered = this.offers(stack, stack.service.getSnapshot())?.subtitlePlan;
-    const state = stack.subtitles?.getSnapshot() ?? (offered ? {...emptySubtitle, plan: offered, suppressed: false} : emptySubtitle), plan = state.plan, surface = this.surface;
+    const state = this.subtitleState(stack), plan = state.plan, surface = this.surface;
     // The route can be activated by system controls as well as our picker. Only an exact
     // current plan may request a replacement; off and native text never become burn requests.
     const playback = stack.service.getSnapshot(), session = playback.session;
@@ -2434,6 +2437,7 @@ export class WebShellPlaybackRuntime {
     try {
       // A track this playback could not draw is asked for in the picture again, not handed over.
       await stack.service.changePlayback({subtitleTrackId: trackId, ...(track ? {subtitleOffsetMs: offsetMs} : {}), ...(this.undrawable(stack, trackId) ? {subtitleDelivery:'burn' as const} : track && this.airPlayCanReplan() ? {subtitleDelivery:track.renderer === 'external_text' ? 'sidecar' as const : 'embeddedClient' as const} : {})});
+      if (!this.current(stack)) return;
       // The session now names the track on and its WebVTT: read the plan again and draw it.
       await stack.offers.refresh({quiet: true});
       if (this.current(stack)) {this.renderSubtitles(stack);this.sync();}
@@ -2454,7 +2458,9 @@ export class WebShellPlaybackRuntime {
     const finishRetention = this.retainMediaStart(stack.life.signal, () => this.current(stack));
     try {
       await stack.service.changePlayback({subtitleTrackId: track.id, subtitleOffsetMs: offsetMs, ...(this.undrawable(stack, track.id) ? {subtitleDelivery:'burn' as const} : this.airPlayCanReplan() ? {subtitleDelivery:track.renderer === 'external_text' ? 'sidecar' as const : 'embeddedClient' as const} : {})});
-      if (this.current(stack)) this.sync();
+      if (!this.current(stack)) return;
+      await stack.offers.refresh({quiet: true});
+      if (this.current(stack)) {this.renderSubtitles(stack);this.sync();}
     } finally {finishRetention();}
   }
   private playbackRun(): number { return this.snapshot?.playback.playbackRun ?? -1; }

@@ -5,14 +5,14 @@ import type {ReadingAnnotationService} from '@core/reading-annotation-service.ts
 import {Button} from '../../kit/controls';
 
 type Lease = {life: AbortController};
-type Attempt = {owner: Lease; life: AbortController; url?: string};
+type Attempt = {owner: Lease; life: AbortController};
 /** Browser-only local file sink. Native hosts must supply a real save port first. */
 export function ReaderHighlightsExport({service, signal, title, author, reportError, nativeSave}: {service: ReadingAnnotationService; signal: AbortSignal; title?: string; author?: string; reportError: (error: unknown) => void; nativeSave?: (revision: number, signal: AbortSignal) => Promise<'saved' | 'cancelled'>}) {
   const [lease, setLease] = useState<Lease>();
   const [running, setRunning] = useState<Attempt>();
   const request = useRef<Attempt | undefined>(undefined);
   const owner = useRef({service, signal}); owner.current = {service, signal};
-  const retire = (attempt: Attempt) => {attempt.life.abort(); if (attempt.url) URL.revokeObjectURL(attempt.url); attempt.url = undefined; if (request.current === attempt) request.current = undefined;};
+  const retire = (attempt: Attempt) => {attempt.life.abort(); if (request.current === attempt) request.current = undefined;};
   useLayoutEffect(() => {
     const original: Lease = {life: new AbortController()}; setLease(original);
     const abort = () => {original.life.abort(); const attempt = request.current; if (attempt?.owner === original) retire(attempt);};
@@ -33,9 +33,18 @@ export function ReaderHighlightsExport({service, signal, title, author, reportEr
       if (!current()) return;
       const blob = new Blob([file.markdown], {type: 'text/markdown;charset=utf-8'});
       if (!current()) return;
-      attempt.url = URL.createObjectURL(blob);
-      const link = document.createElement('a'); link.href = attempt.url; link.download = file.fileName; link.rel = 'noreferrer';
-      try {if (current()) {document.body.append(link); link.click();}} finally {link.remove();}
+      const url = URL.createObjectURL(blob);
+      let clicked = false;
+      try {
+        if (!current()) return;
+        const link = document.createElement('a'); link.href = url; link.download = file.fileName; link.rel = 'noreferrer';
+        document.body.append(link);
+        try {link.click(); clicked = true;} finally {link.remove();}
+      } finally {
+        // The browser owns the received bytes after the click; defer revocation like save-file.ts.
+        if (clicked) setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        else URL.revokeObjectURL(url);
+      }
     })().catch(error => {if (current()) reportError(error);}).finally(() => {const owned = request.current === attempt; retire(attempt); if (owned) setRunning(value => value === attempt ? undefined : value);});
   };
   return <Button disabled={!!running && running.owner === lease && !running.life.signal.aborted || !lease || lease.life.signal.aborted || signal.aborted || !service.current()} onClick={start}>{defaultI18n.t('next.reader.exportHighlights')}</Button>;

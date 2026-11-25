@@ -26,12 +26,13 @@ function RouteContent() {
     const entry = state.location.state.__TSR_key;
     return typeof entry === 'string' && entry.length ? JSON.stringify([state.location.href, entry]) : undefined;
   }});
-  const commits = useMemo<RouteFadeCommits>(() => { /* Preserve the original ownership/invalidation keys. */ void owner; return ({subscribe: listener => router.subscribe('onRendered', event => {
+  const scopeKey = owner?.scopeKey ?? null;
+  const commits = useMemo<RouteFadeCommits>(() => { /* Preserve the original ownership/invalidation keys. */ void scopeKey; return ({subscribe: listener => router.subscribe('onRendered', event => {
     // Same-page (query-only) changes keep the page still, as with View Transitions.
     if (!event.pathChanged) return;
     const entry = event.toLocation.state.__TSR_key;
     if (typeof entry === 'string' && entry.length) listener(JSON.stringify([event.toLocation.href, entry]));
-  })}); }, [router, owner]);
+  })}); }, [router, scopeKey]);
   // The recovery witness is selected from the actual location object, independently of the
   // optional motion route key above: a missing history entry must not collapse every href, and a
   // new location object with the same href is still a new recovery lifetime.
@@ -41,8 +42,8 @@ function RouteContent() {
   const [announcement, setAnnouncement] = useState('');
   const acceptedPath = useRef<string | undefined>(undefined);
   const recovery = useMemo<DestinationRecoveryWitness>(() => Object.freeze({
-    location, href: location.href, entry: recoveryEntryOf(location), scopeKey: owner?.scopeKey ?? null,
-  }), [location, owner?.scopeKey]);
+    location, href: location.href, entry: recoveryEntryOf(location), scopeKey,
+  }), [location, scopeKey]);
   const target = useMemo(() => ({get current() { return routeMotionOwnedByBrowser() ? null : content.current; }}), []);
   useRouteFade(target, routeKey, commits);
   useLayoutEffect(() => { finishRouteMotion(); }, [routeKey]);

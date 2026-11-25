@@ -66,11 +66,15 @@ export type SettingsBindings = Readonly<{
 }>;
 
 export type SettingsPhoneLead = Readonly<{profile: ProfileIdentity; description: string; shortcuts: readonly ShellAction[]}>;
-export function SettingsScreen({bindings, route, navigate, openDetail = false, phoneLead}: {bindings: SettingsBindings; route: SettingsRoute; navigate: (route: SettingsRoute) => void;
+export function SettingsScreen({bindings, route, navigate, openDetail = false, phoneLead, pageFailure, actionError}: {bindings: SettingsBindings; route: SettingsRoute; navigate: (route: SettingsRoute) => void;
   /** At phone width: the profile card and the quick tiles over the list. */
   phoneLead?: SettingsPhoneLead;
   /** A link that names a scope or section asks for that page, not the compact list. */
-  openDetail?: boolean}) {
+  openDetail?: boolean;
+  /** Fatal page-level failure supplied by the route host (replaces page body, including tabbed sections). */
+  pageFailure?: ReactNode;
+  /** Non-fatal inline action error shown inside the page without unmounting controls. */
+  actionError?: ReactNode}) {
   useSyncExternalStore(bindings.presentation?.subscribe ?? noPresentation, bindings.presentation?.getSnapshot ?? emptyPresentation, emptyPresentation);
   const width = useShellWidth(), compact = width < 600, feedback = useWebAction('feedback');
   const [quietOpen]=useState(createSettingsOpen);
@@ -166,7 +170,8 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false, p
   const page = <SettingsPageFrame title={libraryPage ? String(libraryTitle) : t(section.title)} status={snapshot.saveState} action={done} server={server}
     back={libraryPage ? {label: t(section.title), onPress: closeLibrary} : {label: t('next.shell.settings'), onPress: () => {setPanel(undefined); void router.navigate({to: '/settings'});}}}
     header={libraryPage && bindings.panelHeader ? bindings.panelHeader(panelContext, libraryTitle) : undefined}>
-    {libraryPage && panelSpec?.tabs ? <Tabs aria-label={libraryTitle} value={panel?.tab ?? panelSpec.tabs[0]?.id} onValueChange={value => setPanel(current => current && {...current, tab: value})}
+    {!pageFailure && actionError}
+    {pageFailure ? pageFailure : libraryPage && panelSpec?.tabs ? <Tabs aria-label={libraryTitle} value={panel?.tab ?? panelSpec.tabs[0]?.id} onValueChange={value => setPanel(current => current && {...current, tab: value})}
       phone={compact} items={panelSpec.tabs.map(item => ({value: item.id, label: t(item.title), panel: <>{bindings.panelIntro?.({...panelContext, tabId: item.id})}{rows(item, {...panelContext, tabId: item.id})}</>}))}/> : fact ? <ConfigurationFact fact={fact} /> : snapshot.error ? <SettingsPageFailure retry={() => {void bindings.load(section);}} home={bindings.openHome} error={snapshot.error}
       server={section.scope === 'server' ? {name: bindings.serverName, openMySettings: () => go('account/profile')} : undefined} /> : snapshot.loading ? <p role="status">{t('next.settings.loading')}</p> : (section.tabs ? <Tabs aria-label={t(section.title)} value={pageTab} phone={compact} onValueChange={value => setPageTabs(current => ({...current, [sectionKey]: value}))}
         items={section.tabs.map(tab => ({value: tab.id, label: t(tab.title), panel: bindings.section?.({...context, pageTab: tab.id}, openPanel, holder => rows(holder, context)) ?? rows(tabHolder(section, tab), context)}))} />

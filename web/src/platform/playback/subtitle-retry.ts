@@ -54,8 +54,8 @@ export async function revalidateTextSubtitles<T>(ports: {
     try {
       const read = await ports.read(etag, ports.signal);
       if (!current()) return;
-      if (!read.unchanged) {document = read.document;etag = read.etag;}
-      if (document !== undefined) {ports.show(document);ports.recovered();}
+      if (!read.unchanged) {document = read.document;etag = read.etag;ports.show(document);ports.recovered();}
+      else if (document !== undefined) ports.recovered();
     } catch (error) {
       if (!current()) return;
       const transient = transientSubtitleFailure(error);

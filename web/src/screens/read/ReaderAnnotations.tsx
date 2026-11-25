@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import {randomId} from '@core/random-id.ts';
 import {ReadingAnnotationService, type ReadingAnnotationState} from '@core/reading-annotation-service.ts';
 import type {ReadingAnnotation, ReadingAnnotationContent, ReadingAnnotationPort} from '@core/reading-annotations.ts';
-import {readingLocationFromReader, readerLocationFromReading, type ReadingController, type ReaderLocation, type ReaderSnapshot, type ReaderSelection, type ReaderTocItem} from '@portico/reader-core';
+import {isReaderComicFormat, readingLocationFromReader, readerLocationFromReading, type ReadingController, type ReaderLocation, type ReaderSnapshot, type ReaderSelection, type ReaderTocItem} from '@portico/reader-core';
 import type {ReadingPreferences} from '@portico/client-core';
 import type {ReaderMountAuthority} from './mount';
 import {Button} from '../../kit/controls';
@@ -96,7 +96,7 @@ export function usePlaceEarlierCopies(service: ReadingAnnotationService | undefi
 const colours = ['yellow','green','blue','pink'] as const;
 const colourLabels = {yellow:'next.reader.annotationYellow',green:'next.reader.annotationGreen',blue:'next.reader.annotationBlue',pink:'next.reader.annotationPink'} as const;
 function selectedContent(selection: ReaderSelection, colour: typeof colours[number]): ReadingAnnotationContent | undefined {
-  if (!selection.text.trim() || new TextEncoder().encode(selection.text).length > 8192 || selection.location.format === 'cbz'
+  if (!selection.text.trim() || new TextEncoder().encode(selection.text).length > 8192 || isReaderComicFormat(selection.location.format)
     || selection.location.format === 'pdf' && (!selection.pageRects?.length || selection.rects.length > 128)) return;
   return Object.freeze({id: randomId(), kind:'highlight', location:readingLocationFromReader(selection.location), text:selection.text, note:'', colour,
     ...(selection.location.format === 'pdf' ? {rects:selection.pageRects} : {})});
@@ -157,7 +157,7 @@ export function ReaderAnnotationActions({service, snapshot, controller, onSearch
   const current=()=>live(lease)&&!!service?.current()&&controller.getSnapshot().sourceId===snapshot.sourceId&&controller.getSnapshot().sourceRevision===snapshot.sourceRevision;
   if(!service?.current())return null;
   const busy=state.loading||state.saving||state.revision===undefined;
-  const selectionSupported=!!selection?.text.trim()&&new TextEncoder().encode(selection.text).length<=8192&&selection.location.format!=='cbz'&&(selection.location.format!=='pdf'||!!selection.pageRects?.length&&selection.rects.length<=128);
+  const selectionSupported=!!selection?.text.trim()&&new TextEncoder().encode(selection.text).length<=8192&&!isReaderComicFormat(selection.location.format)&&(selection.location.format!=='pdf'||!!selection.pageRects?.length&&selection.rects.length<=128);
   const capture=()=>current()&&controller.getSnapshot().selection===selection&&selection?selectedContent(selection,colour):undefined;
   const ownsSelection=()=>current()&&controller.getSnapshot().selection===selection;
   return <>
@@ -184,15 +184,15 @@ function bookmarkChapter(location:ReadingAnnotation['location'],toc:readonly Rea
 export function bookmarkPlace(location:ReadingAnnotation['location'],toc:readonly ReaderTocItem[]):string {
   return bookmarkChapter(location,toc)??(Number.isFinite(location.progression)?defaultI18n.percent(location.progression):t('next.reader.bookmarks'));
 }
-export function ReaderAnnotationList({kind,service,state,controller,reportError,signal,placed}: {kind:'bookmark'|'highlight';service:ReadingAnnotationService;state:ReadingAnnotationState;controller:ReadingController;reportError:(error:unknown)=>void;signal:AbortSignal;
-  /** Earlier-copy highlights found in this copy for this open: listed with the others, not editable here. */ placed?:ReadonlyMap<string,ReadingAnnotation['location']>}) {
+export function ReaderAnnotationList({kind,service,state,controller,reportError,signal,placed,onJump}: {kind:'bookmark'|'highlight';service:ReadingAnnotationService;state:ReadingAnnotationState;controller:ReadingController;reportError:(error:unknown)=>void;signal:AbortSignal;
+  /** Earlier-copy highlights found in this copy for this open: listed with the others, not editable here. */ placed?:ReadonlyMap<string,ReadingAnnotation['location']>; onJump?:(from:ReaderLocation)=>void}) {
   const lease=useAnnotationLease(signal);
   const {opening,open,close}=useNoteOpening();
   const toc=useSyncExternalStore(controller.subscribe,()=>controller.getSnapshot().toc,()=>controller.getSnapshot().toc);
   const all=state.entries.filter(entry=>entry.kind===kind),entries=all.filter(entry=>!entry.earlierCopy||placed?.has(entry.id)),earlier=all.filter(entry=>entry.earlierCopy&&!placed?.has(entry.id)),busy=state.loading||state.saving||state.revision===undefined;
   const owns=(entry:ReadingAnnotation)=>live(lease)&&!signal.aborted&&service.current()&&service.getSnapshot().entries.includes(entry);
   const [menu,setMenu]=useState<Readonly<{entry:ReadingAnnotation;anchor:HTMLButtonElement}>>();
-  const go=(entry:ReadingAnnotation)=>{if(owns(entry)&&lease)void controller.navigate({kind:'location',location:readerLocationFromReading(placed?.get(entry.id)??entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});};
+  const go=(entry:ReadingAnnotation)=>{if(owns(entry)&&lease){const from=controller.getSnapshot().location;if(from)onJump?.(from);void controller.navigate({kind:'location',location:readerLocationFromReading(placed?.get(entry.id)??entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});}};
   const more=(entry:ReadingAnnotation)=>({onMore:(anchor:HTMLButtonElement)=>{if(owns(entry))setMenu({entry,anchor});},moreLabel:t('card.more',{title:entry.text||bookmarkPlace(entry.location,toc)})});
   const when=(entry:ReadingAnnotation)=>defaultI18n.date(entry.updatedAt,'medium');
   const highlight=(entry:ReadingAnnotation,navigable:boolean)=>({id:entry.id,quote:entry.text||defaultI18n.percent(entry.location.progression),note:entry.note||undefined,

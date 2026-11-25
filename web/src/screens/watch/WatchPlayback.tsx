@@ -253,9 +253,14 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
     const owner = new ExpandedPlaybackFocus(document); focusOwner.current = owner;
     return () => {owner.dispose(); focusOwner.current = null;};
   }, []);
+  const expandedFocus = expanded && !snapshot?.disposed && !remotePlaying;
+  const focusSourceKey = snapshot?.fence ? fenceKey(snapshot.fence) : '';
+  const focusKind = snapshot?.presentation?.kind;
+  const focusListening = !!listening;
+  const focusMusicRetained = !!musicMotion.scope;
   useLayoutEffect(() => {
-    focusOwner.current?.update(host.current, expanded && !snapshot?.disposed && !remotePlaying);
-  });
+    focusOwner.current?.update(host.current, expandedFocus);
+  }, [expandedFocus, focusSourceKey, focusKind, focusListening, focusMusicRetained, phone]);
   // A reused sequence from another runtime/session must never inherit an expiry.
   const noticeRuntime = useRef<{runtime?: WebShellPlaybackRuntime; epoch: number}>({epoch: 0});
   if (noticeRuntime.current.runtime !== runtime) noticeRuntime.current = {runtime, epoch: noticeRuntime.current.epoch + 1};

@@ -21,13 +21,13 @@ import {router} from '../../router';
 import type {ShellAssemblyContext} from '../../shell/bootstrap';
 import {shellLanguage} from '../../shell/settings';
 import {settingsRoute} from '../../kit/settings/search';
-import {SettingsPageFailure} from '../../kit/settings';
+import {SettingsOwnerOnly, SettingsPageFailure} from '../../kit/settings';
 import {settingsPlatform} from '../../platform/settings-platform';
 import {DashboardScreen, HistoryScreen, createDashboardBindings, type DashboardBindings} from '../dashboard';
 import {SettingsScreen, type SettingsBindings, type SettingsPhoneLead, type SettingsContext, type SettingsPageSnapshot} from './Settings';
 import {SecureAddressProvider} from './SecureAddressProvider';
 import {CustomizeHomeRow} from './account-appearance/CustomizeHome';
-import {SettingsController, type SettingsControllerOptions} from './controller';
+import {isFatalSettingsError, resolveSettingsLocation, SettingsController, type SettingsControllerOptions, type SettingsSectionAccess} from './controller';
 import {createSettingsBindings, forwardSettingsBindings} from './bindings';
 import {LibraryManagementService} from '@core/library-management.ts';
 import {LibrariesPanel} from './libraries/LibrariesPanel';
@@ -131,8 +131,20 @@ const settingsBuildFacts = (context?: ShellAssemblyContext) => {
   return [identity?.primaryProfile, identity?.capabilities?.manageAccount, identity?.capabilities?.manageServer, identity?.capabilities?.managePeople,
     identity?.capabilities?.manageSignIn, identity?.signIn, viewer?.role, viewer?.serverId, viewer?.authority, viewer?.accountId, viewer?.profileId] as const;
 };
-const settingsLocationRoute = (location: Readonly<{pathname: string; searchStr: string}>) => settingsRoute(location.pathname === '/dashboard'
-  ? {scope: 'server', section: 'dashboard'} : Object.fromEntries(new URLSearchParams(location.searchStr)), () => true);
+function settingsAccess(context: ShellAssemblyContext, platform = settingsPlatform()): SettingsSectionAccess {
+  const identity = context.facts.identity, viewer = context.session().viewer;
+  const role = viewer.role === 'owner' || viewer.role === 'admin' ? viewer.role : 'member';
+  return {
+    role,
+    mainProfile: identity.primaryProfile === true,
+    capabilities: {
+      manageServer: identity.capabilities?.manageServer === true,
+      managePeople: identity.capabilities?.managePeople === true,
+      manageSignIn: identity.capabilities?.manageSignIn === true,
+    },
+    environment: {...(platform?.environment ?? {platform: 'web' as const, os: 'browser' as const}), role, signIn: identity.signIn},
+  };
+}
 type SettingsBuild = Readonly<{context: ShellAssemblyContext; inputs: readonly unknown[]; current: () => boolean;
   /** The build's own captured transport, so a holder read keeps this same fence. */
   api: ShellAssemblyContext['api'];
@@ -144,8 +156,10 @@ export function SettingsEntry() {
   const location = useRouterState({select: state => state.location});
   const [owned, setOwned] = useState<SettingsBuild>();
   const [profilePIN, setProfilePIN] = useState<ProfilePINRequest>();
-  // What replaced the page: a failed read or command, kept so a refusal draws its own state (owner only, or the PIN).
+  // Fatal page-level failure (failed initial load, lost role, or management PIN refusal).
   const [failure, setFailure] = useState<false | Readonly<{error: unknown}>>(false), [retry, setRetry] = useState(0);
+  // Non-fatal inline mutation error kept inside the page without collapsing to SettingsPageFailure.
+  const [actionError, setActionError] = useState<false | Readonly<{error: unknown}>>(false);
   const context = protectedContext?.context;
   useSyncExternalStore(context?.factsSource?.subscribe ?? noPreferences, () => context?.factsSource?.getSnapshot() ?? context?.facts, () => undefined);
   // The same confirmed reader drives calendar lifetime. A zone change retires
@@ -153,22 +167,26 @@ export function SettingsEntry() {
   const preferences = useSyncExternalStore(context?.preferences?.subscribe ?? noPreferences, () => context?.preferences?.getSnapshot('web'), () => undefined);
   const reportTimeZone = preferences && shellLanguage(preferences).region.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const raw = Object.fromEntries(new URLSearchParams(location.searchStr));
-  const route = settingsLocationRoute(location);
+  const platform = settingsPlatform();
+  const access = context ? settingsAccess(context, platform) : undefined;
+  const resolution = access ? resolveSettingsLocation(location, access) : undefined;
+  const unauthorized = resolution?.unauthorized === true;
+  const route = resolution && !resolution.unauthorized ? resolution.route : undefined;
   const facts = settingsBuildFacts(context);
   const [buildPrimary, buildAccount, buildServer, buildPeople, buildSignIn, buildKind, buildRole, buildServerId, buildAuthority, buildAccountId, buildProfileId] = facts;
-  const routeScope = route.scope, routeSection = route.section, hasPreferences = !!preferences;
+  const routeScope = route?.scope, routeSection = route?.section, hasPreferences = !!preferences;
   // Keep the original build dependencies: ordinary preference confirmations and
   // row-only deep links keep their controller, forms and outstanding intents.
-  const inputs = [context, retry, route.scope, route.section, !!preferences, reportTimeZone, ...facts] as const;
+  const inputs = [context, retry, unauthorized, routeScope, routeSection, !!preferences, reportTimeZone, ...facts] as const;
   const reportCarry = useRef<Readonly<{inputs: readonly unknown[]; report: ReportContext}> | undefined>(undefined);
   const mediaRuntime = protectedContext?.binding.playback?.runtime;
   // Setup samples these committed ports once; the exact scalar owner keys below govern retirement.
-  const setupPorts = useRef({preferences, route, facts, inputs, mediaRuntime});
-  useLayoutEffect(() => {setupPorts.current = {preferences, route, facts, inputs, mediaRuntime};});
+  const setupPorts = useRef({preferences, route, unauthorized, facts, inputs, mediaRuntime});
+  useLayoutEffect(() => {setupPorts.current = {preferences, route, unauthorized, facts, inputs, mediaRuntime};});
   useLayoutEffect(() => {
-    const {preferences, route, facts, inputs, mediaRuntime} = setupPorts.current;
+    const {preferences, route, unauthorized, facts, inputs, mediaRuntime} = setupPorts.current;
     const reader = context?.preferences, snapshot = preferences;
-    if (!context || !reader || !snapshot || !context.isCurrent() || transferredOwnerContexts.has(context)) return;
+    if (!context || !reader || !snapshot || unauthorized || !route || !context.isCurrent() || transferredOwnerContexts.has(context)) return;
     let active = true;
     let inputActive = false,inputRevision = 0;
     const inputListeners = new Set<() => void>();
@@ -186,8 +204,8 @@ export function SettingsEntry() {
       if (!active || transferredOwnerContexts.has(context) || !context.isCurrent() || !sameBuildInputs(facts, settingsBuildFacts(context))) return false;
       const location = router.state.location;
       if (location.pathname !== '/settings' && location.pathname !== '/dashboard') return false;
-      const selected = settingsLocationRoute(location);
-      return selected.scope === route.scope && selected.section === route.section && preferencesAvailable && confirmedZone === reportTimeZone;
+      const selected = resolveSettingsLocation(location, settingsAccess(context, settingsPlatform()));
+      return !selected.unauthorized && selected.route.scope === route.scope && selected.route.section === route.section && preferencesAvailable && confirmedZone === reportTimeZone;
     };
     const assert = () => {if (!current()) throw new DOMException('Settings build retired', 'AbortError');};
     const signal = (input?: AbortSignal | null) => input ? AbortSignal.any([lifetime.signal, input]) : lifetime.signal;
@@ -229,6 +247,11 @@ export function SettingsEntry() {
     }});
     const buildContext = forwardFacts(context, {api, isCurrent: current});
     const reportError = (error?: unknown) => {if (current()) setFailure({error});};
+    const reportActionError = (error?: unknown) => {
+      if (!current()) return;
+      if (isFatalSettingsError(error)) {setFailure({error}); return;}
+      setActionError({error});
+    };
     const language = snapshot ? shellLanguage(snapshot) : defaultI18n;
     const uiLocale = language.locale, appLocale = language.region.formatLocale;
     const identity = context.facts.identity, viewer = context.session().viewer;
@@ -255,7 +278,7 @@ export function SettingsEntry() {
     };
     // A profile's limits that fail to read say so on their own row; the rest of the page stays. A Tag name nobody has is told in
     // place on the Blocked Tags row; any other refused save is reported as before.
-    const limitsFailure = (error: unknown) => {if ((error as {code?: unknown} | null)?.code !== 'unknown_tag') reportError(error);};
+    const limitsFailure = (error: unknown) => {if ((error as {code?: unknown} | null)?.code !== 'unknown_tag') reportActionError(error);};
     const profileDevices = profiles && identity.signIn === 'local' ? new ProfileDevicesSource(api, profiles, current) : undefined;
     const otherDeviceSignOut = profiles ? new ProfileOtherDeviceSignOut(api, profiles, current) : undefined;
     const offProfileFailures = profiles ? observeProfileFailures(profiles, current, reportError) : undefined;
@@ -415,14 +438,14 @@ export function SettingsEntry() {
         }, context.artwork), get serverName() {return buildContext.facts.serverName;}, get libraries() {return buildContext.facts.identity.libraries;}, subscribe: listener => subscribeFacts(buildContext, listener), memberResetCodes,
         // Only the owner may read and set stream limits on the rebuilt server.
         actor: {accountId: viewer.accountId, role}, ...(role === 'owner' ? {streamLimits: peopleStreamLimits} : {}),
-        invitations: new SettingsInvitations(api, current, api.baseUrl, viewer.serverId), signIn: identity.signIn, openHome, reportError,
+        invitations: new SettingsInvitations(api, current, api.baseUrl, viewer.serverId), signIn: identity.signIn, openHome, reportError: reportActionError,
         // owner-people 6/25: only the owner of a local-sign-in server adds accounts here (the server refuses anyone else).
         ...(role === 'owner' && identity.signIn === 'local' ? {addAccount: (input: NewDirectMember, signal: AbortSignal) => {assert(); return createDirectMember(api, input, signal);}} : {}),
         authority: {scope: {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId, sessionFamilyId: session.sessionFamilyId},
           isCurrent: current, subscribe: listener => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};}, onAuthorityChanged: openHome},
       } : undefined;
     let dashboard: DashboardBindings | undefined;
-    if (identity.primaryProfile === true && identity.capabilities?.manageServer && (role === 'owner' || role === 'admin')) {
+    if (route.scope === 'server' && (route.section === 'dashboard' || route.section === 'history') && identity.primaryProfile === true && identity.capabilities?.manageServer && (role === 'owner' || role === 'admin')) {
       const pending = route.section === 'history' ? historyContexts.get(context) : undefined;
       if (pending) historyContexts.delete(context);
       const carryInputs = [context, route.scope, route.section, !!snapshot, reportTimeZone, ...facts];
@@ -451,7 +474,7 @@ export function SettingsEntry() {
     const generalActions = route.section === 'general' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true;
     // The owner's Libraries page owns its own bounded directory read and scan
     // commands; the settings controller keeps the per-library panel only.
-    const libraries = route.section === 'libraries' && identity.primaryProfile === true && identity.capabilities?.manageServer === true && (role === 'owner' || role === 'admin')
+    const libraries = route.section === 'libraries' && identity.primaryProfile === true && identity.capabilities?.manageServer === true && role === 'owner'
       ? new LibraryManagementService({api: api, scope: libraryScope, queries: options.queries}) : undefined;
     // Storage & backups owns one bounded usage sweep shared by its drawn rows.
     const server = route.section === 'storage' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true ? createServerSettingsSurfaces({transport: api, serverId: viewer.serverId, isCurrent: current, openTarget: openSettingsRow,
@@ -472,7 +495,7 @@ export function SettingsEntry() {
     const signinStorage = route.section === 'signin' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true
       ? new SettingsStorageSource(api, current, reportError) : undefined;
     const segmentsBulk: ReadonlySet<string> = new Set(['segments.redetectAll', 'segments.retryFailed']);
-    const intros = route.section === 'segments' && identity.primaryProfile === true && identity.capabilities?.manageServer === true && (role === 'owner' || role === 'admin')
+    const intros = route.section === 'segments' && identity.primaryProfile === true && identity.capabilities?.manageServer === true && role === 'owner'
       ? new SegmentIntrosSource({api: api, isCurrent: current, reportError}) : undefined;
     const live = route.section === 'live' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true
       ? createOwnerSources({api: api, serverId: viewer.serverId, viewerId: options.viewerId,
@@ -485,14 +508,14 @@ export function SettingsEntry() {
     const source = createSettingsBindings(controller, options, identity, {openHome, signIn,
       special: (row, state, rowContext, openPanel) => {
         if ((row.id === 'segments.redetectAll' || row.id === 'segments.retryFailed') && intros) return <SegmentsBulkAction row={row} api={api} isCurrent={current} disabled={state.disabled} onDone={() => {void intros.load();}} />;
-        if (row.id === 'profile.devices' && profileDevices) return <ProfileDevices source={profileDevices} isCurrent={current} onFailure={reportError} signOut={context.signOut} />;
+        if (row.id === 'profile.devices' && profileDevices) return <ProfileDevices source={profileDevices} isCurrent={current} onFailure={reportActionError} signOut={context.signOut} />;
         if (row.id === 'profile.pinForgot' && profiles && identity.signIn === 'local') return <ProfileForgotPIN source={profiles} api={api} selectedFamilyId={() => context.session().sessionFamilyId} isCurrent={current} />;
-        if (row.id === 'profile.signOutElsewhere' && otherDeviceSignOut) return <ProfileOtherSignOut command={otherDeviceSignOut} isCurrent={current} disabled={state.disabled} onFailure={reportError} />;
+        if (row.id === 'profile.signOutElsewhere' && otherDeviceSignOut) return <ProfileOtherSignOut command={otherDeviceSignOut} isCurrent={current} disabled={state.disabled} onFailure={reportActionError} />;
         if (row.id === 'profile.signOut') return <ProfileSignOut serverName={buildContext.facts.identity.serverName} isCurrent={current} signOut={context.signOut} />;
         if (row.id === 'profile.hiddenLabels' && restrictions) return <SettingsStringList label={defaultI18n.t(row.label)} values={(profiles ? restrictionRow(restrictions, profiles, row.id)?.value as string[] | undefined : undefined) ?? []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => {void changeRestriction(restrictions, row.id, value)?.catch(limitsFailure);}} />;
         if (['remote.homeNets', 'remote.customAddresses', 'remote.trustedProxies'].includes(row.id)) return <SettingsStringList mono label={defaultI18n.t(row.label)} values={Array.isArray(state.value) ? state.value as string[] : []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => controller.change(row, value, rowContext)} />;
-        if (row.id === 'profile.picture' && profiles) return <ProfilePicture source={profiles} isCurrent={current} onFailure={reportError} />;
-        if (row.id === 'profile.delete' && profiles) return <ProfileDelete source={profiles} isCurrent={current} onFailure={reportError} />;
+        if (row.id === 'profile.picture' && profiles) return <ProfilePicture source={profiles} isCurrent={current} onFailure={reportActionError} />;
+        if (row.id === 'profile.delete' && profiles) return <ProfileDelete source={profiles} isCurrent={current} onFailure={reportActionError} />;
         if (row.id === 'quality.awayLimitChange') return <Button size="small" variant="glass" disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'streaming', row: 'streaming.awayQuality'});}}>{defaultI18n.t(row.control.label ?? row.label)}</Button>;
         // settings-signin: a link to another page is the accent text with its chevron, as every section link draws.
         if (row.id === 'signin.people') return <button type="button" className={serverStyles.sectionLink} disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'people'});}}>{defaultI18n.t(row.control.label ?? row.label)}<Icon name="i-right" size={16} /></button>;
@@ -501,21 +524,21 @@ export function SettingsEntry() {
         if (row.id === 'signin.dataFolder' && signinStorage) return <StorageDataFolder source={signinStorage} label={defaultI18n.t(row.label)} />;
         if (row.id === 'general.version' && updates) return <UpdatesCurrent source={updates} />;
         if (row.id === 'general.checkNow' && updates) return <UpdatesCheckNow source={updates} label={defaultI18n.t(row.control.label ?? row.label)} disabled={state.disabled === true} />;
-        if (row.id === 'general.pauseBackground' && generalActions) return <GeneralPause api={api} isCurrent={current} reportError={reportError} label={defaultI18n.t(row.control.label ?? row.label)}/>;
+        if (row.id === 'general.pauseBackground' && generalActions) return <GeneralPause api={api} isCurrent={current} reportError={reportActionError} label={defaultI18n.t(row.control.label ?? row.label)}/>;
         if ((['general.message', 'general.restart', 'general.pauseBackground'].includes(row.id)) && generalActions) {
           const label = defaultI18n.t(row.control.label ?? row.label);
           return row.id === 'general.message'
-            ? <GeneralMessage api={api} isCurrent={current} reportError={reportError} disabled={state.disabled === true} label={label} />
-            : <GeneralRestart api={api} isCurrent={current} reportError={reportError} disabled={state.disabled === true} label={label}
+            ? <GeneralMessage api={api} isCurrent={current} reportError={reportActionError} disabled={state.disabled === true} label={label} />
+            : <GeneralRestart api={api} isCurrent={current} reportError={reportActionError} disabled={state.disabled === true} label={label}
                 confirm={row.control.confirm ? defaultI18n.t(row.control.confirm) : undefined} />;
         }
-        if (['signin.switchToPortico', 'signin.startOverPortico'].includes(row.id) && signIn?.ownerSwitch) return <OwnerSignInSwitch source={signIn.ownerSwitch} startOver={row.id === 'signin.startOverPortico'} isCurrent={current} onError={reportError}/>;
-        if (['signin.switchToLocal', 'signin.startOverLocal'].includes(row.id) && signIn?.ownerSwitch) return <LocalMoveSwitch source={signIn.ownerSwitch} startOver={row.id === 'signin.startOverLocal'} isCurrent={current} onError={reportError}/>;
-        if (row.id === 'signin.changeOwner' && signIn?.ownerSwitch) return <ChangeOwner source={signIn.ownerSwitch} isCurrent={current} onError={reportError}/>;
-        if (row.id === 'signin.changeOwnerLocal' && signIn?.localOwnerTransfer) return <LocalChangeOwnerRow source={signIn.localOwnerTransfer} isCurrent={current} onError={reportError}/>;
-        if (row.id === 'profile.pinForget' && profiles) return <ProfileForgetDevices source={profiles} isCurrent={current} onFailure={reportError} />;
+        if (['signin.switchToPortico', 'signin.startOverPortico'].includes(row.id) && signIn?.ownerSwitch) return <OwnerSignInSwitch source={signIn.ownerSwitch} startOver={row.id === 'signin.startOverPortico'} isCurrent={current} onError={reportActionError}/>;
+        if (['signin.switchToLocal', 'signin.startOverLocal'].includes(row.id) && signIn?.ownerSwitch) return <LocalMoveSwitch source={signIn.ownerSwitch} startOver={row.id === 'signin.startOverLocal'} isCurrent={current} onError={reportActionError}/>;
+        if (row.id === 'signin.changeOwner' && signIn?.ownerSwitch) return <ChangeOwner source={signIn.ownerSwitch} isCurrent={current} onError={reportActionError}/>;
+        if (row.id === 'signin.changeOwnerLocal' && signIn?.localOwnerTransfer) return <LocalChangeOwnerRow source={signIn.localOwnerTransfer} isCurrent={current} onError={reportActionError}/>;
+        if (row.id === 'profile.pinForget' && profiles) return <ProfileForgetDevices source={profiles} isCurrent={current} onFailure={reportActionError} />;
         if (row.id === 'profile.pinChange' && profiles) return <Button size="small" variant="glass" disabled={state.disabled} onClick={() => openProfilePIN(false)}>{defaultI18n.t(row.control.label ?? row.label)}</Button>;
-        if (row.id === 'profile.list' && profiles) return <ProfileList source={profiles} isCurrent={current} onFailure={reportError} onSelect={() => {
+        if (row.id === 'profile.list' && profiles) return <ProfileList source={profiles} isCurrent={current} onFailure={reportActionError} onSelect={() => {
           requestAnimationFrame(() => {if (current()) document.getElementById('profile.name')?.querySelector<HTMLInputElement>('input')?.focus();});
         }} />;
         if (row.id === 'streaming.transcodeFolder' && hardware) return <TranscodeFolder label={defaultI18n.t(row.label)} value={typeof state.value === 'string' ? state.value : ''}
@@ -528,14 +551,14 @@ export function SettingsEntry() {
         if (privacyControl !== undefined) return privacyControl;
         const languageKind = preferredLanguageKind(row.id);
         if (languageKind) return <AudioSubtitleLanguageList row={row} state={state} locale={uiLocale} appLocale={appLocale}
-          onChange={value => {if (current()) controller.change(row, value, rowContext);}} onError={reportError} />;
+          onChange={value => {if (current()) controller.change(row, value, rowContext);}} onError={reportActionError} />;
         if (isSubtitlePreview(row.id)) {
           const value = (id: string) => controller.rowState(settingsRowIndex.get(id)!.row, rowContext).value;
           return <SubtitlePreview paint={subtitlePreviewPaint({size: value('audioSubtitles.subtitleSize'), color: value('audioSubtitles.subtitleColor'),
             background: value('audioSubtitles.subtitleBackground'), position: value('audioSubtitles.subtitlePosition')})}
             text={defaultI18n.t('next.settingsSpec.account.audio-subtitles.groups.2.rows.0.control.text')} />;
         }
-        if (row.id === 'device.remote') return <RemoteNowPlaying api={api} isCurrent={current} onFailure={reportError}/>;
+        if (row.id === 'device.remote') return <RemoteNowPlaying api={api} isCurrent={current} onFailure={reportActionError}/>;
         if (isDeviceSyntheticRow(row.id)) return <DeviceRowControl key={context.epoch} row={row} api={api} isCurrent={current} onSwitchServer={() => {if (current()) void router.navigate({to: '/servers'});}}/>;
         if (row.id === 'music.eq') return <MusicEqualizerRow platform={platform} isCurrent={current}/>;
         if (row.id === 'appearance.customizeHome') return <CustomizeHomeRow api={api} home={context.home} serverId={viewer.serverId} viewerId={options.viewerId} isCurrent={current}/>;
@@ -544,7 +567,7 @@ export function SettingsEntry() {
           return <RenameLibrary key={libraryId} name={state.value} disabled={state.disabled === true || state.saving === true} rename={name => controller.renameLibrary(libraryId, name)} />;
         }
         if (row.id === 'libraries.list' && libraries) return <LibrariesPanel api={api} service={libraries} serverName={buildContext.facts.identity.serverName} artwork={context.artwork}
-          onEdit={libraryId => { if (current()) openPanel('library', libraryId); }} onError={reportError} />;
+          onEdit={libraryId => { if (current()) openPanel('library', libraryId); }} onError={reportActionError} />;
         if (row.id === 'libraries.skipped' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries)
           return <SkippedFiles libraryId={rowContext.recordId} api={options.api} service={libraries} isCurrent={current} label={defaultI18n.t(row.control.label ?? row.label)} />;
         if (row.id === 'libraries.trashRule' && isLibraryPanelContext(rowContext) && rowContext.recordId)
@@ -553,23 +576,23 @@ export function SettingsEntry() {
           return <LibraryTrash key={rowContext.recordId} libraryId={rowContext.recordId} api={api} isCurrent={current} label={defaultI18n.t(row.control.label ?? row.label)} />;
         if (row.id === 'libraries.folders' && isLibraryPanelContext(rowContext) && rowContext.recordId) {
           return <LibraryFolders key={rowContext.recordId} libraryId={rowContext.recordId} api={options.api} service={controller.folders} snapshot={controller.folders.getSnapshot()} serverName={buildContext.facts.identity.serverName}
-            isCurrent={current} onError={reportError} />;
+            isCurrent={current} onError={reportActionError} />;
         }
         if (row.id === 'libraries.remove' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries && role === 'owner')
           return <RemoveLibraryButton key={rowContext.recordId} libraryId={rowContext.recordId} service={libraries} api={api}
-            label={defaultI18n.t(row.control.label ?? row.label)} onRemoved={() => {if (current()) {openPanel('');void libraries.loadLibraries().catch(reportError);}}} onError={reportError}/>;
+            label={defaultI18n.t(row.control.label ?? row.label)} onRemoved={() => {if (current()) {openPanel('');void libraries.loadLibraries().catch(reportActionError);}}} onError={reportActionError}/>;
         if (row.id === 'libraries.unmatched' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries) {
           const libraryId = rowContext.recordId;
           return <Button variant="glass" size="small" disabled={state.disabled === true} onClick={() => {
-            if (current()) void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {unmatched: true}}).catch(reportError);
+            if (current()) void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {unmatched: true}}).catch(reportActionError);
           }}>{defaultI18n.t(row.control.label ?? row.label)}</Button>;
         }
         if (row.id === 'libraries.fetchLyrics' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries && role === 'owner')
           return <LibraryLyricsAction key={rowContext.recordId} api={api} libraryId={rowContext.recordId} isCurrent={current}
             disabled={state.disabled === true || state.saving === true || controller.rowState(settingsRowIndex.get('libraries.lyrics')!.row, rowContext).value !== 'lrclib'}
-            label={defaultI18n.t(row.control.label ?? row.label)} onError={reportError}/>;
+            label={defaultI18n.t(row.control.label ?? row.label)} onError={reportActionError}/>;
         if (row.control.type === 'action' && libraryScanAction(row.id) && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries)
-          return <LibraryScanAction rowId={row.id} label={defaultI18n.t(row.control.label ?? row.label)} libraryId={rowContext.recordId} service={libraries} onError={reportError} />;
+          return <LibraryScanAction rowId={row.id} label={defaultI18n.t(row.control.label ?? row.label)} libraryId={rowContext.recordId} service={libraries} onError={reportActionError} />;
         return row.id === 'metadata.perLibrary' ? <Button variant="glass" size="small" onClick={() => openSettings('libraries')}>{defaultI18n.t(row.control.label ?? row.label)}</Button> : null;
       },
       section: (selected, _openPanel, renderRows) => selected.section.scope === 'account' && selected.section.id === 'profile' && profiles && securityCommands
@@ -579,16 +602,16 @@ export function SettingsEntry() {
         : selected.section.scope === 'server' && selected.section.id === 'signin'
         ? <SignInMoveWatch source={signIn?.ownerSwitch}>{move => <>
             {move && signIn?.ownerSwitch ? <MoveInProgress move={move} source={signIn.ownerSwitch} isCurrent={current}
-              onPeople={() => {if (current()) openSettingsRow({scope: 'server', section: 'people'});}} onError={reportError} /> : null}
+              onPeople={() => {if (current()) openSettingsRow({scope: 'server', section: 'people'});}} onError={reportActionError} /> : null}
             {renderRows(selected.section)}
           </>}</SignInMoveWatch>
         : selected.section.scope === 'server' && selected.section.id === 'remote'
-        ? remoteSettings ? <OwnerRemotePage source={remoteSettings} onConfirmed={() => {void controller.ownerSettingsChanged().catch(reportError);}} groups={renderRows({groups: selected.section.groups})} advanced={selected.section.advanced ? renderRows({advanced: selected.section.advanced}) : null}/> : null
+        ? remoteSettings ? <OwnerRemotePage source={remoteSettings} onConfirmed={() => {void controller.ownerSettingsChanged().catch(reportActionError);}} groups={renderRows({groups: selected.section.groups})} advanced={selected.section.advanced ? renderRows({advanced: selected.section.advanced}) : null}/> : null
         : selected.section.scope === 'server' && selected.section.id === 'metadata' && metadataCurrent() ? <MetadataSettingsPage api={api} isCurrent={metadataCurrent} onLibraries={() => openSettings('libraries')}
           recommendations={renderRows({groups: selected.section.groups?.filter(group => group.rows.some(row => row.id === 'metadata.titleDataset'))})}/> : selected.section.id === 'integrations' && integrationKeys && webhooks ? <IntegrationsPage api={api} source={integrationKeys} webhooks={webhooks} baseUrl={api.baseUrl} isCurrent={current} reportError={reportError}
         otherRows={renderRows({groups: selected.section.groups?.filter(group => !group.rows.some(row => ['integrations.apiKeys', 'integrations.webhooks', 'integrations.assistantAddress', 'integrations.assistantKey'].includes(row.id)))})}
-        advancedRows={renderRows({advanced: selected.section.advanced})} /> : selected.section.id === 'live' && live ? <OwnerSourcesPage source={live} tab={selected.pageTab} libraryChannels={<LibraryChannelsPage ports={channelPorts!}/>}/> : selected.section.id === 'remote-sources' ? <RemoteSourcesPage api={api} serverId={viewer.serverId} viewerId={options.viewerId} isCurrent={current} reportError={reportError} openSection={openSettings} /> : selected.section.id === 'segments' && intros ? <ServerIntros source={intros} artwork={context.artwork.foreground} onPreview={(libraryId, itemId, startSeconds) => {if (current()) void preview({libraryId, itemId, startSeconds}, previewLife.signal, current).catch(reportError);}} modeRows={renderRows({groups: selected.section.groups?.map(group => ({...group, rows: group.rows.filter(row => row.id === 'segments.mode')})).filter(group => group.rows.length)})}
-          advancedRows={renderRows({advanced: selected.section.advanced})} /> : selected.section.id === 'people' && people ? <MoveCodesPortProvider>{signIn?.ownerSwitch && <MoveCodesHost source={signIn.ownerSwitch} serverName={buildContext.facts.identity.serverName} isCurrent={current} onError={reportError}/>}<SignInMoveWatch source={signIn?.ownerSwitch}>{move => <PeopleScreen bindings={people} advancedRows={selected.section.advanced ? renderRows({advanced: selected.section.advanced}) : undefined} initialStatus={move ? 'waiting' : undefined}
+        advancedRows={renderRows({advanced: selected.section.advanced})} /> : selected.section.id === 'live' && live ? <OwnerSourcesPage source={live} tab={selected.pageTab} libraryChannels={<LibraryChannelsPage ports={channelPorts!}/>}/> : selected.section.id === 'remote-sources' ? <RemoteSourcesPage api={api} serverId={viewer.serverId} viewerId={options.viewerId} isCurrent={current} reportError={reportError} openSection={openSettings} /> : selected.section.id === 'segments' && intros ? <ServerIntros source={intros} artwork={context.artwork.foreground} onPreview={(libraryId, itemId, startSeconds) => {if (current()) void preview({libraryId, itemId, startSeconds}, previewLife.signal, current).catch(reportActionError);}} modeRows={renderRows({groups: selected.section.groups?.map(group => ({...group, rows: group.rows.filter(row => row.id === 'segments.mode')})).filter(group => group.rows.length)})}
+          advancedRows={renderRows({advanced: selected.section.advanced})} /> : selected.section.id === 'people' && people ? <MoveCodesPortProvider>{signIn?.ownerSwitch && <MoveCodesHost source={signIn.ownerSwitch} serverName={buildContext.facts.identity.serverName} isCurrent={current} onError={reportActionError}/>}<SignInMoveWatch source={signIn?.ownerSwitch}>{move => <PeopleScreen bindings={people} advancedRows={selected.section.advanced ? renderRows({advanced: selected.section.advanced}) : undefined} initialStatus={move ? 'waiting' : undefined}
               rowActions={person => person.status === 'waiting' ? <MoveCodeRowAction accountId={person.accountId} hasCode={person.hasMoveCode} /> : null} />}</SignInMoveWatch></MoveCodesPortProvider> : selected.section.id === 'dashboard' && dashboard ? <DashboardScreen bindings={dashboard} embedded /> : selected.section.id === 'history' && dashboard ? <HistoryScreen bindings={dashboard} embedded /> : selected.section.id === 'troubleshooting' ? troubleshooting?.render(troubleshooting.parts.has('logSettings') && <MessageOptions>{renderRows({groups:selected.section.advanced?.groups?.map(group=>({...group,rows:group.rows.filter(row=>['troubleshooting.logLevel','troubleshooting.detailLength','troubleshooting.keepLogs','troubleshooting.keepLogsByKind'].includes(row.id))})).filter(group=>group.rows.length)})}</MessageOptions>,selected.section.advanced?.groups?.flatMap(group=>group.rows).filter(row=>controller.rowState(row).changed).map(row=>defaultI18n.t(row.label))) : undefined,
     }, {identity: () => buildContext.facts.identity, subscribe: listener => subscribeFacts(buildContext, listener), getSnapshot: () => buildContext.facts});
     const deviceFacts = {get serverName() {return buildContext.facts.identity.serverName;}, linkTvAvailable: !!api, get serverVersion() {return buildContext.facts.identity.serverVersion;}};
@@ -606,14 +629,14 @@ export function SettingsEntry() {
         for(const listener of inputListeners)listener();
       },
       panelIntro: selected => selected.recordId && selected.tabId === 'metadata' && libraries ? <MetadataSource key={selected.recordId} libraryId={selected.recordId} api={api} isCurrent={current} /> : null,
-      panelHeader: (selected, title) => selected.recordId && libraries ? <LibraryHeader key={selected.recordId} libraryId={selected.recordId} name={title} rename={name => controller.renameLibrary(selected.recordId!, name)} service={libraries} artwork={context.artwork} onError={reportError}
+      panelHeader: (selected, title) => selected.recordId && libraries ? <LibraryHeader key={selected.recordId} libraryId={selected.recordId} name={title} rename={name => controller.renameLibrary(selected.recordId!, name)} service={libraries} artwork={context.artwork} onError={reportActionError}
         lyrics={{api: api, available: lyricsSourceIsLrclib(selected), isCurrent: current}} /> : null,
       subscribe: listener => {const off = source.subscribe(listener), offProfiles = profiles?.subscribe(listener), offLimits = restrictions?.subscribe(listener), offHardware = hardware?.subscribe(listener), offServer = server?.subscribe(listener), offRemote = remoteSettings?.subscribe(listener);return () => {off();offProfiles?.();offLimits?.();offHardware?.();offServer?.();offRemote?.();};},
       change: (row, value, selected) => {
         if (!current()) return;
         if (restrictions && isProfileRestriction(row.id)) {void changeRestriction(restrictions, row.id, value)?.catch(limitsFailure);return;}
         if (profiles && row.id === 'profile.pin' && typeof value === 'boolean') {openProfilePIN(!value);return;}
-        if (profiles && profileRow(row.id)) {void changeProfileSetting(profiles, row.id, value)?.catch(reportError);return;}
+        if (profiles && profileRow(row.id)) {void changeProfileSetting(profiles, row.id, value)?.catch(reportActionError);return;}
         source.change(row, value, selected);
       },
       // The Remote sources page owns its own checked source reads; the generic
@@ -703,25 +726,35 @@ export function SettingsEntry() {
       ...input,blocked:()=>inputActive || !!input.blocked?.(),
       subscribe:listener=>{const off=input.subscribe?.(listener),offInput=inputActivity.subscribe(listener);return()=>{off?.();offInput();};},
     })));
-    setFailure(false);setOwned({context, api, inputs, current, settings: publishedSettings, dashboard, profiles, profilePINCurrent, closeProfilePIN});
+    setFailure(false);setActionError(false);setOwned({context, api, inputs, current, settings: publishedSettings, dashboard, profiles, profilePINCurrent, closeProfilePIN});
     return () => {active = false;for(const interest of quietInterests)interest.dispose();inputListeners.clear();offPreferenceFence();pinRequest = undefined;lifetime.abort();setProfilePIN(held => held?.source === profiles ? undefined : held);profileDevices?.dispose();otherDeviceSignOut?.dispose();restrictions?.dispose();offProfileFailures?.();profiles?.dispose();previewLife.abort();signinStorage?.dispose();signIn?.dispose();memberResetCodes?.dispose();people?.invitations?.dispose();people?.client.dispose();for (const listener of authorityListeners) {try {listener();} catch { /* Retire the other captured readers too. */ }}authorityListeners.clear();dashboard?.dispose();libraries?.dispose();privacy.dispose();intros?.dispose();server?.dispose();troubleshooting?.dispose();live?.dispose();integrationKeys?.dispose();webhooks?.dispose();updates?.dispose();hardware?.dispose();remoteSettings?.dispose();controller.dispose();};
   // Each setup owns and retires exactly its own sources. No shared "latest"
   // slot participates in cleanup, including the owner's update reader.
-  }, [context, retry, routeScope, routeSection, hasPreferences, reportTimeZone,
+  }, [context, retry, unauthorized, routeScope, routeSection, hasPreferences, reportTimeZone,
     buildPrimary, buildAccount, buildServer, buildPeople, buildSignIn, buildKind, buildRole, buildServerId, buildAuthority, buildAccountId, buildProfileId]);
-  const selected = protectedContext && owned && sameBuildInputs(owned.inputs, inputs) && owned.current() ? owned : undefined;
-  if (!selected) return null;
+  if (!protectedContext || !context) return null;
+  if (unauthorized) {
+    const openMySettings = () => {void router.navigate({to: '/settings', search: () => ({scope: 'account', section: 'profile'})});};
+    const home = () => {void router.navigate({to: '/'});};
+    return <SettingsOwnerOnly serverName={context.facts.identity.serverName} openMySettings={openMySettings} home={home} />;
+  }
+  const selected = owned && sameBuildInputs(owned.inputs, inputs) && owned.current() ? owned : undefined;
+  if (!selected || !route) return null;
   const navigate = (next: Parameters<typeof SettingsScreen>[0]['route']) => {if (selected.current()) void router.navigate({to: '/settings', search: () => next});};
-  const settings = failure ? {...selected.settings, section: () => <SettingsPageFailure retry={() => {if (selected.current()) setRetry(value => value + 1);}} home={selected.settings.openHome} error={failure.error}
-    server={route.scope === 'server' ? {name: selected.settings.serverName, openMySettings: () => navigate({scope: 'account', section: 'profile'})} : undefined} />} : selected.settings;
+  const pageFailure = failure ? <SettingsPageFailure retry={() => {if (selected.current()) setRetry(value => value + 1);}} home={selected.settings.openHome} error={failure.error}
+    server={route.scope === 'server' ? {name: selected.settings.serverName, openMySettings: () => navigate({scope: 'account', section: 'profile'})} : undefined} /> : undefined;
+  const inlineErrorText = actionError ? ((actionError.error as {code?: unknown} | null)?.code === 'factor_setup_required'
+    ? defaultI18n.t('error.factorSetupRequired')
+    : defaultI18n.t('next.states.pageFailedBody')) : undefined;
+  const inlineError = inlineErrorText ? <p role="alert" className={serverStyles.backupFailure}>{inlineErrorText}</p> : undefined;
   // A URL that names its scope or section was a link to that page (a Dashboard
   // or storage alert), so the compact layout opens the page, not the list.
   const openDetail = typeof raw.scope === 'string' || typeof raw.section === 'string';
   return <><SecureAddressProvider api={selected.api} isCurrent={selected.current} active={route.scope === 'server' && route.section === 'signin' && selected.settings.role === 'owner'}>
-    <SettingsScreen bindings={settings} route={route} navigate={navigate} openDetail={openDetail} phoneLead={phoneLead(selected.context.facts.identity)} />
+    <SettingsScreen bindings={selected.settings} route={route} navigate={navigate} openDetail={openDetail} phoneLead={phoneLead(selected.context.facts.identity)} pageFailure={pageFailure} actionError={inlineError} />
   </SecureAddressProvider>
     {profilePIN && selected.profiles === profilePIN.source && <ProfilePINDialog key={JSON.stringify([profilePIN.target.id, profilePIN.remove])}
-      request={profilePIN} isCurrent={() => selected.profilePINCurrent(profilePIN) && selected.profiles === profilePIN.source && !!profilePIN.source.getSnapshot().document} onClose={() => selected.closeProfilePIN(profilePIN)} onFailure={() => {if (selected.profilePINCurrent(profilePIN)) setFailure({error: undefined});}} />}
+      request={profilePIN} isCurrent={() => selected.profilePINCurrent(profilePIN) && selected.profiles === profilePIN.source && !!profilePIN.source.getSnapshot().document} onClose={() => selected.closeProfilePIN(profilePIN)} onFailure={() => {if (selected.profilePINCurrent(profilePIN)) setActionError({error: undefined});}} />}
   </>;
 }
 

@@ -234,40 +234,42 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   };
   const pictureTarget = () => ({runtime: binding.runtime, snapshot, reportError: binding.reportError,
     isActive: () => current.current.binding.runtime === binding.runtime && current.current.expanded && !current.current.gestureActive});
+  const onKeydown = useRef<(event: KeyboardEvent) => void>(undefined);
+  onKeydown.current = (event: KeyboardEvent) => {
+    if (current.current.gestureActive) return;
+    if (!panel && !externalPanel && !more && !shortcuts && !stillWatching && !watchShortcutTarget(event.target)
+      && revealVideoControlsOnTab(event, chromeVisible, backwards => {reveal(); requestControlsFocus({backwards});})) return;
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || watchShortcutTarget(event.target) || panel || externalPanel || more || shortcuts) return;
+    if ((event.key === ' ' || event.key === 'Enter') && event.target instanceof Element && event.target.closest('button,a')) return;
+    const step = liveChrome ? null : watchStepIntent(current.current.binding.runtime, current.current.snapshot, event.key);
+    if (step) { event.preventDefault(); send(step); reveal(); return; }
+    let intent: WatchIntent | undefined;
+    const p = current.current.snapshot.presentation;
+    if (!p) return;
+    const key = event.key.toLowerCase(), enabled = (kind: string) => p.controls.includes(kind as never);
+    if (key === ' ' || key === 'k') { const kind = p.finished ? 'replay' : p.playing ? 'pause' : 'play'; if (enabled(kind)) intent = {kind}; }
+    else if (key === 'arrowleft' || key === 'j' || key === 'arrowright' || key === 'l') {
+      const back = key === 'arrowleft' || key === 'j', position = watchSeek(current.current.snapshot, p.positionSeconds + (back ? -binding.skips.back : binding.skips.forward));
+      if (position !== null) intent = {kind: 'seek', seconds: position};
+    } else if (!coarsePointer && (key === 'arrowup' || key === 'arrowdown') && enabled('volume')) intent = {kind: 'volume', volume: Math.min(1, Math.max(0, p.volume + (key === 'arrowup' ? .05 : -.05)))};
+    else if (!coarsePointer && key === 'm' && enabled('volume')) intent = {kind: 'mute'};
+    else if (event.shiftKey && (key === 'n' || key === 'p') && enabled(key === 'n' ? 'next' : 'previous')) intent = {kind: key === 'n' ? 'next' : 'previous'};
+    else if ((/^[0-9]$/.test(key) || key === 'home' || key === 'end') && enabled('seek')) {
+      const bounds = watchSeekBounds(current.current.snapshot);
+      if (bounds) intent = {kind: 'seek', seconds: key === 'home' ? bounds.start : key === 'end' ? bounds.end : bounds.start + (bounds.end - bounds.start) * Number(key) / 10};
+    } else if (key === 'f') { event.preventDefault(); toggleFullscreen(); reveal(); return; }
+    else if (key === 'i' && windowPort?.pictureInPicture) { event.preventDefault(); effect(windowPort.pictureInPicture.toggle); reveal(); return; }
+    else if (key === 'z' && windowPort?.fit) { event.preventDefault(); effect(windowPort.fit.toggle); reveal(); return; }
+    else if (key === '?') { event.preventDefault(); setShortcuts(true); reveal(); return; }
+    else if (key === 'escape') { event.preventDefault(); if (fullWindow) setFullWindow(false); else if (windowPort?.fullscreen?.active) effect(windowPort.fullscreen.toggle); else onCollapse(); return; }
+    if (intent) { event.preventDefault(); send(intent); reveal(); }
+  };
   useEffect(() => {
     if (!open) return;
-    const keydown = (event: KeyboardEvent) => {
-      if (current.current.gestureActive) return;
-      if (!panel && !externalPanel && !more && !shortcuts && !stillWatching && !watchShortcutTarget(event.target)
-        && revealVideoControlsOnTab(event, chromeVisible, backwards => {reveal(); requestControlsFocus({backwards});})) return;
-      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || watchShortcutTarget(event.target) || panel || externalPanel || more || shortcuts) return;
-      if ((event.key === ' ' || event.key === 'Enter') && event.target instanceof Element && event.target.closest('button,a')) return;
-      const step = liveChrome ? null : watchStepIntent(current.current.binding.runtime, current.current.snapshot, event.key);
-      if (step) { event.preventDefault(); send(step); reveal(); return; }
-      let intent: WatchIntent | undefined;
-      const p = current.current.snapshot.presentation;
-      if (!p) return;
-      const key = event.key.toLowerCase(), enabled = (kind: string) => p.controls.includes(kind as never);
-      if (key === ' ' || key === 'k') { const kind = p.finished ? 'replay' : p.playing ? 'pause' : 'play'; if (enabled(kind)) intent = {kind}; }
-      else if (key === 'arrowleft' || key === 'j' || key === 'arrowright' || key === 'l') {
-        const back = key === 'arrowleft' || key === 'j', position = watchSeek(current.current.snapshot, p.positionSeconds + (back ? -binding.skips.back : binding.skips.forward));
-        if (position !== null) intent = {kind: 'seek', seconds: position};
-      } else if (!coarsePointer && (key === 'arrowup' || key === 'arrowdown') && enabled('volume')) intent = {kind: 'volume', volume: Math.min(1, Math.max(0, p.volume + (key === 'arrowup' ? .05 : -.05)))};
-      else if (!coarsePointer && key === 'm' && enabled('volume')) intent = {kind: 'mute'};
-      else if (event.shiftKey && (key === 'n' || key === 'p') && enabled(key === 'n' ? 'next' : 'previous')) intent = {kind: key === 'n' ? 'next' : 'previous'};
-      else if ((/^[0-9]$/.test(key) || key === 'home' || key === 'end') && enabled('seek')) {
-        const bounds = watchSeekBounds(current.current.snapshot);
-        if (bounds) intent = {kind: 'seek', seconds: key === 'home' ? bounds.start : key === 'end' ? bounds.end : bounds.start + (bounds.end - bounds.start) * Number(key) / 10};
-      } else if (key === 'f') { event.preventDefault(); toggleFullscreen(); reveal(); return; }
-      else if (key === 'i' && windowPort?.pictureInPicture) { event.preventDefault(); effect(windowPort.pictureInPicture.toggle); reveal(); return; }
-      else if (key === 'z' && windowPort?.fit) { event.preventDefault(); effect(windowPort.fit.toggle); reveal(); return; }
-      else if (key === '?') { event.preventDefault(); setShortcuts(true); reveal(); return; }
-      else if (key === 'escape') { event.preventDefault(); if (fullWindow) setFullWindow(false); else if (windowPort?.fullscreen?.active) effect(windowPort.fullscreen.toggle); else onCollapse(); return; }
-      if (intent) { event.preventDefault(); send(intent); reveal(); }
-    };
+    const keydown = (event: KeyboardEvent) => onKeydown.current?.(event);
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  });
+  }, [open]);
   useLayoutEffect(() => {
     if (!controlsFocus || !chromeVisible) return;
     const controls = [...chrome.current?.querySelectorAll<HTMLElement>('button:not(:disabled),[role="slider"][tabindex="0"]') ?? []]
@@ -342,9 +344,13 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
     {!touchTablet && (portrait || !windowPort?.fullscreen || !mobile) && <PlayerControl tool icon="i-full" label={t('next.states.shortcut.fullscreen')} active={fullWindow || windowPort?.fullscreen?.active} onPress={toggleFullscreen} />}
   </>;
   const stillWatching = surfaces?.modal === 'still-watching';
-  useLayoutEffect(() => {gestureGate.current = valid && mobile && !panel && !externalPanel && !more && !shortcuts
-    && !liveGuideOpen && !scrubDrag.current && !stillWatching && !presentation?.finished && snapshot.playback.phase !== 'error';
-    if (!gestureGate.current) videoGesture?.port?.cancel();});
+  const gestureAllowed = valid && mobile && !panel && !externalPanel && !more && !shortcuts
+    && !liveGuideOpen && !scrub && !stillWatching && !presentation?.finished && snapshot.playback.phase !== 'error';
+  const gesturePort = videoGesture?.port;
+  useLayoutEffect(() => {
+    gestureGate.current = gestureAllowed && !scrubDrag.current;
+    if (!gestureGate.current) gesturePort?.cancel();
+  }, [gestureAllowed, gesturePort]);
   const admitGesture = videoGesture?.admit;
   useLayoutEffect(() => admitGesture?.(() => gestureGate.current), [admitGesture, binding, sourceKey]);
 

@@ -6,6 +6,7 @@ import {fromRange, joinIndir} from 'foliate-js/epubcfi.js';
 import {ReaderError, throwIfAborted} from '../errors.ts';
 import {watchReaderMotion} from '../motion-policy.ts';
 import {abortScope} from '../abort.ts';
+import {createNonceStyle} from '../style-nonce.ts';
 import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, ReaderMount,
   ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport, ReaderMark} from '../ports.ts';
 import {openEpubArchive, safeArchivePath} from './archive.ts';
@@ -380,7 +381,12 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
   renderer.setAttribute('portico-motion','');
   const surface=document.createElement('div');surface.style.cssText='position:relative;width:100%;height:100%;overflow:hidden;';
   renderer.style.cssText='display:block;position:absolute;left:0;right:0;width:100%;';
-  const urls={literata:URL.createObjectURL(options.fonts.literata),manrope:URL.createObjectURL(options.fonts.manrope)};
+  if(signal.aborted){scope.dispose();throw new ReaderError('closed');}
+  const literata=URL.createObjectURL(options.fonts.literata);
+  let manrope:string;
+  try{manrope=URL.createObjectURL(options.fonts.manrope);}
+  catch(error){releaseQuietly('epub font url revoke',()=>{URL.revokeObjectURL(literata);scope.dispose();});throw error;}
+  const urls={literata,manrope};
   let location:ReaderLocation|null=null,relocated:Relocate|undefined,preferences=mount.preferences,viewport=mount.viewport,dead=false;
   let motionWatch: ReturnType<typeof watchReaderMotion> | undefined;
   let cleanupDoc:()=>void=()=>{};
@@ -390,11 +396,7 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
   let marks:readonly ReaderMark[]=[];
   // The book's frame keeps the app's style policy, so a style the reader adds carries the app's
   // nonce, as the paginator's own styles do; without it the browser refuses the style.
-  const readerStyle=(doc:Document,css:string)=>{
-    const style=doc.createElement('style'),nonce=mount.container.ownerDocument.querySelector<HTMLMetaElement>('meta[name="portico-style-nonce"]')?.content;
-    if(nonce&&nonce!=='__PORTICO_STYLE_NONCE__')style.nonce=nonce;
-    style.textContent=css;return style;
-  };
+  const readerStyle=(doc:Document,css:string)=>createNonceStyle(doc,css,mount.container.ownerDocument);
   const drawMarks=(doc:Document,index:number)=>{
     const support=doc.defaultView as unknown as {CSS?:{highlights?:{set(name:string,value:unknown):void;delete(name:string):boolean}};Highlight?:new(...ranges:Range[])=>unknown}|null;
     if(!support?.CSS?.highlights||!support.Highlight)return;
@@ -499,9 +501,11 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
     try{renderer.destroy();}finally{surface.remove();URL.revokeObjectURL(urls.literata);URL.revokeObjectURL(urls.manrope);}};
   signal.addEventListener('abort',dispose,{once:true});
   let system: MediaQueryList | undefined;try{system=renderer.ownerDocument.defaultView?.matchMedia('(prefers-reduced-motion: reduce)');}catch{/* Unknown system policy reduces. */}
-  motionWatch=watchReaderMotion(mount.motion,system,value=>{if(!dead&&!signal.aborted)renderer.setReducedMotion(value);});
-  if(dead||signal.aborted){motionWatch.dispose();throw new ReaderError('closed');}
-  renderer.setReducedMotion(motionWatch.reduced());
+  try{
+    motionWatch=watchReaderMotion(mount.motion,system,value=>{if(!dead&&!signal.aborted)renderer.setReducedMotion(value);});
+    if(dead||signal.aborted){dispose();throw new ReaderError('closed');}
+    renderer.setReducedMotion(motionWatch.reduced());
+  }catch(error){releaseQuietly('epub mount dispose',dispose);throw error;}
   const view:ReaderView<P>={
     async navigate(target:ReaderNavigation,callerSignal) {
       current();const task=abortScope([signal,callerSignal]),active=task.signal;

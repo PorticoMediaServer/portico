@@ -1,5 +1,5 @@
 import {useCallback, useMemo, useSyncExternalStore, type ReactNode} from 'react';
-import {isReaderComicFormat, readerErrorCode, type ReaderController, type ReaderSnapshot} from '@portico/reader-core';
+import {isReaderComicFormat, readerErrorCode, type ReaderController, type ReaderLocation, type ReaderSnapshot} from '@portico/reader-core';
 import {ReaderFrame, type ReaderFrameProps} from '../../kit/frames';
 import {ReaderSurface, type ReaderSurfaceProps} from './ReaderSurface';
 import styles from '../../kit/reader/surface.module.css';
@@ -12,13 +12,15 @@ export type ReadReaderProps<P extends object> = ReaderSurfaceProps<P> & Readonly
   /** Approved shared loading/error states; raw engine messages are never displayed. */
   state?: (snapshot: ReaderSnapshot<P>) => ReactNode;
   onBack: () => void;
+  onBeforeTurn?: () => void;
+  onBeforeSeek?: (from: ReaderLocation) => void;
 }>;
 
 /** The page arrows sit 40-92 px from each edge (reader.module.css); text starts at the mock-up's 120 px inset.
  * A coarse pointer never draws them. */
 const turnClearance = (shown: boolean) => shown && !(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) ? 120 : undefined;
 /** The checked main controller is the single state and navigation owner for all formats. */
-export function ReadReader<P extends object>({controller, source, format, initialLocation, metadata, signal, authority, reportError, presentation, state, onBack, crease}: ReadReaderProps<P>) {
+export function ReadReader<P extends object>({controller, source, format, initialLocation, metadata, signal, authority, reportError, presentation, state, onBack, onBeforeTurn, onBeforeSeek, crease}: ReadReaderProps<P>) {
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const chrome = presentation(snapshot);
   const readActivity = useMemo(() => {
@@ -53,9 +55,16 @@ export function ReadReader<P extends object>({controller, source, format, initia
     }).catch(error => { const active = controller.getSnapshot();if (authority.isCurrent() && !signal?.aborted && active.sourceId === source.id && active.sourceRevision === source.revision) reportError(readerErrorCode(error)); });
   }, [authority, controller, reportError, signal, source.id, source.revision, readActivity]);
   const turn = useCallback((kind: 'next' | 'previous') => {
-    if (controller.getSnapshot().canTurnAtFit) navigate({kind});
-  }, [controller, navigate]);
-  const seek = useCallback((value: number) => navigate({kind: 'progression', value}), [navigate]);
+    if (controller.getSnapshot().canTurnAtFit) {
+      onBeforeTurn?.();
+      navigate({kind});
+    }
+  }, [controller, navigate, onBeforeTurn]);
+  const seek = useCallback((value: number) => {
+    const from = controller.getSnapshot().location;
+    if (from && Math.abs(from.progression - value) > 0.0001) onBeforeSeek?.(from);
+    navigate({kind: 'progression', value});
+  }, [controller, navigate, onBeforeSeek]);
   const currentPublication = !signal?.aborted && snapshot.sourceId === source.id && snapshot.sourceRevision === source.revision;
   const publicationReady = currentPublication && snapshot.status === 'ready';
   return <ReaderFrame {...chrome} title={metadata ? metadata.title : snapshot.metadata?.title} subtitle={metadata ? metadata.author : snapshot.metadata?.author}

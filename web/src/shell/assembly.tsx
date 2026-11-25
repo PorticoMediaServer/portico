@@ -49,7 +49,7 @@ export const assembleShellBindings: ShellAssembler = async context => {
   if (preparingStarts) resources.push(preparingStarts.dispose);
   const dispose = () => { if (!active) return; active = false; for (const cleanup of resources.splice(0).reverse()) { try { cleanup(); } catch { /* Continue fencing every other private owner. */ } } };
   try {
-  const listeners = new Set<() => void>(), retentionListeners = new Set<() => void>();
+  const listeners = new Set<() => void>(), busyListeners = new Set<() => void>(), retentionListeners = new Set<() => void>();
   // The player belongs to this session (server, profile, authority, epoch), never to the Home
   // document: deep links, search, library, item and person pages play when Home failed or never loaded.
   let playerResource: Readonly<{value: Player; dispose: () => void}> | undefined;
@@ -65,7 +65,7 @@ export const assembleShellBindings: ShellAssembler = async context => {
   if (preparingStarts) resources.push(preparingStarts.subscribePending(retentionChanged));
   const homeDisplay = createShellHomeDocument(context.freshness.hub, context.home);
   resources.push(homeDisplay.dispose);
-  resources.push(() => listeners.clear());
+  resources.push(() => {listeners.clear(); busyListeners.clear();});
   const currentHomeContext = () => {
     const document = context.home.getSnapshot().document; if (!document) throw new Error('home-document-required');
     return homeSelectionContext({serverId: viewer.serverId, authority, accountId: viewer.accountId, profileId: viewer.profileId, viewId: router.state.location.href}, document);
@@ -83,7 +83,17 @@ export const assembleShellBindings: ShellAssembler = async context => {
         isCurrent: current, settings: shellPlaybackSettings(currentPreferences)});
       owned.push(() => runtime.dispose());
       const playback = runtime.selectionPlayback(homeCurrent);
-      owned.push(runtime.subscribe(changed), runtime.onRetention(retentionChanged));
+      const playerDockVisible = () => current() && hasDock(runtime.getSnapshot());
+      const playerBusy = () => current() && runtime.getSnapshot().playback.intent === 'playing';
+      let lastDock = playerDockVisible(), lastBusy = playerBusy();
+      const runtimeChanged = () => {
+        const nextDock = playerDockVisible(), nextBusy = playerBusy();
+        const dockChanged = nextDock !== lastDock, busyChanged = nextBusy !== lastBusy;
+        lastDock = nextDock; lastBusy = nextBusy;
+        if (dockChanged) changed();
+        if (busyChanged && current()) {for (const listener of [...busyListeners]) listener();}
+      };
+      owned.push(runtime.subscribe(runtimeChanged), runtime.onRetention(retentionChanged));
       const binding: ShellPlaybackBinding = {runtime, artwork: context.artwork, environment: time, reportError: feedback.reportError,
         get skips() {return shellPlaybackSkips(currentPreferences(), runtime.getSnapshot().dock.local?.kind === 'audiobook');}};
       return {value: {runtime, playback, binding}, dispose: close};
@@ -153,7 +163,7 @@ export const assembleShellBindings: ShellAssembler = async context => {
     };
   };
   return {getBinding, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    busy: () => current() && currentPlayer()?.runtime.getSnapshot().playback.intent === 'playing', onBusy: listener => {listeners.add(listener);return () => {listeners.delete(listener);};},
+    busy: () => current() && currentPlayer()?.runtime.getSnapshot().playback.intent === 'playing', onBusy: listener => {busyListeners.add(listener);return () => {busyListeners.delete(listener);};},
     retainsMedia, onRetention: listener => {retentionListeners.add(listener); return () => {retentionListeners.delete(listener);};},
     dispose,
   };
