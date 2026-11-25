@@ -55,8 +55,8 @@ test('server sign-out finishes durable local removal and queues revocation in th
   const entry = (id: string): AppServerSession => ({signIn: 'local', connection: {
     version: '1', selectionId: id.padEnd(32, '_'), logicalOrigin: `https://${id}.test`, pin: {serverId: id, publicKey: 'p', fingerprint: 'f'},
     routes: {paired: [`https://${id}.test`]},
-    session: {accessToken: 'synthetic-' + id, expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z',
-      sessionFamilyId: 'family-' + id, tokenGeneration: '1', viewer: {serverId: id, authority: 'local', accountId: 'membership-' + id, profileId: 'main', role: 'member'}},
+    session: {accessToken: `session-${id}`, expiresAt: '2099-01-01T00:00:00Z', authorizationHorizon: '2099-02-01T00:00:00Z',
+      sessionFamilyId: `family-${id}`, tokenGeneration: '1', viewer: {serverId: id, authority: 'local', accountId: `membership-${id}`, profileId: 'main', role: 'member'}},
   }});
   let record: AppSessionRecord | undefined = {version: 1, revision: 1, servers: [entry('srv-1'), entry('srv-2')], selectedServerId: 'srv-1'};
   const sessions = new AppSessionStore({read: async () => structuredClone(record), change: async update => {record = structuredClone(update(structuredClone(record)));}});
@@ -70,8 +70,8 @@ test('server sign-out finishes durable local removal and queues revocation in th
     './app-log': {clearNativeAppLog: async () => {logCleared++;}},
     './session-revocation': {revokeInBackground: (connection: unknown, live: unknown) => {queued.push({record: connection, live}); return new Promise(() => {});}},
     '../../../../packages/client-core/src/route-connection': {
-      sessionRoute: (token: string) => token === 'synthetic-srv-1' ? liveRoute : undefined,
-      forgetSessionRoute: (token: string) => {forgotten.push(token);},
+      sessionRoute: (value: string) => value === 'session-srv-1' ? liveRoute : undefined,
+      forgetSessionRoute: (value: string) => {forgotten.push(value);},
     },
   };
   const {NativeAccounts} = await screenModule(new URL('../src-next/platform/accounts.ts', import.meta.url), new Proxy(modules, {get: (all, key: string) => all[key] ?? {}}));
@@ -80,7 +80,7 @@ test('server sign-out finishes durable local removal and queues revocation in th
     await owner.signOutServer('srv-1', 'family-srv-1');
     assert.deepEqual(record?.servers.map(value => value.connection.pin.serverId), ['srv-2']);
     assert.equal(logCleared, 1);
-    assert.deepEqual(forgotten, ['synthetic-srv-1']);
+    assert.deepEqual(forgotten, ['session-srv-1']);
     assert.equal(queued.length, 1);
     assert.equal(queued[0]!.live, liveRoute);
     assert.equal((queued[0]!.record as AppServerSession['connection']).session.sessionFamilyId, 'family-srv-1');
