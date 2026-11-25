@@ -140,7 +140,7 @@ function BrowsePage({header, hero, toolbar, grid, alphabet, filters, state, grid
       onContentSizeChange={scroll.onContentHeight && ((_width, height) => scroll.onContentHeight?.(height))}
       onScroll={scroll.onScroll as never} onScrollBeginDrag={scroll.onScrollBeginDrag} showsVerticalScrollIndicator={false}
       refreshControl={scroll.refresh ? <RefreshControl refreshing={scroll.refresh.refreshing} tintColor={theme.colors.text} onRefresh={scroll.refresh.onRefresh}/> : undefined}
-      contentContainerStyle={{paddingBottom: frame.bottomClear + (scroll.bottomInset ?? 0)}}>{!pinned && top}{rows}</Animated.ScrollView>
+      contentContainerStyle={{paddingBottom: form === 'phone' ? frame.bottomClear + (scroll.bottomInset ?? 0) : Math.max(frame.bottomClear, frameSpec.rhythm.bottomClear[form] + (scroll.bottomInset ?? 0))}}>{!pinned && top}{rows}</Animated.ScrollView>
     : scroller && !loading ? scroller(<>{!pinned && top}{rows}</>, {paddingBottom: frame.bottomClear})
     : <ScrollView style={{flex: 1}} scrollEnabled={!loading} contentContainerStyle={{paddingBottom: frame.bottomClear}}>{!pinned && top}{rows}</ScrollView>;
   const page = <View style={{flex: 1}}>

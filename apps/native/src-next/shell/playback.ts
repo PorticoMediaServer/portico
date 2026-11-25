@@ -12,6 +12,7 @@ import type {PlaybackSubject} from '../../../../packages/client-core/src/present
 import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../platform/playback/types';
 import {sameFence, type DockState, type DockTransition, type PlaybackDock, type PlaybackFence, type RemoteDock} from '../../../../packages/player-core/src';
 import {sameAuthority, type ShellAuthority} from './model';
+import type {NativeShellRoute} from './routes';
 import type {NativePlaybackStartFailure} from '../platform/playback/start-failure';
 import type {NativePlaybackCapacityWait} from '../platform/playback/capacity-retry';
 import type {NativeStartArtworkOffer} from '../platform/playback/start-presentation';
@@ -61,6 +62,12 @@ export function nativeShellBackTransition(dock: PlaybackDock, snapshot: Pick<Nat
   if (!sameAuthority(snapshot.authority, authority) || !snapshot.fence || !snapshot.dock.local?.expanded || !sameFence(snapshot.dock.local.fence, snapshot.fence)) return undefined;
   const video = snapshot.dock.local.kind === 'video' || snapshot.dock.local.kind === 'live';
   return isTV && video ? dock.close(snapshot.fence) : dock.collapse(snapshot.fence);
+}
+
+/** Touch routes whose full-screen controls (PIN keypad, reader, live channel, server switch)
+ * would be overlapped by the floating mini-player. Playback stays mounted while suppressed. */
+export function dockSuppressedForRoute(route: NativeShellRoute | undefined): boolean {
+  return route?.kind === 'profiles' || route?.kind === 'servers' || route?.kind === 'read' || route?.kind === 'channel';
 }
 export type NativeShellSurfaceProps = Readonly<{
   /** Window coordinates measured from the actual art slot; undefined until mounted/measured. */

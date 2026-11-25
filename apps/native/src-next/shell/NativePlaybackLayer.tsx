@@ -38,7 +38,7 @@ import {listeningNoticeKey} from '../../../../packages/client-core/src/audio-eff
 import {playbackIdentity} from '../../../../packages/client-core/src/presentation/kit-model';
 import type {NativeShellRuntime} from './runtime';
 import {authorityKey, sameAuthority, type ShellAuthority} from './model';
-import {nativeShellBackTransition, type NativeShellBounds, type NativeShellPlaybackAdapter, type NativeShellPlaybackSnapshot} from './playback';
+import {dockSuppressedForRoute, nativeShellBackTransition, type NativeShellBounds, type NativeShellPlaybackAdapter, type NativeShellPlaybackSnapshot} from './playback';
 import {watchSlotInHost, watchSlotIsCurrent} from './watch-slot-layout';
 import type {NativeExpandedVideoSlot, NativeWatchReader} from './watch-outlet';
 import {TVStartFailure} from './TVStartFailure';
@@ -70,6 +70,9 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
   const currentWindow = useRef(window), currentWatch = useRef(watch); currentWindow.current = window; currentWatch.current = watch;
   const local = snapshot.dock.local, docked = !!local && !local.expanded;
   const fence = snapshot.fence;
+  const navigation = runtime.navigation;
+  const navigationState = useSyncExternalStore(navigation?.subscribe ?? noListeningSubscribe, navigation?.getSnapshot ?? noListeningNavigation);
+  const dockSuppressed = !theme.isTV && (typeof dockSuppressedForRoute === 'function' ? dockSuppressedForRoute(navigationState?.route) : false);
   const [dockMeasurement, setDockMeasurement] = useState<Readonly<{fence: PlaybackFence; bounds: NativeShellBounds}>>();
   // A docked picture is only real at a slot measured for THIS fence. An old
   // slot or the full-window fallback must never stand in for current geometry.
@@ -77,8 +80,10 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
   // Only the current occupant's own video/live item has a picture. Audio and an
   // empty dock keep the SAME mounted Surface, ref and owner (unmounting disposes
   // the runtime), but they have no picture to paint, measure, produce or drag.
+  // Suppressed touch routes (PIN keypad, reader, live channel, server switch) also
+  // hide the docked picture while keeping the persistent Surface mounted.
   const pictureFence = fence && local && sameFence(local.fence, fence) && (local.kind === 'video' || local.kind === 'live')
-    && (!docked || dockSlot !== undefined) ? fence : undefined;
+    && (!docked || dockSlot !== undefined) && !(docked && dockSuppressed) ? fence : undefined;
   const [hostLayout, setHostLayout] = useState(0), hostLayoutNow = useRef(0);
   const host = useRef<View>(null), slot = useRef<NativeShellBounds | undefined>(undefined), slotRevision = useRef(0);
   const watchRevision = useRef(0), lastExpandedFrame = useRef<NativeShellBounds | undefined>(undefined);
@@ -100,8 +105,6 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
   // aborted when the page or the opening leaves, and renewed on return with fresh handlers.
   // It never keys on the output fence: a retry's own intentional new output must survive it,
   // and the core still fences the failed output it replaces.
-  const navigation = runtime.navigation;
-  const navigationState = useSyncExternalStore(navigation?.subscribe ?? noListeningSubscribe, navigation?.getSnapshot ?? noListeningNavigation);
   const listeningOpen = local?.expanded === true && (local.kind === 'music' || local.kind === 'audiobook');
   const returnedListening = useRef<PlaybackFence | undefined>(undefined);
   const listeningOpenRef = useRef(listeningOpen); listeningOpenRef.current = listeningOpen;
@@ -387,7 +390,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
       </GestureDetector>}
       <View pointerEvents="box-none" style={{position: 'absolute', inset: 0}}>
         {(!theme.isTV || !nowPlaying) && <DockHost testID={theme.isTV && fence ? focusTestID(tvFocusIds(authority).surface('playback'), JSON.stringify(fence)) : undefined} dock={adapter.dock} snapshot={snapshot.dock} presentation={{local: presentation,remote:remotePresentation}} castView={castView} morph={morph} onVideoSlot={onSlot} contentInset={contentInset}
-          visible={snapshot.pictureInPicture?.active !== true}
+          visible={snapshot.pictureInPicture?.active !== true && !dockSuppressed}
           tvExpanded={!!dockedLocal?.expanded} returningFromPlayer={!!fence && !!returnedListening.current && sameFence(fence, returnedListening.current)}
           onTVExpandedChange={open => {
             if (!fence) return;
@@ -396,12 +399,12 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
           }}
           onAction={command => {void action(command).catch(runtime.reportError);}}/>}
         {/* O-159: an accepted Play is drawn at once; the real dock replaces this in place. */}
-        {snapshot.starting && !snapshot.dock.local && !snapshot.retired && sameAuthority(snapshot.authority, authority) && <StartingDock key={snapshot.starting.key}
+        {!dockSuppressed && snapshot.starting && !snapshot.dock.local && !snapshot.retired && sameAuthority(snapshot.authority, authority) && <StartingDock key={snapshot.starting.key}
           title={snapshot.starting.display.title} icon={snapshot.starting.display.icon}
           reason={snapshot.starting.reason === 'channel_source' ? runtime.text.t('next.dock.channelSourceWaiting') : undefined}
           artwork={snapshot.starting.display.localArtwork ? {uri: snapshot.starting.display.localArtwork, cacheKey: snapshot.starting.display.localArtwork} : snapshot.starting.display.posterUrl ? runtime.artwork(snapshot.starting.display.posterUrl) : undefined}
           onStop={snapshot.starting.stop} frame={dockBarFrame(theme.isTV ? 'tv' : theme.platform, undefined, insets.bottom, contentInset)}/>}
-        {!nowPlaying && dockedLocal?.expanded !== true && snapshot.playback.listeningNotice && <NativeListeningNotice key={snapshot.playback.listeningNotice}
+        {!dockSuppressed && !nowPlaying && dockedLocal?.expanded !== true && snapshot.playback.listeningNotice && <NativeListeningNotice key={snapshot.playback.listeningNotice}
           notice={listeningNoticeKey(snapshot.playback.listeningNotice)} bottomOffset={insets.bottom + (theme.platform === 'web' ? 100 : theme.platform === 'tablet' ? 66 : 62) + 10}/>}
         {previewListening && <ListeningPagePreview occupant={previewListening} queue={snapshot.queue?.view ?? undefined} sidePane={!!(snapshot.queue?.view || lyricsOffered)} width={width} height={height} topInset={insets.top} bottomInset={insets.bottom}/>}
         {theme.isTV ? <TVListeningRoute value={listeningView} scope={authorityKey(authority)} onPresenceChange={onTVListeningPresenceChange}/> : listeningView && <AudioPlayerPage {...listeningView}/>}
