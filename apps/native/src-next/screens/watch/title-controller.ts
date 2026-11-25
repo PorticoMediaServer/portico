@@ -247,10 +247,10 @@ export class NativeTitleController {
   };
   markSeason = async (seasonId: string, watched: boolean): Promise<void> => {
     if (!this.current()) return;
-    const state = await getContainerState(this.options.api, 'season', seasonId);
     await setContainerState(this.options.api, 'season', seasonId, {watched});
     if (!this.current()) return;
     await this.workspace.refresh();
+    if (!this.current()) return;
     this.changed();
   };
   /** A page boundary uses the exact credit snapshot it rendered and the current route/session host. */

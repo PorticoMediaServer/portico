@@ -95,3 +95,26 @@ test('an episode route lands on that episode once its season lists it; a show ro
   assert.deepEqual(await page({id: 'e1', kind: 'episode'}, []), {start: undefined, entry: 'e2'}, 'until its season lists it, Play');
   assert.deepEqual(await page({id: 's1', kind: 'show'}), {start: undefined, entry: 'e2'}, 'a show enters its row on the next episode');
 });
+
+test('TV episode band shows resume progress and never puts directors or writers into Guest Stars when there are no guest stars', async () => {
+  let bandState: unknown = {episode: 'e1'};
+  const kit = {TitleFrame: 'TitleFrame', TitleSection: 'TitleSection', TitleDetails: 'TitleDetails', StateRow: 'StateRow', TVSeasonList: 'TVSeasonList', TVEpisodeShelf: 'TVEpisodeShelf'};
+  const customReact = {...react, useState: (initial: unknown) => initial === undefined && bandState ? [bandState, (next: unknown) => {bandState = next;}] : [initial, () => {}]};
+  const tv = {nextUp: 'e1', moreSeasons: () => {}, select: () => {}, focusEpisode: () => {}, play: () => {}, playSeason: () => {}, markSeason: () => {},
+    seasons: [{id: 'season-1', label: 'Season 1', current: true, complete: false, group: false}],
+    tiles: [{key: 'e1', title: 'Pilot', label: [], backdropFallback: false, onMore: () => {}}]};
+  const opened = {key: 'e1', title: 'Pilot', code: 'S1 E1', facts: [], synopsis: 'First.', primary: {icon: 'i-play', label: 'Resume', progress: 0.4, remaining: '20 min left', onPress: () => {}},
+    credits: [{kind: 'directors', label: 'Directed by', people: [{name: 'Jane Director'}]}, {kind: 'writers', label: 'Written by', people: [{name: 'John Writer'}]}],
+    close: {label: 'Close', onPress: () => {}}};
+  const {TitlePage} = await screenModule(new URL('../src-next/pages/tv/title/TitlePage.tsx', import.meta.url), {
+    react: customReact, '../../../../../../packages/i18n/src': {defaultI18n}, '../../../kit/overlays': {Menu: 'Menu'}, '../../../kit/artwork': {AmbientArt: 'AmbientArt'},
+    '../../../kit/frames': kit, '../../../kit/layout': {HeroMetadata: 'HeroMetadata', PosterRow: 'PosterRow'},
+    '../../shared/title/useTitle': {useTitle: () => ({...view, episodes: {list: {items: [], opened}, tv}})},
+  });
+  const page = TitlePage({back: () => {}, aboutLabel: 'About'}) as Node;
+  const frame = page.props.children.flat().find(child => (child as Node)?.type === 'TitleFrame') as Node;
+  const shelf = ((frame.props.seasons as {episodes: Node}).episodes.props as unknown as {band: any});
+  assert.deepEqual(shelf.band.state, {label: 'Resume, 20 min left', progress: 0.4});
+  assert.equal(shelf.band.guests, undefined);
+  assert.deepEqual(shelf.band.lines, [{label: 'Directed by', names: 'Jane Director'}, {label: 'Written by', names: 'John Writer'}]);
+});

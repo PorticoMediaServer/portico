@@ -9,7 +9,7 @@ import {presentError} from '../../../../../../packages/client-core/src/presentat
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import type {CollectionCardProps} from '../../../kit/cards';
-import type {EpisodeListProps, EpisodePlateProps, PageStateProps, PeopleSheetProps, TitleAction, TitleKicker, TitlePrimary, TitleDetailsProps, CastPerson} from '../../../kit/frames';
+import type {EpisodeCreditPerson, EpisodeListProps, EpisodePlateProps, PageStateProps, PeopleSheetProps, TitleAction, TitleKicker, TitlePrimary, TitleDetailsProps, CastPerson} from '../../../kit/frames';
 import type {PosterRowProps} from '../../../kit/layout';
 import type {SeasonSheetProps, SeasonSheetRow} from '../../../kit/layout/SeasonSheet';
 import type {NativeTitlePageLease} from '../../../screens/watch/title-controller';
@@ -26,6 +26,9 @@ export type TVTile = Readonly<{key: string; title: string; label: readonly FactP
   onMore: (anchor: React.RefObject<View | null>) => void}>;
 export type TVEpisodes = Readonly<{seasons: readonly TVSeason[]; tiles: readonly TVTile[]; nextUp?: string; select: (id: string) => void; focusEpisode: (key: string | undefined) => void; play: (key: string) => void;
   playSeason: (id: string) => void; markSeason: (id: string, watched: boolean) => void; moreSeasons: () => void}>;
+export type TitleEpisodeCredit = Readonly<{kind: 'guests' | 'directors' | 'writers'; label: string; people: readonly EpisodeCreditPerson[]}>;
+export type TitleEpisodePlateProps = Omit<EpisodePlateProps, 'credits'> & Readonly<{credits?: readonly TitleEpisodeCredit[]}>;
+export type TitleEpisodeListProps = Omit<EpisodeListProps, 'opened'> & Readonly<{opened?: Readonly<{key: string}> & TitleEpisodePlateProps}>;
 export type TitleView = Readonly<{
   retired: boolean;
   entry: ContentEntry;
@@ -49,7 +52,7 @@ export type TitleView = Readonly<{
   people: PeopleSheetProps;
   /** A show (or a season or episode page): the season bar, the season's episodes with the opened one, the season sheet. */
   episodes?: Readonly<{bar: Readonly<{label: string; count?: string; onSeasons: () => void; hideWatched: boolean; onHideWatched: (value: boolean) => void; settings?: Readonly<{label: string}>}>;
-    list: EpisodeListProps; sheet: SeasonSheetProps;
+    list: TitleEpisodeListProps; sheet: SeasonSheetProps;
     /** TV (detail-tv-5a, 5b): the season column chooses a season as focus reaches it (no sheet), the band describes the
      * episode in focus (the plate in `list.opened`), OK on a tile plays it, and Hold OK on a season offers its options. */
     tv: TVEpisodes}>;
@@ -109,12 +112,21 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
   const action = detail?.actions.find(value => value.enabled && value.playback && value.id !== 'start_over');
   // A show plays its next episode, named on the button ("Play S1 E1", phone-detail d2).
   // A show watched to the end has no next episode; Play starts it again from the first in the list (Plex), the episode the
-  // controller's play falls back to.
-  const nextUp = show ? workspace?.nextUp : undefined, again = show && !nextUp ? workspace?.episodes?.sections[0]?.entries[0] : undefined;
-  const code = nextUp ?? again ? episodeLabel(numbering((nextUp ?? again)!), 'player', text)?.text : undefined;
-  const playback = action?.playback ?? nextUp?.playback ?? again?.playback ?? entry.playback;
-  const progressSeconds = nextUp ? nextUp.progressSeconds : detail?.personal.progressSeconds ?? entry.progressSeconds;
-  const playDuration = nextUp ? nextUp.duration : duration;
+  // controller's play falls back to. An episode's own route always plays that episode, never the show's nextUp.
+  const nextUp = show ? workspace?.nextUp : undefined;
+  const heroNextUp = entry.kind === 'episode' ? undefined : nextUp;
+  const again = show && entry.kind !== 'episode' && !heroNextUp ? workspace?.episodes?.sections[0]?.entries[0] : undefined;
+  const episodeTarget = entry.kind === 'episode' ? {
+    ...entry,
+    seasonNumber: entry.seasonNumber ?? detail?.item.episode?.seasonNumber ?? undefined,
+    episodeNumber: entry.episodeNumber ?? detail?.item.episode?.number,
+    airDate: entry.airDate ?? detail?.item.episode?.airDate,
+  } : undefined;
+  const codeTarget = episodeTarget ?? heroNextUp ?? again;
+  const code = codeTarget ? episodeLabel(numbering(codeTarget), 'player', text)?.text : undefined;
+  const playback = action?.playback ?? heroNextUp?.playback ?? again?.playback ?? entry.playback;
+  const progressSeconds = heroNextUp ? heroNextUp.progressSeconds : detail?.personal.progressSeconds ?? entry.progressSeconds;
+  const playDuration = heroNextUp ? heroNextUp.duration : duration;
   const resuming = !!playback?.startSeconds && (progressSeconds ?? 0) > 0 && !!playDuration;
   const startOver = detail?.actions.some(value => value.id === 'start_over' && value.enabled && value.playback);
   const foreground = props.artwork(backdrop);
@@ -296,11 +308,12 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
     };
   }
   /** The opened episode (phone-detail d2 frame 4): its own detail read by the controller, the row's words meanwhile. */
-  function episodePlate(episode: ContentEntry, showInfo: Readonly<{id: string; title: string; libraryId: string}>): EpisodePlateProps {
+  function episodePlate(episode: ContentEntry, showInfo: Readonly<{id: string; title: string; libraryId: string}>): TitleEpisodePlateProps {
     const data = openEpisode.data, personal = data?.personal, episodeCredits = data?.metadata.credits ?? [];
     const of = (list: readonly string[]) => [...new Set(episodeCredits.filter(credit => list.includes(credit.department.toLowerCase())).map(credit => credit.name))];
     const guests = episodeCredits.filter(credit => ['acting', 'cast'].includes(credit.department.toLowerCase()));
-    const length = (data?.item.duration ?? episode.duration) !== undefined ? durationText(data?.item.duration ?? episode.duration!, t) : undefined;
+    const episodeDuration = data?.item.duration ?? episode.duration;
+    const length = episodeDuration !== undefined ? durationText(episodeDuration, t) : undefined;
     const airDate = episode.airDate ?? data?.item.episode?.airDate, rating = data?.facts?.contentRating ?? episode.contentRating;
     const watchedNow = personal?.watched ?? episode.watched, progressNow = personal?.progressSeconds ?? episode.progressSeconds ?? 0, resume = progressNow > 0 && !watchedNow;
     const neighbour = (value: Readonly<{id: string; number: number; title: string}> | undefined, direction: 'previous' | 'next') => value ? {
@@ -319,7 +332,10 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
         ...(length ? [{id: 'length', text: length, role: 'context' as const}] : []), ...(rating ? [{id: 'content-rating', text: rating, role: 'context' as const}] : [])],
       synopsis: data?.item.overview ?? episode.overview,
       primary: {icon: 'i-play', label: t(resume ? 'entry.resume' : 'entry.play'), onPress: () => {void controller.episode.play().catch(fail);},
-        ...(resume ? {startOver: {label: t('action.startOver'), onPress: () => {void controller.episode.play(true).catch(fail);}}} : {})},
+        ...(resume ? {
+          ...(episodeDuration ? {progress: Math.min(1, progressNow / episodeDuration), remaining: t('next.kit.remaining', {time: durationText(Math.max(0, episodeDuration - progressNow), text.t)})} : {}),
+          startOver: {label: t('action.startOver'), onPress: () => {void controller.episode.play(true).catch(fail);}},
+        } : {})},
       actions: [...(data?.actions.some(value => value.id === 'watchlist' && value.enabled) ? [{icon: personal?.watchlisted ? 'i-check' as const : 'i-plus' as const,
         label: t(personal?.watchlisted ? 'entry.removeFromWatchlist' : 'entry.addToWatchlist'), active: !!personal?.watchlisted,
         testID: 'watch-episode-watchlist', onPress: () => {void controller.episode.personal({action: 'watchlist', value: !personal?.watchlisted}).catch(fail);}}] : []),
@@ -327,10 +343,10 @@ export function useTitle(props: NativeTitleScreenProps): TitleView {
           onPress: () => props.download!(episode)}] : []),
         {icon: 'i-more' as const, label: t('card.more', {title: episode.displayTitle ?? episode.title}), testID: 'watch-episode-more',
           onPress: () => props.more(episode)}],
-      credits: [...(guests.length ? [{label: t('next.watch.guestStars'), people: guests.map(credit => ({name: credit.name, ...(credit.role ? {role: t('next.watch.asCharacter', {character: credit.role})} : {}),
+      credits: [...(guests.length ? [{kind: 'guests' as const, label: t('next.watch.guestStars'), people: guests.map(credit => ({name: credit.name, ...(credit.role ? {role: t('next.watch.asCharacter', {character: credit.role})} : {}),
         ...(credit.personId && props.person ? {onPress: () => props.person!(credit.personId!)} : {})}))}] : []),
-        ...(of(['directing', 'director', 'direction']).length ? [{label: t('title.directedBy', {names: ''}).trim(), people: of(['directing', 'director', 'direction']).map(name => ({name}))}] : []),
-        ...(of(['writing', 'writer', 'writers']).length ? [{label: t('title.writtenBy', {names: ''}).trim(), people: of(['writing', 'writer', 'writers']).map(name => ({name}))}] : [])],
+        ...(of(['directing', 'director', 'direction']).length ? [{kind: 'directors' as const, label: t('title.directedBy', {names: ''}).trim(), people: of(['directing', 'director', 'direction']).map(name => ({name}))}] : []),
+        ...(of(['writing', 'writer', 'writers']).length ? [{kind: 'writers' as const, label: t('title.writtenBy', {names: ''}).trim(), people: of(['writing', 'writer', 'writers']).map(name => ({name}))}] : [])],
       showAll: count => t('shelf.seeAllCount', {count}),
       previous: inList(-1) ?? neighbour(data?.episodeDetails?.previous, 'previous'), next: inList(1) ?? neighbour(data?.episodeDetails?.next, 'next'),
       close: {label: t('action.close'), onPress: () => {revealFor.current = undefined; controller.episode.close();}}, reveal: revealFor.current === episode.id,

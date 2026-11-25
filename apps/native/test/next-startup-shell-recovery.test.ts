@@ -13,7 +13,7 @@ class SignInEnded extends Error {hint = {serverId: 'server', familyId: 'family'}
 class IdentityFailure extends Error {}
 const initialViewer = {session: {sessionFamilyId: 'family', viewer: {serverId: 'server', accountId: 'account', profileId: 'profile'}}};
 
-async function shell(read: (call: RestoreCall, index: number) => Promise<unknown>) {
+async function shell(read: (call: RestoreCall, index: number) => Promise<unknown>, overrides: Record<string, unknown> = {}) {
   const paths = new Set<(value: boolean | undefined) => void>(), foreground = new Set<(value: string) => void>(), selections = new Set<() => void>(), links = new Set<() => void>();
   const calls: RestoreCall[] = [], errors: unknown[] = [], focus: number[] = [];
   let online: boolean | undefined = true, viewer = initialViewer, fallbacks = 0;
@@ -26,7 +26,9 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     '../kit/states': {DownloadsStillPlay: 'DownloadsStillPlay', StateView: 'StateView', StateLayout: 'StateLayout'}, '../kit/artwork': {StandardBackdrop: 'StandardBackdrop', CoverFan: 'CoverFan'},
     '../kit/controls': {Focusable: 'Focusable'}, '../kit/overlays/TVDesignCanvas': {TVDesignCanvas: 'TVDesignCanvas'}, '../kit/Icon': {Icon: 'Icon'},
     '../kit/theme': {useTheme: () => ({platform: 'phone', isTV: false, colors: {ink: '#071018'}, type: {}})},
-    '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({category: 'unreachable', action: 'try-again', title: 'Unavailable', body: 'Unavailable'})},
+    '../../../../packages/client-core/src/presentation/errors': {presentError: (err?: {code?: string}) => err?.code === 'records_unreadable'
+      ? {category: 'unknown', action: 'try-again', actionLabel: 'Try again', title: 'Unreadable', body: 'Unreadable'}
+      : {category: 'unreachable', action: 'try-again', title: 'Unavailable', body: 'Unavailable'}},
     '../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
     '../platform/server-connections': {deviceOnline: () => online, onNetworkChange: (listener: (value: boolean | undefined) => void) => {paths.add(listener); return () => {paths.delete(listener);};}},
     '../platform/invitation-links': {nativeInvitationLinks: {getSnapshot: () => incoming,
@@ -38,7 +40,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     './remembered-downloads-opening': {createRememberedDownloadsOpening: async () => {fallbacks++; return undefined;}},
     './NativeShell': {NativeShell: 'NativeShell'}, './StartupBoot': {StartupBoot: 'StartupBoot'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './startup-recovery': startupRecovery,
     './SecureRecordsRecovery': {SecureRecordsRecovery: 'SecureRecordsRecovery'}, '../platform/boot-host': {takeLaunchStartedAt: (now = Date.now()) => now},
-    '../platform/accounts': {nativeAccounts: {snapshot: async () => ({servers: []}), onSettled: () => () => {}, onFence: () => () => {}}},
+    '../platform/accounts': {nativeAccounts: {snapshot: async () => ({servers: []}), onSettled: () => () => {}, onFence: () => () => {}, forgetServer: async () => {}}},
     '../platform/app-session-storage': {readNativeSelectedViewer: async () => viewer, subscribeNativeAppSessions: (listener: () => void) => {selections.add(listener); return () => {selections.delete(listener);};}},
     '../platform/sign-in-ended': {NativeSignInEnded: SignInEnded}, '../platform/identity-failure': {NativeIdentityFailure: IdentityFailure},
     '../platform/home-action-diagnostics': {homeActionDiagnostics: {error: (_: string, error: unknown) => {errors.push(error);}, lifetime() {}}},
@@ -48,6 +50,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     './settings-appearance': {NativeSettingsAppearance: 'NativeSettingsAppearance'},
     '../pages/touch/downloads/RememberedDownloadsPage': {RememberedDownloadsPage: 'RememberedDownloadsScreen', RememberedDownloadsShortcut: 'RememberedDownloadsShortcut'},
     '../screens/downloads/presentation': {downloadEntryIdentity: () => ''},
+    ...overrides,
   });
   let tree: any;
   const host = createFabricHookHost(() => {tree = RestoredShell();});
@@ -134,5 +137,161 @@ test(`${terminal} failures bypass quiet network retry and preserve their specifi
     await act(() => {f.network(false); f.network(true); f.foreground('background'); f.foreground('active'); t.mock.timers.tick(180_000);});
     assert.equal(f.calls.length, 1);
     if (terminal === 'lost-records') assert.equal(f.fallbacks(), 0, 'lost records never open an ordinary downloads fallback');
+  } finally {await f.host.unmount();}
+});
+
+test('cold-launch offline settles once without immediate resume or shell bypass, and retry respects the profile gate', async t => {
+  t.mock.timers.enable({apis: ['setTimeout', 'Date'], now: 0});
+  let state: {kind: string} = {kind: 'starting'};
+  let starts = 0, resumes = 0;
+  const listeners = new Set<() => void>();
+  const setLifecycleState = (next: {kind: string}) => {state = next; for (const listener of [...listeners]) listener();};
+  const lifecycle = {
+    start() {starts++; if (state.kind === 'starting') queueMicrotask(() => setLifecycleState({kind: 'offline'}));},
+    resume() {resumes++; setLifecycleState({kind: 'choosingProfile'});},
+    report() {},
+    subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};},
+    getSnapshot: () => ({generation: 0, state}),
+  };
+  const lifecycleSettled = (life: typeof lifecycle) => new Promise<{kind: string}>(resolve => {
+    const check = () => {
+      const s = life.getSnapshot().state;
+      if (s.kind === 'starting' || s.kind === 'connecting') return;
+      off(); resolve(s);
+    };
+    const off = life.subscribe(check);
+    check();
+  });
+  const f = await shell(async () => {throw new Error('must not bypass lifecycle');}, {
+    '../platform/native-session-lifecycle': {
+      nativeSessionLifecycle: () => ({lifecycle, ports: {lendInstallation() {}, adopt: () => undefined}}),
+      lifecycleSettled,
+      choosingProfile: (value: {kind: string}) => value.kind === 'choosingProfile' || value.kind === 'enteringPin',
+    },
+  });
+  try {
+    assert.equal(starts, 1);
+    assert.equal(resumes, 0, 'cold launch offline does not immediately call lifecycle.resume()');
+    assert.equal(f.calls.length, 0, 'offline never falls through to restoreNativeShellRuntime');
+    await act(() => t.mock.timers.tick(2_000));
+    assert.equal(resumes, 1, 'scheduled retry calls lifecycle.resume() once');
+    assert.equal(f.calls.length, 0, 'choosingProfile throws NativeProfileChoice instead of bypassing the gate');
+    assert.equal(typeof f.content().type, 'function', 'renders ProfileGateHost');
+  } finally {await f.host.unmount();}
+});
+
+test('recordsLost and recordsUnreadable are handled directly without falling through to bootstrap', async t => {
+  t.mock.timers.enable({apis: ['setTimeout', 'Date'], now: 0});
+  for (const kind of ['recordsLost', 'recordsUnreadable'] as const) {
+    let state: {kind: string} = {kind: 'starting'};
+    let resumes = 0;
+    const listeners = new Set<() => void>();
+    const setLifecycleState = (next: {kind: string}) => {state = next; for (const listener of [...listeners]) listener();};
+    const lifecycle = {
+      start() {if (state.kind === 'starting') queueMicrotask(() => setLifecycleState({kind}));},
+      resume() {resumes++; setLifecycleState({kind: 'signedOut'});},
+      report() {},
+      subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};},
+      getSnapshot: () => ({generation: 0, state}),
+    };
+    const lifecycleSettled = (life: typeof lifecycle) => new Promise<{kind: string}>(resolve => {
+      const check = () => {
+        const s = life.getSnapshot().state;
+        if (s.kind === 'starting' || s.kind === 'connecting') return;
+        off(); resolve(s);
+      };
+      const off = life.subscribe(check);
+      check();
+    });
+    const f = await shell(async () => undefined, {
+      '../platform/native-session-lifecycle': {
+        nativeSessionLifecycle: () => ({lifecycle, ports: {lendInstallation() {}, adopt: () => undefined}}),
+        lifecycleSettled,
+        choosingProfile: (value: {kind: string}) => value.kind === 'choosingProfile' || value.kind === 'enteringPin',
+      },
+    });
+    try {
+      assert.equal(resumes, 0, `${kind}: cold launch does not immediately call resume`);
+      assert.equal(f.calls.length, 0, `${kind}: does not fall through to restoreNativeShellRuntime`);
+      if (kind === 'recordsLost') {
+        assert.equal(f.content().type, 'SecureRecordsRecovery');
+        assert.equal(f.fallbacks(), 0);
+      } else {
+        assert.equal(f.content().props.children.props.children.type, 'StateLayout');
+        await act(() => f.content().props.children.props.children.props.primaryAction.onPress());
+        assert.equal(resumes, 1, 'Try again on recordsUnreadable restarts and calls lifecycle.resume()');
+      }
+    } finally {await f.host.unmount();}
+  }
+});
+
+test('ProfileGateHost waits while connecting after NativeProfileMoved instead of immediately restarting', async t => {
+  t.mock.timers.enable({apis: ['setTimeout', 'Date'], now: 0});
+  class ProfileMoved extends Error {viewer = {accountId: 'a', profileId: 'p2', role: 'member', familyId: 'f1'};}
+  let state: {kind: string} = {kind: 'signedOut'};
+  const listeners = new Set<() => void>();
+  const setLifecycleState = (next: {kind: string}) => {state = next; for (const listener of [...listeners]) listener();};
+  const lifecycle = {
+    start() {},
+    resume() {},
+    report(event: {type: string}) {if (event.type === 'profileMoved') setLifecycleState({kind: 'connecting'});},
+    subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};},
+    getSnapshot: () => ({generation: 0, state}),
+  };
+  const runtime = {dispose() {}};
+  const f = await shell(async () => runtime, {
+    '../platform/native-session-lifecycle': {
+      nativeSessionLifecycle: () => ({lifecycle, ports: {lendInstallation() {}, adopt: () => undefined}}),
+      lifecycleSettled: async () => state,
+      choosingProfile: (value: {kind: string}) => value.kind === 'choosingProfile' || value.kind === 'enteringPin',
+    },
+    '../platform/session-lifecycle-native': {
+      NativeProfileGated: class extends Error {},
+      NativeProfileMoved: ProfileMoved,
+      nativeProfileGated: () => false,
+    },
+  });
+  try {
+    assert.equal(f.calls.length, 1);
+    await act(() => f.calls[0]!.onAuthorityEnded(new ProfileMoved()));
+    // Render ProfileGateHost once while lifecycle is `connecting`
+    let gateTree: any;
+    const Gate = f.content().type;
+    const gateProps = f.content().props;
+    const gateHost = createFabricHookHost(() => {gateTree = Gate(gateProps);});
+    await act(() => gateHost.mount());
+    try {
+      assert.equal(gateTree, null);
+      assert.equal(f.calls.length, 1, 'ProfileGateHost must wait during connecting and not restart');
+      await act(() => setLifecycleState({kind: 'choosingProfile'}));
+      assert.equal(f.calls.length, 1, 'stays mounted while choosingProfile');
+      await act(() => setLifecycleState({kind: 'signedOut'}));
+      assert.equal(f.calls.length, 2, 'hands over once settled out of connecting/choosingProfile');
+    } finally {await gateHost.unmount();}
+  } finally {await f.host.unmount();}
+});
+
+test('ServerIdentityFailurePage onForget clears stale error so ServersRoute has no Back to the forgotten server', async t => {
+  t.mock.timers.enable({apis: ['setTimeout', 'Date'], now: 0});
+  const forgotten: unknown[] = [];
+  const err = Object.assign(new IdentityFailure(), {server: {serverId: 's1', familyId: 'f1', fingerprint: 'fp'}});
+  const f = await shell(async () => {throw err;}, {
+    '../platform/accounts': {nativeAccounts: {
+      snapshot: async () => ({servers: []}),
+      onSettled: () => () => {},
+      onFence: () => () => {},
+      forgetServer: async (server: unknown) => {forgotten.push(server);},
+    }},
+  });
+  try {
+    assert.equal(f.content().type, 'ServerIdentityFailure');
+    const page = f.content();
+    await act(async () => {
+      await page.props.onForget();
+      page.props.onChoose();
+    });
+    assert.deepEqual(forgotten, [err.server]);
+    assert.equal(f.content().type, 'ServersRoute');
+    assert.equal(f.content().props.onBack, undefined, 'ServersRoute must not offer Back to the forgotten server');
   } finally {await f.host.unmount();}
 });

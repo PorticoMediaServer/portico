@@ -86,6 +86,7 @@ const cases: readonly Case[] = [
     state: {kind: 'choosingServer'}},
   {name: 'row 37: saved sign-ins unreadable twice → recordsUnreadable', row: 37, from: snap({kind: 'starting'}), event: {type: 'recordsRead', outcome: 'unreadable', servers: 0}, state: {kind: 'recordsUnreadable'}},
   {name: 'row 38: Try again reads the saved sign-ins again', row: 38, from: snap({kind: 'recordsUnreadable'}), event: {type: 'retry'}, state: {kind: 'starting'}, effects: [{kind: 'readRecords'}]},
+  {name: 'row 38: Try again on recordsLost reads the saved sign-ins again', row: 38, from: snap({kind: 'recordsLost'}), event: {type: 'retry'}, state: {kind: 'starting'}, effects: [{kind: 'readRecords'}]},
   {name: 'row 3: key lost → recordsLost', row: 3, from: snap({kind: 'starting'}), event: {type: 'recordsRead', outcome: 'lost', servers: 0}, state: {kind: 'recordsLost'}},
   {name: 'row 4: system reset the records → signedOut with the one-time notice', row: 4, from: snap({kind: 'starting'}),
     event: {type: 'recordsRead', outcome: 'reset', servers: 0}, state: {kind: 'signedOut', notice: 'recordsReset'}, advances: true},
@@ -342,6 +343,14 @@ const cases: readonly Case[] = [
   {name: 'row 40: a marker written while still connecting is kept on the held sign-in', row: 40,
     from: snap(connecting()), event: {type: 'envelopeChanged', servers: 1, held: held({remembered: true})},
     state: {kind: 'connecting', held: {remembered: true}}, effects: []},
+  {name: 'row 24: background connect settling while enteringPin refreshes profiles, profile, and canRemember', row: 24,
+    from: snap(entering({profile: {id: 'teen', name: '', primary: false, pinRequired: true}, canRemember: false})),
+    event: {type: 'connected', facts: facts(PROFILES, true)},
+    state: {kind: 'enteringPin', profile: TEEN, canRemember: true, profiles: PROFILES}, effects: []},
+  {name: 'row 42: profilesUpdated refreshes profiles and options in ready without advancing generation', row: 42,
+    from: snap(ready({canRemember: false, manageLocked: false})),
+    event: {type: 'profilesUpdated', profiles: [SOLO, KIDS], rememberProfiles: true, manageLocked: true},
+    state: {kind: 'ready', profiles: [SOLO, KIDS], canRemember: true, manageLocked: true}, effects: []},
 ];
 
 for (const c of cases) test(c.name, () => check(c));
@@ -481,7 +490,7 @@ test('generation advances on a change of server, account, profile or sign-in and
   // Rows that move authority at least once…
   for (const row of [4, 5, 11, 16, 19, 25, 26, 29, 31, 33, 34, 35, 41]) assert.ok(advanced.includes(row), `row ${row} advances`);
   // …and rows that must never.
-  for (const row of [0, 1, 2, 3, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 20, 21, 23, 24, 27, 30, 32]) {
+  for (const row of [0, 1, 2, 3, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 20, 21, 23, 24, 27, 30, 32, 42]) {
     assert.ok(holds.includes(row), `row ${row} has a case`);
     assert.ok(!advanced.includes(row), `row ${row} never advances`);
   }
@@ -489,7 +498,7 @@ test('generation advances on a change of server, account, profile or sign-in and
 
 // ---- generated (state × event) check ---------------------------------------------------------
 
-const DOCUMENTED_ROWS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40]);
+const DOCUMENTED_ROWS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 42]);
 
 const STATES = {
   starting: {kind: 'starting'},
@@ -539,6 +548,7 @@ const EVENTS = {
   forgotten: {type: 'forgotten', remaining: 0},
   signedIn: {type: 'signedIn', held: held({server: S2}), continuation: 'profile-selection'},
   envelopeChanged: {type: 'envelopeChanged', servers: 1, held: held({viewer: viewer('kids', 'f9')})},
+  profilesUpdated: {type: 'profilesUpdated', profiles: PROFILES, rememberProfiles: true},
   actionFailed: {type: 'actionFailed'},
 } satisfies Record<LifecycleEvent['type'], LifecycleEvent>;
 
@@ -571,6 +581,8 @@ const EXPECTED_APPLIES: readonly string[] = [
   'connected @ connecting+signOut → 9',
   'connected @ connecting+switchServer → 9',
   'connected @ connecting+unlock → 9',
+  // row 24: background connect while enteringPin (triggered by gated) updates profile/art/canRemember without clearing pending
+  ...['', ...PENDINGS.map(p => '+' + p)].map(p => `connected @ enteringPin${p} → 24`),
   // row 13 (the representative failure is offline)
   'connectFailed @ connecting → 13',
   'connectFailed @ connecting+forget → 13',
@@ -615,8 +627,14 @@ const EXPECTED_APPLIES: readonly string[] = [
   ...[
     'choosingProfile', 'choosingServer', 'connecting', 'enteringPin', 'identityFailed', 'offline', 'ready', 'recordsLost', 'recordsUnreadable', 'signInEnded', 'signedOut', 'starting',
   ].flatMap(kind => PENDINGS.flatMap(pending => ['selectFailed', 'actionFailed'].map(type => `${type} @ ${kind}+${pending} → 36`))),
-  // row 38: Try again on unreadable saved sign-ins (not a command, so under any pending value)
-  ...['', ...PENDINGS.map(p => '+' + p)].map(p => `retry @ recordsUnreadable${p} → 38`),
+  // row 38: Try again on unreadable or lost saved sign-ins (not a command, so under any pending value)
+  ...['', ...PENDINGS.map(p => '+' + p)].flatMap(p => [`retry @ recordsLost${p} → 38`, `retry @ recordsUnreadable${p} → 38`]),
+  // row 42: profilesUpdated refreshes profile metadata in ready, choosingProfile, and enteringPin
+  ...['', ...PENDINGS.map(p => '+' + p)].flatMap(p => [
+    `profilesUpdated @ ready${p} → 42`,
+    `profilesUpdated @ choosingProfile${p} → 42`,
+    `profilesUpdated @ enteringPin${p} → 42`,
+  ]),
   // row 21, 23, 18: navigation (not commands, so they apply under any pending value)
   ...['', ...PENDINGS.map(p => '+' + p)].map(p => `otherProfiles @ enteringPin${p} → 21`),
   ...['', ...PENDINGS.map(p => '+' + p)].map(p => `switchProfile @ ready${p} → 23`),
@@ -843,4 +861,37 @@ test('profileMoved for another account or another sign-in is ignored', () => {
   const open = ready();
   assert.equal(nextLifecycle(snap(open), {type: 'profileMoved', viewer: {...viewer('kid'), accountId: 'other'}}), undefined);
   assert.equal(nextLifecycle(snap(open), {type: 'profileMoved', viewer: viewer('kid', 'other-family')}), undefined);
+});
+
+test('connected while enteringPin updates profiles/profile/canRemember, returns a new frozen state, and preserves pending pin', () => {
+  const initial = snap(entering({profile: {id: 'teen', name: '', primary: false, pinRequired: true}, canRemember: false}), {pending: 'pin'});
+  const next = nextLifecycle(initial, {type: 'connected', facts: facts(PROFILES, true)})!;
+  assert.equal(next.row, 24);
+  assert.equal(next.snapshot.generation, initial.generation);
+  assert.equal(next.snapshot.pending, 'pin', 'an in-flight PIN submission is preserved');
+  assert.notEqual(next.snapshot.state, initial.state, 'returns a fresh state reference for subscribers');
+  assert.ok(Object.isFrozen(next.snapshot.state));
+  if (next.snapshot.state.kind === 'enteringPin') {
+    assert.equal(next.snapshot.state.profile.name, 'Teen');
+    assert.equal(next.snapshot.state.canRemember, true);
+    assert.deepEqual(next.snapshot.state.profiles, PROFILES);
+  }
+});
+
+test('profilesUpdated updates profiles in ready, choosingProfile, and enteringPin without advancing generation', () => {
+  const updatedTeen: PickerProfile = {id: 'teen', name: 'Teen Renamed', primary: false, pinRequired: false};
+  const nextProfiles = [MAIN, KIDS, updatedTeen];
+  for (const state of [ready({canRemember: false, manageLocked: false}), choosing({canRemember: false}), entering({canRemember: false})]) {
+    const before = snap(state);
+    const moved = nextLifecycle(before, {type: 'profilesUpdated', profiles: nextProfiles, rememberProfiles: true, manageLocked: true})!;
+    assert.equal(moved.row, 42);
+    assert.equal(moved.snapshot.generation, before.generation);
+    assert.equal(moved.snapshot.state.kind, state.kind);
+    assert.deepEqual((moved.snapshot.state as {profiles: readonly PickerProfile[]}).profiles, nextProfiles);
+    assert.equal((moved.snapshot.state as {canRemember: boolean}).canRemember, true);
+    if (moved.snapshot.state.kind === 'ready') assert.equal(moved.snapshot.state.manageLocked, true);
+    if (moved.snapshot.state.kind === 'enteringPin') assert.deepEqual(moved.snapshot.state.profile, updatedTeen);
+  }
+  assert.equal(nextLifecycle(snap({kind: 'signedOut'}), {type: 'profilesUpdated', profiles: nextProfiles}), undefined);
+  assert.equal(nextLifecycle(snap(offline()), {type: 'profilesUpdated', profiles: nextProfiles}), undefined);
 });

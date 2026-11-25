@@ -1,7 +1,7 @@
 import React from 'react';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {AmbientArt, Artwork, missingArt} from '../../../kit/artwork';
-import {DetailsAside, musicScroller, PanelBlock, StateRow, TitleFrame} from '../../../kit/frames';
+import {ChoiceChips, DetailsAside, musicScroller, PanelBlock, StateRow, TitleFrame} from '../../../kit/frames';
 import {HeroMetadata, PosterRow} from '../../../kit/layout';
 import {MusicFormatBadges} from '../../../kit/music/MusicFormatBadges';
 import {MusicSectionControls} from '../../../kit/music/MusicSectionControls';
@@ -31,6 +31,7 @@ export function AlbumPage(props: AlbumPageProps) {
     aside={view.details && <DetailsAside rows={view.details}/>}
     scroller={musicScroller({onNearEnd: songs.onNearEnd, testID: 'album-scroll'})}>
     {view.state && <PanelBlock><StateRow {...view.state}/></PanelBlock>}
+    {view.discs && <PanelBlock><ChoiceChips items={view.discs}/></PanelBlock>}
     <TrackWindow rows={songs.rows} variant="album" select={songs.select} onPlay={songs.onPlay} onMore={songs.onMore} onFavorite={songs.onFavorite} onFocusRow={songs.onFocusRow} onBlurRow={songs.onBlurRow}/>
     <PanelBlock><MusicSectionControls id="album-songs" section={songs.section} next={songs.next} previous={songs.previous} retry={songs.retry} refresh={songs.refresh}/></PanelBlock>
     {view.similar && <PosterRow {...view.similar}/>}

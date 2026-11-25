@@ -18,7 +18,9 @@ async function page(view: Record<string, unknown>) {
     '../../../kit/artwork': {AmbientArt: 'AmbientArt'}, '../../../kit/frames': {TitleFrame: 'TitleFrame', PanelBlock: 'PanelBlock', PosterWindowRow: 'PosterWindowRow', StateRow: 'StateRow'},
     '../../../kit/layout': {HeroMetadata: 'HeroMetadata'}, '../../shared/collection/useCollection': {useCollection: () => view},
   });
-  const node = CollectionPage({state: {}, focusScope: 'collection:x', runtime: {}, onBack: () => {}}) as Node;
+  let registered = 0;
+  const node = CollectionPage({state: {}, focusScope: 'collection:x', runtime: {registerTVPageBack: () => {registered++;}}, onBack: () => {}}) as Node;
+  assert.equal(registered, 0, 'CollectionPage is a non-shell route and must not register a Home TVPageBack handler');
   const frame = (node.props.children as Node[])[0]!;
   return {frame, parts: frame.props.children.flat().filter(Boolean) as Node[]};
 }

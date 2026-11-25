@@ -3,6 +3,7 @@ import type {BrowseCapabilities, BrowseNode, BrowseSortSelection} from '../../..
 import {browseToolbarModel} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import {searchGenreBrowsePivot} from '../../../../../../packages/client-core/src/search-genres';
 import type {FilterFieldState} from '../../../kit/browse';
+import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeLibraryFilterDraft} from '../../../screens/library/filters';
 import {libraryFilterChange, libraryFilterField} from '../../../screens/library/filter-controls';
@@ -14,11 +15,11 @@ export function useGenreFilters({draft, capabilities, sort, fixed, runtime, owne
   draft: NativeLibraryFilterDraft; capabilities: BrowseCapabilities; sort: BrowseSortSelection; fixed: readonly BrowseNode[];
   runtime: NativeShellRuntime; owner: boolean; onClose: () => void;
 }>) {
-  const t = runtime.text.t, locale = runtime.text.locale;
+  const {isTV} = useTheme(), t = runtime.text.t, locale = runtime.text.locale;
   const state = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
   const [openFields, setOpenFields] = useState<readonly string[]>([]), [failure, setFailure] = useState<unknown>(), [now] = useState(() => new Date());
   const model = useMemo(() => browseToolbarModel(capabilities, capabilities.library.kind, state.predicates, sort,
-    {t, locale, owner, textEntry: true}), [capabilities, state.predicates, sort, t, locale, owner]);
+    {t, locale, owner, textEntry: !isTV}), [capabilities, state.predicates, sort, t, locale, owner, isTV]);
   const fields = Object.fromEntries(model.groups.flatMap(group => group.fields.map(field =>
     [field.id, libraryFilterField(field, state.predicates, state.facets[field.id], now)]))) as Readonly<Record<string, FilterFieldState>>;
   const prefix = JSON.stringify(['search-genre-filters', runtime.getSnapshot().authority, fixed]);

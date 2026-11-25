@@ -16,7 +16,8 @@ import type {NativePlaybackTransport} from './NativePlaybackCoordinator';
 import {NativePlaybackRuntime} from './runtime';
 import {PlaybackScopeHttp} from './scope-http';
 import {createVideoSnapshotCapture} from '../video-snapshot';
-import type {NativePlaybackAdapter, NativePlaybackRuntimeOptions, NativePlaybackSurfaceProps} from './types';
+import type {NativePlaybackRuntimeOptions, NativePlaybackSurfaceProps} from './types';
+import {createNativePlaybackAdapterReturn, type NativePlaybackAdapterReturn} from './adapter-return';
 import {nativeDynamicRangeMatchingAvailable} from './dynamic-range-matching';
 import {offlineDownloads} from '../../../platform/offline-downloads';
 
@@ -42,7 +43,7 @@ function transport(module: EngineModule, event: string): NativePlaybackTransport
 export type NativePlaybackFactoryOptions = Omit<NativePlaybackRuntimeOptions, 'nativeDynamicRangeMatching' | 'androidDisplayMatching' | 'transport' | 'engines' | 'engineFeatures' | 'nativeListening' | 'requestId' | 'capabilitiesReady' | 'disposeCapabilities' | 'timers'> & Readonly<{appVersion: string}>;
 
 /** Binds real platform modules. There is no alternate renderer/engine, demo session or URL. */
-export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryOptions): NativePlaybackAdapter & {runtime: NativePlaybackRuntime} {
+export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryOptions): NativePlaybackAdapterReturn {
   const native = NativeModules[names.native.module] as EngineModule | undefined;
   const requestId = NativeModules.PorticoRuntime?.playbackRequestId as undefined | (() => string);
   // The real platform feature, not a form factor: a device without it never offers the tool.
@@ -111,7 +112,7 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
     pictureEvents.push(new NativeEventEmitter(native as never).addListener('PorticoPictureInPicture', admitFrom('native')));
     if (mpvAvailable) pictureEvents.push(new NativeEventEmitter(mpv as never).addListener('PorticoMpvPictureInPicture', admitFrom('mpv')));
   }
-  const appState = AppState.addEventListener('change', state => { if (state === 'active') void runtime.refreshAuthority().catch(() => {}); else void runtime.flush().catch(() => {}); });
+  const appState = AppState.addEventListener('change', state => { if (state === 'active') { void publishCapabilities(); void runtime.refreshAuthority().catch(() => {}); } else void runtime.flush().catch(() => {}); });
 
   /** The only new component is a native-module view bridge; all player chrome belongs later. */
   function Surface({dockBounds, expandedBounds, docked, subtitlesVisible, surfaceActive}: NativePlaybackSurfaceProps) {
@@ -134,15 +135,5 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
       {...(Platform.OS === 'android' ? {surfaceActive: producerActive, pictureInPictureRequest: state.pictureInPicture?.request ?? 0, pictureInPictureBinding: state.pictureInPicture?.binding ?? null, autoPictureInPicture: state.pictureInPicture?.automatic ?? true} : {})}
       style={{position: 'absolute', left: bounds?.x ?? 0, top: bounds?.y ?? 0, width: bounds?.width ?? 0, height: bounds?.height ?? 0, display: visible ? 'flex' : 'none', opacity: visible ? 1 : 0}} />;
   }
-  return {
-    runtime, dock: runtime.dock, getSnapshot: runtime.getSnapshot, subscribe: runtime.subscribe, start: runtime.start, startVersion: runtime.startVersion, startOffline: runtime.startOffline, selectionPlayback: runtime.selectionPlayback, Surface,
-    cataloguePlayback: runtime.cataloguePlayback,
-    change: runtime.change, chooseQuality: runtime.chooseQuality, setRate: runtime.setRate, setForcedOnly: runtime.setForcedOnly, setSubtitleStyle: runtime.setSubtitleStyle, subtitleControls: runtime.subtitleControls, readSession: runtime.readSession, listeningRead: runtime.listeningRead,
-    prepareExternalPresentation: runtime.prepareExternalPresentation, requestPictureInPicture: runtime.requestPictureInPicture,
-    onTransition: runtime.onTransition, toggle: runtime.toggle, replay: runtime.replay, retry: runtime.retry, setQueuePolicy: runtime.setQueuePolicy, editQueue: runtime.editQueue, selectQueuedEntry: runtime.selectQueuedEntry, seek: runtime.seek, skip: runtime.skip, trickplay: runtime.trickplay, playBookChapter: runtime.playBookChapter,
-    previous: runtime.previous, next: runtime.next, queuePlay: runtime.queue.playEntry.bind(runtime.queue), stop: runtime.stop, goLive: runtime.goLive, setSleepTimer: runtime.setSleepTimer, sleepEnd: runtime.sleepEnd, beginRemote: runtime.beginRemote, updateRemote: runtime.updateRemote, dismissRemote: runtime.dismissRemote, continueHere: runtime.continueHere, restoreBookmark: runtime.restoreBookmark, open: runtime.open, dispose: runtime.dispose,
-    policyDismiss: runtime.policyDismiss, policySkip: runtime.policySkip, policyUndo: runtime.policyUndo, policyAdvance: runtime.policyAdvance, policyCancelAutoplay: runtime.policyCancelAutoplay,
-    captureVideoSnapshot: runtime.captureVideoSnapshot,
-    ...(options.openDestinations ? {cast: runtime.cast} : {}),
-  };
+  return createNativePlaybackAdapterReturn(runtime, Surface, {offline: true, cast: !!options.openDestinations});
 }

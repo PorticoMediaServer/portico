@@ -5,6 +5,7 @@ import {browseToolbarModel} from '../../../../../../packages/client-core/src/pre
 import {searchGenreBrowsePivot, searchGenreBrowseRequest} from '../../../../../../packages/client-core/src/search-genres';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 import type {BrowseLabels} from '../../../kit/browse';
+import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeDestinationActivationPort} from '../../../screens/destinations/focus';
 import type {createNativeEntryActions} from '../../../screens/destinations/entry-actions';
@@ -28,7 +29,7 @@ const label = (value: {id: string; labelKey?: string}, t: NativeShellRuntime['te
 /** A genre from Search's Browse by genre (a genuine across-video Browse source): its read, the toolbar's sort and
  * filters over it, the count, and the filters sheet's draft while it is open. No Library('*') or local genre expansion. */
 export function useGenreBrowse({value, destination, activation, runtime, owner}: GenreBrowseProps) {
-  const t = runtime.text.t, locale = runtime.text.locale;
+  const {isTV} = useTheme(), t = runtime.text.t, locale = runtime.text.locale;
   const labels = useMemo((): BrowseLabels => ({field: item => label(item, t), sort: item => label(item, t), quick: item => label(item, t)}), [t]);
   const state = useSyncExternalStore(destination.subscribe, destination.getSnapshot), active = useSyncExternalStore(activation.subscribe, activation.getSnapshot);
   const [filters, setFilters] = useState<NativeLibraryFilterDraft>(), [elapsed, setElapsed] = useState(0);
@@ -38,12 +39,14 @@ export function useGenreBrowse({value, destination, activation, runtime, owner}:
   useEffect(() => () => filters?.dispose(), [filters]);
   useEffect(() => {
     if (state.phase !== 'loading') {setElapsed(0); return;}
-    const start = Date.now(), timer = setTimeout(() => setElapsed(Math.max(300, Date.now() - start)), 300);
-    return () => clearTimeout(timer);
+    const start = Date.now();
+    const initial = setTimeout(() => setElapsed(Math.max(300, Date.now() - start)), 300);
+    const slow = setTimeout(() => setElapsed(Math.max(3001, Date.now() - start)), 3001);
+    return () => {clearTimeout(initial); clearTimeout(slow);};
   }, [state.phase]);
   const ready = state.phase === 'ready' && !!state.capabilities && !!state.sort && !!state.collection;
-  const model = useMemo(() => ready ? browseToolbarModel(state.capabilities!, state.capabilities!.library.kind, state.predicates, state.sort!, {t, locale, textEntry: true, owner}) : undefined,
-    [ready, owner, t, locale, state.capabilities, state.predicates, state.sort]);
+  const model = useMemo(() => ready ? browseToolbarModel(state.capabilities!, state.capabilities!.library.kind, state.predicates, state.sort!, {t, locale, textEntry: !isTV, owner}) : undefined,
+    [ready, owner, t, locale, isTV, state.capabilities, state.predicates, state.sort]);
   const collection = state.collection;
   const page = useSyncExternalStore(collection?.subscribe ?? noSubscribe, collection?.getSnapshot ?? noSnapshot);
   const onSort = (selection: BrowseSortSelection) => {

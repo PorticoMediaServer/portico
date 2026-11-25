@@ -23,9 +23,10 @@ const emitter = native ? new NativeEventEmitter(NativeModules.PorticoCast) : nul
 /** Attachment ids are native-issued transport witnesses, not viewer authority. */
 export const validCastAttachment=(value:unknown):value is string=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const retired=()=>Object.assign(new Error('The Cast attachment changed.'),{code:'cast_attachment_retired'});
+const sendFailed=()=>Object.assign(new Error('The Cast message was not sent.'),{code:'cast_send_failed'});
 /** No legacy/default target. Every active operation carries its original attachment. */
 export const castTransport = {
-  send:(message:unknown,attachmentId?:string)=>native&&validCastAttachment(attachmentId)?native.send(JSON.stringify(message),attachmentId).then(()=>undefined):Promise.reject(retired()),
+  send:(message:unknown,attachmentId?:string)=>native&&validCastAttachment(attachmentId)?native.send(JSON.stringify(message),attachmentId).then(sent=>{if(!sent)throw sendFailed();}):Promise.reject(retired()),
   onMessage:(listener:(message:unknown)=>void,attachmentId?:string)=>{
     if(!native||!validCastAttachment(attachmentId))return()=>{};
     let live=true;

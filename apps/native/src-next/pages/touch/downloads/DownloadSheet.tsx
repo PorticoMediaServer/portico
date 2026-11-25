@@ -12,7 +12,6 @@ import {getNativeDownloadSnapshot, nativeDownloadRequestKey, subscribeNativeDown
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import {useDownloadChoice} from '../../shared/downloads/useDownloadChoice';
 
-const t = defaultI18n.t;
 const policies = [
   {id: 'all', label: 'downloads.policyAll'},
   {id: 'unwatched', label: 'downloads.policyUnwatched'},
@@ -30,7 +29,7 @@ export function NativeDownloadSheet({context}: {context: NativeShellBootstrapCon
 
 /** Which episodes, Keep the next, then Quality, each one card of rows; once added, "Downloads" with View downloads. */
 function DownloadChoice({context, request}: {context: NativeShellBootstrapContext; request: NativeDownloadRequest}) {
-  const view = useDownloadChoice({context, request});
+  const view = useDownloadChoice({context, request}), t = view.t ?? defaultI18n.t;
   const foot = view.done ? <>
     <Button variant="glass" onPress={view.close}>{t('action.close')}</Button>
     <Button onPress={view.viewDownloads}>{t('downloads.view')}</Button>

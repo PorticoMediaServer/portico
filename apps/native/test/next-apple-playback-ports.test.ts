@@ -6,6 +6,7 @@ import type {NativePlaybackReadLifetime} from '../src-next/platform/playback/typ
 import type {PlaybackFence} from '../../../packages/player-core/src';
 import type {V1QueuedEntrySelection, V1QueueEditIntent, V1QueuePolicyIntent} from '../../../packages/client-core/src/playback-v1/v1-queue-player';
 import * as capabilityReadiness from '../src-next/platform/playback/capability-readiness.ts';
+import * as adapterReturn from '../src-next/platform/playback/adapter-return.ts';
 
 // Contract source for BLK-PLAY-001: the Apple factory must forward the five
 // already-installed runtime commands unchanged. This drives the real native.ios
@@ -31,6 +32,7 @@ class FakeRuntime {
   chooseQuality = () => {};
   setRate = () => {};
   setForcedOnly = (...args: unknown[]) => {calls.push({name: 'setForcedOnly', args, self: this}); return true;};
+  setSubtitleStyle = (...args: unknown[]) => {calls.push({name: 'setSubtitleStyle', args, self: this}); return true;};
   subtitleControls = () => ({});
   readSession = () => {};
   prepareExternalPresentation = () => {};
@@ -87,7 +89,7 @@ const modules = {
   '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: () => ({})},
   '../../../../../packages/client-core/src/presentation/service-text': {serviceText: (key: string) => key},
   './engine-choice': {parseEngineFeatures: () => ({})},
-  './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness,
+  './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
   './capability-document.ios': {deviceCapabilityDocument: () => ({})},
   './NativeListeningAdapter': {NativeListeningV1Adapter: class {}},
   './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: FakeRuntime},
@@ -134,6 +136,7 @@ test('Apple factory forwards the five existing runtime ports without substitutio
   assert.strictEqual(adapter.setQueuePolicy, runtime.setQueuePolicy);
   assert.strictEqual(adapter.editQueue, runtime.editQueue);
   assert.strictEqual(adapter.setForcedOnly, runtime.setForcedOnly);
+  assert.strictEqual(adapter.setSubtitleStyle, runtime.setSubtitleStyle);
   assert.notStrictEqual(adapter.queuePlay, runtime.queue.playEntry);
 });
 

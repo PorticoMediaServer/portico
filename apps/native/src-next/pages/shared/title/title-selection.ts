@@ -24,9 +24,9 @@ export function createNativeTitleSelection(context: NativeShellBootstrapContext,
       const episodes = data?.episodes.sections.flatMap(section => section.entries).filter((entry): entry is ContentEntry => entry.kind === 'episode') ?? [];
       if (episodes.length) groups.push({id: 'title-episodes', items: episodes});
       for (const row of [...(detail?.data?.related?.rows ?? []), ...(state.recommendationRows ?? [])]) if (row.entries.length) groups.push({id: `title-related:${row.id}`, items: row.entries});
-      const viewId = JSON.stringify(['native-title', key, data?.show.id ?? '']);
+      const viewId = JSON.stringify(['native-title', key, data?.show.id ?? detail?.data?.item.id ?? '']);
       // A page still loading has no selection.
-      const captured: SelectionContext | undefined = scope && viewer && workspace?.phase === 'ready'
+      const captured: SelectionContext | undefined = scope && viewer && (workspace?.phase === 'ready' || detail?.phase === 'ready')
         && (viewer.authority === 'local' || viewer.authority === 'hosted') && viewId.length <= 4096
         ? {scope: {serverId: viewer.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId,
           viewId, privacyFence: 'opened'}, revision: {catalogRevision: '0', viewerRevision: '0'}} : undefined;

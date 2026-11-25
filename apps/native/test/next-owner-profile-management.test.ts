@@ -34,6 +34,8 @@ async function fixture(main = true, pinRequired = false, pictures = false) {
     navigation: {getSnapshot: () => snapshot, subscribe: () => () => {}},
     api: {}, account: {serverId: 'server', canManage: true, capabilities: {manageAccount: true}, account: {id: 'account', primaryProfileId: primary.id, disabled: false}, profiles}};
   const colors = new Proxy({}, {get: () => '#123456'}), type = new Proxy({}, {get: () => ({})});
+  const lifecycleUpdates: unknown[][] = [];
+  const lifecycleState = {kind: 'ready', server: {serverId: 'server'}, viewer: {familyId: 'family'}};
   const modules: any = { '../../../screens/accounts/account-form-values': accountFormValues, '@portico/design': {profileArtColors: {blue: 'blue', violet: 'violet', mint: 'mint', coral: 'coral', gold: 'gold', slate: 'slate', rose: 'rose', sky: 'sky'}},
     react, 'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}, Dimensions: {get: () => ({width: 390, height: 844})}, NativeModules: {}, Platform: {isTV: false}, Text: 'Text', View: 'View'},
     '../../../../../../packages/i18n/src': {defaultI18n: {t: (id: string) => id}},
@@ -60,7 +62,11 @@ async function fixture(main = true, pinRequired = false, pictures = false) {
     }},
     '../../../../../../packages/client-core/src': {HttpHostedApi: class {constructor() {throw new Error('Unexpected Hosted contact');}}},
     '../../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
-    '../../../platform/accounts': {}, '../../../platform/app-session-storage': {}, '../../../platform/native-session-lifecycle': {}, '../../../platform/profile-recovery': {}, '../../../platform/account-authority': {},
+    '../../../platform/accounts': {}, '../../../platform/app-session-storage': {},
+    '../../../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({lifecycle: {
+      getSnapshot: () => ({generation: 1, state: lifecycleState}),
+      updateProfiles: (...args: unknown[]) => {lifecycleUpdates.push(args);},
+    }})}, '../../../platform/profile-recovery': {}, '../../../platform/account-authority': {},
     '../../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => pictures}, '../../../platform/server-connections': {},
     '../../../kit/settings/ProfileEditorFields': await profileEditorFields(react, {colors, type, isTV: false}),
     '../../../screens/settings-live/lifetime': {NativeScreenLifetime: class {current = () => true; dispose() {}}},
@@ -82,7 +88,7 @@ async function fixture(main = true, pinRequired = false, pictures = false) {
     });
   } finally {renderingHost = host;}};
   render(); // Publish the committed profile lease before interacting.
-  return {render, renderLimits, writes, primary, other, preview, context,
+  return {render, renderLimits, writes, lifecycleUpdates, primary, other, preview, context,
     holdDelete: () => {deleteWait = new Promise<void>(resolve => {releaseDelete = resolve;}); return () => {deleteWait = undefined; releaseDelete!();};},
     blockDelete: () => {deleteBlocked = true;}};
 }
@@ -296,4 +302,15 @@ test('Portico Account servers replace the profile picker action with the account
   assert.equal(nodes(tree).some(node => ['profile-picture', 'profile-remove-picture'].includes(node.props.testID)), false);
   assert.ok(text(tree).includes('profile.pictureInPorticoAccount'));
   assert.equal(f.writes.length, 0);
+});
+
+test('profile mutations notify SessionLifecycle.updateProfiles with fresh PickerProfile metadata', async () => {
+  const f = await fixture();
+  byID(f.render(), 'settings-profile-other').props.onPress();
+  byID(f.render(), 'profile-move-up').props.onPress(); await tick();
+  assert.equal(f.lifecycleUpdates.length, 1);
+  assert.deepEqual(f.lifecycleUpdates[0]?.[0], [
+    {id: 'other', name: 'Other', primary: false, pinRequired: false},
+    {id: 'main', name: 'Main', primary: true, pinRequired: false},
+  ]);
 });

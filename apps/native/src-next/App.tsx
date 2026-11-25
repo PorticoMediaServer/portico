@@ -9,7 +9,10 @@ import {RestoredShell} from './shell/RestoredShell';
 import {Layer} from './kit/shell/Layer';
 import {AppErrorBoundary} from './shell/AppErrorBoundary';
 import {reportFirstFrame} from './platform/boot-host';
+import {detectLiteEffects} from './platform/motion-policy';
 import './platform/server-clock-store';
+
+void detectLiteEffects();
 
 if (!Platform.isTV) {
   // Native accounts routes register as a module side effect. Metro's inline

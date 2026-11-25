@@ -95,6 +95,7 @@ export type LifecycleEvent =
   | Readonly<{type: 'forgotten'; remaining: number}>
   | Readonly<{type: 'signedIn'; held: HeldSignIn; continuation: 'viewer' | 'profile-selection'}>
   | Readonly<{type: 'envelopeChanged'; held?: HeldSignIn; servers: number}>
+  | Readonly<{type: 'profilesUpdated'; profiles: readonly PickerProfile[]; rememberProfiles?: boolean; manageLocked?: boolean}>
   | Readonly<{type: 'actionFailed'}>;
 
 export type LifecycleEffect =
@@ -148,8 +149,8 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
   const s = current.state;
   // A pending action ends only with its own result, or when the sign-in it acts for changes (its result is then dropped).
   const keepPending = !RESULTS.has(event.type);
-  const to = (state: LifecycleState, row: number, effects: readonly LifecycleEffect[] = [], options: {authority?: boolean} = {}): Transition => {
-    const pending = keepPending && !options.authority ? current.pending : undefined;
+  const to = (state: LifecycleState, row: number, effects: readonly LifecycleEffect[] = [], options: {authority?: boolean; keepPending?: boolean} = {}): Transition => {
+    const pending = (options.keepPending ?? keepPending) && !options.authority ? current.pending : undefined;
     return freeze({row, effects: freeze([...effects]), snapshot: freeze({generation: current.generation + (options.authority ? 1 : 0), state,
       ...(pending ? {pending} : {})})});
   };
@@ -173,6 +174,11 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
   case 'recordsResetConfirmed':
     return s.kind === 'recordsLost' ? busy('reset', [{kind: 'resetRecords'}], 6) : undefined;
   case 'connected':
+    if (s.kind === 'enteringPin') {
+      const profiles = freeze([...event.facts.profiles]);
+      const profile = profiles.find(value => value.id === s.profile.id) ?? s.profile;
+      return to(freeze({...s, profiles, profile, canRemember: event.facts.rememberProfiles}), 24, [], {keepPending: true});
+    }
     if (s.kind !== 'connecting' || !s.held) return undefined;
     {const next = afterConnect(s.server, s.held, event.facts, !!s.admitted); return to(next.state, next.row, next.effects);}
   case 'connectFailed': {
@@ -194,7 +200,7 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     return undefined;
   }
   case 'retry':
-    if (s.kind === 'recordsUnreadable') return to({kind: 'starting'}, 38, [{kind: 'readRecords'}]);
+    if (s.kind === 'recordsUnreadable' || s.kind === 'recordsLost') return to({kind: 'starting'}, 38, [{kind: 'readRecords'}]);
     // A sign-in that already chose its profile stays chosen across a retry.
     if (s.kind === 'offline') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {}), ...(s.admitted ? {admitted: true as const} : {})}, 14, [{kind: 'connect', serverId: s.server.serverId}]);
     if (s.kind === 'identityFailed') return to({kind: 'connecting', server: s.server, ...(s.held ? {held: s.held} : {}), ...(s.admitted ? {admitted: true as const} : {})}, 32, [{kind: 'connect', serverId: s.server.serverId}]);
@@ -345,6 +351,17 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     if (s.kind === 'ready') return to({...s, viewer: held.viewer, remembered: held.remembered, manageLocked: false}, 34, [{kind: 'fenceShell'}], {authority: true});
     if (s.kind === 'choosingProfile' || s.kind === 'enteringPin' || s.kind === 'offline') return to({...s, viewer: held.viewer}, 34, [], {authority: true});
     return undefined;
+  }
+  case 'profilesUpdated': {
+    if (s.kind !== 'ready' && s.kind !== 'choosingProfile' && s.kind !== 'enteringPin') return undefined;
+    const profiles = freeze([...event.profiles]);
+    const canRemember = event.rememberProfiles ?? s.canRemember;
+    if (s.kind === 'ready')
+      return to(freeze({...s, profiles, canRemember, manageLocked: event.manageLocked ?? s.manageLocked}), 42);
+    if (s.kind === 'choosingProfile')
+      return to(freeze({...s, profiles, canRemember}), 42);
+    const profile = profiles.find(value => value.id === s.profile.id) ?? s.profile;
+    return to(freeze({...s, profiles, profile, canRemember}), 42);
   }
   }
   return undefined;

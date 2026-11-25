@@ -1,6 +1,6 @@
-import React from 'react';
+import React, {useMemo} from 'react';
 import {frameSpec} from '@portico/design';
-import {defaultI18n} from '../../../../../../packages/i18n/src';
+import {createI18n, defaultI18n} from '../../../../../../packages/i18n/src';
 import {roomEntry, type GroupControl} from '../../../../../../packages/client-core/src/room-protocol';
 import {Button, Segmented} from '../../../kit/controls';
 import {FocusRegion} from '../../../kit/focus';
@@ -15,12 +15,13 @@ import {useScreenEntry} from '../../../kit/layout/Screen';
 import {useTogetherLobby, useTogetherLobbyArt, type TogetherProps} from '../../shared/together/useTogetherLobby';
 import {useTogetherTVRoom, type TogetherTVRoomProps} from '../../shared/together/useTogetherTVRoom';
 
-const t = defaultI18n.t, spec = frameSpec.together.tv;
+const spec = frameSpec.together.tv;
 
 /** Watch Together on TV (tv-more 11 to 16): the lobby with its invitation and the groups you're in; Start a group and Join
  * with a code as a side sheet whose fields open the keyboard beside them; then the room; then the page that says a group
  * ended. Back belongs to the route (and to an open form or menu first). */
 export function TogetherPage(props: TogetherProps) {
+  const t = props.runtime.text?.t ?? defaultI18n.t;
   const lobby = useTogetherLobby(props), {state, group, room, form, viewCurrent} = lobby, {controller} = props;
   if (room && group && state.phase === 'ended') {
     const reason = group.ended?.reason;
@@ -34,6 +35,7 @@ export function TogetherPage(props: TogetherProps) {
 }
 
 function TogetherLobby({lobby, controller, ports, runtime}: TogetherProps & {lobby: ReturnType<typeof useTogetherLobby>}) {
+  const t = runtime.text?.t ?? defaultI18n.t;
   const {state, ids, region, faces, form, sheet, busy, name, setName, code, setCode, who, setWho, authority, setAuthority, typing, setTyping, typingIntent, typingRevision,
     viewCurrent, fieldsRegion, keyboard, type, openForm} = lobby;
   const art = useTogetherLobbyArt({itemId: state.group && roomEntry(state.group)?.itemId, controller, ports, runtime});
@@ -85,6 +87,8 @@ function TogetherLobby({lobby, controller, ports, runtime}: TogetherProps & {lob
 
 /** The room (tv-more 14, 15), drawn by `TogetherPage` while the viewer is in a group. */
 export function TogetherRoomPage(props: TogetherTVRoomProps) {
+  const t = props.runtime.text?.t ?? defaultI18n.t;
+  const i18n = useMemo(() => props.runtime.text?.region ? createI18n(props.runtime.text.region) : defaultI18n, [props.runtime.text?.region]);
   const room = useTogetherTVRoom(props), {group, state, ids, controls, queueRegion, people, footer, members} = room;
   return <>
     <TogetherTVRoomFrame kicker={t('entry.group.together')} title={group.name}
@@ -117,7 +121,7 @@ export function TogetherRoomPage(props: TogetherTVRoomProps) {
         </TogetherTVSection>
         {group.you.host && <TogetherTVSection label={t('web.together.invite')}>
           <TogetherTVInviteCode code={room.validInvite && `${room.validInvite.code.slice(0, 4)} ${room.validInvite.code.slice(4)}`}
-            note={room.validInvite && t('web.together.inviteHelpJoin', {uses: room.validInvite.joinsLeft, time: defaultI18n.time(room.validInvite.expiresAt)})}>
+            note={room.validInvite && t('web.together.inviteHelpJoin', {uses: room.validInvite.joinsLeft, time: i18n.time(room.validInvite.expiresAt)})}>
             <Button variant="glass" testID="together-new-code" disabled={state.busy} onPress={() => room.run(() => props.controller.invite(), live => live.you.host)}>
               {t(room.validInvite ? 'web.together.newCode' : 'web.together.getCode')}</Button>
           </TogetherTVInviteCode>

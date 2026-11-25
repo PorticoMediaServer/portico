@@ -40,7 +40,7 @@ import {choosingProfile, lifecycleSettled, nativeSessionLifecycle} from '../plat
 import {NativeProfileGated, NativeProfileMoved, nativeProfileGated} from '../platform/session-lifecycle-native';
 import {ProfileGatePage} from '../pages/shared/accounts/ProfileGatePage';
 import {ManageUnlockPage} from '../pages/touch/accounts/ManageUnlockPage';
-import type {IdentityFailureCode} from '../../../../packages/client-core/src/session-lifecycle';
+import type {IdentityFailureCode, LifecycleState} from '../../../../packages/client-core/src/session-lifecycle';
 
 /** The session lifecycle wants the person to choose a profile or enter its PIN before any shell opens. */
 class NativeProfileChoice extends Error {constructor() {super('native_profile_choice'); this.name = 'NativeProfileChoice';}}
@@ -50,8 +50,14 @@ function ProfileGateHost({onReady}: {onReady: () => void}) {
   const {lifecycle} = nativeSessionLifecycle();
   const state = useSyncExternalStore(lifecycle.subscribe, () => lifecycle.getSnapshot().state, () => lifecycle.getSnapshot().state);
   const handed = useRef(false);
-  // Hand over once: the root restarts from the lifecycle's new sign-in.
-  useEffect(() => {if (!choosingProfile(state) && !handed.current) {handed.current = true; onReady();}}, [state, onReady]);
+  // Hand over once: the root restarts from the lifecycle's new sign-in. Wait while `starting` or
+  // `connecting` (such as after `profileMoved`) settles into `choosingProfile` or `ready`.
+  useEffect(() => {
+    if (!choosingProfile(state) && state.kind !== 'connecting' && state.kind !== 'starting' && !handed.current) {
+      handed.current = true;
+      onReady();
+    }
+  }, [state, onReady]);
   return choosingProfile(state) ? <ProfileGatePage/> : null;
 }
 import {createNativeStartupRecovery, startupRetrySeconds, startupWait, type NativeStartupWait} from './startup-recovery';
@@ -94,6 +100,9 @@ export function RestoredShell() {
     // installation: a competing installation generation would retire this root.
     const {lifecycle, ports: lifecyclePorts} = nativeSessionLifecycle();
     lifecyclePorts.lendInstallation(installation);
+    const resumable = (kind: LifecycleState['kind']) =>
+      kind === 'offline' || kind === 'identityFailed' || kind === 'recordsUnreadable' || kind === 'recordsLost';
+    const alreadySettledFailure = resumable(lifecycle.getSnapshot().state.kind);
     lifecycle.start();
     let alive = true;
     const ownsRoot = () => alive && ticket.active && root.current === ticket && !abort.signal.aborted;
@@ -205,14 +214,20 @@ export function RestoredShell() {
       const selected = value.servers.find(server => server.id === value.selectedServerId);
       setServerDisplay(previous => rootCurrent() ? {attempt, ...(selected?.name ? {name: selected.name} : {})} : previous);
     }}, () => {});
+    let restoreAttempts = 0;
     if (rootCurrent()) recovery = createNativeStartupRecovery<RestoredNativeShellRuntime | undefined>({
       startedAt: started, current: rootCurrent, online: deviceOnline(), foreground: AppState.currentState === 'active',
       restore: async signal => {
         // Launch is decided by the lifecycle first: a remembered (or only) profile opens, otherwise
-        // Who's watching and the PIN come first. A server that wasn't answering is tried again.
+        // Who's watching and the PIN come first. Only resume on a subsequent retry (or a restarted
+        // root after an already-settled failure), never immediately after cold launch settles.
+        const retryLifecycle = restoreAttempts++ > 0 || alreadySettledFailure;
         let decided = await lifecycleSettled(lifecycle, signal);
-        if (decided.kind === 'offline' || decided.kind === 'identityFailed') {lifecycle.resume(); decided = await lifecycleSettled(lifecycle, signal);}
+        if (retryLifecycle && resumable(decided.kind)) {lifecycle.resume(); decided = await lifecycleSettled(lifecycle, signal);}
         if (choosingProfile(decided)) throw new NativeProfileChoice();
+        if (decided.kind === 'recordsLost') throw Object.assign(new Error('secure_records_key_lost'), {code: 'secure_records_key_lost'});
+        if (decided.kind === 'recordsUnreadable') throw Object.assign(new Error('secure_records_unreadable'), {code: 'records_unreadable'});
+        if (decided.kind === 'offline') throw Object.assign(new Error('offline'), {code: 'network'});
         // The lifecycle already found why this sign-in can't open: show that, without restoring again.
         if (decided.kind === 'identityFailed' || decided.kind === 'signInEnded') {
           const failure = lifecyclePorts.failure(decided.server.serverId);
@@ -365,7 +380,13 @@ export function RestoredShell() {
   if (restoreError instanceof NativeIdentityFailure) {
     const failure = restoreError;
     return withDownloads(<ServerIdentityFailurePage failure={failure} onRetry={retry} onChoose={chooseAccounts}
-      onForget={async () => {if (renderedCurrent()) await nativeAccounts.forgetServer(failure.server);}} onError={error => {if (renderedCurrent()) setState(previous => renderedCurrent() ? {phase: 'ended', error} : previous);}}/>);
+      onForget={async () => {
+        if (!renderedCurrent()) return;
+        await nativeAccounts.forgetServer(failure.server);
+        if (!renderedCurrent()) return;
+        setState(previous => renderedCurrent() ? {phase: 'ended', error: undefined} : previous);
+        setShowAccounts(previous => renderedCurrent() ? true : previous);
+      }} onError={error => {if (renderedCurrent()) setState(previous => renderedCurrent() ? {phase: 'ended', error} : previous);}}/>);
   }
   if (restoreError instanceof NativeSignInEnded) return withDownloads(<AccountEntryPage downloads={remembered?.entry} key={restoreError.hint.serverId + ':' + restoreError.hint.familyId} endedSignIn={restoreError.hint} onSetupComplete={setupComplete} onComplete={complete} onBack={chooseAccounts}/>);
   if (restoreError) {

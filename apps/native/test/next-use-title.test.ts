@@ -193,3 +193,22 @@ test('a show watched to the end offers Play from its first episode again, not no
   // From its beginning: the watched episode's own start point (its end) would stop at once.
   assert.deepEqual((started as any).playback, {itemId: 'e1', startSeconds: 0});
 });
+
+test('an episode route uses the opened episode\'s own code, progress, duration and playback instead of workspace.nextUp', async () => {
+  const e1 = {id: 'e1', kind: 'episode', title: 'Pilot', seasonNumber: 1, episodeNumber: 1, duration: 3000, progressSeconds: 900, libraryId: 'tv', playback: {itemId: 'e1', startSeconds: 900}} as any;
+  const e5 = {id: 'e5', kind: 'episode', title: 'Fifth', seasonNumber: 2, episodeNumber: 5, duration: 2000, progressSeconds: 500, libraryId: 'tv', playback: {itemId: 'e5', startSeconds: 500}} as any;
+  const epDetail = detail({item: {title: 'Fifth', duration: 2000, episode: {seasonNumber: 2, number: 5}},
+    personal: {watchlisted: false, watched: false, progressSeconds: 500},
+    actions: [{id: 'resume', enabled: true, playback: {itemId: 'e5', startSeconds: 500}}]});
+  const workspace = {show: {id: 's1', title: 'Show', libraryId: 'tv', credits: []}, nextUp: e1, selected: {seasonId: 'season-2', group: null}, groups: [], seasonTotalCount: 2};
+  episodeSnapshot = {phase: 'ready', entry: e5, data: {item: {overview: 'Fifth.', duration: 2000}, personal: {watchlisted: false, watched: false, progressSeconds: 500}, actions: [],
+    metadata: {credits: [{id: 'd1', name: 'Jane Director', role: 'Director', department: 'Directing', provider: ''}]}}};
+  const {view} = await page({entry: e5, detail: {phase: 'ready', data: epDetail}, workspace: {phase: 'ready', data: workspace}, showState: {watchlisted: false}, episodes: [e5],
+    seasons: [{id: 'season-2', number: 2, title: '', episodeCount: 1}], place: {tab: 'episodes', hideWatched: false}});
+  assert.equal(view.primary.label, t('title.resumeEpisode', {code: 'S2 E5'}));
+  assert.equal(view.primary.progress, 0.25);
+  assert.equal(view.episodes.list.opened.primary.progress, 0.25);
+  assert.ok(view.episodes.list.opened.primary.remaining);
+  assert.deepEqual(view.episodes.list.opened.credits.map((c: any) => c.kind), ['directors']);
+  episodeSnapshot = {phase: 'idle'};
+});

@@ -25,6 +25,9 @@ test('the rebuilt reader\'s parts (book:part:N): the part the place falls in, to
   assert.deepEqual(bookPlace(parts, progress(900_000)), {index: 2, id: 'book-1:part:3', fraction: .5, secondsLeft: 100});
   // A part with no start the reader could measure is never the place.
   assert.equal(bookPlace([row('book-1:part:1', undefined)], progress(10_000)), undefined);
+  // A part whose playback omits startSeconds starts at 0.
+  const omittedStart = [{id: 'book-1:part:1', kind: 'chapter', title: 'Part 1', libraryId: 'books', duration: 200, playback: {itemId: 'book-1'}} as any];
+  assert.deepEqual(bookPlace(omittedStart, progress(50_000)), {index: 0, id: 'book-1:part:1', fraction: 0.25, secondsLeft: 150});
 });
 
 test('no place: no progress, a place before the first row, or rows of another file; half a second of slack at a row\'s start', () => {

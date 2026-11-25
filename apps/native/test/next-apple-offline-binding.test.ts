@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 import * as capabilityReadiness from '../src-next/platform/playback/capability-readiness.ts';
+import * as adapterReturn from '../src-next/platform/playback/adapter-return.ts';
 
 async function factory({tv = false, supported = true, bridge = {localFile() {}}, override, dynamicRange = false, keepCapabilities = false}: {
   tv?: boolean; supported?: boolean; bridge?: Record<string, unknown> | null; override?: object; dynamicRange?: boolean; keepCapabilities?: boolean;
@@ -35,7 +36,7 @@ async function factory({tv = false, supported = true, bridge = {localFile() {}},
     '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: () => ({})},
     '../../../../../packages/client-core/src/presentation/service-text': {serviceText: (key: string) => key},
     './engine-choice': {parseEngineFeatures: () => ({})},
-    './dynamic-range-matching': dynamicRangeMatching, './capability-readiness': capabilityReadiness,
+    './dynamic-range-matching': dynamicRangeMatching, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
     './capability-document.ios': {deviceCapabilityDocument: (input: {native: unknown}) => ({native: input.native})},
     './NativeListeningAdapter': {},
     './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
