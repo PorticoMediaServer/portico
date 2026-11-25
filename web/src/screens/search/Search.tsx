@@ -4,7 +4,7 @@ import {generatedCoverTint} from '@design';
 import {useCardInteractionAdmission} from '../../kit/cards/use-interaction-admission';
 import type {SearchSelection} from './selection';
 import {SelectionCircle} from '../../kit/selection';
-import {t, locale} from '../detail/text';
+import {t as fallbackT, locale as fallbackLocale} from '../detail/text';
 import {createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
 import {searchDependencies, searchQueryProblem, type SearchEntry, type SearchGroup, type SearchGroupResult} from '@core/search.ts';
@@ -38,7 +38,8 @@ import {ResultRow, SearchHistory} from '../../kit/search';
 import {nowNext} from '@core/guide/index.ts';
 import {channelTint, type FactPart} from '@portico/client-core/kit-model';
 import {clockText, durationText} from '@core/presentation/kit-model/text.ts';
-import {defaultI18n} from '@i18n';
+import {defaultI18n, type I18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import {formatSignalText, musicFormatBadges} from '@core/music-signal.ts';
 import {AllResultsRow} from './AllResultsRow';
 import {entryPlayable} from '@core/library-content.ts';
@@ -46,14 +47,20 @@ import {entryPlayable} from '@core/library-content.ts';
 type ChipId = SearchGroup | 'all';
 const keyOf = (entry: SearchEntry) => JSON.stringify(['libraryId' in entry ? entry.libraryId : '', entry.kind, entry.id]);
 const groupOrder = new Map<string, number>(SEARCH_CHIPS.map((chip, index) => [chip.id, index]));
-const searchTimezone = () => defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-const onNowTime = (at: number) => new Intl.DateTimeFormat(locale(), {hour: 'numeric', minute: '2-digit', timeZone: searchTimezone()}).format(new Date(at));
-function onNowProgramme(card: SearchOnNowCard, now: number) {
+type SearchText = Readonly<{t: I18n['t']; locale: string; number: I18n['number']; timeZone?: string}>;
+function useSearchI18n(): SearchText {
+  const live = useI18n();
+  if (live) return {t: live.t, locale: live.region.formatLocale, number: live.number, timeZone: live.region.timeZone};
+  return {t: fallbackT, locale: fallbackLocale() ?? 'en-US', number: defaultI18n.number, timeZone: defaultI18n.region?.timeZone};
+}
+const searchTimezone = (text: SearchText) => text.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+const onNowTime = (at: number, text: SearchText) => new Intl.DateTimeFormat(text.locale, {hour: 'numeric', minute: '2-digit', timeZone: searchTimezone(text)}).format(new Date(at));
+function onNowProgramme(card: SearchOnNowCard, now: number, text: SearchText) {
   const current = nowNext(card.programmes, now), programme = current.now;
-  if (!programme) return {title: t('guide.noInformation'), facts: [] as readonly FactPart[]};
+  if (!programme) return {title: text.t('guide.noInformation'), facts: [] as readonly FactPart[]};
   const facts: FactPart[] = [];
   if (programme.subtitle) facts.push({id: 'programme-subtitle', role: 'context', text: programme.subtitle});
-  facts.push({id: 'ends', role: 'context', text: t('guide.ends', {time: onNowTime(programme.end)})});
+  facts.push({id: 'ends', role: 'context', text: text.t('guide.ends', {time: onNowTime(programme.end, text)})});
   return {title: programme.title, facts, progress: current.progress, live: programme.flags?.live === true};
 }
 /** The settled search the address holds: what Back and a link return to. */
@@ -62,6 +69,7 @@ export type SearchScreenProps = {binding: SearchBindings; selection?: SearchSele
 const NO_ADDRESS: SearchAddress = {q: ''};
 
 export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle, onOpenLive}: SearchScreenProps) {
+  const searchI18n = useSearchI18n(), {t, locale: formatLocale} = searchI18n;
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const selectionEpoch = selection?.epoch();
   const compact = useShellWidth() < 600;
@@ -154,7 +162,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
   const recentBlock = <SearchHistory compact={compact} title={t('web.search.recent')} clear={{label: t('web.search.clearRecent'), onPress: () => {clearRecentHistory?.();}}}
     items={recent.map(query => ({query, onPress: () => {if (context.isCurrent()) {setText(query);setChip('all');committed.current = '';}},
       ...(removeRecent ? {remove: {label: t('web.search.removeRecent', {query}), onPress: () => removeRecent(query)}} : {})}))}/>;
-  const videoKinds = new Intl.ListFormat(locale(), {style: 'long', type: 'conjunction'}).format([
+  const videoKinds = new Intl.ListFormat(formatLocale, {style: 'long', type: 'conjunction'}).format([
     t('web.libraryKind.plural', {kind: 'movie'}), t('web.libraryKind.plural', {kind: 'tv'}), t('web.libraryKind.plural', {kind: 'anime'})]);
   const liveSourceCount = new Set(onNow.cards.map(card => card.channel.sourceId)).size;
   const genreTiles = <div className={styles.genres}>{genres.genres.flatMap((genre, index) => {
@@ -185,7 +193,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
           ...(card.channel.mark ? {mark: {...card.channel.mark, sourceId: card.channel.sourceId, id: card.channel.id}} : {})}}
         tint={card.channel.mark ? channelTint(card.channel.mark.seed) : undefined}
         logo={card.channel.logoUrl ? context.artwork.foreground(card.channel.logoUrl, 68, 1) : undefined}
-        programme={onNowProgramme(card, now)} onNavigate={() => onOpenLive?.(card.channel.sourceId)} />)}</div>
+        programme={onNowProgramme(card, now, searchI18n)} onNavigate={() => onOpenLive?.(card.channel.sourceId)} />)}</div>
     </section>}
   </div>;
   const searching = !!text.trim(), selecting = !!selection?.isActive();
@@ -212,7 +220,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
         onClick={() => runScreenCommand(context, () => { context.effects.openHome?.(); })}>{t('action.cancel')}</Button>}
       scopes={!selecting && chips}
       notice={failed.length > 0 && <WaitingNotice icon="i-clock" action={{id: 'retry', label: t('next.states.tryAgain'), onAction: () => { void service.refresh(); }}}>
-        {t('web.search.partial', {groups: new Intl.ListFormat(locale(), {style: 'long', type: 'conjunction'}).format(failed.map(value => t(searchGroupLabel(value.id))))})}</WaitingNotice>}
+        {t('web.search.partial', {groups: new Intl.ListFormat(formatLocale, {style: 'long', type: 'conjunction'}).format(failed.map(value => t(searchGroupLabel(value.id))))})}</WaitingNotice>}
       none={empty ? {title: t(group ? 'web.search.nothingIn' : 'web.search.noMatches', group ? {group: t(searchGroupLabel(group))} : {query: text.trim()}), body: group ? undefined : t('web.search.noMatchesBody'),
         action: group ? <Button variant="primary" size="compact" onClick={() => setChip('all')}>{t('web.search.everything')}</Button> : undefined} : undefined}>
       <SearchResultStatus identity={`${snapshot.generation}:${text.trim()}:${group ?? ''}`} count={snapshot.phase === 'ready' && showing ? searchResultCount(groups) : undefined}/>
@@ -239,6 +247,7 @@ export function SearchScreen({binding, selection, address = NO_ADDRESS, onSettle
 }
 
 function SearchLoading() {
+  const {t} = useSearchI18n();
   const elapsed = useLoadingClock();
   return <div className={styles.skeleton} role="status" aria-label={t('next.states.loading')}>{elapsed >= 300 && Array.from({length: 7}, (_, index) => <Skeleton className={styles.skeletonBlock} sheen={index === 2} key={index} />)}{elapsed >= 8000 && <Banner variant="quiet">{t('next.states.stillLoading')}</Banner>}</div>;
 }
@@ -252,6 +261,7 @@ const noLiveSnapshot = () => emptyLiveCards;
 export function SearchResult({entry, binding, selection, selectionVisible = true, position = 0, onCommit, albumArt, row = false}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; selectionVisible?: boolean; position?: number; onCommit: () => void; albumArt?: string;
   /** A phone's All view lists a group's first results as rows (final3-mobileweb-02). */
   row?: boolean}) {
+  const {t, locale: formatLocale} = useSearchI18n();
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const epoch = selection?.epoch();
   useLayoutEffect(() => {if (selection && selectionVisible && 'libraryId' in entry) return selection.register(entry, position);}, [selection, entry, position, epoch, selectionVisible]);
@@ -271,7 +281,7 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
   }
   if (!('libraryId' in entry)) return <CircleCard context="search" model={{title: entry.title, caption: entry.subtitle ? [{id: 'caption', text: entry.subtitle, role: 'context'}] : []}} covers={art ? [art] : []}
     initials={nameInitials(entry.title)} onNavigate={open} />;
-  const model = entryCard(entry, {t, locale: locale()}, 'search'), playable = entryPlayable(entry);
+  const model = entryCard(entry, {t, locale: formatLocale}, 'search'), playable = entryPlayable(entry);
   const props = {model, selection: picked, context: 'search' as const, watched: entry.watched, isNew: entry.new, onNavigate: open, onMore: more,
     onPlay: playable ? () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); } : undefined};
   if (row && entry.kind !== 'song' && entry.kind !== 'artist') {
@@ -319,6 +329,7 @@ function useResultMore(binding: SearchBindings, entry: SearchEntry, picked: Card
 /** Desktop-search frame 3: a full-width Songs answer is the Music library's list, with
  * the entry's own artist, album, plays and length. Selection keeps the same row model. */
 export function SongTableRow({entry, binding, selection, position = 0, onCommit}: {entry: SearchEntry; binding: SearchBindings; selection?: SearchSelection; position?: number; onCommit: () => void}) {
+  const {t, number} = useSearchI18n();
   useSyncExternalStore(selection?.subscribe ?? noSelectionSubscription, selection?.getSnapshot ?? noSelectionSnapshot, selection?.getSnapshot ?? noSelectionSnapshot);
   const epoch = selection?.epoch();
   // A search answer can also carry a person or a channel, which have no library entry:
@@ -343,7 +354,7 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
     else open();
   };
   return <div ref={interactionRoot} className={styles.songTableRow} data-selected={picked?.checked || undefined} data-preview={picked?.preview || undefined} {...range}>
-    <span className={styles.songIndex}><button type="button" className={styles.songIndexPlay} onClick={activate} aria-label={t('next.browse.play', {title})}><span>{defaultI18n.number(position + 1)}</span><Icon name="i-play" size={16}/></button></span>
+    <span className={styles.songIndex}><button type="button" className={styles.songIndexPlay} onClick={activate} aria-label={t('next.browse.play', {title})}><span>{number(position + 1)}</span><Icon name="i-play" size={16}/></button></span>
     <span className={styles.songTitle}>{picked && <SelectionCircle variant="row" selected={picked.checked} selecting={picked.active} accessibilityLabel={t('next.selection.select')} onClick={event => {event.preventDefault(); picked.onToggle({range: event.shiftKey, source: event.detail === 0 ? 'keyboard' : 'pointer'});}}/>}
     <button type="button" className={styles.songTitleCell} {...hold.handlers} onBlur={() => hold.cancel()} onClick={event => {if (hold.consumeClick()) {event.preventDefault(); return;} activate(event);}} aria-label={title}><Artwork source={context.artwork.foreground(song.posterUrl, 88, 1)} alt="" />
       <span className={styles.songTitleText}><b>{title}</b>
@@ -353,13 +364,14 @@ export function SongTableRow({entry, binding, selection, position = 0, onCommit}
       </span></button></span>
     <span className={styles.songArtist}>{song.artist?.name}</span>
     <span className={styles.songAlbum}>{song.album?.name}</span>
-    <span className={styles.songPlays}>{song.plays === undefined ? undefined : defaultI18n.number(song.plays)}</span>
+    <span className={styles.songPlays}>{song.plays === undefined ? undefined : number(song.plays)}</span>
     <span className={styles.songLength}>{clockText(song.duration)}</span>
     {more && <Button className={styles.songMore} variant="icon" size="small" icon="i-more" iconOnly aria-haspopup="menu" aria-label={t('next.browse.moreFor', {title})} onClick={event => more(event.currentTarget)} />}
   </div>;
 }
 
 function SearchGroupWindow({binding, group, result, selection, onCommit}: {binding: SearchBindings; selection?: SearchSelection; group: SearchGroup; result?: SearchGroupResult; onCommit: () => void}) {
+  const {t} = useSearchI18n();
   const shellWidth = useShellWidth(), compact = shellWidth < 600, tablet = shellWidth < 1024;
   const window = useMemo(() => appendedWindow<SearchEntry>(keyOf), []);
   const entries = useRef<readonly SearchEntry[]>([]), key = useRef(''), [, redraw] = useState(0);

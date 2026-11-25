@@ -241,7 +241,7 @@
 @keyframes menuIn {from {opacity: 0; transform: translateY(4px) scale(.98);} to {opacity: 1; transform: none;}}
 @keyframes menuOut {from {opacity: 1; transform: none;} to {opacity: 0; transform: none;}}
 
-.slider {position: relative; display: inline-flex; align-items: center; width: 84px; height: 24px; flex: none; touch-action: none; user-select: none; cursor: pointer;}
+.slider {position: relative; display: inline-flex; align-items: center; width: 84px; height: var(--target-touch); flex: none; touch-action: none; user-select: none; cursor: pointer;}
 .sliderTrack {position: relative; height: 4px; border-radius: 4px; flex: 1; background: color-mix(in srgb, var(--color-text) 20%, transparent);}
 /* The player variant is a position scrub: it spans what it sits in (a volume slider keeps 84 px). */
 .slider[data-variant="player"] {width: 100%;}
@@ -253,6 +253,10 @@
 .slider[data-variant="dock"] {width: 92px;}
 .slider[data-variant="dock"] .sliderFill {background: var(--color-text-secondary);}
 .slider[data-disabled] {opacity: .45; cursor: default;}
+@media (pointer: coarse) {
+  .slider {min-height: var(--target-touch);}
+  .sliderThumb {opacity: 1;}
+}
 
 @media (max-width: 1023px) {
   .button[data-size="hero"]:is([data-variant="primary"], [data-variant="glass"]) {--control-height: var(--spec-button-hero-height-phone); --control-radius: var(--spec-button-hero-radius-phone); --control-inset: var(--spec-button-hero-padding-x-phone); --control-gap: 8px; --control-icon: 20px;}

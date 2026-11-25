@@ -262,7 +262,7 @@ test('targeted Wave 4C source invariants hold across MetadataEditor, Selection e
 
   const library = read('../src/screens/browse/Library.tsx');
   assert.match(library, /resultTotal=\{resultTotal\}/);
-  assert.match(library, /defaultI18n\.has\(value\.labelKey\) \? t\(value\.labelKey\) : value\.labelKey/);
+  assert.match(library, /(?:defaultI18n|i18n)\.has\(value\.labelKey\) \? (?:i18n\.)?t\(value\.labelKey\) : value\.labelKey/);
 
   const discovery = read('../src/screens/browse/Discovery.tsx');
   assert.match(discovery, /if \(action\.selection\?\.active\) \{action\.selection\.onToggle/);

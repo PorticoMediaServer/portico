@@ -59,10 +59,10 @@
 .sheetTitle { flex: 1; min-width: 0; margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: normal; }
 .sheetDone.sheetDone { margin-left: auto; padding: 0; height: 28px; min-width: 0; color: var(--color-accent-strong); font-size: 15px; font-weight: 700; line-height: normal; }
 .sheetDescription { margin: 6px var(--gutter-phone) 0; font-size: 14px; line-height: 1.5; color: var(--color-text-secondary); }
-.sheetBody { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; }
+.sheetBody { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 /* A phone Dialog's body sits on the sheet heading's gutter; zero specificity, so a caller's own body class still wins. */
 :where(.sheet[data-dialog] > .sheetBody) { padding-inline: var(--gutter-phone); }
-.sheet[data-full-height="true"] .sheetBody { overflow: auto; }
+.sheet[data-body-drag="true"] .sheetBody { touch-action: pan-x; }
 .sheetFooter { position: absolute; inset: auto 0 0; display: flex; gap: 10px; padding: 12px var(--gutter-phone) max(30px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(16,33,45,0), var(--color-raised) 30%); }
 .sheet[data-has-footer="true"] .sheetBody { padding-bottom: 96px; }
 /* R9 (packages/design overlay-forms): foot buttons are equal halves, or one full width; never hugging the left edge.
@@ -79,10 +79,6 @@
 .sheetHeading[data-centred] > :first-child { justify-self: start; } .sheetHeading[data-centred] > :last-child { justify-self: end; }
 /* A modal popover dims the page under it and leaves its trigger in view. */
 .popoverScrim { position: fixed; inset: 0; z-index: calc(var(--layer-menu) - 1); background: rgba(3,8,12,.5); pointer-events: none; }
-/* Focus placed on open shows no ring unless the last input was a key (web review cause 4; Android rule: focus rings for
-   keyboard or D-pad only). shared.ts marks the document's last input. */
-:global(html:not([data-input="keyboard"])) :is(.dialog, .sheet, .sidePanel, .popover) :focus-visible { outline: none; }
-:global(html:not([data-input="keyboard"])) .grabber:focus-visible > span { background: var(--color-line-strong); }
 
 /* Opted-in sheets only (account28/29 workspace confirmations): actions stack full
    width with the sheet's own action on top, and the body clears the footer by the
@@ -110,7 +106,8 @@
 /* R12 (packages/design toastCards, toastPill): a card with an action rests --toast-bottom above the edge, or above the bar or
    the player's controls the shell names; inside the player a wider form starts it --toast-player-inset in. A confirmation
    with no action is the pill at the top centre. */
-.toastHost { position: fixed; z-index: var(--layer-notice); bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, var(--toast-bottom))); left: 50%; translate: -50% 0; max-width: calc(100vw - 32px); }
+.toastHost { position: fixed; z-index: var(--layer-notice); bottom: var(--overlay-toast-bottom, var(--shell-toast-bottom, var(--toast-bottom))); left: 50%; translate: -50% 0; max-width: calc(100vw - 32px); pointer-events: auto; }
+.toastHost[data-state="closed"] { pointer-events: none; }
 /* The pill stands --toast-pill-top under the page's top bar, never over it: the mobile bar below 1024, the desktop bar from
    1024; the player has no bar. */
 .toastHost[data-shape="pill"] { top: calc(var(--spec-navigation-mobile-web-top-height) + var(--toast-pill-top) + env(safe-area-inset-top, 0px)); bottom: auto; left: 50%; translate: -50% 0; }

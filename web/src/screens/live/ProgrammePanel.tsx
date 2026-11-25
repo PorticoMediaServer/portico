@@ -1,6 +1,6 @@
 import {forwardIdentity} from '../detail/context';
 import {channelUnavailableMessage} from '@core/presentation/live-availability.ts';
-import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
 import {channelTint, programmeFactParts, type ChannelMarkModel} from '@portico/client-core/kit-model';
 import {legacyProgramme, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
@@ -14,17 +14,17 @@ import {useWindowHeight} from '../../kit/theme';
 import type {ScreenContext} from '../detail/context';
 import type {SelectionAdmission} from './row-witness';
 import {createProgrammeBindings, defaultSeriesChoice, type PreviewAiring, type ProgrammeSnapshot, type SeriesChoice} from './programme-bindings';
-import {readReminders, subscribeReminders, toggleReminder} from './reminders';
+import {readReminders, subscribeReminders, toggleReminder, type ReminderScope} from './reminders';
+import {RULE_KEEP_OPTIONS, RULE_PADDING_OPTIONS} from './series-rules-model';
 import styles from './live.module.css';
 
 const t = defaultI18n.t;
 const supportsNewEpisodes = (programme?: GuideProgram) => !!programme && ['new', 'repeat'].includes(legacyProgramme(programme)?.newEvidence ?? '');
-const KEEPS = ['all', '1', '3', '5', '10', '20'] as const;
-const PADDINGS = [0, 1, 2, 5, 10, 15] as const;
+export const isSyntheticPreviewAiring = (id: string): boolean => id.includes(':preview:');
 const keepLabel = (value: string) => value === 'all' ? t('recordings.keepAll') : value === '1' ? t('next.live.keepLatest') : t('next.live.keepLatestCount', {count: Number(value)});
 const paddingLabel = (minutes: number) => minutes ? t('next.live.minutes', {count: minutes}) : t('recordings.none');
-const keepOptions: readonly SelectOption[] = KEEPS.map(value => ({value, label: keepLabel(value)}));
-const paddingOptions: readonly SelectOption[] = PADDINGS.map(value => ({value: String(value), label: paddingLabel(value)}));
+const keepOptions: readonly SelectOption[] = RULE_KEEP_OPTIONS.map(value => ({value, label: keepLabel(value)}));
+const paddingOptions: readonly SelectOption[] = RULE_PADDING_OPTIONS.map(value => ({value: String(value), label: paddingLabel(value)}));
 
 const channelMark = (channel: GuideChannelRow): ChannelMarkModel => ({
   sourceId: channel.sourceId ?? '', id: channel.id,
@@ -33,8 +33,8 @@ const channelMark = (channel: GuideChannelRow): ChannelMarkModel => ({
 });
 
 /** One upcoming airing's reminder; a local browser fact, never a server promise. */
-function reminderIds(): string {
-  return JSON.stringify(readReminders().map(reminder => reminder.programId));
+function reminderIds(scope: ReminderScope): string {
+  return JSON.stringify(readReminders(scope).map(reminder => reminder.programId));
 }
 
 export type ProgrammePanelViewProps = Readonly<{
@@ -143,7 +143,7 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
       {onFavorite && <Button className={`${styles.programmeAction} ${styles.programmeFavoriteAction}`} variant="glass" iconOnly icon={snapshot.favorite ? 'i-star-f' : 'i-star'}
         aria-label={snapshot.favorite ? t('channels.removeFavorite') : t('channels.addFavorite')} aria-pressed={snapshot.favorite} disabled={busy} onClick={onFavorite}/>}
     </div>
-    {future && onProgrammeReminder && <p className={styles.airingsNote}>{t('guide.reminderSet')}</p>}
+    {future && onProgrammeReminder && reminders.includes(programme.id) && <p className={styles.airingsNote}>{t('guide.reminderSet')}</p>}
     {seriesOpen && canRecord && <div className={styles.seriesBox} role="group" aria-label={t('guide.recordSeriesTitle')}>
       <div className={styles.seriesHead}><b>{t('guide.recordSeriesTitle')}</b>
         <span>{snapshot.preview?.matches !== undefined ? t('next.live.matchCount', {count: snapshot.preview.matches}) : snapshot.previewLoading ? t('recordings.loading') : ''}</span></div>
@@ -167,15 +167,16 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
     {snapshot.preview && snapshot.preview.airings.length > 0 && <section className={styles.airings} aria-label={t('next.live.moreAirings')}>
       <h3 className={styles.airingsHead}>{t('next.live.moreAirings')}<span>{t('next.live.airingsOn', {title: programme?.title ?? channel.name, channel: channel.name, day: snapshot.preview.airings[0]?.day ?? t('guide.today')})}</span></h3>
       {snapshot.preview.airings.map(item => {
-        const on = reminders.includes(item.id);
+        const synthetic = isSyntheticPreviewAiring(item.id);
+        const on = !synthetic && reminders.includes(item.id);
         return <div className={styles.airingRow} key={item.id}>
           <span className={styles.airingAt}>{item.time}</span>
           <div><b>{item.episode}{item.episode && <i className={styles.gap}/>}{item.title}</b><small>{item.range}{item.day !== t('guide.today') && <><i className={styles.gap}/>{item.day}</>}</small></div>
-          <Button className={styles.airingRemind} variant={on ? 'glass' : 'ghost'} size="small" iconOnly icon={on ? 'i-bell-f' : 'i-bell'}
-            aria-label={on ? t('guide.stopRemind') : t('guide.remind')} aria-pressed={on} onClick={() => onReminder?.(item)}/>
+          {!synthetic && onReminder && <Button className={styles.airingRemind} variant={on ? 'glass' : 'ghost'} size="small" iconOnly icon={on ? 'i-bell-f' : 'i-bell'}
+            aria-label={on ? t('guide.stopRemind') : t('guide.remind')} aria-pressed={on} onClick={() => onReminder(item)}/>}
         </div>;
       })}
-      <p className={styles.airingsNote}>{t('guide.reminderSet')}</p>
+      {snapshot.preview.airings.some(item => !isSyntheticPreviewAiring(item.id) && reminders.includes(item.id)) && <p className={styles.airingsNote}>{t('guide.reminderSet')}</p>}
     </section>}
     {/* A recording in progress is stopped and what was captured is kept (rule 50); a booking is cancelled. */}
     <Dialog footerDismisses open={cancelOpen} onOpenChange={setCancelOpen} title={stopping ? t('next.live.stopTitle', {title: programme?.title ?? channel.name}) : t('recordings.cancelTitle', {title: programme?.title ?? channel.name})}
@@ -191,7 +192,7 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
  * and the panel is drawn only for the lease that is still committed. */
 type ProgrammePanelProps = Readonly<{
   context: ScreenContext; admission: SelectionAdmission; channel: GuideChannelRow; programme?: GuideProgram; now: number; timezone: string;
-  open: boolean; onClose: () => void; onWatch?: () => void; onChanged?: () => void; onViewRecordings?: () => void;
+  open: boolean; initialSeriesOpen?: boolean; onClose: () => void; onWatch?: () => void; onChanged?: () => void; onViewRecordings?: () => void;
 }>;
 type ProgrammeLease = {id: string; context: ScreenContext; admission: SelectionAdmission; channel: GuideChannelRow; programme?: GuideProgram;
   timezone: string; onChanged?: () => void; live: boolean; binding: ReturnType<typeof createProgrammeBindings>};
@@ -212,13 +213,15 @@ export function ProgrammePanel(props: ProgrammePanelProps) {
     && published.timezone === timezone && published.onChanged === onChanged && admission.row === channel && context.isCurrent() ? published : undefined;
   return current ? <CommittedProgrammePanel key={current.id} {...props} lease={current}/> : null;
 }
-function CommittedProgrammePanel({context, admission, channel, programme, now, timezone, open, onClose, onWatch, onViewRecordings, lease}:
+function CommittedProgrammePanel({context, admission, channel, programme, now, timezone, open, initialSeriesOpen = false, onClose, onWatch, onViewRecordings, lease}:
   ProgrammePanelProps & {lease: ProgrammeLease}) {
   const binding = lease.binding, width = useShellWidth(), height = useWindowHeight();
   const portrait = width < 600 && height >= width, landscape = height < 600 && width > height;
   const snapshot = useSyncExternalStore(binding.subscribe, binding.getSnapshot, binding.getSnapshot);
-  const reminders = useSyncExternalStore(subscribeReminders, reminderIds, reminderIds);
-  const [seriesOpen, setSeriesOpen] = useState(false);
+  const subscribeScopeReminders = useCallback((listener: () => void) => subscribeReminders(context.scope, listener), [context.scope]);
+  const readScopeReminders = useCallback(() => reminderIds(context.scope), [context.scope]);
+  const reminders = useSyncExternalStore(subscribeScopeReminders, readScopeReminders, readScopeReminders);
+  const [seriesOpen, setSeriesOpen] = useState(initialSeriesOpen);
   const [choice, setChoice] = useState<SeriesChoice>(() => ({...defaultSeriesChoice, episodes: supportsNewEpisodes(programme) ? 'new' : 'all'}));
   const previewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const change = (patch: Partial<SeriesChoice>) => {
@@ -227,7 +230,12 @@ function CommittedProgrammePanel({context, admission, channel, programme, now, t
     clearTimeout(previewTimer.current);
     previewTimer.current = setTimeout(() => {void binding.preview(next).catch(() => {});}, 250);
   };
-  useEffect(() => () => clearTimeout(previewTimer.current), []);
+  useEffect(() => {
+    if (initialSeriesOpen) void binding.preview(choice).catch(() => {});
+    return () => clearTimeout(previewTimer.current);
+    // Run initial preview only when mounted with initialSeriesOpen for this lease.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [binding, initialSeriesOpen]);
   const openSeries = (value: boolean) => {
     setSeriesOpen(value);
     if (value) void binding.preview(choice).catch(() => {});
@@ -235,10 +243,10 @@ function CommittedProgrammePanel({context, admission, channel, programme, now, t
   // A reminder is kept by the server for this profile and shown here at once; a refusal puts the mark back. A retired opening
   // or row admission must not write one from a retained panel.
   const canWrite = () => lease.live && context.isCurrent() && admission.row === channel && admission.current();
-  const remind = (value: Parameters<typeof toggleReminder>[0]) => {
-    if (!canWrite()) return;
-    const on = toggleReminder(value);
-    void binding.remind(value.programId, on).catch(() => {toggleReminder(value);});
+  const remind = (value: Parameters<typeof toggleReminder>[1]) => {
+    if (!canWrite() || isSyntheticPreviewAiring(value.programId)) return;
+    const on = toggleReminder(context.scope, value);
+    void binding.remind(value.programId, on).catch(() => {toggleReminder(context.scope, value);});
   };
   const reminder = (airing: PreviewAiring) => remind({programId: airing.id, channelId: airing.channelId, title: airing.title, channelName: channel.name, start: airing.start});
   const view = <ProgrammePanelView channel={channel} {...(programme ? {programme} : {})} now={now} timezone={timezone} snapshot={snapshot}

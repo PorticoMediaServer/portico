@@ -83,3 +83,28 @@ test('Refresh forgets what the guide and On now read and reads their shown rows 
     await assert.rejects(owner.refresh(request.signal), {name: 'AbortError'});assert.equal(calls.length, before);
   } finally {shelf.dispose();owner.dispose();}
 });
+
+test('Live bindings forward channel sort (number vs name) to the channels and guide endpoints', async () => {
+  const calls: URL[] = [];
+  const context = withQueries({scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => true,
+    api: {async request(path: string) {
+      const url = new URL(path, 'https://example.test');calls.push(url);
+      const channel = {id: 'ch_1', name: 'Alpha', number: '9', kind: 'live', favorite: false, hidden: false};
+      if (url.pathname === '/v1/live/guide') return {items: [{channel, programmes: []}], outOfDate: false};
+      return {items: [channel]};
+    }}}) as unknown as ScreenContext;
+  const byName = createLiveBindings(context, {kind: 'all', sourceId: '', timezone: 'UTC', sort: 'name'});
+  const byNumber = createLiveBindings(context, {kind: 'all', sourceId: '', timezone: 'UTC', sort: 'number'});
+  try {
+    byName.store.setViewport({firstRow: 0, lastRow: 0, start: 0, end: 60_000});
+    for (let i = 0; i < 20; i++) await tick();
+    const nameCalls = calls.splice(0, calls.length);
+    assert.ok(nameCalls.some(url => url.pathname === '/v1/live/channels' && url.searchParams.get('sort') === 'name'));
+    assert.ok(nameCalls.some(url => url.pathname === '/v1/live/guide' && url.searchParams.get('sort') === 'name'));
+
+    byNumber.store.setViewport({firstRow: 0, lastRow: 0, start: 0, end: 60_000});
+    for (let i = 0; i < 20; i++) await tick();
+    assert.ok(calls.some(url => url.pathname === '/v1/live/channels' && url.searchParams.get('sort') === null));
+    assert.ok(calls.some(url => url.pathname === '/v1/live/guide' && url.searchParams.get('sort') === null));
+  } finally {byName.dispose();byNumber.dispose();}
+});

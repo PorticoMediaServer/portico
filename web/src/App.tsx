@@ -12,6 +12,7 @@ import {router, serverScope} from './router';
 import {bindServerScope} from './shell/server-scope-binding';
 import {LastResortBoundary} from './shell/Errors';
 import {ShellBindingsProvider, type ShellBindings} from './shell/bindings';
+import {I18nProvider} from './shell/i18n';
 import {bindShellRouteMotion} from './shell/route-motion';
 import {ShellBootstrapState} from './shell/BootstrapState';
 import type {ShellBootstrap} from './shell/bootstrap';
@@ -39,17 +40,20 @@ function BoundApp({binding, context, bootstrap, takeAccountReturn, takeAccountMo
   useEffect(() => bindShellRouteMotion(router), []);
   const MediaHost = webScreens.get('player')?.playbackHost ?? FallbackPlaybackHost;
   const viewer = binding?.shell.identity.viewer;
+  const preferences = context?.preferences?.getSnapshot('web') ?? context?.facts.preferences;
   // The player host renders a retained title body, which reads freshness, from
   // outside every route. One provider covers the router and the host together;
   // keeping it mounted in a stable tree position avoids remounting the router
   // and media host when the session binding changes.
-  return <WebScreenProvider value={{binding, context, bootstrap, takeAccountReturn, takeAccountMove}}>
-    <FreshnessProvider api={viewer && binding ? binding.api : undefined} events={viewer && binding ? binding.events : null} serverId={viewer?.serverId} viewerId={viewer ? viewerQueryScope(viewer).viewerId : undefined} runtime={viewer && binding ? context?.freshness : undefined}>
-      <IconSprite />
-      <div data-playback-route><ShellBindingsProvider value={binding}><RouterProvider router={router} /></ShellBindingsProvider></div>
-      <MediaHost binding={binding?.playback} />
-      <EntryActionHost />
-      <EntryMetadataHost />
-    </FreshnessProvider>
-  </WebScreenProvider>;
+  return <I18nProvider preferences={preferences} api={viewer && binding ? binding.api : undefined}>
+    <WebScreenProvider value={{binding, context, bootstrap, takeAccountReturn, takeAccountMove}}>
+      <FreshnessProvider api={viewer && binding ? binding.api : undefined} events={viewer && binding ? binding.events : null} serverId={viewer?.serverId} viewerId={viewer ? viewerQueryScope(viewer).viewerId : undefined} runtime={viewer && binding ? context?.freshness : undefined}>
+        <IconSprite />
+        <div data-playback-route><ShellBindingsProvider value={binding}><RouterProvider router={router} /></ShellBindingsProvider></div>
+        <MediaHost binding={binding?.playback} />
+        <EntryActionHost />
+        <EntryMetadataHost />
+      </FreshnessProvider>
+    </WebScreenProvider>
+  </I18nProvider>;
 }

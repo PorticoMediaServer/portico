@@ -19,7 +19,7 @@ type RuleEntry = Readonly<{rule: RecordingRule; model: SeriesRule}>;
 export type SeriesRulesSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error' | 'retired'; view?: SeriesRulesView;
   loadingMore: boolean; nextCursor?: string; mutating: boolean; error?: unknown; previewError?: unknown; previewLoading: boolean;
   preview?: Readonly<{ruleId: string; settings: RuleSettings; count: number; airings: readonly RuleAiring[]}>}>;
-type Environment = Readonly<{timezone: string; locale: string; now?: () => number}>;
+type Environment = Readonly<{timezone: string; locale: string; now?: () => number; everyone?: boolean}>;
 
 export function ruleSettings(rule: RecordingRule): RuleSettings {
   const config = rule.config, title = config.matchKind === 'title';
@@ -65,7 +65,7 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
     try {return await life.api.request<T>(...args);}
     catch (error) {if (isAccessError(error)) dispose(error);throw error;}
   }};
-  const client = new NextDVRClient(api);clients.add(client);
+  const client = new NextDVRClient(api);client.everyone = env.everyone === true;clients.add(client);
   const publish = (patch: Partial<SeriesRulesSnapshot>) => {if (closed) return;state = Object.freeze({...state, ...patch});for (const listener of [...listeners]) listener();};
   const current = () => {if (closed) return false;if (!life.current()) {dispose();return false;}return true;};
   const assert = () => {if (!current()) throw cancelled();};
@@ -97,7 +97,8 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
       // The channel count is the server's, from its sources list; a server without that list gives none to show.
       ...(sources?.sources.length ? {channelCount: sources.sources.reduce((total, source) => total + source.channelCount, 0)} : {}),
       ...(end === undefined ? {} : {guideThrough: new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(end - 1)}),
-      ...(summary ? {upcomingCount: summary.upcoming, recordedCount: summary.recorded, ruleCount: summary.rules, conflictCount: summary.conflicts} : {}),
+      ...(summary ? {upcomingCount: summary.upcoming, recordedCount: summary.recorded, ruleCount: summary.rules, conflictCount: summary.conflicts,
+        ...(typeof summary.everyonesRecordings === 'boolean' ? {everyonesRecordings: summary.everyonesRecordings} : {})} : {}),
       ...(storage ? {storage: Object.freeze({free: Math.round(storage.freeBytes / 1e9), hoursLeft: storage.hoursLeft})} : {}),
       rules: Object.freeze([...entries.values()].map(entry => entry.model))});
   };

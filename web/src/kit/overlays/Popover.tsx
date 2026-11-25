@@ -3,7 +3,7 @@ import {Fragment, createContext, forwardRef, useCallback, useContext, useId, use
 import {Popover as RadixPopover} from 'radix-ui';
 import {Icon, type IconName} from '../Icon';
 import {BottomSheet} from './BottomSheet';
-import {classes, focusElement, focusable, useDismissReason, useExclusiveAnchor, useInDialog, useOverlayKeys, usePhone, usePresence, useSurfaceFocus, useSurfaceMotion} from './shared';
+import {classes, focusElement, focusable, isPermittedOutsideOverlay, useDismissReason, useExclusiveAnchor, useInDialog, useOverlayKeys, usePhone, usePresence, useSurfaceFocus, useSurfaceMotion} from './shared';
 import type {AnchoredOverlayProps, OverlayChange, OverlayStyle} from './types';
 import {menuInitialFocus, navigateMenuArrow, recoverMenuChildFocus} from './menu-focus';
 import styles from './overlays.module.css';
@@ -41,14 +41,14 @@ export function Popover({open, onOpenChange, title, children, description, trigg
   return <RadixPopover.Root open={open} onOpenChange={value => { if (value === open) return; onOpenChange(value, reason.current); reason.current = 'action'; }} modal={modal}>
     {trigger ? <RadixPopover.Trigger asChild ref={triggerElement} aria-haspopup={role} aria-controls={open ? `${id}-content` : undefined}>{trigger}</RadixPopover.Trigger> : <RadixPopover.Anchor virtualRef={anchor} />}
     {/* Exit presence must not leave the positioning wrapper as a pointer target. */}
-    {present && !superseded && <RadixPopover.Portal forceMount container={portalTarget}><div style={{pointerEvents: 'none'}}>{modal && open && <div className={styles.popoverScrim} aria-hidden="true" />}<RadixPopover.Content forceMount ref={attachContent}
+    {present && !superseded && <RadixPopover.Portal forceMount container={portalTarget}><div style={{pointerEvents: 'none'}}>{modal && open && <div className={styles.popoverScrim} aria-hidden="true" />}<RadixPopover.Content forceMount ref={attachContent} inert={!open || undefined}
       side={placement.startsWith('top') ? 'top' : 'bottom'} align={placement.endsWith('start') ? 'start' : 'end'} sideOffset={sideOffset} alignOffset={alignOffset} collisionPadding={8}
       id={`${id}-content`} className={classes(styles.popover, className)} style={{'--overlay-width': `${width}px`, pointerEvents: open ? 'auto' : 'none'} as OverlayStyle} role={role} aria-modal={modal && role === 'dialog' && open || undefined}
       aria-label={accessibilityLabel} aria-labelledby={accessibilityLabel ? undefined : `${id}-title`} aria-describedby={description === undefined ? undefined : `${id}-description`}
       data-state={open ? 'open' : 'closed'} data-within-dialog={withinDialog || undefined} data-testid={testID}
       onOpenAutoFocus={focus.onOpenAutoFocus} onCloseAutoFocus={focus.onCloseAutoFocus}
       onEscapeKeyDown={() => { reason.current = 'escape'; }}
-      onInteractOutside={event => { if (!open || focus.suppressRestore.current || event.target instanceof Node && anchorRef?.current?.contains(event.target)) { event.preventDefault(); return; } reason.current = 'outside'; if (!modal) focus.suppressRestore.current = true; }}
+      onInteractOutside={event => { if (!open || focus.suppressRestore.current || isPermittedOutsideOverlay(event) || event.target instanceof Node && anchorRef?.current?.contains(event.target)) { event.preventDefault(); return; } reason.current = 'outside'; if (!modal) focus.suppressRestore.current = true; }}
       onKeyDown={event => { onContentKeyDown?.(event); if (event.key === 'Tab' && role === 'menu' && !event.defaultPrevented) {
         event.preventDefault(); focus.suppressRestore.current = true;
         const origin = returnFocusRef?.current ?? anchorRef?.current ?? triggerElement.current;
@@ -75,15 +75,21 @@ export const MenuRow = forwardRef<HTMLButtonElement, MenuRowProps>(function Menu
   </button>;
 });
 
-const MenuContext = createContext<{change: OverlayChange} | null>(null);
+const MenuContext = createContext<{change: OverlayChange; sheet?: boolean} | null>(null);
 export type MenuItemProps = Omit<MenuRowProps, 'onSelect'> & {onSelect?: (event: Event) => void};
 export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function MenuItem({onSelect, onClick, selected, ...props}, ref) {
   const context = useContext(MenuContext);
-  return <MenuRow {...props} ref={ref} selected={selected} role={selected === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={selected} data-menu-item="" tabIndex={-1} onClick={event => {
-    onClick?.(event); if (event.defaultPrevented) return;
-    const selection = new Event('select', {cancelable: true}); onSelect?.(selection);
-    if (!selection.defaultPrevented) context?.change(false, 'action');
-  }} onPointerMove={event => { props.onPointerMove?.(event); if (event.pointerType === 'mouse' && !event.currentTarget.disabled) event.currentTarget.focus({preventScroll: true}); }} />;
+  const sheet = context?.sheet ?? false;
+  return <MenuRow {...props} ref={ref} selected={selected}
+    role={sheet ? props.role : (selected === undefined ? 'menuitem' : 'menuitemradio')}
+    aria-checked={sheet ? props['aria-checked'] : selected}
+    data-menu-item=""
+    tabIndex={sheet ? props.tabIndex : -1}
+    onClick={event => {
+      onClick?.(event); if (event.defaultPrevented) return;
+      const selection = new Event('select', {cancelable: true}); onSelect?.(selection);
+      if (!selection.defaultPrevented) context?.change(false, 'action');
+    }} onPointerMove={event => { props.onPointerMove?.(event); if (event.pointerType === 'mouse' && !event.currentTarget.disabled) event.currentTarget.focus({preventScroll: true}); }} />;
 });
 
 export type MenuGroupProps = {label?: ReactNode; ownerOnly?: boolean; children: ReactNode; className?: string};
@@ -142,7 +148,7 @@ export function Menu({items, children, open, onOpenChange, title, presentation =
     }
     if (next) { event.preventDefault(); focusElement(next); }
   };
-  const content = <MenuContext.Provider value={{change: onOpenChange}}><div tabIndex={-1} ref={attachContent} onFocusCapture={event => {lastFocused.current = event.target as HTMLElement;}} onKeyDown={keydown} className={styles.menuItems}>
+  const content = <MenuContext.Provider value={{change: onOpenChange, sheet}}><div tabIndex={-1} ref={attachContent} onFocusCapture={event => {lastFocused.current = event.target as HTMLElement;}} onKeyDown={keydown} className={styles.menuItems}>
     {items && <EntryGroups items={items} phone={sheet} />}
     {children}
   </div></MenuContext.Provider>;

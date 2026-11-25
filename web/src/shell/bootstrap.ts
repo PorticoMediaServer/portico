@@ -28,6 +28,8 @@ import {motionTier} from '../platform/motion-tier';
 import {RouteError} from '@core/route-identity.ts';
 import {negotiateServer,parseServerSignIn} from '@core/sign-in.ts';
 import {defaultI18n} from '@i18n';
+import {setServiceI18n} from '@core/presentation/service-text.ts';
+import {shellLanguage} from './settings';
 import {lastKnownShell, rememberShell} from './last-known';
 import {settingsReturnAuthority} from './settings-return';
 import {browserAppSessionActions,type BrowserAppSessionActions} from '../platform/app-sessions';
@@ -516,6 +518,13 @@ export class ShellBootstrap {
     }
     const factsSource = factOwner.source;
     const facts = () => factsSource.getSnapshot();
+    const applyRegionLanguage = (next: PreferenceSnapshot) => {
+      const language = shellLanguage(next);
+      if (globalThis.document?.documentElement) globalThis.document.documentElement.lang = language.locale;
+      setServiceI18n(language);
+      api.setAppLanguage?.(language.locale);
+    };
+    applyRegionLanguage(facts().preferences);
     freshness.hub.attach(events);
     const authorityKey = shellArtworkAuthorityKey(session, epoch);
     const artwork = authenticatedArtwork({api, auth, identity: {serverId: session.viewer.serverId, viewerId: viewerId(session), authorityKey}, currentToken: () => session.accessToken, isCurrent});
@@ -544,7 +553,8 @@ export class ShellBootstrap {
     cleanups.push(preferences.subscribe(() => {
       const next = preferences.getSnapshot('web'); if (!next || !isCurrent()) return;
       const key = JSON.stringify(regionPreferences(next));
-      if (key !== regionKey) { regionKey = key; restart(); } else publishBinding();
+      if (key !== regionKey) { regionKey = key; applyRegionLanguage(next); }
+      publishBinding();
     }));
     // Classified hints reach their canonical interests through hub.attach above,
     // retaining revision/address dedupe rather than invalidating a second time.

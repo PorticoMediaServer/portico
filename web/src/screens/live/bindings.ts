@@ -4,8 +4,9 @@ import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
 import {markChannel, type ChannelChoice} from '@core/live-tv.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 
-/** The page's filters as the new server's channel choice: one source, one group, favourites, hidden ones too. */
+/** The page's filters as the new server's channel choice: one source, one group, favourites, hidden ones too, and channel order. */
 const channelChoice = (options: LegacyGuideOptions): ChannelChoice => ({...(options.favorites ? {favorites: true} : {}), ...(options.includeHidden ? {hidden: true} : {}),
+  ...(options.sort === 'name' || options.sort === 'number' ? {sort: options.sort} : {}),
   ...(options.sourceId ? {source: options.sourceId} : {}), ...(options.group ? {group: options.group} : {})});
 
 /** Only the mounted viewport starts reads. No source listing or guide walk at import. */

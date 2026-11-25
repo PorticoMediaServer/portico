@@ -149,8 +149,9 @@ export class RuntimeMediaSession {
     } : null);
     this.setHandler(session, 'seekto', canSeek ? details => {
       const fence = this.activeFence;
-      if (!fence || typeof details?.seekTime !== 'number' || !Number.isFinite(details.seekTime)) return;
-      this.run(() => actions.seek(fence, Math.max(0, details.seekTime)));
+      const seekTime = details?.seekTime;
+      if (!fence || typeof seekTime !== 'number' || !Number.isFinite(seekTime)) return;
+      this.run(() => actions.seek(fence, Math.max(0, seekTime)));
     } : null);
     this.setHandler(session, 'previoustrack', canPrevious ? () => {
       const fence = this.activeFence;

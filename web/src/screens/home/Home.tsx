@@ -1,7 +1,8 @@
 import {serverNow} from '@core/server-clock.ts';
 import {homeLayout} from './layout';
 import {Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode} from 'react';
-import {defaultI18n} from '@i18n';
+import {defaultI18n, type I18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import {generatedCoverTint, heroSpec} from '@design';
 import {HomeService, type HomeSnapshot} from '@core/home-service.ts';
 import {hasHomeRowContent} from '@core/home.ts';
@@ -66,7 +67,6 @@ export type HomeEffects = Readonly<{
 }>;
 export type HomeBindings = Readonly<{/** One quiet line above the rows, such as libraries that did not load. */notice?: ReactNode; service: HomeService; displayDocument?: FreshDocument; artwork: ShellArtwork; effects: HomeEffects; selection: HomeSelection; time: TimeEnvironment; reducedMotion: boolean; appearance?: ScreenAppearance; serverName?: string; customization?: HomeCustomizationBindings; musicMixes?: MusicMixesBinding; musicMixesMore?: ReactNode}>;
 type HomePresentation = Pick<HomeBindings, 'artwork' | 'effects' | 'selection' | 'time' | 'reducedMotion' | 'appearance'>;
-const t = defaultI18n.t;
 const pageSubscribe = (listener: () => void) => subscribePageVisibility(listener);
 /** The frame draws a long hero title at the long lockup size; no shorter drawn rule decides it (mock.html#home). */
 
@@ -105,6 +105,7 @@ function useVisible() {
 }
 
 export function HomeScreen(bindings: HomeBindings) {
+  const {t} = useI18n() ?? defaultI18n;
   const service = bindings.service, {hub} = useFreshness(), display = bindings.displayDocument;
   if (!display) throw new Error('A shell Home display registration is required.');
   useEffect(() => {
@@ -168,10 +169,12 @@ const noSubscription = () => () => {};
 const noMore = () => {};
 const noMixes = () => undefined;
 export function HomeView({service, customization, document, nowMs, onMore, refreshLive, artwork, effects, selection, time, reducedMotion, appearance, musicMixes, musicMixesMore, notice}: HomeBindings & {document: HomeDocument; nowMs: number; onMore: (rowId: string) => void; refreshLive: () => void}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
+  const locale = i18n === defaultI18n ? time.locale : i18n.region.formatLocale;
   const width = useShellWidth(), layout = homeLayout(width), {platform, sizeClass} = layout;
   const heroPixels = Math.max(width, heroSpec.backdropWidth[platform === 'desktop' || sizeClass === 'medium' ? 'web' : 'phone']) * devicePixelRatio;
-  const hero = useVisible(), env = useMemo(() => ({t, locale: time.locale}), [time.locale]);
-  const candidates: Spotlight[] = useMemo(() => homeSpotlights(document, env).map((slide, index) => ({...slide, long: longTitle(slide.title), source: document.spotlight[index], causalReason: slide.reason, reason: serverTextLabel(defaultI18n, slide.reason.text)})), [document, env]);
+  const hero = useVisible(), env = useMemo(() => ({t, locale}), [t, locale]);
+  const candidates: Spotlight[] = useMemo(() => homeSpotlights(document, env).map((slide, index) => ({...slide, long: longTitle(slide.title), source: document.spotlight[index], causalReason: slide.reason, reason: serverTextLabel(i18n, slide.reason.text)})), [document, env, i18n]);
   useEffect(() => {
     if (!hero.visible) return;
     const cleanups = document.spotlight.map(selection.registerSpotlight);
@@ -250,12 +253,13 @@ function HomeRowView({onNear, ...props}: HomeRowProps & {onNear: (rowId: string,
   return <div ref={interest.ref} className={styles.rowSlot} data-home-row={props.row.id} data-deferred={deferred || undefined}><HomeRowContents {...props} nowMs={props.row.live ? nowMs : props.nowMs} onRange={onRange} /></div>;
 }
 function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRange, focusScope, ...bindings}: HomeRowProps & {onRange: (first: number, last: number) => void}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
   const phone = platform !== 'desktop';
   // The On now row's drawn trailing link is "Guide", not "See all", and it stays visible
   // beside the heading instead of waiting for the row's hover (mock.html#home).
   const guide = !phone && row.seeAll?.type === 'guide';
-  const header = {heading: serverTextLabel(defaultI18n, row.titleText, row.title),
-    subtitle: !phone || ['on_now', 'listen_next', 'continue_listening'].includes(row.id) ? serverTextLabel(defaultI18n, row.subtitleText) : undefined, platform, sizeClass: layout.sizeClass,
+  const header = {heading: serverTextLabel(i18n, row.titleText, row.title),
+    subtitle: !phone || ['on_now', 'listen_next', 'continue_listening'].includes(row.id) ? serverTextLabel(i18n, row.subtitleText) : undefined, platform, sizeClass: layout.sizeClass,
     actions: guide ? <button type="button" className={styles.rowGuide} onClick={() => bindings.effects.openSeeAll(row.seeAll!)}>{t('next.controls.guide')}<Icon name="i-right" size={18} /></button> : undefined,
     onSeeAll: row.seeAll && !guide && (!phone || !['continue', 'continue_books', 'community_watching'].includes(row.id)) ? () => bindings.effects.openSeeAll(row.seeAll!) : undefined};
   const wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
@@ -285,9 +289,10 @@ function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRang
 }
 
 function VisibleCollection({row, rowIndex, artwork, effects, selection, time, appearance}: HomePresentation & {row: HomeRow; rowIndex: number}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t, locale = i18n === defaultI18n ? time.locale : i18n.region.formatLocale;
   const interest = useVisible(), collection = row.collection!;
   const open = () => effects.openSeeAll({type: 'collection', resourceId: collection.collection.id, libraryId: collection.collection.libraryId});
-  return <div ref={interest.ref} className={styles.collection}><CollectionBanner model={{title: collection.collection.name, caption: []}} description={homeCollectionCaption(collection, {t, locale: time.locale})[0]?.text} kindLabel={t('next.home.collection')} position="60% 30%"
+  return <div ref={interest.ref} className={styles.collection}><CollectionBanner model={{title: collection.collection.name, caption: []}} description={homeCollectionCaption(collection, {t, locale})[0]?.text} kindLabel={t('next.home.collection')} position="60% 30%"
     visible={interest.visible} arrivalDurationMs={240}
     selection={selection.collection(row)}
     artwork={appearance?.showBackdrops === false ? undefined : artwork.foreground(collection.backdropUrl, 1312 * devicePixelRatio, 16 / 9, {order: rowIndex * 1000, group: row.id})}
@@ -296,14 +301,15 @@ function VisibleCollection({row, rowIndex, artwork, effects, selection, time, ap
 }
 
 function VisibleCard({entry, row, rowIndex, index, layout, artwork, effects, selection, time, appearance}: HomePresentation & {entry: ContentEntry; row: HomeRow; rowIndex: number; index: number; layout: ReturnType<typeof homeLayout>}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t, locale = i18n === defaultI18n ? time.locale : i18n.region.formatLocale;
   const interest = useVisible(), wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
   const scale = cardScale(appearance), width = (wide ? layout.wide : square ? layout.square : layout.poster) * scale;
   const resume = row.resumes?.find(value => value.entryId === entry.id)?.target ?? entry;
   const target = homePlaybackTarget(entry, resume);
   // A continuing listen or book draws the bar under its art and its continuation where the
   // author/artist line otherwise sits (HM-4: Continue Listening and Continue your books alike).
-  const ordinary = homeCardModel(wide ? resume : entry, wide, {t, locale: time.locale});
-  const model = square ? homeContinuationCard(row.id, ordinary, homeCardModel(homeContinuationSource(entry, resume), true, {t, locale: time.locale})) : ordinary, continuing = model !== ordinary;
+  const ordinary = homeCardModel(wide ? resume : entry, wide, {t, locale});
+  const model = square ? homeContinuationCard(row.id, ordinary, homeCardModel(homeContinuationSource(entry, resume), true, {t, locale})) : ordinary, continuing = model !== ordinary;
   const source = wide ? entry.backdropUrl ?? entry.posterUrl : entry.posterUrl;
   // The drawn ranked card carries the number and the title only (mock.html#home).
   const ranked = row.id === 'community_watching' && !!row.period;
@@ -324,9 +330,10 @@ function VisibleCard({entry, row, rowIndex, index, layout, artwork, effects, sel
  * card. A book, comic or magazine opens the reader at its saved place; an audiobook resumes in the
  * player. Tapping the card is the action, so it draws no play button. */
 function VisibleBookCard({entry, row, rowIndex, index, artwork, effects, selection, time}: HomePresentation & {entry: ContentEntry; row: HomeRow; rowIndex: number; index: number}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t, locale = i18n === defaultI18n ? time.locale : i18n.region.formatLocale;
   const resume = row.resumes?.find(value => value.entryId === entry.id)?.target ?? entry;
   // An audiobook's chapter and time left follow the shared Home continuation rule (HM-4).
-  const interest = useVisible(), facts = continueBookFacts(entry, t, homeCardModel(homeContinuationSource(entry, resume), true, {t, locale: time.locale})), title = entry.displayTitle ?? entry.title;
+  const interest = useVisible(), facts = continueBookFacts(entry, t, homeCardModel(homeContinuationSource(entry, resume), true, {t, locale})), title = entry.displayTitle ?? entry.title;
   const author = entry.author ?? (facts.reading ? undefined : entry.subtitle);
   const card = {model: {title, caption: author ? [{id: 'author', text: author, role: 'identity' as const}] : [], progress: facts.progress},
     ...(facts.where ? {location: {id: 'where', text: facts.where, role: 'context' as const}} : {}),
@@ -343,12 +350,14 @@ function VisibleBookCard({entry, row, rowIndex, index, artwork, effects, selecti
 
 /** An On now card says one thing under the programme: when it ends (mock.html On now, "Ends 4:30 PM"). The rest of the
  * programme's facts belong to the guide; on a card this narrow they were cut to "2:15 to 2:4…", "TV…". */
-function onNowFacts(endMs: number | undefined, time: TimeEnvironment): readonly FactPart[] {
+function onNowFacts(endMs: number | undefined, time: TimeEnvironment, t: I18n['t']): readonly FactPart[] {
   const end = endMs === undefined ? undefined : wallClockText(endMs, time);
   return end ? [{id: 'ends', role: 'context', text: t('next.watch.ends', {time: end})}] : [];
 }
 
 function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, selection, appearance}: HomePresentation & {item: HomeChannel; mark: Parameters<typeof LiveCard>[0]['channel']['mark']; nowMs: number; order: number; row: HomeRow}) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
+  const liveTime: TimeEnvironment = i18n === defaultI18n ? time : {t, locale: i18n.region.formatLocale, timeZone: i18n.region.timeZone, hourCycle: i18n.region.hour12 === true ? 'h12' : i18n.region.hour12 === false ? 'h23' : undefined};
   const interest = useVisible(), width = useShellWidth(), {channel} = item;
   const programme = channel.programmes.find(item => Date.parse(item.start) <= nowMs && nowMs < Date.parse(item.end));
   const start = programme && Date.parse(programme.start), end = programme && Date.parse(programme.end);
@@ -356,6 +365,6 @@ function VisibleLive({item, mark, nowMs, order, row, artwork, effects, time, sel
   const play = () => { if (current()) void effects.playChannel(channel).catch(effects.reportError); };
   const canPlay = homeChannelSelection(item, {platform: 'web', playbackAvailable: true, queueAvailable: true}).capabilities.play;
   return <div ref={interest.ref}><LiveCard style={{width: '100%', height: (width >= 1024 ? 178 : 140) * cardScale(appearance)}} channel={{sourceId: channel.sourceId, id: channel.id, name: channel.name, number: channel.number, mark}}
-    programme={programme ? {title: programme.title, facts: onNowFacts(end, time), progress: start !== undefined && end !== undefined && end > start ? (nowMs - start) / (end - start) : undefined, live: programme.flags?.live === true, isNew: programme.flags?.new === true, premiere: programme.flags?.premiere === true} : undefined}
+    programme={programme ? {title: programme.title, facts: onNowFacts(end, liveTime, t), progress: start !== undefined && end !== undefined && end > start ? (nowMs - start) / (end - start) : undefined, live: programme.flags?.live === true, isNew: programme.flags?.new === true, premiere: programme.flags?.premiere === true} : undefined}
     visible={interest.visible} selection={selection.channel(row, item)} logo={artwork.foreground(channel.logoPath, 34 * devicePixelRatio, 1, {group: row.id, order})} onNavigate={canPlay ? play : () => { if (current()) effects.openSeeAll({type: 'guide', sourceId: channel.sourceId}); }} onPlay={canPlay ? play : undefined} /></div>;
 }

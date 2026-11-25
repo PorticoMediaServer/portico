@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import {playbackIdentity} from '@core/presentation/kit-model/index.ts';
 import {sameFence, type PlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import {Icon, type IconName} from '../../kit/Icon';
@@ -33,7 +34,6 @@ import {LivePage} from '../../kit/player/LivePage';
 import {WatchPromptFocus, type PromptFocusHost} from './prompt-focus';
 import {bufferedSegments} from './buffered-ranges';
 
-const t = defaultI18n.t;
 const subscribeWindow = (changed: () => void) => { window.addEventListener('resize', changed); return () => window.removeEventListener('resize', changed); };
 const windowSize = () => `${window.innerWidth}:${window.innerHeight}`;
 const serverSize = () => '1440:810';
@@ -96,6 +96,7 @@ export function watchChapterStepIntent(snapshot: WatchScreenProps['snapshot'], d
 
 /** Only drawn controls and geometry targets. The parent's MediaSurface remains its sole video. */
 export function WatchScreen({binding, snapshot, expanded, onCollapse, onControlsVisibleChange, publishDockPanels, dockPanelsCurrent, subscribeDockPanels, surfaceSlotRef, surfaces, live, windowPort, geometry, videoGesture}: WatchScreenProps) {
+  const i18n = useI18n() ?? defaultI18n, t = i18n.t;
   const size = useSyncExternalStore(subscribeWindow, windowSize, serverSize).split(':').map(Number), width = size[0]!, height = size[1]!;
   const coarsePointer = useCoarsePointer(), touchTablet = coarsePointer && width >= 600;
   const root = useRef<HTMLDivElement>(null), chrome = useRef<HTMLDivElement>(null), body = useRef<HTMLDivElement>(null), panelAnchor = useRef<HTMLButtonElement>(null), moreAnchor = useRef<HTMLButtonElement>(null);
@@ -374,7 +375,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   useEffect(() => {if (asking) trickplay?.prepare?.();}, [asking, trickplay]);
   const preview = open && chromeVisible && !panel && !more && !shortcuts ? watchPreviewFrame(snapshot, trickplay, previewSeconds) : null;
   const endsAt = presentation?.playing && duration > position && presentation.rate > 0
-    ? endClock(binding.environment.locale ?? 'en-US').format(new Date(Date.now() + (duration - position) / presentation.rate * 1000)) : undefined;
+    ? endClock(i18n === defaultI18n ? (binding.environment.locale ?? 'en-US') : i18n.region.formatLocale).format(new Date(Date.now() + (duration - position) / presentation.rate * 1000)) : undefined;
   const mainKind = presentation?.finished ? 'replay' : presentation?.playing ? 'pause' : 'play';
   const episode = identity?.subtitle.some(part => part.id === 'episode-label');
   // desktop-player f1: Previous and Next follow the queue and name the title they would play.

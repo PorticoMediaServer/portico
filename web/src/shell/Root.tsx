@@ -1,6 +1,7 @@
 import {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Outlet, useRouter, useRouterState} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
+import {useI18n} from './i18n';
 import {useRouteFade, type RouteFadeCommits} from '../platform/route-motion';
 import {Shell} from './Shell';
 import {GlobalShortcuts} from './GlobalShortcuts';
@@ -19,6 +20,7 @@ import {currentWebEnvironment} from '../platform/environment';
 import {HostedServicesHost, isHostedServicesPath, useHostedInPageNavigation} from '../screens/accounts/HostedServicesHost';
 
 function RouteContent() {
+  const i18n = useI18n() ?? defaultI18n;
   const content = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const owner = useShellBindings();
@@ -54,7 +56,7 @@ function RouteContent() {
     let live = true, accepted = false, announcedLabel: string | undefined;
     const previousHeading = acceptedPath.current !== undefined && acceptedPath.current !== location.pathname ? lastRouteHeading.current : undefined;
     const current = () => live && content.current === main && main.isConnected && router.state.location === location;
-    const fallbackLabel = () => defaultI18n.t(routeLabelKey(location.pathname));
+    const fallbackLabel = () => i18n.t(routeLabelKey(location.pathname));
     const pushAnnouncement = (text: string) => {
       announcedLabel = text;
       setAnnouncement(prev => ({text, seq: prev.seq + 1}));
@@ -65,7 +67,7 @@ function RouteContent() {
       const heading = routeHeading(main, location.pathname);
       if (heading) lastRouteHeading.current = heading;
       const next = heading || fallbackLabel();
-      document.title = routeDocumentTitle(next, defaultI18n.t('next.platform.appName'));
+      document.title = routeDocumentTitle(next, i18n.t('next.platform.appName'));
       // If a sibling or async route committed before its real heading painted,
       // re-announce once the resolved heading arrives without stealing focus again.
       if (accepted && heading && heading !== announcedLabel && heading !== previousHeading && canAnnounceRoute(main)) {
@@ -97,7 +99,7 @@ function RouteContent() {
     // A session may finish restoring after this route's original render event.
     if (router.state.resolvedLocation?.href === location.href && !router.state.isLoading) commit();
     return () => { live = false; off(); observer.dispose(); titles.dispose(); };
-  }, [router, location, phase]);
+  }, [router, location, phase, i18n]);
   return <><main id="portico-content" ref={content} data-route-content data-shell-page tabIndex={-1}><BootstrapContent><DestinationErrorBoundary witness={recovery}><Outlet /></DestinationErrorBoundary></BootstrapContent></main>
     <span className={bootStyles.srOnly} role="status" aria-live="polite" aria-atomic="true">{announcement.text ? <span key={announcement.seq}>{announcement.text}</span> : null}</span></>;
 }

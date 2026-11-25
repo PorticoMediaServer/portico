@@ -1,8 +1,12 @@
+/** Shared bounded choices for series rule creation and editing, matching the DVR server contract. */
+export const RULE_KEEP_OPTIONS = ['all', '1', '3', '5', '10', '20'] as const;
+export const RULE_PADDING_OPTIONS = [0, 1, 2, 5, 10, 15] as const;
+
 /** Local editor state; the caller supplies resolved display copy and real airing facts. */
 export type RuleSettings = Readonly<{enabled: boolean; episodes: 'new' | 'all'; channel?: 'this' | 'any'; channelLocked?: boolean; keep: string; startEarly: number; endLate: number}>;
 export type RuleAiring = Readonly<{id: string; time: string; day: string; channelId: string; channel?: string; episode?: string; title: string; isNew: boolean; scheduled?: boolean}>;
 export type SeriesRule = Readonly<{id: string; title: string; glyph: string; tone?: 'documentary' | 'news' | 'sport'; channelId: string; channelName?: string; recorded?: number; upcomingCount?: number; matchingTonight?: number; actualCounts?: boolean; next: string; showNextChannel?: boolean; conflict?: boolean; settings: RuleSettings; airings?: readonly RuleAiring[]}>;
-export type SeriesRulesView = Readonly<{sourceName: string; fromServer?: boolean; channelCount?: number; guideThrough?: string; upcomingCount?: number; recordedCount?: number; ruleCount?: number; conflictCount?: number; storage?: Readonly<{free: number; hoursLeft: number}>; rules: readonly SeriesRule[]; selectedRuleId?: string}>;
+export type SeriesRulesView = Readonly<{sourceName: string; fromServer?: boolean; channelCount?: number; guideThrough?: string; upcomingCount?: number; recordedCount?: number; ruleCount?: number; conflictCount?: number; everyonesRecordings?: boolean; storage?: Readonly<{free: number; hoursLeft: number}>; rules: readonly SeriesRule[]; selectedRuleId?: string}>;
 export type RulesState = Readonly<{rules: readonly SeriesRule[]; selectedId?: string; draft?: RuleSettings}>;
 export type RulesAction = Readonly<{type: 'select'; id: string}> | Readonly<{type: 'change'; patch: Partial<RuleSettings>}> | Readonly<{type: 'replace'; view: SeriesRulesView}> | Readonly<{type: 'cancel' | 'save' | 'delete'}>;
 export function matchingAirings(rule: SeriesRule, settings: RuleSettings = rule.settings): readonly RuleAiring[] {

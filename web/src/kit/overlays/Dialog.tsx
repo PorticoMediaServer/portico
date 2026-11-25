@@ -4,7 +4,7 @@ import {Dialog as RadixDialog} from 'radix-ui';
 import {defaultI18n} from '@i18n';
 import {Button} from '../controls/Button';
 import {BottomSheet} from './BottomSheet';
-import {classes, useDismissReason, useOverlayKeys, usePhone, usePresence, useSurfaceFocus, useSurfaceMotion} from './shared';
+import {classes, isPermittedOutsideOverlay, useDismissReason, useOverlayKeys, usePhone, usePresence, useSurfaceFocus, useSurfaceMotion} from './shared';
 import type {OverlayFoot} from '@design';
 import type {OverlayContentSlots, OverlayStyle, OverlaySurfaceProps} from './types';
 import styles from './overlays.module.css';
@@ -55,8 +55,8 @@ function DesktopDialog({open, onOpenChange, title, headerAction, children, descr
         style={width === undefined ? undefined : {'--overlay-width': `${width}px`} as OverlayStyle}
         onOpenAutoFocus={focus.onOpenAutoFocus} onCloseAutoFocus={focus.onCloseAutoFocus}
         onEscapeKeyDown={event => { if (!dismissOnBack) event.preventDefault(); else reason.current = 'escape'; }}
-        onPointerDownOutside={event => { if (!dismissOnOutsidePress) event.preventDefault(); else reason.current = 'outside'; }}
-        onInteractOutside={event => { if (!dismissOnOutsidePress) event.preventDefault(); }}>
+        onPointerDownOutside={event => { if (!dismissOnOutsidePress || isPermittedOutsideOverlay(event)) { event.preventDefault(); return; } reason.current = 'outside'; }}
+        onInteractOutside={event => { if (!dismissOnOutsidePress || isPermittedOutsideOverlay(event)) event.preventDefault(); }}>
         <header className={classes(styles.dialogHeader, headerClassName)}><RadixDialog.Title className={styles.dialogTitle}>{title}</RadixDialog.Title>
         {headerAction}
         {showCloseButton && <Button variant="icon" size="small" iconOnly icon="i-x" iconSize={closeIconSize} aria-label={closeLabel ?? defaultI18n.t('next.overlays.close')} className={styles.dialogClose} onClick={() => onOpenChange(false, 'close-button')} />}</header>

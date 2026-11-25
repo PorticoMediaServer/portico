@@ -5,8 +5,7 @@
 .content { min-width: 0; }
 /* An auth stage grows its full-page state with the auth column (accounts.module.css); 1 elsewhere. */
 .position > .content { zoom: var(--state-zoom, 1); }
-.content h1 { overflow-wrap: anywhere; }
-.content h1 { font-size: 58px; line-height: 1.02; font-weight: 800; letter-spacing: -.045em; margin: 0 0 18px; text-wrap: balance; text-shadow: 0 2px 30px rgba(7,16,24,.5); }
+.content .title { overflow-wrap: anywhere; font-size: 58px; line-height: 1.02; font-weight: 800; letter-spacing: -.045em; margin: 0 0 18px; text-wrap: balance; text-shadow: 0 2px 30px rgba(7,16,24,.5); }
 .stateIcon { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; margin: 0 0 26px; background: rgba(237,245,250,.1); backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px rgba(237,245,250,.12); }
 .content[data-tone=warning] .stateIcon { color: var(--color-amber); }
 .content[data-tone=error] .stateIcon { color: var(--color-record); }
@@ -81,7 +80,7 @@
 .frozenShade { position: absolute; inset: 0; background: linear-gradient(180deg,rgba(4,9,13,.84),rgba(4,9,13,.38) 130px,transparent 240px),linear-gradient(0deg,rgba(4,9,13,.94),rgba(4,9,13,.62) 150px,transparent 340px); }
 .player .position { width: 640px; }
 .player .stateIcon { margin-bottom: 22px; }
-.player h1 { font-size: 46px; line-height: 1.04; letter-spacing: -.04em; margin-bottom: 14px; }
+.player .title { font-size: 46px; line-height: 1.04; letter-spacing: -.04em; margin-bottom: 14px; }
 .player .body { font-size: 17px; margin-bottom: 24px; max-width: 580px; }
 .player .details { width: 600px; }
 .landscape .position { left: 64px; width: 380px; }
@@ -90,7 +89,7 @@
 .landscape .frozen > :first-child { filter: blur(10px) brightness(.36) saturate(.9); transform: scale(1.06); }
 .landscape .frozenShade { background: linear-gradient(180deg,rgba(3,8,12,.82) 0,rgba(3,8,12,.35) 20%,rgba(3,8,12,0) 36%),linear-gradient(0deg,rgba(3,8,12,.92) 0,rgba(3,8,12,.5) 26%,rgba(3,8,12,0) 50%); }
 .landscape[data-details-open] .frozenShade { display: none; }
-.landscape h1 { font-size: 26px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
+.landscape .title { font-size: 26px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
 .landscape .body { font-size: 14px; line-height: 1.5; margin-bottom: 14px; }
 .landscape .actions { gap: 8px; }
 .landscape .actions button { height: 40px; padding: 0 16px; border-radius: 10px; font-size: 14.5px; gap: 7px; }
@@ -109,12 +108,12 @@
    Scoped to StateView: StateLayout's full-window variant is also called "page" and must keep its width. */
 .inline.page { max-width: calc(620px + 2 * var(--shell-gutter)); padding: 40px var(--shell-gutter) 72px; }
 :global([data-route-content]) > .inline.page:first-child { padding-top: calc(var(--shell-top, 0px) + 72px); }
-.inline h1 { font-size: 30px; line-height: 1.08; letter-spacing: -.035em; margin-bottom: 10px; text-shadow: none; }
+.inline .title { font-size: 30px; line-height: 1.08; letter-spacing: -.035em; margin-bottom: 10px; text-shadow: none; }
 .inline .body { font-size: 15px; line-height: 1.5; margin-bottom: 16px; }
 .inline .stateIcon { width: 54px; height: 54px; margin-bottom: 18px; }
 .scan { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 96px; }
 .scan .content { max-width: 100%; }
-.scan h1 { font-size: 34px; line-height: normal; letter-spacing: -.03em; margin-bottom: 10px; }
+.scan .title { font-size: 34px; line-height: normal; letter-spacing: -.03em; margin-bottom: 10px; }
 .scan .body { max-width: 580px; font-size: 16.5px; line-height: 1.55; margin: 0 auto 26px; }
 .scan .actions { justify-content: center; }
 .scan .actions button { height: 50px; }
@@ -123,12 +122,12 @@
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 88px 24px 72px; }
 .empty .content { display: flex; flex-direction: column; align-items: center; max-width: 100%; }
 .empty .stateIcon { width: 54px; height: 54px; margin: 0 0 22px; }
-.empty h1 { font-size: 34px; line-height: normal; letter-spacing: -.03em; margin-bottom: 10px; text-shadow: none; }
+.empty .title { font-size: 34px; line-height: normal; letter-spacing: -.03em; margin-bottom: 10px; text-shadow: none; }
 .empty .body { max-width: 520px; font-size: 16.5px; line-height: 1.55; margin: 0 auto 22px; }
 .empty .actions { justify-content: center; }
 @media (max-width: 599px) {
   .empty { padding: 72px 8px 48px; }
-  .empty h1 { font-size: 30px; }
+  .empty .title { font-size: 30px; }
   .empty .body { font-size: 15px; }
 }
 .ghosts { position: relative; width: 220px; height: 150px; margin-bottom: 30px; }
@@ -136,10 +135,10 @@
 .ghosts span:nth-child(1) { transform: translateX(-62px) rotate(-9deg); opacity: .55; }
 .ghosts span:nth-child(3) { transform: translateX(62px) rotate(9deg); opacity: .55; }
 .ghosts span:nth-child(2) { z-index: 1; height: 138px; width: 92px; margin-left: -46px; background: linear-gradient(180deg,var(--color-raised-bright),var(--color-raised-high)); }
-.search h1 { font-size: 24px; line-height: 1.15; letter-spacing: -.03em; margin-bottom: 6px; }
+.search .title { font-size: 24px; line-height: 1.15; letter-spacing: -.03em; margin-bottom: 6px; }
 .search .body { font-size: 14.5px; line-height: 1.5; margin: 0; }
 .compact .stateIcon { width: 44px; height: 44px; margin-bottom: 14px; }
-.compact h1 { font-size: 25px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
+.compact .title { font-size: 25px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
 .compact .body { font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
 .compact .alive { font-size: 13.5px; gap: 10px; margin: -4px 0 16px; }
 .compact .countdown { width: 20px; height: 20px; }
@@ -155,7 +154,7 @@
   .page .position { left: 24px; right: 24px; top: 160px; width: auto; transform: none; text-align: center; max-height: calc(100% - var(--state-content-top, 160px) - 24px); }
   .page .stateIcon { width: 54px; height: 54px; margin: 0 auto 18px; }
   .page .stateIcon svg { width: 26px; height: 26px; }
-  .page h1 { font-size: 30px; line-height: 1.08; letter-spacing: -.035em; margin-bottom: 10px; text-shadow: none; }
+  .page .title { font-size: 30px; line-height: 1.08; letter-spacing: -.035em; margin-bottom: 10px; text-shadow: none; }
   .page .body { font-size: 15px; line-height: 1.5; margin: 0 auto 16px; max-width: 560px; }
   .page .alive { justify-content: center; font-size: 13.5px; margin-bottom: 22px; }
   .page .countdown { width: 20px; height: 20px; }
@@ -179,7 +178,7 @@
 @media (max-width: 599px), (max-height: 499px) {
   .player .stateIcon { width: 42px; height: 42px; margin-bottom: 12px; }
   .player .stateIcon svg { width: 22px; height: 22px; }
-  .player h1 { font-size: 26px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
+  .player .title { font-size: 26px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
   .player .body { font-size: 14px; line-height: 1.5; margin-bottom: 14px; }
   .player .actions { gap: 8px; }
 }
@@ -190,7 +189,7 @@
 .downloadsFan > span > span:nth-child(1) { right: 30px; } .downloadsFan > span > span:nth-child(2) { right: 16px; top: 0; } .downloadsFan > span > span:nth-child(3) { right: 2px; }
 /* states 4c at phone width: the title on one line where it fits; the retry line and its tally each on a line of their own. */
 @media (max-width: 599px) {
-  .page h1 { font-size: 26px; }
+  .page .title { font-size: 26px; }
   .page .alive { flex-wrap: wrap; row-gap: 4px; }
   .page .retryDetail { flex-basis: 100%; text-align: center; }
 }

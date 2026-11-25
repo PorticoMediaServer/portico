@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, t
 import {channelUnavailableMessage} from '@core/presentation/live-availability.ts';
 import {defaultI18n} from '@i18n';
 import {layoutRow, legacyChannel, type GuideCell, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
-import {rulerTicks} from '@core/guide/time.ts';
+import {rulerTicks, type RulerTick} from '@core/guide/time.ts';
 import {programmeFactParts, type ChannelMarkModel, type FactPart} from '@portico/client-core/kit-model';
 import {ChannelMark, nameInitials, type ArtworkSource} from '../../kit/artwork';
 import {Button, Chip, Segmented, Tabs} from '../../kit/controls';
@@ -82,9 +82,10 @@ export type GuideScreenProps = Readonly<{
   span: Readonly<{start: number; end: number; now: number; scale: number; column: number; rowHeight: number; timezone: string}>;
   rows: readonly GuideRowData[];
   total: number;
-  selected?: Readonly<{channelId: string; programmeId?: string}>;
+  selected?: Readonly<{channelKey?: string; channelId: string; programmeId?: string}>;
   onSelect(channel: GuideChannelRow, programme?: GuideProgram, witness?: RowWitness): void;
   onPlay?(channel: GuideChannelRow, witness?: RowWitness): void;
+  onRecord?(channel: GuideChannelRow, programme?: GuideProgram, witness?: RowWitness): void;
   /** A drawn row's channel menu (desktop-live List view, tablet-play 6). */
   channelMenu?(channel: GuideChannelRow, witness?: RowWitness): readonly MenuEntry[];
   onVisibleWindow?(first: number, last: number): void;
@@ -103,7 +104,7 @@ function CellButton({cell, channel, witness, now, timezone, selected, onSelect}:
   {t, locale: defaultI18n.region.formatLocale, timeZone: timezone});
   const facts = guideCellFacts(parts), progress = guideCellProgress(cell, now), recording = programme.recording?.state;
   const label = t('guide.cellTime', {start: defaultI18n.time(programme.start), end: defaultI18n.time(programme.end)});
-  return <button type="button" className={styles.guideCell} data-kind="program" data-state={cell.state} data-tier={cell.tier} data-selected={selected || undefined}
+  return <button type="button" className={styles.guideCell} data-kind="program" data-program-id={programme.id} data-program-start={String(programme.start)} data-state={cell.state} data-tier={cell.tier} data-selected={selected || undefined}
     style={{left: cell.x + GUIDE_CELL_INSET, width: Math.max(0, cell.width - GUIDE_CELL_INSET)}}
     aria-label={[channel.number, channel.name, programme.title, label, recording === 'recording' ? t('next.kit.recording') : recording === 'scheduled' ? t('guide.recordingScheduled') : undefined].filter(Boolean).join(', ')} aria-current={selected || undefined} onClick={() => onSelect(channel, programme, witness)}>
     <span className={styles.guideCellTitle}>
@@ -140,7 +141,117 @@ function GuideChannelCell({channel, list, phone, landscape = false, logo, childr
 }
 
 
-const channelKey = (channel: GuideChannelRow) => JSON.stringify([channel.kind, channel.sourceId ?? '', channel.id]);
+export const channelKey = (channel: GuideChannelRow) => JSON.stringify([channel.kind, channel.sourceId ?? '', channel.id]);
+
+/** Format a ruler tick in the guide's timezone: local midnight ticks display the new day cleanly. */
+export function guideTickLabel(tick: RulerTick, timezone: string): string {
+  if (tick.kind === 'day') return new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'short', month: 'short', day: 'numeric', timeZone: timezone}).format(tick.atMs);
+  return new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {hour: 'numeric', minute: '2-digit', timeZone: timezone}).format(tick.atMs);
+}
+
+function cellBounds(cell: HTMLElement): Readonly<{left: number; right: number; mid: number}> {
+  const styleLeft = Number.parseFloat(cell.style.left);
+  const styleWidth = Number.parseFloat(cell.style.width);
+  if (Number.isFinite(styleLeft) && Number.isFinite(styleWidth)) {
+    return {left: styleLeft, right: styleLeft + styleWidth, mid: styleLeft + styleWidth / 2};
+  }
+  const rect = cell.getBoundingClientRect();
+  return {left: rect.left, right: rect.right, mid: rect.left + rect.width / 2};
+}
+
+/** Find the closest programme cell in the next non-empty channel row above or below `cell`. */
+export function findVerticalGuideCell(cell: HTMLElement, direction: -1 | 1): HTMLButtonElement | undefined {
+  const currentRow = cell.closest<HTMLElement>('[data-guide-row]');
+  const container = currentRow?.parentElement;
+  if (!currentRow || !container) return undefined;
+  const rowElements = [...container.querySelectorAll<HTMLElement>('[data-guide-row]')];
+  const rowIndex = rowElements.indexOf(currentRow);
+  if (rowIndex < 0) return undefined;
+  const targetMid = cellBounds(cell).mid;
+  for (let index = rowIndex + direction; index >= 0 && index < rowElements.length; index += direction) {
+    const candidates = [...rowElements[index]!.querySelectorAll<HTMLButtonElement>('button[data-kind]')];
+    if (!candidates.length) continue;
+    let best = candidates[0]!;
+    let bestEdgeDistance = Number.POSITIVE_INFINITY;
+    let bestMidDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of candidates) {
+      const bounds = cellBounds(candidate);
+      const edgeDistance = targetMid < bounds.left ? bounds.left - targetMid : targetMid > bounds.right ? targetMid - bounds.right : 0;
+      const midDistance = Math.abs(bounds.mid - targetMid);
+      if (edgeDistance < bestEdgeDistance || (edgeDistance === bestEdgeDistance && midDistance < bestMidDistance)) {
+        best = candidate;
+        bestEdgeDistance = edgeDistance;
+        bestMidDistance = midDistance;
+      }
+    }
+    return best;
+  }
+  return undefined;
+}
+
+export type GuideKeyEvent = Readonly<{
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  target: EventTarget | null;
+  preventDefault(): void;
+}>;
+
+export type GuideKeyHandlers = Readonly<{
+  rows: readonly GuideRowData[];
+  onPlay?: (channel: GuideChannelRow, witness?: RowWitness) => void;
+  onRecord?: (channel: GuideChannelRow, programme?: GuideProgram, witness?: RowWitness) => void;
+  onSelect: (channel: GuideChannelRow, programme?: GuideProgram, witness?: RowWitness) => void;
+  onNow: () => void;
+}>;
+
+/** Keyboard navigation and single-key shortcuts for the guide grid. Never intercepts browser/OS modifier combos. */
+export function handleGuideGridKeyDown(event: GuideKeyEvent, handlers: GuideKeyHandlers): void {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const target = event.target as HTMLElement | null;
+  const cell = target?.closest<HTMLButtonElement>('button[data-kind]');
+  if (!cell) return;
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault();
+    const cells = [...(cell.parentElement?.querySelectorAll<HTMLButtonElement>('button[data-kind]') ?? [])];
+    const index = cells.indexOf(cell);
+    if (index >= 0) cells[Math.max(0, Math.min(cells.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))]?.focus();
+    return;
+  }
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    findVerticalGuideCell(cell, event.key === 'ArrowUp' ? -1 : 1)?.focus();
+    return;
+  }
+  const rowKey = cell.closest<HTMLElement>('[data-guide-row]')?.dataset.guideRow;
+  const item = rowKey ? handlers.rows.find(entry => entry.channel && channelKey(entry.channel) === rowKey) : undefined;
+  if ((event.key === 'w' || event.key === 'W') && item?.channel && handlers.onPlay) {
+    event.preventDefault();
+    handlers.onPlay(item.channel, item.witness);
+    return;
+  }
+  if ((event.key === 'r' || event.key === 'R') && item?.channel) {
+    const programId = cell.dataset.programId;
+    const rawStart = cell.dataset.programStart;
+    const programStart = rawStart !== undefined ? Number(rawStart) : undefined;
+    const programme = programId ? item.programs.find(entry => entry.id === programId && (programStart === undefined || entry.start === programStart)) : undefined;
+    if (handlers.onRecord) {
+      event.preventDefault();
+      handlers.onRecord(item.channel, programme, item.witness);
+      return;
+    }
+    if (programme) {
+      event.preventDefault();
+      handlers.onSelect(item.channel, programme, item.witness);
+      return;
+    }
+  }
+  if (event.key === 'n' || event.key === 'N') {
+    event.preventDefault();
+    handlers.onNow();
+  }
+}
 
 /** The row's channel menu. Desktop and tablet anchor it to the row's More button, shown on
  * hover and focus; the phone has no button and opens the same menu as a sheet. */
@@ -164,7 +275,7 @@ function GuideRowFrame({channel, onMenu, className, style, children}: Readonly<{
   const gestures = useChannelMenuGestures(() => onMenu?.());
   // Spec §10: an unavailable channel is dimmed and says why on hover, focus and in its label (LT-4).
   const reason = channel && !channel.tuneAvailable ? channelUnavailableMessage(channel.tuneUnavailableReason ?? '') : undefined;
-  return <div className={className} style={style} data-guide-row={channel?.id} data-hidden={channel && legacyChannel(channel)?.serverHidden || undefined}
+  return <div className={className} style={style} data-guide-row={channel ? channelKey(channel) : undefined} data-hidden={channel && legacyChannel(channel)?.serverHidden || undefined}
     data-unavailable={channel && !channel.tuneAvailable || undefined} title={reason ? t(reason) : undefined}
     role={channel ? 'group' : undefined} aria-label={channel ? [channel.number, channel.name, reason ? t(reason) : undefined].filter(Boolean).join(', ') : undefined}
     {...(channel && onMenu ? gestures : {})}>
@@ -233,7 +344,7 @@ function PhoneListProgramme({channel, current, next, now, timezone, onSelect}: R
 }
 
 export function GuideScreen({title, channelLogo, switcher, summary, conflicts, onTabChange, chips, onNow, problem, notice, empty, day, sort, view, time, onViewChange,
-  span, rows, total, selected, onSelect, onPlay, channelMenu, onVisibleWindow, onRetry}: GuideScreenProps) {
+  span, rows, total, selected, onSelect, onPlay, onRecord, channelMenu, onVisibleWindow, onRetry}: GuideScreenProps) {
   const body = useRef<HTMLDivElement>(null);
   const [menuFor, setMenuFor] = useState<string>();
   const swipe = useGuideSwipe(time.onEarlier, time.onLater);
@@ -260,19 +371,9 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
     return () => {globalThis.removeEventListener('scroll', update);globalThis.removeEventListener('resize', update);};
   }, [onVisibleWindow, bodyRowHeight, total, view]);
 
-  const move = useCallback((from: EventTarget | null, offset: number) => {
-    const cells = [...(from as HTMLElement | null)?.parentElement?.querySelectorAll<HTMLButtonElement>('button') ?? []];
-    const index = cells.indexOf(from as HTMLButtonElement);
-    cells[Math.max(0, Math.min(cells.length - 1, index + offset))]?.focus();
-  }, []);
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const cell = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-kind]');
-    if (!cell) return;
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {event.preventDefault();move(cell, event.key === 'ArrowLeft' ? -1 : 1);return;}
-    const item = rows.find(item => item.channel?.id === cell.closest<HTMLElement>('[data-guide-row]')?.dataset.guideRow);
-    if ((event.key === 'w' || event.key === 'W') && item?.channel && onPlay) {event.preventDefault();onPlay(item.channel, item.witness);return;}
-    if (event.key === 'n' || event.key === 'N') {event.preventDefault();time.onNow();}
-  };
+  const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    handleGuideGridKeyDown(event, {rows, onPlay, onRecord, onSelect, onNow: time.onNow});
+  }, [rows, onPlay, onRecord, onSelect, time.onNow]);
 
   // desktop-live live-guide, phone-guide g1, final3-phone-07: the guide on the Live TV frame. The frame draws the head (the
   // library header from 600 with Guide | Recordings under it; at phone width the title with List | Guide and Recordings), the
@@ -319,7 +420,7 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
         <div className={styles.guideRuler}>
           <div className={styles.guideCorner}>{landscape ? <PickChip label={day.label} value={day.value} options={day.options} onChange={day.onChange}/> : phone ? <button type="button" className={styles.guideCornerNow} onClick={time.onNow}>{time.now}</button> : t('guide.channelColumn')}</div>
           <div className={styles.guideLane} data-now-outside={nowX === undefined || undefined}>
-            {ticks.map(tick => <span key={tick.atMs} className={styles.guideTick} data-kind={tick.kind} style={{left: tick.x}}>{defaultI18n.time(tick.atMs)}</span>)}
+            {ticks.map(tick => <span key={tick.atMs} className={styles.guideTick} data-kind={tick.kind} style={{left: tick.x}}>{guideTickLabel(tick, timezone)}</span>)}
             {nowX !== undefined && <span className={styles.guideNowPill} style={{left: nowX}}>{defaultI18n.time(now)}</span>}
             {nowX === undefined && <button type="button" className={styles.guideNowJump} data-edge={now < start ? 'start' : 'end'} onClick={time.onNow}>
               <Icon name={now < start ? 'i-left' : 'i-right'} size={16}/>{time.now}
@@ -329,7 +430,7 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
         <div className={styles.guideBody} ref={body}>
           {nowX !== undefined && <div className={styles.guidePastShade} style={{width: nowX}} aria-hidden="true"/>}
           <div className={styles.guideRows} style={{height: Math.max(0, total) * rowHeight}} onKeyDown={onKeyDown}>
-            {rows.map(row => <GuideRowFrame className={styles.guideRow} key={row.channel?.id ?? row.index} style={{top: row.index * rowHeight}} channel={row.channel}
+            {rows.map(row => <GuideRowFrame className={styles.guideRow} key={row.channel ? channelKey(row.channel) : row.index} style={{top: row.index * rowHeight}} channel={row.channel}
               onMenu={row.channel && channelMenu ? () => setMenuFor(channelKey(row.channel!)) : undefined}>
               <GuideChannelCell channel={row.channel} list={false} phone={phone} landscape={landscape} logo={channelLogo}>
                 {row.channel && channelMenu && <ChannelMenu channel={row.channel} items={channelMenu(row.channel, row.witness)} button={!phone} className={styles.guideChannelMore}
@@ -350,7 +451,7 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
                               {row.channel!.guide === 'none' && <span className={styles.guideCellDetail}>{t('guide.noGuideBody')}</span>}</>}
                           </div>
                         : <CellButton key={`cell:${cell.start}`} cell={cell} channel={row.channel!} witness={row.witness} now={now} timezone={timezone}
-                            selected={selected?.channelId === row.channel!.id && (selected.programmeId === undefined || selected.programmeId === cell.program?.id)} onSelect={onSelect}/>)}
+                            selected={(selected?.channelKey !== undefined ? selected.channelKey === channelKey(row.channel!) : selected?.channelId === row.channel!.id) && (selected.programmeId === undefined || selected.programmeId === cell.program?.id)} onSelect={onSelect}/>)}
                   </>}
               </div>
             </GuideRowFrame>)}
@@ -363,7 +464,7 @@ export function GuideScreen({title, channelLogo, switcher, summary, conflicts, o
           <span>{t('guide.channelColumn')}</span><span>{t('guide.onNow')}</span><span>{t('guide.nextColumn')}</span><span>{t('guide.laterColumn')}</span><span/>
         </div>
         <div className={styles.guideListRows} ref={body} style={{height: Math.max(0, total) * bodyRowHeight}}>
-        {rows.map(row => <GuideRowFrame className={styles.guideListRow} key={row.channel?.id ?? row.index} style={{top: row.index * bodyRowHeight, height: bodyRowHeight}} channel={row.channel}
+        {rows.map(row => <GuideRowFrame className={styles.guideListRow} key={row.channel ? channelKey(row.channel) : row.index} style={{top: row.index * bodyRowHeight, height: bodyRowHeight}} channel={row.channel}
           onMenu={row.channel && channelMenu ? () => setMenuFor(channelKey(row.channel!)) : undefined}>
           <GuideChannelCell channel={row.channel} list phone={phone} logo={channelLogo}>
             {phone && row.channel && channelMenu && <ChannelMenu channel={row.channel} items={channelMenu(row.channel, row.witness)} button={false}

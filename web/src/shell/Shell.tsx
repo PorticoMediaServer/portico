@@ -6,6 +6,7 @@ import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type
 import {Link, useNavigate, useRouterState} from '@tanstack/react-router';
 import {ownerSwitchContextAllowed} from '../platform/secure-pending';
 import {defaultI18n} from '@i18n';
+import {useI18n} from './i18n';
 import type {Library, Viewer} from '@core/index.ts';
 import {AccountMenu, ProfileAvatar, ProfileAvatarFace, type ProfileIdentity, type ProfileTone} from '../kit/shell';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
@@ -66,7 +67,6 @@ export type ShellProps = Readonly<{
   phoneSelection?: ReactNode;
   children: ReactNode;
 }>;
-const t = defaultI18n.t;
 const noSubscription = () => () => {};
 function libraryMemory() { try { return window.localStorage; } catch { return undefined; } }
 const collapseMemoryKey = 'portico.next.sidebar-collapsed';
@@ -77,6 +77,7 @@ export function Shell(props: ShellProps) {
   return <PhoneSelectionProvider><ShellFrame {...props}/></PhoneSelectionProvider>;
 }
 function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureRefused, reachability, onSignOut,onSwitchProfile,manageGate,onSwitchServer,savedServers,onFeedback,outbox, phoneSelection, overlays, windowChrome, children}: ShellProps) {
+  const {t} = useI18n() ?? defaultI18n;
   useWindowScrollAnchor();
   const sizeClass = useSizeClass(), coarsePointer = useCoarsePointer();
   // A live screen selection draws its own action bar here, in place of the tab bar.
@@ -197,7 +198,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
       <span className={styles.dashboardText}><small>{t('next.shell.server')}</small><b>{t('next.shell.dashboard')}</b></span>
       <Icon name="i-right" size={18} />
     </MenuItem> : undefined;
-  const account = <AccountMenu open={accountOpen} onOpenChange={setAccountOpen} current={current} primary={identity.primaryProfile === true}
+  const account = <AccountMenu open={accountOpen} onOpenChange={setAccountOpen} current={current} primary={identity.primaryProfile === true} t={t}
     notificationCount={desktop ? undefined : identity.unread} notificationDot={!desktop && identity.showNotificationDot && identity.unread > 0}
     serverChoices={!desktop&&onSwitchServer?savedServers?.map(server=>({...server,onSelect:()=>{void onSwitchServer(server.id);}})):undefined} profiles={identity.profiles} accountFacts={identity.accountFacts} serverAction={serverAction} actions={{
       ...(identity.canManageProfiles ? {manageProfiles: () => { void navigate({to: '/settings', search: {scope: 'account', section: 'profile'}}); }} : {}),

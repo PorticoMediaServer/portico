@@ -1,6 +1,7 @@
 import {createSettingsOpen, SettingsOpenContext} from './quiet-refresh';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
+import {useI18n} from '../../shell/i18n';
 import {settingsRowIndex, settingsSectionTab, settingsSpec, type SettingsHolder, type SettingsSectionTab, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
 import {SettingsNav, SettingsProfileCard, ShortcutTiles, type SettingsSearchGroup} from '../../kit/shell/SettingsSurfaces';
 import type {ProfileIdentity, ShellAction} from '../../kit/shell';
@@ -22,7 +23,6 @@ import {useWebAction} from '../../route-registry-view';
 import kitStyles from '../../kit/settings/settings.module.css';
 import styles from './settings.module.css';
 
-const t = defaultI18n.t;
 const noPresentation = () => () => {};
 const emptyPresentation = () => undefined;
 export type SettingsContext = Readonly<{section: SettingsSection; panelId?: string; tabId?: string; recordId?: string;
@@ -75,6 +75,7 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false, p
   pageFailure?: ReactNode;
   /** Non-fatal inline action error shown inside the page without unmounting controls. */
   actionError?: ReactNode}) {
+  const {t} = useI18n() ?? defaultI18n;
   useSyncExternalStore(bindings.presentation?.subscribe ?? noPresentation, bindings.presentation?.getSnapshot ?? emptyPresentation, emptyPresentation);
   const width = useShellWidth(), compact = width < 600, feedback = useWebAction('feedback');
   const [quietOpen]=useState(createSettingsOpen);
@@ -195,6 +196,7 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false, p
 }
 
 function ConfigurationFact({fact}: {fact: SettingsConfigurationMatch}) {
+  const {t} = useI18n() ?? defaultI18n;
   const value = (value: unknown) => value === null ? t('next.settings.notSet') : typeof value === 'string' ? value : JSON.stringify(value);
   return <section className={kitStyles.configurationNote} aria-label={fact.label}><Icon name="i-info" size={20} /><span>{fact.label}{fact.label ? '. ' : ''}{t('next.settings.configOnly.before')}{' '}<code>{fact.key}</code>{' = '}<code>{value(fact.default)}</code>{t('next.settings.configOnly.after')}</span></section>;
 }

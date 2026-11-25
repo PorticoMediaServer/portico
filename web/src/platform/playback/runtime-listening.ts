@@ -238,5 +238,5 @@ export function stepSpeed(host: ListeningRuntimeHost, fence: PlaybackFence, dire
   const offered = speedChoices(host, fence), rate = presentation.rate;
   if (!offered.length) problem('playback_speed_unavailable');
   const next = direction === 1 ? offered.find(value => value > rate) : [...offered].reverse().find(value => value < rate);
-  if (next !== undefined) setSpeed(host, next);
+  if (next !== undefined) setSpeed(host, fence, next);
 }
