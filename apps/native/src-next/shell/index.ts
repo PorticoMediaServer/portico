@@ -1,4 +1,5 @@
-export {NativeShell} from './NativeShell';
+export {NativeShell, TouchShell, TVShell, tvRailScrim} from './NativeShell';
+export {registerNativeRoutes} from './register-routes';
 export {LastLibraryMemory} from './library-memory';
 export {restoreNativeShellRuntime} from './bootstrap';
 export {createNativeShellBindings} from './assembly';

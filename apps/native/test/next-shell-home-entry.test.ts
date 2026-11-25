@@ -65,7 +65,7 @@ async function fixture() {
   const home = {subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}, getSnapshot: () => snapshot,
     load: async () => {}, recoverDroppedRows: async () => {}, setRowDemand() {}, demand() {}, registerWindow() {}, subscribeRowPages: () => () => {}, rowPageReceipt: () => undefined};
   const runtime = {home, getSnapshot: () => ({authority: currentAuthority, libraries: [], selectionActive}), text: {t: defaultI18n.t, locale: 'en-US'},
-    registerScrollToTop: () => () => {}, registerTVPageBack: () => () => {}, reportError(error: unknown) {throw error;}, actions: {}, playback: {}, selection: () => ({})};
+    registerScrollToTop: () => () => {}, reportError(error: unknown) {throw error;}, actions: {}, playback: {}, selection: () => ({})};
   const useFocusAnchor = () => React.useMemo(() => ({scrollRef: {current: null}, offset: {value: 0}, repeating: false, stop() {}, move() {}, anchor() {}}), []);
   // HomeScreen's TV entry/retry lifetime guard is real source, run on this fixture's hook host
   // with the screen's own runtime, authority, error, active and resolved inputs.

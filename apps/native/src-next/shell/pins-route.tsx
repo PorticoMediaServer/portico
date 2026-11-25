@@ -1,4 +1,5 @@
 import React from 'react';
+import {Platform} from 'react-native';
 import {nativeShellRoutes, type NativeRouteFactory} from './route-registry';
 import type {NativeShellRoute} from './routes';
 import {nativeScreenServices} from '../screens/native-screen-services';
@@ -31,5 +32,7 @@ export const createNativeHandheldPinsModule: NativeRouteFactory = context => {
 };
 
 // One factory identity: all three drawn entries borrow the same authority owner.
-nativeShellRoutes.registerRoute('edit-pins', createNativeHandheldPinsModule);
-nativeShellRoutes.registerRoute('library-edit-pins', createNativeHandheldPinsModule);
+if (!Platform?.isTV) {
+  if (!nativeShellRoutes.hasRoute?.('edit-pins')) nativeShellRoutes.registerRoute('edit-pins', createNativeHandheldPinsModule);
+  if (!nativeShellRoutes.hasRoute?.('library-edit-pins')) nativeShellRoutes.registerRoute('library-edit-pins', createNativeHandheldPinsModule);
+}

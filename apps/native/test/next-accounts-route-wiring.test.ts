@@ -4,17 +4,15 @@ import {readFile} from 'node:fs/promises';
 
 const source = (path: string) => readFile(new URL(path, import.meta.url), 'utf8');
 
-// shell/account-route registers the profiles/servers renderers as module side effects.
-// Metro enables inlineRequires, so a static import in RestoredShell stays lazy
-// until its error branch and the ready shell has no renderer. The platform entry
-// must therefore require the module eagerly.
-test('the phone entry eagerly requires the accounts route registrations', async () => {
-  const text = await source('../src-next/App.tsx');
-  const start = text.indexOf('if (!Platform.isTV) {'), end = text.indexOf("require('./shell/customize-route')");
-  assert.ok(start >= 0 && end > start, 'the phone registration block is present');
-  assert.match(text.slice(start, end), /require\('\.\/shell\/account-route'\)/);
-});
-
-test('the TV entry imports the accounts route registrations', async () => {
-  assert.match(await source('../src-next/tv/register.ts'), /import '\.\.\/shell\/account-route';/);
+// Both Touch and TV entries register all routes explicitly via shell/register-routes.ts,
+// which registers profiles and servers from shell/account-route on both platforms.
+test('the app and TV entries invoke explicit route registration including accounts routes', async () => {
+  const app = await source('../src-next/App.tsx');
+  assert.match(app, /registerNativeRoutes\(Platform\.isTV\)/);
+  const tv = await source('../src-next/tv/register.ts');
+  assert.match(tv, /registerNativeRoutes\(true\)/);
+  const table = await source('../src-next/shell/register-routes.ts');
+  assert.match(table, /import \{createAccountRoute\} from '\.\/account-route';/);
+  assert.match(table, /kind: 'profiles', factory: createAccountRoute/);
+  assert.match(table, /kind: 'servers', factory: createAccountRoute/);
 });

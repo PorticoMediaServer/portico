@@ -20,4 +20,4 @@ export function createNativeReadingSettingsRenderer(context: NativeShellBootstra
   }};
 }
 
-nativeShellRoutes.registerRoute('settings-page', createNativeReadingSettingsRenderer);
+if (!Platform?.isTV && !nativeShellRoutes.hasRoute?.('settings-page')) nativeShellRoutes.registerRoute('settings-page', createNativeReadingSettingsRenderer);

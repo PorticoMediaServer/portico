@@ -189,6 +189,6 @@ function SavedRouteHost({entry, runtime, libraries, open, back, changed, showOnH
 // The phone hub is the only destination this family registers; the TV landing
 // belongs to the TV-more owner, so a single platform registration avoids two
 // factories for one shell kind.
-if (!Platform.isTV) nativeShellRoutes.registerDestination('saved', createNativeSavedModule);
-nativeShellRoutes.registerRoute('saved-view', createNativeSavedModule);
-nativeShellRoutes.registerRoute('saved-destination', createNativeSavedModule);
+if (!Platform.isTV && !nativeShellRoutes.hasDestination?.('saved')) nativeShellRoutes.registerDestination('saved', createNativeSavedModule);
+if (!nativeShellRoutes.hasRoute?.('saved-view')) nativeShellRoutes.registerRoute('saved-view', createNativeSavedModule);
+if (!nativeShellRoutes.hasRoute?.('saved-destination')) nativeShellRoutes.registerRoute('saved-destination', createNativeSavedModule);

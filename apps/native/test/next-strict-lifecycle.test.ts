@@ -315,8 +315,8 @@ function shellRuntime(onMemoryRead?: () => void) {
     publish() {snapshot = {...snapshot}; notify();},
     authority(next: shellModel.ShellAuthority) {snapshot = {...snapshot, authority: next}; notify();}};
 }
-async function shellSession(state: ReturnType<typeof lifecycle>, runtime: NativeShellRuntime, registry = createFocusRegistry()) {
-  const theme = createTheme({isTV: false, width: 390});
+async function shellSession(state: ReturnType<typeof lifecycle>, runtime: NativeShellRuntime, registry = createFocusRegistry(), isTV = false) {
+  const theme = createTheme({isTV, width: isTV ? 1920 : 390});
   const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
@@ -330,7 +330,7 @@ async function shellSession(state: ReturnType<typeof lifecycle>, runtime: Native
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
     '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../kit/browse': {},
     './HomeScreen': {HomeScreen: 'HomeScreen'}, './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
-    './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {}, './DesktopHeader': {},
+    './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {}, './DesktopHeader': {},
   });
   return mount(NativeShell, {runtime});
 }
@@ -444,7 +444,7 @@ test('original shell retirement detaches focus memory before region teardown wit
     if (life.signal.aborted) throw Object.assign(new Error('native_shell_cancelled'), {name: 'AbortError'});
     reads++;return port.runtime.getSnapshot();
   }};
-  const session = await shellSession(state, runtime, registry);
+  const session = await shellSession(state, runtime, registry, true);
   try {
     const before = reads;
     registry.configure({id: 'original-page', order: []});assert.ok(reads > before, 'live focus publications still read the original runtime');
@@ -486,11 +486,11 @@ async function driverShellSession(state: ReturnType<typeof lifecycle>, runtime: 
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
     '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../kit/browse': {},
     './HomeScreen': {HomeScreen: 'HomeScreen'}, './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
-    './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {}, './DesktopHeader': {},
+    './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {}, './DesktopHeader': {},
   });
   const shell = driverMount(NativeShell, {runtime});
   try {
-    const session = elements(shell.tree).find(element => element.type?.name === 'ShellSession')!;
+    const session = elements(shell.tree).find(element => element.type?.name === 'TouchShell')!;
     return driverMount(session.type, session.props);
   } finally {shell.host.unmount();}
 }
@@ -498,7 +498,7 @@ async function driverShellSession(state: ReturnType<typeof lifecycle>, runtime: 
 test('shell lifetime replay keeps the newer opening alive while retiring its previous memory read', async () => {
   const state = lifecycle(simpleReact), memoryOwner: {current?: (typeof state.effects)[number]} = {};
   const port = shellRuntime(() => {memoryOwner.current ??= state.currentEffect;}), session = await driverShellSession(state, port.runtime);
-  const lifetime = state.effects[2]!, memory = memoryOwner.current;
+  const lifetime = state.effects[0]!, memory = memoryOwner.current;
   // Select the actual read owner, not the sidebar effect now preceding it.
   assert.ok(memory, 'the memory read must belong to a mounted effect');
   assert.equal(typeof lifetime.cleanup, 'function');

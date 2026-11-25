@@ -51,7 +51,11 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     // This fixture forwards the production effect's dependency list verbatim.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
-  let railBack: (() => boolean) | undefined, tree: any, root: any, routeRail: any, sessionRenders = 0;
+  let tree: any, root: any, routeRail: any, sessionRenders = 0;
+  const back = await screenModule(new URL('../src-next/kit/navigation/back.ts', import.meta.url), {
+    react: {...React, default: React},
+    'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}},
+  });
   let snapshot: any = {authority, destination: {kind: 'home'}, libraries: [], hasLiveTV: false, profile: {}, account: {actions: []}, selectionActive: false,
     homeVisible: true, homeObscured: false, mediaExpanded: false};
   const navigations: unknown[] = [], tops: unknown[] = [], menuCapture: boolean[] = [];
@@ -71,11 +75,11 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
   }, subscribe: () => () => {}, reportError(error: unknown) {throw error;},
     onDestination: (destination: unknown) => navigations.push(destination), scrollToTop: (destination: unknown) => tops.push(destination),
     memory: {read: async () => undefined, remember: async () => {}},
-    registerTVRailBack: (fn: () => boolean) => {railBack = fn; return () => {railBack = undefined;};},
     // The route layer's host, as assembly.renderRoutes attaches it: a claim into the route layer asks it.
     // The rail is drawn in the route layer, so it reaches the routes through this option.
     renderRoutes(options: any) {routeRail = options?.rail; if (options?.hostRef) options.hostRef.current = {requestTVFocus() {requests.push('layer-claim');}};}, renderSelection() {}, renderDestination() {}};
   const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
+    '../kit/navigation/back': back,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
@@ -104,7 +108,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
   let sessionHost: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
   try {
     await rootHost.mount();
-    const session = nodes(root).find(node => node.type?.name === 'ShellSession');
+    const session = nodes(root).find(node => node.type?.name === 'TVShell');
     sessionHost = createFabricHookHost(() => {sessionRenders++; tree = session.type({runtime, snapshot});});
     await act(async () => {await sessionHost!.mount();});
     const rail = () => nodes(routeRail).find(node => node.type === 'TVRail');
@@ -118,7 +122,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     assert.equal(sessionRenders, beforeUnrelated, 'unrelated host/config commits do not rerender the entire shell');
     await act(() => {registry.didFocus(row); registry.didFocus({regionId: ids.rail, childId: 'home'}); rail().props.onExpandedChange(true);});
     assert.equal(registry.isRegionActive(row.regionId), true, 'rail retains the exact row opener, including its physical slot');
-    assert.equal(railBack!(), true);
+    assert.equal(back.dispatchBack(), true);
     assert.deepEqual(requests, ['card']);
     assert.equal(registry.capture()?.childId, row.childId);
     await act(() => rail().props.onNavigate({kind: 'home'}));
@@ -201,7 +205,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     registry.attach(library, {requestTVFocus() {requests.push('library-card'); registry.didFocus(library);}});
     await act(async () => {snapshot = {...snapshot, destination: {kind: 'saved'}, homeVisible: false}; await sessionHost!.rerender(); registry.didFocus(library);
       registry.didFocus({regionId: ids.rail, childId: 'saved'}); rail().props.onExpandedChange(true);});
-    assert.equal(railBack!(), true);
+    assert.equal(back.dispatchBack(), true);
     assert.equal(requests.at(-1), 'library-card', 'rail return memory follows the actual destination page, not a former Home address');
     await act(async () => {snapshot = {...snapshot, destination: {kind: 'library', libraryId: 'movies'}, railDestination: {kind: 'library', libraryId: 'movies'},
       libraries: [{id: 'movies'}]}; await sessionHost!.rerender();});
@@ -334,7 +338,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     await sessionHost?.unmount(); await rootHost.unmount();
     globalThis.requestAnimationFrame = previousFrame; globalThis.cancelAnimationFrame = previousCancel;
   }
-  assert.equal(railBack, undefined);
+  assert.equal(back.backRegistrations(), 0);
 });
 }
 

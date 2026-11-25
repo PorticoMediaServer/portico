@@ -42,7 +42,7 @@ test('the real shell mounts one persistent player and a separate box-none watch 
   let sessionHost: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
   try {
     await act(async () => {await rootHost.mount();});
-    const session = nodes(root).find(node => node.type?.name === 'ShellSession');
+    const session = nodes(root).find(node => node.type?.name === 'TVShell');
     sessionHost = createFabricHookHost(() => {tree = session.type({runtime, snapshot});});
     await act(async () => {await sessionHost!.mount();});
     const rendered = nodes(tree), player = rendered.filter(node => node.type === 'PersistentPlaybackLayer');

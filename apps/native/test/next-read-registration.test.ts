@@ -62,9 +62,9 @@ test('Read registration retains the original occurrence across Reading Settings 
     '../screens/read/read-route-back': {readRouteBack: (await import('../src-next/screens/read/read-route-back')).readRouteBack},
   });
   await screenModule(new URL('../src-next/shell/read-route.tsx', import.meta.url), {
-    react: {...React, default: React}, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string, create: any) => {registered = kind; factory = create;}}},
+    react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string, create: any) => {registered = kind; factory = create;}}},
     './reading-settings-route': {nativeReadingSettingsPreferences, openNativeReadingSettings}, './read-renderer': {createNativeReadRenderer}, './read-destinations': await screenModule(new URL('../src-next/shell/read-destinations.tsx', import.meta.url), {
-      react: {...React, default: React}, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string) => readingDestinations.push(kind)}},
+      react: {...React, default: React}, 'react-native': {Platform: {isTV: false}}, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string) => readingDestinations.push(kind)}},
       '../screens/destinations/lifetime': await import('../src-next/screens/destinations/lifetime'),
       './reading-settings-route': {openNativeReadingSettings}, '../screens/read/platform': await import('../src-next/screens/read/platform'),
       '../screens/read/read-book-model': await import('../src-next/screens/read/read-book-model'), '../screens/read/read-periodical-model': await import('../src-next/screens/read/read-periodical-model'),

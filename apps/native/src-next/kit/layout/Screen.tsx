@@ -4,6 +4,7 @@ import {useTheme} from '../../kit/theme';
 import {shellType} from '../../kit/shell/visual';
 import {useFocusRegistry} from '../../kit/focus';
 import type {FocusAddress} from '../../kit/focus/registry';
+import {registerBack} from '../navigation/back';
 import type {ShellDestination} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
 
@@ -33,7 +34,23 @@ export function useScreenEntry(target: FocusAddress | undefined, current: () => 
 
 export function useScreenBack(runtime: NativeShellRuntime, handler: () => boolean, isTV: boolean, destination?: ShellDestination) {
   const key = JSON.stringify(destination ?? runtime.getSnapshot().destination);
-  useEffect(() => isTV ? runtime.registerTVPageBack?.(handler, JSON.parse(key)) : undefined, [runtime, handler, isTV, key]);
+  useEffect(() => {
+    if (!isTV) return;
+    const original = runtime.retirementSignal;
+    if (original?.aborted) return;
+    const off = registerBack(handler, {
+      scope: 'page',
+      active: () => {
+        if (original?.aborted) return false;
+        const now = runtime.getSnapshot();
+        return now.contentVisible !== false && !now.mediaExpanded && !now.homeObscured && !now.selectionActive
+          && JSON.stringify(now.destination) === key;
+      },
+    });
+    original?.addEventListener('abort', off, {once: true});
+    if (original?.aborted) off();
+    return () => {original?.removeEventListener('abort', off); off();};
+  }, [runtime, handler, isTV, key]);
 }
 
 export function ScreenText({children, secondary = false}: {children: ReactNode; secondary?: boolean}) {

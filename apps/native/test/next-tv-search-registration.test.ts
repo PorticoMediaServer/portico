@@ -142,9 +142,12 @@ async function setup() {
 }
 
 test('the TV entry registers the real Search module against the TV surface, with no private substitute', async () => {
-  // The platform entry, not App.tsx's handset-only block, must load this module.
+  // The TV entry invokes the explicit route registration table, which registers Search for TV.
   const entry = await readFile(new URL('../src-next/tv/register.ts', import.meta.url), 'utf8');
-  assert.match(entry, /import '\.\.\/shell\/search-route';/, 'the TV entry imports the real Search registration');
+  assert.match(entry, /registerNativeRoutes\(true\)/, 'the TV entry invokes explicit route registration');
+  const table = await readFile(new URL('../src-next/shell/register-routes.ts', import.meta.url), 'utf8');
+  assert.match(table, /import \{createNativeSearchModule\} from '\.\/search-route';/);
+  assert.match(table, /kind: 'search', factory: createNativeSearchModule/, 'the shared registration table includes Search');
   const s = await setup(), states = hooks(), runtime = {} as never;
   let bound: ReturnType<typeof registryPort.nativeShellRoutes.bind> | undefined;
   try {

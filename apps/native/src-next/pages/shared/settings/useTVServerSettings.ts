@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {LibraryManagementService} from '../../../../../../packages/client-core/src/library-management';
 import {useFocusRegistry} from '../../../kit/focus';
+import {registerBack} from '../../../kit/navigation/back';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {tvFocusIds} from '../../../shell/tv-focus';
 import {publicTVHandoffAddress} from '../../../tv/auth/TVHandoff';
@@ -29,10 +30,26 @@ export function useTVServerSettings({ports, runtime, initialPage}: {ports: Nativ
   const registry = useFocusRegistry();
   // W-14: Back from anywhere in a page's content (its rows or a panel's own regions) returns to
   // that page in the column before Back leaves server settings.
-  useEffect(() => runtime.registerTVRouteBack?.(() => {
-    const focused = registry.capture()?.regionId;
-    return !!focused && focused !== column && focused !== ids.rail && lifetime.current() && registry.focus({regionId: column, childId: page});
-  }, 'server-settings'), [runtime, registry, column, ids, page, lifetime]);
+  useEffect(() => {
+    const original = runtime.retirementSignal;
+    if (original?.aborted) return;
+    const off = registerBack(() => {
+      const focused = registry.capture()?.regionId;
+      return !!focused && focused !== column && focused !== ids.rail && lifetime.current() && registry.focus({regionId: column, childId: page});
+    }, {
+      scope: 'page',
+      active: () => {
+        if (original?.aborted || !lifetime.current()) return false;
+        const now = runtime.getSnapshot();
+        const routeKind = (runtime.navigation ?? ports.context.navigation).getSnapshot().route.kind;
+        return !now.mediaExpanded && !now.selectionActive && !now.homeObscured
+          && (routeKind === 'server-settings' || routeKind === 'server-dashboard');
+      },
+    });
+    original?.addEventListener('abort', off, {once: true});
+    if (original?.aborted) off();
+    return () => {original?.removeEventListener('abort', off); off();};
+  }, [ports, runtime, registry, column, ids, page, lifetime]);
   const enter = useScreenEntry({regionId: column, childId: page}, lifetime.current);
   useEffect(() => {
     const retire = () => service.cancel();

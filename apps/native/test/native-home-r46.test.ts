@@ -333,9 +333,13 @@ async function homeBackFixture(initial: any, prior?: {regionId: string; childId:
   const runtime: any = {home: {setRowDemand() {}, demand() {}, subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, recoverDroppedRows: async () => {}, more: async () => {}},
     getSnapshot: () => snapshot, text: defaultI18n, selection: () => ({}), artwork() {}, ambient() {}, setHomeWindow() {}, reportError(error: unknown) {throw error;}, onArtworkError() {},
     renderHomeEmpty: () => ({type: 'EmptyCopy', props: {}}), actions: {customize() {assert.fail('no empty-state command');}},
-    registerTVPageBack: (back: () => boolean) => {callbacks.push(back); backs.add(back); return () => {backs.delete(back);};}, registerScrollToTop: () => () => {}};
+    registerScrollToTop: () => () => {}};
   const hook = await screenModule(new URL('../src-next/screens/destinations/useTVPageBack.ts', import.meta.url), {
-    react: {...React, default: React}, '../../kit/focus': {useFocusRegistry: () => registry}, './tv-page-back': pageBack});
+    react: {...React, default: React}, '../../kit/focus': {useFocusRegistry: () => registry}, './tv-page-back': pageBack,
+    '../../kit/navigation/back': {registerBack: (back: () => boolean, opts: {active?: () => boolean}) => {
+      const wrapped = () => (!opts.active || opts.active()) && back();
+      callbacks.push(wrapped); backs.add(wrapped); return () => {backs.delete(wrapped);};
+    }}});
   const {HomeScreen} = await homeModule(tvTheme, [], {...React, default: React}, registry, {
     './model': homeModel, '../destinations/useTVPageBack': hook, '../../kit/layout/FocusAnchor': {useFocusAnchor: () => vertical}});
   const host = createFabricHookHost(() => {tree = HomeScreen({runtime, authority, onScrolledChange: (value: boolean) => scrolled.push(value)});});
