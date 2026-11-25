@@ -207,8 +207,9 @@ test('the native guide says once that it is stale or that the server cannot play
 });
 
 test('programme text uses deterministic native truncation without hidden measurement text or timers', async () => {
+  const {textLines} = await import('../src-next/kit/theme.ts');
   const {GuideProgrammeTitle} = await screenModule(new URL('../src-next/kit/live/GuideProgrammeTitle.tsx', import.meta.url), {
-    react: hooks().react, 'react-native': native,
+    react: hooks().react, 'react-native': native, '../theme': {textLines},
   });
   const heights: number[] = [];
   const tree = GuideProgrammeTitle({title: 'Market Watch', lines: 2, maxHeight: 44, style: {fontSize: 14}, onHeight: (value: number) => heights.push(value)});

@@ -1,5 +1,6 @@
 import React from 'react';
 import {Text, View, type StyleProp, type TextStyle} from 'react-native';
+import {textLines} from '../theme';
 
 export type GuideTextProps = {
   title: string;
@@ -15,7 +16,7 @@ export type GuideTextProps = {
 export function GuideProgrammeTitle({title, lines, style, maxHeight, onHeight}: GuideTextProps) {
   if (!title) return null;
   return <View style={{flex: 1, minWidth: 0}}>
-    <Text numberOfLines={lines} ellipsizeMode="tail" textBreakStrategy="simple" android_hyphenationFrequency="none"
+    <Text {...textLines(lines)} textBreakStrategy="simple" android_hyphenationFrequency="none"
       style={[style, maxHeight !== undefined ? {maxHeight} : undefined]}
       onLayout={onHeight ? event => onHeight(event.nativeEvent.layout.height) : undefined}>{title}</Text>
   </View>;

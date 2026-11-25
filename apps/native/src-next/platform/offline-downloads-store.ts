@@ -1,6 +1,7 @@
 import {downloadCopyReference, downloadPreparation, downloadedBundle} from '../../../../packages/client-core/src/downloads-service';
 import {downloadedSubtitleText, keepDownloadsInStep, readDownload, removeDownloadedTitle, reportDownloadPlay} from '../../../../packages/client-core/src/device-downloads';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
+import {repeat} from '../../../../packages/client-core/src/timer';
 import {openDownloadedBook, nativePublicationReadsAvailable, type OfflineReadingSession} from './offline-reading';
 import {readingAnnotationBody, readingAnnotationEntry, readingPlacePosition, readingPlaceProgress, type ReadingLocation, type ReadingManifest, type ReadingProgress} from '../../../../packages/client-core/src/reading';
 import {callServer} from '../../../../packages/client-core/src/query/server-api';
@@ -307,7 +308,7 @@ export class OfflineDownloads {
   private progressSync?: {generation: number; task: Promise<void>};
   /** When each stopped download was last tried again by itself. */
   private retried = new Map<string, number>();
-  private tending?: ReturnType<typeof setInterval>;
+  private tending?: ReturnType<typeof repeat>;
   private bundling = new Set<string>();
   private sendingNotes = false;
   /** The play under way for each entry (one id for as long as the file stays open). */
@@ -448,7 +449,7 @@ export class OfflineDownloads {
     this.api = api; this.service = service;
     this.unfollow?.(); this.unfollow = service.subscribe(() => {this.publishPending(); void this.collect();});
     // While the server is bound, stopped transfers and missing extras are retried.
-    clearInterval(this.tending); this.tending = setInterval(() => void this.tend(generation), 60 * 1000);
+    this.tending?.stop(); this.tending = repeat(() => this.tend(generation), {everyMs: 60 * 1000, backoff: {baseMs: 60 * 1000, maxMs: 60 * 1000, jitter: 'none'}, immediate: false});
     void this.open().then(async () => {
       if (this.generation !== generation) return;
       await this.syncDownloads(generation);
@@ -465,8 +466,8 @@ export class OfflineDownloads {
   wake() { if (this.api) void this.tend(this.generation); }
   /** Drops the server binding while preserving the saved viewer for authorized
    * offline access. Sign-out clears it explicitly through `adopt(undefined)`. */
-  disconnect() { this.generation++; this.unfollow?.(); this.unfollow = undefined; this.api = undefined; this.service = undefined; clearInterval(this.tending); this.tending = undefined; this.publishPending(); }
-  dispose() { this.disposed = true; this.entriesScheduled = false; this.disconnect(); clearTimeout(this.enrollTimer); this.enrollTimer = undefined; this.subscriptions.forEach(s => s.remove()); this.subscriptions = []; this.listeners.clear(); clearInterval(this.tending); }
+  disconnect() { this.generation++; this.unfollow?.(); this.unfollow = undefined; this.api = undefined; this.service = undefined; this.tending?.stop(); this.tending = undefined; this.publishPending(); }
+  dispose() { this.disposed = true; this.entriesScheduled = false; this.disconnect(); clearTimeout(this.enrollTimer); this.enrollTimer = undefined; this.subscriptions.forEach(s => s.remove()); this.subscriptions = []; this.listeners.clear(); this.tending?.stop(); }
 
   private read(raw: any): OfflineEntry | undefined {
     if (!raw || typeof raw.id !== 'string' || !ENTRY_STATES.includes(raw.state)) return undefined;

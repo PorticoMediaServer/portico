@@ -45,9 +45,11 @@ test('GuideProgrammeTitle renders deterministically with no timers, hidden text,
   const originalSetTimeout = globalThis.setTimeout;
   (globalThis as any).setTimeout = (...args: unknown[]) => {timers.push(args); return originalSetTimeout(...(args as Parameters<typeof setTimeout>));};
   try {
+    const {textLines} = await import('../src-next/kit/theme.ts');
     const {GuideProgrammeTitle} = await screenModule(new URL('../src-next/kit/live/GuideProgrammeTitle.tsx', import.meta.url), {
       react: {...React, default: React},
       'react-native': {Text: 'Text', View: 'View'},
+      '../theme': {textLines},
     });
     const heights: number[] = [];
     await host.render(jsx(GuideProgrammeTitle, {
