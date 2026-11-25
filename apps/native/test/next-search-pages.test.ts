@@ -3,6 +3,7 @@ import test from 'node:test';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {createTheme} from '../src-next/kit/theme';
 import {browseType} from '../src-next/kit/browse/presentation';
+import {nativeSearchEntryKey} from '../src-next/screens/search/model';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 test('phone Search keeps the query field and lets a viewer return from an empty group to All', async () => {
@@ -18,7 +19,7 @@ test('phone Search keeps the query field and lets a viewer return from an empty 
     '../../../kit/frames': {SearchFrame: 'SearchFrame'}, '../../../kit/overlays': {Banner: 'Banner'},
     '../../../kit/search': {SearchHistory: 'History', TopResult: 'TopResult'}, '../../../kit/search/SearchResults': {},
     '../../../kit/states': {StateView: 'State'}, '../../../screens/search/genre-tiles': {nativeSearchGenreTiles: () => []},
-    '../../../screens/search/model': {},
+    '../../../screens/search/model': {nativeSearchEntryKey},
     '../../shared/search/useSearch': {useSearch: () => ({
       t: defaultI18n.t, active: {visible: true}, state, typed: true, emptyIn: 'movies', groups: [], landing: {phase: 'idle'},
     })},
@@ -51,7 +52,7 @@ test('the shared upright tablet Top result can play the actual result without op
     '../../../../../../packages/client-core/src/presentation/search-model': {searchGroupLabel: () => 'search.chip.movies', topResultKindLabel: () => 'search.chip.movies'},
     '../../../kit/artwork': {}, '../../../kit/cards/primitives': {Parts: 'Parts'}, '../../../kit/controls': {TextField: 'TextField'},
     '../../../kit/frames': {SearchFrame: 'SearchFrame'}, '../../../kit/overlays': {}, '../../../kit/search': {TopResult},
-    '../../../kit/search/SearchResults': {}, '../../../kit/states': {}, '../../../screens/search/genre-tiles': {}, '../../../screens/search/model': {},
+    '../../../kit/search/SearchResults': {}, '../../../kit/states': {}, '../../../screens/search/genre-tiles': {}, '../../../screens/search/model': {nativeSearchEntryKey},
     '../../shared/search/useSearch': {useSearch: () => ({
       t: defaultI18n.t, active: {visible: true}, state: {text: film.title, recent: [], group: 'all', search: {phase: 'ready'}}, typed: true,
       groups: [], landing: {phase: 'idle'}, top: {entry: film, group: 'movies'},
