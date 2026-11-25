@@ -374,7 +374,7 @@ function SearchGroupWindow({binding, group, result, selection, onCommit}: {bindi
   }, [window, result, queryKey, snapshot.phase, snapshot.pagination.cursor]);
   useEffect(() => () => window.dispose(), [window]);
   const songs = group === 'songs', live = group === 'live-tv', episodes = group === 'episodes';
-  const square = group === 'albums' || group === 'audiobooks' || group === 'artists' || group === 'people';
+  const square = group === 'albums' || group === 'artists' || group === 'people';
   const gap = compact ? 12 : 16;
   const cardWidth = episodes ? (compact ? Math.max(240, shellWidth - 40) : tablet ? 262 : 316) : live ? (compact ? Math.max(240, shellWidth - 40) : 300) : compact ? (square ? 112 : 100) : 174;
   const rowHeight = songs ? 58 : live ? 128 : episodes ? Math.round(cardWidth * 9 / 16) + 108 : square ? Math.round(cardWidth) + 56 : Math.round(cardWidth * 1.5) + 58;

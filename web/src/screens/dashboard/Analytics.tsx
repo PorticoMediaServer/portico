@@ -1,5 +1,5 @@
 import {accountAvatarStyle} from '../../kit/settings/account-avatar';
-import {useCallback, useMemo, useState, type CSSProperties} from 'react';
+import {useCallback, useMemo, useRef, useState, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
 import {STATISTICS_KINDS, type PlaySummary, type ServerStatistics, type StatisticsRange, type SUMMARY_KINDS} from '@core/admin/statistics.ts';
 import {Select, Button, Segmented} from '../../kit/controls';
@@ -80,15 +80,37 @@ function PlaysOverTime({statistics: s, media}: {statistics: ServerStatistics; me
 /** Plays by weekday and hour, counted from Play history (rule 13). */
 export function Busiest({summary}: {summary: PlaySummary}) {
   const [cell, setCell] = useState<{day: number; hour: number; point: TipPoint} | undefined>();
+  const [active, setActive] = useState<{day: number; hour: number}>({day: 0, hour: 0});
+  const cellRefs = useRef(new Map<string, SVGRectElement>());
   // Bounded per component: one table per locale, so moving the pointer across the grid
   // re-renders the chart without rebuilding a weekday or hour formatter per cell.
   const locale = defaultI18n.locale, labels = useMemo(() => heatMapLabels(locale), [locale]);
   const grid = summary.busiest, quiet = quietestHours(grid), heatMax = Math.max(1, ...grid.flat()), plays = (count: number) => t('next.dashboard.plays', {count});
+  const rows = grid.length;
+  const activeDay = Math.min(active.day, Math.max(0, rows - 1));
+  const activeHour = Math.min(active.hour, Math.max(0, (grid[activeDay]?.length ?? 24) - 1));
+  const moveFocus = (day: number, hour: number) => {
+    if (!rows) return;
+    const nextDay = Math.max(0, Math.min(rows - 1, day));
+    const cols = grid[nextDay]?.length ?? 24;
+    const nextHour = Math.max(0, Math.min(cols - 1, hour));
+    setActive({day: nextDay, hour: nextHour});
+    cellRefs.current.get(`${nextDay}-${nextHour}`)?.focus();
+  };
   return <div className={styles.card}><div className={styles.heading}><h4>{t('next.dashboard.busiest')}</h4>{quiet !== undefined && <span className={styles.quiet}>{t('next.dashboard.quietest')} <b>{formatQuietHours(quiet)}</b></span>}</div>
-    <div className={styles.heatScroll}><svg className={`${styles.chart} ${styles.heat}`} viewBox="0 0 912 203" role="group" aria-label={t('next.dashboard.busiest')}>
-      {grid.map((day, d) => <g key={d}><text x="32" y={19 + d * 25} textAnchor="end">{labels.weekdayShort[d]}</text>{day.map((count, hour) => <rect tabIndex={0} role="button" key={hour} className={styles.heatCell} x={(44 + hour * 868 / 24).toFixed(1)} y={4 + d * 25} width={(868 / 24 - 3).toFixed(1)} height="22" rx="5"
+    <div className={styles.heatScroll}><svg className={`${styles.chart} ${styles.heat}`} viewBox="0 0 912 203" role="grid" aria-label={t('next.dashboard.busiest')}>
+      {grid.map((day, d) => <g key={d} role="row"><text x="32" y={19 + d * 25} textAnchor="end">{labels.weekdayShort[d]}</text>{day.map((count, hour) => <rect key={hour} ref={el => {const key = `${d}-${hour}`; if (el) cellRefs.current.set(key, el); else cellRefs.current.delete(key);}} tabIndex={d === activeDay && hour === activeHour ? 0 : -1} role="gridcell" className={styles.heatCell} x={(44 + hour * 868 / 24).toFixed(1)} y={4 + d * 25} width={(868 / 24 - 3).toFixed(1)} height="22" rx="5"
         style={{'--heat-intensity': `${(.06 + .94 * Math.pow(count / heatMax, .8)) * 100}%`} as CSSProperties} aria-label={`${labels.weekdayLong[d]} ${labels.hour[hour]}: ${plays(count)}`}
-        onFocus={event => {const r = event.currentTarget.getBoundingClientRect(); setCell({day: d, hour, point: {x: r.left + r.width / 2, y: r.bottom}});}} onBlur={() => setCell(undefined)}
+        onKeyDown={event => {
+          const cols = day.length || 24;
+          if (event.key === 'ArrowRight') {event.preventDefault(); moveFocus(d, (hour + 1) % cols);}
+          else if (event.key === 'ArrowLeft') {event.preventDefault(); moveFocus(d, (hour + cols - 1) % cols);}
+          else if (event.key === 'ArrowDown') {event.preventDefault(); moveFocus((d + 1) % rows, hour);}
+          else if (event.key === 'ArrowUp') {event.preventDefault(); moveFocus((d + rows - 1) % rows, hour);}
+          else if (event.key === 'Home') {event.preventDefault(); moveFocus(d, 0);}
+          else if (event.key === 'End') {event.preventDefault(); moveFocus(d, cols - 1);}
+        }}
+        onFocus={event => {setActive({day: d, hour}); const r = event.currentTarget.getBoundingClientRect(); setCell({day: d, hour, point: {x: r.left + r.width / 2, y: r.bottom}});}} onBlur={() => setCell(undefined)}
         onPointerMove={event => setCell({day: d, hour, point: {x: event.clientX, y: event.clientY}})} onPointerLeave={() => setCell(undefined)} />)}</g>)}
       {[0, 3, 6, 9, 12, 15, 18, 21].map(h => <text x={(44 + h * 868 / 24).toFixed(1)} y="197" key={h}>{labels.hour[h]}</text>)}
       {quiet !== undefined && <rect className={styles.quietOutline} x={(44 + quiet * 868 / 24 - 2).toFixed(1)} y="1" width={(3 * 868 / 24 + 1).toFixed(1)} height="178" rx="8" />}

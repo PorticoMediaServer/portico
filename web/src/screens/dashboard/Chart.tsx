@@ -28,12 +28,19 @@ export function Chart({title, series, format, formatAverage = format, step = fal
   const actualMax = Math.max(0, ...(stacked ? layers.flat() : series.flatMap(s => s.points)).map(p => p.v));
   const scale = loadScale(kind, actualMax), max = compact ? kind === 'memory' ? Math.max(60, actualMax * 1.15) : kind === 'conversions' ? Math.max(3.2, actualMax) : Math.max(1, actualMax * (kind === 'bandwidth' ? 1.12 : 1.15)) : scale.top;
   const geometry = compact ? {left: 3, top: 3, width: 191, height: 34} : {left: kind === 'bandwidth' ? 64 : 40, top: 8, width: kind === 'bandwidth' ? W - 72 : W - 48, height: 216};
-  const x = (stamp: number) => geometry.left + (stamp - from) / (until - from) * geometry.width;
+  const span = until - from;
+  const x = (stamp: number) => geometry.left + (Number.isFinite(span) && span > 0 ? (stamp - from) / span : 0.5) * geometry.width;
   const y = (value: number) => geometry.top + geometry.height - value / max * geometry.height;
   const active = selected === undefined ? undefined : stamps[Math.min(stamps.length - 1, selected)];
 
   return <div ref={box} className={compact ? styles.spark : styles.plot} tabIndex={compact ? undefined : 0} role={compact ? undefined : 'group'} aria-label={compact ? undefined : title} aria-describedby={compact ? undefined : id}
-    onPointerMove={compact ? undefined : event => {const rect = event.currentTarget.getBoundingClientRect(); select(Math.max(0, Math.min(stamps.length - 1, stamps.reduce((best, stamp, i) => Math.abs(stamp - (from + ((event.clientX - rect.left) / rect.width * W - geometry.left) / geometry.width * (until - from))) < Math.abs(stamps[best] - (from + ((event.clientX - rect.left) / rect.width * W - geometry.left) / geometry.width * (until - from))) ? i : best, 0))));}}
+    onPointerMove={compact ? undefined : event => {
+      if (!Number.isFinite(span) || span <= 0 || stamps.length === 1) {select(0); return;}
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const target = from + ((event.clientX - rect.left) / rect.width * W - geometry.left) / geometry.width * span;
+      select(Math.max(0, Math.min(stamps.length - 1, stamps.reduce((best, stamp, i) => Math.abs(stamp - target) < Math.abs(stamps[best]! - target) ? i : best, 0))));
+    }}
     onPointerLeave={() => select(undefined)} onBlur={() => select(undefined)} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault(); select(old => event.key === 'Home' ? 0 : event.key === 'End' ? stamps.length - 1 : Math.max(0, Math.min(stamps.length - 1, (old ?? (event.key === 'ArrowLeft' ? stamps.length : -1)) + (event.key === 'ArrowLeft' ? -1 : 1))));

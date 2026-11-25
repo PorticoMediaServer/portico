@@ -64,7 +64,7 @@ export function createAttachmentDownloadPort(api: Pick<HttpLocalApi, 'request' |
     const run = async () => {
       const target = captured.target;
       const check = () => assert(captured.signal, captured.current);
-      const terminal = (error: Error): never => {if (perTarget.get(quality) === captured) perTarget.delete(quality); throw error;};
+      function terminal(error: Error): never {if (perTarget.get(quality) === captured) perTarget.delete(quality); throw error;}
       const combined = AbortSignal.any([lifetime, captured.signal]);
       try {
         check();

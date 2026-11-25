@@ -5,10 +5,13 @@ import {readFileSync} from 'node:fs';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
 test('Live TV & Channels shows the server band\'s health line: its self-loading page still reads the header facts', () => {
-  const controller = read('../src/screens/settings/controller.ts'), route = read('../src/screens/settings/Settings.route.tsx');
+  const controller = read('../src/screens/settings/controller.ts');
+  const mediaOps = read('../src/screens/settings/route-sections/server-media-ops.tsx');
+  const remoteMetadata = read('../src/screens/settings/route-sections/server-remote-metadata.tsx');
   assert.match(controller, /loadServerHeader = \(section: SettingsSection\): Promise<void> => \{/);
   assert.match(controller, /load = \(section: SettingsSection\): Promise<void> => \{\n    if \(!this\.current\(\) \|\| !this\.sectionVisible\(section\)\) return Promise\.resolve\(\);\n    void this\.loadServerHeader\(section\);/);
-  assert.match(route, /\(section\.id === 'remote-sources' \|\| section\.id === 'live' && !!live\) \? controller\.loadServerHeader\(section\) : source\.load\(section\),/);
+  assert.match(mediaOps, /section\.scope === 'server' && section\.id === 'live' && !!live \? ctrl\.loadServerHeader\(section\) : undefined/);
+  assert.match(remoteMetadata, /section\.scope === 'server' && section\.id === 'remote-sources' \? controller\.loadServerHeader\(section\) : undefined/);
 });
 
 test('Sources draws live-owner d2: the lede under the heading, and an empty card with a TV tile and the white Add source', () => {

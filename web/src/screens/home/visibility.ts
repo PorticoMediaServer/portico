@@ -52,8 +52,8 @@ export function observeHomeIntersection(
         }
       }, options ? {
         ...(options.rootMargin !== undefined ? {rootMargin: options.rootMargin} : {}),
-        ...(options.threshold !== undefined ? {threshold: Array.isArray(options.threshold) ? [...options.threshold] : options.threshold} : {}),
-      } : undefined),
+        ...(options.threshold !== undefined ? {threshold: Array.isArray(options.threshold) ? [...options.threshold] : options.threshold as number} : {}),
+      } as IntersectionObserverInit : undefined),
     };
     pool = created;
     docPools.set(key, pool);

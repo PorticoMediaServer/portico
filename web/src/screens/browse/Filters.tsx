@@ -126,7 +126,7 @@ export function useLibraryFilters({controller, model, labels, compact, open, res
           if (current()) setFacets(before => ({...before, [id]: {kind: 'values', values: page.values, total: page.total, included: [], excluded: [], match: 'any', query, status: 'ready', error: undefined}}));
         }).catch(error => {
           if (current()) {
-            const presented = presentError(error, 'browse', {operation: 'load', i18n: defaultI18n});
+            const presented = presentError(error, 'library', {operation: 'load', i18n: defaultI18n});
             setFacets(before => ({...before, [id]: {...(before[id] ?? {kind: 'values', values: [], included: [], excluded: [], match: 'any'}), query, status: 'error', error: presented.body}}));
             reportError(error);
           }

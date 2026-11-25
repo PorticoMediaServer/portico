@@ -120,10 +120,11 @@ test('resolveSettingsLocation matches sectionVisible and flags unauthorized serv
 
 test('Settings.route gates source instantiation on resolveSettingsLocation and renders SettingsOwnerOnly when unauthorized', () => {
   const routeFile = readFileSync(new URL('../src/screens/settings/Settings.route.tsx', import.meta.url), 'utf8');
+  const librariesSection = readFileSync(new URL('../src/screens/settings/route-sections/server-libraries.tsx', import.meta.url), 'utf8');
   assert.match(routeFile, /resolveSettingsLocation\(location, access\)/);
   assert.match(routeFile, /if \(!context \|\| !reader \|\| !snapshot \|\| unauthorized \|\| !route/);
   assert.match(routeFile, /if \(unauthorized\) \{[\s\S]*?<SettingsOwnerOnly/);
-  assert.match(routeFile, /const libraries = route\.section === 'libraries' && identity\.primaryProfile === true && identity\.capabilities\?\.manageServer === true && role === 'owner'/);
+  assert.match(librariesSection, /const libraries = activeServerSection\(route, 'libraries', gate\)/);
 });
 
 test('SettingsController keeps factor_setup_required and 500 row write errors inline without calling reportError', async () => {

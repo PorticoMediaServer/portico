@@ -1,5 +1,6 @@
 import {useEffect, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n, type MessageId} from '@i18n';
+import {presentError} from '@core/presentation/errors.ts';
 import type {Capability} from '../../../../../../packages/contracts/src/next/api.ts';
 import type {OwnerSupportOptions} from '@core/server-admin/support-next.ts';
 import {Button, Select, Switch} from '../../../../kit/controls';
@@ -65,6 +66,7 @@ export function SupportPanel(props: SupportPanelProps) {
     {!props.exportOnly && permissions?.readableByOthers && <section className={styles.permissions}>
       <div className={styles.panelHead}><h3>{t('web.maintenance.permissionsTitle')}</h3></div>
       <p className={styles.lede}>{permissions.fixable ? t('web.maintenance.permissionsBody') : permissions.message ?? t('web.maintenance.permissionsBody')}</p>
+      {state.error !== undefined && !state.fixing && <p role="alert" className={styles.failure}>{presentError(state.error, 'server-console', {operation: 'action', i18n: defaultI18n}).body}</p>}
       {permissions.fixable && <div><Button variant="glass" size="small" disabled={state.fixing} onClick={() => {void source.fixPermissions();}}>{t('web.maintenance.fixPermissions')}</Button></div>}
     </section>}
     {!props.exportOnly && state.fixed && !permissions?.readableByOthers && <p className={styles.fixed} role="status">{t('web.maintenance.permissionsFixed')}</p>}

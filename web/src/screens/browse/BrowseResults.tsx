@@ -196,7 +196,7 @@ function BrowseListRow({member, index, artwork, env, actions, reading, music}: P
   const art = useMemo(() => artwork.foreground(entry.posterUrl, music ? 42 * devicePixelRatio : 72 * devicePixelRatio, music ? 1 : 2 / 3, {group: entry.libraryId, order: index}), [artwork, entry.posterUrl, entry.libraryId, music, index]);
   if (!originalAction) return null;
   const action = {...originalAction, selection};
-  const added = formatAddedDate(entry.addedAt, env.locale);
+  const added = formatAddedDate(entry.addedAt ?? undefined, env.locale);
   const duration = durationText(entry.duration, env.t);
   const resolution = entry.resolution === '4k' ? t('quality.4k') : entry.resolution === '1080p' ? t('downloads.quality.1080p') : entry.resolution === '720p' ? t('downloads.quality.720p') : entry.resolution === 'sd' ? t('quality.sd') : undefined;
   const select = action.selection && <SelectionCircle selected={action.selection.checked} selecting={action.selection.active} onSelectedChange={(_next, intent) => {if (!retained) action.selection?.onToggle({range: intent.intent === 'range' || intent.shiftKey === true, source: source.current});}} onKeyDownCapture={() => {source.current = 'keyboard';}} onPointerDownCapture={() => {source.current = 'pointer';}} accessibilityLabel={t('next.selection.select')} variant="row"/>;

@@ -104,7 +104,8 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
   const [formOpen, setFormOpen] = useState(false), [choices, setChoices] = useState<InviteChoices>(defaultInviteChoices);
   /** The drawn ladder is whole days on the server and hours in the dialog. */
   const openedChoices = (): InviteChoices => {
-    const hours = bindings.inviteExpiryHours?.(), role = bindings.inviteRole?.();
+    const hours = bindings.inviteExpiryHours?.(), rawRole = bindings.inviteRole?.();
+    const role = rawRole === 'admin' || (rawRole as string | undefined) === 'administrator' ? 'admin' : rawRole === 'member' ? 'member' : undefined;
     return Object.freeze({...defaultInviteChoices,
       ...(hours && Number.isFinite(hours) && hours > 0 ? {expiresInHours: hours} : {}),
       ...(role ? {role} : {})});
@@ -417,8 +418,8 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
         change={(row, value) => setBulk(before => {if (row.id === 'bulk.maxStreams') return bindings.streamLimits?.patchBulk(before, value) ?? before; const next = {...before}; if (row.id === 'bulk.awayAccess') {if (value === 'keep') delete next.allowRemote; else next.allowRemote = value === 'allowed';} else {if (value === 'keep') delete next.maxContentRating; else next.maxContentRating = value === 'none' ? '' : String(value);} return next;})} renderSpecial={() => null} />
     </SettingsPanel>}
     {command && command.action !== 'access' && <Dialog footerDismisses open title={t('next.settings.confirmPeople', {count: command.rows.length})} onOpenChange={open => {if (!open && !saving) {setCommand(undefined); setBulk(undefined);}}}
-      returnFocusRef={confirmOpener} footer={<><Button disabled={saving} onClick={() => {setCommand(undefined); setBulk(undefined);}}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={applyCommand}>{t('next.settings.apply')}</Button></>}>
-      <p>{t(command.action === 'remove' ? table.select!.bulk[2].confirm! : table.select!.bulk[1].confirm!)}</p>
+      returnFocusRef={confirmOpener} footer={<><Button disabled={saving} onClick={() => {setCommand(undefined); setBulk(undefined);}}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={applyCommand}>{t(command.action === 'enable' ? 'next.settings.turnOn' : 'next.settings.apply')}</Button></>}>
+      <p>{t(command.action === 'remove' ? table.select!.bulk[2].confirm! : command.action === 'enable' ? 'next.settings.letBackInBody' : table.select!.bulk[1].confirm!)}</p>
     </Dialog>}
     {letBackIn && <Dialog footerDismisses open title={t('next.settings.letBackInTitle', {name: letBackIn.username})} onOpenChange={open => {if (!open && !saving) setLetBackIn(undefined);}} returnFocusRef={letBackInOpener}
       footer={<><Button disabled={saving} onClick={() => setLetBackIn(undefined)}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={() => {const person = letBackIn; void run(async () => {await client.letBackIn(person); setLetBackIn(undefined);});}}>{t('next.settings.letBackIn')}</Button></>}>

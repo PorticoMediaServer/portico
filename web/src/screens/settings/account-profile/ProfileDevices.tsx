@@ -4,16 +4,23 @@ import type {Device} from '@core/identity-devices.ts';
 import {Button} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {Icon} from '../../../kit/Icon';
+import {handleProfilePinManage, isProfilePinManageError} from '../pin-manage';
 import type {ProfileDevicesSource} from './devices';
 import styles from './profile.module.css';
 import deviceStyles from './profile-devices.module.css';
 import {profileDeviceIcon} from './device-icon';
 const t = defaultI18n.t;
-export function ProfileDevices({source, isCurrent, onFailure, signOut}: {source: ProfileDevicesSource; isCurrent: () => boolean; onFailure: () => void; signOut: () => void}) {
+export function ProfileDevices({source, isCurrent, onFailure, signOut}: {source: ProfileDevicesSource; isCurrent: () => boolean; onFailure: (error?: unknown) => void; signOut: () => void}) {
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const [target, setTarget] = useState<Device>();
   const active = useRef<Device | undefined>(undefined), pending = useRef(false), live = useRef(true), trigger = useRef<HTMLElement | null>(null);
+  const reportedPinError = useRef<unknown>(undefined);
   useEffect(() => {live.current = true;void source.load();return () => {live.current = false;active.current = undefined;};}, [source]);
+  useEffect(() => {
+    if (state.error && state.error !== reportedPinError.current && isCurrent()) {
+      if (handleProfilePinManage(state.error, onFailure)) reportedPinError.current = state.error;
+    }
+  }, [state.error, isCurrent, onFailure]);
   const finish = () => {active.current = undefined;setTarget(undefined);};
   const close = () => {if (!pending.current) finish();};
   const run = async (captured: Device) => {
@@ -22,11 +29,17 @@ export function ProfileDevices({source, isCurrent, onFailure, signOut}: {source:
     try {
       await source.signOut(captured);
       if (live.current && isCurrent() && active.current === captured) {finish();if (captured.current) signOut();}
-    } catch {if (live.current && isCurrent()) {finish();if (!source.getSnapshot().error) onFailure();}}
+    } catch (error) {
+      if (live.current && isCurrent()) {
+        finish();
+        if (handleProfilePinManage(error, onFailure)) {reportedPinError.current = error; return;}
+        if (!source.getSnapshot().error) onFailure(error);
+      }
+    }
     finally {pending.current = false;}
   };
   // A failure here says so in this section; the rest of the page stays.
-  if (isCurrent() && !state.devices && state.error) return <p role="status">{defaultI18n.t('error.title.load', {subject: 'devices'})}</p>;
+  if (isCurrent() && !state.devices && state.error) return <p role="status">{isProfilePinManageError(state.error) ? t('error.profilePinManage') : defaultI18n.t('error.title.load', {subject: 'devices'})}</p>;
   if (!isCurrent() || !state.devices) return null;
   return <>
     <ul className={styles.profiles} aria-label={t('next.settingsSpec.account.profile.groups.6.rows.0.label')}>

@@ -5,8 +5,8 @@ import {readFileSync} from 'node:fs';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
 test('Add account is offered only to the owner of a local-sign-in server (server-people "Add account"; the server refuses anyone else)', () => {
-  const route = read('../src/screens/settings/Settings.route.tsx');
-  assert.match(route, /\.\.\.\(role === 'owner' && identity\.signIn === 'local' \? \{addAccount: \(input: NewDirectMember, signal: AbortSignal\) => \{assert\(\); return createDirectMember\(api, input, signal\);\}\} : \{\}\),/);
+  const section = read('../src/screens/settings/route-sections/server-signin-people.tsx');
+  assert.match(section, /\.\.\.\(role === 'owner' && identity\.signIn === 'local' \? \{addAccount: \(input: NewDirectMember, signal: AbortSignal\) => \{assert\(\); return createDirectMember\(api, input, signal\);\}\} : \{\}\),/);
 });
 
 test('the People heading draws Add account (glass) before Invite someone, as owner-people 24a and the spec draw the pair', () => {

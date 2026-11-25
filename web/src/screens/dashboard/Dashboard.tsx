@@ -68,10 +68,10 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   useEffect(() => {if (sessions.value && !sessions.loading) setUpdatedAt(Date.now());}, [sessions.value, sessions.loading]);
   useEffect(() => {if (!phone && initialSection) ref.current?.querySelector(`[data-dashboard-section="${initialSection}"]`)?.scrollIntoView({block: 'start'});}, [initialSection, phone]);
   if (!allowed) return null;
-  const failed = sessions.failed || b.role === 'owner' && (status.failed || (phone ? health.failed : live.failed || loadRange === '24h' && day.failed || accounts.failed));
+  const allFailed = sessions.failed && !sessions.value && (b.role !== 'owner' || status.failed && !status.value && (phone ? health.failed && !health.value : live.failed && !live.value));
   const retry = () => {sessions.refresh(); if (b.role === 'owner') {status.refresh(); if (phone) health.refresh(); else {live.refresh(); if (loadRange === '24h') day.refresh();} accounts.refresh(); server.refresh();}};
   /* settings.html's Dashboard (lead, 4 Nov): Alerts, Now playing, Server load, the statistics, then Background tasks, quiet or busy. */
-  const groupedQuiet = !phone && !failed && b.role === 'owner';
+  const groupedQuiet = !phone && !allFailed && b.role === 'owner';
   const sections = phone
     ? <><div data-dashboard-section="streams"><NowPlaying bindings={b} state={sessions} phone /></div>
         {b.role === 'owner' && <><Status bindings={b} status={status} phone /><Tasks status={status} phone />{<PhoneHealth reading={health.value} loading={health.loading} failed={health.failed} range={healthRange} onRangeChange={range => {if (b.isCurrent()) setHealthRange(range);}} onRetry={health.refresh} />}<div data-dashboard-section="activity"><PhoneStatistics bindings={b} /></div></>}</>
@@ -80,10 +80,10 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
         {b.role === 'owner' && <><div className={quietStyles.slot} data-dashboard-quiet-slot="load"><Load bindings={b} live={live} day={day} range={loadRange} onRange={setLoadRange} /></div><div data-dashboard-section="activity"><Analytics bindings={b} accounts={accounts} /></div><div className={quietStyles.slot} data-dashboard-quiet-slot="tasks"><Tasks status={status} /></div></>}</>;
   if (phone) return <PhonePage chrome={chrome ?? {serverName: '', audience: b.role === 'owner' ? 'owner' : 'administrators'}} server={server.value}
     updatedAt={updatedAt} onBack={() => {if (history.length > 1) history.back(); else b.effects.openHome();}} onRefresh={retry} initialSection={initialSection}>
-    {failed && !sessions.value ? <ReadFeedback openHome={b.effects.openHome} height={420} state={{failed: true, loading: false, refresh: retry}} /> : sections}
+    {allFailed ? <ReadFeedback openHome={b.effects.openHome} height={420} state={{failed: true, loading: false, refresh: retry}} /> : sections}
   </PhonePage>;
   return <div className={`${styles.dashboard} ${groupedQuiet ? quietStyles.grouped : ''}`} data-quiet-embedded={groupedQuiet && embedded || undefined} ref={ref}>{!embedded && <h2 className={styles.pageTitle}>{t('next.dashboard.title')}</h2>}
-    {failed ? <ReadFeedback openHome={b.effects.openHome} state={{failed: true, loading: false, refresh: retry}} /> : sections}
+    {allFailed ? <ReadFeedback openHome={b.effects.openHome} state={{failed: true, loading: false, refresh: retry}} /> : sections}
   </div>;
 }
 type SessionsState = ReadState<DashboardSessions> & {refresh: () => void};
@@ -167,6 +167,7 @@ function Load({bindings: b, live, day, range, onRange, phone = false}: {bindings
   </Section>;
 }
 const alertDestinations: Record<string, {section: string; label: MessageId}> = {
+  update: {section: 'general', label: 'next.dashboard.update'},
   streaming: {section: 'streaming', label: 'next.dashboard.streaming'},
   networking: {section: 'remote', label: 'next.dashboard.remote'},
   storage: {section: 'storage', label: 'next.dashboard.storage'},
@@ -200,14 +201,12 @@ function Status({bindings: b, status, phone = false}: {bindings: DashboardBindin
   // The words phone, TV and web share (client-core dashboardAlertWords).
   const text = (alert: DashboardAlert) => dashboardAlertWords(alert, t).title;
   const detail = (alert: DashboardAlert) => dashboardAlertWords(alert, t).detail;
-  const action = (alert: DashboardAlert, update: boolean, destination: {section: string; label: MessageId}) => {
+  const action = (alert: DashboardAlert, destination: {section: string; label: MessageId}) => {
     const words = dashboardAlertWords(alert, t);
     if (!words.known || alert.action.kind === 'none') return null;
     if (alert.code === 'data_folder_readable') return words.fixPermissions && b.effects.fixPermissions
       ? <Button size="xs" disabled={!!busy} onClick={() => {setRefusal(''); setConfirm(alert);}}>{t('next.dashboard.fixPermissions')}</Button> : null;
-    return <>
-      {!update && <Button size="xs" onClick={() => b.effects.openSettings(destination.section)}>{t(destination.label)}{!phone && <Icon name="i-right" size={16} />}</Button>}
-    </>;
+    return <Button size="xs" onClick={() => b.effects.openSettings(destination.section)}>{t(destination.label)}{!phone && <Icon name="i-right" size={16} />}</Button>;
   };
   if (phone) return <>{status.loading || status.failed || !!status.value ? <div data-dashboard-section="updates">
     <Section phone title={t('next.dashboard.alerts')} extra={alerts.length ? <span>{defaultI18n.number(alerts.length)}</span> : undefined}>
@@ -219,14 +218,14 @@ function Status({bindings: b, status, phone = false}: {bindings: DashboardBindin
         return <article className={styles.phoneAlert} key={`${alert.code}-${index}`} data-major={alert.major || undefined} data-info={update || undefined}>
           <span className={styles.phoneSeverity} data-severity={severityKey}>{t(`server.severity.${severityKey}` as MessageId)}</span>
           <b>{sentence}</b>{detail(alert) && <p>{detail(alert)}</p>}{alert.params.subject && <p>{alert.params.subject}</p>}
-          <div className={styles.phoneAlertActions}>{action(alert, update, destination)}</div>
+          <div className={styles.phoneAlertActions}>{action(alert, destination)}</div>
         </article>;
       })}</div>}
     </Section></div> : null}{confirmation}</>;
   return <>{(status.loading || status.failed || !!alerts.length || quiet) && <div data-dashboard-section="updates">{quiet && <Section title={t('next.dashboard.alerts')}><DashboardQuiet kind="alerts" /></Section>}<ReadFeedback height={56} openHome={b.effects.openHome} state={status} />{!!alerts.length && <section className={styles.alerts} aria-label={t('next.dashboard.alerts')}>{alerts.map((alert, index) => {
     const update = alert.action.kind === 'update', destination = alertDestinations[alert.action.kind] ?? {section: 'troubleshooting', label: 'next.dashboard.troubleshooting' as const}, sentence = text(alert);
     return <div className={styles.alert} key={`${alert.code}-${index}`} data-major={alert.major || undefined}><span className={styles.alertIcon} data-info={update || undefined}><Icon name={update ? 'i-arrow-up' : 'i-alert'} size={18} /></span><b>{sentence}</b>{detail(alert) && <span>{detail(alert)}</span>}{alert.params.subject && <span>{alert.params.subject}</span>}
-      {action(alert, update, destination)}
+      {action(alert, destination)}
     </div>;
   })}</section>}</div>}{confirmation}
   </>;

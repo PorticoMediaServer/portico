@@ -77,10 +77,10 @@ export class SettingsSupportSource {
   /** Fix permissions, offered only while the server says other accounts can read the data folder and it can fix that. */
   fixPermissions = async (): Promise<void> => {
     if (!this.current() || this.state.fixing) return;
-    this.publish({fixing: true});
+    this.publish({fixing: true, error: undefined});
     try {
       const permissions = await fixOwnerSupportPermissions(this.api, this.lifetime.signal);
-      if (this.current() && this.state.facts) this.publish({fixing: false, fixed: true, facts: Object.freeze({...this.state.facts, permissions})});
+      if (this.current() && this.state.facts) this.publish({fixing: false, fixed: true, error: undefined, facts: Object.freeze({...this.state.facts, permissions})});
     } catch (error) {
       if (this.current() && !this.failed(error)) this.publish({fixing: false, error});
     }

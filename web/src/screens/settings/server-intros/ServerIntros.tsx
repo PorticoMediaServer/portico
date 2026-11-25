@@ -8,7 +8,6 @@ import {Artwork, type ArtworkSource} from '../../../kit/artwork';
 import {CreateMarkerSheet, SegmentWindows, StatTiles, type SegmentEdit, type SegmentMark} from '../../../kit/shell';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {Menu} from '../../../kit/overlays/Popover';
-import {usePhone} from '../../../kit/overlays/shared';
 import {ToastHost, type ToastData} from '../../../kit/overlays';
 import type {SegmentIntrosSnapshot, SegmentIntrosSource} from './source';
 import styles from './server-intros.module.css';
@@ -283,7 +282,7 @@ function Episode({entry, title, edit, busy, onEdit, onChange, onSave, onCancel, 
   onApprove: (entry: SegmentReviewEntry, marker: SegmentReviewMarker) => void; onDismiss: (entry: SegmentReviewEntry, marker: SegmentReviewMarker) => void; onAdd: (entry: SegmentReviewEntry) => void;
   onPreview: (libraryId: string, itemId: string, start: number) => void;
 }) {
-  const duration = seconds(entry.durationUS), phone = usePhone();
+  const duration = seconds(entry.durationUS);
   const opening = entry.markers.filter(marker => isOpening(marker.kind)).map(mark);
   const ending = entry.markers.filter(marker => !isOpening(marker.kind)).map(mark);
   const todo = entry.markers.filter(waiting).length;
@@ -293,7 +292,7 @@ function Episode({entry, title, edit, busy, onEdit, onChange, onSave, onCancel, 
       <b>{entry.title || t('web.segments.untitled')}</b>
       {duration > 0 && <span className={styles.duration}>{t('web.segments.durationMinutes', {count: Math.round(duration / 60)})}</span>}
       <span className={styles.state} data-todo={todo > 0 || undefined}>{todo > 0 ? t('web.segments.titleSuggested', {count: todo}) : t('web.segments.entryState', {state: entry.state === 'unsupported' && !entry.markers.length ? 'manual' : 'complete'})}</span>
-      {phone ? <EpisodeMenu entry={entry} title={entry.title || t('web.segments.untitled')} onAdd={onAdd} t={t} /> : null}
+      <EpisodeMenu entry={entry} title={entry.title || t('web.segments.untitled')} onAdd={onAdd} t={t} />
     </header>
     {duration > 0 && (opening.length || ending.length)
       ? <SegmentWindows duration={duration} opening={opening} ending={ending} context={entry.title && duration > 0 ? t('web.segments.inEpisode', {title: entry.title, count: Math.round(duration / 60)}) : undefined} edit={edit ? {id: edit.marker.id, opening: edit.opening, start: edit.start, end: edit.end, kind: edit.kind} : undefined}
@@ -302,10 +301,10 @@ function Episode({entry, title, edit, busy, onEdit, onChange, onSave, onCancel, 
           onChange={value => onChange(entry, value)} onSave={draft => onSave(entry, draft)} onCancel={onCancel}
           onApprove={value => {const marker = entry.markers.find(candidate => candidate.id === value.id); if (marker && !busy) onApprove(entry, marker);}}
           onDismiss={value => {const marker = entry.markers.find(candidate => candidate.id === value.id); if (marker && !busy) onDismiss(entry, marker);}} />
-      : entry.state === 'unsupported'
-        // A version in several files (#3255): Portico cannot measure it, which is information, not a fault; markers can still be added by hand.
-        ? <p className={styles.empty}>{t('web.segments.unsupportedManual')} <button type="button" onClick={() => onAdd(entry)}>{t('web.segments.addTitle')}</button></p>
-        : <p className={styles.empty}>{t('web.segments.entryState', {state: entry.state})}</p>}
+      : <p className={styles.empty}>
+          {entry.state === 'unsupported' ? t('web.segments.unsupportedManual') : t('web.segments.entryState', {state: entry.state})}{' '}
+          <button type="button" onClick={() => onAdd(entry)}>{t('web.segments.addTitle')}</button>
+        </p>}
   </article>;
 }
 

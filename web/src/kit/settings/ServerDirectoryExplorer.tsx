@@ -36,15 +36,26 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
   serverName?: string;
 }>) {
   const phone = usePhone();
+  const onOpenChangeRef = useRef(onOpenChange);
+  const onChooseRef = useRef(onChoose);
+  const onChooseManyRef = useRef(onChooseMany);
+  const initialPathsRef = useRef(initialPaths);
+  const initialPathRef = useRef(initialPath);
+  onOpenChangeRef.current = onOpenChange;
+  onChooseRef.current = onChoose;
+  onChooseManyRef.current = onChooseMany;
+  initialPathsRef.current = initialPaths;
+  initialPathRef.current = initialPath;
+  const multi = !!onChooseMany;
   const [chosen, setChosen] = useState<readonly string[]>([]), [typing, setTyping] = useState(false), [placesOpening, setPlacesOpening] = useState<PlacesOpening>();
   const [attempt, setAttempt] = useState<object>();
   const activeAttempt = useRef<object | undefined>(undefined);
   useLayoutEffect(() => {
     if (!open) return;
     const next = {}; activeAttempt.current = next; setAttempt(next);
-    setChosen([...new Set(initialPaths ?? [])].slice(0, 64)); setTyping(false); setPage(undefined); setUncPath('');
+    setChosen([...new Set(initialPathsRef.current ?? [])].slice(0, 64)); setTyping(false); setPage(undefined); setUncPath('');
     return () => {if (activeAttempt.current === next) activeAttempt.current = undefined; request.current?.abort();};
-  }, [open, api, onChoose, onChooseMany, initialPaths, initialPath]);
+  }, [open, api, multi]);
   const current = () => open && !!attempt && activeAttempt.current === attempt;
   const placesRef = useRef<PlacesOpening | undefined>(undefined);
   useLayoutEffect(() => {
@@ -117,13 +128,13 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
     }
   }, [api, checkWritable]);
   useEffect(() => {
-    if (open && attempt && activeAttempt.current === attempt) { setShowHidden(false); void read(initialPath); }
+    if (open && attempt && activeAttempt.current === attempt) { setShowHidden(false); void read(initialPathRef.current); }
     return () => { request.current?.abort(); request.current = undefined; };
-  }, [open, read, attempt, initialPath]);
+  }, [open, read, attempt]);
   const changeOpen = (next: boolean) => {
     if (!current()) return;
     if (!next) { activeAttempt.current = undefined; request.current?.abort(); request.current = undefined; }
-    onOpenChange(next);
+    onOpenChangeRef.current(next);
   };
   const go = (path: string) => { if (current()) {setTyping(false); void read(path, showHidden);} };
   const toggle = (path: string) => {if (!current()) return; setChosen(previous => previous.includes(path) ? previous.filter(value => value !== path) : previous.length < 64 ? [...previous, path] : previous);};
@@ -131,17 +142,17 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
   const canChooseCurrent = current() && !!page?.path && typed === page.path && !busy && !failed && !here?.cannotBeChosen;
   const submit = () => {
     if (!current()) return;
-    if (onChooseMany) {
+    if (onChooseManyRef.current) {
       if (!chosen.length) return;
       const classifications: Record<string, 'local' | 'network'> = {};
       for (const path of chosen) {
         const classification = page ? classifyServerPath(path, page.roots, page.separator) : undefined;
         if (classification) classifications[path] = classification;
       }
-      onChooseMany(Object.freeze([...chosen]), Object.freeze(classifications));
+      onChooseManyRef.current(Object.freeze([...chosen]), Object.freeze(classifications));
       changeOpen(false);
     } else if (canChooseCurrent && page) {
-      onChoose(page.path, classifyServerPath(page.path, page.roots, page.separator));
+      onChooseRef.current(page.path, classifyServerPath(page.path, page.roots, page.separator));
       changeOpen(false);
     }
   };

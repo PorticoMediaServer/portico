@@ -3,6 +3,7 @@ import {defaultI18n} from '@i18n';
 import type {ProfileDeletion, ProfileRetirementState} from '@core/profile-management.ts';
 import {Button} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
+import {handleProfilePinManage} from '../pin-manage';
 import type {ProfileSettingsSource} from './source';
 import styles from './profile.module.css';
 const t = defaultI18n.t;
@@ -12,7 +13,7 @@ const t = defaultI18n.t;
  * The dialog keeps saying Removing… while the accepted purge runs and Removed once the
  * server reports it; a blocked or failed retirement is left to the screen's error handling. */
 export function ProfileDelete({source, isCurrent, onFailure}: {
-  source: ProfileSettingsSource; isCurrent: () => boolean; onFailure: () => void;
+  source: ProfileSettingsSource; isCurrent: () => boolean; onFailure: (error?: unknown) => void;
 }) {
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const [preview, setPreview] = useState<ProfileDeletion>(), [loading, setLoading] = useState(false), [retirement, setRetirement] = useState<ProfileRetirementState>();
@@ -25,7 +26,7 @@ export function ProfileDelete({source, isCurrent, onFailure}: {
     if (!selected || pending.current || state.busy || !current()) return;
     pending.current = true;setLoading(true);
     try {const result = await source.previewDelete(selected);if (current()) setPreview(result);}
-    catch {if (current()) onFailure();}
+    catch (error) {if (current()) {if (!handleProfilePinManage(error, onFailure)) onFailure(error);}}
     finally {pending.current = false;if (current()) setLoading(false);}
   };
   const remove = async () => {
@@ -33,7 +34,12 @@ export function ProfileDelete({source, isCurrent, onFailure}: {
     pending.current = true;
     try {
       await source.deleteProfile(preview, status => {if (live.current && isCurrent()) setRetirement(status.state);});
-    } catch {if (current() && !source.getSnapshot().error) onFailure();}
+    } catch (error) {
+      if (current()) {
+        if (handleProfilePinManage(error, onFailure)) {setPreview(undefined); setRetirement(undefined); return;}
+        if (!source.getSnapshot().error) onFailure(error);
+      }
+    }
     finally {pending.current = false;}
   };
   const removed = retirement === 'removed', manageable = !!state.document?.canManage && state.document.capabilities.manageAccount === true;

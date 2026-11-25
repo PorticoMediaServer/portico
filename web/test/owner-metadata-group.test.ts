@@ -71,11 +71,12 @@ test('sibling sweep: every parent title page wires the shared Owner section with
     ['Show.tsx', ["entityKind: 'show'", "entityKind: 'season'"]],
     ['Album.tsx', ["entityKind: 'album'", "kind: 'song'"]],
     ['Artist.tsx', ["entityKind: 'artist'"]],
-    ['audiobooks/More.tsx', ["entityKind: 'book'"]],
-    ['audiobooks/Entry.tsx', ["kind: 'audiobook_file'"]],
+    ['audiobooks/More.tsx', ["entityKind: 'book'", "entry.kind === 'audiobook_file'"]],
   ] as const) {
     const text = source(file);
     assert.match(text, /<OwnerMetadataGroup/, `${file} draws the Owner section`);
     for (const kind of kinds) assert.ok(text.includes(kind), `${file} edits ${kind}`);
   }
+  const entry = source('audiobooks/Entry.tsx');
+  assert.match(entry, /entry\.kind === 'audiobook_file' && <AudiobookMore/, 'audiobooks/Entry.tsx delegates audiobook_file rows to AudiobookMore');
 });

@@ -6,6 +6,7 @@ import {defaultI18n} from '@i18n';
 import type {SettingPresentation} from '../../kit/settings';
 import type {SettingsOwnerSwitch} from './owner-switch';
 import type {LocalOwnerTransferSource} from './local-owner-transfer';
+import {handleProfilePinManage} from './pin-manage';
 
 type Snapshot = Readonly<{loading: boolean; document?: OwnerSignInSettings; error?: unknown}>;
 const empty: Snapshot = Object.freeze({loading: true});
@@ -17,6 +18,8 @@ export type SignInSettingsSourceOptions = Readonly<{
   localOwnerTransfer?: LocalOwnerTransferSource;
   /** The shell rereads actual authority/kind; the Settings source grants nothing. */
   onAuthorityChanged: () => void;
+  /** Invoked on `403 profile_pin_manage` without retiring session authority. */
+  onPinManage?: (error: unknown) => void;
 }>;
 
 /** The Sign-in page's private facts, read through the checked guarded client. */
@@ -54,6 +57,7 @@ export class SignInSettingsSource {
       this.publish({...this.snapshot, document});return {kind: 'adopted'};
     } catch (error) {
       if (!this.current()) return {kind: 'deferred'};
+      if (handleProfilePinManage(error, this.options.onPinManage)) return read.signal.aborted ? {kind: 'deferred'} : {kind: 'unreadable', error};
       if ([401, 403].includes((error as {status?: number})?.status ?? 0)) {this.dispose();this.options.onAuthorityChanged();}
       return read.signal.aborted?{kind:'deferred'}:{kind: 'unreadable', error};
     } finally {if(this.quietRead===read)this.quietRead=undefined;}
@@ -68,6 +72,7 @@ export class SignInSettingsSource {
       this.publish({loading: false, document});
     }, error => {
       if (!this.current()) return;
+      if (handleProfilePinManage(error, this.options.onPinManage)) {this.publish({loading: false, error});return;}
       if (error && typeof error === 'object' && 'status' in error && (error.status === 401 || error.status === 403)) {
         this.dispose();this.options.onAuthorityChanged();return;
       }
