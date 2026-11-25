@@ -1,7 +1,7 @@
 import type {AppServerSession} from '../../../../../packages/client-core/src/app-sessions';
 import {sameServerPin} from '../../../../../packages/client-core/src/route-identity';
-import type {OfflineEntry} from '../../../platform/offline-downloads';
-import {offlineOwnerKey} from '../../../platform/offline-downloads';
+import type {OfflineEntry} from '../../platform/offline-downloads';
+import {offlineOwnerKey} from '../../platform/offline-downloads';
 
 /** The exact viewer whose sign-out sheet is open. Sign-out itself always uses this
  * captured family; downloads are touched only while this same viewer is still selected. */

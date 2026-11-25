@@ -9,7 +9,7 @@ import * as adapterReturn from '../src-next/platform/playback/adapter-return.ts'
 async function factory({available = true, setting = 'automatic', container, subtitleRendering, previousSession}: {available?: boolean; setting?: string; container?: string; subtitleRendering?: string; previousSession?: object} = {}) {
   let captured: any;
   const containerSessions: unknown[] = [];
-  const runtime = {installSnapshotCapture() {}, getSnapshot: () => ({}),
+  const runtime = {getSnapshot: () => ({}),
     path: {session: () => undefined}, queue: {currentSession: () => previousSession, playEntry() {}},
     coordinator: {getEngine: () => 'native'}, localContainer: (session: unknown) => {containerSessions.push(session);return container;},
     localSubtitleRendering: () => subtitleRendering};
@@ -28,7 +28,7 @@ async function factory({available = true, setting = 'automatic', container, subt
     './capability-document': {deviceCapabilityDocument: () => ({})}, './NativeListeningAdapter': {},
     './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
     './scope-http': {PlaybackScopeHttp: class {dispose() {}}}, './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
-    '../../../platform/offline-downloads': {offlineDownloads: {}}, '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
+    '../offline-downloads': {offlineDownloads: {}},
   });
   createNativeShellPlaybackAdapter({appVersion: 'test', api: {}, session: () => ({viewer: {authority: 'local', profileId: 'profile'}}),
     authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'}),

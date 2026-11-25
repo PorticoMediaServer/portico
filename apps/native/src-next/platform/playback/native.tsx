@@ -1,7 +1,7 @@
 import {nativePlaybackView} from './native-surface';
 import {nativeStopScope} from '../native-stop-scope';
-import React, {useCallback, useEffect, useRef, useSyncExternalStore, type ComponentRef} from 'react';
-import {AppState, Dimensions, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, type HostComponent, type ViewProps} from 'react-native';
+import React, {useEffect, useRef, useSyncExternalStore} from 'react';
+import {AppState, Dimensions, NativeEventEmitter, NativeModules, Platform, UIManager, type ViewProps} from 'react-native';
 import {CapabilityPublisher} from '../../../../../packages/client-core/src/playback-v1/options';
 import {NativeCapabilityReadiness} from './capability-readiness';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
@@ -15,11 +15,10 @@ import {NativeListeningV1Adapter, type NativeListeningBridge} from './NativeList
 import type {NativePlaybackTransport} from './NativePlaybackCoordinator';
 import {NativePlaybackRuntime} from './runtime';
 import {PlaybackScopeHttp} from './scope-http';
-import {createVideoSnapshotCapture} from '../video-snapshot';
 import type {NativePlaybackRuntimeOptions, NativePlaybackSurfaceProps} from './types';
 import {createNativePlaybackAdapterReturn, type NativePlaybackAdapterReturn} from './adapter-return';
 import {nativeDynamicRangeMatchingAvailable} from './dynamic-range-matching';
-import {offlineDownloads} from '../../../platform/offline-downloads';
+import {offlineDownloads} from '../offline-downloads';
 
 const names = {native: {module: 'PorticoPlaybackModule', fact: 'PorticoPlaybackFact', view: 'PorticoPlayer'}, mpv: {module: 'PorticoMpvPlaybackModule', fact: 'PorticoMpvPlaybackFact', view: 'PorticoMpvPlayer'}} as const;
 type EngineModule = NativeListeningBridge & {
@@ -104,7 +103,6 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
         ...(session?.mode === 'local' ? localRuleFacts({address: session.streamUrl, local: true, platform: Platform.OS === 'android' ? 'android' : 'apple', container: runtime.localContainer(session)}) : {}),
         requiredSubtitleRendering: session?.mode === 'local' ? runtime.localSubtitleRendering() : requiredSubtitleRendering(snapshot.subtitles?.plan, known), nativeSubtitleRendering: nativeFeatures.subtitleRendering});
     }}});
-  runtime.installSnapshotCapture(createVideoSnapshotCapture({isCurrent: runtime.isSnapshotSourceCurrent}));
   if (pipSupported) {
     // Each engine answers for itself: a producer that is not the active engine cannot
     // speak for the current picture, even under the same lease.
@@ -117,7 +115,6 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
   /** The only new component is a native-module view bridge; all player chrome belongs later. */
   function Surface({dockBounds, expandedBounds, docked, subtitlesVisible, surfaceActive}: NativePlaybackSurfaceProps) {
     const owner = useRef<object>({});
-    const surfaceRef = useCallback((node: ComponentRef<HostComponent<NativeSurfaceProps>> | null) => { runtime.setSurfaceTag(owner.current, node ? findNodeHandle(node) : null); }, []);
     const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
     useEffect(() => runtime.attachSurface(owner.current), []);
     useEffect(() => { runtime.setSubtitleDisplay(subtitlesVisible && !docked); }, [subtitlesVisible, docked]);
@@ -130,8 +127,8 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
     // Fabric can retain a native descendant's previous layout below a hidden
     // ancestor. Revoke Android producer composition through its own native prop
     // as well, including close before the asynchronous lease release completes.
-    // Keep this host/ref/owner stable; expanded -> docked does not revoke it.
-    return <SurfaceView ref={surfaceRef} lease={state.lease} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
+    // Keep this host/owner stable; expanded -> docked does not revoke it.
+    return <SurfaceView lease={state.lease} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
       {...(Platform.OS === 'android' ? {surfaceActive: producerActive, pictureInPictureRequest: state.pictureInPicture?.request ?? 0, pictureInPictureBinding: state.pictureInPicture?.binding ?? null, autoPictureInPicture: state.pictureInPicture?.automatic ?? true} : {})}
       style={{position: 'absolute', left: bounds?.x ?? 0, top: bounds?.y ?? 0, width: bounds?.width ?? 0, height: bounds?.height ?? 0, display: visible ? 'flex' : 'none', opacity: visible ? 1 : 0}} />;
   }

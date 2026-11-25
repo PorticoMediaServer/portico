@@ -101,7 +101,7 @@ async function periodical(tablet: boolean, magazine: boolean, phase = 'ready') {
     '../reading/PeriodicalParts': parts, '../layout/TopBar': {TopBar: 'TopBar'}, '../layout/page-inset': {usePageWidth: () => width},
   });
   const model = await screenModule(new URL('../src-next/pages/shared/read/useReadPeriodical.ts', import.meta.url), {
-    react: r.react, '../../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
+    react: r.react, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
     '../../../screens/downloads/request': {askNativeDownload: () => {}}, '../../../screens/read/periodical-presentation': presentation,
     './useReadingActions': {useReadingActions: () => actions},
   });
@@ -235,7 +235,7 @@ test('N5-4: a series volume the server can\'t serve takes no open, menu or selec
     '../artwork': {Artwork: 'Artwork', AmbientArt: 'AmbientArt', GeneratedCover: 'GeneratedCover', StandardBackdrop: 'StandardBackdrop'},
     '../controls': {Button: 'Button', Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../layout': {WindowedGrid: 'WindowedGrid'},
     './reading-window': {NativeReadingWindow: class {}}, './ReadingActions': {ReadingItemMenu: 'ReadingItemMenu', ReadingSelectionToolbar: 'ReadingSelectionToolbar', useReadingActions: () => ({})},
-    '../selection': {SelectionCircle: 'SelectionCircle'}, '../downloads/request': {askNativeDownload: () => {}}, '../../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
+    '../selection': {SelectionCircle: 'SelectionCircle'}, '../downloads/request': {askNativeDownload: () => {}}, '../../platform/offline-reading': {nativePublicationReadsAvailable: () => true},
     '../states': {StateView: 'StateView', SkeletonBlock: 'SkeletonBlock', LoadingPaint: 'LoadingPaint'},
     '../browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: typography}, '../theme': {textLine: () => 20, useTheme: () => theme(false)},
     '../live/GuideProgrammeTitle': {GuideProgrammeTitle: 'GuideProgrammeTitle'}, '../layout/PreviewText': {PreviewText: 'PreviewText'},

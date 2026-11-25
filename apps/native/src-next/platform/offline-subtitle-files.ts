@@ -1,4 +1,4 @@
-import type {DownloadBundleSubtitle} from '../../../packages/client-core/src/downloads';
+import type {DownloadBundleSubtitle} from '../../../../packages/client-core/src/downloads';
 
 /**
  * The subtitle files that travel with a download, as they are kept beside it and handed to the

@@ -1,7 +1,7 @@
 import React, {createContext, forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore} from 'react';
 import {findNodeHandle, Platform, TVFocusGuideView, View, type FocusGuideMethods, type ViewProps} from 'react-native';
 import {useTheme} from '../theme';
-import {createFocusHandleResolver, createFocusRegistry, deferStartFocus, focusTestID, requestNativeFocus, requestStartFocus, type FocusAddress, type FocusHost, type FocusRegionConfig, type FocusRegistry} from './registry';
+import {createFocusHandleResolver, createFocusRegistry, deferStartFocus, focusTestID, requestStartFocus, type FocusAddress, type FocusHost, type FocusRegionConfig, type FocusRegistry} from './registry';
 import type {FocusCell} from './cell-navigation';
 import {useHostRef} from './useHostRef';
 import {useLayerCovered} from './CoveredLayer';
@@ -72,8 +72,20 @@ export function useFocusWaiting(): boolean {return useContext(ItemContext)?.wait
 export type FocusRegionProps = Omit<ViewProps, 'id' | 'onFocus' | 'onBlur'> & FocusRegionConfig & {onFocusChange?: (ownsFocus: boolean) => void};
 type Guide = View & FocusGuideMethods;
 
+const noopUnsubscribe = () => {};
+const noopSubscribe = () => noopUnsubscribe;
+const zeroSnapshot = () => 0;
+const emptyDeps: readonly string[] = [];
+
 export const FocusRegion = forwardRef<View, FocusRegionProps>(function FocusRegion({children, onFocusChange, ...props}, ref) {
+  const {isTV} = useTheme();
   const parent = useOptionalFocusRegistry();
+  if (!isTV) {
+    const {id, entry: _entry, entryRegion: _entryRegion, parent: _parent, entryPolicy: _entryPolicy, order: _order,
+      neighbors: _neighbors, screenStart: _screenStart, edges: _edges, grid: _grid, timeGrid: _timeGrid,
+      stops: _stops, orientation: _orientation, hold: _hold, enabled: _enabled, testID, ...view} = props;
+    return <View {...view} testID={testID} ref={ref}><RegionContext.Provider value={id}>{children}</RegionContext.Provider></View>;
+  }
   return parent ? <Region {...props} onFocusChange={onFocusChange} ref={ref}>{children}</Region>
     : <FocusProvider><Region {...props} onFocusChange={onFocusChange} ref={ref}>{children}</Region></FocusProvider>;
 });
@@ -136,8 +148,6 @@ function inheritedEdges(registry: FocusRegistry, regionId: string): Partial<Reco
   }
   return out;
 }
-/** Counts focus arriving anywhere in the app, so a repeated start-focus ask can tell that something else took it. */
-let focusSerial = 0;
 export type FocusTargetOptions<T extends FocusHost = View> = {focusId?: string; testID?: string; disabled?: boolean; ref?: React.ForwardedRef<T>;
   /** TV-FOCUS-REVIEW step 4: ask for native focus once when this becomes true, the same on Android TV and tvOS. It
    * replaces `hasTVPreferredFocus`, which tvOS re-applies on every later layout change and so takes focus back
@@ -148,13 +158,15 @@ export type FocusTargetOptions<T extends FocusHost = View> = {focusId?: string; 
   preferredBlocked?: boolean};
 /** Bind the actual native host. No remote-key listener or per-key app decision. */
 export function useFocusTarget<T extends FocusHost = View>({focusId, testID, disabled, ref, preferred = false, preferredBlocked = false}: FocusTargetOptions<T>) {
+  const {isTV} = useTheme();
   const registry = useOptionalFocusRegistry(), regionId = useContext(RegionContext), item = useContext(ItemContext);
   const childId = focusId ?? item?.focusId ?? testID, entityId = item?.entityId;
   const stableTestID = testID ?? item?.testID ?? (regionId && childId ? focusTestID(regionId, childId) : undefined);
-  if (regionId && !childId && !disabled) throw new Error('A region child requires a stable focusId or testID from its caller.');
-  const owner = useRef({}), cellKey = JSON.stringify(item?.cell);
+  if (isTV && regionId && !childId && !disabled) throw new Error('A region child requires a stable focusId or testID from its caller.');
+  const activeRegistry = isTV ? registry : null;
+  const owner = useRef({}), cellKey = activeRegistry && item?.cell ? JSON.stringify(item.cell) : undefined;
   const cell = useMemo<FocusCell | undefined>(() => cellKey ? JSON.parse(cellKey) : undefined, [cellKey]);
-  const committed = useRef({registry, regionId, childId, disabled, cell, entityId});
+  const committed = useRef({registry: activeRegistry, regionId, childId, disabled, cell, entityId});
   const onHost = useCallback((host: T | null) => {
     const c = committed.current;
     if (c.registry && c.regionId && c.childId) c.registry.attach({regionId: c.regionId, childId: c.childId}, c.disabled ? null : host, owner.current, c.cell, c.entityId);
@@ -163,61 +175,58 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
   // A live focus stop inside a TVRow lets that row scroll (and so be focusable) on Android TV.
   const scrollRow = useContext(ScrollRowContext), within = useContext(FocusWithinContext);
   useLayoutEffect(() => {
-    if (!scrollRow || disabled) return;
+    if (!isTV || !scrollRow || disabled) return;
     scrollRow(1);
     return () => scrollRow(-1);
-  }, [disabled, scrollRow]);
-  const asked = useRef(false), landed = useRef(false);
+  }, [disabled, isTV, scrollRow]);
+  const asked = useRef(false);
   // R1: the frame's start focus (StartFocusScope) is a preferred ask like any other.
-  const start = useIsStartFocus(childId, stableTestID), wanted = preferred || start;
+  const start = useIsStartFocus(childId, stableTestID), wanted = isTV && (preferred || start);
   useLayoutEffect(() => {
     if (!wanted) {asked.current = false; return;}
     if (asked.current || disabled || preferredBlocked) return;
-    asked.current = true; landed.current = false; if (native.current) registry?.notePreferred?.(native.current); requestStartFocus(native.current);
-    // Android TV drops an ask made before the view (or the layer it is in) can take focus natively, and then nothing is
-    // focused at all. Ask again on the next frames, for at most about half a second, until focus lands here. Android
-    // TV also gives a page with nothing focused its first focusable view by itself (a library's Discover tab above
-    // the start poster), so there that one arrival elsewhere is passed over. Any other arrival (the person moved, a
-    // newer ask; on tvOS the first) ends it, so it never pulls focus back.
-    if (typeof requestAnimationFrame !== 'function') return;
-    const serial = focusSerial, passOver = Platform.OS === 'android' ? 1 : 0;
-    let frames = 0, live = true;
-    const again = () => {
-      if (!live || landed.current || focusSerial - serial > passOver || ++frames > 30) return;
-      requestNativeFocus(native.current); requestAnimationFrame(again);
-    };
-    requestAnimationFrame(again);
-    return () => {live = false;};
-  }, [disabled, native, wanted, preferredBlocked, registry]);
-  const config = regionId ? registry?.config(regionId) : undefined;
-  const inherited = registry && regionId ? inheritedEdges(registry, regionId) : {};
+    asked.current = true;
+    if (native.current) activeRegistry?.notePreferred?.(native.current);
+    requestStartFocus(native.current);
+  }, [activeRegistry, disabled, native, preferredBlocked, wanted]);
+  const config = activeRegistry && regionId ? activeRegistry.config(regionId) : undefined;
+  const inherited = activeRegistry && regionId ? inheritedEdges(activeRegistry, regionId) : undefined;
   // Edge props below also point at neighbour regions from destinations(); a
   // neighbour host that attaches later must republish them.
-  const neighbours = registry && regionId && childId && !config?.hold
-    ? Object.values(registry.destinations({regionId, childId})).flatMap(target => 'regionId' in target ? [target.regionId] : []) : [];
-  const dependencyKey = JSON.stringify([...new Set([...Object.values({...inherited, ...config?.edges}).filter((id): id is string => !!id), ...neighbours])]);
-  const dependencies = useMemo<readonly string[]>(() => JSON.parse(dependencyKey), [dependencyKey]);
+  const neighbours = activeRegistry && regionId && childId && !config?.hold
+    ? Object.values(activeRegistry.destinations({regionId, childId})).flatMap(target => 'regionId' in target ? [target.regionId] : []) : undefined;
+  const dependencyKey = activeRegistry && regionId
+    ? JSON.stringify([...new Set([...Object.values({...inherited, ...config?.edges}).filter((id): id is string => !!id), ...(neighbours ?? [])])])
+    : '';
+  const dependencies = useMemo<readonly string[]>(() => dependencyKey ? JSON.parse(dependencyKey) : emptyDeps, [dependencyKey]);
   // Structure, edge hosts and (in grids) this cell's own focus: never another cell's focus move.
-  const leaves = edgesToLeaves();
-  const subscribe = useCallback((listener: () => void) => registry?.subscribeTarget(regionId, dependencies, listener, childId, leaves) ?? (() => {}), [childId, dependencies, leaves, regionId, registry]);
-  const getSnapshot = useCallback(() => registry?.targetSnapshot(regionId, dependencies, childId, leaves) ?? 0, [childId, dependencies, leaves, regionId, registry]);
-  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const leaves = isTV && edgesToLeaves();
+  const subscribe = useCallback((listener: () => void) => activeRegistry?.subscribeTarget(regionId, dependencies, listener, childId, leaves) ?? noopUnsubscribe, [activeRegistry, childId, dependencies, leaves, regionId]);
+  const getSnapshot = useCallback(() => activeRegistry?.targetSnapshot(regionId, dependencies, childId, leaves) ?? 0, [activeRegistry, childId, dependencies, leaves, regionId]);
+  useSyncExternalStore(activeRegistry ? subscribe : noopSubscribe, activeRegistry ? getSnapshot : zeroSnapshot, activeRegistry ? getSnapshot : zeroSnapshot);
   useLayoutEffect(() => {
-    committed.current = {registry, regionId, childId, disabled, cell, entityId};
-    if (!registry || !regionId || !childId) return;
+    committed.current = {registry: activeRegistry, regionId, childId, disabled, cell, entityId};
+    if (!activeRegistry || !regionId || !childId) return;
     const address = {regionId, childId};
-    registry.attach(address, disabled ? null : native.current, owner.current, cell, entityId);
+    activeRegistry.attach(address, disabled ? null : native.current, owner.current, cell, entityId);
     const registrationOwner = owner.current;
-    return () => {registry.attach(address, null, registrationOwner);};
-  }, [cell, childId, disabled, entityId, native, regionId, registry]);
-  const regionTarget = (id: string) => (leaves ? registry?.entryTarget(id) : undefined) ?? registry?.host(id);
+    return () => {activeRegistry.attach(address, null, registrationOwner);};
+  }, [activeRegistry, cell, childId, disabled, entityId, native, regionId]);
+  if (!activeRegistry) {
+    return {
+      ref: setRef, testID: stableTestID, waiting: item?.waiting ?? false,
+      onFocus: () => {within?.(true, native.current);},
+      onBlur: () => {within?.(false, native.current);},
+    };
+  }
+  const regionTarget = (id: string) => (leaves ? activeRegistry.entryTarget(id) : undefined) ?? activeRegistry.host(id);
   const edgeProps: Pick<ViewProps, 'nextFocusUp' | 'nextFocusDown' | 'nextFocusLeft' | 'nextFocusRight'> = {};
-  const order = regionId && (config?.orientation === 'horizontal' || config?.orientation === 'vertical') ? registry?.order(regionId) : undefined;
-  if (registry && config && childId) {
+  const order = regionId && (config?.orientation === 'horizontal' || config?.orientation === 'vertical') ? activeRegistry.order(regionId) : undefined;
+  if (config && childId) {
     for (const direction of ['up', 'down', 'left', 'right'] as const) {
       // A region without its own edge in this direction takes its parent's when it leaves through the parent's side
       // (a choice matrix inside Settings rows: Left goes to the page column, never by geometry to search, D11).
-      const own = config.edges?.[direction], target = own ?? (config.orientation === 'free' || config.stops?.[direction] ? undefined : inherited[direction]);
+      const own = config.edges?.[direction], target = own ?? (config.orientation === 'free' || config.stops?.[direction] ? undefined : inherited?.[direction]);
       if (!target || config.hold) continue;
       if (config.orientation === 'horizontal' && (direction === 'left' && order?.[0] !== childId || direction === 'right' && order?.at(-1) !== childId)) continue;
       if (config.orientation === 'vertical' && (direction === 'up' && order?.[0] !== childId || direction === 'down' && order?.at(-1) !== childId)) continue;
@@ -229,9 +238,9 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     }
   }
   const address: FocusAddress | undefined = regionId && childId ? {regionId, childId} : undefined;
-  if (registry && address && !config?.hold) {
-    for (const [direction, target] of Object.entries(registry.destinations(address))) {
-      const host = 'regionId' in target ? regionTarget(target.regionId) : registry.child({regionId: address.regionId, childId: target.childId});
+  if (address && !config?.hold) {
+    for (const [direction, target] of Object.entries(activeRegistry.destinations(address))) {
+      const host = 'regionId' in target ? regionTarget(target.regionId) : activeRegistry.child({regionId: address.regionId, childId: target.childId});
       const handle = nativeHandle(host);
       if (handle != null) {
         const key = {up: 'nextFocusUp', down: 'nextFocusDown', left: 'nextFocusLeft', right: 'nextFocusRight'} as const;
@@ -240,7 +249,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     }
   }
   return {ref: setRef, testID: stableTestID, waiting: item?.waiting ?? false, ...edgeProps,
-    onFocus: () => {focusSerial++; landed.current = true; if (registry && address && !disabled) registry.didFocus(address); within?.(true, native.current);},
-    onBlur: () => {if (registry && address) registry.didBlur(address); within?.(false, native.current);},
+    onFocus: () => {if (address && !disabled) activeRegistry.didFocus(address); within?.(true, native.current);},
+    onBlur: () => {if (address) activeRegistry.didBlur(address); within?.(false, native.current);},
   };
 }

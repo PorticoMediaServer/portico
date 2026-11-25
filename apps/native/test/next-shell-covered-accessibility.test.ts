@@ -32,7 +32,7 @@ for (const tv of [false, true]) test(`${tv ? 'TV' : 'touch'} shell hides its cov
     './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './MediumRail': {MediumRail: 'MediumRail'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'NativePlaybackLayer'},
   });
   const root = h.render(() => NativeShell({runtime}));
-  const session = nodes(root).find(node => node.type?.name === 'ShellSession'); assert.ok(session);
+  const session = nodes(root).find(node => node.type?.name === (tv ? 'TVShell' : 'TouchShell')); assert.ok(session);
   const render = () => h.render(() => session.type({runtime, snapshot}));
   const base = (tree: unknown) => nodes(tree).find(node => node.type === 'AnimatedView' && nodes(node.props.children).some(child => child.type === 'HomeScreen'));
   for (const [routeCovered, expanded] of [[false, false], [true, false], [false, true], [true, true], [false, false]]) {

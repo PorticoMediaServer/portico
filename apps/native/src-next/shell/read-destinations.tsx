@@ -1,4 +1,5 @@
 import React from 'react';
+import {Platform} from 'react-native';
 import type {NativeShellBootstrapContext} from './bootstrap';
 import {nativeShellRoutes, type NativeRouteRenderer} from './route-registry';
 import type {NativeShellRoute} from './routes';
@@ -153,6 +154,8 @@ export function createNativeReadPeriodicalRenderer(context: NativeShellBootstrap
   return Object.freeze(renderer);
 }
 
-nativeShellRoutes.registerRoute('read-book', createNativeReadBookRenderer);
-nativeShellRoutes.registerRoute('read-series', createNativeReadSeriesRenderer);
-nativeShellRoutes.registerRoute('read-periodical', createNativeReadPeriodicalRenderer);
+if (!Platform?.isTV) {
+  if (!nativeShellRoutes.hasRoute?.('read-book')) nativeShellRoutes.registerRoute('read-book', createNativeReadBookRenderer);
+  if (!nativeShellRoutes.hasRoute?.('read-series')) nativeShellRoutes.registerRoute('read-series', createNativeReadSeriesRenderer);
+  if (!nativeShellRoutes.hasRoute?.('read-periodical')) nativeShellRoutes.registerRoute('read-periodical', createNativeReadPeriodicalRenderer);
+}

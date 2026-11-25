@@ -61,7 +61,7 @@ function TVCatalogue(props: LibraryProps & {
     resultCount={grid.count} onQuickChange={destination.setQuick} onSortChange={grid.setSort} onReshuffle={grid.reshuffle}
     applied={grid.appliedChips} onRemoveFilter={grid.remove} onClearFilters={grid.clear}
     region={grid.toolbar} appliedRegion={grid.applied}
-    save={{canSave: view.canSave, onSave: view.save}}
+    save={view.saveControl ?? {canSave: view.canSave, onSave: view.save}}
     selection={grid.selected?.active && grid.selection?.render(path => path && <Artwork source={runtime.artwork(path)}/>)}/>
     {grid.data.status === 'error' && <StateView {...runtime.error(grid.data.error, destination.retry, 'library')}/>}</>;
   // Owner, 20 Nov: on TV Jump to is the letter rail at the right, as on phones, not a toolbar chip and sheet.

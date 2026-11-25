@@ -11,12 +11,11 @@ import {ProfileActionsBlock, ProfileDeletionBody, ProfileDeletionText, ProfileDi
   ProfileManagementBlock, ProfileNote, ProfileNotice, ProfilePinFields, ProfileRepeatField} from '../../../kit/accounts/ProfilesParts';
 import {profilePicturePickerAvailable} from '../../../platform/profile-avatars';
 import {profilePinFailureText} from '../../../screens/accounts/profile-pin-failure';
-import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage} from '../../../tv/auth';
-import {ProfilePINPage} from '../../touch/accounts/ProfilePINPage';
+import {TVProfileSwitchPage} from '../../../tv/auth';
 import {ProfileSwitchPage, ProfileSwitchStatus} from '../../touch/accounts/ProfileSwitchPage';
-import {ProfileRecoveryPage} from '../../touch/accounts/ProfileRecoveryPage';
 import {ProfilesPage as TVProfilesPage} from '../../tv/accounts/ProfilesPage';
 // Named through pages/shared (not `./`) so the screen harness loads these siblings for real when a test loads this page.
+import {ProfilePINStage} from '../../../pages/shared/accounts/ProfileGateView';
 import {ProfileLimitsSheet} from '../../../pages/shared/accounts/ProfileLimitsSheet';
 import {useProfiles, type ProfilesProps} from '../../../pages/shared/accounts/useProfiles';
 
@@ -30,18 +29,42 @@ export function ProfilesRoutePage({context, route, onBack, embedded = false}: Pr
   const {canRefresh, pickPicture, removePicture, actionBusy, active, activeTicket, addArt, addName, addNameRef, additionCurrent, alive, artDraft, avatarSource, avatars, back, backRef, busy, busyRef, cancelWrongPin, choose, closeAddition, closeDeletion, closeEdit, current, deleteName, deleteNameRef, deletion, deletionCurrent, deletionRef, edit, editDraftRef, editorCurrent, error, forgetAction, forgetProfile, forgotPIN, identityForLimits, lease, limitsLease, limitsProfile, localPictures, manage, managedId, management, managementCurrent, moveProfile, nameDraft, notice, openAddition, openEditor, pin, pinAgain, pinDraft, problem, profile, profileActionsCurrent, profileFocus, profiles, recovery, refreshProfiles, removePin, removePinAction, retireEditor, retirement, runAction, setAddArt, setAddName, setArtDraft, setAvatars, setBusy, setDeleteName, setDeletion, setError, setForgotPIN, setManagedId, setNameDraft, setNotice, setPin, setPinAgain, setPinDraft, setProblem, setProfile, setRecovery, setRetirement, startRecovery, submitAdd, submitPin, submitRename, tvLeave} = view;
   const errorRefresh = canRefresh
     ? <Button variant="text" disabled={busy} onPress={() => {void refreshProfiles();}}>{t('action.refresh')}</Button> : null;
-  if (recovery) return <ProfileRecoveryPage controller={recovery.controller} profileName={recovery.name} username={context.account.account.username}
-    onOpen={value => {const id = recovery.id; recovery.controller.dispose(); setRecovery(undefined); setPin(value); void choose(id, value);}}
-    onClose={() => {recovery.controller.dispose(); setRecovery(undefined); setPin('');}}/>;
+  if (recovery) return ProfilePINStage({
+    tv,
+    code: pin,
+    onCodeChange: setPin,
+    onSubmit: () => {},
+    busy,
+    rejected: !!error,
+    onBack: back,
+    onForgot: () => {},
+    recovery: {
+      controller: recovery.controller,
+      profileName: recovery.name,
+      username: context.account.account.username,
+      onOpen: value => {const id = recovery.id; recovery.controller.dispose(); setRecovery(undefined); setPin(value); void choose(id, value);},
+      onClose: () => {recovery.controller.dispose(); setRecovery(undefined); setPin('');},
+    },
+  });
   // TV: the picker, its PIN page and the forgotten-PIN page are one page Modal over the shell (TVProfileSwitchPage).
   if (tv && !embedded) return <TVProfileSwitchPage leave={tvLeave} onBack={() => {if (!busyRef.current) backRef.current();}} onGone={onBack}>
-    {profile && forgotPIN ? <TVForgotPINHandoff profileName={profile.name}
-    serverAddress={context.api.baseUrl} server={{id: context.account.serverId, signIn: context.account.account.hostedAccountId ? 'portico' : 'local'}} onBack={back}/>
-    : profile ? <TVProfilePINForm
-    profile={{id: profile.id, name: profile.name, ...face(profile), primary: profile.primary, pinRequired: true}}
-    code={pin} onCodeChange={setPin} busy={busy} error={error ? <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError> : undefined}
-    onSubmit={value => {void choose(profile.id, value);}} onBack={back}
-    onForgotPIN={() => {if (!busy) {cancelWrongPin(); setPin(''); setError(undefined); setForgotPIN(true);}}}/>
+    {profile ? ProfilePINStage({
+      tv: true,
+      profile: {id: profile.id, name: profile.name, face: face(profile), primary: profile.primary, pinRequired: true},
+      code: pin,
+      onCodeChange: setPin,
+      onSubmit: value => {void choose(profile.id, value);},
+      busy,
+      rejected: !!error,
+      error: error ? <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError> : undefined,
+      onBack: back,
+      onForgot: () => {if (!busy) {cancelWrongPin(); setPin(''); setError(undefined); setForgotPIN(true);}},
+      forgot: forgotPIN ? {
+        profileName: profile.name,
+        serverAddress: context.api.baseUrl,
+        server: {id: context.account.serverId, signIn: context.account.account.hostedAccountId ? 'portico' : 'local'},
+      } : undefined,
+    })
     : <TVProfilesPage serverName={context.serverName} picker={{
       // Only the faces take focus. Profile management stays in Settings on touch.
       focusScope: lease?.live.value && lease.route === route ? `tv.account.profiles.${JSON.stringify([lease.authority, lease.revision])}` : undefined,
@@ -98,10 +121,19 @@ export function ProfilesRoutePage({context, route, onBack, embedded = false}: Pr
       </ProfileList>
       {problem && !managedId ? <FormError placement="inline">{problem}</FormError> : null}
       <BottomSheet open={!!managedId && !!active && manage} onOpenChange={open => {if (!open && !activeTicket.current && managementCurrent() && !retirement) {retireEditor(); setManagedId(undefined); closeDeletion();}}} title={active?.name} dismissOnBack={!actionBusy} dismissOnGesture={!actionBusy} dismissOnOutsidePress={!actionBusy}>{managementActions}</BottomSheet>
-    </ProfileManagementBlock> : profile ? <ProfilePINPage testID="accounts-profile-switch" profile={{name: profile.name, face: {...face(profile), source: avatarSource(profile.id)}}}
-      value={pin} onChange={setPin} onSubmit={value => {void choose(profile.id, value);}} busy={busy} rejected={!!error}
-      status={failureLine}
-      onForgot={() => {void startRecovery();}} onBack={back}/>
+    </ProfileManagementBlock> : profile ? ProfilePINStage({
+      tv: false,
+      testID: 'accounts-profile-switch',
+      profile: {id: profile.id, name: profile.name, face: {...face(profile), source: avatarSource(profile.id)}, primary: profile.primary, pinRequired: true},
+      code: pin,
+      onCodeChange: setPin,
+      onSubmit: value => {void choose(profile.id, value);},
+      busy,
+      rejected: !!error,
+      status: failureLine,
+      onForgot: () => {void startRecovery();},
+      onBack: back,
+    })
     : <ProfileSwitchPage view={view} status={<ProfileSwitchStatus canRefresh={canRefresh} busy={busy} onRefresh={() => {void refreshProfiles();}}
         failure={error ? profilePinFailureText(error) ?? presentError(error, 'profiles').body : undefined}/>}/>}
     <Dialog testID="profile-add" open={additionCurrent()} onOpenChange={open => {if (!open) closeAddition();}} title={t('profile.addTitle')}

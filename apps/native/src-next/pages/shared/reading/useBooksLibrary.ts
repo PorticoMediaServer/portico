@@ -15,7 +15,7 @@ import {useReadingActions} from '../read/useReadingActions';
 import type {NativeReadingActionOffer} from '../../../screens/read/reading-actions';
 import {NativeReadingWindow} from '../../../screens/read/reading-window';
 import {isReadingLibraryKind} from '../../../screens/read/platform';
-import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
+import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 import {askNativeDownload} from '../../../screens/downloads/request';
 import {NativeReadingDownloads, nativeReadingPageOpening, nativeReadingDownloadOffer, type NativeReadingPageOpening, type NativeReadingDownloadOffer, type NativeReadingOfferLifetime} from '../../../screens/read/reading-page-opening';
 import {NativeReadingDiscovery} from '../../../screens/read/reading-discovery';

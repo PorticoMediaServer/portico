@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDeviceEqualizer, deviceEqualizerValue, type DeviceEqualizer} from '../platform/equalizer-store.ts';
+import {createDeviceEqualizer, deviceEqualizerValue, type DeviceEqualizer} from '../src-next/platform/playback/equalizer-store.ts';
 import {NativeModules} from './react-native-stub.mjs';
 
 const flat = (on = false): DeviceEqualizer => ({on, preamp: 0, gains: Array(10).fill(0)});
@@ -96,8 +96,8 @@ test('N1-2: Android exports Apple\'s equalizer methods and shares its adapter an
     resetAudioEqualizer: async () => {calls.push('reset'); held = {...held, preampDb: 0, bands: Array(10).fill(0)}; return facts();},
   };
   try {
-    const path = '../platform/equalizer.android.ts?native-eq';
-    const {nativeEqualizer} = await import(path) as typeof import('../platform/equalizer.android');
+    const path = '../src-next/platform/playback/equalizer.android.ts?native-eq';
+    const {nativeEqualizer} = await import(path) as typeof import('../src-next/platform/playback/equalizer.android');
     await nativeEqualizer.refresh(); await nativeEqualizer.update({on: true, preamp: -0.5}); await nativeEqualizer.reset();
     assert.deepEqual(calls, ['read', {enabled: true, preampDb: -0.5, bands: Array(10).fill(0)}, 'reset']);
     assert.deepEqual(nativeEqualizer.getSnapshot().value, flat(true));

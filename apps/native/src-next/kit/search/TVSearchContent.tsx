@@ -1,4 +1,4 @@
-import React, {memo, useId, useRef, useState, type RefObject} from 'react';
+import React, {memo, useId, useMemo, useRef, useState, type RefObject} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {fieldSpec, frameSpec} from '@portico/design';
@@ -75,6 +75,8 @@ export function TVSearchVoice({focus, title, description, busy, onPress}: {
   </FocusRegion>;
 }
 
+const SEARCH_SCROLL_STEP = 120;
+
 /** Drawn again only when what it shows changes (Search passes it a deferred copy of the page, so a keystroke skips it). */
 export const TVSearchResults = memo(function TVSearchResults(props: Pick<NativeTVSearchPageProps, 'destination' | 'runtime' | 'explore' | 'actions' | 'selection'> & {
   view: ReturnType<typeof useSearch>; ids: ReturnType<typeof nativeDestinationFocusIds>; keyboard: string;
@@ -88,15 +90,24 @@ export const TVSearchResults = memo(function TVSearchResults(props: Pick<NativeT
   const genreTiles = nativeSearchGenreTiles(landing.genres, 'tv'), allGenres = `${ids.searchLanding}.all`;
   const sections = typed && !empty && !problem ? groups.filter(group =>
     (state.group === 'all' || state.group === group.id) && (group.items.length > 0 || group.status === 'error')) : [];
+  const needsVerticalWindow = state.group !== 'all' || sections.some(group => group.id === 'songs');
+  const groupPaging = useMemo(
+    () => ({loading: state.search.phase === 'loading', error: state.search.error}),
+    [state.search.error, state.search.phase],
+  );
   const contentRoot = useRef<View>(null), [viewport, setViewport] = useState({y: 0, height: 0}), [contentHeight, setContentHeight] = useState(0);
   const resultsWidth = Math.max(0, frame.width - frame.rightGutter);
   const run = (work: Promise<void>) => {void work.catch(runtime.reportError);};
   return <FocusRegion id={ids.searchResults} entryRegion={typed && !empty && !problem && top ? ids.searchTop : sections[0] ? ids.searchSection(sections[0].id) : emptyIn && chipsDrawn ? ids.searchChips : genreTiles.length ? ids.searchLanding : state.recent.length ? ids.searchRecent : chipsDrawn ? ids.searchChips : undefined}
       enabled={active.visible} edges={{left: keyboard}} style={{flex: 1}}>
-      <ScrollView ref={scroll} onContentSizeChange={(_width, height) => setContentHeight(height)} onLayout={event => {const {height} = event.nativeEvent.layout; setViewport(current => ({...current, height}));}} contentContainerStyle={{paddingLeft: focusRoom, paddingTop: focusRoom, paddingBottom: frame.bottomClear}} scrollEventThrottle={100} onScroll={event => {
-        setViewport({y: event.nativeEvent.contentOffset.y, height: event.nativeEvent.layoutMeasurement.height});
-        if (state.group === 'all' || state.search.phase !== 'ready') return;
+      <ScrollView ref={scroll} onContentSizeChange={(_width, height) => setContentHeight(current => current === height ? current : height)} onLayout={event => {const {height} = event.nativeEvent.layout; setViewport(current => current.height === height ? current : {...current, height});}} contentContainerStyle={{paddingLeft: focusRoom, paddingTop: focusRoom, paddingBottom: frame.bottomClear}} scrollEventThrottle={100} onScroll={event => {
         const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
+        if (needsVerticalWindow) {
+          const y = Math.floor(Math.max(0, contentOffset.y) / SEARCH_SCROLL_STEP) * SEARCH_SCROLL_STEP;
+          const height = layoutMeasurement.height;
+          setViewport(current => current.y === y && current.height === height ? current : {y, height});
+        }
+        if (state.group === 'all' || state.search.phase !== 'ready') return;
         const group = groups.find(value => value.id === state.group);
         if (group?.nextCursor && contentOffset.y + layoutMeasurement.height >= contentSize.height - 600) run(destination.next(group.id));
       }}><View ref={contentRoot} collapsable={false}>
@@ -134,13 +145,16 @@ export const TVSearchResults = memo(function TVSearchResults(props: Pick<NativeT
         </>}
         {typed && !empty && !problem && top && <FocusRegion id={ids.searchTop} enabled={active.visible} entry={tvTopResultFocusId(top.group, top.entry)} stops={{right: true}}
           edges={{left: keyboard, ...(chipsDrawn ? {up: ids.searchChips} : {}), ...(sections[0] ? {down: ids.searchSection(sections[0].id)} : {})}}><TVSearchTopResult entry={top.entry} group={top.group} runtime={runtime} actions={actions} selection={selection?.item(top.entry, top.group)} disabled={!active.visible}/></FocusRegion>}
-        {sections.map((group, index) => <TVSearchSection key={group.id} group={group} destination={destination} runtime={runtime} actions={actions} selection={selection}
-          enabled={active.visible} singleRow={state.group === 'all'} regionId={ids.searchSection(group.id)} keyboardRegion={keyboard}
-          previousRegion={sections[index - 1] ? ids.searchSection(sections[index - 1]!.id) : top ? ids.searchTop : chipsDrawn ? ids.searchChips : undefined}
-          previousFallback={sections[index - 1] ? ids.searchSection(sections[index - 1]!.id) : top ? ids.searchTop : undefined}
-          nextRegion={sections[index + 1] ? ids.searchSection(sections[index + 1]!.id) : undefined}
-          screenStart={screenStart} scrollY={viewport.y} viewportHeight={viewport.height}
-          contentRoot={contentRoot} width={resultsWidth} focusRoom={focusRoom} layoutRevision={contentHeight} paging={state.group === 'all' ? state.paging?.[group.id] : {loading: state.search.phase === 'loading', error: state.search.error}}/>)}
+        {sections.map((group, index) => {
+          const windowed = state.group !== 'all' || group.id === 'songs';
+          return <TVSearchSection key={group.id} group={group} destination={destination} runtime={runtime} actions={actions} selection={selection}
+            enabled={active.visible} singleRow={state.group === 'all'} regionId={ids.searchSection(group.id)} keyboardRegion={keyboard}
+            previousRegion={sections[index - 1] ? ids.searchSection(sections[index - 1]!.id) : top ? ids.searchTop : chipsDrawn ? ids.searchChips : undefined}
+            previousFallback={sections[index - 1] ? ids.searchSection(sections[index - 1]!.id) : top ? ids.searchTop : undefined}
+            nextRegion={sections[index + 1] ? ids.searchSection(sections[index + 1]!.id) : undefined}
+            screenStart={screenStart} scrollY={windowed ? viewport.y : 0} viewportHeight={windowed ? viewport.height : 0}
+            contentRoot={contentRoot} width={resultsWidth} focusRoom={focusRoom} layoutRevision={contentHeight} paging={state.group === 'all' ? state.paging?.[group.id] : groupPaging}/>;
+        })}
       </View></ScrollView>
     </FocusRegion>;
 });

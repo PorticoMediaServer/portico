@@ -4,7 +4,7 @@ import {offlineFixture, viewer, owner, digest, title, settle} from './helpers/of
 import {offlineModule} from './helpers/offline-module.mjs';
 import {claimNativeDownloadsDevice} from '../src-next/shell/downloads-device-custody';
 import {NativeOfflinePlayback} from '../src-next/platform/playback/offline-playback';
-import type {OfflineEntry} from '../platform/offline-downloads';
+import type {OfflineEntry} from '../src-next/platform/offline-downloads';
 
 const day = 86400000, contact = Date.parse('2026-10-01T12:00:00Z');
 async function opening(floor = contact) {

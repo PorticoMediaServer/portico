@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import type { View,VirtualizedList } from 'react-native';
 import {Platform, useWindowDimensions} from 'react-native';
 import {useAnimatedStyle, useDerivedValue} from 'react-native-reanimated';
@@ -24,7 +24,7 @@ import {usePlatformPosture} from '../../../platform/platformPosture';
 import {useTVRemoteActivity} from '../../../platform/tv-keys';
 import {useDestinationEntryFocus} from '../../../screens/destinations/useEntryFocus';
 import {useTVPageBack} from '../../../screens/destinations/useTVPageBack';
-import {nativeGuidePanRange, nativeGuidePanTarget} from '../../../screens/settings-live/guide-pan-model';
+import {nativeGuidePanRange, nativeGuidePanTarget, visibleGuideRows} from '../../../screens/settings-live/guide-pan-model';
 import {cellFocusId, nativeGuideClock, nativeGuideDate, nativeGuideRegion, nativeLibraryChannelEditorRoute, type GuideCellIdentity} from '../../../screens/settings-live/guide-presentation';
 import type { NativeLiveController } from '../../../screens/settings-live/live-controller';
 import type { NativeLiveOwnerController } from '../../../screens/settings-live/live-owner-controller';
@@ -33,7 +33,7 @@ import {seriesFormDefaults, type SeriesForm} from '../../../screens/settings-liv
 import type { NativeRecordingsController } from '../../../screens/settings-live/recordings-controller';
 import {useScreenBack} from '../../../kit/layout/Screen';
 import {nativeServerAdmission} from '../../../screens/settings-live/server/tv-server-reader';
-import {GUIDE_RECOVERY_SETTLE_MS, guideReentryNext, type GuideReentry, type GuideReentryEvent} from '../../../screens/settings-live/tv-settings-focus';
+import {GUIDE_RECOVERY_SETTLE_MS, guideFocusMoved, guideReentryNext, type GuideReentry, type GuideReentryEvent} from '../../../screens/settings-live/tv-settings-focus';
 import {useGuideTimePan} from '../../../screens/settings-live/useGuideTimePan';
 import {sameAuthority, shellLayout} from '../../../shell/model';
 import type { NativeShellRuntime } from '../../../shell/runtime';
@@ -189,9 +189,9 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
   }, [runtime.navigation, twoPane]);
   // Later on reads this channel after the selected programme, separately from its repeat airings.
   useEffect(() => {
-    if (!selected) {setLater([]); setLaterRecordings(new Map()); return;}
+    if (!selected) {setLater([]); setLaterRecordings(new Map()); setReminders(new Map()); return;}
     let live = true;
-    setLater([]); setLaterRecordings(new Map());
+    setLater([]); setLaterRecordings(new Map()); setReminders(new Map());
     const programmeId = selected.program?.id;
     if (programmeId) void features.programme(programmeId).then(async detail => {
       if (!live) return;
@@ -235,14 +235,25 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
     if (!controller.lifetime.current()) return;
     setSeries({draft: {channel: rawChannel, programme: rawProgramme, series: true}, defaults});
   };
+  const viewportRef = useRef({start, end, controller});
+  viewportRef.current = {start, end, controller};
+  const onViewableItemsChanged = useCallback(({viewableItems}: {viewableItems: readonly {index: number | null}[]}) => {
+    const rows = visibleGuideRows(viewableItems.map(value => value.index).filter((value): value is number => value !== null));
+    if (!rows) return;
+    visible.current = rows;
+    const {start: currentStart, end: currentEnd, controller: currentController} = viewportRef.current;
+    currentController.setViewport({firstRow: rows.first, lastRow: rows.last, start: currentStart, end: currentEnd});
+  }, []);
   useEffect(() => {controller.setViewport({firstRow: visible.current.first, lastRow: visible.current.last, start, end});}, [controller, guide, start, end]);
   const source = state.sources.find(value => (value.provenance === 'library-channel' ? 'library' : value.id) === state.options.sourceId);
   const selectedSources = useMemo(() => source ? [source] : state.sources, [source, state.sources]);
-  const tvRange = nativeGuidePanRange(selectedSources, end - start);
-  const revealTVCell = (index: number, cell?: GuideCell) => {
+  const span = end - start;
+  const tvRange = useMemo(() => nativeGuidePanRange(selectedSources, span), [selectedSources, span]);
+  const revealTVCellRef = useRef<(index: number, cell?: GuideCell) => void>(() => {});
+  revealTVCellRef.current = (index: number, cell?: GuideCell) => {
     reentry({kind: 'focus'});
-    const shell = runtime.getSnapshot();
-    if (!theme.isTV || managementOwnsPage() || !controller.lifetime.current() || shell.destination.kind !== 'live' || shell.contentVisible === false || shell.mediaExpanded) return;
+    const currentShell = runtime.getSnapshot();
+    if (!theme.isTV || managementOwnsPage() || !controller.lifetime.current() || currentShell.destination.kind !== 'live' || currentShell.contentVisible === false || currentShell.mediaExpanded) return;
     // Native focus has already arrived. This only brings that native host's row/time into view.
     if (index < visible.current.first || index >= visible.current.last) list.current?.scrollToIndex({index, animated: false, viewPosition: .5});
     let focusStart = start;
@@ -254,6 +265,10 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
     }
     controller.setViewport({firstRow: Math.min(index, visible.current.first), lastRow: Math.max(index + 1, visible.current.last), start: focusStart, end: focusStart + (end - start)});
   };
+  const revealTVCell = useCallback((index: number, cell?: GuideCell) => revealTVCellRef.current(index, cell), []);
+  const entryOpenRef = useRef<() => boolean>(() => true);
+  entryOpenRef.current = () => guideReentry === undefined || guideReentryRef.current !== undefined && !guideFocusMoved(reentryBaseline.current, tvRegistry.attachedFocus());
+  const entryOpen = useCallback(() => entryOpenRef.current(), []);
   const pan = useGuideTimePan({enabled: !theme.isTV && view === 'guide' && !recordingsOpen && (!selected || twoPane) && channelMenu?.scope !== scopeKey, revision: state.revision, start, end, pxPerMs: px, channelWidth, sources: selectedSources, commit: setStart, current: controller.lifetime.current});
   const panPosition = pan.position, panActive = pan.active;
   const rulerShift = useDerivedValue(() => panActive ? start * px - panPosition.value : 0, [panActive, start, px]);
@@ -278,13 +293,13 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
   const range = guideRange(selectedSources), days = guideDayMenu(now, start, state.options.timezone, range);
   const daysCount = range.start !== undefined && range.end !== undefined ? days.length : 0;
   const today = localDayStart(now, state.options.timezone), currentDay = localDayStart(start, state.options.timezone);
-  const open = (channel: GuideChannelRow, program?: GuideProgram, node?: View | null) => {selectedOpener.current = node ?? null; setRecordError(undefined); controller.clearMutationError(); setSelected({channel, program});};
-  const openChannelMenu = (channel: GuideChannelRow, node?: View | null) => {
+  const open = useCallback((channel: GuideChannelRow, program?: GuideProgram, node?: View | null) => {selectedOpener.current = node ?? null; setRecordError(undefined); controller.clearMutationError(); setSelected({channel, program});}, [controller]);
+  const openChannelMenu = useCallback((channel: GuideChannelRow, node?: View | null) => {
     if (!controller.lifetime.current()) return;
     channelMenuAnchor.current = node ?? null;
     controller.clearMutationError(); setChannelMenuError(undefined); setChannelMenuBusy(false);
-    setChannelMenu({channel, scope: scopeKey});
-  };
+    setChannelMenu({channel, scope: channelMenuScope.current});
+  }, [controller]);
   // Owners change server visibility; Favorites remain the viewer's own preference.
   const changeChannel = (change: 'favorite' | 'hidden' | 'edit') => {
     const opening = channelMenu, channel = opening?.channel, raw = channel && legacyChannel(channel);
@@ -330,13 +345,15 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
       if (committed && controller.lifetime.current()) setSelected(current => current?.channel.id === channel.id && current.channel.sourceId === channel.sourceId ? {...current, channel: committed} : current);
     });
   };
-  const watch = (channel: GuideChannelRow) => {
+  const watchRef = useRef<(channel: GuideChannelRow) => void>(() => {});
+  watchRef.current = (channel: GuideChannelRow) => {
     const raw = legacyChannel(channel);
     if (!raw || !raw.tuneAvailable) return;
     controller.lifetime.assert();
     ports.context.navigation.open({kind: 'channel', sourceId: raw.sourceId, channelId: raw.id,
       guide: Object.freeze({row: channel, options: Object.freeze({...state.options})})}, controller.lifetime.authority);
   };
+  const watch = useCallback((channel: GuideChannelRow) => watchRef.current(channel), []);
   const select = (change: Parameters<NativeLiveController['select']>[0]) => {guideOffset.current = 0; visible.current = {first: 0, last: 12}; controller.select(change);};
   const chooseSource = (sourceId: string) => {
     const selectedSource = state.sources.find(value => (value.provenance === 'library-channel' ? 'library' : value.id) === sourceId);
@@ -435,8 +452,8 @@ export function useLiveGuide({controller, recordings, owner, ports, runtime}: Gu
     laterRecordings, laterRecording, guideReentry, guideReentryRef, tvRegistry, reentryBaseline, scopeKey, reentry,
     management, managementActive, closeManagement, ownerOpen, setOwnerOpen, initialOwnerAction, setInitialOwnerAction,
     recordingsOpen, setRecordingsOpen, setRecordingsReturn, recordingsReturn, managementReturn, opener, selectedOpener,
-    list, visible, guideOffset, pull, channelWidth, paneLeft, guideEnd, twoPane, width, rowHeight, rowGap, px, end,
-    tvRange, revealTVCell, pan, panPosition, panActive, rulerShift, nowShift, nowPillShift, pastShade, earlierNow, laterNow,
+    list, visible, onViewableItemsChanged, guideOffset, pull, channelWidth, paneLeft, guideEnd, twoPane, width, rowHeight, rowGap, px, end,
+    tvRange, revealTVCell, entryOpen, pan, panPosition, panActive, rulerShift, nowShift, nowPillShift, pastShade, earlierNow, laterNow,
     overscan, clock, goNow, nowX, inNowSpan, open, openChannelMenu, changeChannel, remind, recordLater, askSeries, favorite,
     watch, select, chooseSource, sourceOptions, chooseDay, shortDate, fullDate, dayName, dayTrailing, dayNote, days, daysCount,
     today, currentDay, sortOptions, chooseSort, controls, grid, filters, empty, filterEmpty, filterChips,

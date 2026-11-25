@@ -1,4 +1,4 @@
-import type {DownloadReceipt} from '../../../packages/client-core/src/downloads';
+import type {DownloadReceipt} from '../../../../packages/client-core/src/downloads';
 import type {PublicationBinding} from './offline-reading';
 
 /** Trusted native-app port only. Neither this lease nor its receipt enters the

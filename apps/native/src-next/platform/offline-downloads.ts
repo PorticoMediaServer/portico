@@ -1,12 +1,15 @@
-import {offlineDownloads, offlineOwnerKey, type OfflineDownloads, type OfflineEntry, type OfflineOthersTarget, type OfflineSettings} from '../../platform/offline-downloads';
+import {offlineDownloads, offlineOwnerKey, type OfflineDownloads, type OfflineEntry, type OfflineOthersTarget, type OfflineSettings} from './offline-downloads-store';
 import {serviceText} from '../../../../packages/client-core/src/presentation/service-text';
 
-export {groupOfflineEntries} from '../../platform/offline-downloads';
-export type {OfflineEntry, OfflineSettings, OfflineSnapshot, OfflineGroup, OfflinePlayabilityReason, OfflineEntryFacts, OfflineReadingFacts, OfflineOthersTarget, OfflinePendingDownload} from '../../platform/offline-downloads';
+export {OfflineDownloads, offlineOwnerKey, offlineFailure, offlineWaiting, groupOfflineEntries} from './offline-downloads-store';
+export type {
+  OfflineState, OfflineWaiting, OfflineEntry, OfflineSettings, OfflineSnapshot, OfflineGroup,
+  OfflinePlayabilityReason, OfflineEntryFacts, OfflineReadingFacts, OfflineOthersTarget,
+  OfflinePendingDownload, Viewer, OfflineDisplay, OfflineExtras,
+} from './offline-downloads-store';
 
 /** The shell alone binds the current viewer/server through adopt/connect/disconnect. */
 export {offlineDownloads};
-export type {OfflineDownloads};
 
 type DeviceDownloads = Pick<OfflineDownloads, 'getSnapshot' | 'subscribe' | 'open' | 'setSettings' | 'pause' | 'resume' | 'remove' | 'removeOthersConfirmed' | 'playable' | 'playabilityReason' | 'displayFacts' | 'note' | 'localMedia'> & Partial<Pick<OfflineDownloads, 'publicationSource' | 'readingFacts' | 'admission' | 'cancelPending'>>;
 export type NativeOfflineDownloadsAdapter = Readonly<{

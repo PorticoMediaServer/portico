@@ -1,8 +1,8 @@
-import {joinDownloadedVtt} from '../platform/offline-subtitle-files';
+import {joinDownloadedVtt} from '../src-next/platform/offline-subtitle-files';
 /** The subtitle files kept beside a download: their names, which belong together, and the form a track is played from. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {storedSubtitle, subtitleExtraFiles, subtitleExtraName} from '../platform/offline-subtitle-files.ts';
+import {storedSubtitle, subtitleExtraFiles, subtitleExtraName} from '../src-next/platform/offline-subtitle-files.ts';
 
 const dir = 'file:///var/mobile/Containers/Data/Application/A/Library/Application%20Support/Downloads/dl1/extras/';
 const file = (path: string) => ({path, contentType: 'application/octet-stream'});

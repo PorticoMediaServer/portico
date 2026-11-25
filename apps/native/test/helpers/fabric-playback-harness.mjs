@@ -1,24 +1,22 @@
 import * as homeStart from '../../src-next/screens/home/home-start.ts';
 import * as layerStack from '../../src-next/kit/focus/layer-stack.ts';
 import * as pageModal from '../../src-next/kit/focus/tv-page-modal.ts';
-import {DockVideoExitImages} from '../../src-next/kit/dock/video-exit-paint.ts';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant} from '../../src-next/shell/listening-presentation.ts';
 import {listeningCoverFixture, stackSlotFixture} from './screen-harness.mjs';
 import {defaultI18n} from '../../../../packages/i18n/src/index.ts';
 import * as signalPath from '../../src-next/screens/destinations/music/signal-path-model.ts';
-import {nativeEqualizer} from '../../platform/equalizer.ts';
+import {nativeEqualizer} from '../../src-next/platform/playback/equalizer.ts';
 import {listeningNoticeKey} from '../../../../packages/client-core/src/audio-effects.ts';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {compileFunction} from 'node:vm';
 import {dirname, join} from 'node:path';
 import {surfacePaintFixture, screenModule} from './screen-harness.mjs';
-import {offlineDownloads} from '../../platform/offline-downloads.ts';
+import {offlineDownloads} from '../../src-next/platform/offline-downloads.ts';
 import * as model from '../../src-next/kit/dock/model.ts';
 import {currentMorphFence} from '../../src-next/kit/dock/morph-fence.ts';
 import {playerPostureCrossFadeMs} from '../../src-next/platform/layout/player-presentation.ts';
 import {sameFence} from '../../../../packages/player-core/src/index.ts';
-import {NativeVideoSnapshotCapture} from '../../src-next/shell/video-snapshot.ts';
 import {useListeningSong} from '../../src-next/shell/use-listening-song.ts';
 import {registerTVMenuFallback} from '../../src-next/platform/menu-key.ts';
 import {sameAuthority} from '../../src-next/shell/model.ts';
@@ -37,10 +35,6 @@ const React = require(join(dirname(require.resolve('react')), 'cjs/react.product
 // Native hosts and animation clocks alone are controlled; no parent rerender pump.
 export async function fabricPlayback(runtime, tv = true, watch, withShell = false) {
   const errors = [], commits = [], nativeProps = [], callbacks = [], containers = [];
-  let captureClears = 0;
-  class Capture extends NativeVideoSnapshotCapture {
-    clear() {captureClears++; return super.clear();}
-  }
   const exports = {};
   const attributes = props => Object.fromEntries(Object.entries(props).filter(([key]) => key !== 'children' && key !== 'ref'));
   const privateInterface = {ReactNativeViewConfigRegistry: {get: () => ({})}, createPublicRootInstance: () => ({}),
@@ -102,16 +96,15 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
   const {createNativeShellPlaybackAdapter} = await screenModule(new URL('../../src-next/platform/playback/native.tsx', import.meta.url), {
     react, 'react-native': {...native, AppState: {addEventListener: () => ({remove() {}})}, Dimensions: {get: () => ({width: 1920, height: 1080})},
       NativeEventEmitter: class {addListener() {return {remove() {}};}}, NativeModules: {PorticoPlaybackModule: {}, PorticoRuntime: {playbackRequestId: () => 'request'}},
-      UIManager: {hasViewManagerConfig: () => true}, findNodeHandle: node => node.tag, requireNativeComponent: () => NativeHost},
+      UIManager: {hasViewManagerConfig: () => true}, requireNativeComponent: () => NativeHost},
     '../../../../../packages/client-core/src/playback-v1/options': {CapabilityPublisher: class {async publish() {}}},
     '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: () => ({})},
     '../../../../../packages/client-core/src/presentation/service-text': {serviceText: key => key},
     './dynamic-range-matching': dynamicRange, './capability-readiness': capabilityReadiness, './adapter-return': adapterReturn,
     './engine-choice': {chooseEngine() {}, parseEngineFeatures: () => ({})}, './engine-media': {planEngineOf() {}, requiredSubtitleRendering() {}},
     './capability-document': {deviceCapabilityDocument: () => ({})}, './NativeListeningAdapter': {},
-    '../../../platform/offline-downloads': {offlineDownloads},
-    './native-surface': {nativePlaybackView: () => NativeHost}, './runtime': {NativePlaybackRuntime: class {constructor() {return runtime;}}}, './scope-http': {PlaybackScopeHttp: class {}},
-    '../video-snapshot': {createVideoSnapshotCapture: () => ({cancel() {}, dispose() {}})}});
+    '../offline-downloads': {offlineDownloads},
+    './native-surface': {nativePlaybackView: () => NativeHost}, './runtime': {NativePlaybackRuntime: class {constructor() {return runtime;}}}, './scope-http': {PlaybackScopeHttp: class {}}});
   const adapter = createNativeShellPlaybackAdapter({appVersion: 'test', api: {},
     session: () => ({viewer: {authority: 'local', profileId: 'profile'}}), authority: () => runtime.getSnapshot().authority,
     subscribeSettings: () => () => {}, settings: () => ({engine: 'native'})});
@@ -119,8 +112,6 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
   const signalView = signalPath; // The projection lives beside the path model (kit/player/SignalPath draws it).
   const {NativePlaybackLayer} = await screenModule(new URL('../../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'../platform/tv-keys': {useTVKeyEvent() {}}, 
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
-    '../kit/dock/video-exit-paint': {DockVideoExitImages},
-    '../kit/dock/DockHandover': {DockVideoExitProvider: Container, DockVideoExitCanvas: () => null},
     '../kit/dock/InitialPicturePresentation': {InitialPicturePresentation: 'InitialPicturePresentation'},
     '../kit/dock/initial-picture-model': {initialPictureKey: () => 'initial-picture'},
     './listening-presentation': {captureListeningOpening, expandedListeningOccupant, localListeningOccupant},
@@ -143,7 +134,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     '../kit/dock/model.ts': model,
     '../kit/dock/StartingDock': {StartingDock: 'StartingDock'}, './StartTimedOut': {StartTimedOut: 'StartTimedOut'},
     '../../../../packages/client-core/src/presentation/kit-model': {playbackIdentity: () => ({id: 'item', kind: 'video', title: 'Film', subtitle: []})},
-    './model': shellModel, './playback': {nativeShellBackTransition}, './video-snapshot': {NativeVideoSnapshotCapture: Capture}, './watch-slot-layout': watchSlotLayout,
+    './model': shellModel, './playback': {nativeShellBackTransition}, './watch-slot-layout': watchSlotLayout,
     './TVStartFailure': {TVStartFailure: 'TVStartFailure'}, './TouchStartFailure': {TouchStartFailure: 'TouchStartFailure'}});
   const shell = {reportError: error => errors.push(error), text: {}, artwork() {}, ambient() {}, getSnapshot: () => ({}), watch};
   const chrome = {mounts: 0, unmounts: 0, renders: 0};
@@ -187,7 +178,6 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
   return {adapter, commits, nativeProps, callbacks, errors, settle, get parentRenders() {return parentRenders;},
     chrome, // On TV the outlet's own wrapper holds a CoveredLayer around the chrome (a presented state can cover it).
     get watchWrapper() {return containers.findLast(props => props.pointerEvents === 'box-none' && (props.children?.type === WatchProbe || props.children?.props?.children?.type === WatchProbe));},
-    get captureClears() {return captureClears;},
     async resize(width, height) {window = {width, height}; for (const listener of dimensionListeners) listener(); await settle();},
     async unmount() {exports.stopSurface(11); await settle();}};
 }

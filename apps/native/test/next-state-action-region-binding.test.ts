@@ -21,7 +21,7 @@ const moduleURL = (source: string) => `data:text/javascript,${encodeURIComponent
 const react = moduleURL(`const R=globalThis.__porticoBindingReact;export default R;export const {${Object.keys(React).filter(key => /^[A-Za-z_$][\w$]*$/.test(key)).join(',')}}=R;`);
 const native = moduleURL(`export * from ${JSON.stringify(new URL('./react-native-stub.mjs', import.meta.url).href)};
  export const View='View',Text='Text',Image='Image',TextInput='TextInput',Pressable='Pressable',Modal='Modal',ScrollView='ScrollView',FlatList='FlatList',VirtualizedList='VirtualizedList',TVFocusGuideView='TVFocusGuideView',ActivityIndicator='ActivityIndicator',RefreshControl='RefreshControl',Switch='Switch',StatusBar='StatusBar';
- export const Platform={OS:'android',isTV:false,Version:36,constants:{Manufacturer:'test'}},PixelRatio={get:()=>1,getFontScale:()=>1},Dimensions={get:()=>({width:1920,height:1080,scale:1,fontScale:1}),addEventListener:()=>({remove(){}})};
+ export const Platform={OS:'android',isTV:true,Version:36,constants:{Manufacturer:'test'}},PixelRatio={get:()=>1,getFontScale:()=>1},Dimensions={get:()=>({width:1920,height:1080,scale:1,fontScale:1}),addEventListener:()=>({remove(){}})};
  export const useWindowDimensions=()=>({width:1920,height:1080,scale:1,fontScale:1});
  const flatten=s=>Array.isArray(s)?Object.assign({},...s.map(flatten)):s??{};
  export const StyleSheet={create:s=>s,flatten,absoluteFill:{position:'absolute',inset:0},absoluteFillObject:{position:'absolute',inset:0},hairlineWidth:1};
@@ -80,6 +80,7 @@ type Node = {type: string; props: Record<string, any>; children: Node[]};
 const flatten = (nodes: readonly Node[] | Node): Node[] => (Array.isArray(nodes) ? nodes : [nodes]).flatMap(node => [node, ...flatten(node.children ?? [])]);
 const nodesOf = (root: readonly Node[]) => flatten(root as Node[]);
 const hostWithTestID = (root: readonly Node[], testID: string) => nodesOf(root).find(node => node.props?.testID === testID);
+const tvHost = () => fabricHost({publicInstance: (tag: number) => ({tag, requestTVFocus() {}, focus() {}, blur() {}, setDestinations() {}})});
 const tree = (registry: Registry, content: React.ReactNode) =>
   React.createElement(ThemeProvider, {width: 1920}, React.createElement(FocusProvider, {registry}, content));
 const region = (id: string, children: React.ReactNode) =>
@@ -89,7 +90,7 @@ const retry = (onPress: () => void, extra: Record<string, any> = {}) => ({id: 'r
 const derived = (prefix: string) => focusTestID(prefix, JSON.stringify(['action', 'retry']));
 
 test('a prefix-less state action registers in its actual region and presses', async () => {
-  const host = await fabricHost(), registry = createFocusRegistry();
+  const host = await tvHost(), registry = createFocusRegistry();
   let pressed = 0;
   try {
     await host.render(tree(registry, region('tv.people.failure', React.createElement(StateActionButton, {action: retry(() => {pressed++;})}))));
@@ -108,7 +109,7 @@ test('a prefix-less state action registers in its actual region and presses', as
 });
 
 test('a named prefix and a native-start identity keep their existing region child ids', async () => {
-  const host = await fabricHost(), registry = createFocusRegistry();
+  const host = await tvHost(), registry = createFocusRegistry();
   try {
     await host.render(tree(registry, region('tv.library.failure', React.createElement(StateActionButton, {testID: 'tv.library.failure', action: retry(() => {})}))));
     assert.ok(hostWithTestID(host.root, derived('tv.library.failure')), 'the derived prefixed id is unchanged');
@@ -120,7 +121,7 @@ test('a named prefix and a native-start identity keep their existing region chil
 });
 
 test('the same mounted action keeps its region identity and eligibility through busy', async () => {
-  const host = await fabricHost(), registry = createFocusRegistry();
+  const host = await tvHost(), registry = createFocusRegistry();
   const build = (loading: boolean, disabled: boolean) => tree(registry,
     region('tv.people.failure', React.createElement(StateActionButton, {testID: 'tv.people.failure', loading, disabled, action: retry(() => {})})));
   try {
@@ -140,7 +141,7 @@ test('the same mounted action keeps its region identity and eligibility through 
 });
 
 test('two sibling regions never share a retry identity', async () => {
-  const host = await fabricHost(), registry = createFocusRegistry();
+  const host = await tvHost(), registry = createFocusRegistry();
   try {
     await host.render(tree(registry, React.createElement(React.Fragment, null,
       region('tv.people.failure', React.createElement(StateActionButton, {action: retry(() => {})})),
@@ -155,7 +156,7 @@ test('two sibling regions never share a retry identity', async () => {
 });
 
 test('the error StateView composition inside a region registers its prefix-less retry', async () => {
-  const host = await fabricHost(), registry = createFocusRegistry();
+  const host = await tvHost(), registry = createFocusRegistry();
   try {
     await host.render(tree(registry, region('tv.server.people',
       React.createElement(StateView, {title: 'Error', primaryAction: retry(() => {})}))));
@@ -171,7 +172,7 @@ test('the error StateView composition inside a region registers its prefix-less 
  * error presenter supplies the retry the shared StateActionButton draws inside the
  * real region. No module error state, admission stub or context export is involved. */
 test('the actual TVPeoplePanel failure retry registers in its region and re-reads on press', async () => {
-  const host = await fabricHost(), registry = createFocusRegistry();
+  const host = await tvHost(), registry = createFocusRegistry();
   const authority = {serverId: 'server', accountId: 'account', profileId: 'primary', epoch: 'one', viewerFence: 'fence'};
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
   const peoplePaths: ReadonlySet<string> = new Set<string>(['/v1/admin/members', '/v1/admin/invitations']);
@@ -204,20 +205,25 @@ test('the actual TVPeoplePanel failure retry registers in its region and re-read
 // states.html 17c: a phone page state may carry a kicker over its heading (the owner's server tag) and stack its actions
 // full width, as StateLayout's phone stack does; without them the actions stay side by side, as before.
 test('a state view draws its kicker above the heading and, when asked, stacks its actions full width', async () => {
+  const {Platform} = await import('react-native');
+  const previousTV = Platform.isTV;
+  (Platform as {isTV: boolean}).isTV = false;
   const flat = (style: any): Record<string, any> => Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style ?? {};
   const actions = {primaryAction: {id: 'add', label: 'Add', onPress() {}}, secondaryAction: {id: 'find', label: 'Find', onPress() {}}};
-  for (const stackActions of [true, false]) {
-    const host = await fabricHost(), registry = createFocusRegistry();
-    try {
-      await host.render(React.createElement(ThemeProvider, {width: 390}, React.createElement(FocusProvider, {registry},
-        React.createElement(StateView, {testID: 'state', title: 'Set up Live TV', stackActions, kicker: React.createElement('Kicker', {testID: 'kicker'}), ...actions}))));
-      const order = nodesOf(host.root).map(node => node.props?.testID ?? (node.type === 'Text' && node.props?.accessibilityRole === 'header' ? 'heading' : undefined)).filter(Boolean);
-      assert.ok(order.indexOf('kicker') >= 0 && order.indexOf('kicker') < order.indexOf('heading'), 'the kicker sits above the heading');
-      for (const id of ['add', 'find']) {
-        const pressable = nodesOf(host.root).find(node => node.props?.testID === focusTestID('state', JSON.stringify(['action', id])));
-        const style = pressable?.props.style, button = flat(typeof style === 'function' ? style({pressed: false, focused: false}) : style);
-        assert.equal(button.width === '100%' && (button.minHeight ?? button.height) === 50, stackActions, `${id}: ${JSON.stringify(button)}`);
-      }
-    } finally {await host.unmount();}
-  }
+  try {
+    for (const stackActions of [true, false]) {
+      const host = await fabricHost(), registry = createFocusRegistry();
+      try {
+        await host.render(React.createElement(ThemeProvider, {width: 390}, React.createElement(FocusProvider, {registry},
+          React.createElement(StateView, {testID: 'state', title: 'Set up Live TV', stackActions, kicker: React.createElement('Kicker', {testID: 'kicker'}), ...actions}))));
+        const order = nodesOf(host.root).map(node => node.props?.testID ?? (node.type === 'Text' && node.props?.accessibilityRole === 'header' ? 'heading' : undefined)).filter(Boolean);
+        assert.ok(order.indexOf('kicker') >= 0 && order.indexOf('kicker') < order.indexOf('heading'), 'the kicker sits above the heading');
+        for (const id of ['add', 'find']) {
+          const pressable = nodesOf(host.root).find(node => node.props?.testID === focusTestID('state', JSON.stringify(['action', id])));
+          const style = pressable?.props.style, button = flat(typeof style === 'function' ? style({pressed: false, focused: false}) : style);
+          assert.equal(button.width === '100%' && (button.minHeight ?? button.height) === 50, stackActions, `${id}: ${JSON.stringify(button)}`);
+        }
+      } finally {await host.unmount();}
+    }
+  } finally {(Platform as {isTV: boolean}).isTV = previousTV;}
 });

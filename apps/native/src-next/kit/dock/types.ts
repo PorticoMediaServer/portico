@@ -88,8 +88,6 @@ export type PlayerMorphController = {
   chromeGesture: (enabled: boolean, current?: SharedValue<boolean>, paintCurrent?: () => boolean) => PanGesture;
 };
 export type DockHostProps = {
-  /** Consume only an original pre-retirement captured image and its measured slot. */
-  takeVideoExit?: import('./video-exit-paint').TakeDockVideoExit;
   testID?: string;
   dock: PlaybackDock;
   snapshot: DockState;

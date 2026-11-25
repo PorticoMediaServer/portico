@@ -206,6 +206,29 @@ test('the real kit binds through the engine: FocusRegion edges and memory, and t
   await engine.press('select'); assert.deepEqual(kit.presses, ['c3']);
 });
 
+test('a short 2-card horizontal row keeps full-width TVFocusGuideView containment and focus memory from a wider row', async () => {
+  const kit = await tvFocusKit(), {e, engine, focus, Stop} = kit, n = engine.native;
+  const card = {w: 300, h: 170};
+  await engine.render(e(focus.FocusProvider, {}, e(n.View, {style: {flex: 1}},
+    e(focus.FocusRegion, {id: 'wide-row', orientation: 'horizontal', style: {flexDirection: 'row', gap: 20}},
+      e(Stop, {id: 'w1', ...card}), e(Stop, {id: 'w2', ...card}), e(Stop, {id: 'w3', ...card}), e(Stop, {id: 'w4', ...card}), e(Stop, {id: 'w5', ...card})),
+    e(focus.FocusRegion, {id: 'short-row', orientation: 'horizontal', style: {flexDirection: 'row', gap: 20, marginTop: 40}},
+      e(Stop, {id: 's1', ...card}), e(Stop, {id: 's2', ...card})),
+    e(focus.FocusRegion, {id: 'below-row', orientation: 'horizontal', style: {flexDirection: 'row', gap: 20, marginTop: 40}},
+      e(Stop, {id: 'b1', ...card}), e(Stop, {id: 'b2', ...card}), e(Stop, {id: 'b3', ...card}), e(Stop, {id: 'b4', ...card}), e(Stop, {id: 'b5', ...card})))));
+  await engine.focus('w5');
+  await engine.press('down');
+  assert.equal(engine.focused, 's1', 'Down from the 5th card enters the full-width 2-card row instead of skipping past it');
+  await engine.press('right');
+  assert.equal(engine.focused, 's2');
+  await engine.press('right');
+  assert.equal(engine.focused, 's2', 'horizontal row traps Right at its end');
+  await engine.press('down');
+  assert.equal(engine.focused, 'b1');
+  await engine.press('up');
+  assert.equal(engine.focused, 's2', 're-entering the short row restores its remembered card');
+});
+
 // D12-D15: native Modal windows (the refused-link page, 4 Nov). Each is a device check in the PR's batch.
 const windowScene = (engine: any, {open = true, visible = true, ask}: {open?: boolean; visible?: boolean; ask?: string} = {}) => {
   const e = engine.React.createElement, n = engine.native;

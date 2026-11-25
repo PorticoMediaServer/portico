@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {View} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -14,28 +14,17 @@ import {useMotion} from '../useMotion';
 import type {DockCommand, DockHostProps, DockRect, DockRenderOccupant} from './types';
 
 /** Render an admitted core occupant or a validated remote view, without engine effects. */
-export function DockHost({dock, snapshot, presentation, castView, onAction, bottomInset, contentInset, visible = true, tvExpanded, onTVExpandedChange, returnFocusRef, returningFromPlayer, onVideoSlot, morph, takeVideoExit, notice, onNoticeDismiss, style, testID}: DockHostProps) {
+export function DockHost({dock, snapshot, presentation, castView, onAction, bottomInset, contentInset, visible = true, tvExpanded, onTVExpandedChange, returnFocusRef, returningFromPlayer, onVideoSlot, morph, notice, onNoticeDismiss, style, testID}: DockHostProps) {
   const theme = useTheme(), motion = useMotion(), safe = useSafeAreaInsets(), frame = dockBarFrame(theme.platform, bottomInset, safe.bottom, contentInset);
   const [expanded, setExpanded] = useState(false), [menu, setMenu] = useState(false);
   const readOccupant=useCallback(():DockRenderOccupant|null=>castView?.isCurrent(castView.occupant.playback.fence)?castView.occupant:currentOccupant(dock,dock.getSnapshot(),presentation),[castView,dock,presentation]);
   const occupant = useMemo(() => castView?.isCurrent(castView.occupant.playback.fence)?castView.occupant:currentOccupant(dock,snapshot,presentation), [castView,dock,snapshot,presentation]);
   const wanted = visible && (!theme.isTV || occupant?.mode === 'music' || occupant?.mode === 'audiobook') ? occupant : null;
-  const frameNow = useRef(frame); frameNow.current = frame;
-  const originalVideoSlot = useRef<{fence: DockCommand['fence']; bounds: DockRect; frame: typeof frame} | undefined>(undefined);
-  const takeOriginalVideo = useCallback((fence: import('../../../../../packages/player-core/src').PlaybackFence) => {
-    const original = originalVideoSlot.current;
-    if (!original || !sameDockFence(original.fence, fence)) return;
-    const sameFrame = () => Object.keys(original.frame).every(key => original.frame[key as keyof typeof frame] === frameNow.current[key as keyof typeof frame]);
-    if (!sameFrame()) return;
-    const paint = takeVideoExit?.(fence, original.bounds);
-    return paint ? Object.freeze({...paint, paintCurrent: () => sameFrame() && paint.paintCurrent()}) : undefined;
-  }, [takeVideoExit]);
   const presence = useDockPresence(wanted, theme.isTV);
   const reportVideoSlot = useCallback((rect: DockRect, slotCurrent?: () => boolean) => {
     const latest = readOccupant();
     if (visible && !theme.isTV && wanted?.mode === 'video' && presence.slotAdmission?.isCurrent() && latest?.mode === 'video' &&
       sameDockFence(latest.playback.fence, wanted.playback.fence)) {
-      originalVideoSlot.current = {fence: wanted.playback.fence, bounds: Object.freeze({...rect}), frame: Object.freeze({...frameNow.current})};
       const originalCurrent = slotCurrent ? () => {
         const current = readOccupant();
         return slotCurrent() && !!current && current.mode === 'video' && sameDockFence(current.playback.fence, wanted.playback.fence)
@@ -77,7 +66,7 @@ export function DockHost({dock, snapshot, presentation, castView, onAction, bott
       : <Animated.View pointerEvents="none" style={[dockStyles.fill, dimStyle, {backgroundColor: alpha(theme.colors.ink, .5)}]}/>}
     <Animated.View pointerEvents={wanted ? 'box-none' : 'none'} style={[dockStyles.fill, presence.style]}>{theme.isTV ? <NowPlayingCard testID={testID} occupant={shown} onAction={action} visible={!!wanted && visible} expanded={!!wanted && tvOpen} onExpandedChange={setTVExpanded} returnFocusRef={returnFocusRef} returningFromPlayer={returningFromPlayer}
       style={{position: 'absolute', top: 44, right: theme.layout.gutter.tvRight}}/> :
-      <MediaBar testID={testID} occupant={shown} onAction={action} visible={!!wanted && visible} onMenuOpenChange={setMenu} onVideoSlot={reportVideoSlot} slotAdmission={presence.slotAdmission} isCurrent={interactionCurrent} morph={morph} takeVideoExit={takeOriginalVideo}
+      <MediaBar testID={testID} occupant={shown} onAction={action} visible={!!wanted && visible} onMenuOpenChange={setMenu} onVideoSlot={reportVideoSlot} slotAdmission={presence.slotAdmission} isCurrent={interactionCurrent} morph={morph}
         style={{position: 'absolute', left: frame.left, right: frame.right, bottom: frame.bottom, ...(frame.maxWidth ? {maxWidth: frame.maxWidth} : {})}}/>}</Animated.View>
     {!theme.isTV && notice && onNoticeDismiss && <DockNotice notice={notice} onAction={action} onDismiss={onNoticeDismiss} bottomOffset={frame.bottom + (theme.platform === 'web' ? expandedDockMetrics.height : theme.platform === 'tablet' ? 66 : 62) + 10}/>}
   </View>;

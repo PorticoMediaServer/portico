@@ -3,7 +3,7 @@ import {AppState} from 'react-native';
 import {preferenceValue, ReadingError, type PreferenceSnapshot, type ReadingSession} from '../../../../../../packages/client-core/src';
 import type {ReadingHostSession} from '../../../../../../packages/client-core/src/reading-host';
 import {createNativeDownloadsDevice} from '../../../screens/downloads/device';
-import {offlineDownloads} from '../../../../platform/offline-downloads';
+import {offlineDownloads} from '../../../platform/offline-downloads';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeShellRoute, NativePresentationBinding} from '../../../shell/routes';
 import {closeReadingResource, createReadingSessionOwner} from '../../../screens/read/reading-session-owner';

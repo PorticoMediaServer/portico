@@ -2,7 +2,7 @@ import type {RefObject} from 'react';
 import {useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
 import type {View} from 'react-native';
 import type {ReadingPeriodicalIssue, ReadingYearChoice} from '../../../../../../packages/client-core/src';
-import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
+import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 import {askNativeDownload} from '../../../screens/downloads/request';
 import type {NativeReadPeriodical} from '../../../screens/read/read-periodical-model';
 import type {NativeReadingActionOffer} from '../../../screens/read/reading-actions';

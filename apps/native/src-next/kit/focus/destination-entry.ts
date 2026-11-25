@@ -1,10 +1,10 @@
-import type {FocusAddress, FocusRegistry} from './registry';
+import {isStartFocusDeferred, type FocusAddress, type FocusRegistry} from './registry';
 
 export type NativeDestinationActivation = Readonly<{visible: boolean; intent: 'enter' | 'restore' | 'top'; revision: number}>;
 
 /** A successful native host request is the receipt. Missing data or layout is
  * retried when hosts attach; restoration/content changes never move focus. */
-export function createDestinationEntryFocus(registry: Pick<FocusRegistry, 'focus'> & Partial<Pick<FocusRegistry, 'capture'>>,
+export function createDestinationEntryFocus(registry: Pick<FocusRegistry, 'focus'> & Partial<Pick<FocusRegistry, 'capture' | 'child' | 'config'>>,
   options: Readonly<{reask?: boolean}> = {}) {
   let completed: string | undefined, loop = 0, asking: string | undefined;
   /** Ends any re-ask still running (the page was covered, left or unmounted). One that had not landed is not done:
@@ -15,25 +15,45 @@ export function createDestinationEntryFocus(registry: Pick<FocusRegistry, 'focus
     const ticket = JSON.stringify([activation.revision, activation.intent]);
     if (completed === ticket) return false;
     if (activation.intent === 'restore') {completed = ticket; return false;}
+    if (!address) return false;
     const before = registry.capture?.();
-    if (!address || !registry.focus(address)) return false;
-    completed = ticket;
-    // Android TV drops a request made before the element (or the layer it is in) can take focus natively: a grid's
-    // first card arriving, a page whose layer is uncovered in the same commit. Ask again on the next frames, for at
-    // most about half a second, while focus is still where it was; any move (it landed, or the person moved), a newer
-    // entry, or the page being covered or left stops it. With nothing focused at the ask a move to something the
-    // registry does not track cannot be seen, so then it asks once more only.
     const capture = registry.capture;
-    if (options.reask !== false && capture && typeof requestAnimationFrame === 'function') {
-      const mine = ++loop, limit = before ? 30 : 1; asking = ticket;
-      const at = (value: ReturnType<typeof capture>) => value?.regionId === before?.regionId && value?.childId === before?.childId;
-      let frames = 0;
-      const again = () => {
+    const at = (value: ReturnType<NonNullable<typeof capture>>) => value?.regionId === before?.regionId && value?.childId === before?.childId;
+    // On Android TV, requesting focus in the exact commit that uncovers a CoveredLayer (TVFocusGuideView
+    // switching from FOCUS_BLOCK_DESCENDANTS to FOCUS_AFTER_DESCENDANTS, e.g. entering Search from the rail)
+    // leaves native focus corrupted on the rail while the destination control still draws focused. Defer
+    // the request to the next frame after native layout/props settle, with at most one follow-up frame check.
+    if (isStartFocusDeferred() && typeof requestAnimationFrame === 'function') {
+      if (registry.config?.(address.regionId)?.enabled === false) return false;
+      if (registry.child) {
+        const host = registry.child(address);
+        if (!host || (!host.requestTVFocus && !host.focus)) return false;
+      }
+      completed = ticket;
+      const mine = ++loop; asking = ticket;
+      requestAnimationFrame(() => {
         if (mine !== loop || completed !== ticket) return;
-        if (!at(capture()) || ++frames > limit) {asking = undefined; return;}
-        registry.focus(address); requestAnimationFrame(again);
-      };
-      requestAnimationFrame(again);
+        if (capture && !at(capture())) {asking = undefined; return;}
+        registry.focus(address);
+        if (options.reask === false || !capture) {asking = undefined; return;}
+        requestAnimationFrame(() => {
+          if (mine !== loop || completed !== ticket) return;
+          asking = undefined;
+          if (at(capture())) registry.focus(address);
+        });
+      });
+      return true;
+    }
+    if (!registry.focus(address)) return false;
+    completed = ticket;
+    // Check once on the next frame while focus is still where it was; never poll across multiple frames or fight input.
+    if (options.reask !== false && capture && typeof requestAnimationFrame === 'function') {
+      const mine = ++loop; asking = ticket;
+      requestAnimationFrame(() => {
+        if (mine !== loop || completed !== ticket) return;
+        asking = undefined;
+        if (at(capture())) registry.focus(address);
+      });
     }
     return true;
   };

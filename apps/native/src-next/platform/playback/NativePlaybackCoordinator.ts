@@ -1,4 +1,4 @@
-import type {LocalPart} from '../../../platform/local-playback';
+import type {LocalPart} from '../local-playback';
 import type {
   PlaybackService,
   PlaybackSnapshot,

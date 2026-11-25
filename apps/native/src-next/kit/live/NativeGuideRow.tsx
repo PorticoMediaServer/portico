@@ -1,7 +1,6 @@
-import React, {useCallback, useId, useRef, useState, useSyncExternalStore} from 'react';
+import React, {useCallback, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import Animated, {useAnimatedStyle, type SharedValue} from 'react-native-reanimated';
-import Svg, {Defs, Pattern, Rect} from 'react-native-svg';
 import {SLOT_MS, layoutRow, legacyChannel, nowNext, type GuideCell, type GuideChannelRow, type GuideProgram} from '../../../../../packages/client-core/src/guide';
 import {channelUnavailableMessage} from '../../../../../packages/client-core/src/presentation/live-availability';
 import {channelArtMark, programmeFactParts} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -24,7 +23,7 @@ import {livePageTakesFocus} from '../../screens/settings-live/tv-settings-focus'
 
 const cellRefKey = (cell: GuideCell) => JSON.stringify([cell.program ? 'programme' : 'gap', cell.program?.id ?? cell.start]);
 
-export function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPosition, panActive, laneWidth, clock, entryEnabled, entryOpen, index, controller, runtime, start, end, now, channelWidth, rowHeight, px, list, onOpen, grid, watch}: {tvRange: ReturnType<typeof nativeGuidePanRange>; onTVFocus: (index: number, cell?: GuideCell) => void; panPosition: SharedValue<number>; panActive: boolean; laneWidth: number; clock: (at: number) => string | undefined; entryEnabled: boolean; entryOpen: () => boolean; index: number; controller: NativeLiveController; runtime: NativeShellRuntime; start: number; end: number; now: number; channelWidth: number; rowHeight: number; px: number; list: boolean; onOpen: (channel: GuideChannelRow, program?: GuideProgram, node?: View | null) => void; grid: string; watch: (channel: GuideChannelRow) => void; onChannelMenu: (channel: GuideChannelRow, node?: View | null) => void; selected?: Readonly<{channel: GuideChannelRow; program?: GuideProgram}>}) {
+export const LiveRow = React.memo(function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPosition, panActive, laneWidth, clock, entryEnabled, entryOpen, index, controller, runtime, start, end, now, channelWidth, rowHeight, px, list, onOpen, grid, watch}: {tvRange: ReturnType<typeof nativeGuidePanRange>; onTVFocus: (index: number, cell?: GuideCell) => void; panPosition: SharedValue<number>; panActive: boolean; laneWidth: number; clock: (at: number) => string | undefined; entryEnabled: boolean; entryOpen: () => boolean; index: number; controller: NativeLiveController; runtime: NativeShellRuntime; start: number; end: number; now: number; channelWidth: number; rowHeight: number; px: number; list: boolean; onOpen: (channel: GuideChannelRow, program?: GuideProgram, node?: View | null) => void; grid: string; watch: (channel: GuideChannelRow) => void; onChannelMenu: (channel: GuideChannelRow, node?: View | null) => void; selected?: Readonly<{channel: GuideChannelRow; program?: GuideProgram}>}) {
   const theme = useTheme(), t = runtime.text.t, guide = controller.guide;
   useSyncExternalStore(listener => guide.subscribePage(guide.pageOf(index), listener), () => guide.getSnapshot().version);
   const overscan = theme.isTV ? tvRange ? SLOT_MS : 0 : panActive ? (end - start) / 2 : 0;
@@ -87,9 +86,9 @@ export function LiveRow({selected, onChannelMenu, tvRange, onTVFocus, panPositio
         })}</Animated.View>}
     </View>
   </View>;
-}
+});
 
-function NativeLiveListRow({channel, programme, next, now, runtime, clock, height, onOpen, onMenu}: {channel: GuideChannelRow; programme?: GuideProgram; next?: GuideProgram; now: number; runtime: NativeShellRuntime; clock: (at: number) => string | undefined; height: number; onOpen: (node: View | null) => void; onMenu: (node: View | null) => void}) {
+const NativeLiveListRow = React.memo(function NativeLiveListRow({channel, programme, next, now, runtime, clock, height, onOpen, onMenu}: {channel: GuideChannelRow; programme?: GuideProgram; next?: GuideProgram; now: number; runtime: NativeShellRuntime; clock: (at: number) => string | undefined; height: number; onOpen: (node: View | null) => void; onMenu: (node: View | null) => void}) {
   const theme = useTheme(), node = useRef<View>(null), logo = runtime.artwork(channel.logoUrl), nextText = nativeGuideNext(next, clock, runtime.text);
   const remaining = programme && programmeFactParts({startMs: programme.start, endMs: programme.end}, runtime.text, now).find(fact => fact.id === 'remaining');
   const progress = programme && programme.end > programme.start ? Math.max(0, Math.min(1, (now - programme.start) / (programme.end - programme.start))) : undefined;
@@ -102,10 +101,10 @@ function NativeLiveListRow({channel, programme, next, now, runtime, clock, heigh
       {nextText && <Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary, marginTop: 7}]}>{nextText}</Text>}
     </View>
   </Focusable>;
-}
+});
 
-function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loading, failed, retry, left, laneWidth, panPosition, panActive, start, now, px, rowHeight, compact, clock, runtime, testID, refNode, onPress, onTVFocus}: {selected: boolean; onTVFocus: () => void; cell: GuideCell; focusId: string; gapLabel: string; gapBody?: string; loading: boolean; failed: boolean; retry: () => void; left: number; laneWidth: number; panPosition: SharedValue<number>; panActive: boolean; start: number; now: number; px: number; rowHeight: number; compact: boolean; clock: (at: number) => string | undefined; runtime: NativeShellRuntime; testID: string; refNode: (node: View | null) => void; onPress: () => void}) {
-  const theme = useTheme(), fadeId = useId().replace(/:/g, ''), padding = theme.isTV ? 16 : compact ? 7 : 8;
+const NativeLiveGuideCell = React.memo(function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loading, failed, retry, left, laneWidth, panPosition, panActive, start, now, px, rowHeight, compact, clock, runtime, testID, refNode, onPress, onTVFocus}: {selected: boolean; onTVFocus: () => void; cell: GuideCell; focusId: string; gapLabel: string; gapBody?: string; loading: boolean; failed: boolean; retry: () => void; left: number; laneWidth: number; panPosition: SharedValue<number>; panActive: boolean; start: number; now: number; px: number; rowHeight: number; compact: boolean; clock: (at: number) => string | undefined; runtime: NativeShellRuntime; testID: string; refNode: (node: View | null) => void; onPress: () => void}) {
+  const theme = useTheme(), padding = theme.isTV ? 16 : compact ? 7 : 8;
   const gap = cell.kind === 'gap', narrow = nativeGuideTitleLines(cell.tier, left, Math.max(0, cell.width - (compact ? 2 : 0)), laneWidth, compact, theme.isTV) === 1;
   const background = selected ? theme.colors.raisedBright : !theme.isTV && gap ? 'transparent' : cell.state === 'now' ? theme.colors.raisedHigh : !theme.isTV && cell.state === 'past' ? alpha(theme.colors.raised, .5) : theme.colors.raised;
   const cellWidth = Math.max(0, cell.width - (compact ? 2 : 0));
@@ -126,7 +125,7 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
   if (loading) return <GuideLoadingMarker cellWidth={cellWidth} rowHeight={rowHeight} compact={compact} left={left} testID={`${testID}-loading`}/>;
   if (failed) return <Focusable ref={refNode} focusId={focusId} testID={`${testID}-error`} accessibilityRole="button" accessibilityLabel={runtime.text.t('guide.tileFailed')} onFocus={onTVFocus} onLongPress={theme.isTV ? retry : undefined} onPress={retry} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: theme.colors.raised}}><Animated.View style={[{position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center'}, content]}><Text style={[theme.type.rowHelp, {color: theme.colors.textTertiary}]}>{runtime.text.t('guide.tileFailed')}</Text></Animated.View></Focusable>;
   return <Focusable ref={refNode} focusId={focusId} testID={testID} accessibilityRole="button" accessibilityLabel={cell.program?.title ?? gapLabel} onFocus={onTVFocus} onLongPress={theme.isTV ? onPress : undefined} onPress={onPress} accessibilityState={{selected}} focusKind="row" style={{position: 'absolute', left, top: compact ? 3 : 0, width: cellWidth, height: rowHeight - (compact ? 6 : 0), borderRadius: compact ? 8 : 12, backgroundColor: background, borderWidth: selected ? 2 : !theme.isTV && gap ? 1 : 0, borderColor: selected ? theme.colors.accentStrong : theme.colors.line, overflow: 'hidden'}}>
-    {!theme.isTV && gap && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}><Svg width="100%" height="100%" accessible={false}><Defs><Pattern id={`${fadeId}-gap`} patternUnits="userSpaceOnUse" width={14} height={14} patternTransform="rotate(45)"><Rect width={7} height={14} fill={theme.colors.text} fillOpacity={.035}/></Pattern></Defs><Rect width="100%" height="100%" fill={`url(#${fadeId}-gap)`}/></Svg></View>}
+    {!theme.isTV && gap && <View pointerEvents="none" style={{position: 'absolute', inset: 0, backgroundColor: alpha(theme.colors.text, 0.03)}}/>}
     <Animated.View style={[{position: 'absolute', left: 0, top: 0, bottom: progressRoom, justifyContent: 'center'}, content]}>
       <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
         <GuideProgrammeTitle title={cell.program?.title ?? gapLabel} lines={titleLines} maxHeight={bodyHeight} onHeight={setTitleHeight}
@@ -142,7 +141,7 @@ function NativeLiveGuideCell({selected, cell, focusId, gapLabel, gapBody, loadin
     </Animated.View>
     {elapsed && <View style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: alpha(theme.colors.text, .07)}}><View style={{height: '100%', width: nativeGuideElapsedWidth(left, cellWidth, (now - start) * px), backgroundColor: theme.colors.accentStrong}}/></View>}
   </Focusable>;
-}
+});
 
 /** A channel's art in the guide, its list row and its programme sheet: always the rounded mark box, its logo over it when
  * it has one; a channel with no mark from the server shows its number (or "TV") on its tint, as Home's On now does. */

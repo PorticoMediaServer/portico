@@ -44,11 +44,11 @@ export function SignInFrame({startFocus, ...props}: SignInFrameProps) {
 function SignInFrameBody({back, kicker, title, lede, error, children, terms, identity, footer, testID}: Omit<SignInFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), insets = useSafeAreaInsets(), column = frameSpec.signIn.column[frame.form];
   const centered = !!identity;
-  return <View testID={testID} style={{flex: 1, paddingBottom: footer ? 0 : Math.max(insets.bottom, theme.space.sm)}}>
+  return <View testID={testID} style={{flex: 1, paddingBottom: footer ? 0 : insets.bottom + theme.space.sm}}>
     {back ? <TopBar back={back}/> : <View style={{paddingTop: insets.top, height: insets.top + frameSpec.header.backRow, paddingHorizontal: frame.gutter, justifyContent: 'center', alignItems: column ? 'center' : 'flex-start'}}>
       <Image source={require('../../../assets/wordmark.png')} accessibilityLabel={defaultI18n.t('accounts.brand')} resizeMode="contain" style={headerWordmark.phone}/>
     </View>}
-    <FormScrollView bottomOffset={frameSpec.signIn.keyboardClearance} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{flexGrow: 1, paddingHorizontal: frame.gutter, paddingTop: frame.headerGap, paddingBottom: theme.space.md, justifyContent: column ? 'center' : 'flex-start'}}>
+    <FormScrollView style={{flex: 1}} bottomOffset={frameSpec.signIn.keyboardClearance} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{flexGrow: 1, paddingHorizontal: frame.gutter, paddingTop: frame.headerGap, paddingBottom: footer ? theme.space.lg : theme.space.md, justifyContent: column ? 'center' : 'flex-start'}}>
       <View style={{width: '100%', maxWidth: column || undefined, alignSelf: 'center'}}>
         {identity && <View style={{alignItems: 'center', marginBottom: theme.space.md}}>{identity}</View>}
         {typeof kicker === 'string' ? <Text style={[theme.type.rowLabel, {color: theme.colors.accentStrong, marginBottom: theme.space.xs}]}>{kicker}</Text> : kicker}
@@ -61,6 +61,6 @@ function SignInFrameBody({back, kicker, title, lede, error, children, terms, ide
       </View>
     </FormScrollView>
     {footer}
-    {terms && <View style={{paddingHorizontal: frame.gutter, alignItems: column ? 'center' : 'flex-start'}}>{terms}</View>}
+    {terms && <View style={{paddingHorizontal: frame.gutter, paddingTop: theme.space.xs, alignItems: column ? 'center' : 'flex-start'}}>{terms}</View>}
   </View>;
 }

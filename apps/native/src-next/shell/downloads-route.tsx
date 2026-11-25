@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, useWindowDimensions} from 'react-native';
+import {Platform, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {nativeShellRoutes, type NativeRouteFactory} from './route-registry';
 import {phoneBarHeight, shellLayout} from './model';
@@ -22,4 +22,4 @@ export const createNativeDownloadsModule: NativeRouteFactory = context => {
   };
 };
 
-nativeShellRoutes.registerRoute('downloads', createNativeDownloadsModule);
+if (!Platform?.isTV && !nativeShellRoutes.hasRoute?.('downloads')) nativeShellRoutes.registerRoute('downloads', createNativeDownloadsModule);

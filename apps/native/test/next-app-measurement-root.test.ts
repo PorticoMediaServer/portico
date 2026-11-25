@@ -22,7 +22,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     plugins: [require.resolve('@babel/plugin-transform-modules-commonjs')],
   });
   const reportFirstFrame = () => {};
-  let detectLiteCalls = 0;
+  let detectLiteCalls = 0, routeRegistrations = 0;
   const modules: Record<string, unknown> = {
     react: state.react,
     'react/jsx-runtime': {jsx, jsxs: jsx},
@@ -33,18 +33,14 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
     './kit/theme': {ThemeProvider: 'ThemeProvider', useTheme: () => ({colors: {ink: '#010203'}})},
     './shell/AppErrorBoundary': {AppErrorBoundary: 'AppErrorBoundary'}, './kit/shell/Layer': {Layer: 'Layer'}, './platform/boot-host': {reportFirstFrame},
     './platform/motion-policy': {detectLiteEffects: () => {detectLiteCalls++; return Promise.resolve(false);}},
-    './platform/server-clock-store': {}, './shell': {NativeShell: leaf}, './shell/RestoredShell': {RestoredShell: leaf}, './shell/settings-mount': {},
-    './screens/watch': {registerNativeWatch: (factory: unknown) => {assert.equal(factory, leaf);}, createNativeWatchBindings: leaf},
+    './platform/server-clock-store': {}, './shell': {NativeShell: leaf}, './shell/RestoredShell': {RestoredShell: leaf},
+    './shell/register-routes': {registerNativeRoutes: (isTV: boolean) => {assert.equal(isTV, false); routeRegistrations++;}},
     './dev/Kit': {KitHost: leaf}, './dev/public-measurement': {NativePublicMeasurementGate: leaf},
     './dev/measurement-install': {installNativePublicMeasurement: () => {throw new Error('root-prop read must not install measurement');}},
   };
-  const registrations = new Set(['./shell/account-route', './shell/downloads-route', './shell/collections-route', './shell/library-route', './shell/library-overview-route',
-    './shell/pins-route', './shell/music-route', './shell/audiobooks-route', './shell/read-route', './shell/people-route', './shell/notifications-route', './shell/search-route', './shell/customize-route', './shell/see-all-route',
-    './shell/licences-route', './shell/live-route', './shell/together-route', './shell/saved-route']);
   const module = {exports: {} as {default?: (props: object) => Element}};
   compileFunction(code, ['require', 'exports', 'module', '__DEV__'], {filename: file.pathname})((name: string) => {
     if (name.startsWith('@babel/runtime/')) return require(name);
-    if (registrations.has(name)) return {};
     assert.ok(Object.hasOwn(modules, name), `unexpected App dependency ${name}`);
     assert.ok(dev || !name.startsWith('./dev/'), 'production must not load a measurement or gallery module');
     return {__esModule: true, ...modules[name] as object};
@@ -52,6 +48,7 @@ for (const dev of [true, false]) test(`actual App root disables collapsing only 
   const App = module.exports.default;
   assert.ok(App);
   assert.equal(detectLiteCalls, 1, 'App startup invokes hardware lite-effects detection once');
+  assert.equal(routeRegistrations, 1, 'App startup invokes explicit route registration once');
   // React's first layout, whatever it draws, hands over from the native boot layer.
   assert.equal((App({}) as unknown as {props: {onLayout?: unknown}}).props.onLayout, reportFirstFrame);
   const roots = nodes(App({})).filter(element => typeof element.type === 'function');

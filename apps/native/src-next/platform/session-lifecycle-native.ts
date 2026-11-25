@@ -12,7 +12,7 @@ import type {HeldRead, LifecyclePorts, RecordsRead, SelectInput, TransitionRecor
 import type {ConnectFailure, ConnectedFacts, HeldSignIn, IdentityFailureCode, PickerProfile, SelectedFacts} from '../../../../packages/client-core/src/session-lifecycle';
 import {wait, type Scheduler} from '../../../../packages/client-core/src/timer';
 import {routePath} from '../../../../packages/contracts/src/routes';
-import {offlineDownloads, offlineOwnerKey} from '../../platform/offline-downloads';
+import {offlineDownloads, offlineOwnerKey} from './offline-downloads';
 import {removeCapturedDownloads} from '../screens/accounts/sign-out-downloads';
 import {createNativeShellAccountBinding, profileSessionRole} from '../shell/account-binding';
 import {nativeAccounts} from './accounts';

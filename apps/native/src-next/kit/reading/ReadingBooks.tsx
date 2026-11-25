@@ -36,7 +36,7 @@ import {openNativeReadSeries, type NativeReadOrigin} from '../../screens/read/el
 import {audiobookAuthorInitials} from '../../screens/destinations/audiobooks/presentation';
 import {nativeReadingDownloadOffer, nativeReadingRowLifetime, type NativeReadingPageOpening, type NativeReadingDownloadOffer} from '../../screens/read/reading-page-opening';
 import {PhoneReadingBookCard, PhoneReadingBookCover} from './PhoneReadingBookCard';
-import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
+import {nativePublicationReadsAvailable} from '../../platform/offline-reading';
 import {openNativeReadingBookEntry} from '../../screens/read/reading-books-open';
 import {usePageWidth} from '../layout/page-inset';
 

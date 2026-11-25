@@ -96,9 +96,14 @@ for (const isTV of [true, false]) test(`${isTV ? 'TV' : 'phone'} real FilterBuil
     ids = tree.controls.map(node => node.props.testID);
     assert.ok(ids.every(id => typeof id === 'string' && id.length > 0)); assert.equal(new Set(ids).size, ids.length);
     // On TV each field's chips are their own region, entered on the chosen chip or the first (F-FILT-5).
-    const regions = [prefix, ...(isTV ? Object.keys(data.value.fields).map(id => JSON.stringify([JSON.stringify([prefix, 'field', id]), 'facets'])) : [])];
-    assert.equal(regions.reduce((sum, id) => sum + registry.order(id).length, 0), tree.controls.filter(node => !node.props.disabled).length, 'every enabled actual native host registers exactly once');
-    for (const regionId of regions) for (const id of registry.order(regionId)) assert.ok(registry.child({regionId, childId: id}));
+    // On phone, FocusRegion/useFocusTarget short-circuit TV focus registry registrations while preserving semantic testIDs.
+    if (isTV) {
+      const regions = [prefix, ...Object.keys(data.value.fields).map(id => JSON.stringify([JSON.stringify([prefix, 'field', id]), 'facets']))];
+      assert.equal(regions.reduce((sum, id) => sum + registry.order(id).length, 0), tree.controls.filter(node => !node.props.disabled).length, 'every enabled actual native host registers exactly once');
+      for (const regionId of regions) for (const id of registry.order(regionId)) assert.ok(registry.child({regionId, childId: id}));
+    } else {
+      assert.deepEqual(registry.order(prefix), [], 'phone performs zero TV focus registry registrations');
+    }
     const facet = tree.controls.find(node => node.props.accessibilityRole === 'checkbox' && text(node).startsWith('Shared value'))!;
     facet.props.onPress({defaultPrevented: false});
     assert.deepEqual(data.calls.at(-1), ['change', 'genre', {kind: 'values', mode: 'any', included: ['same/value'], excluded: []}]);

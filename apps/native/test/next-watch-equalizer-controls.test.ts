@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDeviceEqualizer} from '../platform/equalizer-store.ts';
+import {createDeviceEqualizer} from '../src-next/platform/playback/equalizer-store.ts';
 import {nativeEqualizerControls, nativeEqualizerGain} from '../src-next/screens/watch/equalizer-controls.ts';
 
 test('EQ editor uses the one actual device store, preserving concurrent band edits and reset switch state', async () => {

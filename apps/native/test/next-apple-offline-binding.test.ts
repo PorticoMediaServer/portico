@@ -18,7 +18,7 @@ async function factory({tv = false, supported = true, bridge = {localFile() {}},
     recordProgress: () => {deviceCalls.push('journal');},
   };
   const started = Promise.resolve();
-  const runtime = {installSnapshotCapture() {}, startOffline: (...args: unknown[]) => {starts.push(args);return started;},
+  const runtime = {startOffline: (...args: unknown[]) => {starts.push(args);return started;},
     refreshAuthority: async () => {effects.refresh++;}, flush: async () => {effects.flush++;},
     queue: {playEntry: () => {assert.fail('unexpected queue.playEntry');}}};
   const dynamicRangeMatching = await screenModule(new URL('../src-next/platform/playback/dynamic-range-matching.ts', import.meta.url), {
@@ -41,8 +41,7 @@ async function factory({tv = false, supported = true, bridge = {localFile() {}},
     './NativeListeningAdapter': {},
     './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
     './scope-http': {PlaybackScopeHttp: class {dispose() {}}},
-    '../../../platform/offline-downloads': {offlineDownloads: device},
-    '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
+    '../offline-downloads': {offlineDownloads: device},
   });
   const adapter = createNativeShellPlaybackAdapter({
     appVersion: 'test', api: {}, session: () => ({viewer: {authority: 'local', profileId: 'profile'}}),

@@ -68,11 +68,11 @@ export async function offlineFixture(options = {}) {
     decodeGetReadingSessionsSessionIdProgressResponse: value => value,
     decodePutReadingSessionsSessionIdProgressResponse: value => value,
   };
-  const reading = await offlineModule(new URL('../../platform/offline-reading.ts', import.meta.url), {
+  const reading = await offlineModule(new URL('../../src-next/platform/offline-reading.ts', import.meta.url), {
     'react-native': {NativeModules: {PorticoDownloads: native}, Platform: {OS: 'android', isTV: false}},
-    '../../../packages/contracts/src': contracts,
-    '../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: value => value, validateReadingLocation: () => {}},
-    '../src-next/platform/server-connections': {nativeRouteCrypto: crypto},
+    '../../../../packages/contracts/src': contracts,
+    '../../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: value => value, validateReadingLocation: () => {}},
+    './server-connections': {nativeRouteCrypto: crypto},
   });
   const serviceListeners = new Set();
   /** @type {Map<string, (body: any) => unknown>} */
@@ -105,11 +105,11 @@ export async function offlineFixture(options = {}) {
       throw new Error('No test route: ' + path);
     },
   };
-  const implementation = await offlineModule(new URL('../../platform/offline-downloads.ts', import.meta.url), {
+  const implementation = await offlineModule(new URL('../../src-next/platform/offline-downloads-store.ts', import.meta.url), {
     'react-native': {NativeModules: {PorticoDownloads: native}, Platform: {OS: 'android', isTV: false}, NativeEventEmitter: class {addListener(_name, fn) {listeners.add(fn); return {remove: () => listeners.delete(fn)};}}},
     './offline-reading': {...reading, ...options.reading},
-    '../../../packages/client-core/src/index': {...downloads, DownloadsService: class {}, getDownloadRequest: (port, id, input = {}) => port.request('/v1/downloads/requests/' + id + '?limit=100' + (input.cursor ? '&cursor=' + encodeURIComponent(input.cursor) : ''))},
-    '../../../packages/client-core/src/presentation/service-text': words,
+    '../../../../packages/client-core/src/index': {...downloads, DownloadsService: class {}, getDownloadRequest: (port, id, input = {}) => port.request('/v1/downloads/requests/' + id + '?limit=100' + (input.cursor ? '&cursor=' + encodeURIComponent(input.cursor) : ''))},
+    '../../../../packages/client-core/src/presentation/service-text': words,
   });
   const offline = implementation.offlineDownloads;
   return {offline, implementation, native, seed, emit, entries, disk, writes, started, removed, calls, handlers, api, service, snapshot, listeners};

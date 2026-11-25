@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeOfflineTracks} from '../src-next/platform/playback/offline-tracks.ts';
-import type {StoredSubtitle} from '../platform/offline-subtitle-files.ts';
+import type {StoredSubtitle} from '../src-next/platform/offline-subtitle-files.ts';
 
 const binding = {intentId: 1, sessionId: 'local:copy:1', generation: 1};
 const directory = 'file:///Downloads/copy/';

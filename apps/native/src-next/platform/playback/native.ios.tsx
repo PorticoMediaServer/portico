@@ -1,7 +1,7 @@
 import {nativePlaybackView} from './native-surface';
 import {nativeStopScope} from '../native-stop-scope';
-import React, {useCallback, useEffect, useRef, useSyncExternalStore, type ComponentRef} from 'react';
-import {AppState, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, type HostComponent, type ViewProps} from 'react-native';
+import React, {useEffect, useRef, useSyncExternalStore} from 'react';
+import {AppState, NativeEventEmitter, NativeModules, Platform, UIManager, type ViewProps} from 'react-native';
 import {CapabilityPublisher} from '../../../../../packages/client-core/src/playback-v1/options';
 import {NativeCapabilityReadiness} from './capability-readiness';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
@@ -13,8 +13,7 @@ import {NativeListeningV1Adapter, type NativeListeningBridge} from './NativeList
 import type {NativeBinding, NativePlaybackTransport} from './NativePlaybackCoordinator';
 import {NativePlaybackRuntime} from './runtime';
 import {PlaybackScopeHttp} from './scope-http';
-import {offlineDownloads} from '../../../platform/offline-downloads';
-import {createVideoSnapshotCapture} from '../video-snapshot';
+import {offlineDownloads} from '../offline-downloads';
 import type {NativePlaybackRuntimeOptions, NativePlaybackSurfaceProps} from './types';
 import {createNativePlaybackAdapterReturn, type NativePlaybackAdapterReturn} from './adapter-return';
 import {nativeDynamicRangeMatchingAvailable} from './dynamic-range-matching';
@@ -90,7 +89,6 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
     requestId, transport: nativeTransport, nativeListening: listening, capabilitiesReady: ready,
     disposeCapabilities: () => { closed = true; offSettings(); capabilitiesEvent?.remove(); pictureEvent?.remove(); capabilityHttp.dispose(); appState?.remove(); void native.purgeAudioCache?.().catch(() => {}); },
     engines: {initial: 'native', transport: kind => kind === 'native' ? nativeTransport : undefined, choose: () => 'native'}});
-  runtime.installSnapshotCapture(createVideoSnapshotCapture({isCurrent: runtime.isSnapshotSourceCurrent}));
   // The retained view reports what actually started, stopped or was unavailable.
   const pictureEvent = pipSupported ? emitter.addListener('PorticoPictureInPicture', (fact: unknown) => {runtime.admitPictureInPicture(fact);}) : undefined;
   const appState = AppState.addEventListener('change', state => { if (state === 'active') {void publishCapabilities();void runtime.refreshAuthority().catch(() => {});} else void runtime.flush().catch(() => {}); });
@@ -98,14 +96,13 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
   /** The only new component is a native-module view bridge; all player chrome belongs later. */
   function Surface({dockBounds, expandedBounds, docked, subtitlesVisible}: NativePlaybackSurfaceProps) {
     const owner = useRef<object>({});
-    const surfaceRef = useCallback((node: ComponentRef<HostComponent<NativeSurfaceProps>> | null) => { runtime.setSurfaceTag(owner.current, node ? findNodeHandle(node) : null); }, []);
     const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
     useEffect(() => runtime.attachSurface(owner.current), []);
     useEffect(() => { runtime.setSubtitleDisplay(subtitlesVisible && !docked); }, [subtitlesVisible, docked]);
     const target = docked ? dockBounds : expandedBounds;
     const bounds = target && [target.x, target.y, target.width, target.height].every(Number.isFinite) && target.width > 0 && target.height > 0 ? target : undefined;
     const visible = !!bounds && !!state.fence && !!state.lease;
-    return <SurfaceView ref={surfaceRef} lease={state.lease} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
+    return <SurfaceView lease={state.lease} pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
       pictureInPictureRequest={state.pictureInPicture?.request ?? 0} pictureInPictureBinding={state.pictureInPicture?.binding ?? null} autoPictureInPicture={state.pictureInPicture?.automatic ?? true}
       style={{position: 'absolute', left: bounds?.x ?? 0, top: bounds?.y ?? 0, width: bounds?.width ?? 0, height: bounds?.height ?? 0, display: visible ? 'flex' : 'none', opacity: visible ? 1 : 0}} />;
   }

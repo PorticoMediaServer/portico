@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
-import * as store from '../platform/equalizer-store.ts';
+import * as store from '../src-next/platform/playback/equalizer-store.ts';
 
 const flat = () => Array<number>(10).fill(0);
 const nativeValue = (eqEnabled = false, eqPreampDb = 0, eqBands = flat()) => ({eqEnabled, eqPreampDb, eqBands, sampleRateMatching: 'strict', outputSampleRate: 48000, bitPerfectVerified: false});
-type AppleEqualizer = typeof import('../platform/equalizer.ios').nativeEqualizer;
+type AppleEqualizer = typeof import('../src-next/platform/playback/equalizer.ios').nativeEqualizer;
 async function binding(native?: Record<string, unknown>): Promise<AppleEqualizer> {
-  return (await screenModule(new URL('../platform/equalizer.ios.ts', import.meta.url), {
+  return (await screenModule(new URL('../src-next/platform/playback/equalizer.ios.ts', import.meta.url), {
     react: {default: {}}, 'react-native': {NativeModules: {PorticoPlaybackModule: native}}, './equalizer-store': store,
   })).nativeEqualizer as AppleEqualizer;
 }

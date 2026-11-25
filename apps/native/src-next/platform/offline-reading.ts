@@ -1,11 +1,11 @@
 import type {NativeOfflinePublicationLease} from './offline-reading-authority';
 import {NativeModules, Platform} from 'react-native';
-import {decodeGetReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
-import type {ReadingManifest, ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../packages/client-core/src/reading';
-import {captureReadingAnnotationMutation, type ReadingAnnotation, type ReadingAnnotationMutation} from '../../../packages/client-core/src/reading-annotations';
-import type {ReadingHostSession} from '../../../packages/client-core/src/reading-host';
-import {ReadingError, parseReadingManifest, validateReadingLocation} from '../../../packages/client-core/src/reading';
-import {nativeRouteCrypto} from '../src-next/platform/server-connections';
+import {decodeGetReadingSessionsSessionIdProgressResponse} from '../../../../packages/contracts/src';
+import type {ReadingManifest, ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../../packages/client-core/src/reading';
+import {captureReadingAnnotationMutation, type ReadingAnnotation, type ReadingAnnotationMutation} from '../../../../packages/client-core/src/reading-annotations';
+import type {ReadingHostSession} from '../../../../packages/client-core/src/reading-host';
+import {ReadingError, parseReadingManifest, validateReadingLocation} from '../../../../packages/client-core/src/reading';
+import {nativeRouteCrypto} from './server-connections';
 
 export type PublicationBinding = Readonly<{sourceId: string; revision: string; format: 'epub' | 'pdf' | 'cbz'; documentSha256: string}>;
 export type PublicationResource = Readonly<{path: string; mime: string; size: number; sha256: string; offset: number; compressedSize: number; compression: 0 | 8}>;

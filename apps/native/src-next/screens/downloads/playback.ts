@@ -1,4 +1,4 @@
-import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
+import {nativePublicationReadsAvailable} from '../../platform/offline-reading';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeOfflineDownloadsDevice, OfflineEntry, OfflineGroup} from '../../platform/offline-downloads';
 import {nativeDestinationLifetime} from '../destinations/lifetime';

@@ -14,7 +14,7 @@ import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
 import type {NativeShellRoute} from '../../../shell/routes';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
+import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 import type {NativeReadBook, NativeReadOwnerEditLease} from '../../../screens/read/read-book-model';
 import type {ReadingActionsPort} from './useReadingActions';
 import type {NativeReadingCollectionKind} from '../../../screens/read/read-collection-capability';

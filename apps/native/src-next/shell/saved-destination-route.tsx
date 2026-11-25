@@ -1,4 +1,5 @@
 import React from 'react';
+import {Platform} from 'react-native';
 import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
 import type {SavedRoute} from '../../../../packages/client-core/src/saved';
 import type {NativeShellBootstrapContext} from './bootstrap';
@@ -47,4 +48,4 @@ export function createNativeTVSavedRenderer(context: NativeShellBootstrapContext
   return Object.freeze(renderer);
 }
 
-nativeShellRoutes.registerDestination('saved', createNativeTVSavedRenderer);
+if (Platform?.isTV && !nativeShellRoutes.hasDestination?.('saved')) nativeShellRoutes.registerDestination('saved', createNativeTVSavedRenderer);

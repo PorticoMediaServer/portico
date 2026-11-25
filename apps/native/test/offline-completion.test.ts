@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {offlineCompletion} from '../platform/offline-completion.ts';
+import {offlineCompletion} from '../src-next/platform/offline-completion.ts';
 
 test('a long audiobook stopped at 93% keeps its resume and does not trigger completion rules', () => {
   const duration = 10 * 60 * 60, position = duration * 0.93;
