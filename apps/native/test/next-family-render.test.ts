@@ -563,10 +563,11 @@ async function actualRegion(id: string) {
   const provider = await mount(FocusProvider, {children: null}), providerElement = provider.tree as any;
   const registryContext: [any, unknown] = [providerElement.type, providerElement.props.value];
   const outer = await mount(FocusRegion, {id, children: null}, [registryContext]);
-  const element = outer.tree as any, region = await mount(element.type, element.props, [registryContext]);
-  const guide = region.tree as any, childContext: [any, unknown] = [guide.props.children.type, id];
+  const element = outer.tree as any;
+  const region = typeof element.type === 'string' ? undefined : await mount(element.type, element.props, [registryContext]);
+  const guide = (region ? region.tree : element) as any, childContext: [any, unknown] = [guide.props.children.type, id];
   return {registry: providerElement.props.value, contexts: [registryContext, childContext],
-    async unmount() {await region.host.unmount(); await outer.host.unmount(); await provider.host.unmount();}};
+    async unmount() {if (region) await region.host.unmount(); await outer.host.unmount(); await provider.host.unmount();}};
 }
 
 test('F06 CardFrame and TextField attach exactly the hosts native props make eligible', async () => {
