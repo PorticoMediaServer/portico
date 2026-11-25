@@ -5,6 +5,7 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {KeyboardProvider} from './platform/keyboard';
 import {ThemeProvider, useTheme} from './kit/theme';
 import {NativeShell, type NativeShellRuntime} from './shell';
+import {registerNativeRoutes} from './shell/register-routes';
 import {RestoredShell} from './shell/RestoredShell';
 import {Layer} from './kit/shell/Layer';
 import {AppErrorBoundary} from './shell/AppErrorBoundary';
@@ -14,32 +15,7 @@ import './platform/server-clock-store';
 
 void detectLiteEffects();
 
-if (!Platform.isTV) {
-  // Native accounts routes register as a module side effect. Metro's inline
-  // requires defer RestoredShell's import until its error branch, so the ready
-  // shell would have no profiles/servers renderer. Require the module eagerly.
-  require('./shell/account-route');
-  require('./shell/downloads-route');
-  require('./shell/collections-route');
-  require('./shell/library-route');
-  require('./shell/library-overview-route');
-  require('./shell/pins-route');
-  require('./shell/music-route');
-  require('./shell/audiobooks-route');
-  require('./shell/read-route');
-  require('./shell/people-route');
-  require('./shell/notifications-route');
-  require('./shell/search-route');
-  const {registerNativeWatch, createNativeWatchBindings} = require('./screens/watch') as typeof import('./screens/watch');
-  registerNativeWatch(createNativeWatchBindings);
-}
-require('./shell/settings-mount');
-require('./shell/licences-route');
-require('./shell/customize-route');
-require('./shell/see-all-route');
-require('./shell/live-route');
-require('./shell/together-route');
-require('./shell/saved-route');
+registerNativeRoutes(Platform.isTV);
 const TVRoot: ComponentType | undefined = Platform.isTV ? require('./tv/register').TVRoot : undefined;
 
 const KitHost: ComponentType<{shell?: ComponentType}> | undefined = __DEV__ ? require('./dev/Kit').KitHost : undefined;

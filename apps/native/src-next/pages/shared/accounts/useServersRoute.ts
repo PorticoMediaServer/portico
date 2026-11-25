@@ -9,7 +9,7 @@ import {nativeAccounts} from '../../../platform/accounts';
 import {nativeAppSessions, subscribeNativeAppSessions} from '../../../platform/app-session-storage';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeServersPanel} from '../../../shell/routes';
-import {offlineDownloads, offlineOwnerKey} from '../../../../platform/offline-downloads';
+import {offlineDownloads, offlineOwnerKey} from '../../../platform/offline-downloads';
 import {useTheme} from '../../../kit/theme';
 import {registerBack} from '../../../kit/navigation/back';
 import {createAccountDownloadsEntry, type AccountDownloadsEntry} from '../../../screens/accounts/downloads-entry';

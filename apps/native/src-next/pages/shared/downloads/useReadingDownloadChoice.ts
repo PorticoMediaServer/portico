@@ -4,7 +4,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {downloadBytes, downloadReasonMessage, parseDownloadOptions, type DownloadOptionsView} from '../../../../../../packages/client-core/src/downloads';
 import type {ReadingClient} from '../../../../../../packages/client-core/src/reading';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
-import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
+import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 import {nativeRouteCrypto} from '../../../platform/server-connections';
 import {createDownloadAttempts, type DownloadAttempts} from '../../../screens/downloads/download-attempt';
 import {overlayPaintPermit} from '../../../kit/overlays/SurfacePaintHost';

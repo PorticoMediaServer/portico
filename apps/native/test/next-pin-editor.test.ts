@@ -65,7 +65,7 @@ test('all pin entries use one real route factory and Back retires its captured c
   const host = hooks(), registrations = new Map<string, any>(), authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'home'};
   const navigation = new NativeShellNavigation(authority, () => authority);
   const {createNativeHandheldPinsModule} = await screenModule(new URL('../src-next/shell/pins-route.tsx', import.meta.url), {
-    react: host.react, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string, factory: any) => registrations.set(kind, factory)}},
+    react: host.react, 'react-native': {Platform: {isTV: false}}, './route-registry': {nativeShellRoutes: {registerRoute: (kind: string, factory: any) => registrations.set(kind, factory)}},
     '../screens/native-screen-services': {nativeScreenServices: () => ({requestId: async () => 'actual-operation'})}, '../screens/destinations/lifetime': {nativeDestinationLifetime},
     '../screens/destinations/pins': {NativeDestinationPins}, '../kit/pins/PinEditor': {PinEditorSheet: 'PinEditor'},
   });

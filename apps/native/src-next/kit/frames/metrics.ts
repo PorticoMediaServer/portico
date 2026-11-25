@@ -1,7 +1,9 @@
 import {createContext, useContext} from 'react';
 import {useWindowDimensions} from 'react-native';
-import {frameSpec, type FrameForm} from '@portico/design';
-export {isTabletForm} from '@portico/design';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {frameSpec, isTabletForm, type FrameForm} from '@portico/design';
+export {isTabletForm};
+import {useDockClearance} from '../dock/DockClearance';
 import {useTheme} from '../theme';
 import {usePageWidth} from '../layout/page-inset';
 
@@ -32,17 +34,27 @@ export const FrameRhythm = createContext(false);
  * episode opened on arrival). Absent outside a title frame and on TV, which moves its page with focus. */
 export const FrameReveal = createContext<((node: unknown) => void) | undefined>(undefined);
 
+/** Bottom scroll clearance adjusted for the floating touch mini-player when present. */
+export function dockBottomClear(form: FrameForm, baseClear: number, dockTop: number, safeBottom: number): number {
+  if (form === 'tv' || dockTop <= 0) return baseClear;
+  if (form === 'phone') {
+    const tabBar = Math.max(84, 50 + Math.max(0, safeBottom));
+    return baseClear + Math.max(0, dockTop - tabBar);
+  }
+  return Math.max(baseClear, dockTop + frameSpec.rhythm.bottomClear.phone);
+}
+
 /** The system rules' spacing for this window: the theme's gutter and packages/design `frameSpec`. Only frames and kit
  * parts call this; a screen has no use for it, because a screen types no spacing of its own. Type is `theme.type`. */
 export function useFrameMetrics(): FrameMetrics {
-  const theme = useTheme(), width = usePageWidth(), column = useContext(FrameColumn);
+  const theme = useTheme(), width = usePageWidth(), column = useContext(FrameColumn), insets = useSafeAreaInsets(), dockTop = useDockClearance();
   // The form is the theme's (R2: one test, `frameForm`): a tablet's page beside its sidebar is still that tablet's form.
   const form = theme.form, rhythm = frameSpec.rhythm;
   const gutter = column ? 0 : theme.gutter;
   return {form, width, gutter, rightGutter: column ? 0 : form === 'tv' ? theme.layout.gutter.tvRight : theme.gutter,
     cardInset: column ? 0 : form === 'phone' ? frameSpec.card.phoneInset : gutter, cardPadding: frameSpec.card.padding[form], cardRadius: frameSpec.card.radius[form],
     sectionGap: rhythm.section[form], headingGap: rhythm.headingGap[form], rowSection: rhythm.rowSection[form], rowHeadingGap: rhythm.rowHeadingGap[form], headerGap: rhythm.headerGap[form], titleTop: rhythm.titleTop[form],
-    bottomClear: rhythm.bottomClear[form], rowTwoLine: rhythm.rowTwoLine[form]};
+    bottomClear: dockBottomClear(form, rhythm.bottomClear[form], dockTop, insets.bottom), rowTwoLine: rhythm.rowTwoLine[form]};
 }
 
 /** R8: the video player's upright form is a window taller than wide (a phone, a tablet in portrait). The picture is

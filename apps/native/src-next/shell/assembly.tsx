@@ -59,9 +59,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
   const feedback = nativeScreenServices(context);
   const scope = nativeHomeSelectionScope(session.viewer);
   let alive = true, runtime: NativeShellRuntime | undefined;
-  const tvPageBack = new Map<string, {handler: () => boolean}[]>(), tvRouteBack = new Map<string, {handler: () => boolean}[]>();
   let homeTopPending = false;
-  let tvRailBack: (() => boolean) | undefined;
   const listeners = new Set<() => void>(), windows = new Map<string, Window>(), spotlights = new Map<ContentEntry, {id: string; key: string; cleanup: () => void; spotlight: HomeSpotlight; index: number; context: string}>(), scroll = new Map<string, () => void>();
   const operations = new Set<AbortController>();
   const publish = () => {if (alive) for (const listener of [...listeners]) listener();};
@@ -269,7 +267,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     if (currentHome()) onDocument();
     publish();
   }), nativeShellRoutes.subscribe(publish)];
-  const releaseBack = registerBack(() => {
+  const releaseOverlayBack = registerBack(() => {
     if (!alive || !context.current()) return false;
     const state = controller.getSnapshot();
     if (state.rating) controller.closeRating();
@@ -278,32 +276,25 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     else if (state.picker) controller.closePicker();
     else if (state.menu) controller.closeMenu();
     else if (state.selection.active) controller.clear();
-    else {
-      if (routes.back()) return true;
-      if (context.playback.getSnapshot().dock.local?.expanded) return false;
-      // Menus/selection own Back first, then the player, then the page.
-      if (Platform.isTV && tvRailBack?.()) return true;
-      const navigation = context.navigation.getSnapshot();
-      if (Platform.isTV && navigation.route.kind === 'shell') {
-        const pageBack = tvPageBack.get(JSON.stringify(navigation.destination));
-        if (pageBack && [...pageBack].reverse().some(registration => registration.handler())) return true;
-        // Rail-page Back is a ladder, independent of the order pages were visited.
-        if (navigation.destination.kind === 'home') return false;
-        homeTopPending = true;
-        open({kind: 'shell', destination: {kind: 'home'}});
-        const homeTop = scroll.get(JSON.stringify({kind: 'home'}));
-        if (homeTop && currentHome()) {homeTopPending = false; homeTop();}
-        return true;
-      }
-      if (Platform.isTV) {
-        const routeBack = tvRouteBack.get(navigation.route.kind);
-        if (routeBack && [...routeBack].reverse().some(registration => registration.handler())) return true;
-      }
-      return context.navigation.back(context.authority());
-    }
+    else return routes.back();
     return true;
+  }, {scope: 'overlay'});
+  const releaseShellBack = registerBack(() => {
+    if (!alive || !context.current()) return false;
+    if (context.playback.getSnapshot().dock.local?.expanded) return false;
+    const navigation = context.navigation.getSnapshot();
+    if (Platform.isTV && navigation.route.kind === 'shell') {
+      // Rail-page Back is a ladder, independent of the order pages were visited.
+      if (navigation.destination.kind === 'home') return false;
+      homeTopPending = true;
+      open({kind: 'shell', destination: {kind: 'home'}});
+      const homeTop = scroll.get(JSON.stringify({kind: 'home'}));
+      if (homeTop && currentHome()) {homeTopPending = false; homeTop();}
+      return true;
+    }
+    return context.navigation.back(context.authority());
   }, {scope: 'shell'});
-  cleanups.push(() => releaseBack());
+  cleanups.push(() => {releaseOverlayBack(); releaseShellBack();});
   // The menu offers Forget only while this device remembers the open profile, so it follows the lifecycle's marker.
   if (context.rememberedProfile) cleanups.push(context.rememberedProfile.subscribe(publish));
   const run = (work: (signal: AbortSignal) => Promise<void>) => {
@@ -513,22 +504,10 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
     registerScrollToTop: (destination, handler) => {const key = JSON.stringify(destination); scroll.set(key, handler);
       if (homeTopPending && destination.kind === 'home' && currentHome()) {homeTopPending = false; handler();}
       return () => {if (scroll.get(key) === handler) scroll.delete(key);};},
-    registerTVRailBack: handler => {tvRailBack = handler; return () => {if (tvRailBack === handler) tvRailBack = undefined;};},
-    registerTVRouteBack: (handler, routeKind) => {
-      const registration = {handler}, stack = tvRouteBack.get(routeKind) ?? []; stack.push(registration); tvRouteBack.set(routeKind, stack);
-      return () => {const index = stack.indexOf(registration); if (index < 0) return; stack.splice(index, 1);
-        if (!stack.length && tvRouteBack.get(routeKind) === stack) tvRouteBack.delete(routeKind);};
-    },
-    registerTVPageBack: (handler, destination = {kind: 'home'}) => {
-      const key = JSON.stringify(destination), registration = {handler};
-      const stack = tvPageBack.get(key) ?? []; stack.push(registration); tvPageBack.set(key, stack);
-      return () => {const index = stack.indexOf(registration); if (index < 0) return; stack.splice(index, 1);
-        if (!stack.length && tvPageBack.get(key) === stack) tvPageBack.delete(key);};
-    },
     mixes,
     musicDiscover: musicNavigation.open,
     onArtworkError: error => reportError(error, 'artwork-error'),
-    dispose: () => {if (!alive) return; alive = false; offDropped(); capturedMenu = undefined; listeningPlaylist?.dispose(); listeningQueuePolicy?.dispose(); listeningSongDetail?.dispose(); musicNavigation.dispose(); mixesLife.abort(); mixes.dispose(); routes.dispose(); for (const operation of operations) operation.abort(); operations.clear(); for (const cleanup of cleanups) cleanup(); for (const member of members.values()) member.cleanup(); members.clear(); for (const window of windows.values()) window.cleanup?.(); for (const spotlight of spotlights.values()) spotlight.cleanup(); windows.clear(); spotlights.clear(); controller.dispose(); management?.dispose(); ownerActivity?.dispose(); scroll.clear(); tvPageBack.clear(); runtime = undefined; listeners.clear();},
+    dispose: () => {if (!alive) return; alive = false; offDropped(); capturedMenu = undefined; listeningPlaylist?.dispose(); listeningQueuePolicy?.dispose(); listeningSongDetail?.dispose(); musicNavigation.dispose(); mixesLife.abort(); mixes.dispose(); routes.dispose(); for (const operation of operations) operation.abort(); operations.clear(); for (const cleanup of cleanups) cleanup(); for (const member of members.values()) member.cleanup(); members.clear(); for (const window of windows.values()) window.cleanup?.(); for (const spotlight of spotlights.values()) spotlight.cleanup(); windows.clear(); spotlights.clear(); controller.dispose(); management?.dispose(); ownerActivity?.dispose(); scroll.clear(); runtime = undefined; listeners.clear();},
   };
 }
 

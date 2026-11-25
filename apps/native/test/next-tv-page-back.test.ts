@@ -64,18 +64,13 @@ async function hookFixture(options: {aborted?: boolean; enabled?: boolean; signa
   const subscribe = registry.subscribe;
   registry.subscribe = listener => {subscriptions++; const off = subscribe(listener); return () => {subscriptions--; off();};};
   registry.didFocus(ninth);
-  const snapshot = {destination: {kind: 'saved'}, contentVisible: true, mediaExpanded: false, homeObscured: false};
+  const snapshot = {destination: {kind: 'saved'}, contentVisible: true, mediaExpanded: false, homeObscured: false, selectionActive: false};
   const runtime: any = {retirementSignal: options.signal === false ? undefined : life.signal,
     getSnapshot() {
       snapshots++;
       if (life.signal.aborted) throw new Error('native_shell_cancelled');
       if (options.retireIn === 'snapshot') life.abort();
       return snapshot;
-    },
-    registerTVPageBack(handler: () => boolean) {
-      back = handler; slots.backs.add(handler);
-      if (options.retireIn === 'back-registration') life.abort();
-      return () => {removedBack++; slots.backs.delete(handler);};
     },
     registerScrollToTop(_destination: unknown, handler: () => boolean) {
       jump = handler; slots.tops.add(handler);
@@ -84,6 +79,14 @@ async function hookFixture(options: {aborted?: boolean; enabled?: boolean; signa
     }};
   const {useTVPageBack} = await screenModule(new URL('../src-next/screens/destinations/useTVPageBack.ts', import.meta.url), {
     react: {...React, default: React}, '../../kit/focus': {useFocusRegistry: () => registry}, './tv-page-back': {createTVPageBack},
+    '../../kit/navigation/back': {registerBack(handler: () => boolean, opts: {scope: string; active?: () => boolean}) {
+      assert.equal(opts.scope, 'page');
+      assert.equal(typeof opts.active, 'function');
+      const wrapped = () => opts.active!() && handler();
+      back = wrapped; slots.backs.add(wrapped);
+      if (options.retireIn === 'back-registration') life.abort();
+      return () => {removedBack++; slots.backs.delete(wrapped);};
+    }},
   });
   const page = {registerTop: true, current: () => {currentCalls++; if (options.retireIn === 'current') life.abort(); return true;},
     start: () => first, atTop: () => top, scrollTop: () => {scrolls++; top = true;}};
@@ -166,7 +169,7 @@ for (const retireIn of ['snapshot', 'current'] as const) test(`PageBack rechecks
   const f = await hookFixture({retireIn});
   try {
     assert.equal(f.back()!(), false); assert.equal(f.counts().scrolls, 0); assert.equal(f.counts().requests, 0);
-    assert.equal(f.counts().snapshots, 1); assert.equal(f.counts().currentCalls, retireIn === 'current' ? 1 : 0);
+    assert.equal(f.counts().snapshots, retireIn === 'current' ? 2 : 1); assert.equal(f.counts().currentCalls, retireIn === 'current' ? 1 : 0);
     const before = f.counts(); await f.mount(); assert.equal(f.jump()!(), false); assert.deepEqual(f.counts(), before);
   } finally {await f.host.unmount();}
 });

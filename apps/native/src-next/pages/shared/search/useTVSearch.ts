@@ -2,6 +2,7 @@ import {useCallback, useDeferredValue, useEffect, useMemo, useRef} from 'react';
 import type {ScrollView} from 'react-native';
 import {useFocusRegistry} from '../../../kit/focus';
 import {retainRecognizerReturn} from '../../../kit/focus/recognizer-return';
+import {registerBack} from '../../../kit/navigation/back';
 import {useTheme} from '../../../kit/theme';
 import {useSearch} from './useSearch';
 import {sameAuthority} from '../../../shell/model';
@@ -46,7 +47,9 @@ export function useTVSearch({focusScope, destination, runtime, activation, explo
   useEffect(() => selection?.register(state.search, state.groups), [selection, state.search, state.groups]);
   useEffect(() => {
     if (!active.visible) return;
-    return runtime.registerTVPageBack?.(() => {
+    const original = runtime.retirementSignal;
+    if (original?.aborted) return;
+    const off = registerBack(() => {
       const current = activation.getSnapshot();
       // Retained/hidden pages, overlays and the rail never lend Search their Back. Results now
       // live in their own regions under the surrounding one, so a captured descendant counts too.
@@ -59,7 +62,19 @@ export function useTVSearch({focusScope, destination, runtime, activation, explo
       // focusRegion uses only current enabled native key hosts and their real row memory.
       scroll.current?.scrollTo({y: 0, animated: false});
       return registry.focusRegion(keyboardRow.current ?? ids.searchKeyboardRow(0));
-    }, {kind: 'search'});
+    }, {
+      scope: 'page',
+      active: () => {
+        if (original?.aborted) return false;
+        const now = runtime.getSnapshot(), current = activation.getSnapshot();
+        return current.visible && current.revision === active.revision && now.contentVisible !== false
+          && !now.mediaExpanded && !now.homeObscured && !now.selectionActive
+          && (!now.destination || now.destination.kind === 'search');
+      },
+    });
+    original?.addEventListener('abort', off, {once: true});
+    if (original?.aborted) off();
+    return () => {original?.removeEventListener('abort', off); off();};
   }, [activation, active.visible, active.revision, ids, registry, runtime]);
   const voiceLifetime = useMemo(() => {
     const signal = runtime.retirementSignal ?? new AbortController().signal;

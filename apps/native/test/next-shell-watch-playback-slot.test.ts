@@ -1,5 +1,4 @@
 // @fabric-react
-import {DockVideoExitImages} from '../src-next/kit/dock/video-exit-paint.ts';
 import {listeningCoverFixture} from './helpers/screen-harness.mjs';
 import {stubsFrom} from './helpers/stubs-from.mjs';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant} from '../src-next/shell/listening-presentation.ts';
@@ -14,7 +13,6 @@ import * as i18n from '../../../packages/i18n/src';
 import * as signalPath from '../src-next/screens/destinations/music/signal-path-model.ts';
 import {nativeShellBackTransition} from '../src-next/shell/playback.ts';
 import {authorityKey, sameAuthority} from '../src-next/shell/model.ts';
-import {NativeVideoSnapshotCapture} from '../src-next/shell/video-snapshot.ts';
 import * as watchSlotLayout from '../src-next/shell/watch-slot-layout.ts';
 import {NativeWatchOutlet, type NativeExpandedVideoSlot, type NativeWatchReader} from '../src-next/shell/watch-outlet.ts';
 import {resolvePlayerPresentation, playerControlsRevealDeadline} from '../src-next/platform/layout/player-presentation.ts';
@@ -45,14 +43,14 @@ function reader() {
   return {source, get subscriptions() {return listeners.size;}, async publish(next?: NativeExpandedVideoSlot, notify = true) {value = next; await act(() => {if (notify) for (const listener of listeners) listener();});}};
 }
 
-async function layer(withWatch = true, canonical?: NativeWatchReader, options: {os?: string; tv?: boolean; capture?: (source: any) => Promise<any>} = {}) {
+async function layer(withWatch = true, canonical?: NativeWatchReader, options: {os?: string; tv?: boolean} = {}) {
   const outlet = reader(), dock = new PlaybackDock(fence.playback.scope), transitions: any[] = [];
   dock.start({kind: 'video', fence, queue: null, positionSeconds: 540, playing: true, expanded: true});
   let dimensions = window, current: any, tree: any;
   const refresh = () => {current = {authority, fence, dock: dock.getSnapshot(), playback: {duration: 5700}, subject: {}, capabilities: {}};};
   refresh();
   const adapter = {getSnapshot: () => current, subscribe: () => () => {}, Surface: 'ActualSurface', dock,
-    captureVideoSnapshot: options.capture ?? (async () => undefined), onTransition: async (value: any) => {transitions.push(value);}};
+    onTransition: async (value: any) => {transitions.push(value);}};
   const callbacks: ((x: number, y: number) => void)[] = [];
   let node: any = {measureInWindow: (callback: any) => {callbacks.push(callback);}};
   const morph = {dragging: {value: false}, dockX: {value: 0}, dockFade: {value: 1}};
@@ -62,8 +60,6 @@ async function layer(withWatch = true, canonical?: NativeWatchReader, options: {
   const musicSignal = signalPath; // The projection lives beside the path model (kit/player/SignalPath draws it).
   const {NativePlaybackLayer} = await screenModule(new URL('../src-next/shell/NativePlaybackLayer.tsx', import.meta.url), {'../platform/tv-keys': {useTVKeyEvent() {}}, './StartTimedOut': {StartTimedOut: 'StartTimedOut'}, '../kit/dock/StartingDock': {StartingDock: 'StartingDock'}, 
     './listening-presentation': {captureListeningOpening, expandedListeningOccupant, localListeningOccupant},
-    '../kit/dock/video-exit-paint': {DockVideoExitImages},
-    '../kit/dock/DockHandover': {DockVideoExitProvider: 'DockVideoExitProvider', DockVideoExitCanvas: 'DockVideoExitCanvas'},
     '../kit/dock/InitialPicturePresentation': {InitialPicturePresentation: 'InitialPicturePresentation'},
     '../kit/dock/initial-picture-model': {initialPictureKey: () => 'initial-picture'},
     '../kit/dock/ListeningCoverBridge': listeningCoverFixture,
@@ -84,7 +80,7 @@ async function layer(withWatch = true, canonical?: NativeWatchReader, options: {
     '../screens/destinations/music/signal-path-model': musicSignal,
     '../screens/destinations/music/signal-facts': signalFacts,
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': audioEffects,
-    './model': {authorityKey, sameAuthority}, './playback': {nativeShellBackTransition}, './video-snapshot': {NativeVideoSnapshotCapture}, './watch-slot-layout': watchSlotLayout, './TVStartFailure': {TVStartFailure: 'TVStartFailure'}, './TouchStartFailure': {TouchStartFailure: 'TouchStartFailure'},
+    './model': {authorityKey, sameAuthority}, './playback': {nativeShellBackTransition}, './watch-slot-layout': watchSlotLayout, './TVStartFailure': {TVStartFailure: 'TVStartFailure'}, './TouchStartFailure': {TouchStartFailure: 'TouchStartFailure'},
     '../kit/player/PlayOnSheets': {NativePlayOnSheets: 'PlayOnSheets'}, './use-listening-song': {useListeningSong},
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},
@@ -105,67 +101,6 @@ async function layer(withWatch = true, canonical?: NativeWatchReader, options: {
     detachHost() {node = null; tree.props.ref.current = null;},
     async close() {await host.unmount();},
   };
-}
-
-for (const os of ['android', 'ios']) {
-  test(`${os} persistent layer captures the fenced source and admits only its decoded retained image`, async () => {
-    let captures = 0, released = 0;
-    const d = await layer(true, undefined, {os, capture: async source => {
-      captures++; assert.ok(sameFence(source, fence));
-      return {fence: source, image: {uri: 'file:///native-current-frame.jpg', width: 890, height: 501}, release: async () => {released++;}};
-    }});
-    try {
-      const surface = d.surface();
-      await act(async () => {await d.picture().prepareLayout(fence);});
-      assert.equal(captures, 1);
-      assert.equal(d.picture().retainedSnapshot.ready, false);
-      assert.equal(d.picture().retainedSnapshot.failed, false);
-      assert.equal(d.picture().retainedSnapshot.image.props.resizeMode, 'contain');
-      await act(() => d.picture().retainedSnapshot.image.props.onLoad());
-      assert.equal(d.picture().retainedSnapshot.ready, true);
-      assert.strictEqual(d.surface().type, surface.type);
-      assert.strictEqual(d.surface().key, surface.key);
-      assert.deepEqual(d.transitions, []);
-      await act(() => d.picture().onPresentationChange({fence, docked: false, moving: false, hideSubtitles: false}));
-      assert.equal(d.picture().retainedSnapshot, undefined);
-      assert.equal(released, 1);
-      await act(async () => {await d.picture().prepareLayout(fence);});
-      const staleImage = d.picture().retainedSnapshot.image;
-      const replacement = {...fence, generation: 2};
-      d.setCurrent({fence: replacement});
-      await act(async () => {await d.host.rerender(); staleImage.props.onLoad();});
-      assert.equal(d.picture().retainedSnapshot, undefined, 'a late decode cannot cover a replacement source');
-      assert.equal(released, 2);
-      assert.deepEqual(d.transitions, []);
-    } finally {await d.close();}
-  });
-
-  test(`${os} touch preparation uses the existing fenced capture and TV never starts it`, async () => {
-    for (const tv of [false, true]) {
-      let captures = 0, released = 0;
-      const d = await layer(true, undefined, {os, tv, capture: async source => {
-        captures++; return {fence: source, image: {uri: 'file:///native-current-frame.jpg', width: 840, height: 472}, release: async () => {released++;}};
-      }});
-      try {
-        if (!tv) {
-          await d.outlet.publish(slot); await act(() => d.callbacks.shift()!(0, 0));
-          const target = nodes(d.tree).find(node => node.type === 'GestureDetector').props.children;
-          await act(() => target.props.onTouchStart());
-          assert.equal(captures, 1);
-          await act(() => d.picture().retainedSnapshot.image.props.onError());
-          assert.equal(d.picture().retainedSnapshot.failed, true);
-          assert.equal(d.picture().retainedSnapshot.ready, false);
-          await act(() => target.props.onTouchEnd());
-          assert.equal(released, 1);
-        } else {
-          await act(async () => {await d.picture().prepareLayout(fence);});
-          await act(() => nodes(d.tree).find(node => node.props.onTouchStart)?.props.onTouchStart());
-          assert.equal(captures, 0);
-        }
-        assert.deepEqual(d.transitions, []);
-      } finally {await d.close();}
-    }
-  });
 }
 
 test('watch consumption waits for its accepted measured picture, converts origin and scopes pan away from details', async () => {

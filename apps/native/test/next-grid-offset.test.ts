@@ -34,10 +34,16 @@ test('the grid reports actual offsets within one row and restores that exact mea
     assert.deepEqual(geometries, [[3, 396]], 'actual renderer columns/stride are reported without touching the anchor');
     tree.props.onScroll({contentOffset: {x: 0, y: 73.25}});
     tree.props.onScroll({contentOffset: {x: 0, y: 77.75}});
-    assert.deepEqual(measured, [73.25, 77.75], 'the final position is not approximated by a row index or height');
+    assert.deepEqual(measured, [73.25], 'intra-row micro-scroll ticks do not spam onScrollOffset');
     assert.equal(offset.value, 77.75);
+    tree.props.onScroll({contentOffset: {x: 0, y: 450}});
+    assert.deepEqual(measured, [73.25, 450], 'crossing a row boundary reports the new offset');
+    tree.props.onScrollEndDrag({nativeEvent: {contentOffset: {x: 0, y: 477.75}}});
+    tree.props.onMomentumScrollEnd({nativeEvent: {contentOffset: {x: 0, y: 481.5}}});
+    assert.deepEqual(measured, [73.25, 450, 477.75, 481.5], 'scroll settlement reports exact sub-row pixel offsets');
+    assert.equal(offset.value, 481.5);
     ref.current!.scrollToOffset(measured.at(-1)!);
-    assert.deepEqual(moved, [{offset: 77.75, immediate: true}]);
+    assert.deepEqual(moved, [{offset: 481.5, immediate: true}]);
     ref.current!.scrollToOffset(Number.NaN);
     assert.equal(moved.length, 1, 'an invalid offset never reaches the native anchor');
   } finally {collection.dispose();}

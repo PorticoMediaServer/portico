@@ -236,7 +236,8 @@ export async function screenModule(file, modules) {
   // Where a relative path lands under src-next (`kit/layout/Lockup`), so a kit part that moved beside the parts it names
   // still meets the harness's stand-ins for them; tried only after the fixture's own answer.
   const landed = value => value.startsWith('.') ? new URL(value, file).pathname.split('/src-next/')[1]?.replace(/\.(?:tsx?|mjs)$/, '') ?? '' : '';
-  for (const declaration of parsed.program.body.filter(d => d.type === 'ImportDeclaration' && /\/(?:pages\/shared|kit)\//.test(d.source.value)
+  for (const declaration of parsed.program.body.filter(d => d.type === 'ImportDeclaration'
+    && (/\/(?:pages\/shared|kit)\//.test(d.source.value) || /^\.\/(?:TouchShell|TVShell)$/.test(d.source.value))
     && !Object.hasOwn(modules, d.source.value))) {
     // A kit part the harness already stands in for (its leaf stubs) keeps that stand-in.
     // So does one the fixture's own namespaces already answer (a fallback proxy answers any path).

@@ -1,9 +1,9 @@
 import type {LocalSession, PlaybackApi, PlaybackSession} from '../../../../../packages/client-core/src/index';
 import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
 import {localPlaybackFence, type LocalPlaybackFence, type LocalPlaybackScope} from '../../../../../packages/player-core/src';
-import {LocalPlayback, type LocalMedia, type LocalProgress} from '../../../platform/local-playback';
+import {LocalPlayback, type LocalMedia, type LocalProgress} from '../local-playback';
 import type {RememberedDownloadsViewer} from '../../shell/remembered-downloads-viewer';
-import type {OfflineDownloads, OfflineEntry} from '../../../platform/offline-downloads';
+import type {OfflineDownloads, OfflineEntry} from '../offline-downloads';
 
 /** Captured from the genuine installation session, never a server queue/controller scope. */
 export type NativeOfflineOwner = LocalPlaybackScope;

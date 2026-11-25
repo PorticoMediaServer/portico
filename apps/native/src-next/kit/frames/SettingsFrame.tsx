@@ -3,6 +3,7 @@ import {ScrollView, Text, View} from 'react-native';
 import {frameSpec, tvFocusRoom} from '@portico/design';
 import type {TopBarBack} from '../layout/TopBar';
 import {StartFocusScope} from '../focus';
+import {useDockClearance} from '../dock/DockClearance';
 import {FormScrollView} from '../../platform/keyboard';
 import {useTheme} from '../theme';
 import {FrameColumn, useFrameMetrics} from './metrics';
@@ -55,6 +56,8 @@ function SettingsListBody({bar, backdrop, search, list, profile, shortcuts, page
   const frame = useFrameMetrics(), {form} = frame, phone = form === 'phone', width = searching && form === 'tv' ? frameSpec.settings.tvSearchWidth : frameSpec.settings.listWidth[form];
   // A TV row's focus ring is drawn outside the row: the list's scroll box leaves it that room so it is never cut.
   const theme = useTheme(), column = useContext(FrameColumn), tv = form === 'tv', ring = tv ? theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv : 0;
+  const dockTop = useDockClearance();
+  const phoneSheetBottom = dockTop > 0 ? Math.max(frameSpec.sheet.footerClear, dockTop + frameSpec.rhythm.bottomClear.phone) : frameSpec.sheet.footerClear;
   // A phone shows one of the two columns; the other stays mounted, hidden.
   const shown = {flex: 1}, hidden = {display: 'none'} as const;
   return <View testID={testID} pointerEvents={closing ? 'none' : undefined} style={{flex: 1, flexDirection: phone ? 'column' : 'row', paddingLeft: phone ? 0 : frame.gutter, gap: phone ? 0 : frameSpec.settings.gap[form]}}>
@@ -63,7 +66,7 @@ function SettingsListBody({bar, backdrop, search, list, profile, shortcuts, page
     <View style={phone ? page ? hidden : shown : {width}}>
       {phone && <SheetBar {...bar}/>}
       <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" style={phone ? undefined : {flex: 1, width: width + 2 * ring, marginLeft: -ring}}
-        contentContainerStyle={phone ? {paddingBottom: frameSpec.sheet.footerClear} : {paddingTop: tv ? frameSpec.settings.tvTop : frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}>
+        contentContainerStyle={phone ? {paddingBottom: phoneSheetBottom} : {paddingTop: tv ? frameSpec.settings.tvTop : frame.titleTop || frame.headerGap, paddingBottom: hints ? frame.headerGap : frame.bottomClear, paddingHorizontal: ring}}>
         <FrameColumn.Provider value={!phone || column}>
           {!phone && !searching && <Text accessibilityRole="header" style={[theme.type.pageTitle, {color: theme.colors.text, marginBottom: tv ? frameSpec.settings.tvTitleGap : frame.headerGap}]}>{bar.title}</Text>}
           {phone ? <View style={{marginHorizontal: frame.cardInset, marginBottom: theme.space.xs}}>{search}</View> : tv && search ? <View style={{marginBottom: frameSpec.settings.tvFindGap}}>{search}</View> : search}{phone && profile}{phone && shortcuts}{list}
@@ -117,6 +120,8 @@ export function SettingsPageFrame({startFocus, ...props}: SettingsPageFrameProps
 }
 function SettingsPageBody({title, back, action, status, actions, server, intro, tabs, children, panel, hideHeader, state, testID, scrollRef, onScrollLayout, onScrollY}: Omit<SettingsPageFrameProps, 'startFocus'>) {
   const theme = useTheme(), frame = useFrameMetrics(), parentColumn = useContext(FrameColumn), inListPlace = useContext(InListPlace), inSheet = useInSheet() || inListPlace, beside = useContext(BesideList) && frame.form !== 'phone' && !inSheet, t = defaultI18n.t;
+  const dockTop = useDockClearance();
+  const sheetBottom = inListPlace && dockTop > 0 ? Math.max(frameSpec.sheet.footerClear, dockTop + frameSpec.rhythm.bottomClear.phone) : frameSpec.sheet.footerClear;
   const saved = status && <View accessibilityLiveRegion="polite" style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>{status === 'saved' && <Icon name="i-check" size={16} color={theme.colors.textSecondary}/>}
     <Text style={[theme.type.rowHelp, {color: theme.colors.textSecondary}]}>{t(status === 'saved' ? 'next.settings.saved' : 'next.settings.saving')}</Text></View>;
   // Outside the phone's sheet the page's own action (Mark all read, Invite someone) joins the header's end.
@@ -156,7 +161,7 @@ function SettingsPageBody({title, back, action, status, actions, server, intro, 
     {panel ?? (state ? <PageStateFrame {...state}/> : <FormScrollView ref={scrollRef} onLayout={onScrollLayout && (event => onScrollLayout(event.nativeEvent.layout.height))}
       onScroll={onScrollY && (event => onScrollY(event.nativeEvent.contentOffset.y))} scrollEventThrottle={onScrollY ? 100 : undefined} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
       fadingEdgeLength={ring ? frame.bottomClear : undefined} style={{flex: 1, marginLeft: -room}}
-      contentContainerStyle={{paddingBottom: inSheet ? frameSpec.sheet.footerClear : frame.bottomClear, paddingLeft: room, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
+      contentContainerStyle={{paddingBottom: inSheet ? sheetBottom : frame.bottomClear, paddingLeft: room, paddingRight: beside ? frame.rightGutter : 0, gap: frame.sectionGap}}>
       {/* Beside the list the frame has already placed this column's edges, so its sections start at the column. One
           provider on every form, so a form change restyles the body and never remounts it. */}
       <FrameColumn.Provider value={beside || parentColumn}>{body}</FrameColumn.Provider>

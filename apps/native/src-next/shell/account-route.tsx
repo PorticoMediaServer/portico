@@ -13,9 +13,9 @@ export function AccountRoute({route, context}: {route: NativeShellRoute; context
     : <ServersRoutePage context={context} initialPanel={route.kind === 'servers' ? route.initialPanel : undefined} onBack={back}/>;
 }
 
-const createAccountRoute: NativeRouteFactory = context => ({render: route => {
+export const createAccountRoute: NativeRouteFactory = context => ({render: route => {
   if (route.kind !== 'profiles' && route.kind !== 'servers') throw new Error('native_account_route_mismatch');
   return <AccountRoute key={context.navigation.getSnapshot().revision} route={route} context={context}/>;
 }});
-nativeShellRoutes.registerRoute('profiles', createAccountRoute);
-nativeShellRoutes.registerRoute('servers', createAccountRoute);
+if (!nativeShellRoutes.hasRoute?.('profiles')) nativeShellRoutes.registerRoute('profiles', createAccountRoute);
+if (!nativeShellRoutes.hasRoute?.('servers')) nativeShellRoutes.registerRoute('servers', createAccountRoute);

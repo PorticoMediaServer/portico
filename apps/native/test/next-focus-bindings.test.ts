@@ -9,18 +9,19 @@ import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
 type Host = {nativeTag: number; requestTVFocus(): void};
-async function focusModule() {
+async function focusModule(isTV = true, os: 'android' | 'ios' = 'android') {
   const contexts: {current: unknown}[] = [];
   const controlledReact = {...React, default: React,
     createContext: (current: unknown) => {const context = {current}; contexts.push(context); return context;},
     useContext: (context: {current: unknown}) => context.current,
   };
+  let findNodeCalls = 0;
   const mod = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx', import.meta.url), {
     react: controlledReact,
-    'react-native': {findNodeHandle: (host: Host) => host.nativeTag, TVFocusGuideView: 'TVFocusGuideView', View: 'View'},
-    '../theme': {useTheme: () => ({isTV: true})}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
+    'react-native': {Platform: {OS: os, isTV}, findNodeHandle: (host: Host) => {findNodeCalls++; return host.nativeTag;}, TVFocusGuideView: 'TVFocusGuideView', View: 'View'},
+    '../theme': {useTheme: () => ({isTV})}, './registry': registryModule, './CoveredLayer': {useLayerCovered: () => false}, './useHostRef': hostRefModule,
   });
-  return {mod, contexts};
+  return {mod, contexts, findNodeCalls: () => findNodeCalls};
 }
 test('real target hook installs native edges only on boundary children and preserves caller host refs', async () => {
   const {mod, contexts} = await focusModule(), registry = registryModule.createFocusRegistry();
@@ -263,4 +264,100 @@ test('a guide that was disabled and is enabled again sends its destination anew'
     assert.equal(sent.at(-1)?.[0], 101);
     assert.ok(sent.length >= 3, 'a send after each enabled change');
   } finally {native.props.ref(null); await host.unmount(); await root.unmount();}
+});
+
+test('touch (!isTV) FocusRegion and useFocusTarget perform zero registry work, subscriptions, or native handles', async () => {
+  const {mod, contexts, findNodeCalls} = await focusModule(false);
+  const registryCalls: string[] = [];
+  const spyRegistry = new Proxy({}, {
+    get(_target, prop) {
+      return (..._args: unknown[]) => {registryCalls.push(String(prop)); throw new Error(`unexpected touch registry call: ${String(prop)}`);};
+    },
+  });
+  contexts[0]!.current = spyRegistry;
+  let regionEl: any;
+  const forwardedRegion = {current: null as any};
+  const regionDriver = createFabricHookHost(() => {
+    regionEl = mod.FocusRegion.render({id: 'touch-row', orientation: 'horizontal', order: ['a', 'b'], edges: {left: 'rail'}, testID: 'row-view', style: {flex: 1}, children: 'content'}, forwardedRegion);
+  });
+  await regionDriver.mount();
+  try {
+    assert.equal(regionEl.type, 'View', 'touch FocusRegion renders a plain View directly without TVFocusGuideView or Region');
+    assert.equal(regionEl.props.testID, 'row-view');
+    assert.equal(regionEl.props.ref ?? regionEl.ref, forwardedRegion);
+    assert.equal(regionEl.props.orientation, undefined, 'focus config props do not leak onto View');
+    assert.equal(regionEl.props.edges, undefined);
+    assert.deepEqual(registryCalls, []);
+    assert.equal(findNodeCalls(), 0);
+  } finally {await regionDriver.unmount();}
+
+  const withinEvents: Array<[boolean, unknown]> = [];
+  let scrollRowCalls = 0, focusRequests = 0;
+  contexts[1]!.current = 'touch-row';
+  contexts[2]!.current = {focusId: 'a', cell: {index: 0}, waiting: true};
+  contexts[3]!.current = () => {scrollRowCalls++;};
+  contexts[4]!.current = (focused: boolean, host: unknown) => withinEvents.push([focused, host]);
+  contexts[5]!.current = 'a';
+  const forwarded = {current: null as Host | null};
+  const actual = {nativeTag: 77, requestTVFocus() {focusRequests++;}};
+  let bound: any;
+  const targetDriver = createFabricHookHost(() => {
+    bound = mod.useFocusTarget({ref: forwarded, preferred: true});
+  });
+  await targetDriver.mount();
+  try {
+    bound.ref(actual); await targetDriver.flush();
+    assert.equal(forwarded.current, actual, 'ref forwarding stays intact on touch');
+    assert.equal(bound.testID, registryModule.focusTestID('touch-row', 'a'), 'stable testID is preserved');
+    assert.equal(bound.waiting, true);
+    assert.equal(bound.nextFocusLeft, undefined);
+    assert.equal(bound.nextFocusRight, undefined);
+    assert.equal(bound.nextFocusUp, undefined);
+    assert.equal(bound.nextFocusDown, undefined);
+    bound.onFocus(); bound.onBlur();
+    assert.deepEqual(withinEvents, [[true, actual], [false, actual]], 'FocusWithin still receives focus/blur');
+    assert.equal(scrollRowCalls, 0, 'touch does not register TVRow scroll stops');
+    assert.equal(focusRequests, 0, 'touch never sends preferred/start TV focus requests');
+    assert.deepEqual(registryCalls, [], 'zero registry subscriptions, reads, or mutations on touch');
+    assert.equal(findNodeCalls(), 0, 'zero findNodeHandle calls on touch');
+  } finally {await targetDriver.unmount();}
+});
+
+test('TV preferred start focus requests once without a 30-frame rAF retry loop', async () => {
+  const frames: Array<() => void> = [];
+  const prevRaf = (globalThis as {requestAnimationFrame?: unknown}).requestAnimationFrame;
+  (globalThis as {requestAnimationFrame?: unknown}).requestAnimationFrame = (fn: () => void) => {frames.push(fn); return frames.length;};
+  try {
+    const {mod, contexts} = await focusModule(true, 'android');
+    const registry = registryModule.createFocusRegistry();
+    contexts[0]!.current = registry; contexts[1]!.current = 'page';
+    let asks = 0;
+    const actual = {nativeTag: 55, requestTVFocus() {asks++;}};
+    let bound: any;
+    const driver = createFabricHookHost(() => {bound = mod.useFocusTarget({focusId: 'start', preferred: true});});
+    await driver.mount();
+    try {
+      // Attach host before preferred flips true.
+      bound.ref(actual);
+      // Re-mount with preferred already true after host attaches:
+      assert.equal(asks, 0, 'no native focus asked before host existed');
+    } finally {await driver.unmount();}
+
+    let preferred = false;
+    const driver2 = createFabricHookHost(() => {bound = mod.useFocusTarget({focusId: 'start', preferred});});
+    await driver2.mount();
+    try {
+      bound.ref(actual); await driver2.flush();
+      frames.length = 0; asks = 0;
+      preferred = true; await driver2.rerender();
+      assert.equal(asks, 0, 'Android TV defers start focus by one frame via requestStartFocus');
+      assert.equal(frames.length, 1, 'exactly one rAF scheduled by afterLayerChange, no polling loop');
+      for (let i = 0; i < 35 && frames.length; i++) frames.shift()!();
+      assert.equal(asks, 1, 'requested exactly once across 35 frames');
+      assert.equal(frames.length, 0, 'no further rAF frames scheduled');
+    } finally {await driver2.unmount();}
+  } finally {
+    registryModule.deferStartFocus(false);
+    (globalThis as {requestAnimationFrame?: unknown}).requestAnimationFrame = prevRaf;
+  }
 });

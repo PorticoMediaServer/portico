@@ -39,7 +39,7 @@ async function shell(width: number, height: number, top: unknown, railHeld?: boo
     './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './MediumRail': {MediumRail: 'MediumRail'}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'TVProfileMenu'}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'NativePlaybackLayer'},
   });
   const root = h.render(() => NativeShell({runtime}));
-  const session = nodes(root).find(node => node.type?.name === 'ShellSession'); assert.ok(session);
+  const session = nodes(root).find(node => node.type?.name === 'TouchShell'); assert.ok(session);
   const tree = h.render(() => session.type({runtime, snapshot}));
   const rail = nodes(tree).find(node => node.type === 'MediumRail');
   const page = nodes(tree).find(node => typeof node.props?.routeStyle === 'function')!.props.routeStyle(top, 'Page');

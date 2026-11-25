@@ -44,7 +44,7 @@ test('a real screen-owned Library destination is remembered and a late initial r
   const {NativeShell} = await loadShell(theme, registry);
   let root: any, tree: any;
   const rootHost = createFabricHookHost(() => {root = NativeShell({runtime});}); await rootHost.mount();
-  const session = nodes(root).find(node => node.type?.name === 'ShellSession');
+  const session = nodes(root).find(node => node.type?.name === 'TouchShell');
   const page = createFabricHookHost(() => {tree = session.type({runtime, snapshot});});
   try {
     await act(() => page.mount());
@@ -74,7 +74,7 @@ test('a tab chosen while the watch page is open folds the player into its mini p
   const {NativeShell} = await loadShell(theme, registry);
   let root: any, tree: any;
   const rootHost = createFabricHookHost(() => {root = NativeShell({runtime});}); await rootHost.mount();
-  const session = nodes(root).find(node => node.type?.name === 'ShellSession');
+  const session = nodes(root).find(node => node.type?.name === 'TouchShell');
   const page = createFabricHookHost(() => {tree = session.type({runtime, snapshot});});
   try {
     await act(() => page.mount());

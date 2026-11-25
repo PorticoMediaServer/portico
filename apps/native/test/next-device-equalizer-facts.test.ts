@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDeviceEqualizer, type DeviceEqualizer} from '../platform/equalizer-store.ts';
+import {createDeviceEqualizer, type DeviceEqualizer} from '../src-next/platform/playback/equalizer-store.ts';
 import type {DeviceEqualizerSnapshot} from '../src-next/platform/playback/equalizer.ts';
 import {nativeSettingsEqualizerFacts} from './fixtures/superseded/device-equalizer-facts.ts';
 

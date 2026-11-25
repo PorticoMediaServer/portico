@@ -1,22 +1,9 @@
 /** The TV entry shares the genuine restore/session lifetime and single player.
- * Screen-owned registration modules are imported at this platform entry. */
-import '../shell/account-route';
-import '../shell/customize-route';
-import '../shell/see-all-route';
-import '../shell/library-route';
-import '../shell/collections-route';
-import '../shell/library-overview-route';
-// App.tsx loads this only for handsets; the TV rail's Search needs it too.
-import '../shell/search-route';
-import '../shell/people-route';
-import '../shell/live-route';
-import '../shell/together-route';
-import '../shell/music-route';
-import '../shell/audiobooks-route';
-import '../shell/saved-destination-route';
-import {createNativeWatchBindings, registerNativeWatch} from '../screens/watch';
+ * All screen-owned route, destination, and watch registrations are declared in
+ * shell/register-routes.ts. */
+import {registerNativeRoutes} from '../shell/register-routes';
 
-registerNativeWatch(createNativeWatchBindings);
+registerNativeRoutes(true);
 
 export {RestoredShell as TVRoot} from '../shell/RestoredShell';
 export {TVCredentialForm, TVCodePresenter, TVVerificationForm, TVProfilePINForm, TVRequiredSetupHandoff, TVManagementHandoff, TVForgotPINHandoff, TVFrontDoor} from './auth';

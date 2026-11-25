@@ -556,6 +556,6 @@ export class NativePlayback {
 }
 
 /** The fixed qualities a title's quality menu offers (playback options `qualities`), best first. */
-export {automaticSteps} from '../../../platform/automatic-video-quality';
+export {automaticSteps} from '../automatic-video-quality';
 
 export type {PlaybackSession};

@@ -32,6 +32,7 @@ export function requestNativeFocus(host: FocusHost | null | undefined): boolean 
  * landed on the Music tab, not the artist's card). The kit's focus module sets this once from the platform. */
 let layerNextFrame = false;
 export function deferStartFocus(value: boolean): void {layerNextFrame = value;}
+export function isStartFocusDeferred(): boolean {return layerNextFrame;}
 /** Runs `ask` now, or on Android TV on the next frame; says whether a request was (or will be) sent. */
 export function afterLayerChange(ask: () => boolean, sendable = true): boolean {
   if (!layerNextFrame || typeof requestAnimationFrame !== 'function') return ask();

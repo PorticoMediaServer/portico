@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {LocalSession, PlaybackApi} from '../../../packages/client-core/src/index';
-import type {OfflineEntry, OfflineSnapshot} from '../platform/offline-downloads';
-import type {LocalMedia, LocalProgress} from '../platform/local-playback';
+import type {OfflineEntry, OfflineSnapshot} from '../src-next/platform/offline-downloads';
+import type {LocalMedia, LocalProgress} from '../src-next/platform/local-playback';
 import {NativeOfflinePlayback} from '../src-next/platform/playback/offline-playback';
 
 function setup() {
@@ -11,7 +11,7 @@ function setup() {
   const entry: OfflineEntry = {id:'copy',itemId:'movie',downloadId:'dl_one',title:'Movie',subtitle:'',quality:'original',artworkUrl:'',state:'ready',error:'',waiting:'',held:false,bytes:10,bytesDone:10,addedAt:1,onServer:false,changedOnServer:false,
     owner: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId, viewer.serverId]), artifact: {sha256: 'a'.repeat(64), bytes: 10}};
   let snapshot: OfflineSnapshot = {supported:true,ready:true,entries:[entry],settings:{wifiOnly:true,deleteWatched:false,limitBytes:0},freeBytes:100,usedBytes:10,otherBytes:0,pendingProgress:0};
-  let reason: ReturnType<import('../platform/offline-downloads').OfflineDownloads['playabilityReason']> = null;
+  let reason: ReturnType<import('../src-next/platform/offline-downloads').OfflineDownloads['playabilityReason']> = null;
   const media: LocalMedia = {entryId:'copy',itemId:'movie',playId:'play_actual-journal',fileUrl:'file:///private/Downloads/copy/movie.mp4',durationSeconds:600,startSeconds:42};
   let load: () => Promise<LocalMedia> = async () => media;
   const progress: LocalProgress[] = [], network: string[] = [];

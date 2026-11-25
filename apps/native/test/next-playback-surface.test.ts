@@ -6,7 +6,7 @@ import {currentMorphFence} from '../src-next/kit/dock/morph-fence.ts';
 import {releaseDock, validRect} from '../src-next/kit/dock/model.ts';
 import {playerPostureCrossFadeMs} from '../src-next/platform/layout/player-presentation.ts';
 import {screenModule} from './helpers/screen-harness.mjs';
-import {offlineDownloads} from '../platform/offline-downloads.ts';
+import {offlineDownloads} from '../src-next/platform/offline-downloads.ts';
 import * as capabilityReadiness from '../src-next/platform/playback/capability-readiness.ts';
 import * as adapterReturn from '../src-next/platform/playback/adapter-return.ts';
 
@@ -35,14 +35,12 @@ async function mount(component: any, initial: any) {
 async function surfaceFixture(os = 'android') {
   let snapshot: any = {engine: 'native', lease: '', fence: undefined};
   let attachments = 0, detachments = 0, subscriptions = 0;
-  const listeners = new Set<() => void>(), tags: {owner: object; tag: number | null}[] = [], subtitles: boolean[] = [], requested: string[] = [];
+  const listeners = new Set<() => void>(), subtitles: boolean[] = [], requested: string[] = [];
   const runtime = {
     subscribe: (listener: () => void) => {subscriptions++; listeners.add(listener); return () => {subscriptions--; listeners.delete(listener);};},
     getSnapshot: () => snapshot,
     attachSurface: (_owner: object) => {attachments++; return () => {detachments++;};},
-    setSurfaceTag: (owner: object, tag: number | null) => {tags.push({owner, tag});},
     setSubtitleDisplay: (visible: boolean) => {subtitles.push(visible);},
-    installSnapshotCapture() {},
     // The adapter binds this eagerly; this fixture never plays a queue entry, so calling it is a
     // fixture misuse rather than a silently missing member.
     queue: {playEntry: () => {throw new Error('queue.playEntry is not configured in this surface fixture');}},
@@ -59,7 +57,7 @@ async function surfaceFixture(os = 'android') {
       NativeEventEmitter: class {addListener() {return {remove() {}};}},
       NativeModules: {PorticoPlaybackModule: {}, PorticoRuntime: {playbackRequestId: () => 'request'}},
       Platform: {OS: os, isTV: true, Version: 35, constants: {}},
-      UIManager: {hasViewManagerConfig: () => true}, findNodeHandle: (node: {tag: number}) => node.tag,
+      UIManager: {hasViewManagerConfig: () => true},
       requireNativeComponent: (name: string) => {requested.push(name); return name;},
     },
     '../../../../../packages/client-core/src/playback-v1/options': {CapabilityPublisher: class {async publish() {}}},
@@ -69,16 +67,16 @@ async function surfaceFixture(os = 'android') {
     './engine-choice': {chooseEngine() {}, parseEngineFeatures: () => ({})},
     './engine-media': {planEngineOf() {}, requiredSubtitleRendering() {}},
     './capability-document': {deviceCapabilityDocument: () => ({})},
-    '../../../platform/offline-downloads': {offlineDownloads},
+    '../offline-downloads': {offlineDownloads},
     './NativeListeningAdapter': {}, './native-surface': surface, './runtime': {NativePlaybackRuntime: class {constructor(options: {offlineDevice: unknown}) {assert.equal(options.offlineDevice, offlineDownloads); return runtime;}}},
-    './scope-http': {PlaybackScopeHttp: class {}}, '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
+    './scope-http': {PlaybackScopeHttp: class {}},
   });
   const adapter = createNativeShellPlaybackAdapter({
     appVersion: 'test', api: {}, session: () => ({viewer: {authority: 'local', profileId: 'profile'}}),
     authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'}),
     subscribeSettings: () => () => {}, settings: () => ({engine: 'native'}),
   });
-  return {adapter, tags, subtitles, requested, get attachments() {return attachments;}, get detachments() {return detachments;}, get subscriptions() {return subscriptions;},
+  return {adapter, subtitles, requested, get attachments() {return attachments;}, get detachments() {return detachments;}, get subscriptions() {return subscriptions;},
     publish(next: any) {snapshot = next; for (const listener of listeners) listener();},
   };
 }
@@ -119,10 +117,7 @@ test('the actual native host hides on close before lease release and keeps its t
     assert.equal(d.detachments, 0);
     assert.equal(d.subscriptions, 1);
     assert.deepEqual(d.requested, ['PorticoPlayer']);
-    assert.equal(d.tags.length, 1);
   } finally {await surface.unmount();}
-  assert.strictEqual(d.tags[0]!.owner, d.tags[1]!.owner);
-  assert.deepEqual(d.tags.map(value => value.tag), [tag, null]);
   assert.equal(d.detachments, 1);
   assert.equal(d.subscriptions, 0);
 });
@@ -196,10 +191,8 @@ for (const engine of ['native', 'mpv'] as const) {
       assert.equal(d.attachments, 1);
       assert.equal(d.detachments, 0);
       assert.equal(d.subscriptions, 1);
-      assert.equal(d.tags.length, 1);
     } finally {await surface.unmount();}
     assert.equal(d.detachments, 1);
-    assert.strictEqual(d.tags[0]!.owner, d.tags[1]!.owner);
   });
 }
 
@@ -232,16 +225,13 @@ test('Q7 bounds-only changes preserve the actual Surface host/ref/owner/tag/subs
       assert.equal(flatten(surface.tree.props.style).height, bounds.height);
       assert.equal(d.attachments, 1);
       assert.equal(d.detachments, 0);
-      assert.equal(d.tags.length, 1);
       assert.equal(d.subscriptions, 1);
     }
   } finally {await surface.unmount();}
-  assert.strictEqual(d.tags[0]!.owner, d.tags[1]!.owner);
-  assert.deepEqual(d.tags.map(value => value.tag), [tag, null]);
   assert.equal(d.detachments, 1);
 });
 
-test('composition admission toggles the same Android producer without detaching its owner or changing lease/ref/tag', async () => {
+test('composition admission toggles the same Android producer without detaching its owner or changing lease', async () => {
   const d = await surfaceFixture();
   d.publish({engine: 'native', lease: 'retained-lease', fence});
   const props = {expandedBounds: frame, dockBounds: dockFrame, docked: false, subtitlesVisible: true, surfaceActive: true};
@@ -253,7 +243,6 @@ test('composition admission toggles the same Android producer without detaching 
     assert.equal(surface.tree.props.lease, 'retained-lease');
     assert.equal(surface.tree.tag, tag);
     assert.strictEqual(surface.tree.type, type);
-    assert.equal(d.tags.length, 1);
     assert.equal(d.attachments, 1);
     assert.equal(d.detachments, 0);
     await surface.update(props);
@@ -263,8 +252,8 @@ test('composition admission toggles the same Android producer without detaching 
   assert.equal(d.detachments, 1);
 });
 
-async function postureMorphFixture(os: string, image?: {fence: PlaybackFence; image: React.ReactNode; ready?: boolean; failed?: boolean}, prepareLayout?: (source: PlaybackFence) => Promise<void>, reduce = false) {
-  const reactions: ((value: any, previous: any) => void)[] = [], fades: {value: number; duration: number; finish?: (finished: boolean) => void}[] = [], contexts: any[] = [];
+async function postureMorphFixture(os: string, reduce = false) {
+  const reactions: ((value: any, previous: any) => void)[] = [], fades: {value: number; duration: number; finish?: (finished: boolean) => void}[] = [], contexts: any[] = [], presentations: any[] = [];
   const motion = {reduce, transforms: !reduce, timing: () => ({duration: reduce ? 120 : 180})};
   const {PlayerMorph} = await screenModule(new URL('../src-next/kit/dock/PlayerMorph.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Platform: {OS: os}, View: 'View'},
@@ -279,143 +268,83 @@ async function postureMorphFixture(os: string, image?: {fence: PlaybackFence; im
     './morph-fence': {currentMorphFence}, './model': {releaseDock, validRect}, './visual': {alpha: () => '#000', dockStyles: {fill: {position: 'absolute', inset: 0}}},
   });
   const child = React.createElement('PersistentNativeSurface'), controller = {progress: {value: 0}, velocity: {value: 0}, dragging: {value: false}};
-  const props = {controller, fence, docked: false, fullFrame: frame, dockFrame, retainedSnapshot: image, prepareLayout,
+  const props = {controller, fence, docked: false, fullFrame: frame, dockFrame,
+    onPresentationChange: (state: any) => {presentations.push(state);},
     children: (context: any) => {contexts.push(context); return child;}};
   const morph = await mount(PlayerMorph, props);
   /** The same committed child host under the morph's animated layer. */
   const childNode = () => morph.tree.children[0]!.children[0]!;
-  return {morph, props, contexts, reactions, fades, childTag: childNode().tag};
+  return {morph, props, contexts, presentations, reactions, fades, childTag: childNode().tag};
 }
 
 /** The persistent native child is retained below the same layer, never replaced. */
 const assertChild = (d: {morph: {tree: HostNode}; childTag: number}) => assert.equal(d.morph.tree.children[0]!.children[0]!.tag, d.childTag, 'the same persistent native child stays under the morph');
 
-test('Apple geometry without a decoded cover settles with live composition and no blanking fade', async () => {
+test('Apple posture geometry change cross-fades cleanly once at playerPostureCrossFadeMs while keeping live composition', async () => {
   const d = await postureMorphFixture('ios'), next = {x: 0, y: 0, width: 890, height: 626};
   try {
     await d.morph.update({...d.props, fullFrame: next});
     assert.deepEqual(d.contexts.at(-1).bounds, next);
     assert.equal(d.contexts.at(-1).surfaceActive, true);
     assertChild(d);
+    assert.equal(d.fades.length, 1);
+    assert.equal(d.fades[0]!.duration, playerPostureCrossFadeMs);
+    assert.equal(d.fades[0]!.value, 1);
+    await d.morph.update({...d.props, fullFrame: {...next}});
+    assert.equal(d.fades.length, 1, 'equal geometry cannot re-arm the consumed cross-fade');
+  } finally {await d.morph.unmount();}
+});
+
+test('Android posture geometry change settles bounds directly on the persistent child without ancestor opacity fade', async () => {
+  const d = await postureMorphFixture('android'), next = {x: 0, y: 0, width: 890, height: 626};
+  try {
+    await d.morph.update({...d.props, fullFrame: next});
+    assert.deepEqual(d.contexts.at(-1).bounds, next);
+    assert.equal(d.contexts.at(-1).surfaceActive, true);
     assert.equal(d.fades.length, 0);
     assert.equal(flatten(d.morph.tree.children[0]!.props.style).opacity, 1);
-    await d.morph.update({...d.props, fullFrame: {...next}});
-    assert.equal(d.fades.length, 0);
+    assertChild(d);
   } finally {await d.morph.unmount();}
 });
 
 for (const os of ['android', 'ios']) {
-test(`${os} suppresses live composition only under a current-fence snapshot and restores it beneath one outgoing fade`, async () => {
-  const image = {fence, image: React.createElement('CapturedFrame'), ready: true}, d = await postureMorphFixture(os, image);
-  try {
-    const reaction = d.reactions.at(-1)!;
-    d.props.controller.progress.value = .4; d.props.controller.velocity.value = .2;
-    await d.morph.act(() => reaction({active: true, p: .4, v: .2, drag: false, goal: 0}, {active: true, p: 0, v: 0, drag: false, goal: 0}));
-    assert.equal(d.contexts.at(-1).surfaceActive, false);
-    d.props.controller.progress.value = 0; d.props.controller.velocity.value = 0;
-    await d.morph.act(() => d.reactions.at(-1)!({active: true, p: 0, v: 0, drag: false, goal: 0}, {active: true, p: .4, v: .2, drag: false, goal: 0}));
-    assert.equal(d.contexts.at(-1).surfaceActive, true);
-    assert.equal(d.contexts.at(-1).moving, true, 'retain capture until its one fade completes');
-    assert.equal(d.fades.length, 1);
-    await d.morph.act(() => d.fades[0]!.finish!(true));
-    assert.equal(d.contexts.at(-1).moving, false);
-    assertChild(d);
-    await d.morph.update({...d.props, retainedSnapshot: {...image, fence: {...fence, generation: 2}}});
-    d.props.controller.progress.value = .4; d.props.controller.velocity.value = .2;
-    await d.morph.act(() => d.reactions.at(-1)!({active: true, p: .4, v: .2, drag: false, goal: 0}, {active: true, p: 0, v: 0, drag: false, goal: 0}));
-    assert.equal(d.contexts.at(-1).surfaceActive, true, 'a stale snapshot cannot hide the live producer');
-  } finally {await d.morph.unmount();}
-});
-
-test(`${os} geometry preparation keeps live video until capture is usable`, async () => {
-    let ready!: () => void, requests = 0;
-    const prepared = new Promise<void>(resolve => {ready = resolve;});
-    const d = await postureMorphFixture(os, undefined, async source => {assert.ok(sameFence(source, fence)); requests++; await prepared;});
-    const next = {x: 0, y: 0, width: 890, height: 626};
+  test(`${os} keeps live composition active during drag/morph while hiding subtitles until settlement`, async () => {
+    const d = await postureMorphFixture(os);
     try {
-      await d.morph.update({...d.props, fullFrame: next});
-      assert.equal(requests, 1);
+      const reaction = d.reactions.at(-1)!;
       assert.equal(d.contexts.at(-1).surfaceActive, true);
-      assert.deepEqual(d.contexts.at(-1).bounds, frame, 'keep old live bounds while preparing');
-      await d.morph.act(() => d.reactions.at(-1)!({active: true, p: 0, v: 0, drag: false, goal: 0}, null));
-      assert.deepEqual(d.contexts.at(-1).bounds, frame, 'a first settled reaction cannot bypass capture');
-      await d.morph.act(async () => {
-        await d.morph.update({...d.props, fullFrame: next, retainedSnapshot: {fence, image: React.createElement('CapturedFrame'), ready: false}});
-        ready(); await prepared;
-      });
-      assert.deepEqual(d.contexts.at(-1).bounds, frame, 'capture completion alone is not image readiness');
+      assert.equal(d.contexts.at(-1).subtitlesVisible, true);
+      d.props.controller.progress.value = .4; d.props.controller.velocity.value = .2;
+      await d.morph.act(() => reaction({active: true, p: .4, v: .2, drag: false, goal: 0}, {active: true, p: 0, v: 0, drag: false, goal: 0}));
+      assert.equal(d.contexts.at(-1).surfaceActive, true, 'live surface stays active without a snapshot cover');
+      assert.equal(d.contexts.at(-1).moving, true);
+      assert.equal(d.contexts.at(-1).subtitlesVisible, false);
+      assert.equal(d.presentations.at(-1).hideSubtitles, true);
+      d.props.controller.progress.value = 0; d.props.controller.velocity.value = 0;
+      await d.morph.act(() => d.reactions.at(-1)!({active: true, p: 0, v: 0, drag: false, goal: 0}, {active: true, p: .4, v: .2, drag: false, goal: 0}));
       assert.equal(d.contexts.at(-1).surfaceActive, true);
-      await d.morph.update({...d.props, fullFrame: next, retainedSnapshot: {fence, image: React.createElement('CapturedFrame'), ready: true}});
-      assert.deepEqual(d.contexts.at(-1).bounds, next);
-      assert.equal(d.contexts.at(-1).surfaceActive, true);
-      assert.equal(d.fades.length, 1);
-      assert.equal(d.fades[0]!.duration, 250);
-      await d.morph.act(() => d.fades[0]!.finish!(true));
       assert.equal(d.contexts.at(-1).moving, false);
+      assert.equal(d.contexts.at(-1).subtitlesVisible, true);
+      assert.equal(d.presentations.at(-1).hideSubtitles, false);
+      assert.equal(d.fades.length, os === 'ios' ? 1 : 0);
       assertChild(d);
-      await d.morph.update({...d.props, fullFrame: {...next}, retainedSnapshot: {fence, image: React.createElement('CapturedFrame'), ready: true}});
-      assert.equal(d.fades.length, 1, 'equal geometry cannot re-arm the consumed one-pass fade');
-    } finally {ready(); await d.morph.unmount();}
-});
-
+    } finally {await d.morph.unmount();}
+  });
 }
 
 test('foldable9 omits geometry cross-fades entirely with reduced motion', async () => {
   for (const os of ['android', 'ios']) {
-    let captures = 0;
-    const d = await postureMorphFixture(os, undefined, async () => {captures++;}, true);
+    const d = await postureMorphFixture(os, true);
     const next = {x: 0, y: 0, width: 890, height: 626};
     try {
       await d.morph.update({...d.props, fullFrame: next});
       assert.deepEqual(d.contexts.at(-1).bounds, next);
       assert.equal(d.contexts.at(-1).surfaceActive, true);
-      assert.equal(captures, 0);
-      assert.equal(d.fades.length, 0);
-    } finally {await d.morph.unmount();}
-  }
-});
-
-for (const os of ['android', 'ios']) {
-  test(`${os} an image decode error cannot suppress live composition or start a cover fade`, async () => {
-    const image = {fence, image: React.createElement('CapturedFrame'), ready: false};
-    const d = await postureMorphFixture(os, image, async () => {}), next = {x: 0, y: 0, width: 890, height: 626};
-    try {
-      await d.morph.update({...d.props, fullFrame: next});
-      assert.equal(d.contexts.at(-1).surfaceActive, true);
-      assert.deepEqual(d.contexts.at(-1).bounds, frame);
-      await d.morph.update({...d.props, fullFrame: next, retainedSnapshot: {...image, failed: true}});
-      assert.deepEqual(d.contexts.at(-1).bounds, next);
-      assert.equal(d.contexts.at(-1).surfaceActive, true);
-      assert.equal(flatten(d.morph.tree.children[0]!.props.style).opacity, 1);
       assert.equal(d.fades.length, 0);
       assertChild(d);
     } finally {await d.morph.unmount();}
-  });
-
-test(`${os} failed geometry capture stays live and late preparation cannot resize a replacement source`, async () => {
-  const d = await postureMorphFixture(os, undefined, async () => {throw new Error('capture unavailable');});
-  const next = {x: 0, y: 0, width: 890, height: 626};
-  try {
-    await d.morph.act(async () => {await d.morph.update({...d.props, fullFrame: next}); await Promise.resolve(); await Promise.resolve();});
-    assert.deepEqual(d.contexts.at(-1).bounds, next);
-    assert.equal(d.contexts.at(-1).surfaceActive, true);
-    assert.equal(d.fades.length, 0);
-  } finally {await d.morph.unmount();}
-  let ready!: () => void;
-  const wait = new Promise<void>(resolve => {ready = resolve;});
-  const late = await postureMorphFixture(os, undefined, () => wait);
-  try {
-    await late.morph.update({...late.props, fullFrame: next});
-    const replacement = {...fence, sessionId: 'replacement', generation: 2};
-    await late.morph.update({...late.props, fence: replacement, fullFrame: dockFrame});
-    await late.morph.act(async () => {ready(); await wait;});
-    assert.deepEqual(late.contexts.at(-1).bounds, {x: 0, y: 0, width: dockFrame.width, height: dockFrame.height});
-    assert.equal(late.contexts.at(-1).surfaceActive, true);
-    assert.equal(late.fades.length, 0);
-  } finally {ready(); await late.morph.unmount();}
+  }
 });
-
-}
 
 test('PlayerMorph projects close to its existing wrapper/child and rejects late settlement from the closed source', async () => {
   const reactions: ((value: any, previous: any) => void)[] = [];

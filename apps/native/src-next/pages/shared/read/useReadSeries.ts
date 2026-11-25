@@ -8,7 +8,7 @@ import {askNativeDownload} from '../../../screens/downloads/request';
 import {useReadingActions} from './useReadingActions';
 import {NativeReadingWindow} from '../../../screens/read/reading-window';
 import type {NativeReadSeries} from '../../../screens/read/read-series-model';
-import {nativePublicationReadsAvailable} from '../../../../platform/offline-reading';
+import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
 
 const {t} = defaultI18n;
 export const readingVolumeKey = (item: ReadingItem) => `${item.id}:${item.sourceId}`;

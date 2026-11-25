@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createNativeOfflineDownloadsAdapter, offlineDownloads, type OfflineEntry, type OfflineSnapshot} from '../src-next/platform/offline-downloads';
 // The shared device module behind every shell's downloads.
-import {offlineDownloads as deviceOwner} from '../platform/offline-downloads';
+import {offlineDownloads as deviceOwner} from '../src-next/platform/offline-downloads-store';
 
 test('both shells share the same authoritative device owner', () => {
   assert.equal(offlineDownloads,deviceOwner);

@@ -1,7 +1,7 @@
 import type {AudioStream, SubtitleStream} from '../../../../../packages/client-core/src/playback-v1/types';
 import type {PlaybackChoices} from '../../../../../packages/client-core/src/playback-v1/choices';
-import type {LocalMedia} from '../../../platform/local-playback';
-import type {StoredSubtitle} from '../../../platform/offline-subtitle-files';
+import type {LocalMedia} from '../local-playback';
+import type {StoredSubtitle} from '../offline-subtitle-files';
 import type {AudioTrackBinding, NativeAudioTrackCommand} from './audio-track-selection';
 
 export type NativeLocalTracksSnapshot = Readonly<{

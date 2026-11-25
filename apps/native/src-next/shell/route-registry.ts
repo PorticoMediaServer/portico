@@ -59,6 +59,7 @@ export class NativeShellRouteRegistry {
   /** The menu projects only destinations this build can actually render. */
   hasRoute(kind: RouteKind): boolean {return this.renderers.has(kind) || this.routes.has(kind);}
   hasDestination(kind: ShellDestination['kind']): boolean {return this.destinations.has(kind);}
+  hasWatch(): boolean {return !!this.watch;}
   registerRoute(kind: RouteKind, create: NativeRouteFactory): () => void {
     if (this.renderers.has(kind) || this.routes.has(kind)) throw new Error('native_route_already_registered');
     return this.add(this.routes, kind, create);

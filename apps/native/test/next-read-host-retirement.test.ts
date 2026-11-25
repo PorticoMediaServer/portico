@@ -91,7 +91,7 @@ test(`actual live host with its presentation binding fences original close on ${
     '../../../../../packages/client-core/src': {preferenceValue: () => undefined, ReadingError: class extends Error {}},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../downloads/device': {createNativeDownloadsDevice: () => {throw new Error('unexpected offline device');}},
-    '../../../platform/offline-downloads': {offlineDownloads: {}},
+    '../../platform/offline-downloads': {offlineDownloads: {}},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', SkeletonBlock: 'SkeletonBlock'},
     '../../kit/controls/Button': {Button: 'Button'}, '../../kit/shell/Layer': {Layer: 'Layer'}, '../../kit/theme': {useTheme: () => ({colors: {ink: '#000'}})},
     './NativeReadingGuestHost': {NativeReadingGuestHost: 'NativeReadingGuestHost'},

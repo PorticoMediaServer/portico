@@ -85,7 +85,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     '../destinations': {NativeTVKeyboard: 'NativeTVKeyboard'},
     '../destinations/useEntryFocus': {useDestinationEntryFocus: () => {}},
     './settings-actions': settingsActions,
-    '../../kit/layout/Screen': {Screen: 'Screen', useScreenEntry: () => undefined, useScreenBack: (runtime: any, handler: () => boolean, isTV: boolean) => {if (isTV) runtime.registerTVPageBack?.(handler);}},
+    '../../kit/layout/Screen': {Screen: 'Screen', useScreenEntry: () => undefined, useScreenBack: (_runtime: any, handler: () => boolean, isTV: boolean) => {if (isTV) {focus.back.push(handler);}}},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
     'react-native-qrcode-svg': {default: 'QRCode'},
     '../../shell/chrome': {setNativeScreenChromeHidden: () => {}},
@@ -113,8 +113,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
   const preferences = parsePreferenceSnapshot({deviceClass: 'mobile', registryRevision: 'regional-screen', registry: {revision: 'regional-screen', fields: [{key: 'region.locale', type: 'locale', default: 'en-US', group: 'region', labelKey: 'preferences.region.locale', scopes: ['profile-server']}]} ,
     documents: ['profile-server', 'profile-device-class'].map(scope => ({scope, revision: 1, activeRevision: 1, digest: 'd'.repeat(64), values: {}})), effective: {'region.locale': 'en-US'}, effectiveSource: {'region.locale': 'default'}, clampedFields: []});
   const shellSnapshot = {profile: {id: 'profile', name: 'Example', initial: 'E', color: 'blue' as const}, account: {actions: [] as readonly unknown[]}};
-  const runtime = {text: {get t() {const prefix = language; return (key: string) => `${prefix}/${key}`;}}, reportError: (error: unknown) => {throw error;}, subscribe: () => () => {}, getSnapshot: () => shellSnapshot,
-    registerTVPageBack: (handler: () => boolean) => {focus.back.push(handler); return () => {focus.back.splice(focus.back.indexOf(handler), 1);};}};
+  const runtime = {text: {get t() {const prefix = language; return (key: string) => `${prefix}/${key}`;}}, reportError: (error: unknown) => {throw error;}, subscribe: () => () => {}, getSnapshot: () => shellSnapshot};
   const settingsRoute = {revision: 0, route: {kind: 'shell', destination: {kind: 'settings'}}};
   const props = {runtime, ports: {context: {current: () => true, account: {account: {role: owner ? 'owner' : 'member'}, canManage: owner, capabilities: {}}, ...(io ? {api: io.api} : {}), serverName: 'Example', authority: () => ({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'}), navigation: {subscribe: () => () => {}, getSnapshot: () => settingsRoute, isCurrent: () => true}}, settingsContext: () => ({owner, platform: 'phone', capabilities: {localAccount: true}}), serverName: () => 'Example', renderSettingsPanel: () => null},
     controller: {subscribe: () => () => {}, getSnapshot: () => ({preferences, busy: false, saved: 0}), lifetime: io?.lifetime ?? {authority: {}, current: () => true, request: (run: (signal?: AbortSignal) => Promise<unknown>) => run(undefined)}},

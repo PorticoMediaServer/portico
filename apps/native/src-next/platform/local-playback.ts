@@ -1,4 +1,4 @@
-import type {PlaybackApi, PlaybackSession} from '../../../packages/client-core/src/index';
+import type {PlaybackApi, PlaybackSession} from '../../../../packages/client-core/src/index';
 import type {OfflineExtras} from './offline-downloads';
 
 export type LocalPart = Readonly<{url: string; offsetSeconds: number; durationSeconds: number; startSeconds: number; endSeconds?: number; sourceOffsetSeconds?: number}>;

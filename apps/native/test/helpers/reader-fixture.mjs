@@ -4,7 +4,7 @@ export async function readerFixtureModule(name, previous) {
   const lookup = path => previous[path];
   const bindings = Object.fromEntries(Object.entries(previous).map(([path, value]) => {
     if (path.startsWith('../../../../../packages/')) return ['../' + path, value];
-    if (path === '../../../platform/offline-downloads' || path.startsWith('../../kit/') || path.startsWith('../../platform/')) return ['../' + path, value];
+    if (path.startsWith('../../kit/') || path.startsWith('../../platform/')) return ['../' + path, value];
     if (path.startsWith('../downloads/')) return [path.replace('../downloads/', '../../../screens/downloads/'), value];
     if (path.startsWith('./')) return [path.replace('./', '../../../screens/read/'), value];
     return [path, value];

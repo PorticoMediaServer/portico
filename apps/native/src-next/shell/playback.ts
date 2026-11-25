@@ -9,9 +9,10 @@ import type {QueueHeader} from '../../../../packages/client-core/src/playback-v1
 import type {QueuePlayerState} from '../../../../packages/client-core/src/queue-controller';
 import type {ContentEntry} from '../../../../packages/client-core/src/library-content';
 import type {PlaybackSubject} from '../../../../packages/client-core/src/presentation/kit-model';
-import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot, NativePlaybackVideoExitImage} from '../platform/playback/types';
+import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot} from '../platform/playback/types';
 import {sameFence, type DockState, type DockTransition, type PlaybackDock, type PlaybackFence, type RemoteDock} from '../../../../packages/player-core/src';
 import {sameAuthority, type ShellAuthority} from './model';
+import type {NativeShellRoute} from './routes';
 import type {NativePlaybackStartFailure} from '../platform/playback/start-failure';
 import type {NativePlaybackCapacityWait} from '../platform/playback/capacity-retry';
 import type {NativeStartArtworkOffer} from '../platform/playback/start-presentation';
@@ -28,12 +29,6 @@ export type NativeShellPlaybackStart = Readonly<{
   presentation?: NativeStartArtworkOffer;
 }>;
 export type NativeShellBounds = Readonly<{x: number; y: number; width: number; height: number}>;
-export type NativeShellVideoSnapshot = Readonly<{
-  retainForExit?: () => Promise<NativePlaybackVideoExitImage | undefined>;
-  fence: PlaybackFence;
-  image: Readonly<{uri: string; width: number; height: number}>;
-  release: () => Promise<void>;
-}>;
 export type NativeShellPlaybackSnapshot = Readonly<{
   /** Actual runtime retirement, never inferred from a missing session/fence. */
   retired: NativePlaybackRuntimeSnapshot['retired'];
@@ -68,6 +63,12 @@ export function nativeShellBackTransition(dock: PlaybackDock, snapshot: Pick<Nat
   const video = snapshot.dock.local.kind === 'video' || snapshot.dock.local.kind === 'live';
   return isTV && video ? dock.close(snapshot.fence) : dock.collapse(snapshot.fence);
 }
+
+/** Touch routes whose full-screen controls (PIN keypad, reader, live channel, server switch)
+ * would be overlapped by the floating mini-player. Playback stays mounted while suppressed. */
+export function dockSuppressedForRoute(route: NativeShellRoute | undefined): boolean {
+  return route?.kind === 'profiles' || route?.kind === 'servers' || route?.kind === 'read' || route?.kind === 'channel';
+}
 export type NativeShellSurfaceProps = Readonly<{
   /** Window coordinates measured from the actual art slot; undefined until mounted/measured. */
   dockBounds?: NativeShellBounds;
@@ -75,7 +76,7 @@ export type NativeShellSurfaceProps = Readonly<{
   expandedBounds?: NativeShellBounds;
   docked: boolean;
   subtitlesVisible: boolean;
-  /** Producer composition only; false only while a current-fence real snapshot covers it. */
+  /** Producer composition visibility; false when idle or audio-only. */
   surfaceActive: boolean;
 }>;
 
@@ -98,7 +99,6 @@ export interface NativeShellPlaybackAdapter {
   onTransition: (transition: DockTransition) => Promise<void>;
   restoreBookmark: (expectedBookmarkFence: PlaybackFence, playExplicitly: boolean) => Promise<PlaybackFence | undefined>;
   Surface: ComponentType<NativeShellSurfaceProps>;
-  captureVideoSnapshot: (fence: PlaybackFence, options?: {signal?: AbortSignal}) => Promise<NativeShellVideoSnapshot>;
   toggle: (fence: PlaybackFence) => Promise<void>;
   replay: (fence: PlaybackFence) => Promise<void>;
   /** Retry the exact failed queue output at its saved target; the core fences the output it replaced. */

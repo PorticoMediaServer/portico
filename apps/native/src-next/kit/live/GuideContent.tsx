@@ -14,11 +14,10 @@ import {ProgrammePanel, type LaterProgramme} from './ProgrammePanel';
 import {Menu, ToastHost} from '../overlays';
 import {OwnerTag} from '../shell/ServerIdentity';
 import {StateView} from '../states';
-import {visibleGuideRows} from '../../screens/settings-live/guide-pan-model';
 import {nativeChannelMenuEntries} from '../../screens/settings-live/guide-presentation';
 import {NativeSeriesRuleSheet} from './SeriesRuleSheet';
 import {NativeLiveTabs} from './LiveTabs';
-import {guideFocusMoved, liveGuideEntry, tvProgrammeGroups} from '../../screens/settings-live/tv-settings-focus';
+import {liveGuideEntry, tvProgrammeGroups} from '../../screens/settings-live/tv-settings-focus';
 
 import type {useLiveGuide, GuidePageProps} from '../../pages/shared/live/useLiveGuide';
 
@@ -28,10 +27,10 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
     insetLeft, insetRight, now, start, view, setView, selected, setSelected, channelMenu, setChannelMenu, channelMenuBusy,
     channelMenuError, setChannelMenuError, channelMenuAnchor, content, setMeasuredWidth, measureContent, contentWidth,
     recording, setRecording, recordError, setRecordError, series, setSeries, toast, setToast, reminders, later,
-    laterRecordings, laterRecording, guideReentry, guideReentryRef, tvRegistry, reentryBaseline, scopeKey, reentry,
+    laterRecordings, laterRecording, guideReentry, scopeKey, reentry,
     setRecordingsOpen, recordingsReturn, managementReturn, opener, selectedOpener,
-    list, visible, guideOffset, pull, channelWidth, paneLeft, guideEnd, twoPane, width, rowHeight, rowGap, px, end,
-    tvRange, revealTVCell, pan, panPosition, panActive, rulerShift, nowShift, nowPillShift, pastShade, earlierNow, laterNow,
+    list, onViewableItemsChanged, guideOffset, pull, channelWidth, paneLeft, guideEnd, twoPane, width, rowHeight, rowGap, px, end,
+    tvRange, revealTVCell, entryOpen, pan, panPosition, panActive, rulerShift, nowShift, nowPillShift, pastShade, earlierNow, laterNow,
     overscan, clock, goNow, nowX, inNowSpan, open, openChannelMenu, changeChannel, remind, recordLater, askSeries, favorite,
     watch, select, chooseSource, sourceOptions, chooseDay, shortDate, fullDate, dayName, dayTrailing, dayNote, days, daysCount,
     today, currentDay, sortOptions, chooseSort, controls, grid, filters, empty, filterEmpty, filterChips,
@@ -182,17 +181,16 @@ export function guideFrame(props: GuidePageProps, model: ReturnType<typeof useLi
             getItemLayout: view === 'list' && !theme.isTV ? undefined : (_, index) => ({index, length: rowHeight + rowGap, offset: index * (rowHeight + rowGap)}),
             onLayout: () => list.current?.scrollToOffset({offset: guideOffset.current, animated: false}),
             onScroll: event => {guideOffset.current = event.nativeEvent.contentOffset.y;}, scrollEventThrottle: 16,
-            onViewableItemsChanged: ({viewableItems}) => {
-              const rows = visibleGuideRows(viewableItems.map(value => value.index).filter((value): value is number => value !== null));
-              if (!rows) return;
-              visible.current = rows;
-              controller.setViewport({firstRow: rows.first, lastRow: rows.last, start, end});
+            onViewableItemsChanged,
+            renderItem: ({item: index}) => {
+              const rowChannel = twoPane && selected ? guide.channelAt(index) : undefined;
+              const rowSelected = rowChannel && selected && rowChannel.id === selected.channel.id && rowChannel.sourceId === selected.channel.sourceId && rowChannel.kind === selected.channel.kind ? selected : undefined;
+              return <LiveRow tvRange={tvRange} onTVFocus={revealTVCell} panPosition={panPosition} panActive={panActive} laneWidth={width - channelWidth}
+                clock={clock} entryEnabled={liveGuideEntry(state.revision, recordingsReturn, managementReturn, guideReentry)}
+                entryOpen={entryOpen}
+                index={index} controller={controller} runtime={runtime} start={start} end={end} now={now} channelWidth={channelWidth} rowHeight={rowHeight}
+                px={px} list={view === 'list'} onOpen={open} onChannelMenu={openChannelMenu} selected={rowSelected} grid={grid} watch={watch}/>;
             },
-            renderItem: ({item: index}) => <LiveRow tvRange={tvRange} onTVFocus={revealTVCell} panPosition={panPosition} panActive={panActive} laneWidth={width - channelWidth}
-              clock={clock} entryEnabled={liveGuideEntry(state.revision, recordingsReturn, managementReturn, guideReentry)}
-              entryOpen={() => guideReentry === undefined || guideReentryRef.current !== undefined && !guideFocusMoved(reentryBaseline.current, tvRegistry.attachedFocus())}
-              index={index} controller={controller} runtime={runtime} start={start} end={end} now={now} channelWidth={channelWidth} rowHeight={rowHeight}
-              px={px} list={view === 'list'} onOpen={open} onChannelMenu={openChannelMenu} selected={twoPane ? selected : undefined} grid={grid} watch={watch}/>,
           }}/>}
         {data.channelsError && <StateView {...runtime.error(new Error('guide_channels_unavailable'), () => guide.reset(), 'live')}/>}
       </>}

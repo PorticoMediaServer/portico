@@ -181,11 +181,14 @@ for (const action of ['primaryAction', 'secondaryAction']) test(`mobile ${action
     await f.recordings(); assert.ok(!f.find('recordings-new-rule')); assert.deepEqual(f.editors, []); assert.deepEqual(f.admin, []);
   } finally {await f.close();}
 });
-test('mobile owner retains New-rule; a retained open sheet is excluded when the same screen becomes TV', async () => {
+test('Recordings never mounts an unreachable administrative New-rule sheet on mobile or TV', async () => {
   const f = await fixture({isTV: false}); try {
-    await f.recordings(); const sheet = f.all().find(node => node.type === 'NewRuleEditor'); assert.ok(sheet); sheet.props.onOpenChange(true); await f.host.settle();
-    assert.ok(f.editors.includes('new-rule:true')); f.editors.length = 0;
-    await f.tv(); assert.deepEqual(f.editors, []); assert.deepEqual(f.admin, []);
+    await f.recordings();
+    assert.equal(f.all().find(node => node.type === 'NewRuleEditor'), undefined);
+    assert.deepEqual(f.editors, []);
+    await f.tv();
+    assert.equal(f.all().find(node => node.type === 'NewRuleEditor'), undefined);
+    assert.deepEqual(f.editors, []); assert.deepEqual(f.admin, []);
   } finally {await f.close();}
 });
 

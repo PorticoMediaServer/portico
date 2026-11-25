@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useRef, type ReactNode} from 'react';
 import {heroSpec} from '@portico/design';
 import {Artwork} from '../../../kit/artwork';
 import {FocusItem, FocusRegion} from '../../../kit/focus';
@@ -6,7 +6,7 @@ import {BrowseFrame} from '../../../kit/frames';
 import {HomeCard, HomeCardSlot, HomeCollectionCard, HomeCollectionRow, HomeHeroArt, HomeHeroFacts, HomeHeroReason,
   HomeLiveRow, HomePendingRow, HomeRemoteHint, HomeRowPlace, HomeWindow} from '../../../kit/home';
 import {TVHomeCustomize, TVHomeRow, TVHomeSpotlight} from '../../../kit/home/HomeTVParts';
-import {Hero, FocusPreviewHero, Row, type ArtworkRenderContext} from '../../../kit/layout';
+import {Hero, FocusPreviewHero, Row, type ArtworkRenderContext, type LayoutItemContext} from '../../../kit/layout';
 import {Banner} from '../../../kit/overlays';
 import {HomeSkeleton, LoadingPaint, StateView, TVHomeRecovery} from '../../../kit/states';
 import {MusicMixesRow} from '../../../kit/music/MusicMixesRow';
@@ -15,8 +15,12 @@ import {authorityKey} from '../../../shell/model';
 import {useTVHome, type TVHomeProps} from '../../shared/home/useTVHome';
 import {useTVHomeRecoveryView} from '../../shared/home/useTVHomeRecoveryView';
 
+type HomeCardModel = ReturnType<ReturnType<typeof useTVHome>['rowModel']>['presentation']['cards'][number];
+const homeCardKey = (item: HomeCardModel) => item.entry.id;
+
 export function TVHomePage(props: TVHomeProps) {
   const {runtime, authority, active = true} = props, home = useTVHome(props), {t} = home;
+  const renderers = useRef(new Map<string, {deps: readonly unknown[]; renderItem: (item: HomeCardModel, context: LayoutItemContext) => ReactNode}>());
   const mixes = runtime.mixes && <MusicMixesRow focusScope={`home:${authorityKey(authority)}.mixes`} port={runtime.mixes}
     artwork={runtime.artwork} reportError={runtime.reportError} title={t('music.mixesForYou')} onOpen={runtime.musicDiscover} active={active}
     focus={home.mixesRegion ? {id: home.mixesRegion.id, up: home.mixesRegion.edges.up!, down: home.mixesRegion.edges.down, left: home.ids.rail} : undefined}/>;
@@ -55,6 +59,19 @@ export function TVHomePage(props: TVHomeProps) {
         const model = home.rowModel(index), {source} = model;
         if (!source) return null;
         if (!model.mounted) return <HomeRowPlace key={row.id} height={model.slotHeight}/>;
+        const renderDeps = [runtime, row, model.itemWidth, model.itemHeight, index, model.shown, home.current] as const;
+        let cached = renderers.current.get(row.id);
+        if (!cached || renderDeps.some((value, at) => !Object.is(value, cached!.deps[at]))) {
+          const grow = row.id === 'continue_books';
+          cached = {
+            deps: renderDeps,
+            renderItem: (item, context) => <HomeCardSlot width={model.itemWidth} height={model.itemHeight} grow={grow} waiting={!!context.waiting}>
+              <HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context} width={model.itemWidth}
+                rowIndex={index} visible={model.shown} preferred={false} current={home.current}/>
+            </HomeCardSlot>,
+          };
+          renderers.current.set(row.id, cached);
+        }
         const body = row.live ? <HomeLiveRow row={row} runtime={runtime} visible={model.shown} itemWidth={heroSpec.tvHome.channelWidth}
           onRange={model.onRange} onVisibleKeys={model.onVisibleKeys} onItemFocus={item => model.onItemFocus(JSON.stringify([item.channel.sourceId, item.channel.id]))}
           current={home.current} focus={model.focus} viewportWidth={home.width} tabletMedium={false}/>
@@ -62,15 +79,12 @@ export function TVHomePage(props: TVHomeProps) {
             <FocusItem focusId={home.ids.collection(row.collection)}><HomeCollectionRow width={home.width}>{width =>
               <HomeCollectionCard row={row} runtime={runtime} width={width} visible={model.shown} current={home.current}
                 onFocus={() => model.onItemFocus(row.collection!.collection.id)}/>}</HomeCollectionRow></FocusItem>
-          </FocusRegion> : <Row title={model.title} subtitle={model.subtitle} items={model.presentation.cards} getKey={item => item.entry.id}
+          </FocusRegion> : <Row title={model.title} subtitle={model.subtitle} items={model.presentation.cards} getKey={homeCardKey}
             getFocusId={home.cardFocusId} focus={model.focus} initialViewportWidth={home.width} testID={home.ids.row(row.id)}
             itemWidth={model.itemWidth} itemHeight={model.itemHeight} growItems={row.id === 'continue_books'} captionHeight={model.captionHeight} selection={runtime.selection(row.id)}
             paging={model.paging} onVisibleRange={model.onRange} onVisibleKeys={model.onVisibleKeys} onSeeAll={model.seeAll}
-            onRepeatingChange={home.setRepeating} onItemFocus={item => model.onItemFocus(item.entry.id)}
-            renderItem={(item, context) => <HomeCardSlot width={model.itemWidth} height={model.itemHeight} grow={row.id === 'continue_books'} waiting={!!context.waiting}>
-              <HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context} width={model.itemWidth}
-                rowIndex={index} visible={model.shown} preferred={false} current={home.current}/>
-            </HomeCardSlot>}/>;
+            onRepeatingChange={home.setRepeating} onItemFocus={model.onCardFocus}
+            renderItem={cached.renderItem}/>;
         return <HomeWindow key={row.id} runtime={runtime} row={source} sectionOrder={index} visible={model.shown}
           physicalIds={model.physicalIds} retainedIds={model.retainedIds} range={model.range}><TVHomeRow onLayout={model.onLayout}>{body}</TVHomeRow></HomeWindow>;
       })}

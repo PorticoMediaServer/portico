@@ -23,17 +23,17 @@ native.publicationRead = async (_handle: string, _operation: number, offset: num
 native.publicationCancel = () => {}; native.publicationClose = () => {};
 // A whole-file book never asks for a ZIP member: the reader finds those in the bytes itself.
 native.publicationMember = native.publicationMemberRead = async () => {throw new Error('unexpected member read');};
-const reading = await offlineModule(new URL('../platform/offline-reading.ts', import.meta.url), {
-  'react-native': boundary, '../src-next/platform/server-connections': {nativeRouteCrypto: routeCrypto},
+const reading = await offlineModule(new URL('../src-next/platform/offline-reading.ts', import.meta.url), {
+  'react-native': boundary, './server-connections': {nativeRouteCrypto: routeCrypto},
 });
-const {OfflineDownloads, offlineOwnerKey} = await offlineModule(new URL('../platform/offline-downloads.ts', import.meta.url), {
+const {OfflineDownloads, offlineOwnerKey} = await offlineModule(new URL('../src-next/platform/offline-downloads-store.ts', import.meta.url), {
   './offline-reading': reading,
-  './offline-subtitle-files': await offlineModule(new URL('../platform/offline-subtitle-files.ts', import.meta.url)),
-  './receipt-clock': await offlineModule(new URL('../platform/receipt-clock.ts', import.meta.url)),
+  './offline-subtitle-files': await offlineModule(new URL('../src-next/platform/offline-subtitle-files.ts', import.meta.url)),
+  './receipt-clock': await offlineModule(new URL('../src-next/platform/receipt-clock.ts', import.meta.url)),
   'react-native': boundary,
-  '../src-next/platform/server-connections': {nativeRouteCrypto: routeCrypto},
-  '../../../packages/client-core/src/index': {...core, DownloadsService: class {}, getDownloadRequest: () => {throw new Error('unexpected container request');}},
-  '../../../packages/client-core/src/presentation/service-text': services,
+  './server-connections': {nativeRouteCrypto: routeCrypto},
+  '../../../../packages/client-core/src/index': {...core, DownloadsService: class {}, getDownloadRequest: () => {throw new Error('unexpected container request');}},
+  '../../../../packages/client-core/src/presentation/service-text': services,
 });
 
 const A = {authority: 'local', accountId: 'account', profileId: 'profile-a', serverId: 'server'};

@@ -20,7 +20,7 @@ async function load(held: boolean, calls: unknown[][], theme: unknown, signIn = 
       forgetServer: async (value: unknown) => {calls.push(['forget', value]);},
       signOutServer: async (...args: unknown[]) => {calls.push(['sign-out', ...args]);}}},
     '../../../platform/app-session-storage': {nativeAppSessions: {read: async () => ({servers: [saved]}), selected: () => saved}, subscribeNativeAppSessions: () => () => {}},
-    '../../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []})}, offlineOwnerKey: () => 'owner'},
+    '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []})}, offlineOwnerKey: () => 'owner'},
     '../../../kit/theme': {useTheme: () => theme}, '../../../kit/navigation/back': {registerBack: () => () => {}},
     '../../../screens/accounts/downloads-entry': {createAccountDownloadsEntry: () => ({dispose() {}})},
     '../../../screens/accounts/account-form-values': {completeTVLinkCode: () => false, formatTVLinkCode: (value: string) => value},

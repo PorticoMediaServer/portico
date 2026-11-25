@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PlaybackService, type PlaybackApi} from '../../../packages/client-core/src/index.ts';
-import {LocalPlayback, isLocalSession, type LocalMedia, type LocalProgress} from '../platform/local-playback.ts';
+import {LocalPlayback, isLocalSession, type LocalMedia, type LocalProgress} from '../src-next/platform/local-playback.ts';
 
 const tick = () => new Promise(r => setImmediate(r));
 const media: LocalMedia = {entryId: 'dl1', itemId: 'movie1', playId: 'play-1', fileUrl: 'file:///var/app/Library/Application%20Support/Downloads/dl1/movie.mp4', durationSeconds: 600, startSeconds: 42};

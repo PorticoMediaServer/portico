@@ -1,4 +1,3 @@
-import {DockVideoExitImages} from '../src-next/kit/dock/video-exit-paint.ts';
 import {listeningCoverFixture} from './helpers/screen-harness.mjs';
 import {captureListeningOpening, expandedListeningOccupant, localListeningOccupant} from '../src-next/shell/listening-presentation.ts';
 import assert from 'node:assert/strict';
@@ -42,8 +41,6 @@ test('actual playback layer converts measured window slot to its own origin and 
     '../kit/player/ListeningSurface': {ListeningPagePreview: 'ListeningPagePreview', ListeningPageBackground: 'ListeningPageBackground'},
     '../pages/touch/player/AudioPlayerPage': {AudioPlayerPage: 'NowPlayingScreen'},
     '../pages/tv/player/ListeningRoute': {TVListeningRoute: 'TVListeningRoute'},
-    '../kit/dock/video-exit-paint': {DockVideoExitImages},
-    '../kit/dock/DockHandover': {DockVideoExitProvider: 'DockVideoExitProvider', DockVideoExitCanvas: 'DockVideoExitCanvas'},
     '../kit/dock/InitialPicturePresentation': {InitialPicturePresentation: 'InitialPicturePresentation'},
     '../kit/dock/initial-picture-model': {initialPictureKey: () => 'initial-picture'},
     '../kit/dock/ListeningCoverBridge': {...listeningCoverFixture, useListeningCoverPublication: (value: unknown) => {publication = value;}},
@@ -64,7 +61,6 @@ test('actual playback layer converts measured window slot to its own origin and 
     '../platform/playback/equalizer': {nativeEqualizer}, '../../../../packages/client-core/src/audio-effects': {listeningNoticeKey},
     './TouchPlaybackPreparation': {TouchPlaybackPreparation: 'TouchPlaybackPreparation'},
     './TVPlaybackPreparation': {TVPlaybackPreparation: 'TVPlaybackPreparation'},
-    './video-snapshot': {NativeVideoSnapshotCapture: class {async clear() {} async prepare() {}}},
     './watch-slot-layout': watchSlotLayout, './TVStartFailure': {TVStartFailure: 'TVStartFailure'}, './TouchStartFailure': {TouchStartFailure: 'TouchStartFailure'},
   });
   const retirement = new AbortController();

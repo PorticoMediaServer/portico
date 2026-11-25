@@ -11,7 +11,7 @@ const LAYERS: Record<string, string> = {
   'App.tsx': 'the app root: boot, sign-in, the account pages, the TV shell page',
   'shell/TouchStacks.tsx': 'every native stack screen',
   'shell/assembly.tsx': 'the TV route layer',
-  'shell/NativeShell.tsx': 'Settings as a page on a tablet',
+  'shell/TouchShell.tsx': 'Settings as a page on a tablet',
   'shell/StartupBoot.tsx': 'boot, while it fades out over the shell',
   'shell/TouchPlaybackPreparation.tsx': 'the wait before playback starts',
   'shell/TVPlaybackPreparation.tsx': 'the wait before playback starts, TV',

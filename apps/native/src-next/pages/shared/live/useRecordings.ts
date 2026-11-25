@@ -47,7 +47,7 @@ type DeleteAsk = Readonly<{opening: OverlayOpening; controller: NativeRecordings
 export type RecordingsProps = {controller: NativeRecordingsController; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime; onGuide: () => void; owner?: NativeLiveOwnerController};
 
 export function useRecordings({controller, ports, runtime, onGuide}: RecordingsProps) {
-  const theme = useTheme(), t = defaultI18n.t;
+  const theme = useTheme(), t = runtime.text.t;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), query = state.query;
   const ownerCanSeeRules = ports.context.account.account.role === 'owner';
   const canSeeRules = useCallback((snapshot: typeof state) => ownerCanSeeRules || snapshot.summary?.canRecord === true, [ownerCanSeeRules]);
@@ -55,7 +55,7 @@ export function useRecordings({controller, ports, runtime, onGuide}: RecordingsP
   const ids = useMemo(() => tvFocusIds(controller.lifetime.authority), [controller]), tabs = ids.surface('recordings.views'), body = ids.surface('recordings.page');
   const registry = useFocusRegistry(), bodyFocused = useRef(false);
   const [group, setGroup] = useState<Group>(), [menu, setMenu] = useState<OverlayOpening>(), [detail, setDetail] = useState<OverlayOpening>(), [rule, setRule] = useState<RecordingRule>();
-  const [confirm, setConfirm] = useState<Readonly<{recording: Recording; preview?: DeletePreview; opening: OverlayOpening}>>(), [newRule, setNewRule] = useState(false), [sortOpen, setSortOpen] = useState(false);
+  const [confirm, setConfirm] = useState<Readonly<{recording: Recording; preview?: DeletePreview; opening: OverlayOpening}>>(), [sortOpen, setSortOpen] = useState(false);
   const opener = useRef<View | null>(null), rows = useRef(new Map<string, View>()), cancel = useRef<View>(null);
   const list = useRef<FlatList<Row>>(null), alive = useRef(true), scrollIntent = useRef(false);
   const playOperations = useRef(new Set<AbortController>()), viewerOpening = useRef({}).current;
@@ -252,7 +252,7 @@ export function useRecordings({controller, ports, runtime, onGuide}: RecordingsP
     setRule(current => current === rule ? undefined : current);
   };
   return {theme, t, state, query, ids, tabs, body, bodyFocused, group, setGroup, menu, detail, rule, confirm, setConfirm,
-    newRule, setNewRule, sortOpen, setSortOpen, opener, cancel, list, alive, viewerOpening, overlay,
+    sortOpen, setSortOpen, opener, cancel, list, alive, viewerOpening, overlay,
     drawnCurrent, closeConfirm, retire, groups, rules, first, emptyGuide, entryRegion, enter, select, sort,
     selectSort, leaveGuide, back, open, close, askReady, run, play, askDelete, rowData, restartViewer, isEmpty, emptyTitle,
     emptyBody, unavailable, window, watchFocus, refRow, scroll, openRule, closeRule, ruleCurrent, availableViews};

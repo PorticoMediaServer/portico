@@ -48,6 +48,13 @@ test('the actual TV Search caller binds genuine query, navigation activation and
   });
   const {useTVSearch} = await screenModule(new URL('../src-next/pages/shared/search/useTVSearch.ts', import.meta.url), {
     react, '../../../kit/focus': {useFocusRegistry: () => registry},
+    '../../../kit/navigation/back': {registerBack: (handler: () => boolean, opts: {scope: string; active?: () => boolean}) => {
+      assert.equal(opts.scope, 'page');
+      assert.equal(typeof opts.active, 'function');
+      const wrapped = () => opts.active!() && handler();
+      pageBack = wrapped;
+      return () => {if (pageBack === wrapped) pageBack = undefined;};
+    }},
     '../../../kit/theme': {useTheme: () => theme}, '../../../screens/destinations/focus': {nativeDestinationFocusIds},
     '../../../screens/settings-live/use-tv-voice-search': {useTVVoiceSearch: () => ({busy: false})},
     '../../../kit/focus/recognizer-return': {retainRecognizerReturn}, '../../../shell/model': {sameAuthority}, './useSearch': {useSearch},
@@ -57,8 +64,7 @@ test('the actual TV Search caller binds genuine query, navigation activation and
     '../../../kit/search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'}, '../../shared/search/useTVSearch': {useTVSearch},
   });
   const props = {destination: {subscribe() {}, getSnapshot: () => state, setText: (text: string) => calls.push(text), refreshHistory: async () => {}},
-    runtime: {text: defaultI18n, getSnapshot: () => ({authority}), registerScrollToTop: () => () => {}, reportError: () => {},
-      registerTVPageBack: (handler: () => boolean, destination: unknown) => {assert.deepEqual(destination, {kind: 'search'}); pageBack = handler; return () => {if (pageBack === handler) pageBack = undefined;};}}, activation: {subscribe() {}, getSnapshot: () => activation}, explore: {subscribe() {}, getSnapshot: () => ({genres: []}), load: async () => {}},
+    runtime: {text: defaultI18n, getSnapshot: () => ({authority, destination: {kind: 'search'}, contentVisible: true, mediaExpanded: false, homeObscured: false, selectionActive: false}), registerScrollToTop: () => () => {}, reportError: () => {}}, activation: {subscribe() {}, getSnapshot: () => activation}, explore: {subscribe() {}, getSnapshot: () => ({genres: []}), load: async () => {}},
     actions: {}, copy: {preferToTalk: 'voice-title', voiceHint: 'voice-body'}};
   const tree = render(() => TVSearchPage(props));
   const keyboard = elements(tree.props.keyboard).find(node => node.type === 'NativeTVKeyboard')!;

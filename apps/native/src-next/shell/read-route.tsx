@@ -1,3 +1,4 @@
+import {Platform} from 'react-native';
 import type {NativeShellBootstrapContext} from './bootstrap';
 import type {PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
 import {nativeShellRoutes} from './route-registry';
@@ -17,4 +18,4 @@ export function createNativeReadModule(context: NativeShellBootstrapContext) {
   return createNativeReadRenderer(context, preferences, () => {openNativeReadingSettings(context);});
 }
 
-nativeShellRoutes.registerRoute('read', createNativeReadModule);
+if (!Platform?.isTV && !nativeShellRoutes.hasRoute?.('read')) nativeShellRoutes.registerRoute('read', createNativeReadModule);
